@@ -1,0 +1,23 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 141fdaf9fea..4d9afd55df0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1538,7 +1538,17 @@ endif()
+ # - WIN32
+ # - APPLE
+ 
+-if(UNIX AND NOT APPLE)
++if(EMSCRIPTEN)
++  # blender-web: the Emscripten/WebAssembly platform layer. Checked BEFORE the
++  # UNIX branch because Emscripten also sets UNIX=TRUE (it would otherwise match
++  # platform_unix). platform_wasm.cmake ships in the port's patches/ dir; make it
++  # discoverable via BLENDER_WEB_PATCH_DIR (passed with -D at configure time, or
++  # the file copied into build_files/cmake/platform/).
++  if(DEFINED BLENDER_WEB_PATCH_DIR)
++    list(APPEND CMAKE_MODULE_PATH "${BLENDER_WEB_PATCH_DIR}")
++  endif()
++  include(platform_wasm)
++elseif(UNIX AND NOT APPLE)
+   include(platform_unix)
+ elseif(WIN32)
+   include(platform_win32)

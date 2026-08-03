@@ -97,8 +97,15 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ### M1 remainder — port the core libs bmesh needs (dispatched 2026-08-03, post-disk-clear)
 
-- [ ] **M1.13 [build-deps]** `bf_blenkernel` compiles to wasm32 (claimed_by: sonnet-worker-1,
-  IN FLIGHT). Expect documented error classes (notes/porting-patterns.md); new fixes → patch 0007.
+- [ ] **M1.13 [build-deps]** `bf_blenkernel` compiles to wasm32. ROUND-1 RESULT (2026-08-03):
+  0/4 targets, ALL order-only-gated on GPU shader codegen; shader_tool-as-wasm mis-tokenizes
+  ~6 EEVEE shaders (notes/m1-shader-codegen-wasm.md). Wiring fixes proven (906 rc-126→0).
+  → **ADR-002 decided: shader_tool+datatoc run NATIVE** (ABI-baking makesdna/makesrna stay
+  wasm). **blocked-by M1.13a.** claimed_by: worker-1 (continuing).
+- [ ] **M1.13a [build-deps]** ADR-002 implementation: native shader_tool+datatoc in
+  build-hosttools/ (clang/NEON path); wasm tree's custom commands invoke them under
+  EMSCRIPTEN; byte-identity audit (wasm-generated outputs == native outputs for the clean
+  subset + all datatoc); rework wip-0007 accordingly (drop simd.hh widening from series).
 - [ ] **M1.14 [build-deps]** `bf_depsgraph` + `bf_blentranslation` + `bf_animrig` to wasm32
   (same worker, serial in one build tree; patch 0008+). **blocked-by M1.13** (shared tree).
 - [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna executes
@@ -136,8 +143,10 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   present, tests excluded). Zero patches, JS-EH.
 - [ ] **M2.3 [python-wasm]** Harvest `libpython3.13.a` + `include/python3.13/` + `Lib/` → `lib/wasm`;
   **re-enable `WITH_PYTHON ON`** in `blender_web.cmake`, wire PYTHON_* vars. **blocked-by M2.2.**
-- [ ] **M2.4 [build-deps]** Cross-compile the M1-deferred deps: OpenColorIO (yaml-cpp, expat,
-  pystring, minizip-ng, Imath, zlib) + freetype (brotli-enabled, zlib, png) + brotli. **blocked-by M1.6.**
+- [x] **M2.4 [build-deps]** Already done during M1: OCIO subtree forced by OIIO 3.x hard-dep
+  (M1.6, commit 5e379cd), freetype+brotli forced by no-off-switch (M1.8, 25ad33a). Verified
+  present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/
+  libyaml-cpp/libexpat/libpystring/libminizip.
 - [ ] **M2.5 [python-wasm]** `import bpy` headless in node/worker (tier-(b) entry). **blocked-by M2.3, M2.4.**
 - [ ] **M2.6 [harness]** Stock `--background --factory-startup` operator/bpy suite subset passes vs
   oracle → tier-(b) gate → **`<promise>M2_DEPS_PYTHON</promise>`**. **blocked-by M2.5.**

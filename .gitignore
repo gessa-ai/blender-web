@@ -17,3 +17,4 @@ build-hosttools/
 # build-deps worker artifacts (not committed)
 build-deps/
 lib/wasm/
+build-python-probe/

@@ -118,9 +118,15 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ## M2 — DEPS + PYTHON BOOTS
 
-- [ ] **M2.0 [driver GATE → decision]** Resolve toolchain ABI: **forward-port Pyodide's CPython
-  patches to emcc 6.0.5** vs **pin emsdk to Pyodide-validated 4.0.9**. One emcc governs Blender +
-  libpython + every dep. Must be settled before M2.1. (Decoupled from M1 by M1.3's WITH_PYTHON OFF.)
+- [x] **M2.0 [driver GATE]** DECIDED 2026-08-03 → **notes/adr/ADR-001**: stay on emcc 6.0.5;
+  build vanilla CPython 3.13.13 + minimal patch subset ({LONG_BIT, trampoline back-ported from
+  Pyodide MAIN}, added only as the build demands). 4.0.9 downgrade REJECTED (LLVM ABI break =
+  rebuild 29 deps; loses emdawnwebgpu ≥4.0.10 = the M3/M4 path). Evidence: 3-agent research wave.
+- [ ] **M2.0b [python-wasm EXPERIMENT]** Probe-build vanilla libpython3.13.a on emcc 6.0.5 in
+  BOTH exception configs (JS-EH `-fexceptions` like our 29 deps vs Wasm-EH `-fwasm-exceptions`
+  + `-sSUPPORT_LONGJMP=wasm` like Pyodide) — record what breaks where; the EH model must be
+  UNIFORM across Blender+deps+libpython (mixing forbidden). Decides the ADR-001 sub-decision.
+  Sandbox-scale (~2 GiB), runnable during M1 grind. Informs M2.7 (JSPI×longjmp) early.
 - [ ] **M2.1 [python-wasm]** Fetch `Python-3.13.13.tar.xz` (hash `versions.cmake:385`); record in
   `deps.json` (PSF, GPL-compat). **blocked-by M2.0.**
 - [ ] **M2.2 [python-wasm]** Build static `libpython3.13.a` (`--disable-shared

@@ -2,7 +2,6 @@
   "decided": {},
   "pending": [
     "python",
-    "tbb",
     "openexr",
     "oiio",
     "ocio",
@@ -287,6 +286,11 @@
       "version": "12.1.0",
       "status": "ok",
       "notes": "FMT_TEST/FMT_DOC OFF, static, -pthread; link+run test OK; installs lib/cmake/fmt config"
+    },
+    "tbb": {
+      "version": "2022.3.0",
+      "status": "ok",
+      "notes": "oneTBB v2022.3.0 static (BUILD_SHARED_LIBS=OFF) via emcc 6.0.5; -pthread; TBBMALLOC on, PROXY off (would collide with -sMALLOC=mimalloc). parallel_for VERIFIED running under wasm threads in node (14 threads, exact sum, no deadlock). Consumer flags: -pthread -fexceptions -sPROXY_TO_PTHREAD (browser-critical; node ok without) -sPTHREAD_POOL_SIZE. See notes/deps-tbb.md. libtbb.a+libtbbmalloc.a+cmake config in lib/wasm."
     }
   }
 }

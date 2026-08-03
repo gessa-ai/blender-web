@@ -11,3 +11,4 @@ oracle/blender-*
 ledger/buildlogs/
 ledger/loop.err
 .claude/heartbeat
+build-wasm/

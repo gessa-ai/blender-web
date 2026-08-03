@@ -3,3 +3,5 @@ M0.6 2026-08-03T12:37:19Z blender_web.cmake drafted: 77 WITH_* opts (lite U head
 M0.7 2026-08-03T12:37:19Z compliance skeleton: LICENSES/{GPL-2.0-or-later,GPL-3.0-or-later,CC0-1.0} + LICENSE/NOTICE/PROVENANCE.md/THIRD-PARTY.md/REUSE.toml; authored files lint-clean (0 missing/unused); full-repo green = follow-up (22 scaffold files + GOAL.md prose invalid-expr, edit-forbidden)
 M0.2 done 2026-08-03 emcc 6.0.5 hello-wasm ok emdawnwebgpu ok (disk ~10.6GiB free — see M0.8)
 M0.3 done 2026-08-03 blender 5.2.0 oracle ok oiiotool ok
+M0.4 done 2026-08-03 buildwrap FAIL path proven (rc=1, errors capped via grep|head -50, log path shown); OK path from M0.2
+M0.5 done 2026-08-03 harness v1: run.sh --scope m0 6/6 GREEN -> ledger/results/m0.json; status.sh live; .claude/harness.lock set (harness+oracle write-protected)

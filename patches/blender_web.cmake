@@ -30,6 +30,16 @@
 # Example usage:
 #   emcmake cmake -C../blender/patches/blender_web.cmake ../blender
 
+# ---- Locate the port's platform layer --------------------------------------
+# patches/0001-platform-wasm.patch adds an `if(EMSCRIPTEN) include(platform_wasm)`
+# branch to upstream/CMakeLists.txt. That include resolves platform_wasm.cmake via
+# CMAKE_MODULE_PATH, to which the patch appends BLENDER_WEB_PATCH_DIR. Set it here
+# to this config file's own directory (patches/) so the canonical configure
+#   emcmake cmake -S upstream -B build-wasm -C patches/blender_web.cmake ...
+# is self-contained (no extra -D needed).
+set(BLENDER_WEB_PATCH_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH
+    "Directory holding platform_wasm.cmake (the blender-web patches/ dir)" FORCE)
+
 # ---- Web platform: headless core, no native windowing ----------------------
 set(WITH_HEADLESS            ON  CACHE BOOL "" FORCE)  # ship GHOST_SystemWeb instead
 set(WITH_GHOST_SDL          OFF CACHE BOOL "" FORCE)
@@ -40,13 +50,24 @@ set(WITH_X11_XINPUT         OFF CACHE BOOL "" FORCE)
 set(WITH_INPUT_IME          OFF CACHE BOOL "" FORCE)
 set(WITH_INPUT_NDOF         OFF CACHE BOOL "" FORCE)
 
+# ---- M1 core-boots ONLY: Python + Cycles forced OFF ------------------------
+# TEMPORARY, milestone-scoped override (checkpoint-01). Both WITH_PYTHON and
+# WITH_CYCLES RETURN in M2 and are NOT standing decisions:
+#   * WITH_PYTHON is MANDATORY for the UI — the entire menu/panel layer is Python
+#     (scripts/startup/bl_ui). It is OFF here purely to keep cross-compiled CPython
+#     3.13 off the M1 "core boots + free oracle" critical path (blenlib/bmesh gtests
+#     don't need the interpreter).
+#   * WITH_CYCLES (CPU-only) is a launch-tier feature; OFF here to keep the
+#     OIIO/render dependency stack off the M1 configure/link path.
+# When flipping these back ON in M2, restore the CPU-only Cycles device block below.
+set(WITH_PYTHON             OFF CACHE BOOL "" FORCE)  # M1-only — MANDATORY again in M2 (Python UI)
+
 # ---- Held ON (mandatory for the port) --------------------------------------
-set(WITH_PYTHON              ON  CACHE BOOL "" FORCE)  # entire UI layer is Python
 set(WITH_TBB                 ON  CACHE BOOL "" FORCE)
 set(WITH_TBB_MALLOC_PROXY   OFF CACHE BOOL "" FORCE)   # emscripten uses -sMALLOC=mimalloc
 
-# ---- Cycles: kept ON, CPU-only ---------------------------------------------
-set(WITH_CYCLES                       ON  CACHE BOOL "" FORCE)
+# ---- Cycles: OFF for M1, returns CPU-only in M2 ----------------------------
+set(WITH_CYCLES                      OFF CACHE BOOL "" FORCE)  # M1-only — returns (CPU-only) in M2
 set(WITH_CYCLES_OSL                  OFF CACHE BOOL "" FORCE)  # no JIT in the sandbox
 set(WITH_CYCLES_EMBREE               OFF CACHE BOOL "" FORCE)  # x86/arm SIMD, no wasm
 set(WITH_CYCLES_PATH_GUIDING         OFF CACHE BOOL "" FORCE)  # OpenPGL, unported

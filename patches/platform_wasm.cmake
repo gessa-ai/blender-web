@@ -20,6 +20,14 @@ if(NOT EMSCRIPTEN)
   message(FATAL_ERROR "platform_wasm.cmake included on a non-Emscripten toolchain")
 endif()
 
+# find_package_wrapper is defined by platform_unix.cmake, which this file replaces
+# for the Emscripten branch. A handful of downstream listfiles still reference it
+# (e.g. tests/python/CMakeLists.txt, gated behind WITH_ALEMBIC). Provide the same
+# thin shim so those paths don't hit an undefined-macro error.
+macro(find_package_wrapper)
+  find_package(${ARGV})
+endmacro()
+
 # -----------------------------------------------------------------------------
 # Precompiled library discovery
 #
@@ -53,6 +61,84 @@ unset(_wasm_libdir_contents)
 
 # Prefer static libraries (there is no shared-object loading in mono-wasm).
 set(WITH_STATIC_LIBS ON)
+
+# -----------------------------------------------------------------------------
+# GPU backend selection — WebGPU only (no GL, no Vulkan, no Epoxy)
+#
+# On non-Apple platforms upstream defaults WITH_OPENGL_BACKEND=ON and
+# WITH_VULKAN_BACKEND=ON (root CMakeLists.txt L933/L941), and platform_unix.cmake
+# then `find_package_wrapper(Epoxy REQUIRED)` (GL loader) and, under Vulkan,
+# `find_package_wrapper(ShaderC REQUIRED)` / FindVulkan. This port bypasses
+# platform_unix, so those REQUIRED finds never run — but the option defaults would
+# still switch on the GL and Vulkan backend code in source/blender/gpu. The port
+# ships its own `gpu/webgpu/` backend instead, so force both legacy backends OFF:
+#
+#   * OpenGL OFF  -> drops the Epoxy dependency entirely (its only REQUIRED find
+#                    lived in platform_unix; no WebGPU consumer of GL exists).
+#   * Vulkan OFF  -> drops Vulkan + ShaderC. The BSL->SPIR-V->WGSL shader chain
+#                    (M3) will re-introduce shaderc/Tint through the WebGPU backend,
+#                    not through WITH_VULKAN_BACKEND.
+#
+# These run after the option() declarations (root L933/L941) but before the gpu
+# subdirectory is added, so FORCE wins.
+set(WITH_OPENGL_BACKEND OFF CACHE BOOL "" FORCE)  # no GL in a WebGPU-only build (drops Epoxy)
+set(WITH_VULKAN_BACKEND OFF CACHE BOOL "" FORCE)  # WebGPU backend replaces Vulkan/ShaderC
+
+# Neutralize Epoxy so nothing downstream can hard-require it. dependency_targets.cmake
+# still builds an INTERFACE bf_deps_epoxy from these vars (harmless when empty); the
+# only find_package(Epoxy REQUIRED) was in platform_unix, which we do not include.
+set(EPOXY_INCLUDE_DIRS "" CACHE STRING "" FORCE)
+set(EPOXY_LIBRARIES    "" CACHE STRING "" FORCE)
+
+# -----------------------------------------------------------------------------
+# M1 pre-M2 mandatory-dependency PLACEHOLDERS (TEMPORARY — deleted at M2)
+#
+# Blender 5.2 made OpenColorIO / OpenImageIO(+oiiotool) / OpenEXR / fmt / Eigen3
+# non-optional: build_files/cmake/platform/dependency_targets.cmake ALIASes them
+# unconditionally (lines 82,93,143-144,185,464 @ fbe6228777e7), and
+# source/creator/CMakeLists.txt:42 splices ${TBB_LIBRARIES} with no WITH_ guard.
+# In a native build platform_unix.cmake's find_package_wrapper() creates these
+# imported targets; there is no lib/wasm harvest until M2, so with WITH_LIBS_PRECOMPILED
+# OFF we define empty INTERFACE placeholders purely so the CMAKE configure completes
+# and can be regression-checked (proving the CMake spine, not building anything).
+#
+# This is NOT parity theater and NOT a test/harness stub: it satisfies configure-time
+# target existence only, is fenced behind `NOT WITH_LIBS_PRECOMPILED`, and is
+# superseded automatically the moment lib/wasm is populated (then real find_package()
+# results supply these targets). Delete this whole block when the M2 superbuild lands.
+if(NOT WITH_LIBS_PRECOMPILED)
+  foreach(_bw_iface
+      OpenColorIO::OpenColorIO
+      OpenImageIO::OpenImageIO
+      OpenEXR::OpenEXR
+      fmt::fmt
+      Eigen3::Eigen
+      TBB::tbb)
+    if(NOT TARGET ${_bw_iface})
+      add_library(${_bw_iface} INTERFACE IMPORTED GLOBAL)
+    endif()
+  endforeach()
+  unset(_bw_iface)
+
+  # oiiotool is consumed via get_target_property(... LOCATION) at
+  # dependency_targets.cmake:144; the property only has to READ at configure time
+  # (data-gen steps that would actually RUN it are build-time, and M1 does not build).
+  if(NOT TARGET OpenImageIO::oiiotool)
+    add_executable(OpenImageIO::oiiotool IMPORTED GLOBAL)
+    set_target_properties(OpenImageIO::oiiotool PROPERTIES
+      IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/bw_m1_placeholder/oiiotool")
+  endif()
+
+  # TBB: WITH_TBB is ON; source/creator splices ${TBB_LIBRARIES} into LIB, so an
+  # empty var aborts. Placeholder path only (never linked in an M1 configure).
+  set(TBB_LIBRARIES    "${CMAKE_BINARY_DIR}/bw_m1_placeholder/libtbb.a" CACHE STRING "" FORCE)
+  set(TBB_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/bw_m1_placeholder"          CACHE PATH   "" FORCE)
+
+  if(FIRST_RUN)
+    message(STATUS "blender-web: M1 placeholder dep targets active "
+                   "(OCIO/OIIO/oiiotool/OpenEXR/fmt/Eigen3/TBB) — replaced by lib/wasm at M2.")
+  endif()
+endif()
 
 # -----------------------------------------------------------------------------
 # Toolchain sanity: mono-wasm, no LTO on dev/iteration builds

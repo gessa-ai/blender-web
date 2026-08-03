@@ -301,6 +301,19 @@
       "version": "1.6.58",
       "status": "ok",
       "notes": "static, -pthread, PNG_HARDWARE_OPTIMIZATIONS=OFF; links against lib/wasm zlib 1.3.1. scripts/deps/libpng.sh"
+    },
+    "epoxy": {
+      "version": "1.5.10",
+      "status": "skipped",
+      "notes": "M1.2: WITH_OPENGL_BACKEND OFF in platform_wasm.cmake; only REQUIRED find lived in platform_unix (bypassed). No GL consumer in WebGPU build; not cross-compiled."
+    },
+    "vulkan": {
+      "status": "skipped",
+      "notes": "M1.2: WITH_VULKAN_BACKEND forced OFF in platform_wasm.cmake; WebGPU backend replaces it. Not built."
+    },
+    "shaderc": {
+      "status": "skipped",
+      "notes": "M1.2: dropped with Vulkan backend; BSL->SPIR-V->WGSL chain re-introduces it via gpu/webgpu in M3. Not built."
     }
   }
 }

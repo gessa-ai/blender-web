@@ -22,10 +22,11 @@ deferrable to M2. And **the whole M1 dep build is gated on disk** (see M0.8-CRIT
 
 ## M0 residual (must clear before / alongside M1)
 
-- [ ] **M0.8-CRIT [driver → HUMAN]** Disk at **100% full, 4.9 GiB free** (`df` on /Users/paws,
-  2026-08-03). GOAL requires ≥40 GB before M2; the M1 dep superbuild (OIIO+EXR+TBB build
-  trees) alone will exceed free space. **PAGE the human** — reclaim space or mount an external
-  volume for `lib/wasm` build trees + `EM_CACHE`. **Blocks M1.4 and everything downstream.**
+- [x] **M0.8-CRIT [driver → HUMAN]** Disk blocker — paged twice (both 2026-08-03: first at
+  4.9 GiB pre-deps; recurred same day at 4.9→3.8 GiB, consumer was other projects' /private/tmp
+  build dirs, see reports/disk-block-20260803.md). Human cleared to **18 GiB free** — M1 wave
+  unblocked. **Residual: GOAL requires ≥40 GB before M2 (CPython superbuild) — re-page at M2 entry
+  if below.** Disk monitor pattern: background `until df -g ...` watch.
 - [ ] **M0-hygiene [harness]** Fold `git -C upstream lfs pull --include "release/datafiles/*"`
   into the pinned-checkout step so every worker starts with complete data (recon blocker #1:
   `startup.blend` was a 131 B LFS pointer → `CMakeLists.txt:96` fatal; pulled ad-hoc this round,
@@ -84,12 +85,26 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [ ] **M1.9 [build-deps]** `ninja` the headless core (blenlib, bmesh, intern/*, extern/*, DNA/RNA,
   blenkernel, depsgraph; GPU/UI stubbed) to wasm; fix compile errors at root cause, log recurring
   fixes in `notes/porting-patterns.md`. **blocked-by M1.8.**
-- [ ] **M1.10 [harness]** Link + run the **blenlib gtest** suite under node → tier-(a) gate ½.
-  **blocked-by M1.9, H-2.** Needs a harness `m1` scope (driver lifts lock at M1 boundary).
+- [x] **M1.10 [harness]** blenlib gtests GREEN on wasm/node: **1655/1665**, 10 non-passes all
+  characterized non-faithfulness (9 fenv deferral + 1 macOS-host chdir). `ledger/results/m1.json`.
+  Harness `m1` scope registration deferred to the M1-boundary reconcile (H-4).
 - [ ] **M1.11 [harness]** Link + run the **bmesh_core gtest** suite under node → tier-(a) gate 2⁄2.
-  **blocked-by M1.9.**
+  **blocked-by M1.13, M1.14, M1.15.** Approach (hand-link vs combined blender_test) per recon verdict.
 - [ ] **M1.12 [harness]** `.blend` corpus loads with state-dump parity vs the native oracle →
   completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.**
+
+### M1 remainder — port the core libs bmesh needs (dispatched 2026-08-03, post-disk-clear)
+
+- [ ] **M1.13 [build-deps]** `bf_blenkernel` compiles to wasm32 (claimed_by: sonnet-worker-1,
+  IN FLIGHT). Expect documented error classes (notes/porting-patterns.md); new fixes → patch 0007.
+- [ ] **M1.14 [build-deps]** `bf_depsgraph` + `bf_blentranslation` + `bf_animrig` to wasm32
+  (same worker, serial in one build tree; patch 0008+). **blocked-by M1.13** (shared tree).
+- [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna generates
+  RNA sources; datatoc rc-126 fixed via blender_web_host_tool() pattern. (In worker scope if hit
+  during M1.13/14; else follow-up per recon findings.)
+- [ ] **M1.16 [driver]** M1-boundary harness reconcile: lift lock, register `m1` scope per H-4
+  (blenlib assert 1655/10-characterized), add bmesh check once M1.11 lands, re-lock, re-run
+  `--scope m0` + `--regress`. **blocked-by M1.11.**
 
 ---
 

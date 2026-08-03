@@ -1,49 +1,230 @@
 {
   "decided": {},
-  "pending": ["python", "tbb", "openexr", "oiio", "ocio", "zlib", "freetype", "epoxy?"],
+  "pending": [
+    "python",
+    "tbb",
+    "openexr",
+    "oiio",
+    "ocio",
+    "zlib",
+    "freetype",
+    "epoxy?"
+  ],
   "mandatory_minimal": {
     "_note": "Evidence-derived (pin fbe6228777e7). HARD deps that must exist before Blender core links even with every optional WITH_* OFF. Sources: platform_unix.cmake unconditional find_package(REQUIRED); dependency_targets.cmake link targets; blenlib/CMakeLists.txt LIB list. See notes/m1-dep-graph.md.",
     "_critical_finding": "blenlib PUBLIC-links OpenImageIO::OpenImageIO (dependency_targets.cmake:143) + fmt/zlib/zstd/tbb, so the Imath->OpenEXR->OIIO stack is on the M1 tier-(a) gtest critical path, NOT deferrable to M2.",
     "non_gated_required": {
       "_where": "platform_unix.cmake find_package(REQUIRED) with no WITH_* guard",
-      "libs": ["JPEG", "PNG", "ZLIB", "Zstd", "Epoxy", "fmt", "OpenEXR(+Imath)", "OpenImageIO", "OpenColorIO", "Threads/pthreads", "Eigen3", "Freetype(+brotli)"]
+      "libs": [
+        "JPEG",
+        "PNG",
+        "ZLIB",
+        "Zstd",
+        "Epoxy",
+        "fmt",
+        "OpenEXR(+Imath)",
+        "OpenImageIO",
+        "OpenColorIO",
+        "Threads/pthreads",
+        "Eigen3",
+        "Freetype(+brotli)"
+      ]
     },
     "gated_but_on_for_us": {
       "python": "WITH_PYTHON option default ON, mandatory for UI",
       "tbb": "WITH_TBB option default ON (CMakeLists.txt:756); Eigen opts into EIGEN_HAS_TBB"
     },
     "deps": {
-      "zlib":         {"version": "1.3.1",     "class": "emscripten-port", "wasm_diff": 1, "notes": "--use-port=zlib; transitive everywhere"},
-      "zstd":         {"version": "1.5.7",     "class": "external",        "wasm_diff": 1},
-      "fmt":          {"version": "12.1.0",    "class": "external",        "wasm_diff": 1},
-      "imath":        {"version": "3.2.2",     "class": "external",        "wasm_diff": 2, "notes": "via EXR/OIIO/OCIO"},
-      "eigen":        {"version": "8a1083e9",  "class": "external-headers","wasm_diff": 1},
-      "robinmap":     {"version": "1.3.0",     "class": "external-headers","wasm_diff": 1, "notes": "OIIO dep"},
-      "pugixml":      {"version": "1.10",      "class": "external",        "wasm_diff": 1, "notes": "OIIO build dep (distinct from Blender WITH_PUGIXML feature in forced_off)"},
-      "brotli":       {"version": "1.0.9",     "class": "external",        "wasm_diff": 1, "notes": "freetype woff2; platform FATALs without it"},
-      "yamlcpp":      {"version": "0.8.0",     "class": "external",        "wasm_diff": 1, "notes": "OCIO dep"},
-      "expat":        {"version": "2.7.5",     "class": "external",        "wasm_diff": 1, "notes": "OCIO dep"},
-      "pystring":     {"version": "1.1.3",     "class": "external",        "wasm_diff": 1, "notes": "OCIO dep"},
-      "jpeg":         {"version": "2.1.3",     "class": "external",        "wasm_diff": 2, "notes": "libjpeg-turbo; WITH_SIMD=OFF for wasm"},
-      "png":          {"version": "1.6.58",    "class": "emscripten-port", "wasm_diff": 2, "notes": "-sUSE_LIBPNG; needs zlib"},
-      "tiff":         {"version": "bundled",   "class": "external",        "wasm_diff": 2, "notes": "OIIO REQUIRED_DEP; needs zlib+jpeg"},
-      "minizipng":    {"version": "4.0.10",    "class": "external",        "wasm_diff": 2, "notes": "OCIO dep; disable bzip2/iconv/openssl"},
-      "tbb":          {"version": "2022.3.0",  "class": "external",        "wasm_diff": 4, "notes": "oneTBB over -pthread+SharedArrayBuffer; threading is the risk"},
-      "freetype":     {"version": "2.13.3",    "class": "port-or-external","wasm_diff": 2, "notes": "must be brotli-enabled; deferrable past M1 gtest link"},
-      "openexr":      {"version": "3.4.10",    "class": "external",        "wasm_diff": 3, "notes": "needs Imath+zlib"},
-      "opencolorio":  {"version": "2.5.0",     "class": "external",        "wasm_diff": 3, "notes": "deps Imath/yamlcpp/expat/pystring/zlib/minizipng; no py bindings for core; deferrable past M1"},
-      "openimageio":  {"version": "3.1.13.1",  "class": "external",        "wasm_diff": 4, "notes": "biggest; deps EXR/Imath/fmt/robinmap/pugixml/tiff/jpeg/png/zlib/tbb; no Boost in 3.x"},
-      "python":       {"version": "3.13.13",   "class": "external",        "wasm_diff": 5, "notes": "Pyodide precedent; long pole; needs libffi; deferrable past M1 gtest link"},
-      "epoxy":        {"version": "1.5.10",    "class": "patch-out",       "wasm_diff": 0, "notes": "GL/EGL loader; no consumer in WebGPU-only build; drop the REQUIRED in platform_web.cmake, do NOT cross-compile"},
-      "pthreads":     {"version": "builtin",   "class": "emscripten-builtin","wasm_diff": 1}
+      "zlib": {
+        "version": "1.3.1",
+        "class": "emscripten-port",
+        "wasm_diff": 1,
+        "notes": "--use-port=zlib; transitive everywhere"
+      },
+      "zstd": {
+        "version": "1.5.7",
+        "class": "external",
+        "wasm_diff": 1
+      },
+      "fmt": {
+        "version": "12.1.0",
+        "class": "external",
+        "wasm_diff": 1
+      },
+      "imath": {
+        "version": "3.2.2",
+        "class": "external",
+        "wasm_diff": 2,
+        "notes": "via EXR/OIIO/OCIO"
+      },
+      "eigen": {
+        "version": "8a1083e9",
+        "class": "external-headers",
+        "wasm_diff": 1
+      },
+      "robinmap": {
+        "version": "1.3.0",
+        "class": "external-headers",
+        "wasm_diff": 1,
+        "notes": "OIIO dep"
+      },
+      "pugixml": {
+        "version": "1.10",
+        "class": "external",
+        "wasm_diff": 1,
+        "notes": "OIIO build dep (distinct from Blender WITH_PUGIXML feature in forced_off)"
+      },
+      "brotli": {
+        "version": "1.0.9",
+        "class": "external",
+        "wasm_diff": 1,
+        "notes": "freetype woff2; platform FATALs without it"
+      },
+      "yamlcpp": {
+        "version": "0.8.0",
+        "class": "external",
+        "wasm_diff": 1,
+        "notes": "OCIO dep"
+      },
+      "expat": {
+        "version": "2.7.5",
+        "class": "external",
+        "wasm_diff": 1,
+        "notes": "OCIO dep"
+      },
+      "pystring": {
+        "version": "1.1.3",
+        "class": "external",
+        "wasm_diff": 1,
+        "notes": "OCIO dep"
+      },
+      "jpeg": {
+        "version": "2.1.3",
+        "class": "external",
+        "wasm_diff": 2,
+        "notes": "libjpeg-turbo; WITH_SIMD=OFF for wasm"
+      },
+      "png": {
+        "version": "1.6.58",
+        "class": "emscripten-port",
+        "wasm_diff": 2,
+        "notes": "-sUSE_LIBPNG; needs zlib"
+      },
+      "tiff": {
+        "version": "bundled",
+        "class": "external",
+        "wasm_diff": 2,
+        "notes": "OIIO REQUIRED_DEP; needs zlib+jpeg"
+      },
+      "minizipng": {
+        "version": "4.0.10",
+        "class": "external",
+        "wasm_diff": 2,
+        "notes": "OCIO dep; disable bzip2/iconv/openssl"
+      },
+      "tbb": {
+        "version": "2022.3.0",
+        "class": "external",
+        "wasm_diff": 4,
+        "notes": "oneTBB over -pthread+SharedArrayBuffer; threading is the risk"
+      },
+      "freetype": {
+        "version": "2.13.3",
+        "class": "port-or-external",
+        "wasm_diff": 2,
+        "notes": "must be brotli-enabled; deferrable past M1 gtest link"
+      },
+      "openexr": {
+        "version": "3.4.10",
+        "class": "external",
+        "wasm_diff": 3,
+        "notes": "needs Imath+zlib"
+      },
+      "opencolorio": {
+        "version": "2.5.0",
+        "class": "external",
+        "wasm_diff": 3,
+        "notes": "deps Imath/yamlcpp/expat/pystring/zlib/minizipng; no py bindings for core; deferrable past M1"
+      },
+      "openimageio": {
+        "version": "3.1.13.1",
+        "class": "external",
+        "wasm_diff": 4,
+        "notes": "biggest; deps EXR/Imath/fmt/robinmap/pugixml/tiff/jpeg/png/zlib/tbb; no Boost in 3.x"
+      },
+      "python": {
+        "version": "3.13.13",
+        "class": "external",
+        "wasm_diff": 5,
+        "notes": "Pyodide precedent; long pole; needs libffi; deferrable past M1 gtest link"
+      },
+      "epoxy": {
+        "version": "1.5.10",
+        "class": "patch-out",
+        "wasm_diff": 0,
+        "notes": "GL/EGL loader; no consumer in WebGPU-only build; drop the REQUIRED in platform_web.cmake, do NOT cross-compile"
+      },
+      "pthreads": {
+        "version": "builtin",
+        "class": "emscripten-builtin",
+        "wasm_diff": 1
+      }
     },
-    "bundled_always_built": ["curve_fit_nd", "fast_float", "json", "rangetree", "nanosvg", "wcwidth", "xxhash", "gtest", "gmock"],
+    "bundled_always_built": [
+      "curve_fit_nd",
+      "fast_float",
+      "json",
+      "rangetree",
+      "nanosvg",
+      "wcwidth",
+      "xxhash",
+      "gtest",
+      "gmock"
+    ],
     "build_order": {
-      "wave0_leaves": ["zlib", "zstd", "fmt", "imath", "brotli", "robinmap", "pugixml", "yamlcpp", "expat", "pystring", "eigen", "jpeg", "png", "tbb", "python"],
-      "wave1": ["openexr", "tiff", "minizipng", "freetype"],
-      "wave2": ["openimageio", "opencolorio"],
-      "m1_gtest_critical_path": ["imath", "openexr", "tiff", "openimageio", "fmt", "zlib", "zstd", "tbb"],
-      "deferrable_past_m1": ["opencolorio", "freetype", "python", "epoxy"]
+      "wave0_leaves": [
+        "zlib",
+        "zstd",
+        "fmt",
+        "imath",
+        "brotli",
+        "robinmap",
+        "pugixml",
+        "yamlcpp",
+        "expat",
+        "pystring",
+        "eigen",
+        "jpeg",
+        "png",
+        "tbb",
+        "python"
+      ],
+      "wave1": [
+        "openexr",
+        "tiff",
+        "minizipng",
+        "freetype"
+      ],
+      "wave2": [
+        "openimageio",
+        "opencolorio"
+      ],
+      "m1_gtest_critical_path": [
+        "imath",
+        "openexr",
+        "tiff",
+        "openimageio",
+        "fmt",
+        "zlib",
+        "zstd",
+        "tbb"
+      ],
+      "deferrable_past_m1": [
+        "opencolorio",
+        "freetype",
+        "python",
+        "epoxy"
+      ]
     }
   },
   "forced_off": {
@@ -80,5 +261,32 @@
     "quadriflow": "unused",
     "draco": "unused",
     "image_codecs": "unported"
+  },
+  "wasm_built": {
+    "imath": {
+      "version": "3.2.2",
+      "status": "ok",
+      "notes": "static -pthread; CMake config at lib/wasm/lib/cmake/Imath (verified find_package-ready); emcc link test OK; libImath-3_2.a"
+    },
+    "eigen": {
+      "version": "8a1083e9bf41b91fdea6546681f806154efdc25a",
+      "status": "ok",
+      "notes": "header-only; config at lib/wasm/share/eigen3/cmake; EIGEN_BUILD_BLAS/LAPACK=OFF (install had no built blas .a); TBB patch skipped; emcc compile test <Eigen/Dense> OK"
+    },
+    "zlib": {
+      "version": "1.3.1",
+      "status": "ok",
+      "notes": "built from Blender-pinned source into lib/wasm (real libz.a) rather than only the emcc --use-port=zlib port, so downstream find_package(ZLIB) for OpenEXR/OIIO/libpng/minizip resolves against a discoverable static archive+header; -pthread; link+run test OK (zlibVersion 1.3.1)"
+    },
+    "zstd": {
+      "version": "1.5.7",
+      "status": "ok",
+      "notes": "build/cmake, static only, programs/tests/multithread OFF, -pthread; link+run test OK (ZSTD_versionNumber 10507)"
+    },
+    "fmt": {
+      "version": "12.1.0",
+      "status": "ok",
+      "notes": "FMT_TEST/FMT_DOC OFF, static, -pthread; link+run test OK; installs lib/cmake/fmt config"
+    }
   }
 }

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Deny writes to protected paths. harness/+oracle/ lock activates once .claude/harness.lock exists
 # (they must first be BUILT during M0). upstream/ and tests/golden/ are always protected.
 INPUT=$(cat)

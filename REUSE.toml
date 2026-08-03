@@ -25,3 +25,53 @@ path = ["ledger/**", "notes/**", "reports/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 blender-web contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+# Locked scripts we cannot inline-header: .claude/harness.lock write-protects
+# harness/** and oracle/**, so cover their executable scripts by glob (REUSE 3.3
+# annotations). Part of the GPL-3.0-or-later aggregate like the rest of the
+# port machinery (loop/worker/bootstrap/hooks/sandbox carry inline headers).
+[[annotations]]
+path = ["harness/**", "oracle/bpy.sh"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Port patches against upstream Blender source (diffs begin with `diff --git`,
+# so an inline header would corrupt them). Derived from GPL-2.0-or-later upstream
+# files, so they carry upstream's terms.
+[[annotations]]
+path = "patches/*.patch"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Authored config, pins, sentinels and prose docs where an inline SPDX header is
+# awkward (JSON/.gitignore), forbidden (locked oracle/ pins) or edit-frozen mid
+# session (GOAL.md/CLAUDE.md, thrift rule 5). Public-domain dedication — no
+# downstream conditions.
+[[annotations]]
+path = [
+  "CLAUDE.md",
+  "LAUNCH.md",
+  "SETUP.md",
+  "fix_plan.md",
+  ".gitignore",
+  ".claude/settings.json",
+  "oracle/PIN",
+  "oracle/TOOLCHAIN",
+  "scripts/bootstrap.done",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# GOAL.md is the driver prompt (prose). It quotes an SPDX template inline
+# ("SPDX-License-Identifier: GPL-2.0-or-later ..."), which the linter would misread
+# as this file's own (invalid) license expression. precedence = "override" makes
+# REUSE take licensing solely from here and skip scanning the file body. Left
+# un-edited on purpose so the prompt prefix stays byte-stable (thrift rule 5).
+[[annotations]]
+path = "GOAL.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"

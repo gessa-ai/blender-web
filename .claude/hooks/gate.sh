@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 INPUT=$(cat)
 echo "$INPUT" | grep -q '"stop_hook_active":\s*true' && exit 0
 if [ -f "${CLAUDE_PROJECT_DIR}/harness/GATE_RED" ]; then

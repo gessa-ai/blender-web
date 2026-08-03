@@ -5,3 +5,4 @@ M0.2 done 2026-08-03 emcc 6.0.5 hello-wasm ok emdawnwebgpu ok (disk ~10.6GiB fre
 M0.3 done 2026-08-03 blender 5.2.0 oracle ok oiiotool ok
 M0.4 done 2026-08-03 buildwrap FAIL path proven (rc=1, errors capped via grep|head -50, log path shown); OK path from M0.2
 M0.5 done 2026-08-03 harness v1: run.sh --scope m0 6/6 GREEN -> ledger/results/m0.json; status.sh live; .claude/harness.lock set (harness+oracle write-protected)
+compliance 2026-08-03 reuse lint GREEN 39/39 (8 inline SPDX headers on editable scripts/probes; harness/oracle/docs/patch/config via REUSE.toml globs; GOAL.md precedence=override suppresses quoted-SPDX invalid-expr)

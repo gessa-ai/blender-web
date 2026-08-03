@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Driver loop — runs GOAL.md iterations via `claude -p` until promise tag or max iterations.
 # Subscription billing: iteration-gated, not dollar-gated; backs off through rate-limit windows.
 # Usage: ./loop.sh [MAX_ITER]   (default: 200)

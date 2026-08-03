@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Area worker: ./worker.sh <area> [claude|codex] [MAX_ITER]
 # Runs GOAL.md iterations scoped to one path-owned area, in its own git worktree.
 set -uo pipefail

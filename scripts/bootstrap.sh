@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # One-time bootstrap: blobless clone of Blender at the pin. Skips lib/* submodules
 # (native prebuilts — not used by the wasm path; deps come from the build_environment superbuild).
 set -euo pipefail

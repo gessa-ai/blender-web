@@ -128,13 +128,12 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   joins the 29 JS-EH deps with zero rebuild; Wasm-EH proven viable as later fallback. Open:
   JSPI×setjmp at full link (M2.7); `_ctypes/_ssl/_hashlib/_lzma/_uuid` need libffi/openssl/xz
   if bpy startup requires (check at M2.5).
-- [ ] **M2.1 [python-wasm]** Fetch `Python-3.13.13.tar.xz` (hash verified: MD5 matches
-  `versions.cmake:385`); record in `deps.json` (PSF, GPL-compat).
-- [ ] **M2.2 [python-wasm]** Productionize the probe recipe as `scripts/deps/python.sh`
-  (idempotent, like other deps): vanilla source, NO patches, **JS-EH** (`-fexceptions`,
-  browser static, `--disable-shared --with-emscripten-target=browser --with-build-python`;
-  macOS note: native bootstrap binary is `python.exe`). Probe artifacts are evidence, not
-  deliverables — rebuild through the script. **blocked-by M2.1.**
+- [x] **M2.1 [python-wasm]** DONE (21b5fe3): deps.json `wasm_built.python` (PSF-2.0,
+  GPL-compat, MD5 vs versions.cmake:385).
+- [x] **M2.2 [python-wasm]** DONE (21b5fe3): `scripts/deps/python.sh` idempotent (2nd run 0s),
+  clean-state verified via buildwrap. Harvest: `lib/wasm/lib/libpython3.13.a` (42.2MB, 2850 T
+  = probe parity), `include/python3.13/`, `lib/python3.13/` stdlib (51MB/632 py, sysconfigdata
+  present, tests excluded). Zero patches, JS-EH.
 - [ ] **M2.3 [python-wasm]** Harvest `libpython3.13.a` + `include/python3.13/` + `Lib/` → `lib/wasm`;
   **re-enable `WITH_PYTHON ON`** in `blender_web.cmake`, wire PYTHON_* vars. **blocked-by M2.2.**
 - [ ] **M2.4 [build-deps]** Cross-compile the M1-deferred deps: OpenColorIO (yaml-cpp, expat,

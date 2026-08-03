@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Driver loop — runs GOAL.md iterations via `claude -p` until promise tag, budget cap, or max iterations.
-# Usage: ./loop.sh [MAX_ITER] [BUDGET_USD]   (defaults: 200 iterations, $200)
-# Designed to run from a terminal OR as a background task inside a Claude Code session.
+# Driver loop — runs GOAL.md iterations via `claude -p` until promise tag or max iterations.
+# Subscription billing: iteration-gated, not dollar-gated; backs off through rate-limit windows.
+# Usage: ./loop.sh [MAX_ITER]   (default: 200)
 set -uo pipefail
 cd "$(dirname "$0")"
-MAX=${1:-200}; CAP=${2:-200}; total=0
+MAX=${1:-200}; CAP=${2:-999999}; total=0
 PROMISE=${PROMISE:-M8_LAUNCH_GATE}
 MODEL=${MODEL:-opus}
 mkdir -p ledger
@@ -22,7 +22,10 @@ for ((i=1; i<=MAX; i++)); do
   total=$(python3 -c "print(round($total+$cost,2))")
   date -u +%s > .claude/heartbeat
   if echo "$out" | grep -q "<promise>${PROMISE}</promise>"; then echo "PROMISE ${PROMISE} — done." | tee -a ledger/loop.log; break; fi
-  if python3 -c "exit(0 if $total > $CAP else 1)"; then echo "BUDGET CAP \$$CAP hit at \$$total" | tee -a ledger/loop.log; break; fi
-  sleep 8
+  if [ -z "$out" ] || tail -1 ledger/loop.err 2>/dev/null | grep -qiE "rate.?limit|overloaded|usage limit|authenticate"; then
+    echo "empty/limited iteration — backing off 300s" | tee -a ledger/loop.log; sleep 300
+  else
+    sleep 8
+  fi
 done
 echo "loop exit: iter=$i total=\$$total" | tee -a ledger/loop.log

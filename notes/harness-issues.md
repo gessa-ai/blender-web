@@ -7,7 +7,14 @@ Workers record harness defects here instead of editing `harness/**`. The driver 
 them at a milestone boundary by temporarily lifting `.claude/harness.lock`, applying the fix,
 re-running the gate, and re-locking.
 
-## OPEN — reconcile at the M1 boundary
+## RESOLVED 2026-08-03 (M1 boundary, commit pending)
+
+All three reconciled in `harness/run.sh` v1.1 + `status.sh`; m0 re-verified 6/6 GREEN; lock restored.
+Two further bugs were found by testing the fix itself: unknown-scope typos falsely wrote
+GATE_RED (would have blocked every agent via the Stop hook), and the milestone line broke
+once SPDX headers landed atop fix_plan.md. Both fixed.
+
+## (historical) OPEN — reconcile at the M1 boundary
 
 **H-1. `run.sh` result schema deviates from the GOAL contract.**
 Committed `run.sh` writes `ledger/results/m0.json` as a bare array of `{name, pass, detail}`.

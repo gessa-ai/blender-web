@@ -1,136 +1,201 @@
 #!/usr/bin/env bash
-# Harness v1 (M0.5). `run.sh --scope m0` runs the toolchain+oracle smokes, writes a
-# JSON array of {name,pass,detail} to ledger/results/<scope>.json, and gates:
-#   - exit 0 iff ALL checks pass
-#   - on any failure, write harness/GATE_RED with a one-line summary
-#   - remove harness/GATE_RED when all green
+# Harness v1.1. Reconciles H-1/H-2/H-3 from notes/harness-issues.md.
+#
+#   run.sh --scope <name>   run one scope's checks
+#   run.sh --regress        re-run EVERY scope that has a prior result file
+#   run.sh --list           list registered scopes
+#
+# Result schema (H-1) — ledger/results/<scope>.json:
+#   {"scope":..., "pass":bool, "ts":ISO8601, "checks":{"<name>":{"pass":bool,"detail":"..."}}}
+# Gate: exit 0 iff all checks pass; on failure write harness/GATE_RED, else remove it.
 # Token thrift: builds go through harness/buildwrap.sh (one line ok / capped errors on fail,
 # full log under ledger/buildlogs/). This script prints a short per-check summary only.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-SCOPE="m0"
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --scope) SCOPE="${2:?--scope needs a value}"; shift 2 ;;
-    --scope=*) SCOPE="${1#*=}"; shift ;;
-    -h|--help) echo "usage: run.sh [--scope m0]"; exit 0 ;;
-    *) echo "run.sh: unknown arg: $1" >&2; exit 2 ;;
-  esac
-done
-
-if [ "$SCOPE" != "m0" ]; then
-  echo "run.sh: only --scope m0 is implemented (got: $SCOPE)" >&2
-  exit 2
-fi
-
-mkdir -p ledger/results
-TSV="$(mktemp)"; trap 'rm -f "$TSV"' EXIT
+SCOPES_REGISTERED="m0"
 EMSDK_ENV="tools/emsdk/emsdk_env.sh"
+TSV=""
 
-# record NAME PASS(0|1) DETAIL...   (detail is forced to a single line)
-record() {
+record() {  # record NAME PASS(0|1) DETAIL...   (detail forced to one line)
   local name="$1" pass="$2"; shift 2
   local detail="$*"
   detail="${detail//$'\t'/ }"; detail="${detail//$'\n'/ }"
   printf '%s\t%s\t%s\n' "$name" "$pass" "$detail" >>"$TSV"
 }
 
-# $1 >= $2 for dotted versions -> prints 1 or 0
-ver_ge() {
+ver_ge() {  # $1 >= $2 for dotted versions -> prints 1 or 0
   awk -v a="$1" -v b="$2" 'BEGIN{
     na=split(a,A,"."); nb=split(b,B,"."); n=(na>nb)?na:nb;
     for(i=1;i<=n;i++){x=(i<=na?A[i]+0:0);y=(i<=nb?B[i]+0:0);
       if(x>y){print 1;exit} if(x<y){print 0;exit}} print 1}'
 }
 
-# 1) toolchain: oracle/TOOLCHAIN exists and records emcc >= 4.0.10
-if [ -f oracle/TOOLCHAIN ]; then
-  EMV="$(grep -oE 'emcc [0-9]+\.[0-9]+\.[0-9]+' oracle/TOOLCHAIN | head -1 | awk '{print $2}')"
+# ---------------------------------------------------------------- scope: m0
+scope_m0() {
+  # 1) toolchain (H-3): probe emcc LIVE, don't trust the recorded oracle/TOOLCHAIN file.
+  local EMV
+  EMV="$(bash -c "source $EMSDK_ENV >/dev/null 2>&1 && emcc --version 2>/dev/null" \
+         | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   if [ -n "$EMV" ] && [ "$(ver_ge "$EMV" 4.0.10)" = 1 ]; then
-    record toolchain 1 "oracle/TOOLCHAIN records emcc $EMV (>= 4.0.10)"
+    local RECORDED
+    RECORDED="$(grep -oE 'emcc [0-9]+\.[0-9]+\.[0-9]+' oracle/TOOLCHAIN 2>/dev/null | head -1 | awk '{print $2}')"
+    if [ -n "$RECORDED" ] && [ "$RECORDED" != "$EMV" ]; then
+      record toolchain 0 "live emcc $EMV != oracle/TOOLCHAIN $RECORDED (toolchain drift)"
+    else
+      record toolchain 1 "live emcc $EMV (>= 4.0.10)"
+    fi
   else
-    record toolchain 0 "emcc '$EMV' < 4.0.10 or unparseable in oracle/TOOLCHAIN"
+    record toolchain 0 "live emcc probe failed or '$EMV' < 4.0.10"
   fi
-else
-  record toolchain 0 "oracle/TOOLCHAIN missing"
-fi
 
-# 2) hello_wasm: compile sandbox/hello.c via buildwrap, run in node, expect 'hello'
-TMPD="$(mktemp -d)"
-if harness/buildwrap.sh bash -c "source $EMSDK_ENV >/dev/null 2>&1 && emcc sandbox/hello.c -o \"$TMPD/hello.js\"" >/dev/null 2>&1; then
-  OUT="$(node "$TMPD/hello.js" 2>&1)"
-  if printf '%s' "$OUT" | grep -qi hello; then
-    record hello_wasm 1 "compiled + node output: $(printf '%s' "$OUT" | tr '\n' ' ')"
+  # 2) hello_wasm: compile via buildwrap, run in node, expect 'hello'
+  local TMPD OUT; TMPD="$(mktemp -d)"
+  if harness/buildwrap.sh bash -c "source $EMSDK_ENV >/dev/null 2>&1 && emcc sandbox/hello.c -o \"$TMPD/hello.js\"" >/dev/null 2>&1; then
+    OUT="$(node "$TMPD/hello.js" 2>&1)"
+    if printf '%s' "$OUT" | grep -qi hello; then
+      record hello_wasm 1 "compiled + node output: $(printf '%s' "$OUT" | tr '\n' ' ')"
+    else
+      record hello_wasm 0 "ran but no 'hello' in output: $(printf '%s' "$OUT" | tr '\n' ' ')"
+    fi
   else
-    record hello_wasm 0 "ran but no 'hello' in output: $(printf '%s' "$OUT" | tr '\n' ' ')"
+    record hello_wasm 0 "buildwrap emcc sandbox/hello.c failed (see ledger/buildlogs/)"
   fi
-else
-  record hello_wasm 0 "buildwrap emcc sandbox/hello.c failed (see ledger/buildlogs/)"
-fi
-rm -rf "$TMPD"
+  rm -rf "$TMPD"
 
-# 3) emdawnwebgpu: emcc --use-port=emdawnwebgpu -c compiles via buildwrap
-if harness/buildwrap.sh bash -c "source $EMSDK_ENV >/dev/null 2>&1 && emcc --use-port=emdawnwebgpu -c sandbox/hello.c -o /tmp/hw.o" >/dev/null 2>&1; then
-  record emdawnwebgpu 1 "emcc --use-port=emdawnwebgpu -c ok (/tmp/hw.o)"
-else
-  record emdawnwebgpu 0 "emdawnwebgpu port compile failed (see ledger/buildlogs/)"
-fi
+  # 3) emdawnwebgpu port compiles
+  local OBJ; OBJ="$(mktemp -u /tmp/hw_XXXX.o)"
+  if harness/buildwrap.sh bash -c "source $EMSDK_ENV >/dev/null 2>&1 && emcc --use-port=emdawnwebgpu -c sandbox/hello.c -o $OBJ" >/dev/null 2>&1; then
+    record emdawnwebgpu 1 "emcc --use-port=emdawnwebgpu -c ok"
+  else
+    record emdawnwebgpu 0 "emdawnwebgpu port compile failed (see ledger/buildlogs/)"
+  fi
+  rm -f "$OBJ"
 
-# 4) oracle_version: bpy.sh --version contains 'Blender 5.2.0' AND the pin hash
-OV="$(oracle/bpy.sh --version 2>&1)"; OV1="$(printf '%s' "$OV" | grep -m1 -i blender | head -1)"
-if printf '%s' "$OV" | grep -q "Blender 5.2.0" && printf '%s' "$OV" | grep -q "fbe6228777e7"; then
-  record oracle_version 1 "${OV1:-Blender 5.2.0 fbe6228777e7}"
-else
-  record oracle_version 0 "missing 'Blender 5.2.0' and/or 'fbe6228777e7': ${OV1}"
-fi
+  # 4) oracle_version: 'Blender 5.2.0' AND the pin hash
+  local OV OV1
+  OV="$(oracle/bpy.sh --version 2>&1)"; OV1="$(printf '%s' "$OV" | grep -m1 -i blender | head -1)"
+  if printf '%s' "$OV" | grep -q "Blender 5.2.0" && printf '%s' "$OV" | grep -q "fbe6228777e7"; then
+    record oracle_version 1 "${OV1:-Blender 5.2.0 fbe6228777e7}"
+  else
+    record oracle_version 0 "missing 'Blender 5.2.0' and/or 'fbe6228777e7': ${OV1}"
+  fi
 
-# 5) oracle_bpy: default scene has Camera, Cube, Light
-OB="$(oracle/bpy.sh --python-expr "import bpy; print(sorted(bpy.data.objects.keys()))" 2>&1)"
-if printf '%s' "$OB" | grep -q Camera && printf '%s' "$OB" | grep -q Cube && printf '%s' "$OB" | grep -q Light; then
-  record oracle_bpy 1 "default objects present: Camera, Cube, Light"
-else
-  record oracle_bpy 0 "default objects missing (Camera/Cube/Light)"
-fi
+  # 5) oracle_bpy: default scene objects
+  local OB
+  OB="$(oracle/bpy.sh --python-expr "import bpy; print(sorted(bpy.data.objects.keys()))" 2>&1)"
+  if printf '%s' "$OB" | grep -q Camera && printf '%s' "$OB" | grep -q Cube && printf '%s' "$OB" | grep -q Light; then
+    record oracle_bpy 1 "default objects present: Camera, Cube, Light"
+  else
+    record oracle_bpy 0 "default objects missing (Camera/Cube/Light)"
+  fi
 
-# 6) oiiotool: --version exits 0
-if OIIO="$(oiiotool --version 2>&1)"; then
-  record oiiotool 1 "$(printf '%s' "$OIIO" | head -1)"
-else
-  record oiiotool 0 "oiiotool --version nonzero or not on PATH"
-fi
+  # 6) oiiotool present
+  local OIIO
+  if OIIO="$(oiiotool --version 2>&1)"; then
+    record oiiotool 1 "$(printf '%s' "$OIIO" | head -1)"
+  else
+    record oiiotool 0 "oiiotool --version nonzero or not on PATH"
+  fi
+}
 
-# --- emit JSON array + tally ---
-OUTF="ledger/results/${SCOPE}.json"
-python3 - "$TSV" "$OUTF" <<'PY'
-import json, sys
-tsv, outp = sys.argv[1], sys.argv[2]
-rows = []
+# ------------------------------------------------------------- scope runner
+run_one_scope() {
+  local scope="$1"
+  case " $SCOPES_REGISTERED " in
+    *" $scope "*) : ;;
+    *) echo "run.sh: unknown scope '$scope' (registered: $SCOPES_REGISTERED)" >&2; return 2 ;;
+  esac
+
+  mkdir -p ledger/results
+  TSV="$(mktemp)"
+  "scope_${scope}"
+
+  local OUTF="ledger/results/${scope}.json"
+  TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" python3 - "$TSV" "$OUTF" "$scope" <<'PY'
+import json, os, sys
+tsv, outp, scope = sys.argv[1], sys.argv[2], sys.argv[3]
+checks = {}
 with open(tsv) as f:
     for line in f:
         line = line.rstrip("\n")
         if not line:
             continue
         name, pas, detail = line.split("\t", 2)
-        rows.append({"name": name, "pass": pas == "1", "detail": detail})
+        checks[name] = {"pass": pas == "1", "detail": detail}
+doc = {
+    "scope": scope,
+    "pass": bool(checks) and all(c["pass"] for c in checks.values()),
+    "ts": os.environ.get("TS", ""),
+    "checks": checks,
+}
 with open(outp, "w") as f:
-    json.dump(rows, f, indent=2)
+    json.dump(doc, f, indent=2)
     f.write("\n")
 PY
 
-NTOTAL="$(awk 'END{print NR}' "$TSV")"
-NPASS="$(awk -F'\t' '$2==1{c++} END{print c+0}' "$TSV")"
-while IFS=$'\t' read -r n p d; do
-  [ "$p" = 1 ] && printf '  PASS  %-14s %s\n' "$n" "$d" || printf '  FAIL  %-14s %s\n' "$n" "$d"
-done <"$TSV"
+  local NTOTAL NPASS
+  NTOTAL="$(awk 'END{print NR}' "$TSV")"
+  NPASS="$(awk -F'\t' '$2==1{c++} END{print c+0}' "$TSV")"
+  while IFS=$'\t' read -r n p d; do
+    [ "$p" = 1 ] && printf '  PASS  %-14s %s\n' "$n" "$d" || printf '  FAIL  %-14s %s\n' "$n" "$d"
+  done <"$TSV"
+  rm -f "$TSV"; TSV=""
 
-if [ "$NPASS" = "$NTOTAL" ] && [ "$NTOTAL" -gt 0 ]; then
-  rm -f harness/GATE_RED
-  echo "run.sh: scope=$SCOPE ALL GREEN ($NPASS/$NTOTAL) -> $OUTF"
-  exit 0
+  if [ "$NPASS" = "$NTOTAL" ] && [ "$NTOTAL" -gt 0 ]; then
+    echo "run.sh: scope=$scope ALL GREEN ($NPASS/$NTOTAL) -> $OUTF"
+    return 0
+  fi
+  echo "run.sh: scope=$scope RED ($NPASS/$NTOTAL) -> $OUTF" >&2
+  return 1
+}
+
+# ------------------------------------------------------------------- main
+MODE="scope"; SCOPE="m0"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --scope) SCOPE="${2:?--scope needs a value}"; MODE="scope"; shift 2 ;;
+    --scope=*) SCOPE="${1#*=}"; MODE="scope"; shift ;;
+    --regress) MODE="regress"; shift ;;
+    --list) echo "registered scopes: $SCOPES_REGISTERED"; exit 0 ;;
+    -h|--help) echo "usage: run.sh [--scope <name>] [--regress] [--list]"; exit 0 ;;
+    *) echo "run.sh: unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+# Usage errors (unknown scope) must NOT paint the gate red — a typo would otherwise
+# block every agent via the Stop hook. Validate before running anything.
+if [ "$MODE" = "scope" ]; then
+  case " $SCOPES_REGISTERED " in
+    *" $SCOPE "*) : ;;
+    *) echo "run.sh: unknown scope '$SCOPE' (registered: $SCOPES_REGISTERED)" >&2; exit 2 ;;
+  esac
+fi
+
+FAILED=""
+if [ "$MODE" = "regress" ]; then
+  # H-2: re-run every scope that has a prior result file. No prior results => trivially green.
+  shopt -s nullglob
+  PRIOR=(ledger/results/*.json)
+  shopt -u nullglob
+  if [ ${#PRIOR[@]} -eq 0 ]; then
+    echo "run.sh: --regress — no prior scope results; nothing to regress (green)"
+    exit 0
+  fi
+  for f in "${PRIOR[@]}"; do
+    s="$(basename "$f" .json)"
+    echo "--- regress: $s ---"
+    run_one_scope "$s" || FAILED="$FAILED $s"
+  done
 else
-  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) GATE_RED scope=$SCOPE $NPASS/$NTOTAL passed — see $OUTF" > harness/GATE_RED
-  echo "run.sh: scope=$SCOPE GATE_RED ($NPASS/$NTOTAL) -> $OUTF" >&2
+  run_one_scope "$SCOPE" || FAILED=" $SCOPE"
+fi
+
+if [ -n "$FAILED" ]; then
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) GATE_RED failing scopes:$FAILED" > harness/GATE_RED
+  echo "run.sh: GATE_RED —$FAILED" >&2
   exit 1
 fi
+rm -f harness/GATE_RED
+exit 0

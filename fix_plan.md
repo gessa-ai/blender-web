@@ -89,7 +89,9 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   characterized non-faithfulness (9 fenv deferral + 1 macOS-host chdir). `ledger/results/m1.json`.
   Harness `m1` scope registration deferred to the M1-boundary reconcile (H-4).
 - [ ] **M1.11 [harness]** Link + run the **bmesh_core gtest** suite under node → tier-(a) gate 2⁄2.
-  **blocked-by M1.13, M1.14, M1.15.** Approach (hand-link vs combined blender_test) per recon verdict.
+  **blocked-by M1.13, M1.14, M1.15, M1.15b.** DECIDED (recon 2026-08-03, notes/m1-closure-recon.md):
+  standalone `bmesh_core_test` via `WITH_TESTS_SINGLE_BINARY OFF` flip — NOT hand-link, NOT
+  combined blender_test.
 - [ ] **M1.12 [harness]** `.blend` corpus loads with state-dump parity vs the native oracle →
   completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.**
 
@@ -99,9 +101,15 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   IN FLIGHT). Expect documented error classes (notes/porting-patterns.md); new fixes → patch 0007.
 - [ ] **M1.14 [build-deps]** `bf_depsgraph` + `bf_blentranslation` + `bf_animrig` to wasm32
   (same worker, serial in one build tree; patch 0008+). **blocked-by M1.13** (shared tree).
-- [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna generates
-  RNA sources; datatoc rc-126 fixed via blender_web_host_tool() pattern. (In worker scope if hit
-  during M1.13/14; else follow-up per recon findings.)
+- [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna executes
+  (first verification — forced by bf_rna before blenkernel) + datatoc/shader_tool two-half fixes
+  (exact lines in notes/m1-closure-recon.md). (In worker scope when hit during M1.13/14.)
+- [ ] **M1.15b [build-deps]** **The wide grind (recon-sized):** `WITH_TESTS_SINGLE_BINARY OFF`
+  in blender_web.cmake, then `ninja bmesh_core_test` drives the remaining **~150-archive**
+  closure (gpu frontend w/ backends OFF, draw, nodes, imbuf+codecs, modifiers, render,
+  sequencer, windowmanager, ~18 bf_editor_*, blenloader, blenfont, asset_system, functions,
+  ikplugin, shader_fx, simulation, small intern/extern leaves). All hazard-scanned CLEAN —
+  expect mechanical fixes, not ABI work. **blocked-by M1.13, M1.14.**
 - [ ] **M1.16 [driver]** M1-boundary harness reconcile: lift lock, register `m1` scope per H-4
   (blenlib assert 1655/10-characterized), add bmesh check once M1.11 lands, re-lock, re-run
   `--scope m0` + `--regress`. **blocked-by M1.11.**

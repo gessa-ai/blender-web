@@ -61,6 +61,20 @@ already implies it's available).
 configs (as far as each gets), record failures, then pick uniformly. Also validates the
 `-sJSPI` × `setjmp/longjmp` interaction flagged in M2.7 before it's load-bearing.
 
+## Sub-decision RESOLVED (appended 2026-08-03, same day): JS-EH for M2
+
+The M2.0b probe (notes/python-emcc605-probe.md) removed libpython as a constraint entirely:
+**vanilla 3.13.13 builds AND runs on emcc 6.0.5 in BOTH EH configs with ZERO source
+patches** — the predicted LONG_BIT + trampoline back-port were unnecessary (3.13.13 ships
+a working `Python/emscripten_trampoline.c` in-tree; runtime-verified via callback + EH +
+stdlib smoke under node; artifacts 42.25 MB each, EH-size-indistinguishable, Δ≈5 KB).
+First known 3.13-on-6.x data point anywhere. Therefore: **JS-EH (`-fexceptions`,
+SUPPORT_LONGJMP=emscripten)** — it joins the 29 already-built deps with zero rebuild.
+Wasm-EH is proven viable as a later stack-wide migration (own ADR) if JSPI/size evidence
+demands it. Still open and tracked: `-sJSPI` × setjmp/longjmp at full-Blender link (M2.7);
+optional modules `_ctypes/_ssl/_hashlib/_lzma/_uuid` need libffi/openssl/xz if bpy startup
+requires them (check at M2.5).
+
 ## Consequences
 
 - M2.1/M2.2 reword: start from vanilla 3.13.13 + {LONG_BIT, trampoline-from-main} only.

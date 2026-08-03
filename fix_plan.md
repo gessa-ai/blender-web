@@ -122,16 +122,19 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   build vanilla CPython 3.13.13 + minimal patch subset ({LONG_BIT, trampoline back-ported from
   Pyodide MAIN}, added only as the build demands). 4.0.9 downgrade REJECTED (LLVM ABI break =
   rebuild 29 deps; loses emdawnwebgpu ≥4.0.10 = the M3/M4 path). Evidence: 3-agent research wave.
-- [ ] **M2.0b [python-wasm EXPERIMENT]** Probe-build vanilla libpython3.13.a on emcc 6.0.5 in
-  BOTH exception configs (JS-EH `-fexceptions` like our 29 deps vs Wasm-EH `-fwasm-exceptions`
-  + `-sSUPPORT_LONGJMP=wasm` like Pyodide) — record what breaks where; the EH model must be
-  UNIFORM across Blender+deps+libpython (mixing forbidden). Decides the ADR-001 sub-decision.
-  Sandbox-scale (~2 GiB), runnable during M1 grind. Informs M2.7 (JSPI×longjmp) early.
-- [ ] **M2.1 [python-wasm]** Fetch `Python-3.13.13.tar.xz` (hash `versions.cmake:385`); record in
-  `deps.json` (PSF, GPL-compat). **blocked-by M2.0.**
-- [ ] **M2.2 [python-wasm]** Build static `libpython3.13.a` (`--disable-shared
-  --with-emscripten-target=browser --with-build-python`, `-sSUPPORT_LONGJMP=wasm`); apply the
-  minimal Pyodide patch subset where 6.0.5 breaks (SPDX+provenance in `patches/`). **blocked-by M2.1.**
+- [x] **M2.0b [python-wasm EXPERIMENT]** DONE 2026-08-03 (notes/python-emcc605-probe.md):
+  vanilla 3.13.13 builds+runs on 6.0.5 in BOTH EH configs, ZERO patches — LONG_BIT/trampoline
+  back-port unnecessary (in-tree trampoline works). **EH RESOLVED: JS-EH** (ADR-001 appendix) —
+  joins the 29 JS-EH deps with zero rebuild; Wasm-EH proven viable as later fallback. Open:
+  JSPI×setjmp at full link (M2.7); `_ctypes/_ssl/_hashlib/_lzma/_uuid` need libffi/openssl/xz
+  if bpy startup requires (check at M2.5).
+- [ ] **M2.1 [python-wasm]** Fetch `Python-3.13.13.tar.xz` (hash verified: MD5 matches
+  `versions.cmake:385`); record in `deps.json` (PSF, GPL-compat).
+- [ ] **M2.2 [python-wasm]** Productionize the probe recipe as `scripts/deps/python.sh`
+  (idempotent, like other deps): vanilla source, NO patches, **JS-EH** (`-fexceptions`,
+  browser static, `--disable-shared --with-emscripten-target=browser --with-build-python`;
+  macOS note: native bootstrap binary is `python.exe`). Probe artifacts are evidence, not
+  deliverables — rebuild through the script. **blocked-by M2.1.**
 - [ ] **M2.3 [python-wasm]** Harvest `libpython3.13.a` + `include/python3.13/` + `Lib/` → `lib/wasm`;
   **re-enable `WITH_PYTHON ON`** in `blender_web.cmake`, wire PYTHON_* vars. **blocked-by M2.2.**
 - [ ] **M2.4 [build-deps]** Cross-compile the M1-deferred deps: OpenColorIO (yaml-cpp, expat,

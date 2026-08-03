@@ -1,0 +1,8 @@
+emsdk 6.0.5 / emcc 6.0.5 / node 22.16.0
+# M0.2 toolchain pin — recorded 2026-08-03, host macOS arm64 (darwin 25.0.0)
+# install: git clone --depth1 emscripten-core/emsdk -> tools/emsdk (gitignored); ./emsdk install latest && ./emsdk activate latest
+# emsdk release: dbd755b5da399329c2576f6e3dfa7f419f5d8409 (mac wasm-binaries-arm64)
+# emcc full version: 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271) — GOAL requirement >=4.0.10 satisfied
+# node: emsdk-bundled 22.16.0 (NODE_JS in tools/emsdk/.emscripten, used by emcc); shell `node` is a separate user install (22.23.1)
+# emdawnwebgpu port: resolves+downloads on first use (cache/ports/emdawnwebgpu.175430.zip); compile-only probe (--use-port=emdawnwebgpu -c) OK
+# reactivate in a shell: source tools/emsdk/emsdk_env.sh && emcc --version

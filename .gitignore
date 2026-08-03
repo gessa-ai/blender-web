@@ -1,5 +1,12 @@
 upstream/
 tools/
+# sandbox build artifacts (regenerable from the .c sources kept in sandbox/)
+sandbox/*.js
+sandbox/*.mjs
+sandbox/*.wasm
+sandbox/*.o
+sandbox/*.html
+sandbox/*.data
 oracle/blender-*
 ledger/buildlogs/
 ledger/loop.err

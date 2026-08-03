@@ -1,2 +1,3 @@
 iter 0 2026-08-03T12:02:28Z scaffold created by CMO session; loop not yet started
+M0.2 done 2026-08-03 emcc 6.0.5 hello-wasm ok emdawnwebgpu ok (disk ~10.6GiB free — see M0.8)
 M0.3 done 2026-08-03 blender 5.2.0 oracle ok oiiotool ok

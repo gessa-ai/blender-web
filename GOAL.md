@@ -84,6 +84,8 @@ Subagent brief: adversarially review the last 25 commits for parity theater, ups
 - **M7 FILES + PIPELINE** — WasmFS/OPFS project store; open/save real files (Chromium FSA + fallback everywhere); `.blend` drag-drop; OBJ/USD round-trips; glTF addon via the Python runtime; staged loading + service-worker caching per LAUNCH.md budgets. → `<promise>M7_FILES</promise>`
 - **M8 LAUNCH GATE** — the 30-second bar (LAUNCH.md) passes on Chrome/Edge current + documented degraded modes; soak test clean (no leak per budget); dashboard live with per-suite % and the deferral registry; compliance green; demo hosted with COOP/COEP; every LAUNCH.md box checked. → `<promise>M8_LAUNCH_GATE</promise>`
 
+<!-- REUSE-IgnoreEnd -->
+
 ## Budget and cadence
 
 Wrapper logs cost per iteration. Every $250: `reports/checkpoint-<n>.md` (progress, burn, blockers, projection) — if a milestone won't land in budget, say so plainly; do not grind silently. Exit cleanly on rate limits; the wrapper resumes. CI minutes are budget too.

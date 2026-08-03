@@ -1,0 +1,27 @@
+version = 1
+
+# Read-only upstream Blender checkout, pinned at fbe6228777e7 (Blender 5.2 LTS).
+# Blender's own files carry per-file SPDX headers; this blanket guarantees REUSE
+# coverage for any that do not. Third-party licenses under upstream/extern are
+# refined in THIRD-PARTY.md as they are audited.
+[[annotations]]
+path = "upstream/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Blender Authors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Project legal, attribution and provenance documents. Part of the shipped
+# GPL-3.0-or-later aggregate.
+[[annotations]]
+path = ["LICENSE", "NOTICE", "PROVENANCE.md", "THIRD-PARTY.md", "REUSE.toml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Ledger, notes and reports: project data we author. Dedicated to the public
+# domain so it imposes no downstream conditions.
+[[annotations]]
+path = ["ledger/**", "notes/**", "reports/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"

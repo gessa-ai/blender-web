@@ -1,0 +1,28 @@
+blender-web
+===========
+
+This product is source-derived from Blender, the free and open-source 3D
+creation suite. Portions of this software are:
+
+    Copyright (C) Blender Authors
+    Copyright (C) Blender Foundation
+
+Blender is licensed under the GNU General Public License, version 2 or later.
+The original source is available at:
+
+    https://projects.blender.org/blender/blender
+    branch blender-v5.2-release, commit fbe6228777e7 (Blender 5.2 LTS)
+
+blender-web is an independent derivative work: a port of Blender's source code
+to run inside a web browser via WebAssembly and WebGPU. New and modified code
+for the web port is:
+
+    Copyright (C) 2026 blender-web contributors
+
+and is likewise licensed under the GNU General Public License, version 2 or
+later. See LICENSE, PROVENANCE.md, and the per-file SPDX headers.
+
+blender-web is NOT affiliated with, endorsed by, or sponsored by the Blender
+Foundation. Blender(R) is a registered trademark of the Blender Foundation.
+The name is used here only descriptively/nominatively, to state that this
+software is source-derived from and compatible with Blender.

@@ -1,3 +1,5 @@
 iter 0 2026-08-03T12:02:28Z scaffold created by CMO session; loop not yet started
+M0.6 2026-08-03T12:37:19Z blender_web.cmake drafted: 77 WITH_* opts (lite U headless + GOAL); Cycles ON CPU-only, GPU/heavy-deps/audio/native-GHOST OFF; names verified vs upstream/CMakeLists.txt; forced_off recorded in deps.json
+M0.7 2026-08-03T12:37:19Z compliance skeleton: LICENSES/{GPL-2.0-or-later,GPL-3.0-or-later,CC0-1.0} + LICENSE/NOTICE/PROVENANCE.md/THIRD-PARTY.md/REUSE.toml; authored files lint-clean (0 missing/unused); full-repo green = follow-up (22 scaffold files + GOAL.md prose invalid-expr, edit-forbidden)
 M0.2 done 2026-08-03 emcc 6.0.5 hello-wasm ok emdawnwebgpu ok (disk ~10.6GiB free — see M0.8)
 M0.3 done 2026-08-03 blender 5.2.0 oracle ok oiiotool ok

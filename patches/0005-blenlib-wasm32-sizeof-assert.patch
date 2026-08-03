@@ -1,0 +1,22 @@
+diff --git a/source/blender/blenlib/BLI_resource_scope.hh b/source/blender/blenlib/BLI_resource_scope.hh
+index 4bb472dea20..2e22dbcb3c8 100644
+--- a/source/blender/blenlib/BLI_resource_scope.hh
++++ b/source/blender/blenlib/BLI_resource_scope.hh
+@@ -141,7 +141,17 @@ class ResourceScope : NonMovable {
+  * from #NonCopyable. That happens because then there would be two #NonCopyable types at the same
+  * address which is not allowed. The proper solution is probably to change how NonCopyable and
+  * NonMovable are used overall. */
++#ifdef __EMSCRIPTEN__
++/* wasm32 is ILP32: pointers are 4 bytes, so ResourceScope (a ChunkedList head
++ * pointer + a LinearAllocator reference) is 8 bytes rather than the 16 it
++ * occupies under an LP64 ABI. The assert still guards against accidental size
++ * bloat (e.g. inheriting from NonCopyable), just at the correct wasm32 size.
++ * Ported for the web from source/blender/blenlib/BLI_resource_scope.hh @
++ * fbe6228777e7. */
++static_assert(sizeof(ResourceScope) == 8);
++#else
+ static_assert(sizeof(ResourceScope) == 16);
++#endif
+ 
+ /* -------------------------------------------------------------------- */
+ /** \name #ResourceScope Inline Methods

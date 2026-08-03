@@ -1,6 +1,6 @@
 # fix_plan.md — current milestone: M0 TOOLCHAIN + ORACLE
 > BLOCKER (human): re-auth the claude CLI for headless use — run `claude setup-token` (or an interactive /login). Until then only codex workers can execute; the driver loop is claude-based and will not start.
-- [ ] M0.1 Verify upstream/ is at pin fbe6228777e7 (scripts/bootstrap.done + upstream/PIN check); record git describe in oracle/PIN.
+- [ ] M0.1 DONE 2026-08-03: upstream at pin fbe6228777e7 (tip of blender-v5.2-release), LFS assets deferred as pointers (lfs.url set to projects.blender.org for later `git lfs pull --include assets/`).
 - [ ] M0.2 Install pinned emsdk under tools/emsdk (>=4.0.10; record exact version in oracle/TOOLCHAIN); compile+run a hello-world wasm in node AND a browser smoke page.
 - [ ] M0.3 Oracle online: pinned native Blender 5.2.0 headless on this host (macOS arm64 official archive under oracle/, or Docker linux image); oracle/bpy.sh runs `blender -b --python-expr`; verify version string == 5.2.0; install oiiotool (brew openimageio) for image diffs.
 - [ ] M0.4 harness/buildwrap.sh proven: wraps an emcc build, one-line success, first-50-errors failure summary, full log under ledger/buildlogs/.

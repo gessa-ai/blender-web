@@ -314,6 +314,26 @@
     "shaderc": {
       "status": "skipped",
       "notes": "M1.2: dropped with Vulkan backend; BSL->SPIR-V->WGSL chain re-introduces it via gpu/webgpu in M3. Not built."
+    },
+    "libdeflate": {
+      "version": "1.18",
+      "status": "ok",
+      "notes": "OpenEXR 3.4 compression backend (replaces zlib in EXR core). Static, -pthread, GZIP/SHARED/TESTS OFF. Built externally + installed (vendored copy in openexr tarball is EXCLUDE_FROM_ALL, never installed). CMake config lib/cmake/libdeflate (libdeflate::libdeflate_static). scripts/deps/libdeflate.sh"
+    },
+    "openjph": {
+      "version": "0.25.2",
+      "status": "ok",
+      "notes": "HTJ2K codec linked PRIVATE by OpenEXRCore. OpenJPH has native EMSCRIPTEN support (auto BUILD_SHARED_LIBS OFF, TIFF OFF). OJPH_DISABLE_SIMD=ON => generic wasm codepath (no -msimd128), matching -pthread-only stack. Built externally+installed (vendored openexr copy not installed). libopenjph.a + config lib/cmake/openjph (openjph-config.cmake). scripts/deps/openjph.sh"
+    },
+    "openexr": {
+      "version": "3.4.10",
+      "status": "ok",
+      "notes": "Static, -pthread (IlmThread pthreads). find_package(Imath CONFIG) resolves from prefix via Imath_DIR. 3.4 core needs libdeflate+openjph -> external via libdeflate_DIR/openjph_DIR (OPENEXR_FORCE_INTERNAL_*=OFF). Tools/examples/python/tests OFF. Libs Iex/IlmThread/OpenEXR/OpenEXRCore/OpenEXRUtil-3_4. emcc link test (Header+ChannelList+ZIP_COMPRESSION) OK, 240K wasm. Config lib/cmake/OpenEXR. scripts/deps/openexr.sh"
+    },
+    "tiff": {
+      "version": "4.7.1",
+      "status": "ok",
+      "notes": "libtiff static, -pthread. Explicit ZLIB(libz.a)+JPEG(libjpeg.a) from prefix; lzma/jbig/zstd/webp/lerc OFF; tools/tests/contrib/docs OFF. ZIP via zlib (libdeflate off, matches upstream tiff.cmake). libtiff.a+libtiffxx.a. emcc link test (TIFFGetVersion) OK. Needed by OIIO REQUIRED_DEP. scripts/deps/libtiff.sh"
     }
   }
 }

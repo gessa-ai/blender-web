@@ -18,3 +18,4 @@ build-hosttools/
 build-deps/
 lib/wasm/
 build-python-probe/
+build-dawn/

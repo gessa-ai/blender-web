@@ -146,3 +146,26 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   off-main-thread jobs to the main thread for now. **blocked-by M2.2.**
 - [ ] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
+
+---
+
+## M3 — WEBGPU BACKEND (native Dawn) — architecture DONE (notes/gpu-webgpu-architecture.md
+## + notes/gpu-shader-chain.md, 2026-08-03); T-tasks runnable in parallel with M1/M2 tails
+
+Measured basis: Vulkan backend = 28,062 LOC; webgpu/ estimate **13–17k** (render_graph 6,658
+LOC eliminated by WebGPU's implicit model; skeleton = 30 wgpu_ file-pairs ≈ 14.3k). Backend
+surface = 19 pure-virtuals; StateManager/Immediate come from Context, not backend factories.
+Top risks: R1 combined-sampler binding remap (T2 probes), R2 Dawn+Tint native build (T1
+probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern, not M3).
+
+- [ ] **M3.T1 [gpu-backend]** Dawn+Tint native toolchain probe (R2): build Dawn (pinned commit,
+  SPV reader ON) on this Mac; standalone .cc: GLSL→shaderc→SPIR-V→Tint→WGSL→CreateShaderModule.
+  Verify: WGSL prints, module validates, exit 0. **Blocks T2+. DISPATCHED 2026-08-03.**
+- [ ] **M3.T2 [gpu-backend]** Combined-sampler binding audit (R1): sampler2D+push-const+UBO
+  create-info through T1 harness; document deterministic @group/@binding map. **blocked-by T1.**
+- [ ] **M3.T3 [gpu-backend]** GHOST_ContextWGPU offscreen (native Dawn, no surface) +
+  WITH_WEBGPU_BACKEND option; headless bin gets live WGPUDevice. **blocked-by T1.**
+- [ ] **M3.T4–T10 [gpu-backend]** Skeleton→context→buffers→shader-pipeline→compute→textures→
+  framebuffer/state/immediate/batch, each gated on Blender's own gpu tests vs native Dawn
+  (full list + verify criteria: notes/gpu-webgpu-architecture.md §7). Gate: full gpu suite
+  green on Dawn → `<promise>M3_GPU_BACKEND</promise>`.

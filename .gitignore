@@ -12,3 +12,7 @@ ledger/buildlogs/
 ledger/loop.err
 .claude/heartbeat
 build-wasm/
+
+# build-deps worker artifacts (not committed)
+build-deps/
+lib/wasm/

@@ -54,8 +54,16 @@ emmake cmake --build . --target install -j"$(sysctl -n hw.ncpu)"
 # placed correctly. Harvest the archive (and cmake config) into the prefix.
 mkdir -p "$PREFIX/lib/cmake"
 cp "$BUILD/lib/libjpeg.a" "$PREFIX/lib/libjpeg.a"
-[ -d "$BUILD/lib/cmake/libjpeg-turbo" ] && \
+if [ -d "$BUILD/lib/cmake/libjpeg-turbo" ]; then
   cp -R "$BUILD/lib/cmake/libjpeg-turbo" "$PREFIX/lib/cmake/"
+  # The exported target's IMPORTED_LOCATION points at the (soon-deleted) build
+  # tree because the archive was harvested, not `install`-ed to lib/. Rewrite it
+  # to the installed archive so downstream find_package(libjpeg-turbo) CONFIG
+  # (OpenImageIO, Blender) resolves a file that actually exists.
+  for f in "$PREFIX"/lib/cmake/libjpeg-turbo/libjpeg-turboTargets-*.cmake; do
+    [ -f "$f" ] && sed -i '' "s#${BUILD}/lib/libjpeg.a#${PREFIX}/lib/libjpeg.a#g" "$f"
+  done
+fi
 [ -f "$BUILD/lib/pkgconfig/libjpeg.pc" ] && \
   { mkdir -p "$PREFIX/lib/pkgconfig"; cp "$BUILD/lib/pkgconfig/libjpeg.pc" "$PREFIX/lib/pkgconfig/"; }
 

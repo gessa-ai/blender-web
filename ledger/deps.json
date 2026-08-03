@@ -77,7 +77,7 @@
         "version": "1.0.9",
         "class": "external",
         "wasm_diff": 1,
-        "notes": "freetype woff2; platform FATALs without it"
+        "notes": "freetype woff2; platform FATALs without it [M1.8: built OK; freetype is REQUIRED not deferrable \u2014 no WITH_FREETYPE switch.]"
       },
       "yamlcpp": {
         "version": "0.8.0",
@@ -131,7 +131,7 @@
         "version": "2.13.3",
         "class": "port-or-external",
         "wasm_diff": 2,
-        "notes": "must be brotli-enabled; deferrable past M1 gtest link"
+        "notes": "must be brotli-enabled; deferrable past M1 gtest link [M1.8: built OK; freetype is REQUIRED not deferrable \u2014 no WITH_FREETYPE switch.]"
       },
       "openexr": {
         "version": "3.4.10",
@@ -370,6 +370,16 @@
       "version": "3.1.13.1",
       "status": "ok",
       "notes": "THE long pole \u2014 built OK. Static -pthread -fexceptions. Trimmed readers EXR/TIFF/PNG/JPEG only; EMBEDPLUGINS on, no tools/python/tbb/webp/oj/heif/raw/jxl/ocv/qt/freetype; USE_SIMD=0; USE_EXTERNAL_PUGIXML=OFF (bundled). OCIO ON (mandatory in 3.x). No host-tool run step. Source patches: OCIO link guards + libutil __EMSCRIPTEN__ port (strcasecmp_l/isatty/usleep/this_program_path). emcc link test builds ImageSpec+serialize -> wasm OK. libOpenImageIO.a 26MB + libOpenImageIO_Util.a, config lib/cmake/OpenImageIO. Consumer (Blender find_package) must pass the full transitive hint-var set; see notes/deps-oiio.md. scripts/deps/openimageio.sh"
+    },
+    "brotli": {
+      "version": "1.0.9",
+      "status": "ok",
+      "notes": "woff2/freetype compression backend. Static -pthread, BUILD_SHARED_LIBS=OFF, BROTLI_DISABLE_TESTS=ON. brotli 1.0.9 auto-detects BROTLI_BUNDLED_MODE=ON under emcmake so its install() is a no-op; archives harvested directly (libbrotli{common,dec,enc}-static.a + c/include/brotli/*.h). FindBrotli.cmake resolves via BROTLI_ROOT_DIR=lib/wasm. scripts/deps/brotli.sh"
+    },
+    "freetype": {
+      "version": "2.13.3",
+      "status": "ok",
+      "notes": "REQUIRED, NOT deferrable: no WITH_FREETYPE off-switch; check_freetype_for_brotli() FATALs without brotli-enabled freetype. Static -pthread; FT_REQUIRE_BROTLI=ON + FT_REQUIRE_ZLIB=ON, FT_DISABLE_{BZIP2,HARFBUZZ,PNG}=ON, links lib/wasm brotli+zlib. Installs libfreetype.a (no 2ST postfix) + include/freetype2/. FT_CONFIG_OPTION_USE_BROTLI baked into installed ftoption.h (script asserts). scripts/deps/freetype.sh. See notes/deps-freetype.md"
     }
   }
 }

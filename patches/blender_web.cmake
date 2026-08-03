@@ -149,3 +149,9 @@ set(WITH_BUILDINFO          OFF CACHE BOOL "" FORCE)
 
 # ---- Keep asserts firing during bring-up (from blender_lite) ---------------
 set(WITH_ASSERT_RELEASE      ON  CACHE BOOL "" FORCE)
+
+# ---- Tier-(a) free oracle: build the gtest suites (M1.9) -------------------
+# blenlib + bmesh_core gtests compiled to wasm are the M1 parity gate. gflags/glog
+# come from bundled extern/ (root CMakeLists.txt L1654/L1669), gtest/gmock from
+# extern too — no external dep. OFF by default upstream (root L778).
+set(WITH_GTESTS              ON  CACHE BOOL "" FORCE)

@@ -28,6 +28,30 @@ macro(find_package_wrapper)
   find_package(${ARGV})
 endmacro()
 
+# check_freetype_for_brotli() is defined in platform_unix.cmake, which this file
+# replaces for the Emscripten branch. Reproduced verbatim (per
+# platform_unix.cmake @ fbe6228777e7, L173-191): the Freetype-with-brotli assert
+# is run against our own cross-compiled FreeType (built FT_REQUIRE_BROTLI=ON).
+function(check_freetype_for_brotli)
+  if((DEFINED HAVE_BROTLI) AND (DEFINED HAVE_BROTLI_INC))
+    if(HAVE_BROTLI AND ("${HAVE_BROTLI_INC}" STREQUAL "${FREETYPE_INCLUDE_DIRS}"))
+      # Pass, the includes didn't change, use the cached value.
+      return()
+    endif()
+  endif()
+
+  unset(HAVE_BROTLI CACHE)
+  include(CheckSymbolExists)
+  set(CMAKE_REQUIRED_INCLUDES ${FREETYPE_INCLUDE_DIRS})
+  check_symbol_exists(FT_CONFIG_OPTION_USE_BROTLI "freetype/config/ftconfig.h" HAVE_BROTLI)
+  unset(CMAKE_REQUIRED_INCLUDES)
+  if(NOT HAVE_BROTLI)
+    unset(HAVE_BROTLI CACHE)
+    message(FATAL_ERROR "Freetype needs to be compiled with brotli support!")
+  endif()
+  set(HAVE_BROTLI_INC "${FREETYPE_INCLUDE_DIRS}" CACHE INTERNAL "")
+endfunction()
+
 # -----------------------------------------------------------------------------
 # Precompiled library discovery
 #
@@ -38,13 +62,30 @@ endmacro()
 # falls through cleanly during headless core bring-up.
 
 if(NOT DEFINED LIBDIR)
-  set(LIBDIR "${CMAKE_SOURCE_DIR}/lib/wasm")
+  # The wasm harvest prefix lives at the PORT repo root (lib/wasm), which is the
+  # PARENT of the upstream Blender tree passed as -S. CMAKE_SOURCE_DIR is that
+  # upstream tree, so anchor LIBDIR on BLENDER_WEB_PATCH_DIR (the port's patches/
+  # dir, set by blender_web.cmake) whose parent is the repo root. Fall back to the
+  # CMAKE_SOURCE_DIR sibling if the patch dir var is somehow unset.
+  if(DEFINED BLENDER_WEB_PATCH_DIR)
+    get_filename_component(LIBDIR "${BLENDER_WEB_PATCH_DIR}/../lib/wasm" ABSOLUTE)
+  else()
+    get_filename_component(LIBDIR "${CMAKE_SOURCE_DIR}/../lib/wasm" ABSOLUTE)
+  endif()
 endif()
 
 file(GLOB _wasm_libdir_contents "${LIBDIR}/*")
 if(_wasm_libdir_contents)
   set(WITH_LIBS_PRECOMPILED ON)
   set(CMAKE_PREFIX_PATH "${LIBDIR}" ${CMAKE_PREFIX_PATH})
+  # The Emscripten toolchain re-roots find_library()/find_path()/find_package()
+  # at its own sysroot (CMAKE_FIND_ROOT_PATH_MODE_{LIBRARY,INCLUDE}=ONLY), so a
+  # bare find_* cannot see lib/wasm. Appending LIBDIR to CMAKE_FIND_ROOT_PATH
+  # makes the wasm prefix a first-class search root — the same remedy the dep
+  # cross-build scripts used (e.g. opencolorio.sh passes -DCMAKE_FIND_ROOT_PATH).
+  # Belt-and-suspenders: the resolution block below also seeds explicit
+  # <Pkg>_DIR / <PKG>_LIBRARY hint vars so every find is deterministic.
+  list(APPEND CMAKE_FIND_ROOT_PATH "${LIBDIR}")
   if(FIRST_RUN)
     message(STATUS "blender-web: using wasm LIBDIR: ${LIBDIR}")
   endif()
@@ -91,22 +132,124 @@ set(EPOXY_INCLUDE_DIRS "" CACHE STRING "" FORCE)
 set(EPOXY_LIBRARIES    "" CACHE STRING "" FORCE)
 
 # -----------------------------------------------------------------------------
-# M1 pre-M2 mandatory-dependency PLACEHOLDERS (TEMPORARY — deleted at M2)
+# Dependency resolution against the real lib/wasm prefix (M1.8)
 #
-# Blender 5.2 made OpenColorIO / OpenImageIO(+oiiotool) / OpenEXR / fmt / Eigen3
-# non-optional: build_files/cmake/platform/dependency_targets.cmake ALIASes them
-# unconditionally (lines 82,93,143-144,185,464 @ fbe6228777e7), and
-# source/creator/CMakeLists.txt:42 splices ${TBB_LIBRARIES} with no WITH_ guard.
-# In a native build platform_unix.cmake's find_package_wrapper() creates these
-# imported targets; there is no lib/wasm harvest until M2, so with WITH_LIBS_PRECOMPILED
-# OFF we define empty INTERFACE placeholders purely so the CMAKE configure completes
-# and can be regression-checked (proving the CMake spine, not building anything).
+# This file REPLACES platform_unix.cmake for the Emscripten branch, so none of
+# platform_unix's find_package_wrapper() calls run. We reproduce here exactly the
+# subset that the M1 headless core needs — the mandatory, non-optional deps that
+# dependency_targets.cmake wires into bf::dependencies::* aliases and that
+# blenlib PUBLIC-links (OpenImageIO -> OpenColorIO -> OpenEXR/Imath, fmt, TBB,
+# Eigen3, zlib/zstd, plus the JPEG/PNG/Freetype/Brotli mandated finds).
 #
-# This is NOT parity theater and NOT a test/harness stub: it satisfies configure-time
-# target existence only, is fenced behind `NOT WITH_LIBS_PRECOMPILED`, and is
-# superseded automatically the moment lib/wasm is populated (then real find_package()
-# results supply these targets). Delete this whole block when the M2 superbuild lands.
-if(NOT WITH_LIBS_PRECOMPILED)
+# The hint-var set below is the proven consumer contract from the dep cross-build
+# scripts (see notes/deps-oiio.md): CONFIG packages get an explicit <Pkg>_DIR;
+# module-found libs (ZLIB/JPEG/PNG/Zstd/Freetype/Brotli) get <PKG>_LIBRARY +
+# include hints so the emscripten-rerooted find_library() is a deterministic
+# no-op. OpenColorIO's installed config chases pystring/minizip-ng through its
+# OWN bundled Find modules — those need *_INCLUDE_DIR/_LIBRARY (NOT *_ROOT for
+# minizip-ng: the ROOT path hits a get_target_property trap).
+#
+# Optional/gated deps (Python, Cycles/OSL/Embree, USD, OpenVDB, audio, ...) are
+# resolved by their own WITH_-guarded blocks in Blender's tree and are forced OFF
+# in patches/blender_web.cmake, so they need nothing here.
+if(WITH_LIBS_PRECOMPILED)
+  # ---- CONFIG-package location hints ----------------------------------------
+  set(fmt_DIR            "${LIBDIR}/lib/cmake/fmt")
+  set(Imath_DIR          "${LIBDIR}/lib/cmake/Imath")
+  set(OpenEXR_DIR        "${LIBDIR}/lib/cmake/OpenEXR")
+  set(libdeflate_DIR     "${LIBDIR}/lib/cmake/libdeflate")   # OpenEXR core find_dependency
+  set(openjph_DIR        "${LIBDIR}/lib/cmake/openjph")      # OpenEXR core find_dependency
+  set(OpenColorIO_DIR    "${LIBDIR}/lib/cmake/OpenColorIO")
+  set(OpenImageIO_DIR    "${LIBDIR}/lib/cmake/OpenImageIO")
+  set(TBB_DIR            "${LIBDIR}/lib/cmake/TBB")
+  set(Eigen3_DIR         "${LIBDIR}/share/eigen3/cmake")
+  set(yaml-cpp_DIR       "${LIBDIR}/lib/cmake/yaml-cpp")     # OCIO find_dependency
+  set(yaml-cpp_VERSION   "0.8.0")
+  set(tsl-robin-map_DIR  "${LIBDIR}/share/cmake/tsl-robin-map")
+  set(TIFF_DIR           "${LIBDIR}/lib/cmake/tiff")
+  set(PNG_DIR            "${LIBDIR}/lib/cmake/PNG")
+  set(libjpeg-turbo_DIR  "${LIBDIR}/lib/cmake/libjpeg-turbo")
+  # expat ships its config under lib/cmake/expat-<version>/ (version-suffixed dir).
+  file(GLOB _bw_expat_cfg_dir "${LIBDIR}/lib/cmake/expat-*")
+  if(_bw_expat_cfg_dir)
+    set(expat_DIR "${_bw_expat_cfg_dir}")
+  endif()
+  unset(_bw_expat_cfg_dir)
+
+  # ---- Module-found libraries: seed the search results so find_* is a no-op --
+  set(ZLIB_ROOT          "${LIBDIR}")
+  set(ZLIB_INCLUDE_DIR   "${LIBDIR}/include")
+  set(ZLIB_LIBRARY       "${LIBDIR}/lib/libz.a")
+  set(JPEG_ROOT          "${LIBDIR}")
+  set(JPEG_INCLUDE_DIR   "${LIBDIR}/include")
+  set(JPEG_LIBRARY       "${LIBDIR}/lib/libjpeg.a")
+  set(PNG_ROOT           "${LIBDIR}")
+  set(PNG_PNG_INCLUDE_DIR "${LIBDIR}/include")
+  set(PNG_LIBRARY        "${LIBDIR}/lib/libpng16.a")
+  set(TIFF_INCLUDE_DIR   "${LIBDIR}/include")
+  set(TIFF_LIBRARY       "${LIBDIR}/lib/libtiff.a")
+  set(ZSTD_ROOT_DIR      "${LIBDIR}")
+  set(ZSTD_INCLUDE_DIR   "${LIBDIR}/include")
+  set(ZSTD_LIBRARY       "${LIBDIR}/lib/libzstd.a")
+  set(BROTLI_ROOT_DIR    "${LIBDIR}")
+  set(FREETYPE_LIBRARY              "${LIBDIR}/lib/libfreetype.a")
+  set(FREETYPE_INCLUDE_DIR_ft2build "${LIBDIR}/include/freetype2")
+  set(FREETYPE_INCLUDE_DIR_freetype2 "${LIBDIR}/include/freetype2")
+  # OCIO bundled Find modules for pystring / minizip-ng (module mode, no config).
+  set(pystring_ROOT        "${LIBDIR}")
+  set(pystring_INCLUDE_DIR "${LIBDIR}/include")
+  set(pystring_LIBRARY     "${LIBDIR}/lib/libpystring.a")
+  set(minizip-ng_INCLUDE_DIR "${LIBDIR}/include/minizip-ng/minizip")
+  set(minizip-ng_LIBRARY     "${LIBDIR}/lib/libminizip.a")
+
+  # ---- Resolve, leaves first so downstream find_dependency() sees the targets -
+  find_package(Threads REQUIRED)
+  find_package(fmt REQUIRED)                       # -> fmt::fmt
+  find_package(Imath REQUIRED)                     # -> Imath::Imath
+  find_package(OpenEXR REQUIRED)                   # -> OpenEXR::OpenEXR
+  find_package(ZLIB REQUIRED)                      # -> ZLIB_INCLUDE_DIRS/ZLIB_LIBRARIES
+  find_package(Zstd REQUIRED)                      # Blender module -> ZSTD_*
+  find_package(JPEG REQUIRED)                      # -> JPEG_INCLUDE_DIR/JPEG_LIBRARIES
+  find_package(PNG REQUIRED)                       # -> PNG_INCLUDE_DIRS/PNG_LIBRARIES
+  find_package(TIFF REQUIRED)                      # OIIO find_dependency
+  find_package(TBB REQUIRED)                       # -> TBB::tbb
+  find_package(OpenColorIO 2.0.0 REQUIRED)         # -> OpenColorIO::OpenColorIO
+  find_package(OpenImageIO REQUIRED)               # -> OpenImageIO::OpenImageIO
+  find_package(Eigen3 REQUIRED)                    # -> Eigen3::Eigen
+  find_package(Freetype REQUIRED)                  # -> FREETYPE_INCLUDE_DIRS/FREETYPE_LIBRARIES
+  find_package(Brotli REQUIRED)                    # -> BROTLI_LIBRARIES
+  check_freetype_for_brotli()
+
+  # ---- Derive the raw vars dependency_targets.cmake consumes ----------------
+  # It reads ${TBB_LIBRARIES}/${TBB_INCLUDE_DIRS} (not the TBB::tbb target),
+  # mirroring platform_unix.cmake's TBB block.
+  if(WITH_TBB AND TARGET TBB::tbb)
+    get_target_property(TBB_LIBRARIES    TBB::tbb LOCATION)
+    get_target_property(TBB_INCLUDE_DIRS TBB::tbb INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+
+  # OpenImageIO was cross-built with OIIO_BUILD_TOOLS=OFF, so its config does NOT
+  # export the OpenImageIO::oiiotool target. dependency_targets.cmake:144 reads its
+  # LOCATION unconditionally (a build-time datafiles/icon generator that M1 never
+  # runs; a wasm oiiotool could not run on the host anyway). Provide the imported
+  # executable so the configure-time get_target_property() resolves. M2 supplies a
+  # real NATIVE oiiotool here when it wires up the datafiles generation step.
+  if(NOT TARGET OpenImageIO::oiiotool)
+    add_executable(OpenImageIO::oiiotool IMPORTED GLOBAL)
+    set_target_properties(OpenImageIO::oiiotool PROPERTIES
+      IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/bw_no_wasm_oiiotool")
+  endif()
+
+  if(FIRST_RUN)
+    message(STATUS "blender-web: resolved wasm deps from ${LIBDIR} "
+                   "(OIIO/OCIO/OpenEXR/Imath/fmt/TBB/Eigen3/JPEG/PNG/TIFF/zlib/zstd/Freetype/Brotli)")
+  endif()
+else()
+  # ---------------------------------------------------------------------------
+  # Pre-M2 fallback ONLY (lib/wasm empty): empty INTERFACE placeholders so a bare
+  # CMake spine still configures for regression-checking. This branch is DEAD once
+  # the superbuild has populated lib/wasm (WITH_LIBS_PRECOMPILED flips ON above).
+  # Not parity theater: fenced behind an empty prefix, builds nothing.
   foreach(_bw_iface
       OpenColorIO::OpenColorIO
       OpenImageIO::OpenImageIO
@@ -119,24 +262,15 @@ if(NOT WITH_LIBS_PRECOMPILED)
     endif()
   endforeach()
   unset(_bw_iface)
-
-  # oiiotool is consumed via get_target_property(... LOCATION) at
-  # dependency_targets.cmake:144; the property only has to READ at configure time
-  # (data-gen steps that would actually RUN it are build-time, and M1 does not build).
   if(NOT TARGET OpenImageIO::oiiotool)
     add_executable(OpenImageIO::oiiotool IMPORTED GLOBAL)
     set_target_properties(OpenImageIO::oiiotool PROPERTIES
       IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/bw_m1_placeholder/oiiotool")
   endif()
-
-  # TBB: WITH_TBB is ON; source/creator splices ${TBB_LIBRARIES} into LIB, so an
-  # empty var aborts. Placeholder path only (never linked in an M1 configure).
   set(TBB_LIBRARIES    "${CMAKE_BINARY_DIR}/bw_m1_placeholder/libtbb.a" CACHE STRING "" FORCE)
   set(TBB_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/bw_m1_placeholder"          CACHE PATH   "" FORCE)
-
   if(FIRST_RUN)
-    message(STATUS "blender-web: M1 placeholder dep targets active "
-                   "(OCIO/OIIO/oiiotool/OpenEXR/fmt/Eigen3/TBB) — replaced by lib/wasm at M2.")
+    message(STATUS "blender-web: lib/wasm empty — empty placeholder dep targets (pre-M2).")
   endif()
 endif()
 
@@ -157,7 +291,15 @@ set(WITH_COMPILER_LTO OFF CACHE BOOL "" FORCE)
 # present at BOTH compile and link. Everything else memory/GPU-related is a
 # link-time -s option (below).
 
-set(_WASM_COMPILE_FLAGS "-pthread")
+# -funsigned-char is MANDATORY, not stylistic: Blender's DNA declares fixed
+# underlying-type enums like `enum X : char { ... = 1 << 7 }` (== 128) that only
+# compile where `char` is unsigned. Every native platform sets it (platform_unix
+# L895, platform_apple L161, platform_win32 via /clang:); Emscripten defaults
+# `char` to SIGNED, so without this makesdna.cc et al. fail -Wc++11-narrowing.
+# -fno-strict-aliasing and -ffp-contract=off match native for correctness + FP
+# determinism (tier-(a) parity depends on the latter). -pthread: atomics + shared
+# memory, required at compile and link.
+set(_WASM_COMPILE_FLAGS "-pthread -funsigned-char -fno-strict-aliasing -ffp-contract=off")
 string(APPEND CMAKE_C_FLAGS   " ${_WASM_COMPILE_FLAGS}")
 string(APPEND CMAKE_CXX_FLAGS " ${_WASM_COMPILE_FLAGS}")
 string(APPEND PLATFORM_CFLAGS " ${_WASM_COMPILE_FLAGS}")

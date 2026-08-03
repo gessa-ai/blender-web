@@ -380,6 +380,16 @@
       "version": "2.13.3",
       "status": "ok",
       "notes": "REQUIRED, NOT deferrable: no WITH_FREETYPE off-switch; check_freetype_for_brotli() FATALs without brotli-enabled freetype. Static -pthread; FT_REQUIRE_BROTLI=ON + FT_REQUIRE_ZLIB=ON, FT_DISABLE_{BZIP2,HARFBUZZ,PNG}=ON, links lib/wasm brotli+zlib. Installs libfreetype.a (no 2ST postfix) + include/freetype2/. FT_CONFIG_OPTION_USE_BROTLI baked into installed ftoption.h (script asserts). scripts/deps/freetype.sh. See notes/deps-freetype.md"
+    },
+    "python": {
+      "version": "3.13.13",
+      "status": "ok",
+      "license": "PSF-2.0",
+      "gpl_compatible": true,
+      "hash": "md5:3a19dd420883dd599728c9dd07c141e7",
+      "hash_provenance": "versions.cmake:385 (PYTHON_HASH, MD5) — verified against downloaded tarball",
+      "rationale": "WITH_PYTHON mandatory for bpy/UI (D-4); Blender 5.2 pins exactly 3.13 (FindPythonLibsUnix hardcodes 3.13).",
+      "notes": "M2.1/M2.2 (2026-08-03). Vanilla CPython 3.13.13 static libpython3.13.a for wasm32-emscripten, browser target, JS-EH (-fexceptions; SUPPORT_LONGJMP defaults emscripten) per ADR-001 appendix + M2.0b probe (notes/python-emcc605-probe.md) — matches the JS-EH deps stack, zero dep rebuild. ZERO source patches on emcc 6.0.5 (3.13.13 ships in-tree Python/emscripten_trampoline.c; LONG_BIT not hit). Native bootstrap python.exe (macOS case-insensitive FS) via --with-build-python. Harvest is unix-layout / FindPythonLibsUnix-ready: lib/libpython3.13.a (42.2MB, 2850 defined-T syms = probe parity), include/python3.13/ (Python.h + cpython/ + internal/ + pyconfig.h), lib/python3.13/ (unzipped stdlib incl. build-generated _sysconfigdata__emscripten_wasm32-emscripten.py; CPython test suite excluded). Optional modules absent — need deps not yet harvested: _ctypes(libffi) _ssl/_hashlib(openssl) _lzma(xz) _uuid. Built + harvested by scripts/deps/python.sh (idempotent). WITH_PYTHON NOT yet enabled in blender_web.cmake (M2.3, driver-gated)."
     }
   }
 }

@@ -1,0 +1,27 @@
+{
+  "scope": "m1",
+  "pass": false,
+  "ts": "2026-08-03T15:32:17Z",
+  "checks": {
+    "blenlib_test_link": {
+      "pass": true,
+      "detail": "1/1 linked: BLI_test.js + BLI_test.wasm (8.77 MB) link for wasm32 under emcc 6.0.5. extern gtest/gmock/gflags/glog all cross-compiled to wasm (glog needed patch 0006 config_emscripten.h); bf_blenlib + bf_dna + guardedalloc + TBB/OIIO/OpenEXR/OCIO/Imath stack linked. NODERAWFS variant used as the runnable node harness."
+    },
+    "blenlib_test_run": {
+      "pass": true,
+      "detail": "1655/1665 passed (99 suites, 0 skipped, node v22.23.1, ~0.84s, exit 1). Re-verified this session, not trusted from the prior record. All 10 non-passes are non-faithfulness: 9x expr_pylike.Error_* = wasm has no FP-exception status register (fetestexcept no-op; status returns SUCCESS vs expected err code 2) -> ledger/deferred.json wasm-fp-exception-status, pass natively; 1x ChangeWorkingDirectoryTest = macOS-host /tmp->/private realpath under NODERAWFS, the test's __APPLE__ canonicalization compiled out under emscripten (expected green on the Linux oracle host, not re-run on Linux this session). ZERO CPU-logic or wasm32-ABI miscomputations. (Without --test-assets-dir, 2 more fileops.fstream_open_* FAIL for a missing asset dir -> 1653/1665; they pass with the flag, confirming correct UTF-8 Cyrillic-path std::fstream open on wasm.)"
+    },
+    "blenlib_wasm32_bug_found_fixed": {
+      "pass": true,
+      "detail": "1/1: path_utils.ExtensionEnsure exposed a REAL ILP32 bug in Blender's path_utils.cc BLI_path_extension_ensure: `a = path_len - 1` with path_len==0 underflows size_t to 0xFFFFFFFF -> +4294967295 in int64_t on wasm32 (loop runs OOB) vs -1 on LP64. Fixed in patch 0006 by casting to signed before subtracting; native LP64 behavior byte-identical. Test now GREEN. The free cross-build oracle did exactly its job."
+    },
+    "bmesh_core_test_link": {
+      "pass": false,
+      "detail": "0/1 BLOCKED, not a test defect. Blender builds NO standalone per-suite test executable: `bmesh_core`/`bmesh_core_test` are CTest names registered against ONE combined runner bin/tests/blender_test.js whose link line pulls ~200 archives (essentially all of Blender). The bmesh suite (libbmesh_tests.a) resolves only inside that binary. bf_bmesh PRIVATE-depends on bf::blenkernel + bf::depsgraph + bf::blentranslation (+animrig transitively); none of these -- nor bf_bmesh itself -- are built for wasm (M1.9 delivered only bf_blenlib + bf_dna). Verified: build-wasm/lib has no libbf_bmesh/blenkernel/depsgraph/animrig/rna .a. Running bmesh_core on wasm requires porting blenkernel + depsgraph (+RNA makesrna generation, datatoc host-tool wiring) -- the remainder of M1 headless-core / M2 territory. No pass fabricated."
+    },
+    "bmesh_core_test_run": {
+      "pass": false,
+      "detail": "0/1 not reached: the suite cannot link until bf_blenkernel + bf_depsgraph compile for wasm32 and a runnable test binary is wired. Structural milestone gap upstream of the harness (see notes/harness-issues.md H-5). No result fabricated."
+    }
+  }
+}

@@ -1,1 +1,10 @@
-{"deferred": []}
+{"deferred": [
+  {
+    "id": "wasm-fp-exception-status",
+    "milestone": "M1",
+    "blocker": "WebAssembly has no floating-point exception status register; emscripten's <fenv.h> defines FE_ALL_EXCEPT 0 and omits FE_DIVBYZERO/FE_INVALID, so fetestexcept() always returns 0.",
+    "impact": "BLI_expr_pylike_eval div-by-zero / domain-error detection is a no-op on wasm: expressions that divide by zero or take sqrt/pow of a domain error return EXPR_PYLIKE_SUCCESS instead of _DIV_BY_ZERO / _MATH_ERROR. 9 blenlib gtests fail on wasm (expr_pylike.Error_DivZero1-3, Error_SqrtDomain1-2, Error_PowDomain1-2, Error_Mixed1-2); all pass natively.",
+    "workaround": "A source-level explicit divide/NaN check in expr_pylike_eval would restore parity without the hardware register; deferred until a tier-(b/c) suite exercises driver-network error paths. Tracked in patches/0004 + notes/m1-blenlib.md Class 2.",
+    "evidence": "ledger/results/m1.json blenlib_test_run; tools/emsdk sysroot/include/bits/fenv.h"
+  }
+]}

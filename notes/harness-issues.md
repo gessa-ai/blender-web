@@ -32,6 +32,29 @@ one and nothing catches it. **Highest priority of the three.**
 A stale or hand-edited TOOLCHAIN file would make the toolchain check pass against a toolchain
 that isn't actually installed. Probe `emcc --version` at run time and compare.
 
+## OPEN — needed to gate the tier-(a) suites (recorded 2026-08-03, M1.10/M1.11 worker)
+
+**H-4. `run.sh` has no `m1` scope; the tier-(a) gtest gate cannot be driven by the harness.**
+`SCOPES_REGISTERED="m0"` only. The blenlib gtest suite now links and runs on wasm
+(`ledger/results/m1.json` written directly by this worker, per the "result file only" allowance).
+The driver must, at the M1 boundary: lift `.claude/harness.lock`, add a `scope_m1` that
+(1) applies patches 0001-0006 to `upstream/`, (2) `emcmake` configures `build-wasm`,
+(3) `ninja BLI_test`, (4) runs it under `tools/emsdk/node/.../node build-wasm/bin/tests/BLI_test.js
+--test-assets-dir upstream/tests/files`, (5) parses the gtest tail for `[  PASSED  ]` / `[  FAILED  ]`,
+asserting 1655 pass / the 10 characterized non-passes (9 fenv-deferral + 1 macOS-host chdir), then
+reverts upstream pristine. Register `m1` in `SCOPES_REGISTERED` and add it to `--regress`.
+
+Runner facts the scope must bake in (already in `patches/platform_wasm.cmake`, gated on WITH_GTESTS):
+the gtest binaries link `-sNODERAWFS -sEXIT_RUNTIME=1` so they can read the real UTF-8 asset files
+and exit with RUN_ALL_TESTS()'s code (a PROXY_TO_PTHREAD runner otherwise keeps node's worker pool
+alive and never exits). Wall time is ~1s; no special node flags needed on node 22 (wasm threads on
+by default).
+
+**H-5. bmesh_core gate is blocked upstream of the harness** — see `ledger/results/m1.json`
+`bmesh_core_test_link`: bf_bmesh needs blenkernel + depsgraph ported to wasm and the `datatoc`
+host tool wired through `blender_web_host_tool()` (datatoc.js -> Permission denied, rc 126). Not a
+harness defect; a build-deps task. Do not register an `m1` bmesh check until that lands.
+
 ## Reconciliation procedure (driver only)
 
 1. `rm .claude/harness.lock`

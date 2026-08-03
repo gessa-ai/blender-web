@@ -155,3 +155,12 @@ set(WITH_ASSERT_RELEASE      ON  CACHE BOOL "" FORCE)
 # come from bundled extern/ (root CMakeLists.txt L1654/L1669), gtest/gmock from
 # extern too — no external dep. OFF by default upstream (root L778).
 set(WITH_GTESTS              ON  CACHE BOOL "" FORCE)
+
+# ---- wasm libc gap: malloc_stats declared but not linkable -----------------
+# have_features.cmake `check_symbol_exists(malloc_stats "malloc.h" ...)` returns
+# TRUE under emscripten because musl's <malloc.h> *declares* malloc_stats(), but
+# emscripten provides no definition -> guardedalloc's HAVE_MALLOC_STATS path is a
+# link error (undefined symbol: malloc_stats). Pre-defining the cache var makes
+# CheckSymbolExists skip its probe, so HAVE_MALLOC_STATS stays undefined and the
+# stats-print falls back to the portable path. GLIBC-only feature; honest to omit.
+set(HAVE_MALLOC_STATS_H "" CACHE INTERNAL "wasm: malloc_stats not linkable" FORCE)

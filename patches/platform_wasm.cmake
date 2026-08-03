@@ -340,7 +340,14 @@ set(WITH_COMPILER_LTO OFF CACHE BOOL "" FORCE)
 # -fno-strict-aliasing and -ffp-contract=off match native for correctness + FP
 # determinism (tier-(a) parity depends on the latter). -pthread: atomics + shared
 # memory, required at compile and link.
-set(_WASM_COMPILE_FLAGS "-pthread -funsigned-char -fno-strict-aliasing -ffp-contract=off")
+# -fexceptions (emscripten JS-based EH) is MANDATORY, not optional: TBB, OpenImageIO
+# and gflags all throw C++ exceptions, and gtest itself throws on assertion in some
+# modes. Emscripten DISABLES exception catching by default, so a throw calls abort()
+# instead of unwinding -> the gtest runner aborts at startup (verified: ___cxa_throw
+# -> Aborted). Must be uniform across every object AND the link (see notes/deps-tbb.md
+# "consume TBB under wasm" table). Whole-build commit to -fwasm-exceptions is the
+# faster later alternative once every dep is rebuilt with it uniformly.
+set(_WASM_COMPILE_FLAGS "-pthread -fexceptions -funsigned-char -fno-strict-aliasing -ffp-contract=off")
 string(APPEND CMAKE_C_FLAGS   " ${_WASM_COMPILE_FLAGS}")
 string(APPEND CMAKE_CXX_FLAGS " ${_WASM_COMPILE_FLAGS}")
 string(APPEND PLATFORM_CFLAGS " ${_WASM_COMPILE_FLAGS}")
@@ -365,6 +372,7 @@ unset(_WASM_COMPILE_FLAGS)
 
 string(APPEND PLATFORM_LINKFLAGS
   " -pthread"
+  " -fexceptions"
   " -sPROXY_TO_PTHREAD"
   " -sMALLOC=mimalloc"
   " -sWASM_BIGINT"
@@ -376,6 +384,25 @@ string(APPEND PLATFORM_LINKFLAGS
 # Not safe for optimized release links, so gate it on non-Release build types.
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   string(APPEND PLATFORM_LINKFLAGS " -sERROR_ON_WASM_CHANGES_AFTER_LINK")
+endif()
+
+# ---- M1 tier-(a) test-runner profile (gtest builds only) -------------------
+# The blenlib/bmesh gtest binaries run under node, not a browser, and must:
+#   * -sNODERAWFS      map argv paths straight to node's real filesystem, so the
+#                      fstream/fileops suites can open the real UTF-8 asset files
+#                      under `--test-assets-dir` (verified: fileops.fstream_open_*
+#                      go RED->GREEN with NODERAWFS + a real assets dir). Native
+#                      CI likewise requires --test-assets-dir; this is faithful,
+#                      not a weakening.
+#   * -sEXIT_RUNTIME=1 make the process exit with RUN_ALL_TESTS()'s return code
+#                      (a PROXY_TO_PTHREAD runner otherwise keeps node's worker
+#                      pool alive after main returns -> the harness would hang).
+# Gated on WITH_GTESTS so the eventual browser `blender` target never inherits
+# NODERAWFS. Host codegen tools (makesdna/makesrna) set their own LINK_FLAGS via
+# blender_web_host_tool() and already carry both flags, so this is a harmless
+# duplicate for them.
+if(WITH_GTESTS)
+  string(APPEND PLATFORM_LINKFLAGS " -sNODERAWFS -sEXIT_RUNTIME=1")
 endif()
 
 # -----------------------------------------------------------------------------

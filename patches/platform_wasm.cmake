@@ -53,6 +53,47 @@ function(check_freetype_for_brotli)
 endfunction()
 
 # -----------------------------------------------------------------------------
+# Host codegen tools (makesdna / makesrna / ...) — run under node at build time
+#
+# Blender's build compiles several C++ "host tools" and then EXECUTES them during
+# the build to GENERATE source (DNA structs, RNA bindings; later milestones: glsl
+# datatoc, icons, locale). Under Emscripten those tools are .wasm/.js, not native
+# binaries, so two things must change versus the browser link profile:
+#
+#   1. Invocation. The tool's add_custom_command must run `node <tool>.js ...`, not
+#      the .js file directly (which fails "permission denied"). The Emscripten
+#      toolchain sets CMAKE_CROSSCOMPILING_EMULATOR to node (Emscripten.cmake
+#      @ L373-378). CMake applies that emulator automatically ONLY when a custom
+#      command's COMMAND is a bare target name; Blender invokes the tool via
+#      `cmake -E env "$<TARGET_FILE:tool>"`, which bypasses that path. So each such
+#      custom_command is patched to prepend ${CMAKE_CROSSCOMPILING_EMULATOR} before
+#      the tool path (patches/0002-hosttools-node.patch). On native builds the var
+#      is empty, so the prefix is a no-op.
+#
+#   2. Link profile. The default browser profile (PLATFORM_LINKFLAGS) proxies main()
+#      to a worker (-sPROXY_TO_PTHREAD) and gives the module no host filesystem —
+#      both wrong for a build-time CLI. blender_web_host_tool() below overwrites the
+#      target's LINK_FLAGS with a node-runnable profile: main() on the main thread,
+#      -sEXIT_RUNTIME so the process exits, -sNODERAWFS so the absolute host paths
+#      passed as argv read/write the real filesystem. This is the exact mechanism
+#      proven manually in notes/m1-integrate.md (blocker #1, "FIX PATH PROVEN").
+#
+# Later milestones that add host tools (shader/glsl codegen, icon and locale
+# generation) MUST reuse BOTH halves — see notes/m1-hosttools.md.
+function(blender_web_host_tool target)
+  if(NOT EMSCRIPTEN)
+    return()
+  endif()
+  # OVERWRITE (not append) the LINK_FLAGS that setup_platform_linker_flags() set
+  # from PLATFORM_LINKFLAGS: -sPROXY_TO_PTHREAD, -sMALLOC=mimalloc and the
+  # changes-after-link guard are all wrong for a node CLI. -pthread stays — the
+  # tool's objects were compiled with it (shared-memory ABI must match).
+  set_target_properties(${target} PROPERTIES
+    LINK_FLAGS
+      "-pthread -sNODERAWFS -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH -sWASM_BIGINT -sPROXY_TO_PTHREAD=0")
+endfunction()
+
+# -----------------------------------------------------------------------------
 # Precompiled library discovery
 #
 # There is no `lib/wasm` harvest until M2 (the build_environment superbuild has

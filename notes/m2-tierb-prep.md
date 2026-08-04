@@ -458,3 +458,188 @@ sandbox/tierb-prep/run_suite.sh <ctest_name>  # one suite
 ```
 Raw logs + generated `.blend` land in `sandbox/tierb-prep/_out/` (gitignored). upstream left
 pristine (read-only; nothing written under it).
+
+## §scope-final — paste-ready `scope_m2b` for the harness boundary install
+
+Driver: paste the function into `harness/run.sh` beside `scope_m1`, and change the registry
+line `SCOPES_REGISTERED="m0 m1"` → `SCOPES_REGISTERED="m0 m1 m2b"` (the only other edit). It
+follows the house style: `record NAME 0|1 DETAIL`, exit-code-primary robust counting (the
+tier-(b) analogue of `scope_m1`'s `--gtest_output=json` — wasm threaded stdout is UNRELIABLE per
+H-4/H-5, so the gate reads the process **exit code**, never scraped `OK`/`Ran N` lines),
+artifact-missing FAIL with the rebuild recipe in the detail, and fast-fail honesty.
+
+**SCOPES_REGISTERED delta:** `m0 m1` → `m0 m1 m2b` (one token added).
+**Expected wall time:** ~150 s (75 CORE suites × ~2 s node cold-start each; wall-clock ~2.5 min).
+The run reuses `sandbox/tierb-prep/{run_core_wasm.sh,run_suite_wasm.sh,suites.tsv,normalize.sed,
+wasm-denoise.pl,_datafiles_wasm}` — all committed/idempotent; raw logs land in the gitignored
+`_out/`.
+
+Green math encoded (bump in ONE place as deps land): today **54 must-pass** (deterministic
+green). Flip `ESSENTIALS_LANDED=1` when the §6a asset-storage fix lands → 57; flip
+`NUMPY_HARVESTED=1` when numpy is in `lib/wasm` → +8. Each flag flip moves its named group from
+"allowed-fail (pending)" to "must-pass" in a single assignment.
+
+```bash
+# ---------------------------------------------------------------- scope: m2b
+# Tier-(b): Blender's stock --background --factory-startup Python operator/bpy-API CORE suite
+# (75 rows of sandbox/tierb-prep/suites.tsv) run on the wasm build (build-wasm/bin/blender.js
+# under emsdk node) and matched to the native oracle. EXIT-CODE is the gate signal: wasm threaded
+# stdout drops lines at exit (H-4/H-5), exactly like the tier-(a) gtests, so counts come from the
+# process exit code (--python-exit-code 1 + --debug-exit-on-error make any failing assert nonzero),
+# never from scraped stdout. Full evidence + running scoreboard: notes/m2-tierb-prep.md §6/§6b.
+scope_m2b() {
+  local PREP=sandbox/tierb-prep
+  local NODE; NODE="$(ls -d tools/emsdk/node/*/bin/node 2>/dev/null | head -1)"
+
+  # --- config: bump these ONE-LINE flags as pending deps land (moves a named group to must-pass)
+  local ESSENTIALS_LANDED=0   # §6a asset-storage fix -> object_edit,bl_brush,bl_sculpt_brushes (+3)
+  local NUMPY_HARVESTED=0     # numpy in lib/wasm    -> the 8 sculpt/paint numpy suites          (+8)
+
+  # --- suite classification (everything NOT listed here defaults to MUST-PASS) -----------------
+  # DEFERRED (deterministic): expected to FAIL on the current build; each MUST have a matching
+  #   ledger/deferred.json id. A deterministic-deferred suite that PASSES => un-defer candidate
+  #   (flagged, never silently green).  suite -> deferred.json id:
+  local -A DEFERRED=(
+    [script_pyapi_mathutils]=float32-ulp-mathutils
+    [script_pyapi_bmesh]=float32-ulp-mathutils
+    [bl_constraints]=float32-ulp-mathutils
+    [bl_node_structure_type_inference]=wasm32-64bit-blend-collision
+    # feature compiled OFF per GOAL (OpenVDB / OpenSubdiv / Cycles engine / AVIF codec):
+    [bl_voxel_remesh]=feature-off-openvdb
+    [bl_voxel_remesh_compare]=feature-off-openvdb
+    [bl_multires]=feature-off-opensubdiv
+    [bl_node_link_drag]=feature-off-cycles-engine
+    [imbuf_py_api]=feature-off-avif
+  )
+  # FLAKY: deferred heisenbug — EITHER outcome is consistent (no un-defer flag on a pass); id req'd.
+  local -A FLAKY=( [bl_node_copy_operators]=node-ungroup-socket-flake )
+  # PENDING: promise-held; allowed-fail until its dep lands, then the flag above makes it must-pass.
+  local PENDING_ESSENTIALS="object_edit bl_brush bl_sculpt_brushes"
+  local PENDING_NUMPY="script_pyapi_prop_array bl_sculpt_brush_curve_presets bl_sculpt_mask \
+bl_sculpt_face_set bl_sculpt_mesh_filter bl_sculpt_automasking bl_vertex_paint_brushes \
+bl_weight_paint_brushes"
+
+  # --- preflight artifacts (FAIL with rebuild recipe; a rebuild is a worker action, not a side effect)
+  if [ -z "$NODE" ]; then
+    record wasm_runtime 0 "no emsdk node under tools/emsdk/node/*/bin/node"; return
+  fi
+  if [ ! -f build-wasm/bin/blender.js ]; then
+    record wasm_runtime 0 "build-wasm/bin/blender.js missing; rebuild: flip WITH_PYTHON ON + \
+blender_web_node_binary(blender) + ninja -C build-wasm blender (see notes/m2-python-boot.md)"; return
+  fi
+  if [ ! -d lib/wasm/lib/python3.13 ]; then
+    record wasm_runtime 0 "lib/wasm python harvest missing; rebuild: bash scripts/deps/python.sh"; return
+  fi
+  record wasm_runtime 1 "$NODE ($("$NODE" --version 2>/dev/null)); blender.js + lib/wasm present"
+
+  # --- run the 75 CORE suites (EXIT-CODE per suite -> $PREP/results-wasm.tsv). ~150 s. -----------
+  # run_core_wasm.sh runs exactly the CORE set (it skips the 5 AMBER + 1 design-excluded) and
+  # composes the datafiles payload idempotently. If it is absent the scope cannot proceed.
+  if [ ! -x "$PREP/run_core_wasm.sh" ]; then
+    record m2b_manifest 0 "$PREP/run_core_wasm.sh missing (tier-b harness kit not present)"; return
+  fi
+  "$PREP/run_core_wasm.sh" >/dev/null 2>&1
+  local RES="$PREP/results-wasm.tsv"
+  local NROWS; NROWS="$(grep -cvE '^#' "$RES" 2>/dev/null || echo 0)"
+  if [ "$NROWS" != 75 ]; then
+    record m2b_manifest 0 "expected 75 CORE rows, got $NROWS (suites.tsv drift?) [$RES]"; return
+  fi
+  record m2b_manifest 1 "75 CORE rows executed [$RES]"
+
+  # --- classify each row by EXIT CODE (col 3). verdict col 2 is advisory; exit is the gate. -----
+  local mustpass_total=0 mustpass_green=0 mustfail=""     # must-pass set
+  local undefer=""                                        # deterministic-deferred that PASSED
+  local undoc=""                                          # deferred/flaky suite w/o deferred.json id
+  local pending_ready=""                                  # a not-yet-landed PENDING suite that PASSED
+  local DEF_IDS; DEF_IDS="$(python3 -c "import json;print(' '.join(e['id'] for e in json.load(open('ledger/deferred.json'))['deferred']))" 2>/dev/null)"
+  in_set() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
+
+  local name exit rest
+  while IFS=$'\t' read -r name _verdict exit rest; do
+    case "$name" in ''|\#*) continue;; esac
+    local passed=0; [ "$exit" = 0 ] && passed=1
+
+    if [ -n "${DEFERRED[$name]:-}" ]; then
+      in_set "${DEFERRED[$name]}" "$DEF_IDS" || undoc="$undoc $name(${DEFERRED[$name]})"
+      [ "$passed" = 1 ] && undefer="$undefer $name(${DEFERRED[$name]})"
+    elif [ -n "${FLAKY[$name]:-}" ]; then
+      in_set "${FLAKY[$name]}" "$DEF_IDS" || undoc="$undoc $name(${FLAKY[$name]})"
+      # either outcome consistent -> no gate effect
+    elif in_set "$name" "$PENDING_ESSENTIALS"; then
+      if [ "$ESSENTIALS_LANDED" = 1 ]; then
+        mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+      elif [ "$passed" = 1 ]; then pending_ready="$pending_ready $name(flip ESSENTIALS_LANDED=1)"; fi
+    elif in_set "$name" "$PENDING_NUMPY"; then
+      if [ "$NUMPY_HARVESTED" = 1 ]; then
+        mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+      elif [ "$passed" = 1 ]; then pending_ready="$pending_ready $name(flip NUMPY_HARVESTED=1)"; fi
+    else
+      # default: MUST-PASS (also auto-requires any new deterministic-green suite added to the manifest)
+      mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+    fi
+  done < <(grep -vE '^#' "$RES")
+
+  # --- CHECK 1: core green — every must-pass suite exits 0 (fast-fail: names the reds) ----------
+  if [ "$mustpass_green" = "$mustpass_total" ] && [ "$mustpass_total" -ge 54 ]; then
+    record core_green 1 "$mustpass_green/$mustpass_total must-pass CORE suites exit 0 \
+(ESSENTIALS_LANDED=$ESSENTIALS_LANDED NUMPY_HARVESTED=$NUMPY_HARVESTED)"
+  else
+    record core_green 0 "must-pass RED $mustpass_green/$mustpass_total; failing:${mustfail:- none} \
+(min-expected 54; if a suite regressed, that is the gate)"
+  fi
+
+  # --- CHECK 2: deferral consistency vs ledger/deferred.json (honest, no silent green) ----------
+  local dc_detail="" dc_ok=1
+  [ -n "$undoc" ] && { dc_ok=0; dc_detail="$dc_detail undocumented-deferral:$undoc (add to deferred.json);"; }
+  [ -n "$undefer" ] && { dc_ok=0; dc_detail="$dc_detail UN-DEFER-candidate (deterministic-deferred now PASSES):$undefer;"; }
+  [ -n "$pending_ready" ] && { dc_ok=0; dc_detail="$dc_detail PENDING-now-green:$pending_ready;"; }
+  if [ "$dc_ok" = 1 ]; then
+    record deferral_consistency 1 "all deferred/flaky suites map to a deferred.json id and behave as classified"
+  else
+    record deferral_consistency 0 "${dc_detail# }"
+  fi
+}
+```
+
+**Why each check exists (audit trail):**
+- `wasm_runtime` — node + `blender.js` + `lib/wasm` present, else FAIL with the exact rebuild
+  command (mirrors `scope_m1`'s artifact-missing recipes; a rebuild is a worker action).
+- `m2b_manifest` — the run produced exactly 75 CORE rows (guards silent `suites.tsv` drift).
+- `core_green` — the headline: every **must-pass** suite exits 0. Parameterized — the two
+  LANDED flags move `PENDING_ESSENTIALS`/`PENDING_NUMPY` into must-pass in one assignment each; a
+  hard floor (`>=54`) stops an accidental empty/short run from reading green.
+- `deferral_consistency` — enforces GOAL's "deferrals are honesty, silence is fraud": every
+  suite the gate lets fail must carry a `ledger/deferred.json` id; a deterministic-deferred suite
+  that starts PASSING is flagged as an **un-defer candidate** (not silently green); a still-flagged
+  PENDING suite that goes green tells the driver to flip the one-line LANDED flag. `bl_node_copy_
+  operators` is the sanctioned FLAKE (`node-ungroup-socket-flake`, ~1.4%) — either outcome is
+  consistent, so it is neither must-pass nor an un-defer trigger.
+
+**deferred.json coverage note (action before green):** the ULP (`float32-ulp-mathutils`),
+ADR-004 (`wasm32-64bit-blend-collision`) and flake (`node-ungroup-socket-flake`) ids already exist.
+The four **feature-off** ids referenced above (`feature-off-openvdb`, `feature-off-opensubdiv`,
+`feature-off-cycles-engine`, `feature-off-avif`) — spanning **5 suites** (`bl_voxel_remesh` +
+`bl_voxel_remesh_compare` share `openvdb`) — are NOT yet in `ledger/deferred.json`; until the
+driver adds them, `deferral_consistency` will (correctly, honestly) record RED naming them — that
+is the gate refusing to hide an undocumented deferral, not a harness bug. numpy + essentials are
+tracked as pending (promise-held), not deferrals.
+
+**Reconciliation — in-flux socket classification (driver 184035c vs registry):** the draft
+classifies `bl_node_copy_operators` as the sanctioned FLAKE because the live
+`ledger/deferred.json` still carries `node-ungroup-socket-flake` (status `under-investigation`)
+— i.e. it honors the registry-of-record. Driver commit `184035c` ("socket-Undefined RESOLVED —
+CONFIRMED-FIXED-BY-f7ec391, reclassify GREEN") signals the intent to promote it; when the
+`node-ungroup-socket-flake` entry is **removed from deferred.json**, delete the one `FLAKY=(…)`
+line so `bl_node_copy_operators` falls through to must-pass — green floor 54 → 55 (bump the `>=54`
+in `core_green` to `>=55`). Until the registry and the reclassification agree, `deferral_
+consistency` is the seam that surfaces the drift: if deferred.json drops the flake id while the
+draft still lists it, the `in_set` check flags it `undocumented-deferral` — the gate refusing to
+let registry and gate silently diverge. (This is the honest handling of a genuinely concurrent
+cross-lane state, not a guess at which side wins.)
+
+**Dry-run (against the committed `results-wasm.tsv`, logic-validated without a full re-run):**
+`core_green` = **54/54 must-pass green**; no un-defer candidates; `deferral_consistency` = RED
+naming exactly the 5 feature-off suites (`imbuf_py_api bl_voxel_remesh bl_voxel_remesh_compare
+bl_multires bl_node_link_drag`) that need deferred.json entries — i.e. the gate is one honest
+edit (add the 4 feature-off ids) away from GREEN on the current build, and `core_green` already
+holds. `bash -n` clean; requires bash ≥ 4 (associative arrays) — the host `bash` is 5.2.

@@ -114,3 +114,55 @@ fix.
 - Generated inputs: `build-wasm/source/blender/makesdna/intern/{dna.cc,dna_verify.cc}`.
 - Boot abort repro + instrumentation: notes/m2-python-boot.md §THE BLOCKER.
 - upstream/ NOT modified (wave tree intact); no dna_genfile.cc / makesdna edit by me.
+
+## M2.5b FIX — RESOLVED (patch 0014, driver-approved single-source-of-truth)
+
+Approach (driver-approved): the runtime `create_reconstruct_steps_for_struct` TARGET
+offsets now come from makesdna's already-verified padded model, not a second
+accumulation. Priority-1 (reuse an existing makesdna output) failed — no generated
+file carries per-member offsets (dna_type_offsets.h = struct type indices;
+dna_verify.cc = static_assert lines). Priority-2 implemented: the WASM makesdna emits
+its verified wasm32-padded per-member offsets as a runtime table appended to the
+generated dna_verify.cc, and dna_genfile.cc consumes it on the target side.
+
+Changes (patch 0014, all `#ifdef __EMSCRIPTEN__`):
+- makesdna.cc: `write_sdna_member_offsets()` (whole function under __EMSCRIPTEN__)
+  emits `DNA_reconstruct_member_offsets_wasm32[]` (flat, per-member) +
+  `_start_wasm32[]` (per-struct start index, len num_structs+1), using the SAME padded
+  computation as write_sdna_verify (0002's dna_align_up/member_align_native). Called
+  from make_structDNA into file_verify. Index scheme mirrors write_sdna_blob's STRC
+  order (struct 0 = raw_data, 0 members; struct i>=1 = parsed_structs[i-1]).
+- dna_genfile.cc: global-scope `extern` decls (like DNAstr in DNA_genfile.h, so the
+  in-namespace reference resolves to the global symbol); create_reconstruct_steps_for_struct
+  takes new_struct_index (param + call site guarded) and sets new_member_offset from
+  the table instead of the unpadded sum; wasm-only BLI_assert guards table/SDNA
+  member-count desync. Old/file-side (elem_offset_impl) UNCHANGED (correct for the
+  file's own ABI). No recursive re-derivation, no Scene special-case, no read-side hack.
+
+Native byte-identity: the native makesdna never compiles/emits the table (function is
+under __EMSCRIPTEN__), and native dna_genfile.cc never declares/references it or takes
+the extra param (all guarded); the native offset path is the original unpadded sum,
+byte-identical. On LP64 unpadded==padded, so behavior is unchanged there too.
+
+VERIFICATION (all guarded, buildwrap+ninja-locked):
+(a) Full-SDNA scan (scratchpad verify_table.py): the emitted table == compiled offsets
+    for ALL 9831 members across ALL 993 structs — 0 divergence vs the alignment model
+    AND vs dna_verify's offsetof asserts (9357 covered); 0 member-count desync. (The
+    table gives FULL member coverage, 9831 > dna_verify's 9357.)
+(b) dna_verify.cc still compiles green (bf_dna BUILD OK 20260804T073834); native
+    byte-identical by construction (above).
+(c) Boot smoke (notes/m2-python-boot.md recipe) reaches PAST scene load. The old
+    deterministic abort `layer_utils.cc:205 (VIEW_LAYER_OUT_OF_SYNC)` is GONE — since
+    that assert fires iff `scene->master_collection == nullptr`, its absence proves
+    master_collection is now NON-NULL. Boot runs ~24 KB further into execution (into
+    Python init) before failing on UNRELATED integration-lane issues.
+
+### Handoff to the integration lane (NOT this patch's scope; past scene load)
+- `OpenImageIO .../sysutil.cpp:214 physical_memory: Assertion '0 && "Need to implement
+  Sysutil::physical_memory on this platform"'` — pre-existing (present in the OLD boot
+  log too), non-fatal (boot continues past it). Needs an OIIO/platform stub returning a
+  sane value. Deps/platform lane.
+- `TypeError: Cannot read properties of undefined (reading 'node_ops') at fstat →
+  ___syscall_fstat64 → __emscripten_receive_on_main_thread_js` — the FATAL crash, a
+  NODERAWFS/emscripten proxied-fstat runtime issue during Python init (~byte 24270).
+  M2 Python-boot integration lane.

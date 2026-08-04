@@ -93,7 +93,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   standalone `bmesh_core_test` via `WITH_TESTS_SINGLE_BINARY OFF` flip — NOT hand-link, NOT
   combined blender_test.
 - [ ] **M1.12 [harness]** `.blend` corpus loads with state-dump parity vs the native oracle →
-  completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.**
+  completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.** ORACLE-SIDE DONE
+  (0121ea3): 9-file corpus (LFS corpus is ALL pointer stubs — 1965 files; only startup.blend
+  real; corpus self-authored via oracle), deterministic dumps (floats quantized out, 9/9
+  two-process byte-identical), compare tool self-tested; candidates staged sandbox/corpus-prep/
+  (tests/golden install = driver, at boundary, + reuse dep5 entries for fixtures). SEQUENCING
+  DECIDED: wasm-side runs the SAME bpy dump under wasm right after M2.3's WITH_PYTHON flip
+  (no duplicate C++ dumper); LFS corpus pull = post-gate coverage extension (versioning/GP3/
+  physics), boundary decision.
 
 ### M1 remainder — port the core libs bmesh needs (dispatched 2026-08-03, post-disk-clear)
 

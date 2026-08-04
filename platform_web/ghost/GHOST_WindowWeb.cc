@@ -16,7 +16,13 @@
 #include <emscripten/html5.h>
 
 #ifdef WITH_WEBGPU_BACKEND
-#  include "GHOST_ContextWGPU.hh"
+/* M4 T4 selection seam: emdawnwebgpu (browser) vs native Dawn are different link
+ * targets (different webgpu.h/surface/wait model — wgpu-context note deltas). */
+#  ifdef __EMSCRIPTEN__
+#    include "GHOST_ContextWGPUWeb.hh"
+#  else
+#    include "GHOST_ContextWGPU.hh"
+#  endif
 #endif
 
 /* Read window.devicePixelRatio without pulling in a JS library dependency. */
@@ -158,7 +164,14 @@ GHOST_Context *GHOST_WindowWeb::newDrawingContext(GHOST_TDrawingContextType type
 {
 #ifdef WITH_WEBGPU_BACKEND
   if (type == GHOST_kDrawingContextTypeWebGPU) {
+#  ifdef __EMSCRIPTEN__
+    /* Async emdawnwebgpu context; device pre-acquired by the system's one-time
+     * startup await (notes/m4-integration.md), so the sync init succeeds here. */
+    GHOST_Context *context = new GHOST_ContextWGPUWeb(context_params_web_,
+                                                      canvas_selector_.c_str());
+#  else
     GHOST_Context *context = new GHOST_ContextWGPU(context_params_web_);
+#  endif
     if (context->initializeDrawingContext()) {
       return context;
     }

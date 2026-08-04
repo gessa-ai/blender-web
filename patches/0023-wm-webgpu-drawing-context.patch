@@ -1,0 +1,19 @@
+diff --git a/source/blender/windowmanager/intern/wm_window.cc b/source/blender/windowmanager/intern/wm_window.cc
+index 4c0aa2cd5c6..d4236cd6330 100644
+--- a/source/blender/windowmanager/intern/wm_window.cc
++++ b/source/blender/windowmanager/intern/wm_window.cc
+@@ -2387,6 +2387,14 @@ GHOST_TDrawingContextType wm_ghost_drawing_context_type(const GPUBackendType gpu
+     case GPU_BACKEND_METAL:
+ #ifdef WITH_METAL_BACKEND
+       return GHOST_kDrawingContextTypeMetal;
++#endif
++      BLI_assert_unreachable();
++      return GHOST_kDrawingContextTypeNone;
++    /* blender-web (M4 T3): map the WebGPU backend to its GHOST drawing-context type
++     * (enum GHOST_Types.hh; GPU_BACKEND_WEBGPU is always defined). */
++    case GPU_BACKEND_WEBGPU:
++#ifdef WITH_WEBGPU_BACKEND
++      return GHOST_kDrawingContextTypeWebGPU;
+ #endif
+       BLI_assert_unreachable();
+       return GHOST_kDrawingContextTypeNone;

@@ -49,25 +49,44 @@ texturepool/storagebuf were bootstrap-mandatory; texture_alloc is the T9 hook.)
 
 ## Sequenced plan (remaining lane-B files)
 
-1. **`wgpu_texture.{hh,cc}`** — `WGPUTexture : gpu::Texture`, implementing the 13
-   base virtuals (gpu_texture_private.hh: init_internal ×3, update_sub ×2, read,
-   clear, copy_to, generate_mipmap, swizzle_set, mip_range_set), modelled on
-   `vk_texture.cc` (1089 LOC). Uses the landed format+conversion:
-   `CreateTexture(to_wgpu_format(fmt), device-probed usage)`; `update_sub` dispatches
-   on `ConvClass` (Direct memcpy vs `promote_for_upload`) with 256-byte
-   `bytesPerRow` alignment on copy paths; `read` via a MAP_READ staging buffer +
-   `CopyTextureToBuffer`; views via `CreateView`. **SNORM_16 emulation choice:
-   promote to RGBA16Float** (simplest; the alternative unorm16+shader-remap needs a
-   codegen hook — defer). Depth-aspect handling exposed for `wgpu_framebuffer`.
-   → then request lane-A texture_alloc wiring → run the 3 T9 tests.
+1. **`wgpu_texture.{hh,cc}`** — `WGPUTexture : gpu::Texture`. **HEADER AUTHORED**
+   (`sandbox/lane-b-staging/webgpu/wgpu_texture.hh`) — the interface contract lane A
+   wires `texture_alloc` against. Exact virtual set to implement (recon'd from
+   `gpu_texture_private.hh:158-176,334-337` + `vk_texture.hh`):
+   - `init_internal()` / `init_internal(VertBuf*)` / `init_internal(gpu::Texture*
+     src, int mip_offset, int layer_offset, bool use_stencil)` — allocate / buffer
+     texture / view. The base `init_1D/2D/3D/cubemap/buffer/view` are non-virtual and
+     call these; they set `w_,h_,d_,format_,type_,gpu_image_usage_flags_,mipmaps_`
+     BEFORE the virtual fires — so `allocate()` reads those members.
+   - `update_sub(mip, offset[3], extent[3], eGPUDataFormat, const void*, int
+     unpack_row_length)` and `update_sub(..., GPUPixelBuffer*)`.
+   - `read(mip, eGPUDataFormat, void* dst)`, `clear(double4)`, `copy_to(Texture*,
+     IndexRange)`, `generate_mipmap()`, `swizzle_set(char[4])`, `mip_range_set`.
+   Create via `device.CreateTexture({to_wgpu_format(format_), dim from type_
+   (GPU_TEXTURE_{1D,2D,3D,CUBE}[_ARRAY]), size {w_,h_,d_/layers}, mipLevelCount,
+   usage from gpu_image_usage_flags_ (eGPUTextureUsage → CopyDst|CopySrc|
+   TextureBinding|StorageBinding|RenderAttachment)})`. `update_sub` dispatches on
+   `ConvClass` (Direct `queue.writeTexture` vs `promote_for_upload` first) — no 256
+   align needed for writeTexture; `read` uses a MAP_READ staging buffer +
+   `CopyTextureToBuffer` (256-byte `bytesPerRow`). **SNORM_16 emulation choice:
+   promote to RGBA16Float** (simplest; unorm16+shader-remap needs a codegen hook —
+   defer). Depth-aspect exposed for `wgpu_framebuffer`. First cut may stub
+   generate_mipmap/copy_to/swizzle/mip_range/buffer-texture/view (assert) to compile
+   + pass the basic texture_test create/upload/read path, filling as tests demand.
+   → then request lane-A `texture_alloc(name) → new WGPUTexture(name)` → run the 3
+   T9 tests.
 2. **`wgpu_framebuffer.{hh,cc}`** — GPUFrameBuffer attachments → a transient
    `GPURenderPassDescriptor`; depth aspect from #1. Gate: `framebuffer_test`.
-3. **`wgpu_state.{hh,cc}` + `wgpu_state_table.{hh,cc}`** — from
-   `sandbox/wgpu-state-tables/`. NOTE: the real `GPUBlend`/`GPUDepthTest` are
-   UNSCOPED `enum`s with `GPU_BLEND_*` members (not my scoped mirror), so the
-   X-macro switch needs the `GPU_BLEND_##name` spelling — a mechanical rework, not a
-   one-line alias like the format table. Drives `GPUState`/`GPUStateMutable` →
-   cached pipeline descriptors in `wgpu_pipeline`. Gate: `state_blend_test`.
+3. **`wgpu_state_table` — DONE by lane B2** (patch 0021, a78b0a5). So my remaining
+   state work is only the WIRING in `wgpu_state`/`wgpu_pipeline`, using B2's pure
+   `to_blend`/`to_depth`/`to_stencil`. B2's integration contract (per its report §4):
+   `to_*` are pure functions; **`depthWriteEnabled` comes from the WRITE mask, not
+   the depth mapping**; stencil masks + reference wire from `GPUStateMutable`
+   (`SetStencilReference` on the pass); color/write-mask from
+   `GPUWriteMask(state.write_mask)` via `flag_is_set`; **provoking LAST has NO
+   descriptor knob** → shader-codegen emulation (Metal precedent, matches my T10.pre
+   finding); **CUSTOM blend gates on `dual-source-blending` + `@blend_src` variants**.
+   Gate: `state_blend_test`.
 4. **`wgpu_pipeline.{hh,cc}`** — render/compute pipeline descriptor build + cache
    (needs lane A's `wgpu_shader` for the modules; coordinate). Gates:
    `push_constants_test`, `specialization_constants_test`.

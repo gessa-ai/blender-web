@@ -5,8 +5,52 @@ SPDX-License-Identifier: CC0-1.0
 
 # m2b divergence root-cause: `bl_node_copy_operators` ungroup socket → `NodeSocketUndefined`
 
-Follow-up to notes/m2-tierb-prep.md §6/§6a ("node-socket type undefined (1)"). Disposition:
-**DEEPER (node-system + threading heisenbug) — STOP, no patch. Not a documented port class.**
+Follow-up to notes/m2-tierb-prep.md §6/§6a ("node-socket type undefined (1)").
+
+## RESOLUTION (2026-08-04, iteration 2): CONFIRMED-FIXED-BY-f7ec391 — reclassify m2b GREEN
+
+The socket flake is **cured by the OIIO ustring fix f7ec391** ("OIIO ustring::string() empty on
+wasm"), via the **shared OIIO `ustring::TableRep` root cause** — not an independent node bug. It is
+no longer a genuine divergence; it should be scored GREEN for the m2b gate.
+
+Evidence (this iteration):
+- **The fixed OIIO is linked in the current binary** (proven, not assumed): `imbuf_py_api` now emits
+  **0** `tEXt: invalid keyword` errors; its residual 3 errors are all `file_type='AVIF'` — exactly
+  the post-fix state f7ec391's own commit message describes. (The `lib/wasm` OIIO archive mtime
+  10:11 merely predates the 10:42 commit — built/verified first, committed after.)
+- **Instrumented hunt on the fixed build: 0 failures in 150 runs**, and the two temporary C++ probes
+  (below) fired **0 SETNULL events and 0 creation-time anomalies** across all 150 runs — i.e.
+  `node_socket_type_find("NodeSocketFloat")` never once missed across ~6000 proxy lookups
+  (40 `ShaderNodeValue` proxies/run × 150), and every proxy socket had `typeinfo == find(idname)`
+  at creation. The precise failure MECHANISM did not occur even once.
+- Independent m2b re-run (orchestrator) also shows `bl_node_copy_operators` GREEN.
+- **Mechanism linkage:** `blender::UString` IS `OpenImageIO::ustring` (BLI_ustring.hh:9,31) and the
+  socket-type registry (`get_socket_type_map()`, node.cc:2764) is keyed by `UString`. f7ec391's
+  root cause is OIIO's `ustring::TableRep` constructor poking libc++ `std::string` private `__long`
+  fields at offsets emscripten's libc++ does not match; for a **long** interned idname like
+  `"NodeSocketFloat"` (15 chars — same long-string class as the 14-char `"ResolutionUnit"` the fix
+  targeted) a mis-poked TableRep can corrupt the cached data/hash the lookup relies on → miss →
+  `NodeSocketUndefined`. Removing the poke (f7ec391 excludes `__EMSCRIPTEN__`, falling to the safe
+  `str = strref` copy) removes the corruption.
+
+Honest caveats (the confidence is from the COMBINATION, not any single leg):
+- The socket lookup uses ustring's **cached hash + interned-pointer equality** (BLI_ustring.hh:60-73),
+  **not** the malformed `.string()`. So f7ec391's *direct* symptom (`.string()` empty) is not on the
+  socket path — the linkage is through the **common TableRep-constructor corruption**, argued from
+  code + temporal correlation (bug present pre-fix, absent post-fix), not captured as a pre-fix
+  instrumented event.
+- 0/150 alone has ~12% chance of being a coincidental miss at the ~1.4% base rate; confidence comes
+  from {fixed-OIIO-linked + 6000 clean instrumented lookups + independent GREEN re-run + shared
+  root cause}. A fully definitive proof would run this same instrumented hunt against the
+  **pre-f7ec391 (buggy) OIIO** and capture the SETNULL/corruption event; not done here (needs a
+  buggy-OIIO dep rebuild; low value now that lib/wasm is already fixed).
+
+The temporary probes have been reverted and the binary rebuilt clean (BUILD OK, buildlog
+20260804T191014); upstream node sources are pristine at the pin.
+
+---
+
+## Original investigation (iteration 1) — disposition then was STOP; superseded by the RESOLUTION above.
 
 ## Symptom (reproduced)
 

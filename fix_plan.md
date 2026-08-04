@@ -225,11 +225,20 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   pipeline creation PASSES with explicit BGL. **T7 HARD RULE: non-empty map disables the
   conflict pass — EVERY combined sampler must be mapped.** Open for T7: sampler arrays
   (probe first), SAMPLER_BASE policy, sampler/texture type inference for BGL.
-- [ ] **M3.T3 [gpu-backend]** GHOST_ContextWGPU offscreen (native Dawn, no surface) +
-  WITH_WEBGPU_BACKEND option; headless bin gets live WGPUDevice via the gpu-test bootstrap.
-  Requires the NATIVE macOS Blender harness (upstream `make update`-style lib/macos_arm64
-  precompiled libs, ~7GB, lands under upstream/lib/ = blender-gitignored → porcelain stays
-  clean; separate native build tree). **DISPATCHED (same worker).**
+- [x] **M3.T3 [gpu-backend]** **DEVICE-LIVE PROVEN** (66500f0 patch 0011 + 8607fac sandbox
+  proof): GHOST_ContextWGPU (130 LOC — half the estimate, WebGPU implicit model) brings up a
+  live WGPUDevice+queue on Dawn/Metal via the same createOffscreenContext path; patch 0011 =
+  context class + enum + SystemHeadless case + ghost CMake + WITH_WEBGPU_BACKEND option
+  (default OFF). Native harness VIABLE: lib/macos_arm64 at pin SHA 5a140a8 out-of-tree (2.4GB,
+  upstream untouched), native headless configure 11s. Dawn link = monolithic libwebgpu_dawn.a
+  + 7 frameworks; **Tint NOT needed until T7**; C++20 native (no shim). Remaining half folded
+  into T4 (notes/gpu-t3-harness.md has the cited edit list + DAWN_ROOT mechanism).
+- [ ] **M3.T4 [gpu-backend]** Backend registration + skeleton + NATIVE gpu-suite link:
+  GPU_BACKEND_WEBGPU (1<<2 + DNA userpref mirror), gpu_context.cc 7 switch arms, gpu/webgpu/
+  WGPUBackend (21 pure-virtual stubs, context_alloc → real WGPUContext holding the GHOST
+  device) + WGPUContext, gpu/CMakeLists WITH_WEBGPU block, configure build-native-gpu with
+  -DWITH_WEBGPU_BACKEND=ON, link the `gpu` suite binary; VERIFY selection_set(WEBGPU) →
+  SetUpTestSuite reaches a live context. **DISPATCHED (same worker).**
 - [ ] **M3.T4–T10 [gpu-backend]** Skeleton→context→buffers→shader-pipeline→compute→textures→
   framebuffer/state/immediate/batch, each gated on Blender's own gpu tests vs native Dawn
   (full list + verify criteria: notes/gpu-webgpu-architecture.md §7). Gate: full gpu suite

@@ -19,3 +19,7 @@ build-deps/
 lib/wasm/
 build-python-probe/
 build-dawn/
+# M3.T3 native gpu-test harness: precompiled macOS libs (Blender's own lib
+# submodule, cloned out-of-tree to keep upstream/ untouched) + native build tree
+lib/macos_arm64/
+build-native-gpu/

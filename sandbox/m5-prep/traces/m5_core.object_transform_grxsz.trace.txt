@@ -1,0 +1,6 @@
+bpy.ops.wm.tool_set_by_id(name="builtin.select_box", cycle=False, space_type='VIEW_3D')
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.transform.translate()
+bpy.ops.transform.rotate()
+bpy.ops.transform.resize()
+bpy.ops.wm.quit_blender()

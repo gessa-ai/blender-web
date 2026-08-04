@@ -122,3 +122,77 @@ LIVE so the failure is a fast, precise abort at scope.hh:369.
 - SSE probe: `em++ -msse4.2 -msimd128` defines __SSE4_2__ + compiles all intrinsics.
 - upstream/ restored pristine (git -C upstream status --porcelain empty); 0001-0006
   re-apply --check clean; wip-0007 applies clean on top of the series.
+
+## ADR-002 byte-identity audit — VERDICT: PASS (2026-08-03, native-tool arm)
+
+Native tools built with host clang (Apple clang 17, arm64 -> `lexit` NEON path, the
+path Blender's own macOS CI exercises) into `build-hosttools/bin-native/{shader_tool,
+datatoc}`. Both are fully self-contained (datatoc: stdlib only; shader_tool: only its
+own local headers — no blenlib/GPU/external link deps), so a minimal direct clang++
+compile suffices.
+
+Native tool VALIDATION (the previously-blocking shaders): native shader_tool
+processes ALL of eevee_closure, eevee_bxdf_microfacet, eevee_deferred_eval,
+eevee_depth_of_field_accumulator, eevee_bxdf_lut_lib (which HUNG under wasm),
+draw_curves_infos — every one rc=0 with complete output.
+
+### datatoc audit — byte-identical
+- ALL 752 shader `.tmp` (text) inputs: native == wasm datatoc  -> 752/752 identical.
+- 25 binary data files (release/datafiles .png/.dat/.ttf/.svg; the data_to_c path):
+  25/25 identical. datatoc has no wasm defect.
+
+### shader_tool audit — target-independence CONFIRMED
+Two methods:
+1. Controlled fresh head-to-head (run BOTH tools now on the same inputs, diff
+   .tmp/.hh/.info, ignore .d absolute paths): 66/66 byte-identical across a
+   stratified sample (gpu, draw/intern, workbench, overlay, gpencil, image, select,
+   eevee subset).
+2. Native vs ALL existing wasm-generated artifacts (527 gpu/draw): 466 identical,
+   44 differing, 17 no-input/native-skip.
+
+The 44 differing were triaged (re-run current wasm fresh, classify) — NONE are
+genuine target-dependence:
+- **20 wasm-cannot-generate** (crash/hang) — the eevee mis-tokenizers + others.
+  EXCLUDED by ADR-002 (wasm output known-broken; this is why the ADR exists).
+- **24 wasm-silent-corruption** (wasm runs to rc=0 but emits WRONG bytes; native is
+  the complete/correct superset). Two signatures, both inspected:
+  * 16 files: native emits `<Struct>_ctor_() {...}` constructors + `#line` directives
+    that wasm OMITS (wasm side is blank where native has content).
+  * 8 files (mostly `*_shared.hh`, `osd_patch_basis.glsl`): wasm emits DEGENERATE
+    `#define <X>_host_shared_uniform_ <X>` fallback aliases INSTEAD of native's
+    proper `_ctor_()` + `#line`. The real build argv is identical for both; neither
+    build defines WITH_GPU_SHADER_ASSERT — so this is the wasm lexer/parser
+    mis-handling struct defs, not a flag or target difference.
+- **0 genuine target-dependence** (no case of both-sides-clean-but-validly-different).
+
+CONCLUSION: shader_tool/datatoc output is target-INDEPENDENT text — identical
+wherever the wasm tool functions correctly. The wasm shader_tool is simply
+unreliable (crashes AND silently corrupts a broader set than the 6 known eevee
+crashers), so ADR-002's native-tool route is validated AND necessary: native output
+is the correct reference (== Blender macOS CI). Proceeding to wire the native tools
+into the wasm build and resume the archive grind.
+
+## M1.13/M1.14 RESULT — all four archives GREEN via ADR-002 native tools
+
+Native tools (build-hosttools/bin-native/, via scripts/build-hosttools.sh) + the
+patch series produce all four target archives on wasm32:
+
+| target | bytes | members | notes |
+|---|---|---|---|
+| bf_blenkernel      | 34,379,340 | 288 | needed patch 0008 (image.cc/IDCacheKey ILP32) |
+| bf_depsgraph       |  1,976,410 |  68 | no fixes |
+| bf_blentranslation |     46,954 |   5 | WITH_INTERNATIONAL=OFF — small, not a stub |
+| bf_animrig         |    591,922 |  22 | no fixes |
+
+Two build-integration blockers surfaced once native codegen unblocked the path, both
+fixed (see porting-patterns.md Class 3 / Class 4):
+1. `discover_nodes.py` (node-registration codegen) invoked directly -> rc 126. It is
+   a HOST python build script with no shebang / no +x; PYTHON_EXECUTABLE was empty
+   (WITH_PYTHON=OFF, emscripten sets no host interpreter). Fix: platform_wasm.cmake
+   sets a host PYTHON_EXECUTABLE (emsdk-bundled python 3.13).
+2. `image.cc` `constexpr size_t runtime_base_id = size_t(1) << 32u` -> wasm32 ILP32
+   (patch 0008).
+
+Full cycle verified: upstream restored pristine, 0001-0008 re-apply --check clean,
+all 4 rebuilt green from the clean re-apply (ledger/buildlogs/20260804T014155.log),
+upstream pristine after final restore.

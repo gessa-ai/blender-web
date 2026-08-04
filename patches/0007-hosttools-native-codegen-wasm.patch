@@ -1,0 +1,147 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from build_files/cmake/macros.cmake,
+# source/blender/datatoc/CMakeLists.txt, source/blender/gpu/shader_tool/CMakeLists.txt
+# @ fbe6228777e7
+#
+# ADR-002 (notes/adr/ADR-002-host-tool-execution.md): run the text-codegen host tools
+# shader_tool + datatoc as NATIVE host binaries when cross-compiling to wasm. Their
+# output is target-independent text (byte-identity verified: native == wasm wherever
+# the wasm tool functions — notes/m1-shader-codegen-wasm.md), and the wasm build of
+# shader_tool mis-tokenizes some shaders (silent corruption / hangs). macros.cmake's
+# data_to_c* and shader-info custom commands select ${BLENDER_WEB_HOST_TOOLS_DIR}/<tool>
+# (set by patches/platform_wasm.cmake) when cross-compiling, else the in-tree
+# $<TARGET_FILE:> (native builds byte-identical). makesdna/makesrna stay
+# wasm-under-node (they bake target ABI) — see 0003. Pairs with the native tools in
+# build-hosttools/bin-native/ and platform_wasm.cmake (BLENDER_WEB_HOST_TOOLS_DIR).
+diff --git a/build_files/cmake/macros.cmake b/build_files/cmake/macros.cmake
+index 860a6f1aa0f..ef98e74aec5 100644
+--- a/build_files/cmake/macros.cmake
++++ b/build_files/cmake/macros.cmake
+@@ -1113,10 +1113,21 @@ function(data_to_c
+   list(APPEND ${list_to_add} ${file_to})
+   set(${list_to_add} ${${list_to_add}} PARENT_SCOPE)
+ 
++  # blender-web / ADR-002: text-codegen host tools (datatoc, shader_tool) run as
++  # NATIVE host binaries when cross-compiling — their output is target-independent
++  # text and the wasm build of shader_tool mis-tokenizes (silent corruption / hangs).
++  # BLENDER_WEB_HOST_TOOLS_DIR is set by patches/platform_wasm.cmake for Emscripten;
++  # unset on native builds, which fall through to the in-tree target unchanged.
++  # See notes/m1-shader-codegen-wasm.md (ADR-002).
++  if(BLENDER_WEB_HOST_TOOLS_DIR)
++    set(_bw_datatoc "${BLENDER_WEB_HOST_TOOLS_DIR}/datatoc")
++  else()
++    set(_bw_datatoc "$<TARGET_FILE:datatoc>")
++  endif()
+   add_custom_command(
+     OUTPUT ${file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${file_from} ${file_to} ${symbol_name_override}
+-    DEPENDS ${file_from} datatoc)
++    COMMAND "${_bw_datatoc}" ${file_from} ${file_to} ${symbol_name_override}
++    DEPENDS ${file_from} ${_bw_datatoc})
+ 
+   set_source_files_properties(${file_to} PROPERTIES GENERATED TRUE)
+ endfunction()
+@@ -1137,10 +1148,21 @@ function(data_to_c_simple
+   list(APPEND ${list_to_add} ${file_from})
+   set(${list_to_add} ${${list_to_add}} PARENT_SCOPE)
+ 
++  # blender-web / ADR-002: text-codegen host tools (datatoc, shader_tool) run as
++  # NATIVE host binaries when cross-compiling — their output is target-independent
++  # text and the wasm build of shader_tool mis-tokenizes (silent corruption / hangs).
++  # BLENDER_WEB_HOST_TOOLS_DIR is set by patches/platform_wasm.cmake for Emscripten;
++  # unset on native builds, which fall through to the in-tree target unchanged.
++  # See notes/m1-shader-codegen-wasm.md (ADR-002).
++  if(BLENDER_WEB_HOST_TOOLS_DIR)
++    set(_bw_datatoc "${BLENDER_WEB_HOST_TOOLS_DIR}/datatoc")
++  else()
++    set(_bw_datatoc "$<TARGET_FILE:datatoc>")
++  endif()
+   add_custom_command(
+     OUTPUT  ${_file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${_file_from} ${_file_to}
+-    DEPENDS ${_file_from} datatoc)
++    COMMAND "${_bw_datatoc}" ${_file_from} ${_file_to}
++    DEPENDS ${_file_from} ${_bw_datatoc})
+ 
+   set_source_files_properties(${_file_to} PROPERTIES GENERATED TRUE)
+ endfunction()
+@@ -1173,16 +1195,38 @@ function(glsl_to_c
+   list(APPEND ${list_to_add} ${file_from})
+   set(${list_to_add} ${${list_to_add}} PARENT_SCOPE)
+ 
++  # blender-web / ADR-002: text-codegen host tools (datatoc, shader_tool) run as
++  # NATIVE host binaries when cross-compiling — their output is target-independent
++  # text and the wasm build of shader_tool mis-tokenizes (silent corruption / hangs).
++  # BLENDER_WEB_HOST_TOOLS_DIR is set by patches/platform_wasm.cmake for Emscripten;
++  # unset on native builds, which fall through to the in-tree target unchanged.
++  # See notes/m1-shader-codegen-wasm.md (ADR-002).
++  if(BLENDER_WEB_HOST_TOOLS_DIR)
++    set(_bw_shader_tool "${BLENDER_WEB_HOST_TOOLS_DIR}/shader_tool")
++  else()
++    set(_bw_shader_tool "$<TARGET_FILE:shader_tool>")
++  endif()
+   add_custom_command(
+     OUTPUT  ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep}
+     DEPFILE ${_file_dep}
+-    COMMAND "$<TARGET_FILE:shader_tool>" ${_file_from} ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep} ${_inc_list}
+-    DEPENDS ${_file_from} shader_tool)
+-
++    COMMAND "${_bw_shader_tool}" ${_file_from} ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep} ${_inc_list}
++    DEPENDS ${_file_from} ${_bw_shader_tool})
++
++  # blender-web / ADR-002: text-codegen host tools (datatoc, shader_tool) run as
++  # NATIVE host binaries when cross-compiling — their output is target-independent
++  # text and the wasm build of shader_tool mis-tokenizes (silent corruption / hangs).
++  # BLENDER_WEB_HOST_TOOLS_DIR is set by patches/platform_wasm.cmake for Emscripten;
++  # unset on native builds, which fall through to the in-tree target unchanged.
++  # See notes/m1-shader-codegen-wasm.md (ADR-002).
++  if(BLENDER_WEB_HOST_TOOLS_DIR)
++    set(_bw_datatoc "${BLENDER_WEB_HOST_TOOLS_DIR}/datatoc")
++  else()
++    set(_bw_datatoc "$<TARGET_FILE:datatoc>")
++  endif()
+   add_custom_command(
+     OUTPUT  ${_file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${_file_tmp} ${_file_to}
+-    DEPENDS ${_file_tmp} datatoc)
++    COMMAND "${_bw_datatoc}" ${_file_tmp} ${_file_to}
++    DEPENDS ${_file_tmp} ${_bw_datatoc})
+ 
+   set_source_files_properties(${_file_tmp} PROPERTIES GENERATED TRUE)
+   set_source_files_properties(${_file_to}  PROPERTIES GENERATED TRUE)
+diff --git a/source/blender/datatoc/CMakeLists.txt b/source/blender/datatoc/CMakeLists.txt
+index 4e7017ae7d4..4d96e6f6a77 100644
+--- a/source/blender/datatoc/CMakeLists.txt
++++ b/source/blender/datatoc/CMakeLists.txt
+@@ -12,3 +12,11 @@ set(SRC
+ # `SRC_DNA_INC` is defined in the parent directory.
+ add_executable(datatoc ${SRC})
+ optimize_debug_target(datatoc)
++
++# blender-web / ADR-002: datatoc runs as a NATIVE host binary when cross-compiling
++# (macros.cmake selects BLENDER_WEB_HOST_TOOLS_DIR/datatoc), so this wasm target is
++# normally not built. If it ever is (e.g. building `all`), give it the node-runnable
++# link profile for consistency with the other host tools. No-op on native toolchains.
++if(COMMAND blender_web_host_tool)
++  blender_web_host_tool(datatoc)
++endif()
+diff --git a/source/blender/gpu/shader_tool/CMakeLists.txt b/source/blender/gpu/shader_tool/CMakeLists.txt
+index 0465957d414..6aaf25bc835 100644
+--- a/source/blender/gpu/shader_tool/CMakeLists.txt
++++ b/source/blender/gpu/shader_tool/CMakeLists.txt
+@@ -50,3 +50,11 @@ endif()
+ # `SRC_DNA_INC` is defined in the parent directory.
+ add_executable(shader_tool ${SRC})
+ optimize_debug_target(shader_tool)
++
++# blender-web / ADR-002: shader_tool runs as a NATIVE host binary when cross-compiling
++# (its wasm lexer mis-tokenizes; macros.cmake selects BLENDER_WEB_HOST_TOOLS_DIR/
++# shader_tool). This wasm target is normally not built; if it ever is, give it the
++# node-runnable link profile for consistency. No-op on native toolchains.
++if(COMMAND blender_web_host_tool)
++  blender_web_host_tool(shader_tool)
++endif()

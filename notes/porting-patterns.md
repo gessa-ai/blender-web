@@ -66,3 +66,32 @@ becomes an order-only gate on every blenkernel object), NOT from the lib's own
 `#include`s. So a lib with zero GPU includes can still be blocked by broken GPU
 shader codegen, and it cannot be severed without dropping genuine link edges. Query
 with `ninja -C build-wasm -t query cmake_object_order_depends_target_<lib>`.
+
+## Class 3b — build-time HOST PYTHON scripts (discover_nodes.py etc.)
+Some codegen is a Python script run on the build host (node registration:
+`add_node_discovery()` -> `${PYTHON_EXECUTABLE} discover_nodes.py`). The script has
+no shebang and is not executable, so if `PYTHON_EXECUTABLE` is empty the command
+collapses to running the `.py` directly -> `/bin/sh: ...py: Permission denied`
+(rc 126). Emscripten sets no host interpreter and WITH_PYTHON=OFF skips find(Python).
+Fix: platform_wasm.cmake sets a HOST `PYTHON_EXECUTABLE` (prefer the emsdk-bundled
+python; else find_program(... NO_CMAKE_FIND_ROOT_PATH) to bypass the emscripten
+sysroot re-root). This is the build-host interpreter, unrelated to the embedded
+CPython. See notes/m1-shader-codegen-wasm.md.
+
+## Class 3c — ADR-002: NATIVE host tools for target-independent text codegen
+shader_tool + datatoc emit target-INDEPENDENT text; their wasm builds can be buggy
+(shader_tool's SIMD/scalar lexer mis-tokenizes under wasm). Build them NATIVELY
+(scripts/build-hosttools.sh -> build-hosttools/bin-native/) and point the custom
+commands at ${BLENDER_WEB_HOST_TOOLS_DIR}/<tool> when cross-compiling (patch 0007 +
+platform_wasm.cmake). ONLY for text codegen — makesdna/makesrna bake target ABI and
+MUST stay wasm-under-node (Class 3). Byte-identity of native-vs-wasm output MUST be
+audited before trusting this (it was: identical wherever the wasm tool functions).
+
+## Class 1 (recurring) — LP64 shift/width assumptions beyond sizeof-asserts
+Not just `static_assert(sizeof==const)`: watch for `size_t(1) << 32` and similar
+64-bit-width assumptions. blenkernel image.cc uses `size_t(1) << 32` as a cache-key
+collision-avoidance base; on wasm32 `size_t` is 32-bit so it overflows AND can't hold
+the value. Fix: widen the specific value/field to a fixed 64-bit type under
+__EMSCRIPTEN__ (LP64 unchanged). Check the field isn't DNA-serialized first; if it is,
+STOP (that's an ABI-layout change). IDCacheKey is pure-runtime, so widening was safe.
+Patch 0008.

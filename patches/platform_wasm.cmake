@@ -94,6 +94,51 @@ function(blender_web_host_tool target)
 endfunction()
 
 # -----------------------------------------------------------------------------
+# Native host codegen tools (ADR-002)
+#
+# shader_tool and datatoc emit target-INDEPENDENT text (byte-identity verified,
+# native == wasm wherever the wasm tool functions — notes/m1-shader-codegen-wasm.md).
+# The wasm build of shader_tool mis-tokenizes some shaders (silent corruption /
+# hangs), so per ADR-002 these two tools run as NATIVE host binaries built with the
+# host compiler into build-hosttools/bin-native/. macros.cmake's data_to_c* and
+# shader-info custom commands pick these up via BLENDER_WEB_HOST_TOOLS_DIR. (Unlike
+# makesdna/makesrna, which bake target ABI and MUST stay wasm-under-node.)
+if(NOT DEFINED BLENDER_WEB_HOST_TOOLS_DIR)
+  get_filename_component(BLENDER_WEB_HOST_TOOLS_DIR
+    "${BLENDER_WEB_PATCH_DIR}/../build-hosttools/bin-native" ABSOLUTE)
+  set(BLENDER_WEB_HOST_TOOLS_DIR "${BLENDER_WEB_HOST_TOOLS_DIR}" CACHE PATH
+    "Directory of native host codegen tools (shader_tool, datatoc) per ADR-002")
+endif()
+if(NOT EXISTS "${BLENDER_WEB_HOST_TOOLS_DIR}/shader_tool"
+   OR NOT EXISTS "${BLENDER_WEB_HOST_TOOLS_DIR}/datatoc")
+  message(FATAL_ERROR
+    "blender-web ADR-002: native host tools not found in "
+    "${BLENDER_WEB_HOST_TOOLS_DIR} (need shader_tool + datatoc). "
+    "Build them first: see notes/m1-shader-codegen-wasm.md.")
+endif()
+
+# Host Python interpreter for build-time codegen SCRIPTS (e.g. discover_nodes.py,
+# which generates the node-registration .cc). These are pure-Python and run on the
+# BUILD host — unrelated to the embedded interpreter (WITH_PYTHON=OFF for M1). The
+# Emscripten toolchain does not set PYTHON_EXECUTABLE, and discover_nodes.py is not
+# executable / has no shebang, so Blender's add_node_discovery() would invoke it
+# directly and fail with rc 126 ("Permission denied"). Prefer the emsdk-bundled
+# python (pinned with the toolchain); else fall back to a host python3, bypassing the
+# Emscripten find-root so we resolve a HOST (not target) binary.
+if(NOT PYTHON_EXECUTABLE)
+  file(GLOB _bw_host_python "${BLENDER_WEB_PATCH_DIR}/../tools/emsdk/python/*/bin/python3")
+  if(_bw_host_python)
+    list(GET _bw_host_python 0 PYTHON_EXECUTABLE)
+  else()
+    find_program(PYTHON_EXECUTABLE NAMES python3 python NO_CMAKE_FIND_ROOT_PATH)
+  endif()
+  set(PYTHON_EXECUTABLE "${PYTHON_EXECUTABLE}" CACHE FILEPATH
+    "Host Python for blender-web build-time codegen scripts")
+  unset(_bw_host_python)
+  message(STATUS "blender-web: host PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
+endif()
+
+# -----------------------------------------------------------------------------
 # Precompiled library discovery
 #
 # There is no `lib/wasm` harvest until M2 (the build_environment superbuild has

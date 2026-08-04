@@ -79,3 +79,27 @@ harness defect; a build-deps task. Do not register an `m1` bmesh check until tha
   because the second declined to commit, but it burned a full worker cycle.
 - **Concurrent writes to shared files:** `REUSE.toml` was left duplicated/self-conflicting by two
   workers in the same round. See `notes/path-ownership.md` — one owner per shared file per round.
+
+## 2026-08-04 gpu-backend (lane A): stacked patches on one CMakeLists block break per-patch reverse-check
+
+`run.sh`'s patch-series check loops `patches/0*.patch` and asserts each patch
+either forward-applies (pristine) OR reverse-applies (applied). This assumes each
+patch is INDEPENDENTLY reversible. It breaks when two patches edit the SAME file
+region: `0012` and `0015` both modify the `if(WITH_WEBGPU_BACKEND) list(APPEND
+SRC ...)` block in `source/blender/gpu/CMakeLists.txt` (0015 adds the buffer
+sources to the list 0012 created). Consequences:
+- Against the all-applied tree, reversing `0012` alone fails (0015's lines sit in
+  the same block) → 0012 flagged as conflict.
+- Against pristine, `0015` forward-check fails (its hunk context needs 0012).
+
+The SERIES is correct: `git apply 0011 0012 0015` in order applies cleanly from
+pristine (verified), and bf_gpu compiles. Only the *per-patch, order-independent*
+check is fooled. This will recur as lane B's patch (0016+) also appends to that
+same SRC list — the WITH_WEBGPU SRC block is a multi-patch merge point.
+
+Options (orchestrator's call): (a) make `run.sh` reverse-check in REVERSE glob
+order and stop at the first clean state; (b) convert the WITH_WEBGPU SRC list to a
+`file(GLOB ...)` so per-file patches don't edit CMakeLists at all (needs a 0012
+touch — currently frozen); (c) designate ONE patch per round as the sole owner of
+the SRC-list edit (path-ownership per `notes/path-ownership.md`). Recommend (b)
+long-term, (c) for now. No code correctness impact.

@@ -195,7 +195,7 @@ warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
 .
 ----------------------------------------------------------------------
-Ran 4 tests in 0.311s
+Ran 4 tests in 0.414s
 
 OK
 register_class(...):

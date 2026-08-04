@@ -1,12 +1,12 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.633  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/voxel_remesh_compare.blend"
+00:00.835  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/voxel_remesh_compare.blend"
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 
 START Color Interpolation test.
-00:00.693  blend.writefile  | WARNING Found an ID 'OBexpected objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
-00:00.693  blend.writefile  | WARNING Found an ID 'OBtest objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
-00:00.693  reports          | Found IDs flagged as copy/paste clipboard data while writing a regular blendfile, the flag has been cleared in these IDs
+00:00.939  blend.writefile  | WARNING Found an ID 'OBexpected objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.940  blend.writefile  | WARNING Found an ID 'OBtest objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.941  reports          | Found IDs flagged as copy/paste clipboard data while writing a regular blendfile, the flag has been cleared in these IDs
 Traceback (most recent call last):
   File "<REPO>/upstream/tests/python/sculpt_paint/voxel_remesh_compare_test.py", line 36, in <module>
     main()

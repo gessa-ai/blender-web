@@ -25,7 +25,7 @@ RuntimeError: Error: Voxel remesher failed to create mesh
 
 
 ----------------------------------------------------------------------
-Ran 2 tests in 0.167s
+Ran 2 tests in 0.251s
 
 FAILED (errors=1)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

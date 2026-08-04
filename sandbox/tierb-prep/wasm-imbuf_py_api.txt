@@ -1,8 +1,14 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-...................libpng error: tEXt: invalid keyword
+...................BWATTR2 name.str='' name.cstr='ResolutionUnit' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='in'
+BWATTR2 name.str='' name.cstr='XResolution' typestr='float' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='YResolution' typestr='float' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='oiio:UnassociatedAlpha' typestr='int' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='png:compressionLevel' typestr='int' is_string=0 iequals_RU=0
+libpng error: tEXt: invalid keyword
 libpng error: No IDATs written into file
-00:00.974  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
+00:01.009  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
                             | PNG write error: No IDATs written into file
                             | Could not set PNG pHYs chunk
 Aborted()
@@ -14,13 +20,13 @@ node:internal/event_target:1101
 RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
     at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
     at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187c8426:wasm-function[96271]:0xADDR)
-    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187c8426:wasm-function[535]:0xADDR)
-    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187c8426:wasm-function[20323]:0xADDR)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-187e6a02:wasm-function[96297]:0xADDR)
+    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[535]:0xADDR)
+    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20323]:0xADDR)
     at invoke_viiiiii (<REPO>/build-wasm/bin/blender.js:1:157919)
-    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187c8426:wasm-function[53547]:0xADDR)
+    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187e6a02:wasm-function[53547]:0xADDR)
     at invoke_iiii (<REPO>/build-wasm/bin/blender.js:1:155958)
-    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187c8426:wasm-function[20131]:0xADDR)
-    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187c8426:wasm-function[20298]:0xADDR)
+    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20131]:0xADDR)
+    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20298]:0xADDR)
 
 Node.js v22.16.0

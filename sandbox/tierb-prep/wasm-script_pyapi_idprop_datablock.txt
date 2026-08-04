@@ -103,14 +103,28 @@ register_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
 warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:03.829  blend            | Read blend: "<TMP>"
-00:03.919  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:04.184  blend            | Read blend: "<TMP>"
-00:04.366  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:04.440  blend            | Read blend: "<TMP>"
+00:01.250  blend            | Read blend: "<TMP>"
+00:01.302  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:01.449  blend            | Read blend: "<TMP>"
+00:01.527  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:01.578  blend            | Read blend: "<TMP>"
+BWATTR2 name.str='Software' name.cstr='Software' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='Blender'
+BWATTR2 name.str='Thumb::URI' name.cstr='Thumb::URI' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='file://<TMP>'
+BWATTR2 name.str='' name.cstr='Description' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='Thumbnail for file://<TMP>'
+BWATTR2 name.str='' name.cstr='Thumb::MTime' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='1785852192'
+BWATTR2 name.str='' name.cstr='ResolutionUnit' typestr='string' is_string=1 iequals_RU=0
+BWATTR2   string value='in'
+BWATTR2 name.str='' name.cstr='XResolution' typestr='float' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='YResolution' typestr='float' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='oiio:UnassociatedAlpha' typestr='int' is_string=0 iequals_RU=0
+BWATTR2 name.str='' name.cstr='png:compressionLevel' typestr='int' is_string=0 iequals_RU=0
 libpng error: tEXt: invalid keyword
 libpng error: No IDATs written into file
-00:05.279  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
+00:01.907  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
                             | PNG write error: No IDATs written into file
                             | Could not set PNG pHYs chunk
 Aborted()
@@ -122,13 +136,13 @@ node:internal/event_target:1101
 RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
     at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
     at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187c8426:wasm-function[96271]:0xADDR)
-    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187c8426:wasm-function[535]:0xADDR)
-    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187c8426:wasm-function[20323]:0xADDR)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-187e6a02:wasm-function[96297]:0xADDR)
+    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[535]:0xADDR)
+    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20323]:0xADDR)
     at invoke_viiiiii (<REPO>/build-wasm/bin/blender.js:1:157919)
-    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187c8426:wasm-function[53547]:0xADDR)
+    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187e6a02:wasm-function[53547]:0xADDR)
     at invoke_iiii (<REPO>/build-wasm/bin/blender.js:1:155958)
-    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187c8426:wasm-function[20131]:0xADDR)
-    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187c8426:wasm-function[20298]:0xADDR)
+    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20131]:0xADDR)
+    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20298]:0xADDR)
 
 Node.js v22.16.0

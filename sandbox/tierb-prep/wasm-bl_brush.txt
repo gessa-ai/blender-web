@@ -12,7 +12,7 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: Error: No asset found at path ""
+RuntimeError: Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
 
 
 ======================================================================
@@ -27,7 +27,7 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: Error: No asset found at path ""
+RuntimeError: Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
 
 
 ======================================================================
@@ -42,7 +42,7 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: Error: No asset found at path ""
+RuntimeError: Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
 
 
 ======================================================================
@@ -57,15 +57,15 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Smooth')
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: Error: No asset found at path ""
+RuntimeError: Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Smooth"
 
 
 ----------------------------------------------------------------------
-Ran 4 tests in 0.012s
+Ran 4 tests in 0.085s
 
 FAILED (errors=4)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-Error: No asset found at path ""
-Error: No asset found at path ""
-Error: No asset found at path ""
-Error: No asset found at path ""
+Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
+Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
+Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw"
+Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Smooth"

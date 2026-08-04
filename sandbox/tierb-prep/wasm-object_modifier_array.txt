@@ -1,15 +1,15 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.622  blend            | Read blend: "<REPO>/upstream/tests/files/modifier_stack/array_test.blend"
-00:00.639  reports          | ERROR Engine 'CYCLES' not available for scene 'merge' (an add-on may need to be installed or enabled)
+00:00.888  blend            | Read blend: "<REPO>/upstream/tests/files/modifier_stack/array_test.blend"
+00:00.908  reports          | ERROR Engine 'CYCLES' not available for scene 'merge' (an add-on may need to be installed or enabled)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 [==========] Running 1 tests from 1 test case.
 [----------] 1 tests from merge
 [ RUN      ] complex_merge_case
-[       OK ] complex_merge_case (2 ms)
+[       OK ] complex_merge_case (5 ms)
 [----------] 1 tests from merge (0 ms total)
 
-[==========] 1 tests from 1 test case ran. (3 ms total)
+[==========] 1 tests from 1 test case ran. (7 ms total)
 [  PASSED  ] 1 tests.
 
 Blender quit

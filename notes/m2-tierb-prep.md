@@ -261,13 +261,52 @@ divergences (82.5%)**.
   `Blendfile corruption: Invalid, or multiple bhead with same old address value (0xefec4e70)` →
   `Aborted()`. Same 64→32 pointer/DNA family as the master_collection fix (patch 0014), resurfacing
   on real node-group `.blend`s. **Highest-value bug** — likely mis-reads other files silently too.
-- **essentials-asset load gap (3)** — `RuntimeError: No asset found at path ""`: the bundled
-  essentials `.blend` asset library (brushes / auto-smooth GN) does not resolve on wasm:
-  `object_edit` (`test_auto_smooth_detection`), `bl_brush` (4 errors), `bl_sculpt_brushes`. A
-  datafiles/asset-path resolution issue under NODERAWFS, not a logic divergence.
-- **node-socket type undefined (1)** — `bl_node_copy_operators`: sockets read back
-  `'NodeSocketUndefined' != 'NodeSocketFloat'` (×4) — a node-type registration / socket-idname
-  divergence on wasm.
+- **essentials-asset (3)** — `object_edit` (`test_auto_smooth_detection`), `bl_brush` (4 errors),
+  `bl_sculpt_brushes`. TWO layers, investigated in §6a: (a) **PAYLOAD — FIXED**: the error was
+  `No asset found at path ""` (empty) because `essentials_directory_path()` =
+  `BKE_appdir_folder_id(BLENDER_SYSTEM_DATAFILES,"assets")` (essentials_library.cc:121) and the
+  source `release/datafiles` ships NO `assets/` (the real essentials `.blend`s live LFS-stub'd
+  at `upstream/assets/`). (b) **GENUINE DIVERGENCE — remains**: after the payload fix the path
+  resolves and the `.blend` reads fine (64 brushes via `libraries.load`), yet
+  `brush.asset_activate(ESSENTIALS)` still returns "No asset found" — `asset::list::
+  storage_fetch_blocking(all_library_reference)` (brush_asset_ops.cc:65) does not populate the
+  asset list on wasm even in blocking `G.background` mode. A wasm asset-system / threaded
+  library-scan divergence, not payload.
+- **node-socket type undefined (1)** — `bl_node_copy_operators` `test_ungroup`
+  (`test_ungroup_proxy_nodes`), `bl_node_copy_operators.py:426`
+  `assertEqual(test_socket.bl_idname, …)` → `'NodeSocketUndefined' != 'NodeSocketFloat'` (×4).
+  **NOT a network socket** (it is a Blender node-tree socket `bl_idname`) and **NOT the bhead
+  readfile bug** (0 corruption lines in its log): a genuine node-system divergence — a
+  node/socket type resolves to `Undefined` after the node-group *ungroup* operator on wasm.
+
+### 6a. Follow-on triage — essentials-asset + node-socket (driver-assigned)
+
+Took the two non-big-fix divergences to root cause + right-layer disposition.
+
+**essentials-asset → PAYLOAD FIX LANDED (+ deeper divergence pinned).** Mechanism cited above.
+Fix implemented at the payload layer: `git -C upstream lfs pull --include="assets/**"` (11.3 MB /
+150 files, LFS; the essentials `.blend`s were stubs) + `run_suite_wasm.sh` now composes a
+datafiles dir (`_datafiles_wasm/` = `release/datafiles` symlinks + `assets/ → upstream/assets`)
+so `<DATAFILES>/assets` matches a real install. Evidence it worked: the `asset_activate` error
+moved from `path ""` to the full resolved path, and the essentials `.blend` loads 64 brushes via
+`libraries.load`. **This is the correct payload packaging** — the shipping wasm build must place
+`assets/` in its datafiles payload. It did NOT flip the 3 suites green: the residual blocker is
+now precisely one code path — `asset::list::storage_fetch_blocking` not populating the asset list
+on wasm — filed as a genuine asset-system bug (verify porcelain stayed patch-series-only after the
+pull: 30 → 30, HEAD `fbe6228777e7`).
+
+**node-socket → HYPOTHESIS CORRECTED, kept as genuine divergence.** The driver's steer
+(network-socket / stdlib syscall → possible config-AMBER) does **not** hold: the honesty
+discipline requires a cited mechanism, and the mechanism (`bl_node_copy_operators.py:426`
+comparing a node-tree socket `bl_idname`; 0 bhead lines) shows it is a Blender node-system issue,
+not a JS/network gap. It is therefore NOT reclassified as by-design — it stays a genuine divergence
+needing a node-registration/ungroup root-cause (separate follow-up; not payload-fixable).
+
+Net: neither collapses to "closed", but essentials is narrowed from *missing data + unknown* to
+*payload-fixed + one named asset-system code path*, and the node-socket premise is corrected. The
+honest m2b divergence set is now **5 classes**: bhead readfile (big fix, other lane), libpng tEXt
+(big fix, other lane), float-ULP (deferral), asset-list-storage (essentials, payload dep landed),
+node-ungroup socket-undefined — plus the 12 config-AMBER.
 
 ### Secondary normalized-diff — NON-authoritative (as designed)
 All 75 show `DIFF` in `results-wasm.tsv` col 5, INCLUDING the 52 green. Cause: under threaded

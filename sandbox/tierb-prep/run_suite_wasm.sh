@@ -21,6 +21,20 @@ SRC="$REPO/upstream/tests/files"
 OUT="$HERE/_out"
 mkdir -p "$OUT"
 
+# Composed datafiles payload: the source release/datafiles ships NO assets/ dir
+# (the essentials .blend assets live in upstream/assets/, installed to
+# <datafiles>/assets at build time). essentials_directory_path() =
+# BKE_appdir_folder_id(BLENDER_SYSTEM_DATAFILES,"assets") -> without assets/ the
+# ESSENTIALS library path resolves EMPTY. Compose a datafiles dir = release/datafiles
+# symlinks + assets/ -> upstream/assets so the wasm payload matches a real install.
+# (Requires `git -C upstream lfs pull --include=assets/**`; assets are LFS.)
+DATAFILES="$HERE/_datafiles_wasm"
+if [ ! -e "$DATAFILES/assets" ]; then
+  rm -rf "$DATAFILES"; mkdir -p "$DATAFILES"
+  for e in "$REPO"/upstream/release/datafiles/*; do ln -s "$e" "$DATAFILES/$(basename "$e")"; done
+  ln -s "$REPO/upstream/assets" "$DATAFILES/assets"
+fi
+
 name="${1:?usage: run_suite_wasm.sh <ctest_name>}"
 expand() { local s="$1"; s="${s//@OUT@/$OUT}"; s="${s//@SRC@/$SRC}"; s="${s//@PY@/$PYDIR}"; printf '%s' "$s"; }
 
@@ -47,7 +61,7 @@ cd "$OUT" || exit 4
 t0="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
 BLENDER_SYSTEM_RESOURCES="$REPO/upstream" \
 BLENDER_SYSTEM_PYTHON="$REPO/lib/wasm" \
-BLENDER_SYSTEM_DATAFILES="$REPO/upstream/release/datafiles" \
+BLENDER_SYSTEM_DATAFILES="$DATAFILES" \
 "$NODE" "$BLENDER_JS" \
   --background --factory-startup \
   --console-crash-handler \

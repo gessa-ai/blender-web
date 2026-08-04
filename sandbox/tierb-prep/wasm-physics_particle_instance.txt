@@ -1,6 +1,6 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.624  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_instance.blend"
+00:00.913  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_instance.blend"
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 
 START ParticleInstanceSimple test.

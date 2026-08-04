@@ -1,99 +1,99 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.823  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
-00:00.835  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
-00:00.859  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
-00:00.873  lib.override.resync | WARNING Deleting unused ID override OBLibCube from library level 0, still found as needing resync, and being isolated from its hierarchy root. This can happen when its otherwise unchanged linked reference was moved around in the library file (e.g. if an object was moved into another sub-collection of the same hierarchy).
-00:00.873  lib.override.resync | WARNING Deleting unused ID override OBLibCube.003 from library level 0, still found as needing resync, and being isolated from its hierarchy root. This can happen when its otherwise unchanged linked reference was moved around in the library file (e.g. if an object was moved into another sub-collection of the same hierarchy).
+00:01.203  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
+00:01.216  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
+00:01.243  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
+00:01.262  lib.override.resync | WARNING Deleting unused ID override OBLibCube from library level 0, still found as needing resync, and being isolated from its hierarchy root. This can happen when its otherwise unchanged linked reference was moved around in the library file (e.g. if an object was moved into another sub-collection of the same hierarchy).
+00:01.262  lib.override.resync | WARNING Deleting unused ID override OBLibCube.003 from library level 0, still found as needing resync, and being isolated from its hierarchy root. This can happen when its otherwise unchanged linked reference was moved around in the library file (e.g. if an object was moved into another sub-collection of the same hierarchy).
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Info: Saved as "blendlib_overrides.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
-<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
-<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR>
-<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR>
-<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
-<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube.004 <bpy_struct, Object("LibCube.004") at 0xADDR>
-<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.005 <bpy_struct, Object("LibCube.005") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
+<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
+<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR>
+<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR>
+<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
+<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube.004 <bpy_struct, Object("LibCube.004") at 0xADDR>
+<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.005 <bpy_struct, Object("LibCube.005") at 0xADDR>
 Info: Saved as "blendlib_overrides_test.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube <bpy_struct, Object("LibCube") at 0xADDR> LibCube <bpy_struct, Object("LibCube") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
 Info: Saved as "blendlib_overrides_test_recursive.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.007 <bpy_struct, Object("LibCube.007") at 0xADDR>
-<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.006 <bpy_struct, Object("LibCube.006") at 0xADDR>
-<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
-<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR>
-<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR>
-<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
-<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.004 <bpy_struct, Object("LibCube.004") at 0xADDR>
-<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.007 <bpy_struct, Object("LibCube.007") at 0xADDR>
+<bpy_struct, Collection("LibCube") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.006 <bpy_struct, Object("LibCube.006") at 0xADDR>
+<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
+<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR>
+<bpy_struct, Collection("LibCube.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR>
+<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
+<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.002 <bpy_struct, Object("LibCube.002") at 0xADDR> LibCube.004 <bpy_struct, Object("LibCube.004") at 0xADDR>
+<bpy_struct, Collection("LibCube.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibCube.001 <bpy_struct, Object("LibCube.001") at 0xADDR> LibCube.003 <bpy_struct, Object("LibCube.003") at 0xADDR>
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', parent '<direct>'
 Info: Saved as "blendlib_overrides_lib.blend"
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
-<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
+<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
 Info: Saved as "blendlib_overrides_test.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController200:00.959  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
-00:00.971  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
-00:00.989  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
-00:01.078  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
-00:01.099  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
-00:01.119  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController200:01.377  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
+00:01.394  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
+00:01.420  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
+00:01.579  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
+00:01.609  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
+00:01.636  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
  <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test_recursive.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
-<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2.001") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.001 <bpy_struct, Object("LibController2.001") at 0xADDR>
+<bpy_struct, Collection("LibController2.002") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2.002 <bpy_struct, Object("LibController2.002") at 0xADDR>
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', parent '<direct>'
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
 Info: Saved as "blendlib_overrides_lib.blend"
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test_recursive.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', parent '<direct>'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'}00:01.144  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
-00:01.174  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
-00:01.185  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'}00:01.666  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
+00:01.702  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
+00:01.719  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
  LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test_recursive.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
@@ -111,11 +111,11 @@ Info: LIB: Mesh: 'LibRigged' missing from '<REPO>/sandbox/tierb-prep/_out/blendf
 Info: LIB: Armature: 'LibRig' missing from '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Warning: 0 libraries and 12 linked data-blocks are missing (including 0 ObjectData), please check the Info and Outliner editors for details
 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', parent '<direct>'
 Info: LIB: Collection: 'LibCollection' missing from '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
@@ -131,29 +131,29 @@ Info: LIB: Object: 'LibRigged' missing from '<REPO>/sandbox/tierb-prep/_out/blen
 Info: LIB: Mesh: 'LibRigged' missing from '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Info: LIB: Armature: 'LibRig' missing from '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
 Warning: 0 libraries and 12 linked data-blocks are missing (including 0 ObjectData), please check the Info and Outliner editors for details
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
-<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR> LibSubCollection_2 <bpy_struct, Collection("LibSubCollection_2") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_0") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR> LibSubCollection_1 <bpy_struct, Collection("LibSubCollection_1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController1 <bpy_struct, Object("LibController1") at 0xADDR> LibController1 <bpy_struct, Object("LibController1") at 0xADDR>
+<bpy_struct, Collection("LibSubCollection_1") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_lib.blend"
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>00:01.266  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
-00:01.278  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
-00:01.294  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
-00:01.321  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.325  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.325  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.325  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.325  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.338  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>00:01.816  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend"
+00:01.846  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend"
+00:01.867  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test_recursive.blend"
+00:01.905  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:01.911  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.911  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:01.911  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.912  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:01.926  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
 
 Info: Saved as "blendlib_overrides_test.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Saved as "blendlib_overrides_test_recursive.blend"
 Info: Saved as "blendlib_overrides_lib.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<direct>'
-<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_MATCH_REFERENCE', 'IDPOINTER_ITEM_USE_ID'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
+<bpy_struct, Collection("LibController2") at 0xADDR> {'IDPOINTER_ITEM_USE_ID', 'IDPOINTER_MATCH_REFERENCE'} LibController2 <bpy_struct, Object("LibController2") at 0xADDR> LibController2 <bpy_struct, Object("LibController2") at 0xADDR>
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend', parent '<direct>'
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_lib.blend', parent '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_overrides_test.blend'
 Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'

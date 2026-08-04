@@ -468,7 +468,7 @@ warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
 .
 ----------------------------------------------------------------------
-Ran 7 tests in 0.414s
+Ran 7 tests in 0.481s
 
 OK (expected failures=1)
 register_class(...):

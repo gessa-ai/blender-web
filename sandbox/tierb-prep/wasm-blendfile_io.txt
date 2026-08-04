@@ -1,11 +1,11 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.739  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
-00:00.754  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
-00:00.781  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io_partial.blend"
-00:00.806  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
-00:00.819  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
-00:00.876  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:00.825  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:00.848  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:00.882  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io_partial.blend"
+00:00.922  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:00.938  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:01.010  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 
 orig_data 1:

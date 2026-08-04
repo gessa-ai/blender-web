@@ -104,17 +104,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ### M1 remainder — port the core libs bmesh needs (dispatched 2026-08-03, post-disk-clear)
 
-- [ ] **M1.13 [build-deps]** `bf_blenkernel` compiles to wasm32. ROUND-1 RESULT (2026-08-03):
-  0/4 targets, ALL order-only-gated on GPU shader codegen; shader_tool-as-wasm mis-tokenizes
-  ~6 EEVEE shaders (notes/m1-shader-codegen-wasm.md). Wiring fixes proven (906 rc-126→0).
-  → **ADR-002 decided: shader_tool+datatoc run NATIVE** (ABI-baking makesdna/makesrna stay
-  wasm). **blocked-by M1.13a.** claimed_by: worker-1 (continuing).
-- [ ] **M1.13a [build-deps]** ADR-002 implementation: native shader_tool+datatoc in
-  build-hosttools/ (clang/NEON path); wasm tree's custom commands invoke them under
-  EMSCRIPTEN; byte-identity audit (wasm-generated outputs == native outputs for the clean
-  subset + all datatoc); rework wip-0007 accordingly (drop simd.hh widening from series).
-- [ ] **M1.14 [build-deps]** `bf_depsgraph` + `bf_blentranslation` + `bf_animrig` to wasm32
-  (same worker, serial in one build tree; patch 0008+). **blocked-by M1.13** (shared tree).
+- [x] **M1.13 + M1.13a + M1.14 [build-deps]** ALL GREEN (01ddce3, driver-verified): blenkernel
+  34.4MB/288 obj + depsgraph + blentranslation + animrig on wasm32. ADR-002 executed: native
+  shader_tool+datatoc (scripts/build-hosttools.sh, FATAL_ERROR guard in platform_wasm.cmake);
+  **byte-identity audit PASS** — 752+25 datatoc + 66+466 shader_tool identical, all 44 stale
+  diffs = wasm-tool bugs (20 crash, 24 SILENT-CORRUPT → native tools necessary, not just
+  convenient), 0 target-dependence. Fixes: 1 LP64 shift (image.cc 1<<32, patch 0008) + host
+  PYTHON_EXECUTABLE for discover_nodes.py (Class-3b, porting-patterns.md). Series 0001-0008.
+  makesrna first-execution confirmed. **→ CODEGEN-GREEN: wave-2 fan-out FIRED.**
 - [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna executes
   (first verification — forced by bf_rna before blenkernel) + datatoc/shader_tool two-half fixes
   (exact lines in notes/m1-closure-recon.md). (In worker scope when hit during M1.13/14.)

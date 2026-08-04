@@ -210,6 +210,17 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ---
 
+## M4.pre — browser boot shell: **DONE** (babd6ba, notes/m4-browser-shell.md)
+
+`blender_browser` target (WITH_BLENDER_WEB_BROWSER, EXCLUDE_FROM_ALL; creator target CLONED
+via cmake_language(DEFER) — zero upstream patch) — WASMFS shared-memory FS (payload visible
+to the proxied main worker — the load-bearing choice), 93MB preload (.data) + 112MB wasm.
+Shell page + COOP/COEP server. **VERIFIED 3/3 incl. REAL HEADLESS CHROME: crossOriginIsolated,
+pthread pool in-tab, payload loads, runs to the EXACT known DNA abort in the tab = browser
+layer proven end-to-end.** Flips to BPY_OK on the 0014 rebuild, zero shell changes. Local
+link: `scripts/serve-web.sh 8123` → http://localhost:8123/. M7 debt logged (eager preload →
+staged/lazy + stdlib tree-shake + OPFS).
+
 ## M3 — WEBGPU BACKEND (native Dawn) — architecture DONE (notes/gpu-webgpu-architecture.md
 ## + notes/gpu-shader-chain.md, 2026-08-03); T-tasks runnable in parallel with M1/M2 tails
 

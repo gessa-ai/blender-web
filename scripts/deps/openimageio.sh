@@ -111,6 +111,19 @@ perl -0777 -i -pe 's{#include <OpenImageIO/platform.h>\n}{#include <OpenImageIO/
 # of tripping the unimplemented-platform static assert.
 sed -i '' 's/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32)/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32) || defined(__EMSCRIPTEN__)/' \
   "$SU/sysutil.cpp"
+# ustring::TableRep — the libc++ branch pokes std::string's private __long fields
+# (__cap_/__size_/__data_) for long strings, assuming a specific libc++ layout.
+# Emscripten's libc++ std::string layout does NOT match, so ustring::string()
+# comes back EMPTY for any string >= the SSO threshold (e.g. "ResolutionUnit", 14
+# chars, is "long" on wasm32) while c_str() stays correct. That empty string()
+# breaks OIIO's PNG writer (put_parameter reads name().string(), fails to skip
+# "ResolutionUnit", and emits a tEXt chunk with an EMPTY keyword -> libpng
+# "tEXt: invalid keyword" -> every PNG-with-metadata write aborts). OIIO already
+# EXCLUDES aarch64 from this branch (falls to the safe `str = strref` copy);
+# exclude __EMSCRIPTEN__ the same way. Costs one extra small alloc per interned
+# long string; buys correct ustring::string() everywhere on wasm.
+sed -i '' 's/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__)/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__) \&\& !defined(__EMSCRIPTEN__)/' \
+  "$SU/ustring.cpp"
 
 BUILD="$SCRATCH/build"
 rm -rf "$BUILD"

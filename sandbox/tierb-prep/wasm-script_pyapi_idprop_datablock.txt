@@ -103,46 +103,89 @@ register_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
 warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.250  blend            | Read blend: "<TMP>"
-00:01.302  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:01.449  blend            | Read blend: "<TMP>"
-00:01.527  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:01.578  blend            | Read blend: "<TMP>"
-BWATTR2 name.str='Software' name.cstr='Software' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='Blender'
-BWATTR2 name.str='Thumb::URI' name.cstr='Thumb::URI' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='file://<TMP>'
-BWATTR2 name.str='' name.cstr='Description' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='Thumbnail for file://<TMP>'
-BWATTR2 name.str='' name.cstr='Thumb::MTime' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='1785852192'
-BWATTR2 name.str='' name.cstr='ResolutionUnit' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='in'
-BWATTR2 name.str='' name.cstr='XResolution' typestr='float' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='YResolution' typestr='float' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='oiio:UnassociatedAlpha' typestr='int' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='png:compressionLevel' typestr='int' is_string=0 iequals_RU=0
-libpng error: tEXt: invalid keyword
-libpng error: No IDATs written into file
-00:01.907  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
-                            | PNG write error: No IDATs written into file
-                            | Could not set PNG pHYs chunk
-Aborted()
-worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
-node:internal/event_target:1101
-  process.nextTick(() => { throw err; });
-                           ^
+00:02.545  blend            | Read blend: "<TMP>"
+00:02.619  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:02.819  blend            | Read blend: "<TMP>"
+00:02.911  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:02.965  blend            | Read blend: "<TMP>"
+00:03.481  blend            | Read blend: "<TMP>"
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_enable_from_drop', bl_idname 'extensions.repo_enable_from_drop' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock', bl_idname 'extensions.repo_unlock' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_files', bl_idname 'extensions.package_install_files' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install', bl_idname 'extensions.package_install' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall', bl_idname 'extensions.package_uninstall' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_system', bl_idname 'extensions.package_uninstall_system' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_disable', bl_idname 'extensions.package_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_enable', bl_idname 'extensions.package_theme_enable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_disable', bl_idname 'extensions.package_theme_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_upgrade_all', bl_idname 'extensions.package_upgrade_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_marked', bl_idname 'extensions.package_install_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_marked', bl_idname 'extensions.package_uninstall_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear_errors', bl_idname 'extensions.status_clear_errors' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear', bl_idname 'extensions.status_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_set', bl_idname 'extensions.package_show_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_clear', bl_idname 'extensions.package_show_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set', bl_idname 'extensions.package_mark_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear', bl_idname 'extensions.package_mark_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set_all', bl_idname 'extensions.package_mark_set_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear_all', bl_idname 'extensions.package_mark_clear_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_settings', bl_idname 'extensions.package_show_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_obsolete_marked', bl_idname 'extensions.package_obsolete_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_lock_all', bl_idname 'extensions.repo_lock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock_all', bl_idname 'extensions.repo_unlock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_tags_set', bl_idname 'extensions.userpref_tags_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_for_update', bl_idname 'extensions.userpref_show_for_update' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_online', bl_idname 'extensions.userpref_show_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online', bl_idname 'extensions.userpref_allow_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online_popup', bl_idname 'extensions.userpref_allow_online_popup' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_addons_tags', bl_idname 'USERPREF_PT_addons_tags' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_addons_settings', bl_idname 'USERPREF_MT_addons_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_extensions_filter', bl_idname 'USERPREF_PT_extensions_filter' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_settings', bl_idname 'USERPREF_MT_extensions_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_item', bl_idname 'USERPREF_MT_extensions_item' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_active_repo_extra', bl_idname 'USERPREF_MT_extensions_active_repo_extra' has been registered before, unregistering previous
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Info: Saved as "test.blend"
+Info: Read library: '<TMP>', '//lib.blend', parent '<direct>'
+Info: Saved as "test.blend"
+Info: Read library: '<TMP>', '//lib.blend', parent '<direct>'
+Info: Saved as "test.blend_"
 
-RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
-    at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
-    at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187e6a02:wasm-function[96297]:0xADDR)
-    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[535]:0xADDR)
-    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20323]:0xADDR)
-    at invoke_viiiiii (<REPO>/build-wasm/bin/blender.js:1:157919)
-    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187e6a02:wasm-function[53547]:0xADDR)
-    at invoke_iiii (<REPO>/build-wasm/bin/blender.js:1:155958)
-    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20131]:0xADDR)
-    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20298]:0xADDR)
-
-Node.js v22.16.0
+Blender quit

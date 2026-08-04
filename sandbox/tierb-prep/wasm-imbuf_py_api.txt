@@ -1,32 +1,36 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-...................BWATTR2 name.str='' name.cstr='ResolutionUnit' typestr='string' is_string=1 iequals_RU=0
-BWATTR2   string value='in'
-BWATTR2 name.str='' name.cstr='XResolution' typestr='float' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='YResolution' typestr='float' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='oiio:UnassociatedAlpha' typestr='int' is_string=0 iequals_RU=0
-BWATTR2 name.str='' name.cstr='png:compressionLevel' typestr='int' is_string=0 iequals_RU=0
-libpng error: tEXt: invalid keyword
-libpng error: No IDATs written into file
-00:01.009  image.write      | ERROR OpenImageIO write failed: PNG write error: tEXt: invalid keyword
-                            | PNG write error: No IDATs written into file
-                            | Could not set PNG pHYs chunk
-Aborted()
-worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
-node:internal/event_target:1101
-  process.nextTick(() => { throw err; });
-                           ^
+...................E........................................TIFFReadDirectory: Warning, Sum of Photometric type-related color channels and ExtraSamples doesn't match SamplesPerPixel. Defining non-color channels as ExtraSamples..
+EE...................
+======================================================================
+ERROR: test_write_and_detect_all_types (__main__.TestImBufFileTypes.test_write_and_detect_all_types) (type_id='AVIF')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_imbuf_py_api.py", line 886, in test_write_and_detect_all_types
+    imbuf.write(ibuf, filepath=filepath)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: write: Unable to write image file (No such file or directory) '<TMP>'
 
-RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
-    at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
-    at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187e6a02:wasm-function[96297]:0xADDR)
-    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[535]:0xADDR)
-    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20323]:0xADDR)
-    at invoke_viiiiii (<REPO>/build-wasm/bin/blender.js:1:157919)
-    at blender.wasm.blender::imbuf::imb_oiio_write(blender::imbuf::WriteContext const&, char const*, OpenImageIO::v3_1::ImageSpec const&) (wasm://wasm/blender.wasm-187e6a02:wasm-function[53547]:0xADDR)
-    at invoke_iiii (<REPO>/build-wasm/bin/blender.js:1:155958)
-    at blender.wasm.blender::imb_save_png(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20131]:0xADDR)
-    at blender.wasm.blender::IMB_save_image(blender::ImBuf*, char const*, blender::ImBufFlags) (wasm://wasm/blender.wasm-187e6a02:wasm-function[20298]:0xADDR)
+======================================================================
+ERROR: test_planes_roundtrip (__main__.TestImBufPlanes.test_planes_roundtrip) (file_type='AVIF', planes=24)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_imbuf_py_api.py", line 543, in test_planes_roundtrip
+    imbuf.write(ibuf, filepath=filepath)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: write: Unable to write image file (No such file or directory) '<TMP>'
 
-Node.js v22.16.0
+======================================================================
+ERROR: test_planes_roundtrip (__main__.TestImBufPlanes.test_planes_roundtrip) (file_type='AVIF', planes=32)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_imbuf_py_api.py", line 543, in test_planes_roundtrip
+    imbuf.write(ibuf, filepath=filepath)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: write: Unable to write image file (No such file or directory) '<TMP>'
+
+----------------------------------------------------------------------
+Ran 80 tests in 0.347s
+
+FAILED (errors=3)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

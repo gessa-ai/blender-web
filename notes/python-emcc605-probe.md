@@ -102,3 +102,62 @@ invocations. **No EH/SjLj mixing warnings in either build.**
 Dirs under `build-python-probe/`: `build-native/` (host bootstrap), `build-jseh/` (A),
 `build-wasmeh/` (B). Each cross dir has `libpython3.13.a`, `python.js`, `python.wasm`,
 `python.data`. Smoke: `cd build-jseh && node python.js -c "print(2**64)"`.
+
+---
+
+# M2.7 JSPI probe — `-sJSPI` × setjmp/longjmp
+
+Experiment, sandbox-scale (2026-08-03). Sources + reproducer: `sandbox/jspi-probe/`
+(`run.sh`, committed). emcc 6.0.5; every build via buildwrap. `-sJSPI` is `ASYNCIFY=2`
+internally.
+
+## Node blocker (the pivotal finding)
+emcc 6.0.5's JSPI glue instantiates suspending imports via `new WebAssembly.Suspending(...)`
+(emscripten `src/preamble.js:534`) — the **new** JSPI API (Chrome 129+/V8 12.9+/Node ≥23).
+Every node here (emsdk-bundled **v22.16.0**, system v22.15/v22.23) exposes only the **old**
+`WebAssembly.Suspender` API. So **ANY `-sJSPI` module aborts at instantiation** (before
+`main`): `Aborted(Assertion failed: JSPI not supported by current environment...)`, with or
+without `--experimental-wasm-jspi` (that flag IS accepted by node — it just gates the old
+Suspender API, not the new one). JSPI *runtime* is therefore only exercisable in a browser
+(Chrome ≥137, GOAL's floor) or Node ≥23 — not on this toolchain's node.
+→ Suspension cases are run under **`-sASYNCIFY` (=1)** as a runnable proxy (same "suspend a C
+frame holding a live `jmp_buf`, then resume" hazard). JSPI's native stack-switching preserves
+the linear-memory C stack more transparently than Asyncify's instrument-and-rewind, so an
+Asyncify PASS conservatively predicts a JSPI PASS. Definitive JSPI-native runtime = follow-up
+browser/Playwright harness.
+
+## Results matrix
+| case | shape | link (emcc 6.0.5) | runtime |
+|---|---|---|---|
+| A | setjmp/longjmp, NO suspension, JS-EH + `-sJSPI` | **OK** | baseline (no JSPI) **PASS**; JSPI **aborts at init** (node blocker) |
+| B1 | setjmp → suspend → longjmp back after resume, JS-EH | **OK** | Asyncify proxy **PASS** (n=42); JSPI aborts at init |
+| B2 | suspend inside setjmp region, normal return, JS-EH | **OK** | Asyncify proxy **PASS** (captured=100); JSPI aborts at init |
+| C | libjpeg-turbo `error_exit`→`longjmp` on corrupt stream, JS-EH + `-sJSPI` | **OK** | baseline **PASS** (error path fires); JSPI runtime browser-gated |
+| D | libpython embed `Py_Initialize`+raise/except+`import json` + `-sJSPI` | **OK** (full dep closure: `libmpdec`/`libHacl`/`libexpat` + zlib/bzip2/sqlite ports) | baseline **PASS** (`{"ok":1024}`); JSPI runtime browser-gated |
+| E | B-shape under Wasm-EH (`-fwasm-exceptions -sSUPPORT_LONGJMP=wasm`) + `-sJSPI` | **OK** (emcc does NOT refuse the combo) | Asyncify proxy **PASS** (B1=42, B2=100) |
+
+## emcc flag-combo findings (no refusals)
+- emcc 6.0.5 accepts **both** EH models with `-sJSPI` at link: JS-EH (`-fexceptions`,
+  default `SUPPORT_LONGJMP=emscripten`) **and** Wasm-EH (`-fwasm-exceptions` +
+  `-sSUPPORT_LONGJMP=wasm`). No combo is refused; no linker error.
+- Only diagnostic: `warning: -sJSPI (ASYNCIFY=2) is still experimental [-Wexperimental]`.
+  No correctness warning about setjmp/longjmp × JSPI from the compiler.
+- setjmp/longjmp survives suspend/resume under the Asyncify proxy for **both** EH models —
+  no observed corruption of the `jmp_buf` or control flow across the suspension.
+
+## Implications for M2.5 / M4
+- **No stop-energy for JS-EH + JSPI at the toolchain level.** Everything links; the one
+  concrete hazard (longjmp across a suspension) passes the runnable proxy on both EH models.
+  This does not *prove* JSPI-native safety, but removes the "emcc refuses it / it obviously
+  breaks" failure modes and shifts the residual risk to a browser confirmation.
+- **M4 must add a browser (Chrome ≥137 / Playwright) smoke that actually suspends** — the
+  emsdk node cannot run `-sJSPI` at all (new-API gap). Treat "runs under node" as false for
+  any JSPI artifact; CI's JSPI gate is browser-only. (Node ≥23 in CI would also unblock it,
+  but the browser is the shipping target regardless.)
+- **Python stays synchronous on the (proxied) main thread for M2** (ADR-001 consequence):
+  none of these cases needed Python to suspend, and D's init+trampoline works under a JSPI
+  link. The suspend×setjmp question only becomes load-bearing if Blender drives JSPI through
+  a libpython or libjpeg setjmp region — keep those off the suspend path where possible.
+- **Wasm-EH migration (deferred ADR):** E shows the Wasm-EH + wasm-longjmp + JSPI combo both
+  links and passes the proxy, so the deferred migration is not blocked by JSPI on the EH
+  axis — the decision stays a size/perf/dep-rebuild tradeoff, not a JSPI-compatibility one.

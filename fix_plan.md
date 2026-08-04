@@ -187,7 +187,11 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 Measured basis: Vulkan backend = 28,062 LOC; webgpu/ estimate **13–17k** (render_graph 6,658
 LOC eliminated by WebGPU's implicit model; skeleton = 30 wgpu_ file-pairs ≈ 14.3k). Backend
-surface = 19 pure-virtuals; StateManager/Immediate come from Context, not backend factories.
+surface = **21 pure-virtuals** (T3 recon correction, cited gpu_backend.hh:47-81 — the
+architect's 19 missed compute_dispatch×2 + render_begin/end/step); StateManager/Immediate
+come from Context, not backend factories. GHOST swap API at this pin = swapBufferAcquire/
+swapBufferRelease (not swapBuffers); GPU_BACKEND_WEBGPU takes the unused 1<<2 bit + needs
+the matching eUserPref_GPUBackendType DNA value; gpu gtest bootstrap needs NO Python.
 Top risks: R1 combined-sampler binding remap (T2 probes), R2 Dawn+Tint native build (T1
 probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern, not M3).
 

@@ -156,6 +156,165 @@ function(blender_web_node_binary target)
   set_target_properties(${target} PROPERTIES LINK_FLAGS "${_bw_node_flags}")
 endfunction()
 
+# =============================================================================
+# BEGIN BLENDER-WEB BROWSER TARGET SECTION (M4.pre — browser boot shell)
+# -----------------------------------------------------------------------------
+# Owned by the ghost-web shell round. Everything between the BEGIN/END markers is
+# the browser-side link profile; no other worker edits this section.
+#
+# `blender_browser` is byte-for-byte the SAME compiled Blender as the node
+# `blender` target (identical object archives), relinked for a real browser tab:
+#
+#   node `blender`            browser `blender_browser`
+#   ----------------------    ------------------------------------------------
+#   -sNODERAWFS               (none) — browsers have no host filesystem
+#   (classic FS)              -sWASMFS — filesystem in SHARED linear memory, so
+#                             the preloaded payload is visible on the
+#                             PROXY_TO_PTHREAD worker that runs main() (classic
+#                             MEMFS keeps its dir tree as per-thread JS objects the
+#                             proxied main thread never sees). Also GOAL.md's
+#                             standing FS decision (WasmFS + OPFS).
+#   BLENDER_SYSTEM_* = host   BLENDER_SYSTEM_* = /bw/... WasmFS mounts populated by
+#   absolute paths            --preload-file packages (boot.js echoes the mounts
+#                             into ENV; see platform_web/shell/).
+#   runs immediately          -sMODULARIZE + EXPORT_NAME — boot.js owns the Module
+#                             config (arguments / ENV / print / printErr / onExit).
+#
+# Everything else (dlmalloc for the CPython-mimalloc clash, PROXY_TO_PTHREAD for
+# TBB, 512 MiB + growth, 8 MiB stack, WASM_BIGINT, JS-EH) matches the node profile
+# so behaviour is identical — reproducing the known layer_utils.cc:205 startup
+# abort in the tab proves the whole browser layer, and `import bpy` goes green the
+# moment the in-flight DNA-reconstruct fix lands.
+#
+# Gated behind WITH_BLENDER_WEB_BROWSER (default OFF) *and* EXCLUDE_FROM_ALL so it
+# never burdens the node/gtest iteration builds other workers run in this shared
+# tree — it is built ONLY on an explicit `ninja blender_browser`.
+option(WITH_BLENDER_WEB_BROWSER
+  "blender-web: also emit the browser-linked `blender_browser` executable (M4.pre shell)"
+  OFF)
+
+# Port repo root (parent of the patches/ dir). Anchors the preload payload roots.
+if(NOT DEFINED BLENDER_WEB_REPO_ROOT)
+  if(DEFINED BLENDER_WEB_PATCH_DIR)
+    get_filename_component(BLENDER_WEB_REPO_ROOT "${BLENDER_WEB_PATCH_DIR}/.." ABSOLUTE)
+  else()
+    get_filename_component(BLENDER_WEB_REPO_ROOT "${CMAKE_SOURCE_DIR}/.." ABSOLUTE)
+  endif()
+endif()
+
+# Registered via cmake_language(DEFER) from this file (top-level scope) so it runs
+# at the END of the top-level CMakeLists — AFTER add_subdirectory(source/creator)
+# has fully defined `blender` (sources, link libraries, include dirs). We do NOT
+# patch source/creator/CMakeLists.txt: upstream is harness-protected, and a numbered
+# creator hook is unnecessary — DEFER + a full property clone gets the same result
+# with zero upstream surface.
+#
+# The one wrinkle of cloning outside creator's directory scope: directory-level
+# add_definitions()/include_directories() (e.g. creator's -DWITH_PYTHON, USD paths)
+# do NOT auto-apply to a target created in the top-level scope, so we harvest the
+# creator directory's COMPILE_DEFINITIONS / INCLUDE_DIRECTORIES / COMPILE_OPTIONS
+# and merge them in. (The global -pthread/-fexceptions/-funsigned-char flags live in
+# CMAKE_CXX_FLAGS, which applies in every scope, so those need no harvesting.)
+function(blender_web_browser_binary src_target)
+  if(NOT EMSCRIPTEN OR NOT WITH_BLENDER_WEB_BROWSER)
+    return()
+  endif()
+  if(NOT TARGET ${src_target})
+    message(FATAL_ERROR "blender-web browser: source target `${src_target}` does not exist")
+  endif()
+  set(_new blender_browser)
+  if(TARGET ${_new})
+    return()
+  endif()
+
+  # ---- clone the compiled Blender: same sources / libs / includes / defs -------
+  get_target_property(_srcs ${src_target} SOURCES)
+  get_target_property(_sdir ${src_target} SOURCE_DIR)
+  set(_abs_srcs "")
+  foreach(_s IN LISTS _srcs)
+    if(IS_ABSOLUTE "${_s}")
+      list(APPEND _abs_srcs "${_s}")
+    else()
+      list(APPEND _abs_srcs "${_sdir}/${_s}")
+    endif()
+  endforeach()
+
+  add_executable(${_new} EXCLUDE_FROM_ALL ${_abs_srcs})
+  add_dependencies(${_new} makesdna)
+
+  # Target-level properties carried across verbatim.
+  foreach(_prop LINK_LIBRARIES COMPILE_FEATURES)
+    get_target_property(_val ${src_target} ${_prop})
+    if(_val)
+      set_target_properties(${_new} PROPERTIES ${_prop} "${_val}")
+    endif()
+  endforeach()
+
+  # Definitions / includes / options = target-level  +  creator directory-level.
+  foreach(_prop COMPILE_DEFINITIONS INCLUDE_DIRECTORIES COMPILE_OPTIONS)
+    set(_merged "")
+    get_target_property(_tv ${src_target} ${_prop})
+    if(_tv)
+      list(APPEND _merged ${_tv})
+    endif()
+    get_directory_property(_dv DIRECTORY "${_sdir}" ${_prop})
+    if(_dv)
+      list(APPEND _merged ${_dv})
+    endif()
+    if(_merged)
+      list(REMOVE_DUPLICATES _merged)
+      set_target_properties(${_new} PROPERTIES ${_prop} "${_merged}")
+    endif()
+  endforeach()
+
+  # ---- browser link profile ----------------------------------------------------
+  # NOTE: no -sERROR_ON_WASM_CHANGES_AFTER_LINK here (unlike the node profile): the
+  # incremental-link fast-path guard is irrelevant for this one-off artifact and a
+  # false trip would waste an iteration. --profiling-funcs keeps named stack traces
+  # in the browser console while iterating the boot.
+  # -sEXPORTED_RUNTIME_METHODS=ENV — expose the runtime ENV object on the module so
+  # the shell's boot.js can set BLENDER_SYSTEM_PYTHON/SCRIPTS/DATAFILES to the WasmFS
+  # mounts in preRun (the browser equivalent of the node recipe's env triad). FS is
+  # exported too so the shell / node verifier can sanity-check the preloaded tree.
+  set(_bw_browser_flags
+    "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
+-sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \
+-sPTHREAD_POOL_SIZE=8 -sWASMFS -sFORCE_FILESYSTEM=1 \
+-sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain \
+--profiling-funcs")
+
+  # ---- preload payload (host path @ WasmFS mount) ------------------------------
+  # Mirrors the node boot recipe's BLENDER_SYSTEM_* triad (notes/m2-python-boot.md).
+  # Wholesale dirs for the SIMPLEST-that-boots profile; M7 replaces this with staged
+  # lazy fetch + stdlib tree-shaking (documented in notes/m4-browser-shell.md).
+  set(_py_home   "${BLENDER_WEB_REPO_ROOT}/lib/wasm/lib/python3.13")
+  set(_scripts   "${BLENDER_WEB_REPO_ROOT}/upstream/scripts")
+  set(_datafiles "${BLENDER_WEB_REPO_ROOT}/upstream/release/datafiles")
+  foreach(_p "${_py_home}" "${_scripts}" "${_datafiles}")
+    if(NOT EXISTS "${_p}")
+      message(FATAL_ERROR "blender-web browser: preload root missing: ${_p}")
+    endif()
+  endforeach()
+  string(APPEND _bw_browser_flags
+    " --preload-file ${_py_home}@/bw/python/lib/python3.13"
+    " --preload-file ${_scripts}@/bw/scripts"
+    " --preload-file ${_datafiles}@/bw/datafiles")
+
+  set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")
+  message(STATUS
+    "blender-web: browser target `blender_browser` enabled "
+    "(WasmFS + preload, virtual root /bw). Build: ninja blender_browser")
+endfunction()
+
+# Defer the clone to the end of this (top-level) directory scope, once the `blender`
+# target from source/creator has been fully defined. No-op unless the browser target
+# is explicitly requested (-DWITH_BLENDER_WEB_BROWSER=ON).
+if(EMSCRIPTEN AND WITH_BLENDER_WEB_BROWSER)
+  cmake_language(DEFER CALL blender_web_browser_binary blender)
+endif()
+# END BLENDER-WEB BROWSER TARGET SECTION
+# =============================================================================
+
 # -----------------------------------------------------------------------------
 # Native host codegen tools (ADR-002)
 #

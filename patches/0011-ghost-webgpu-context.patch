@@ -1,9 +1,9 @@
 diff --git a/intern/ghost/intern/GHOST_ContextWGPU.hh b/intern/ghost/intern/GHOST_ContextWGPU.hh
 new file mode 100644
-index 0000000..e37aec4
+index 0000000..286a971
 --- /dev/null
 +++ b/intern/ghost/intern/GHOST_ContextWGPU.hh
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,82 @@
 +/* SPDX-FileCopyrightText: 2022-2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19,6 +19,10 @@ index 0000000..e37aec4
 + * just instance -> adapter -> device (no surface, headless). This is the M3
 + * vehicle that lets Blender's gpu-module gtests run against a real Dawn device.
 + *
++ * NOTE: this file's committed home is upstream/intern/ghost/intern/ via a
++ * patch; the copy under sandbox/dawn-probe/ghost-wgpu/ is the compile+device
++ * proof for T3 (built against Blender's real GHOST headers, see build_verify.sh).
++ */
 +
 +#pragma once
 +

@@ -23,3 +23,4 @@ build-dawn/
 # submodule, cloned out-of-tree to keep upstream/ untouched) + native build tree
 lib/macos_arm64/
 build-native-gpu/
+sandbox/memory64-probe/fmt-12.1.0/

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Build libjpeg-turbo (static, no SIMD) to wasm for blender-web.
 # Version pinned to Blender 5.2.0 @ fbe6228777e7:
 #   build_files/build_environment/cmake/versions.cmake -> JPEG_VERSION 2.1.3

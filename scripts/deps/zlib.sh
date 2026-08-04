@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Cross-compile zlib (Blender-pinned 1.3.1) to wasm, static, into lib/wasm.
 #
 # Approach note: Emscripten ships a zlib port (-sUSE_ZLIB=1 / --use-port=zlib),

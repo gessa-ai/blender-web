@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Cross-compile fmt (Blender-pinned 12.1.0) to wasm, static, into lib/wasm.
 # fmt is header-heavy with a small compiled core (format.cc/os.cc). Static only.
 set -euo pipefail

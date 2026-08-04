@@ -75,3 +75,12 @@ path = "GOAL.md"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 blender-web contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+# Generated data, baselines, probe artifacts, and evidence files under sandbox/ —
+# outputs of our own tooling; no meaningful authorship beyond the generating scripts
+# (which carry inline headers). Driver decision at the M2 boundary (see notes/harness-issues.md style).
+[[annotations]]
+path = ["sandbox/**/*.txt", "sandbox/**/*.tsv", "sandbox/**/*.json", "sandbox/**/*.blend", "sandbox/**/*.wasm", "sandbox/**/*.js", "sandbox/**/*.data", "sandbox/**/*.log", "sandbox/**/*.cmp.txt", "sandbox/**/.gitignore", "platform_web/ghost/.gitignore", "sandbox/**/*.c", "sandbox/**/*.cpp", "sandbox/**/*.py", "sandbox/**/*.sh", "sandbox/**/*.list", "sandbox/**/*.mjs", "sandbox/**/*.html"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"

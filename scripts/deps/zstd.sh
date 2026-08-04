@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Cross-compile zstd (Blender-pinned 1.5.7) to wasm, static, into lib/wasm.
 # zstd ships its CMake build under build/cmake. Static only, programs/tests off.
 set -euo pipefail

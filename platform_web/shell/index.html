@@ -91,11 +91,13 @@ to the page + devtools console. Fully local / CSP-clean: no external assets.
   <main>
     <p class="argv" id="argv">argv: (loading)</p>
     <p class="expect">
-      Expected (parity with node): the banner <code>Blender 5.2.0 LTS</code> then the
-      known pre-Python abort
-      <code>BLI_assert failed: source/blender/blenkernel/intern/layer_utils.cc:205</code>.
-      Reaching that line in the tab proves the browser layer. When the in-flight DNA
-      fix lands, this instead prints <code>BPY_OK 5.2.0 ...</code> and exits 0.
+      Expected (green): the banner <code>Blender 5.2.0 LTS</code>, then
+      <code>BPY_OK 5.2.0 LTS 3</code> (3 = cube/camera/light), then
+      <code>Blender quit</code>. The state pill turns <b>exited (0)</b>, exit code
+      <code>0</code> (~1.6&nbsp;s). Benign non-fatal noise you can ignore: an
+      OpenImageIO stub line, and Python tracebacks for disabled optional C-extensions
+      (<code>_multiprocessing</code>, <code>sha3</code>) that make one add-on's
+      <code>register()</code> fail &mdash; <code>import bpy</code> still succeeds.
     </p>
     <pre id="log"></pre>
   </main>

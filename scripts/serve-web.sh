@@ -16,7 +16,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${1:-${PORT:-8000}}"
 BIN_DIR="${BLENDER_WEB_BIN:-$ROOT/build-wasm/bin}"
-SHELL_DIR="$ROOT/platform_web/shell"
+# Docroot for "/" — the M4.pre shell by default; override to serve another page
+# (e.g. the GHOST-web harness: BLENDER_WEB_SHELL=platform_web/ghost/harness).
+SHELL_DIR="${BLENDER_WEB_SHELL:-$ROOT/platform_web/shell}"
 
 if [ ! -f "$SHELL_DIR/index.html" ]; then
   echo "serve-web: missing $SHELL_DIR/index.html" >&2; exit 1

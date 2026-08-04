@@ -146,10 +146,17 @@ function(blender_web_node_binary target)
   # stack traces symbolicate to real function names — essential while iterating the
   # headless boot (a bare -O2 build strips names, leaving only function indices).
   # Cheap (link-time only, no recompile); revisit for the eventual shipping profile.
+  # --pre-js node-fstat-shim.js: work around an emscripten NODEFS.fstat bug that
+  # only affects the NODERAWFS (node headless) build — it dereferences stream.node
+  # without guarding it, so fstat() on a NODERAWFS standard stream (fd 0/1/2, no
+  # virtual node) throws instead of falling through to fs.fstatSync(stream.nfd).
+  # CPython fstat()s stdio during init, so this is the Python-boot blocker. NODE-ONLY;
+  # the browser/WASMFS build has no NODEFS.fstat and does not get this --pre-js. See
+  # the shim file for the exact bug + upstream-fix note.
   set(_bw_node_flags
     "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
 -sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sNODERAWFS -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \
---profiling-funcs")
+--profiling-funcs --pre-js ${BLENDER_WEB_PATCH_DIR}/node-fstat-shim.js")
   if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     string(APPEND _bw_node_flags " -sERROR_ON_WASM_CHANGES_AFTER_LINK")
   endif()

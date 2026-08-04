@@ -5,21 +5,23 @@ SPDX-License-Identifier: CC0-1.0
 
 # M2.3 + M2.5 — WITH_PYTHON flip, bf_python, link `blender`, boot bpy headless
 
-Status (2026-08-04): **M2.3 COMPLETE** (configure + bf_python + `blender` link all GREEN).
-**M2.5 BLOCKED** at a DNA/readfile layout smell during factory-startup `.blend` load —
-handed to driver per the "DNA/RNA layout smells → STOP" rule. The C core boots, prints its
-version banner, and runs to the factory-startup scene setup before aborting; Python init is
-NOT yet reached (the blocker is pre-Python).
+Status (2026-08-04): **M2.3 + M2.5 COMPLETE — `import bpy` boots headless under node and
+the operator layer works.** `BPY_OK 5.2.0 LTS 3` (exit 0) and `OP_OK 4` (primitive_cube_add;
+exit 0). The original DNA/readfile blocker was fixed by the driver (patch 0014); three further
+M2.5 seams (NODEFS.fstat, the scripts path, the CPython C-function trampoline) were fixed here.
 
 ## Per-stage result
 
 | stage | result | evidence |
 |---|---|---|
-| configure (WITH_PYTHON ON, python→lib/wasm) | **PASS** | buildlog 20260804T033253; cache WITH_PYTHON=ON, PYTHON_LIBRARIES→lib/wasm/lib/libpython3.13.a |
-| bf_python (+bmesh/ext/gpu/mathutils) | **PASS** (0 source fixes) | buildlog 20260804T032630 (83 s); 5 archives in build-wasm/lib/ |
-| link `bin/blender.js` | **PASS** | buildlog 20260804T064947; blender.wasm 102 MB (82 MB without --profiling-funcs), blender.js 227 KB |
-| boot `import bpy` | **FAIL** (DNA read smell, pre-Python) | see blocker below |
-| operator smoke | not reached | blocked-by boot |
+| configure (WITH_PYTHON ON, python→lib/wasm) | **PASS** | cache WITH_PYTHON=ON, PYTHON_LIBRARIES→lib/wasm/lib/libpython3.13.a |
+| bf_python (+bmesh/ext/gpu/mathutils) | **PASS** (0 source fixes) | buildlog 20260804T032630 (83 s); 5 archives |
+| link `bin/blender.js` | **PASS** | blender.wasm ~103 MB (with --profiling-funcs), blender.js 227 KB |
+| boot `import bpy` | **PASS** | `BPY_OK 5.2.0 LTS 3`, exit 0, ~2 s wall (boot_tramp.log) |
+| operator smoke | **PASS** | `OP_OK 4` (primitive_cube_add), exit 0 (boot_op.log) |
+
+NOTE: `bpy.app.version_string` is `"5.2.0 LTS"` (the LTS suffix is part of the string), so the
+gate prints `BPY_OK 5.2.0 LTS 3` — version 5.2.0, object count 3, as required.
 
 ## Deliverables
 
@@ -102,28 +104,83 @@ NOT yet reached (the blocker is pre-Python).
 - **--profiling-funcs**: kept as a bring-up aid (named node stack traces; +~20 MB name section).
   Drop it for the shipping profile.
 
-## Boot recipe (exact)
+## Boot recipe (exact, VERIFIED — prints BPY_OK)
 
-emsdk node: `tools/emsdk/node/22.16.0_64bit/bin/node`. Command:
+emsdk node: `tools/emsdk/node/22.16.0_64bit/bin/node`. Command (run from repo root):
 ```
+BLENDER_SYSTEM_RESOURCES=/Users/paws/blender-web/upstream \
 BLENDER_SYSTEM_PYTHON=/Users/paws/blender-web/lib/wasm \
-BLENDER_SYSTEM_SCRIPTS=/Users/paws/blender-web/upstream/scripts \
 BLENDER_SYSTEM_DATAFILES=/Users/paws/blender-web/upstream/release/datafiles \
 tools/emsdk/node/22.16.0_64bit/bin/node build-wasm/bin/blender.js \
   --background --factory-startup \
   --python-expr "import bpy; print('BPY_OK', bpy.app.version_string, len(bpy.data.objects))"
+# -> BPY_OK 5.2.0 LTS 3   (exit 0)
 ```
-Env rationale (verified against code):
+Operator smoke:
+```
+… --python-expr "import bpy; bpy.ops.mesh.primitive_cube_add(); print('OP_OK', len(bpy.data.objects))"
+# -> OP_OK 4   (exit 0)
+```
+Env rationale (verified against code AND at runtime):
+- `BLENDER_SYSTEM_RESOURCES=upstream` is the KEY one for scripts. The `BLENDER_SYSTEM_SCRIPTS`
+  case in appdir.cc:712 does NOT read any env var (unlike SYSTEM_PYTHON/DATAFILES) — it only
+  uses `get_path_system`/`get_path_local` (executable-relative), and `--env-system-scripts`
+  only sets the EXTRA (addons) path. The MAIN `scripts/modules` + `scripts/startup` are found
+  via `get_path_system_ex` (appdir.cc:559), which honors `BLENDER_SYSTEM_RESOURCES` FIRST and
+  resolves `<RESOURCES>/scripts/modules` = upstream/scripts/modules. Without it: `bpy: couldn't
+  find 'scripts/modules', blender probably won't start` → `ModuleNotFoundError: _bpy_types`.
 - `BLENDER_SYSTEM_PYTHON=lib/wasm` → `BKE_appdir_folder_id(BLENDER_SYSTEM_PYTHON)`
-  (bpy_interface.cc:544) → `config.home` (bpy_interface.cc:559) → CPython finds the stdlib at
-  `<home>/lib/python3.13` (= lib/wasm/lib/python3.13, our harvest).
-- `BLENDER_SYSTEM_SCRIPTS=upstream/scripts` → appdir case (appdir.cc:712) for bpy's
-  startup/modules (bl_ui/bl_operators). `BLENDER_SYSTEM_DATAFILES=upstream/release/datafiles`
-  (appdir.cc:682). NODERAWFS makes these absolute host paths resolve directly.
-- (Boot did not reach Python, so the python-side of this recipe is not yet runtime-verified;
-  it is code-derived and expected-correct.)
+  (bpy_interface.cc:544) → `config.home` (bpy_interface.cc:559) → CPython stdlib at
+  `<home>/lib/python3.13` (= lib/wasm/lib/python3.13). `BLENDER_SYSTEM_DATAFILES` honored at
+  appdir.cc:682. NODERAWFS makes these absolute host paths resolve directly.
 
-## THE BLOCKER (M2.5) — DNA/readfile layout smell, handed to driver
+## M2.5 seams fixed (post-DNA-fix, this worker)
+
+6. **DNA/readfile blocker — FIXED BY DRIVER (patch 0014, a37bcab).** `Scene.master_collection`
+   read NULL after the 64-bit `startup.blend` reconstruction on wasm32 (DNA_struct_reconstruct
+   target offsets vs makesdna's model). Once fixed, the boot ran past scene load into Python init.
+
+7. **NODEFS.fstat crash at Python init (emscripten bug, NODERAWFS/node-only).** CPython fstat()s
+   fd 0/1/2 during interpreter init; emscripten's `NODEFS.fstat` computes
+   `stream.stream_ops?.getattr ?? stream.node.node_ops?.getattr` — it guards `node_ops` with `?.`
+   but NOT `stream.node`, and NODERAWFS's `createStandardStreams()` makes fd 0/1/2 as
+   `{nfd,position,path,flags}` with no virtual `node` → `TypeError: …reading 'node_ops'`, instead
+   of the intended `return fs.fstatSync(stream.nfd)`. FIX: `patches/node-fstat-shim.js` (a
+   `--pre-js` preRun shim on the node `blender` target only) reinstalls a guarded `FS.fstat`.
+   **SCOPE: NODERAWFS/node ONLY — the browser build uses WASMFS, which has no NODEFS.fstat and
+   is unaffected.** Emscripten upstream fix: `stream.node?.node_ops?.getattr` (report it).
+
+8. **CPython C-function trampoline disabled (THE big one).** `bpy`/RNA C-method calls trapped
+   `null function or function signature mismatch`. Root cause: vanilla 3.13.13 SHIPS
+   `Python/emscripten_trampoline.c` but its build system never defines `PY_CALL_TRAMPOLINE`, so
+   the file compiles to an EMPTY object and CPython's C-method calls use a DIRECT wasm
+   `call_indirect` (pycore_object.h:847). emscripten type-checks indirect calls and CPython casts
+   method pointers to a uniform `PyCFunction` signature (METH_NOARGS/O/FASTCALL differ) → trap on
+   the first bpy method call. FIX: `-DPY_CALL_TRAMPOLINE` in python.sh CFLAGS/CPPFLAGS — activates
+   the shipped trampoline (wasm type-reflection when present, else the universal
+   `wasmTable.get(func)(a,b,c)` EM_JS fallback). This is EXACTLY the gap ADR-001 predicted; the
+   M2.0b probe missed it because it only tested a Python-lambda callback (no C-signature
+   adaptation), not a C-method call. libpython rebuilt; verified `_PyEM_TrampolineCall_*` now
+   defined in the archive.
+
+## Open / deferred items (all non-fatal; boot is green)
+
+- **hashlib backends** (`_md5/_sha1/_sha2/_sha3/_blake2` disabled in python.sh, seam #4): `import
+  hashlib` during bpy startup logs ~28 `ValueError: unsupported hash type` tracebacks then
+  DEGRADES gracefully (module-level try/except in hashlib.py:247) — boot + operators unaffected.
+  Deferred: re-enable by harvesting CPython's per-algorithm Hacl archives (only libHacl_Hash_SHA2
+  builds as a separate `.a`; SHA1/SHA3/MD5/Blake2 need their archives located/merged). Revisit at
+  M2.6 if a tier-(b) suite actually computes a hash.
+- **`_multiprocessing`** not built (browser CPython target) → one `ModuleNotFoundError` during
+  bpy app setup (bpy sets `sys.executable` for multiprocessing). Non-fatal; multiprocessing is
+  not usable in a single-wasm-module anyway.
+- **OIIO `Sysutil::physical_memory` assert-print** (sysutil.cpp:214, "Need to implement … on this
+  platform"): OIIO has no wasm arm for physical_memory; it prints an assert message once at
+  startup and CONTINUES (non-fatal — pre-existing since M1.11). Proper fix = an `__EMSCRIPTEN__`
+  arm in the OIIO dep source returning a sane value (e.g. a fixed cap), which needs an OIIO dep
+  rebuild (scripts/deps/); DEFERRED as not-cheap for a cosmetic print. Characterized here.
+
+## (historical) The DNA blocker as originally characterized — resolved by patch 0014
 
 **Signature:** deterministic abort during factory-startup `.blend` read, BEFORE Python init:
 ```

@@ -105,9 +105,20 @@ cd "$XBUILD"
 # Result: a SELF-CONTAINED libpython whose only external symbols are zlib's, resolved
 # by lib/wasm's libz.a already on the Blender link. Re-enable any of these later by
 # harvesting/porting its dep (M2.6+), guarded by that milestone's needs.
+# -DPY_CALL_TRAMPOLINE (M2.5): vanilla 3.13.13 SHIPS Python/emscripten_trampoline.c
+# but its build system never defines PY_CALL_TRAMPOLINE, so the file compiles to an
+# EMPTY object and CPython's C-method calls go through a DIRECT wasm call_indirect
+# (pycore_object.h:847 `#if !(__EMSCRIPTEN__ && PY_CALL_TRAMPOLINE)`). emscripten
+# type-checks indirect calls, and CPython casts C method pointers to a uniform
+# PyCFunction signature (METH_NOARGS/O/FASTCALL differ), so any bpy/RNA method call
+# traps "null function or function signature mismatch". Defining the macro activates
+# the shipped trampoline, which adapts the signature (via wasm type-reflection when
+# present, else the universal `wasmTable.get(func)(a,b,c)` EM_JS fallback). This is
+# the C-function trampoline the M2.0b probe never exercised (it only tested a Python
+# lambda callback, which needs no signature adaptation).
 CONFIG_SITE="$SRC/Tools/wasm/config.site-wasm32-emscripten" \
-CFLAGS="-fexceptions -matomics -mbulk-memory" \
-CPPFLAGS="-matomics -mbulk-memory" \
+CFLAGS="-fexceptions -matomics -mbulk-memory -DPY_CALL_TRAMPOLINE" \
+CPPFLAGS="-matomics -mbulk-memory -DPY_CALL_TRAMPOLINE" \
 LDFLAGS="-fexceptions" \
   emconfigure "$SRC/configure" -C \
     --host=wasm32-unknown-emscripten \

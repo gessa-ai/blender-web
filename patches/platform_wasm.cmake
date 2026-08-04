@@ -94,6 +94,69 @@ function(blender_web_host_tool target)
 endfunction()
 
 # -----------------------------------------------------------------------------
+# The main `blender` executable — node-runnable headless profile (M2.3/M2.5)
+#
+# This is DELIBERATELY a separate function from blender_web_host_tool(), not a
+# reuse of it (the two profiles differ on the load-bearing PROXY_TO_PTHREAD axis).
+# Called from source/creator/CMakeLists.txt via patches/0010-* right after
+# add_executable(blender ...).
+#
+# Profile rationale (explicit, per the M2.3 link-profile decision):
+#   * -sPROXY_TO_PTHREAD (ON) — main() runs on a pthread, the browser/node main
+#     thread stays free to service the event loop. This is what lets a multithreaded
+#     (TBB) binary block on pthread_join / TBB barriers WITHOUT deadlocking on
+#     on-demand worker creation. It is the SAME profile the tier-(a) gtest binaries
+#     (bmesh_core_test, ~200 archives incl. TBB) linked and RAN under node with
+#     (proven: M1.11). The host-tool profile uses PROXY_TO_PTHREAD=0 because those
+#     tools are single-threaded CLIs; blender is not. ADR-001's "Python runs
+#     synchronously on the (proxied) main thread" explicitly assumes this proxied
+#     posture (M2 uses NO -sJSPI, so there is no suspension and no setjmp/JSPI
+#     hazard — ADR-003). EXIT_RUNTIME=1 makes the proxied process still exit with
+#     main()'s return code instead of keeping node's worker pool alive.
+#   * -sNODERAWFS — argv paths + PYTHONHOME/BLENDER_SYSTEM_* map straight onto
+#     node's real filesystem, so the harvested stdlib (lib/wasm/lib/python3.13) and
+#     the upstream scripts tree load from real absolute paths.
+#   * -sEXIT_RUNTIME=1 — process exits (headless verification / harness).
+#   * -sSTACK_SIZE — Blender has dynamic-size alloca sites (recon: 6 in blenkernel)
+#     and deep recursion; emscripten's default 64 KiB main stack is far too small.
+#     Raise to 8 MiB (matches a typical native main-thread stack).
+#   * -sTOTAL_MEMORY left to grow (ALLOW_MEMORY_GROWTH); big scenes are unbounded.
+# OVERWRITE the target LINK_FLAGS so blender is node-runnable INDEPENDENT of
+# WITH_GTESTS (whose block also happens to add NODERAWFS/EXIT_RUNTIME globally —
+# we do not want blender's runnability to silently depend on that).
+function(blender_web_node_binary target)
+  if(NOT EMSCRIPTEN)
+    return()
+  endif()
+  # -sMALLOC=dlmalloc (NOT mimalloc) for the blender binary specifically:
+  # CPython 3.13 VENDORS its own mimalloc (libpython3.13.a(obmalloc.o) defines the
+  # full public mi_* API, 276 globals) for PyObject allocation. Linking emscripten's
+  # -sMALLOC=mimalloc (libmimalloc-mt.a) alongside it is a hard duplicate-symbol
+  # link error (mi_malloc/mi_free/mi_new/...). We keep CPython's internal mimalloc
+  # (the perf-critical Python-object path GOAL's mimalloc decision cares about) and
+  # give the C heap emscripten's dlmalloc, which is thread-safe under -pthread and
+  # is exactly the allocator the M2.0b libpython-embed probe ran clean on. The
+  # gtest / host-tool binaries keep -sMALLOC=mimalloc (they don't link libpython,
+  # so no clash) — this override is isolated to the target that embeds CPython.
+  # -sINITIAL_MEMORY: the linked module's static data (RNA/DNA tables, the frozen
+  # stdlib, string pools) exceeds emscripten's 16 MiB default, so wasm-ld errors
+  # "initial memory too small". 512 MiB is a generous initial reservation; growth
+  # (ALLOW_MEMORY_GROWTH, bounded by the default 2 GiB maximum) handles scenes.
+  # --profiling-funcs: preserve the wasm name section through wasm-opt so node
+  # stack traces symbolicate to real function names — essential while iterating the
+  # headless boot (a bare -O2 build strips names, leaving only function indices).
+  # Cheap (link-time only, no recompile); revisit for the eventual shipping profile.
+  set(_bw_node_flags
+    "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
+-sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sNODERAWFS -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \
+--profiling-funcs")
+  if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+    string(APPEND _bw_node_flags " -sERROR_ON_WASM_CHANGES_AFTER_LINK")
+  endif()
+  set_target_properties(${target} PROPERTIES LINK_FLAGS "${_bw_node_flags}")
+endfunction()
+
+# -----------------------------------------------------------------------------
 # Native host codegen tools (ADR-002)
 #
 # shader_tool and datatoc emit target-INDEPENDENT text (byte-identity verified,
@@ -358,6 +421,69 @@ else()
   if(FIRST_RUN)
     message(STATUS "blender-web: lib/wasm empty — empty placeholder dep targets (pre-M2).")
   endif()
+endif()
+
+# -----------------------------------------------------------------------------
+# Embedded CPython 3.13 resolution (M2.3) — resolve to the wasm harvest, NOT host
+#
+# platform_wasm.cmake REPLACES platform_unix.cmake, whose WITH_PYTHON branch does
+# `find_package(PythonLibsUnix REQUIRED)` (build_files/.../platform_unix.cmake:234).
+# Under the Emscripten toolchain a bare find_library/find_path is re-rooted into the
+# emscripten sysroot (CMAKE_FIND_ROOT_PATH_MODE_*=ONLY) and would never see lib/wasm,
+# and worse could resolve the *host* python. So instead of running the finder we set
+# the PYTHON_* cache vars DIRECTLY to the harvested cross-compiled interpreter
+# (scripts/deps/python.sh: libpython3.13.a JS-EH + include/python3.13 + stdlib).
+# FindPythonLibsUnix itself is written to be short-circuited exactly this way (it
+# skips its find_* when PYTHON_INCLUDE_DIR / PYTHON_LIBRARY are already DEFINED,
+# module lines 62-73), so setting the vars is the sanctioned override, not a hack.
+#
+# The load-bearing consumers (verified at the pin):
+#   * dependency_targets.cmake:243-250 builds bf::dependencies::optional::python from
+#     ${PYTHON_INCLUDE_DIR} (SYSTEM include), ${PYTHON_LINKFLAGS}, ${PYTHON_LIBRARIES}.
+#   * root CMakeLists.txt:2276 asserts ${PYTHON_INCLUDE_DIR}/Python.h exists.
+#   * root CMakeLists.txt:1414 version-guards ${PYTHON_VERSION} >= 3.13.
+# These four vars (+ the LIBRARY/LIBPATH/DIRS aliases for completeness) are all that
+# the headless, non-module, no-install configuration touches. The HOST interpreter
+# for build-time codegen scripts (discover_nodes.py) is the separate, native
+# PYTHON_EXECUTABLE set above — do NOT conflate the two.
+if(WITH_PYTHON)
+  if(NOT WITH_LIBS_PRECOMPILED OR NOT DEFINED LIBDIR)
+    message(FATAL_ERROR
+      "blender-web: WITH_PYTHON=ON but lib/wasm is not populated. Harvest CPython "
+      "first: scripts/deps/python.sh (see notes/adr/ADR-001-cpython-emcc-6.0.5.md).")
+  endif()
+  set(_bw_py_inc "${LIBDIR}/include/python3.13")
+  set(_bw_py_lib "${LIBDIR}/lib/libpython3.13.a")
+  if(NOT EXISTS "${_bw_py_inc}/Python.h")
+    message(FATAL_ERROR "blender-web: missing ${_bw_py_inc}/Python.h (broken python harvest).")
+  endif()
+  if(NOT EXISTS "${_bw_py_lib}")
+    message(FATAL_ERROR "blender-web: missing ${_bw_py_lib} (broken python harvest).")
+  endif()
+  # Version (major.minor only, as FindPythonLibsUnix reports it).
+  set(PYTHON_VERSION "3.13" CACHE STRING "Python Version (major and minor only)" FORCE)
+  # Include dirs — Python.h and pyconfig.h are co-located in the harvest, so the
+  # config dir equals the include dir.
+  set(PYTHON_INCLUDE_DIR         "${_bw_py_inc}" CACHE PATH "" FORCE)
+  set(PYTHON_INCLUDE_CONFIG_DIR  "${_bw_py_inc}" CACHE PATH "" FORCE)
+  set(PYTHON_INCLUDE_DIRS        "${_bw_py_inc}" CACHE STRING "" FORCE)
+  # Static library — mono-wasm links libpython3.13.a directly into the executable.
+  set(PYTHON_LIBRARY             "${_bw_py_lib}" CACHE FILEPATH "" FORCE)
+  set(PYTHON_LIBRARIES           "${_bw_py_lib}" CACHE STRING "" FORCE)
+  set(PYTHON_LIBPATH             "${LIBDIR}/lib" CACHE PATH "" FORCE)
+  # No -export-dynamic: bpy's C modules are compiled INTO the mono-wasm module and
+  # registered via PyImport builtins, not dlopen'd, so the Unix embedding link flag
+  # is unnecessary (and emscripten does not want it). Keep empty but DEFINED so
+  # dependency_targets.cmake:246 target_link_libraries(... ${PYTHON_LINKFLAGS}) is a
+  # clean no-op.
+  set(PYTHON_LINKFLAGS           "" CACHE STRING "" FORCE)
+  set(PYTHONLIBSUNIX_FOUND TRUE)
+  if(FIRST_RUN)
+    message(STATUS "blender-web: embedded CPython ${PYTHON_VERSION} -> ${_bw_py_lib} "
+                   "(include ${_bw_py_inc})")
+  endif()
+  unset(_bw_py_inc)
+  unset(_bw_py_lib)
 endif()
 
 # -----------------------------------------------------------------------------

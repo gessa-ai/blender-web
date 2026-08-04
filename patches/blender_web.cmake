@@ -50,17 +50,35 @@ set(WITH_X11_XINPUT         OFF CACHE BOOL "" FORCE)
 set(WITH_INPUT_IME          OFF CACHE BOOL "" FORCE)
 set(WITH_INPUT_NDOF         OFF CACHE BOOL "" FORCE)
 
-# ---- M1 core-boots ONLY: Python + Cycles forced OFF ------------------------
-# TEMPORARY, milestone-scoped override (checkpoint-01). Both WITH_PYTHON and
-# WITH_CYCLES RETURN in M2 and are NOT standing decisions:
-#   * WITH_PYTHON is MANDATORY for the UI — the entire menu/panel layer is Python
-#     (scripts/startup/bl_ui). It is OFF here purely to keep cross-compiled CPython
-#     3.13 off the M1 "core boots + free oracle" critical path (blenlib/bmesh gtests
-#     don't need the interpreter).
+# ---- Python: ON for M2.3 (mandatory for the UI + bpy) ----------------------
+# M2.3 flip (2026-08-04): WITH_PYTHON returns ON. The entire menu/panel UI layer
+# is Python (scripts/startup/bl_ui); `import bpy` is the M2 "core boots" gate.
+# libpython3.13.a (JS-EH) + include/python3.13 + stdlib are harvested to lib/wasm
+# (scripts/deps/python.sh); PYTHON_* discovery is wired in platform_wasm.cmake to
+# resolve there (NOT the host python — the host interpreter for build-time codegen
+# scripts stays native and is set separately in platform_wasm.cmake).
+set(WITH_PYTHON             ON  CACHE BOOL "" FORCE)  # M2.3 — mandatory (Python UI + bpy)
 #   * WITH_CYCLES (CPU-only) is a launch-tier feature; OFF here to keep the
-#     OIIO/render dependency stack off the M1 configure/link path.
-# When flipping these back ON in M2, restore the CPU-only Cycles device block below.
-set(WITH_PYTHON             OFF CACHE BOOL "" FORCE)  # M1-only — MANDATORY again in M2 (Python UI)
+#     OIIO/render dependency stack off the M2 configure/link path (revisit M6).
+#     When flipping it back ON later, restore the CPU-only Cycles device block below.
+# ---- Python build sub-options (cross build: no install, no numpy, no module) ---
+#   * WITH_PYTHON_INSTALL defaults ON (root CMakeLists.txt:553) and would try to
+#     COPY a *system* Python into the install dir — wrong for the wasm mono-module
+#     (the stdlib is served from lib/wasm via NODERAWFS). Force OFF.
+#   * WITH_PYTHON_MODULE stays OFF: we build the `blender` executable, not a `bpy`
+#     python-extension module (module+WITH_GTESTS is incompatible, root L1643).
+#   * WITH_PYTHON_NUMPY is only *declared* when audaspace/mod_fluid are ON (both
+#     OFF here, root L561) so it never exists — no action needed, noted for audit.
+#   * WITH_PYTHON_SECURITY keeps its upstream default (ON).
+set(WITH_PYTHON_INSTALL     OFF CACHE BOOL "" FORCE)  # no system-Python copy (stdlib via lib/wasm)
+set(WITH_PYTHON_MODULE      OFF CACHE BOOL "" FORCE)  # build the executable, not the bpy module
+# The *_INSTALL_* bundling sub-options run find_python_package() even with
+# WITH_PYTHON_INSTALL OFF (root CMakeLists.txt:2288/2299/2305 use bare elseif),
+# emitting harmless "package not found / will be ignored" warnings against the
+# harvest. Force OFF so configure is clean and nothing tries to bundle host pkgs.
+set(WITH_PYTHON_INSTALL_NUMPY     OFF CACHE BOOL "" FORCE)
+set(WITH_PYTHON_INSTALL_REQUESTS  OFF CACHE BOOL "" FORCE)
+set(WITH_PYTHON_INSTALL_ZSTANDARD OFF CACHE BOOL "" FORCE)
 
 # ---- Held ON (mandatory for the port) --------------------------------------
 set(WITH_TBB                 ON  CACHE BOOL "" FORCE)

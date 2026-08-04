@@ -82,14 +82,44 @@ BUILD_PY="$NATIVE/python.exe"; [ -x "$BUILD_PY" ] || BUILD_PY="$NATIVE/python"
 XBUILD="$SCRATCH/build-wasm"
 rm -rf "$XBUILD"; mkdir -p "$XBUILD"
 cd "$XBUILD"
+# -matomics -mbulk-memory (M2.3): libpython links into Blender's shared-memory
+# (-pthread) mono-wasm module, and wasm-ld refuses any object in a --shared-memory
+# link that lacks the atomics/bulk-memory wasm features. These flags add exactly
+# those features WITHOUT emscripten's full -pthread runtime (no __EMSCRIPTEN_PTHREADS__),
+# so CPython keeps its single-threaded browser build (ADR-001 posture) yet every
+# object (incl. bundled libmpdec/Hacl) is link-compatible with the threaded host.
+# py_cv_module_*=n/a: disable the optional stdlib C-extensions that would each drag
+# a companion / external native library into the Blender mono-wasm link, none of
+# which is needed to boot `import bpy`, and every one of which has a safe fallback:
+#   _sqlite3, _bz2            -> only satisfiable by the emscripten sqlite3/bzip2
+#                               PORTS (the standalone probe used them; the mono-wasm
+#                               does not). No stdlib import fatals without them.
+#   _decimal                 -> needs bundled libmpdec; the `decimal` module falls
+#                               back to the pure-python `_pydecimal` automatically.
+#   _md5 _sha1 _sha2 _sha3   -> need CPython's bundled Hacl* archives (built per
+#   _blake2                     algorithm, not cleanly one lib); `hashlib` still
+#                               imports (algorithms just unavailable until re-added).
+#   pyexpat _elementtree     -> need CPython's bundled expat, which would duplicate
+#                               lib/wasm's libexpat.a (linked for OCIO). XML parsing
+#                               is not on the bpy boot path.
+# Result: a SELF-CONTAINED libpython whose only external symbols are zlib's, resolved
+# by lib/wasm's libz.a already on the Blender link. Re-enable any of these later by
+# harvesting/porting its dep (M2.6+), guarded by that milestone's needs.
 CONFIG_SITE="$SRC/Tools/wasm/config.site-wasm32-emscripten" \
-CFLAGS="-fexceptions" LDFLAGS="-fexceptions" \
+CFLAGS="-fexceptions -matomics -mbulk-memory" \
+CPPFLAGS="-matomics -mbulk-memory" \
+LDFLAGS="-fexceptions" \
   emconfigure "$SRC/configure" -C \
     --host=wasm32-unknown-emscripten \
     --build="$BUILD_TRIPLE" \
     --with-emscripten-target=browser \
     --with-build-python="$BUILD_PY" \
-    --disable-shared --disable-ipv6
+    --disable-shared --disable-ipv6 \
+    py_cv_module__sqlite3=n/a py_cv_module__bz2=n/a \
+    py_cv_module__decimal=n/a \
+    py_cv_module__md5=n/a py_cv_module__sha1=n/a py_cv_module__sha2=n/a \
+    py_cv_module__sha3=n/a py_cv_module__blake2=n/a \
+    py_cv_module_pyexpat=n/a py_cv_module__elementtree=n/a
 
 # --- 3. build libpython + generated files, then harvest via install targets -----
 emmake make -j"$NPROC"
@@ -101,7 +131,31 @@ STAGE="$SCRATCH/stage"; rm -rf "$STAGE"
 emmake make DESTDIR="$STAGE" inclinstall libinstall
 
 mkdir -p "$PREFIX/lib" "$PREFIX/include"
-install -m644 "$XBUILD/libpython${PY_SHORT}.a" "$PREFIX/lib/libpython${PY_SHORT}.a"
+# Merge CPython's in-tree companion static libs (libmpdec for _decimal, the Hacl
+# archives for the builtin _sha*/_md5/_blake2 hash modules) INTO libpython so the
+# embed is a single self-contained archive — dependency_targets.cmake links one
+# ${PYTHON_LIBRARIES}, and a single archive makes symbol resolution order-independent
+# (_decimal.o -> mpd_*, hashlib -> Hacl_* resolve within the one archive). Anything
+# CPython leaves external (zlib) is satisfied by lib/wasm at the Blender link.
+COMPANION_LIBS=$(find "$XBUILD" -name '*.a' ! -name "libpython${PY_SHORT}.a" 2>/dev/null | sort)
+COMBINED="$SCRATCH/libpython${PY_SHORT}.combined.a"
+rm -f "$COMBINED"
+if [ -n "$COMPANION_LIBS" ]; then
+  echo "python: merging companion archives into libpython${PY_SHORT}.a:"
+  echo "$COMPANION_LIBS" | sed 's#.*/#  - #'
+  {
+    echo "CREATE $COMBINED"
+    echo "ADDLIB $XBUILD/libpython${PY_SHORT}.a"
+    for _a in $COMPANION_LIBS; do echo "ADDLIB $_a"; done
+    echo "SAVE"
+    echo "END"
+  } | emar -M
+  emranlib "$COMBINED"
+else
+  echo "python: no companion archives found — using libpython${PY_SHORT}.a as-is"
+  cp "$XBUILD/libpython${PY_SHORT}.a" "$COMBINED"
+fi
+install -m644 "$COMBINED" "$PREFIX/lib/libpython${PY_SHORT}.a"
 rm -rf "$PREFIX/include/python${PY_SHORT}"
 cp -R "$STAGE/usr/local/include/python${PY_SHORT}" "$PREFIX/include/python${PY_SHORT}"
 rm -rf "$PREFIX/lib/python${PY_SHORT}"

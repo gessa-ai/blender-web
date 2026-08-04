@@ -151,8 +151,21 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   clean-state verified via buildwrap. Harvest: `lib/wasm/lib/libpython3.13.a` (42.2MB, 2850 T
   = probe parity), `include/python3.13/`, `lib/python3.13/` stdlib (51MB/632 py, sysconfigdata
   present, tests excluded). Zero patches, JS-EH.
-- [ ] **M2.3 [python-wasm]** Harvest `libpython3.13.a` + `include/python3.13/` + `Lib/` → `lib/wasm`;
-  **re-enable `WITH_PYTHON ON`** in `blender_web.cmake`, wire PYTHON_* vars. **blocked-by M2.2.**
+- [x] **M2.3 [python-wasm]** DONE 2026-08-04: WITH_PYTHON ON; PYTHON_* cache vars direct to
+  lib/wasm (no find_package re-rooting); bf_python(+bmesh/ext/gpu/mathutils) builds 0 fixes;
+  **`bin/blender.js` LINKS (82MB wasm) and BOOTS under node** to scene-load. Seams: mimalloc
+  dup-syms → blender uses dlmalloc via blender_web_node_binary() AFTER setup_platform_linker_flags
+  (patch 0010, last--sMALLOC-wins); libpython rebuilt -matomics -mbulk-memory self-contained
+  (optional C-exts needing sqlite/bz2/mpdec/Hacl disabled — revisit if bpy needs); INITIAL_MEMORY
+  512M/STACK 8M; PROXY_TO_PTHREAD stays ON (proven gtest profile, TBB). notes/m2-python-boot.md.
+- [ ] **M2.5a [driver→worker DIAGNOSTIC] `import bpy` BLOCKED at first .blend read — DNA smell:**
+  `Scene.master_collection` (Collection*, immediately after ListBaseT<ViewLayer>) reads NULL raw
+  during 64→32 DNA_struct_reconstruct of startup.blend (readfile "invalid root collection" NOT
+  emitted → struct-field offset disagreement, not newdataadr). → layer sync bails (layer.cc:1376)
+  → assert layer_utils.cc:205. Definitive test: makesdna SDNA offsets vs compiled offsetof, FULL
+  Scene table diff (catches silent misreads too). Suspect: makesdna sizing of templated DNA
+  members (ListBaseT<>) under the wasm32 model — patch-0002 class. **DISPATCHED to the 0002
+  author-worker; fix requires model-correct extension of 0002 + dna_verify green + boot green.**
 - [x] **M2.4 [build-deps]** Already done during M1: OCIO subtree forced by OIIO 3.x hard-dep
   (M1.6, commit 5e379cd), freetype+brotli forced by no-off-switch (M1.8, 25ad33a). Verified
   present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/

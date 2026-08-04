@@ -1,0 +1,23 @@
+diff --git a/source/creator/CMakeLists.txt b/source/creator/CMakeLists.txt
+index d563215d864..f60165823bd 100644
+--- a/source/creator/CMakeLists.txt
++++ b/source/creator/CMakeLists.txt
+@@ -1953,6 +1953,18 @@ setup_platform_linker_flags(blender)
+ setup_platform_linker_libs(blender)
+ setup_platform_linker_symbol_hiding(blender)
+ 
++# blender-web (M2.3/M2.5): give the main `blender` executable the node-runnable
++# headless link profile. This runs AFTER setup_platform_linker_flags(blender) on
++# purpose: that macro APPENDS the global PLATFORM_LINKFLAGS (which carries
++# -sMALLOC=mimalloc, correct for the browser/gtest binaries) and mimalloc
++# duplicate-symbol-clashes with the mimalloc CPython 3.13 vendors inside
++# libpython3.13.a. blender_web_node_binary() (defined in patches/platform_wasm.cmake)
++# OVERWRITES LINK_FLAGS with a self-contained node profile using -sMALLOC=dlmalloc,
++# so it must be the LAST word on this target's link flags. No-op on native.
++if(EMSCRIPTEN)
++  blender_web_node_binary(blender)
++endif()
++
+ blender_target_include_dirs(blender ${INC})
+ 
+ # -----------------------------------------------------------------------------

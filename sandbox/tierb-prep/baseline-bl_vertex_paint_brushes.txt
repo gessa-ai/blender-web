@@ -1,0 +1,15 @@
+00:00.310  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.418  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.554  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.689  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.766  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.847  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:00.928  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:01.010  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.
+----------------------------------------------------------------------
+Ran 8 tests in 0.841s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

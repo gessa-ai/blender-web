@@ -1,19 +1,19 @@
-00:01.197  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
+00:00.314  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'Scene.use_nodes' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
-00:01.203  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.203  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.204  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
-00:01.207  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.207  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.207  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.207  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.207  bpy.rna          | WARNING current value '4' matches no enum in 'SpreadsheetColumn', '(null)', 'data_type'
-00:01.208  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.208  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.209  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.210  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.211  bpy.rna          | WARNING current value '3' matches no enum in 'SpaceImageEditor', '(null)', 'ui_mode'
+00:00.320  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.320  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.321  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
+00:00.322  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.322  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.322  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.322  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.323  bpy.rna          | WARNING current value '4' matches no enum in 'SpreadsheetColumn', '(null)', 'data_type'
+00:00.323  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.323  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.324  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.325  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.326  bpy.rna          | WARNING current value '3' matches no enum in 'SpaceImageEditor', '(null)', 'ui_mode'
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'PointLight.use_nodes' is expected to be removed in Blender 6.0
@@ -24,11 +24,11 @@
   p_data = getattr(struct, p.identifier)
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'MaterialGPencilStyle.show_fill' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
-00:01.218  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.218  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.331  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.331  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.148s
+Ran 1 test in 0.044s
 
 OK
 Switching to fully guarded memory allocator.

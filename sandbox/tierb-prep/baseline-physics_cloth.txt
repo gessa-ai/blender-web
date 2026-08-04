@@ -1,0 +1,44 @@
+00:00.280  blend            | Read blend: "<REPO>/upstream/tests/files/physics/cloth_test.blend"
+
+START ClothSimple test.
+PASSED ClothSimple test successfully.
+Results:
+Mesh Comparison : Same
+Mesh Validation : Valid
+
+
+START ClothSpring test.
+PASSED ClothSpring test successfully.
+Results:
+Mesh Comparison : Same
+Mesh Validation : Valid
+
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+bake: frame 1 :: 15
+bake: frame 2 :: 15
+bake: frame 3 :: 15
+bake: frame 4 :: 15
+bake: frame 5 :: 15
+bake: frame 6 :: 15
+bake: frame 7 :: 15
+bake: frame 8 :: 15
+bake: frame 9 :: 15
+bake: frame 10 :: 15
+bake: frame 11 :: 15
+bake: frame 12 :: 15
+bake: frame 13 :: 15
+bake: frame 14 :: 15
+bake: frame 15 :: 15
+bake: frame 1 :: 10
+bake: frame 2 :: 10
+bake: frame 3 :: 10
+bake: frame 4 :: 10
+bake: frame 5 :: 10
+bake: frame 6 :: 10
+bake: frame 7 :: 10
+bake: frame 8 :: 10
+bake: frame 9 :: 10
+bake: frame 10 :: 10
+
+Blender quit

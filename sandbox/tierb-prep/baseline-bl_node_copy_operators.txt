@@ -1,0 +1,49 @@
+00:00.300  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+00:00.356  reports          | Merged 2 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 0 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+00:00.388  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.427  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.460  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.493  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.525  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.558  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.590  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.623  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.655  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.686  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.718  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.758  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.791  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.822  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.853  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.894  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:00.938  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+.00:00.959  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:01.260  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:01.564  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:01.817  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.
+----------------------------------------------------------------------
+Ran 5 tests in 1.714s
+
+OK
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 4 selected node(s)
+Info: Copied 4 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 2 selected node(s)
+Info: Copied 5 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+1 ['Group.005']
+Info: Copied 1 selected node(s)

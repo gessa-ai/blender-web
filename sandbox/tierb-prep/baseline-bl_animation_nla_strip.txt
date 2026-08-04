@@ -1,6 +1,6 @@
 ..x....
 ----------------------------------------------------------------------
-Ran 7 tests in 0.623s
+Ran 7 tests in 0.157s
 
 OK (expected failures=1)
 Switching to fully guarded memory allocator.

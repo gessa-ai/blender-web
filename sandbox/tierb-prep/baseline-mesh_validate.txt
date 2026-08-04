@@ -1,0 +1,26 @@
+00:00.286  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+00:00.286  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
+.00:00.287  geom.mesh        | ERROR Faces offsets do not start at 0. Considering all faces invalid
+.00:00.287  geom.mesh        | ERROR Face 0 has invalid material index -4
+.00:00.287  geom.mesh        | ERROR Corner 0 has out of range edge index 4
+.00:00.287  geom.mesh        | ERROR Edge 0 has equal vertex indices 0
+.00:00.287  geom.mesh        | ERROR Edge 1 is a duplicate of 0
+.00:00.287  geom.mesh        | ERROR Face 1 is a duplicate of 0
+.00:00.288  geom.mesh        | ERROR Corner 2 has incorrect edge index 0
+.00:00.288  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
+.00:00.288  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+.00:00.288  geom.mesh        | ERROR Attribute position has invalid values at indices: 0
+.00:00.288  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+00:00.288  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
+.00:00.288  geom.mesh        | ERROR Face 0 has invalid size 0
+00:00.288  geom.mesh        | ERROR Face 1 has missing edge (3, 4)
+.00:00.288  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
+.00:00.289  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/invalid_mdisp_cube.blend"
+00:00.293  geom.mesh        | ERROR Multires displacement has invalid values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23
+.
+----------------------------------------------------------------------
+Ran 15 tests in 0.008s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

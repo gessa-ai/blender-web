@@ -1,0 +1,9 @@
+00:00.310  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/monkey_realized_island_id_and_face_set.blend"
+.00:00.338  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/monkey_realized_island_id_and_face_set.blend"
+.
+----------------------------------------------------------------------
+Ran 2 tests in 0.043s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

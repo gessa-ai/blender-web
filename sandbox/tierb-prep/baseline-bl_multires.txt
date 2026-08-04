@@ -1,0 +1,8 @@
+00:00.286  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.195s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

@@ -23,19 +23,38 @@ mkdir -p "$OUT"
 
 name="${1:?usage: run_suite.sh <ctest_name> [script args...]}"; shift || true
 
-# Resolve script + args: explicit override, else look up suites.tsv.
-if [ "$#" -ge 1 ]; then
-  script="$1"; shift; args=("$@")
+# Manifest columns:  name <TAB> script <TAB> args <TAB> mode
+#   mode = normal (default) | allow_error (drop --debug-exit-on-error) |
+#          blend (script is a positional .blend under @SRC@; args carry their
+#                 own --python/--python-text, no auto '--')
+# Placeholders: @PY@=tests/python  @SRC@=tests/files  @OUT@=scratch out.
+expand() { local s="$1"; s="${s//@OUT@/$OUT}"; s="${s//@SRC@/$SRC}"; s="${s//@PY@/$PYDIR}"; printf '%s' "$s"; }
+
+if [ "$#" -ge 1 ]; then                       # ad-hoc override (always normal)
+  script="$1"; shift; args=("$@"); mode=normal
 else
   line="$(grep -vE '^\s*#' "$HERE/suites.tsv" | awk -F'\t' -v n="$name" '$1==n{print;exit}')"
   [ -n "$line" ] || { echo "$name	FAIL	-	-	no-such-suite-in-manifest"; exit 3; }
   script="$(printf '%s' "$line" | awk -F'\t' '{print $2}')"
   rawargs="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
-  # Expand @OUT@/@SRC@ placeholders, then word-split.
-  rawargs="${rawargs//@OUT@/$OUT}"; rawargs="${rawargs//@SRC@/$SRC}"
+  mode="$(printf '%s' "$line" | awk -F'\t' '{print $4}')"; mode="${mode:-normal}"
+  rawargs="$(expand "$rawargs")"
   # shellcheck disable=SC2206
   args=($rawargs)
 fi
+
+# Build the ARGN (everything after the standard params).
+if [ "$mode" = blend ]; then
+  # script is a positional .blend; args carry --python/--python-text verbatim.
+  argn=("$(expand "$script")" "${args[@]}")
+else
+  argn=(--python "$PYDIR/$script")
+  [ "${args[0]+set}" = set ] && argn+=(-- "${args[@]}")
+fi
+
+# allow_error tests deliberately load invalid data -> drop --debug-exit-on-error
+# (mirrors add_blender_test_allow_error, CMakeLists.txt:60).
+dbg=(--debug-exit-on-error); [ "$mode" = allow_error ] && dbg=()
 
 raw="$OUT/raw-$name.log"
 base="$HERE/baseline-$name.txt"
@@ -50,11 +69,10 @@ t0="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"
 "$ORACLE" \
   --console-crash-handler \
   --debug-memory \
-  --debug-exit-on-error \
+  "${dbg[@]}" \
   --python-exit-code 1 \
   --python-expr "import bpy;bpy.context.preferences.filepaths.file_preview_type='NONE'" \
-  --python "$PYDIR/$script" \
-  ${args[0]+-- "${args[@]}"} \
+  "${argn[@]}" \
   >"$raw" 2>&1
 rc=$?
 t1="$(perl -MTime::HiRes=time -e 'printf "%.3f", time')"

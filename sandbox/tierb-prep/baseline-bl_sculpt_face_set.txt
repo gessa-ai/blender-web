@@ -1,0 +1,10 @@
+00:00.310  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.335  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.347  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.
+----------------------------------------------------------------------
+Ran 3 tests in 0.050s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

@@ -1,0 +1,9 @@
+00:00.295  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/socket_usage_inference.blend"
+00:00.300  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.006s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

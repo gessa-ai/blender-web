@@ -1,0 +1,24 @@
+.00:00.312  reports          | ERROR Cannot set slot without an assigned Action.
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+.00:00.321  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
+                            | 
+00:00.321  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
+                            | 
+.......................00:00.382  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.389  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.411  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
+.00:00.418  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.424  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.430  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.436  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.
+----------------------------------------------------------------------
+Ran 32 tests in 0.139s
+
+OK
+WARNING: ignoring assignment to target_id_type of Slot 'OBLegacy Slot' in Action 'ACAction Without IDRoot'. A Slot's target_id_type can only be changed when currently 'UNSPECIFIED'.
+ERROR: one of the ID's for the groups to assign to is invalid (ptr=0xADDR, val=0x0)
+ERROR: F-Curve (datapath: 'location') doesn't belong to the same channel bag as channel group 'group1'
+Info: Saved as "liboverride-action-slot.blend"
+Info: Read library: '<REPO>/upstream/tests/files/animation/liboverride-action-slot-libfile.blend', '//../../../../upstream/tests/files/animation/liboverride-action-slot-libfile.blend', parent '<direct>'

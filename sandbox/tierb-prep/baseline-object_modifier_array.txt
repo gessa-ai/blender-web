@@ -1,0 +1,13 @@
+00:00.283  blend            | Read blend: "<REPO>/upstream/tests/files/modifier_stack/array_test.blend"
+[==========] Running 1 tests from 1 test case.
+[----------] 1 tests from merge
+[ RUN      ] complex_merge_case
+[       OK ] complex_merge_case (0 ms)
+[----------] 1 tests from merge (0 ms total)
+
+[==========] 1 tests from 1 test case ran. (0 ms total)
+[  PASSED  ] 1 tests.
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

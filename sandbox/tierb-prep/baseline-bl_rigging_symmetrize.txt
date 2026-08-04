@@ -1,0 +1,8 @@
+.......00:00.335  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
+.
+----------------------------------------------------------------------
+Ran 8 tests in 0.057s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

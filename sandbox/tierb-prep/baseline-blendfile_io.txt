@@ -1,9 +1,9 @@
-00:01.054  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
-00:01.072  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
-00:01.152  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io_partial.blend"
-00:01.178  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
-00:01.193  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
-00:01.341  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:00.296  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:00.302  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:00.311  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io_partial.blend"
+00:00.324  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:00.329  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:00.352  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
 
 orig_data 1:
 [(('Mesh', 'OrphanedMesh', 0), []),

@@ -1,0 +1,72 @@
+test_airbrush_brush_creates_valid_data (__main__.MeshBrushTests.test_airbrush_brush_creates_valid_data) ... ok
+test_bend_boundary_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_bend_boundary_cloth_brush_creates_valid_data) ... skipped 'Asserts in blender'
+test_bend_twist_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_bend_twist_cloth_brush_creates_valid_data) ... ok
+test_blend_hard_brush_creates_valid_data (__main__.MeshBrushTests.test_blend_hard_brush_creates_valid_data) ... ok
+test_blend_soft_brush_creates_valid_data (__main__.MeshBrushTests.test_blend_soft_brush_creates_valid_data) ... ok
+test_blend_square_brush_creates_valid_data (__main__.MeshBrushTests.test_blend_square_brush_creates_valid_data) ... ok
+test_blob_brush_creates_valid_data (__main__.MeshBrushTests.test_blob_brush_creates_valid_data) ... ok
+test_blur_brush_creates_valid_data (__main__.MeshBrushTests.test_blur_brush_creates_valid_data) ... ok
+test_boundary_brush_creates_valid_data (__main__.MeshBrushTests.test_boundary_brush_creates_valid_data) ... skipped 'Asserts in blender'
+test_clay_brush_creates_valid_data (__main__.MeshBrushTests.test_clay_brush_creates_valid_data) ... ok
+test_clay_strips_brush_creates_valid_data (__main__.MeshBrushTests.test_clay_strips_brush_creates_valid_data) ... ok
+test_clay_thumb_brush_creates_valid_data (__main__.MeshBrushTests.test_clay_thumb_brush_creates_valid_data) ... ok
+test_crease_polish_brush_creates_valid_data (__main__.MeshBrushTests.test_crease_polish_brush_creates_valid_data) ... ok
+test_crease_sharp_brush_creates_valid_data (__main__.MeshBrushTests.test_crease_sharp_brush_creates_valid_data) ... ok
+test_drag_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_drag_cloth_brush_creates_valid_data) ... ok
+test_draw_brush_creates_valid_data (__main__.MeshBrushTests.test_draw_brush_creates_valid_data) ... ok
+test_draw_sharp_brush_creates_valid_data (__main__.MeshBrushTests.test_draw_sharp_brush_creates_valid_data) ... ok
+test_elastic_grab_brush_creates_valid_data (__main__.MeshBrushTests.test_elastic_grab_brush_creates_valid_data) ... ok
+test_elastic_snake_hook_brush_creates_valid_data (__main__.MeshBrushTests.test_elastic_snake_hook_brush_creates_valid_data) ... ok
+test_expand_contract_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_expand_contract_cloth_brush_creates_valid_data) ... ok
+test_face_set_brush_creates_valid_data (__main__.MeshBrushTests.test_face_set_brush_creates_valid_data) ... ok
+test_face_set_brush_smooth_mode_creates_valid_data (__main__.MeshBrushTests.test_face_set_brush_smooth_mode_creates_valid_data) ... ok
+test_fill_deepen_brush_creates_valid_data (__main__.MeshBrushTests.test_fill_deepen_brush_creates_valid_data) ... ok
+test_flatten_contrast_brush_creates_valid_data (__main__.MeshBrushTests.test_flatten_contrast_brush_creates_valid_data) ... ok
+test_grab_2d_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_2d_brush_creates_valid_data) ... ok
+test_grab_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_brush_creates_valid_data) ... ok
+test_grab_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_cloth_brush_creates_valid_data) ... skipped 'Test currently fails'
+test_grab_planar_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_planar_cloth_brush_creates_valid_data) ... skipped "Brush has a typo currently in the name, 'Grab Planar Cloth '"
+test_grab_random_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_random_cloth_brush_creates_valid_data) ... skipped 'Test currently fails'
+test_grab_silhouette_brush_creates_valid_data (__main__.MeshBrushTests.test_grab_silhouette_brush_creates_valid_data) ... skipped 'Test currently fails'
+test_inflate_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_inflate_cloth_brush_creates_valid_data) ... ok
+test_inflate_deflate_brush_creates_valid_data (__main__.MeshBrushTests.test_inflate_deflate_brush_creates_valid_data) ... ok
+test_mask_brush_creates_valid_data (__main__.MeshBrushTests.test_mask_brush_creates_valid_data) ... ok
+test_mask_brush_smooth_mode_creates_valid_data (__main__.MeshBrushTests.test_mask_brush_smooth_mode_creates_valid_data) ... ok
+test_multires_erase_brush_creates_valid_data (__main__.MeshBrushTests.test_multires_erase_brush_creates_valid_data) ... ok
+test_multires_smear_brush_creates_valid_data (__main__.MeshBrushTests.test_multires_smear_brush_creates_valid_data) ... ok
+test_nudge_brush_creates_valid_data (__main__.MeshBrushTests.test_nudge_brush_creates_valid_data) ... ok
+test_paint_blend_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_blend_brush_creates_valid_data) ... ok
+test_paint_hard_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_hard_brush_creates_valid_data) ... ok
+test_paint_hard_pressure_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_hard_pressure_brush_creates_valid_data) ... ok
+test_paint_soft_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_soft_brush_creates_valid_data) ... ok
+test_paint_soft_pressure_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_soft_pressure_brush_creates_valid_data) ... ok
+test_paint_square_brush_creates_valid_data (__main__.MeshBrushTests.test_paint_square_brush_creates_valid_data) ... ok
+test_pinch_folds_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_pinch_folds_cloth_brush_creates_valid_data) ... ok
+test_pinch_magnify_brush_creates_valid_data (__main__.MeshBrushTests.test_pinch_magnify_brush_creates_valid_data) ... ok
+test_pinch_point_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_pinch_point_cloth_brush_creates_valid_data) ... ok
+test_plateau_brush_creates_valid_data (__main__.MeshBrushTests.test_plateau_brush_creates_valid_data) ... ok
+test_pose_brush_creates_valid_data (__main__.MeshBrushTests.test_pose_brush_creates_valid_data) ... ok
+test_pull_brush_creates_valid_data (__main__.MeshBrushTests.test_pull_brush_creates_valid_data) ... ok
+test_push_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_push_cloth_brush_creates_valid_data) ... ok
+test_relax_brush_smooth_mode_creates_valid_data (__main__.MeshBrushTests.test_relax_brush_smooth_mode_creates_valid_data) ... ok
+test_relax_pinch_brush_creates_valid_data (__main__.MeshBrushTests.test_relax_pinch_brush_creates_valid_data) ... ok
+test_relax_slide_brush_creates_valid_data (__main__.MeshBrushTests.test_relax_slide_brush_creates_valid_data) ... ok
+test_scrape_fill_brush_creates_valid_data (__main__.MeshBrushTests.test_scrape_fill_brush_creates_valid_data) ... ok
+test_scrape_multiplane_brush_creates_valid_data (__main__.MeshBrushTests.test_scrape_multiplane_brush_creates_valid_data) ... ok
+test_sharpen_brush_creates_valid_data (__main__.MeshBrushTests.test_sharpen_brush_creates_valid_data) ... ok
+test_smear_brush_creates_valid_data (__main__.MeshBrushTests.test_smear_brush_creates_valid_data) ... ok
+test_smooth_brush_creates_valid_data (__main__.MeshBrushTests.test_smooth_brush_creates_valid_data) ... ok
+test_smooth_brush_invert_mode_creates_valid_data (__main__.MeshBrushTests.test_smooth_brush_invert_mode_creates_valid_data) ... ok
+test_snake_hook_brush_creates_valid_data (__main__.MeshBrushTests.test_snake_hook_brush_creates_valid_data) ... ok
+test_stretch_move_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_stretch_move_cloth_brush_creates_valid_data) ... ok
+test_thumb_brush_creates_valid_data (__main__.MeshBrushTests.test_thumb_brush_creates_valid_data) ... ok
+test_trim_brush_creates_valid_data (__main__.MeshBrushTests.test_trim_brush_creates_valid_data) ... ok
+test_twist_boundary_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_twist_boundary_cloth_brush_creates_valid_data) ... skipped 'Asserts in blender'
+test_twist_brush_creates_valid_data (__main__.MeshBrushTests.test_twist_brush_creates_valid_data) ... ok
+
+----------------------------------------------------------------------
+Ran 65 tests in 16.120s
+
+OK (skipped=7)
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

@@ -1,0 +1,57 @@
+00:00.282  blend            | Read blend: "<REPO>/upstream/tests/files/physics/softbody_test.blend"
+
+START SoftBodySimple test.
+PASSED SoftBodySimple test successfully.
+Results:
+Mesh Comparison : Same
+Mesh Validation : Valid
+
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+bake: frame 1 :: 45
+bake: frame 2 :: 45
+bake: frame 3 :: 45
+bake: frame 4 :: 45
+bake: frame 5 :: 45
+bake: frame 6 :: 45
+bake: frame 7 :: 45
+bake: frame 8 :: 45
+bake: frame 9 :: 45
+bake: frame 10 :: 45
+bake: frame 11 :: 45
+bake: frame 12 :: 45
+bake: frame 13 :: 45
+bake: frame 14 :: 45
+bake: frame 15 :: 45
+bake: frame 16 :: 45
+bake: frame 17 :: 45
+bake: frame 18 :: 45
+bake: frame 19 :: 45
+bake: frame 20 :: 45
+bake: frame 21 :: 45
+bake: frame 22 :: 45
+bake: frame 23 :: 45
+bake: frame 24 :: 45
+bake: frame 25 :: 45
+bake: frame 26 :: 45
+bake: frame 27 :: 45
+bake: frame 28 :: 45
+bake: frame 29 :: 45
+bake: frame 30 :: 45
+bake: frame 31 :: 45
+bake: frame 32 :: 45
+bake: frame 33 :: 45
+bake: frame 34 :: 45
+bake: frame 35 :: 45
+bake: frame 36 :: 45
+bake: frame 37 :: 45
+bake: frame 38 :: 45
+bake: frame 39 :: 45
+bake: frame 40 :: 45
+bake: frame 41 :: 45
+bake: frame 42 :: 45
+bake: frame 43 :: 45
+bake: frame 44 :: 45
+bake: frame 45 :: 45
+
+Blender quit

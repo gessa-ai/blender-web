@@ -11,9 +11,11 @@ match the native oracle. This note is the ORACLE half: the runnable-NOW subset,
 its baselines, the LFS-blocked list, and the scope-check design for the driver to
 install into `harness/` later (I do NOT touch `harness/`).
 
-Status: **oracle baselines GREEN**, 43/43 candidate suites pass natively. wasm half
-is a diff-run the moment `import bpy` works (DNA reconstruct fix in flight, see
-notes/m2-dna-reconstruct-diagnosis.md).
+Status: **oracle baselines GREEN**. Two waves: (1) 43 zero-data candidates; (2) after the
+driver-approved CHEAP LFS pull (38.4 MB / 89 files, executed — see §4), 38 more candidates
+of which **36 are oracle-green** (2 excluded oracle-red, see §5). **CORE gate = 73 suites**
+(939 unittest cases + 13 exit-code suites). wasm half is a diff-run the moment `import bpy`
+works (DNA reconstruct fix in flight, see notes/m2-dna-reconstruct-diagnosis.md).
 
 ## 1. Registration mechanism (cited)
 
@@ -65,11 +67,16 @@ by definition.
 
 ## 3. Runnable-NOW subset (oracle baselines GREEN)
 
-43 suites run + pass on the native oracle (macOS arm64 app bundle, Blender 5.2.0 LTS
-`fbe6228777e7`). Scripts + args in `sandbox/tierb-prep/suites.tsv`; normalized outputs in
+Scripts + args in `sandbox/tierb-prep/suites.tsv`; normalized outputs in
 `sandbox/tierb-prep/baseline-<name>.txt`; verdicts in `results.tsv`; reproduce with
-`sandbox/tierb-prep/run_all.sh` (total wall ~2m17s). `count` = unittest cases; `exit` = custom
-suites gated on exit-code only.
+`sandbox/tierb-prep/run_all.sh` (79 active rows, total per-suite wall ~112s / ~2m wall-clock).
+`count` = unittest cases; `exit` = custom suites gated on exit-code only.
+
+The table below is WAVE 1 (43 zero-data candidates). WAVE 2 (§5) adds 35 more CORE suites
+unlocked by the CHEAP LFS pull. The `run_suite.sh` manifest grew a 4th `mode` column
+(`normal` | `allow_error` | `blend`) to cover allow_error tests and the positional-`.blend` /
+`--python-text` invocation shapes; wave-1 rows are unchanged (mode defaults `normal`, same
+byte-identical invocation → same baselines).
 
 ### CORE gate (38 suites — pure bpy-API/data, wasm-plausible, deterministic)
 
@@ -114,7 +121,8 @@ suites gated on exit-code only.
 | script_load_keymap | bl_keymap_completeness.py | exit | 1.4s |
 | script_validate_keymap | bl_keymap_validate.py `--relaxed` | exit | 10.8s |
 
-Core totals: **~595 individual unittest cases across 33 counted suites + 5 exit-code suites**.
+Wave-1 core totals: **~595 unittest cases across 33 counted suites + 5 exit-code suites** (the
+CORE grand total after wave 2 is **939 unittest cases + 13 exit-code suites** across 73 suites).
 Wall-time long poles: `script_validate_keymap` 10.8s, `id_management` 4.8s; everything else
 ≤3.2s. `global_undo`/`bl_sculpt_brush_curve_presets` accept a `--testdir/--src-test-dir` arg
 but do NOT read its content at runtime (verified: pass against the stub tree, exit 0) — the
@@ -143,11 +151,10 @@ ships in `release/datafiles` (present in `BLENDER_SYSTEM_DATAFILES`), not `tests
 | script_http_downloader | network egress; non-deterministic and against sandbox posture. |
 | script_pyapi_blf_{buffer,vfont} | "unconditional" in CMake but `blf.load(tests/files/blenfont/…otf)` + reference renders → **blocked-on-LFS** (see below), not pure. |
 
-## 4. Blocked-on-LFS list + quantification (driver decision — NOT executed)
+## 4. Blocked-on-LFS quantification + the CHEAP pull (EXECUTED)
 
-The remaining ~83 background suites are blocked purely because their `.blend`/asset inputs are
-LFS stubs. `git -C upstream lfs pull --include='tests/files/**'` unlocks them. Sizes computed
-from the pointers' `size` fields (nothing downloaded):
+Background suites are blocked purely because their `.blend`/asset inputs are LFS stubs. Sizes
+computed from the pointers' `size` fields:
 
 | bucket | size | files | unlocks |
 |---|---|---|---|
@@ -157,16 +164,61 @@ from the pointers' `size` fields (nothing downloaded):
 | **CHEAP tier-b** (excl. modeling/seq/io) | **38.4 MB** | 89 | ~35–40 suites: all `bl_animation_*` (animation/, drivers/fcurves/shapekey/keyframing/motion_path/action/armature/pose_assets/rigging_symmetrize/vertex_group_painting), all `bl_node_*` inference/interface/compat/copy/link_drag (node_group/), sculpt/paint (sculpting/ + mesh_paint/: mask/face_set/multires/mesh_filter/automask/voxel_remesh_compare + 4 paint-brush suites), physics cloth/softbody/dynamic_paint/particle×2/deform_modifiers (physics/), `bl_constraints` (constraints/), `blendfile_liblink`/`relationships`/`library_overrides` (libraries_and_linking/), `mesh_validate` (invalid_blendfiles/ + sculpting/), `object_modifier_array` (modifier_stack/) |
 | **NON-tier-b** (render/ffmpeg/BGE/tracking/GPU/usd/alembic/imbuf/…) | 447.0 MB | 4734 | tier-c or excluded deps — never needed for tier-b |
 
-**Recommendation for the driver:** the **CHEAP 38.4 MB / 89 files** pull is the high-value
-move — it roughly DOUBLES the tier-b suite count (38 → ~75) for <40 MB and no new toolchain
-work, while the 173 MB `modeling/geometry_nodes` and the 128-test `blendfile_versioning` corpus
-can follow once geometry-nodes/versioning parity is in scope. The 447 MB non-tier-b bucket
-should never be pulled for this gate. A targeted include list keeps the working tree lean per
-the disk-floor rule.
+**CHEAP pull — DONE (driver-approved).** Executed:
+```
+git -C upstream lfs pull --include="tests/files/{animation,node_group,sculpting,mesh_paint,\
+  physics,constraints,libraries_and_linking,invalid_blendfiles,modifier_stack}/**"
+```
+Post-pull VERIFY (all held): `git -C upstream status --porcelain` line count **29 → 29**
+(LFS smudge did NOT dirty status), HEAD still `fbe6228777e7`, spot-checks real content
+(`constraints.blend` 933 KB `BLENDER` magic; `cloth_test.blend`/`nodegroup36.blend` Zstd `.blend`).
+17.9 s, disk floor untouched (74 GiB free). It roughly DOUBLED the CORE suite count (38 → **73**).
+
+Remaining for later (driver decision): the 173 MB `modeling/geometry_nodes` GLOB + the 128-test
+`blendfile_versioning` corpus (needs the whole-tree root incl. render/) follow once
+geometry-nodes / versioning parity is in scope. **imbuf_io/ (19 MB)** would additionally unlock
+`blendfile_liblink`/`blendfile_relationships` (see §5 — they crash without it). The 447 MB
+non-tier-b bucket (render/ffmpeg/BGE/GPU) should never be pulled for this gate.
+
+## 5. WAVE 2 — CORE additions unlocked by the CHEAP pull
+
+38 candidates baselined post-pull; **36 oracle-green**, 2 oracle-red (excluded). Of the 36
+green, 1 is wasm-AMBER → **35 join CORE** (CORE 38 → **73**). All background-capable, no GPU
+render. Full per-suite rows in `results.tsv`; args + mode in `suites.tsv`.
+
+| group (data subdir) | suites | cases |
+|---|---|---|
+| animation (`animation/`) | armature 6, drivers 17, shapekey 4, fcurves 17, action 32, keyframing 27, motion_path 4, pose_assets 3, rigging_symmetrize 8, vertex_group_painting 2 | 10 suites / 120 |
+| geo-node groups (`node_group/`) | structure_type_inference 11, socket_usage_inference 1, group_compat 6, group_interface 25, copy_operators 5, link_drag 4 | 6 / 52 |
+| sculpt/paint (`sculpting/`,`mesh_paint/`) | mask 8, face_set 3, multires 5, mesh_filter 12, automasking 2, sculpt_brushes 65 (skip 7), vertex_paint 8, weight_paint 4, texture_paint 1 (skip 1), voxel_remesh_compare (exit) | 10 / 108 |
+| physics (`physics/`, positional `.blend`) | cloth, softbody, dynamic_paint, particle_system, particle_instance — all custom mesh_test (exit-code; e.g. cloth bakes ClothSimple+ClothSpring, "Mesh Comparison: Same") | 5 / exit |
+| constraints (`constraints/`) | bl_constraints 14 | 1 / 14 |
+| lib override (`libraries_and_linking/`) | blendfile_library_overrides (exit) | 1 / exit |
+| mesh validate (`invalid_blendfiles/`+`sculpting/`, allow_error) | mesh_validate 15 | 1 / 15 |
+| modifier stack (`modifier_stack/`, `--python-text`) | object_modifier_array (gtest `[PASSED]`, exit) | 1 / exit |
+
+Wave-2 CORE: **35 suites / 309 unittest cases + 8 exit-code suites**. Notes: `sculpt_brushes`
+and `texture_paint_brushes` self-skip GPU-only brushes in `--background` (7 / 1 skips) —
+deterministic, and the SAME skips will apply on wasm (no GPU backend until M3), so it is
+_more_ wasm-stable, not less. `physics_*` are CPU-only sims (no GPU) — wasm-plausible.
+
+### Wave-2 EXCLUSIONS (honest, not carried red)
+
+| suite | verdict | reason |
+|---|---|---|
+| blendfile_liblink | oracle-RED (exit 134 SIGABRT) | `--src-test-dir @SRC@/` → its linked `.blend` transitively references a real image `tests/files/imbuf_io/reference/jpeg-rgb-90__from__rgba08.jpg`, still an LFS stub (imbuf_io NOT in the cheap pull) → `IMB_load_image_from_memory: unknown file-format` → abort. Unlock: pull `imbuf_io/` (19 MB). Commented out of the active manifest. |
+| blendfile_relationships | oracle-RED (exit 134 SIGABRT) | same imbuf_io transitive-stub crash (fires immediately on scene open). Commented out. |
+| physics_ocean | oracle-GREEN, **wasm-AMBER** | `WITH_MOD_OCEANSIM OFF … FORCE` (patches/blender_web.cmake:113) — the ocean modifier does not exist on the web build, so it cannot pass on wasm. Green on the native oracle only. Held out of the CORE gate. |
 
 ## §scope-draft (for the driver to install into `harness/` — I do not touch harness/)
 
-**Scope id:** `m2b` (tier-b). Manifest = `sandbox/tierb-prep/suites.tsv` CORE rows (38).
+**Scope id:** `m2b` (tier-b). Manifest = `sandbox/tierb-prep/suites.tsv` CORE rows (**73**:
+wave-1 38 + wave-2 35). Harness selects CORE only — exclude the 5 AMBER
+(`script_pyapi_doc_gen` slow; `script_load_addons`/`script_load_modules` need numpy;
+`script_disk_file_hash_service_test` needs sqlite3; `physics_ocean` needs WITH_MOD_OCEANSIM)
+and the design-excluded `script_bundled_modules`. For the `blend`/`allow_error`-mode rows the
+positional `.blend` and `--python-text` come straight from `suites.tsv` — the wasm runner must
+honor the `mode` column (see `run_suite.sh`).
 
 **wasm-side invocation deltas** (vs `oracle/bpy.sh`; from notes/m2-python-boot.md "Boot
 recipe"):
@@ -188,16 +240,19 @@ recipe"):
 
 **Comparison method — NORMALIZED, exit-code-primary:**
 1. **PRIMARY gate = per-suite exit code.** `--python-exit-code 1` + `--debug-exit-on-error`
-   make ANY failing assertion / unittest failure / error exit **nonzero** (verified: all 38
-   core suites exit 0 on the oracle; a single failing case flips exit). This SIDESTEPS the
+   make ANY failing assertion / unittest failure / error exit **nonzero** (verified: all 73
+   core suites exit 0 on the oracle; a single failing case flips exit — indeed the 2 wave-2
+   exclusions surfaced exactly this way, as exit 134). NOTE: `allow_error`-mode suites
+   (`mesh_validate`) DROP `--debug-exit-on-error`, so for them the exit code reflects the
+   script's own `--python-exit-code`, not error-reporting. This SIDESTEPS the
    known wasm-stdout-drop problem (harness note H-4/H-5, progress.txt "stdout capture
    UNRELIABLE under threaded wasm stdio") — the tier-b gate must NOT depend on scraping
    `Ran N / OK` from wasm stdout. Gate GREEN iff every core suite exits 0.
 2. **SECONDARY corroboration = normalized-diff** of `wasm-<suite>.txt` vs
    `baseline-<suite>.txt`, both filtered through `sandbox/tierb-prep/normalize.sed`. Use as a
-   regression detector, not the pass/fail authority. For the 33 unittest suites the meaningful
-   lines are `Ran N tests …` (expected N tabled in §3) + the `OK`/`FAILED (…)` verdict + any
-   traceback; for the 5 exit-code suites the normalized stdout is near-empty (banner + `quit`).
+   regression detector, not the pass/fail authority. For the 60 unittest suites the meaningful
+   lines are `Ran N tests …` (expected N in §3/§5) + the `OK`/`FAILED (…)` verdict + any
+   traceback; for the 13 exit-code suites the normalized stdout is near-empty (banner + `quit`).
    Do NOT require exact stdout equality — build hash/date, unittest timing, temp paths
    (`/var/folders` vs `/tmp`), and hex addresses differ between native-arm64 and wasm by
    construction (that is exactly what `normalize.sed` masks).
@@ -214,14 +269,14 @@ recipe"):
 **Expected-counts table** for the secondary check = the `count` column in §3 (mathutils 180,
 imbuf_py_api 80, operator_wrap 48, …). Store as the golden alongside the baselines.
 
-**Roll-out:** gate on the 38 CORE first (all wasm-plausible with the CURRENT reduced stdlib).
+**Roll-out:** gate on the 73 CORE first (all wasm-plausible with the CURRENT reduced stdlib).
 Promote AMBER suites as their deps land (numpy → load_addons/load_modules; sqlite3 →
 disk_file_hash). Grow via the CHEAP 38 MB LFS pull (§4) once background-data suites are in scope.
 
 ## Reproduce
 
 ```
-sandbox/tierb-prep/run_all.sh                 # all 43, ~2m17s, writes results.tsv + baselines
+sandbox/tierb-prep/run_all.sh                 # 79 active rows, ~2m, writes results.tsv + baselines
 sandbox/tierb-prep/run_suite.sh <ctest_name>  # one suite
 ```
 Raw logs + generated `.blend` land in `sandbox/tierb-prep/_out/` (gitignored). upstream left

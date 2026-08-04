@@ -1,6 +1,6 @@
 ....
 ----------------------------------------------------------------------
-Ran 4 tests in 0.217s
+Ran 4 tests in 0.095s
 
 OK
 Switching to fully guarded memory allocator.

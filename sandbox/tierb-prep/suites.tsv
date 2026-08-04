@@ -2,10 +2,16 @@
 # SPDX-License-Identifier: CC0-1.0
 #
 # Tier-(b) ORACLE-runnable candidate manifest.
-# Columns (TAB-separated):  ctest_name  <TAB>  script_relpath  <TAB>  extra_args
-# script_relpath is under upstream/tests/python/.  extra_args placeholders:
-#   @OUT@ = scratch output dir (per-run), @SRC@ = upstream/tests/files (stub tree,
-#   used only where a path must merely EXIST, never for real asset content).
+# Columns (TAB-separated):  ctest_name <TAB> script <TAB> extra_args <TAB> mode
+#   mode (optional, default "normal"):
+#     normal      -> blender --python @PY@/<script> [-- <extra_args>]
+#     allow_error -> same, but DROP --debug-exit-on-error (add_blender_test_allow_error)
+#     blend       -> <script> is a POSITIONAL .blend (under @SRC@); <extra_args>
+#                    carry their own --python/--python-text (no auto '--')
+# script (normal/allow_error) is relative to upstream/tests/python/.
+# Placeholders: @PY@ = upstream/tests/python, @SRC@ = upstream/tests/files,
+#   @OUT@ = scratch output dir (per-run).  Rows 1-43 predate the CHEAP LFS pull
+#   (no external tests/files data); rows below need the pulled subdirs.
 # ctest_name mirrors the name in upstream/tests/python/CMakeLists.txt so the m2
 # harness scope can map 1:1.  Lines starting with '#' are ignored.
 #
@@ -57,3 +63,58 @@ script_load_addons	bl_load_addons.py
 script_load_modules	bl_load_py_modules.py
 script_bundled_modules	bl_bundled_modules.py	--inside-blender
 script_disk_file_hash_service_test	bl_disk_file_hash_service_test.py
+# ============================================================================
+# NEWLY-UNLOCKED by the CHEAP tier-b LFS pull (38.4 MB / 89 files, 9 subdirs).
+# ============================================================================
+# --- Group F: animation (data: tests/files/animation/) ---
+bl_animation_armature	bl_animation_armature.py	--testdir @SRC@/animation
+bl_animation_drivers	bl_animation_drivers.py	--testdir @SRC@/animation
+bl_animation_shapekey	bl_animation_shapekey.py	--testdir @SRC@/animation
+bl_animation_fcurves	bl_animation_fcurves.py	--testdir @SRC@/animation
+bl_animation_action	bl_animation_action.py	--testdir @SRC@/animation --output-dir @OUT@/bl_animation_action
+bl_animation_keyframing	bl_animation_keyframing.py	--testdir @SRC@/animation
+bl_animation_motion_path	bl_animation_motion_path.py	--testdir @SRC@/animation
+bl_pose_assets	bl_pose_assets.py	--testdir @SRC@/animation
+bl_rigging_symmetrize	bl_rigging_symmetrize.py	--testdir @SRC@/animation
+vertex_group_painting	vertex_group_painting.py	--testdir @SRC@/animation
+# --- Group G: geometry-node group inference/interface (data: tests/files/node_group/) ---
+bl_node_structure_type_inference	bl_node_structure_type_inference.py	--testdir @SRC@/node_group
+bl_node_socket_usage_inference	bl_node_socket_usage_inference.py	--testdir @SRC@/node_group
+bl_node_group_compat	bl_node_group_compat.py	--testdir @SRC@/node_group
+bl_node_group_interface	bl_node_group_interface.py	--testdir @SRC@/node_group
+bl_node_copy_operators	bl_node_copy_operators.py	--testdir @SRC@/node_group
+bl_node_link_drag	bl_node_link_drag.py	--testdir @SRC@/node_group
+# --- Group H: sculpt / paint (data: tests/files/sculpting/ + mesh_paint/) ---
+bl_sculpt_mask	sculpt_paint/mask_test.py	--testdir @SRC@/sculpting
+bl_sculpt_face_set	sculpt_paint/face_set_test.py	--testdir @SRC@/sculpting
+bl_multires	sculpt_paint/multires_operators_test.py	--testdir @SRC@/sculpting
+bl_sculpt_mesh_filter	sculpt_paint/mesh_filter_test.py	--testdir @SRC@/sculpting
+bl_sculpt_automasking	sculpt_paint/automask_test.py	--testdir @SRC@/sculpting
+bl_sculpt_brushes	sculpt_paint/sculpt_brushes_test.py	--testdir @SRC@/mesh_paint
+bl_vertex_paint_brushes	sculpt_paint/vertex_paint_brushes_test.py	--testdir @SRC@/mesh_paint
+bl_weight_paint_brushes	sculpt_paint/weight_paint_brushes_test.py	--testdir @SRC@/mesh_paint
+bl_texture_paint_brushes	sculpt_paint/texture_paint_brushes_test.py	--testdir @SRC@/mesh_paint
+bl_voxel_remesh_compare	@SRC@/sculpting/voxel_remesh_compare.blend	--python @PY@/sculpt_paint/voxel_remesh_compare_test.py	blend
+# --- Group I: physics (data: tests/files/physics/) — positional .blend ---
+physics_cloth	@SRC@/physics/cloth_test.blend	--python @PY@/physics_cloth.py -- --run-all-tests	blend
+physics_softbody	@SRC@/physics/softbody_test.blend	--python @PY@/physics_softbody.py -- --run-all-tests	blend
+physics_dynamic_paint	@SRC@/physics/dynamic_paint_test.blend	--python @PY@/physics_dynamic_paint.py -- --run-all-tests	blend
+physics_particle_system	@SRC@/physics/physics_particle_test.blend	--python @PY@/physics_particle_system.py -- --run-all-tests	blend
+physics_particle_instance	@SRC@/physics/physics_particle_instance.blend	--python @PY@/physics_particle_instance.py -- --run-all-tests	blend
+physics_ocean	@SRC@/physics/ocean_test.blend	--python @PY@/physics_ocean.py -- --run-all-tests	blend
+# --- Group J: constraints (data: tests/files/constraints/) ---
+bl_constraints	bl_constraints.py	--testdir @SRC@/constraints
+# --- Group K: library link/override (data: tests/files/libraries_and_linking/) ---
+blendfile_library_overrides	bl_blendfile_library_overrides.py	--output-dir @OUT@/blendfile_io/ --test-dir @SRC@/libraries_and_linking
+# EXCLUDED — oracle-RED on the CHEAP pull. blendfile_liblink + blendfile_relationships
+# use --src-test-dir @SRC@/ (whole tree); their linked .blend transitively references a
+# real image tests/files/imbuf_io/reference/jpeg-rgb-90__from__rgba08.jpg which is STILL
+# an LFS stub (imbuf_io not in the cheap pull) -> IMB_load_image_from_memory unknown
+# file-format -> SIGABRT (exit 134). Unlockable by additionally pulling imbuf_io/ (19 MB) —
+# follow-on driver decision. Left commented (not carried red):
+#blendfile_liblink	bl_blendfile_liblink.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
+#blendfile_relationships	bl_blendfile_relationships.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
+# --- Group L: mesh validate (data: tests/files/sculpting + invalid_blendfiles) — allow_error ---
+mesh_validate	mesh_validate.py	--testdir @SRC@	allow_error
+# --- Group M: modifier stack (data: tests/files/modifier_stack/) — embedded --python-text ---
+object_modifier_array	@SRC@/modifier_stack/array_test.blend	--python-text run_tests.py	blend

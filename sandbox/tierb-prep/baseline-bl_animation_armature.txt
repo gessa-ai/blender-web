@@ -1,0 +1,11 @@
+.00:00.306  blend            | Read blend: "<REPO>/upstream/tests/files/animation/armature_join_with_action_constraints.blend"
+.....
+----------------------------------------------------------------------
+Ran 6 tests in 0.031s
+
+OK
+[92mloading empty homefile[0m
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

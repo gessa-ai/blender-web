@@ -1,0 +1,31 @@
+00:00.305  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:00.307  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.309  depsgraph        | WARNING Dependency cycle detected:
+                            |   NTShader Nodetree/NTREE_OUTPUT() depends on
+                            |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
+                            |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
+                            | 
+00:00.309  depsgraph        | WARNING Detected 1 dependency cycles
+.00:00.310  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:00.312  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.313  depsgraph        | WARNING Dependency cycle detected:
+                            |   NTShader Nodetree/NTREE_OUTPUT() depends on
+                            |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
+                            |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
+                            | 
+00:00.313  depsgraph        | WARNING Detected 1 dependency cycles
+.00:00.315  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.322  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.323  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.329  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.331  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.337  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.339  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_group_socket_interface_compositor.blend"
+00:00.341  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+.
+----------------------------------------------------------------------
+Ran 6 tests in 0.040s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

@@ -2,7 +2,7 @@
 File "<REPO>/upstream/tests/python/bl_pyapi_idprop.py", line 284, in <lambda>
 ...........
 ----------------------------------------------------------------------
-Ran 39 tests in 0.002s
+Ran 39 tests in 0.001s
 
 OK
 Switching to fully guarded memory allocator.

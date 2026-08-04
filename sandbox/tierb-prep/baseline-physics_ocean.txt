@@ -1,0 +1,12 @@
+00:00.279  blend            | Read blend: "<REPO>/upstream/tests/files/physics/ocean_test.blend"
+
+START PlaneOcean test.
+PASSED PlaneOcean test successfully.
+Results:
+Mesh Comparison : Same
+Mesh Validation : Valid
+
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

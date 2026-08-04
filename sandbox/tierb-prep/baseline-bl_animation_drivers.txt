@@ -1,0 +1,7 @@
+.................
+----------------------------------------------------------------------
+Ran 17 tests in 0.082s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

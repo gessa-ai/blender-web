@@ -2537,7 +2537,7 @@
 <bpy_struct, BoolAttributeValue at 0xADDR> from ["bpy.data.meshes['Cube']", 'bpy.data.meshes[\'Cube\'].attributes[".uv_select_edge"]']
 <bpy_struct, BoolAttributeValue at 0xADDR> from ["bpy.data.meshes['Cube']", 'bpy.data.meshes[\'Cube\'].attributes[".uv_select_edge"]']..
 ----------------------------------------------------------------------
-Ran 2 tests in 0.349s
+Ran 2 tests in 0.080s
 
 OK
 Switching to fully guarded memory allocator.

@@ -1,27 +1,23 @@
 {
   "scope": "m1",
   "pass": true,
-  "ts": "2026-08-04T02:21:00Z",
+  "ts": "2026-08-04T02:34:11Z",
   "checks": {
-    "blenlib_test_link": {
+    "node_runtime": {
       "pass": true,
-      "detail": "1/1 linked: BLI_test.js + BLI_test.wasm (8.77 MB) link for wasm32 under emcc 6.0.5. extern gtest/gmock/gflags/glog all cross-compiled to wasm (glog needed patch 0006 config_emscripten.h); bf_blenlib + bf_dna + guardedalloc + TBB/OIIO/OpenEXR/OCIO/Imath stack linked. NODERAWFS variant used as the runnable node harness."
+      "detail": "tools/emsdk/node/22.16.0_64bit/bin/node (v22.16.0)"
     },
-    "blenlib_test_run": {
+    "patches_series": {
       "pass": true,
-      "detail": "1655/1665 passed (99 suites, 0 skipped, node v22.23.1, ~0.84s, exit 1). Re-verified this session, not trusted from the prior record. All 10 non-passes are non-faithfulness: 9x expr_pylike.Error_* = wasm has no FP-exception status register (fetestexcept no-op; status returns SUCCESS vs expected err code 2) -> ledger/deferred.json wasm-fp-exception-status, pass natively; 1x ChangeWorkingDirectoryTest = macOS-host /tmp->/private realpath under NODERAWFS, the test's __APPLE__ canonicalization compiled out under emscripten (expected green on the Linux oracle host, not re-run on Linux this session). ZERO CPU-logic or wasm32-ABI miscomputations. (Without --test-assets-dir, 2 more fileops.fstream_open_* FAIL for a missing asset dir -> 1653/1665; they pass with the flag, confirming correct UTF-8 Cyrillic-path std::fstream open on wasm.)"
+      "detail": "all patches clean-or-applied: 0001-platform-wasm.patch:applied 0002-makesdna-wasm32-align.patch:applied 0003-hosttools-node.patch:applied 0004-blenlib-wasm-libc-gaps.patch:applied 0005-blenlib-wasm32-sizeof-assert.patch:applied 0006-blenlib-bmesh-gtest-wasm.patch:applied 0007-hosttools-native-codegen-wasm.patch:applied 0008-blenkernel-wasm32.patch:applied 0009-editor-interface-python-off.patch:applied 0120-asset-system-wasm.patch:applied"
     },
-    "blenlib_wasm32_bug_found_fixed": {
+    "blenlib_gtests": {
       "pass": true,
-      "detail": "1/1: path_utils.ExtensionEnsure exposed a REAL ILP32 bug in Blender's path_utils.cc BLI_path_extension_ensure: `a = path_len - 1` with path_len==0 underflows size_t to 0xFFFFFFFF -> +4294967295 in int64_t on wasm32 (loop runs OOB) vs -1 on LP64. Fixed in patch 0006 by casting to signed before subtracting; native LP64 behavior byte-identical. Test now GREEN. The free cross-build oracle did exactly its job."
+      "detail": "1655/1665 PASSED, 10 characterized non-passes (9 fenv-deferral + 1 macOS-host chdir) [build-wasm/bin/tests/BLI_test_rawfs.js]"
     },
-    "bmesh_core_test_link": {
+    "bmesh_core_gtests": {
       "pass": true,
-      "detail": "1/1 linked: bmesh_core_test.js + .wasm (62.1 MB) via WITH_TESTS_SINGLE_BINARY=OFF standalone route (recon-decided). Full core closure linked: 90 wave-2 archives (P1-P5, one source fix total: patch 0120 asset_system WITH_PYTHON=OFF dead-path) + bf_rna + all lib/wasm deps. ONE undefined symbol across the ~200-archive link: BPY_string_compile_check from interface_handlers.cc (unguarded WITH_PYTHON=OFF call sites, latent upstream bug) -> patch 0009 guards both sites with #ifdef WITH_PYTHON (native PYTHON=ON byte-identical). Linked clean on retry, 26s."
-    },
-    "bmesh_core_test_run": {
-      "pass": true,
-      "detail": "1/1 PASSED under node 22.16 (emsdk), exit 0, 116ms total. VERIFIED vs upstream: bmesh_core_test.cc contains exactly ONE test (BMVertCreate, line 17) so 1/1 = full native parity, no truncation. The gate value is the boot: guardedalloc+DNA+RNA+blenkernel init+imbuf/OCIO+TBB all initialize on wasm32 to test-readiness. Environmental warts (non-fatal, recorded): OIIO Sysutil::physical_memory unimplemented-platform assert PRINT at startup (needs __EMSCRIPTEN__ impl, cosmetic); OCIO colormanagement fallback mode (no config in headless run, expected)."
+      "detail": "1/1 PASSED (= full upstream bmesh_core suite at this pin)"
     }
   }
 }

@@ -32,7 +32,16 @@ one and nothing catches it. **Highest priority of the three.**
 A stale or hand-edited TOOLCHAIN file would make the toolchain check pass against a toolchain
 that isn't actually installed. Probe `emcc --version` at run time and compare.
 
-## OPEN — needed to gate the tier-(a) suites (recorded 2026-08-03, M1.10/M1.11 worker)
+## RESOLVED 2026-08-04 (M1 boundary reconcile, driver)
+
+H-4 + H-5 both closed: `m1` scope registered in run.sh (node_runtime, patches_series
+clean-or-applied invariant, blenlib 1665/10 + bmesh_core 1/0 via --gtest_output=json —
+stdout capture is UNRELIABLE for these binaries: multi-thread wasm stdio drops lines at
+exit, so counts must come from the JSON file; relative path required, absolute silently
+fails under NODERAWFS). m0 re-verified 6/6, m1 4/4, full --regress green, lock restored.
+H-5's blocker chain (blenkernel/depsgraph + datatoc) was resolved by wave-2 + ADR-002.
+
+## (historical) OPEN — needed to gate the tier-(a) suites (recorded 2026-08-03, M1.10/M1.11 worker)
 
 **H-4. `run.sh` has no `m1` scope; the tier-(a) gtest gate cannot be driven by the harness.**
 `SCOPES_REGISTERED="m0"` only. The blenlib gtest suite now links and runs on wasm

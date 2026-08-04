@@ -80,7 +80,15 @@ SPDX-License-Identifier = "CC0-1.0"
 # outputs of our own tooling; no meaningful authorship beyond the generating scripts
 # (which carry inline headers). Driver decision at the M2 boundary (see notes/harness-issues.md style).
 [[annotations]]
-path = ["sandbox/**/*.txt", "sandbox/**/*.tsv", "sandbox/**/*.json", "sandbox/**/*.blend", "sandbox/**/*.wasm", "sandbox/**/*.js", "sandbox/**/*.data", "sandbox/**/*.log", "sandbox/**/*.cmp.txt", "sandbox/**/.gitignore", "platform_web/ghost/.gitignore", "sandbox/**/*.c", "sandbox/**/*.cpp", "sandbox/**/*.py", "sandbox/**/*.sh", "sandbox/**/*.list", "sandbox/**/*.mjs", "sandbox/**/*.html"]
+path = ["sandbox/**/*.txt", "sandbox/**/*.tsv", "sandbox/**/*.json", "sandbox/**/*.blend", "sandbox/**/*.wasm", "sandbox/**/*.js", "sandbox/**/*.data", "sandbox/**/*.log", "sandbox/**/*.cmp.txt", "sandbox/**/.gitignore", "platform_web/ghost/.gitignore", "sandbox/**/*.c", "sandbox/**/*.cpp", "sandbox/**/*.py", "sandbox/**/*.sh", "sandbox/**/*.list", "sandbox/**/*.mjs", "sandbox/**/*.html", "sandbox/**/*.png", "sandbox/**/*.exr", "sandbox/**/*.tar.gz", "sandbox/**/*.pyc"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 blender-web contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+# Vendored fmt source tree fetched by the memory64 probe (untracked in git, present on
+# disk). Upstream fmt is MIT.
+[[annotations]]
+path = ["sandbox/memory64-probe/fmt-12.1.0/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Victor Zverovich and fmt contributors"
+SPDX-License-Identifier = "MIT"

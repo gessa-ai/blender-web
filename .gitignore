@@ -24,3 +24,6 @@ build-dawn/
 lib/macos_arm64/
 build-native-gpu/
 sandbox/memory64-probe/fmt-12.1.0/
+__pycache__/
+*.pyc
+sandbox/**/*.tar.gz

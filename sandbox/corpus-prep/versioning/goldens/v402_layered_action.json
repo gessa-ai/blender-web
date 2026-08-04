@@ -1,0 +1,2281 @@
+{
+ "collections": {
+  "actions": {
+   "count": 6,
+   "items": {
+    "ArmatureAction": {
+     "fcurve_count": 20,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "6f33682d0dbb2541b49bdacb0dd9358cf5a5f5a174cd347c6cb70cc255a394cf"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "b7f46aac86e272325b6d754ba8990d053e008e7f519dfe78716d7e9f57015912"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "045b3f22b82afccc87e5a3f41eb4dd935c6039d95f92508a4e70635fd6bb6a22"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 3,
+       "data_path": "pose.bones[\"Bone\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone.001\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "6f33682d0dbb2541b49bdacb0dd9358cf5a5f5a174cd347c6cb70cc255a394cf"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone.001\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone.001\"].location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone.001\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "39dcbce91524296557e197e8decc023862efbe093272a0ae427eb4681dbf116b"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone.001\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone.001\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 3,
+       "data_path": "pose.bones[\"Bone.001\"].rotation_quaternion",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "9912b2b1be1b75237ea650a9984cca28dc096dfeac05cb9334e219ca372de10f"
+      },
+      {
+       "array_index": 0,
+       "data_path": "pose.bones[\"Bone.001\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 1,
+       "data_path": "pose.bones[\"Bone.001\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 2,
+       "data_path": "pose.bones[\"Bone.001\"].scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      10000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "action_constraint_action": {
+     "fcurve_count": 1,
+     "fcurves": [
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "1cbf981596382925e4ed29c7f5757702a286dae81503f8f1e7a8a8946b0522e9"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      20000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 2
+    },
+    "multi_user_action": {
+     "fcurve_count": 9,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 1,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "d9010d8df46fa6e8b344f04b0eaa5e464b3c47c771a38bc780d0c3666125723b"
+      },
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "6dec7c21e7690da8b7eda9b8939b9aa127d069abb925d59edf73605ca34184fd"
+      },
+      {
+       "array_index": 0,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 1,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 2,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "5641695ea17c68713ecd3bd1d9b73163feb99e5f029de86e79bb068fb8b31027"
+      },
+      {
+       "array_index": 0,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 1,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      },
+      {
+       "array_index": 2,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "90821a5ce11a9338f8300ef48669320b4b5a9d3fc0fe7fe7052c414586a08d26"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      10000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 2
+    },
+    "nla_action_1": {
+     "fcurve_count": 9,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "017222c764ac9639c521c16ae06e1a16ea5c945ef2267c7c12d5e15026efae1d"
+      },
+      {
+       "array_index": 1,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "017222c764ac9639c521c16ae06e1a16ea5c945ef2267c7c12d5e15026efae1d"
+      },
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "d163ade0ae634d829479ef3a0f746b2b0105469feb18eb0bd7d3aa1ac3c8b294"
+      },
+      {
+       "array_index": 0,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "017222c764ac9639c521c16ae06e1a16ea5c945ef2267c7c12d5e15026efae1d"
+      },
+      {
+       "array_index": 1,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "017222c764ac9639c521c16ae06e1a16ea5c945ef2267c7c12d5e15026efae1d"
+      },
+      {
+       "array_index": 2,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "017222c764ac9639c521c16ae06e1a16ea5c945ef2267c7c12d5e15026efae1d"
+      },
+      {
+       "array_index": 0,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "39e20c7a1e1a06749031d7bc0faf5676c0cf22b681df8eebeefd6bc2ae113396"
+      },
+      {
+       "array_index": 1,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "39e20c7a1e1a06749031d7bc0faf5676c0cf22b681df8eebeefd6bc2ae113396"
+      },
+      {
+       "array_index": 2,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "39e20c7a1e1a06749031d7bc0faf5676c0cf22b681df8eebeefd6bc2ae113396"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      20000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "nla_action_2": {
+     "fcurve_count": 9,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "b9992d9956e8167f8466da67a8bef7cb5611efa2d04ec893117204c60125c527"
+      },
+      {
+       "array_index": 1,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "afdff28df26af37a94414b39757d002f51c6139fbc1f0210cfb2c8d994ffe9a0"
+      },
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "4faf0a32320e6382eb4f16f92717abbb47c6052044ac4810acf31a9e8730a5de"
+      },
+      {
+       "array_index": 0,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "afdff28df26af37a94414b39757d002f51c6139fbc1f0210cfb2c8d994ffe9a0"
+      },
+      {
+       "array_index": 1,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "afdff28df26af37a94414b39757d002f51c6139fbc1f0210cfb2c8d994ffe9a0"
+      },
+      {
+       "array_index": 2,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "afdff28df26af37a94414b39757d002f51c6139fbc1f0210cfb2c8d994ffe9a0"
+      },
+      {
+       "array_index": 0,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "3eb9690d1954bc12a47fda2b37b40a4353afb1ddc6fce0c8d68fdabd2e3b5cae"
+      },
+      {
+       "array_index": 1,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "3eb9690d1954bc12a47fda2b37b40a4353afb1ddc6fce0c8d68fdabd2e3b5cae"
+      },
+      {
+       "array_index": 2,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "3eb9690d1954bc12a47fda2b37b40a4353afb1ddc6fce0c8d68fdabd2e3b5cae"
+      }
+     ],
+     "frame_range": [
+      10000000,
+      30000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "nla_action_active": {
+     "fcurve_count": 3,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "322ab22c334e1796c35eee512e1e97ae9e54786f7e6c4f087e4aff66e2ed8f22"
+      },
+      {
+       "array_index": 1,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "322ab22c334e1796c35eee512e1e97ae9e54786f7e6c4f087e4aff66e2ed8f22"
+      },
+      {
+       "array_index": 2,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "9f7e33268801c6b6c368fecf315b556b8810440df6f0177cc887c66ce6458ad7"
+      }
+     ],
+     "frame_range": [
+      20000000,
+      40000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "ArmatureAction",
+    "action_constraint_action",
+    "multi_user_action",
+    "nla_action_1",
+    "nla_action_2",
+    "nla_action_active"
+   ]
+  },
+  "armatures": {
+   "count": 1,
+   "items": {
+    "Armature": {
+     "bone_count": 2,
+     "bone_names": [
+      "Bone",
+      "Bone.001"
+     ],
+     "bones": {
+      "Bone": {
+       "head_local": [
+        0,
+        0,
+        0
+       ],
+       "matrix_local_hash": "f9d0630b722924710fe59114609bd78992e1699fda960abdb49f1ca8ebde45c5",
+       "parent": null,
+       "tail_local": [
+        0,
+        0,
+        1000000
+       ],
+       "use_connect": false,
+       "use_deform": true
+      },
+      "Bone.001": {
+       "head_local": [
+        5342556,
+        0,
+        0
+       ],
+       "matrix_local_hash": "c136f201920176df272d62ad1694809535313e706634f55303bb442b9c9a85b7",
+       "parent": null,
+       "tail_local": [
+        5342556,
+        0,
+        1000000
+       ],
+       "use_connect": false,
+       "use_deform": true
+      }
+     },
+     "library": null,
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Armature"
+   ]
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 1,
+   "items": {
+    "Collection": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "action_constraint_action_owner",
+      "action_constraint_constrained",
+      "action_constraint_controller",
+      "armature_object",
+      "multi_user_object_a",
+      "multi_user_object_b",
+      "nla_object",
+      "offset"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Collection"
+   ]
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 1,
+   "items": {
+    "Render Result": {
+     "channels": 0,
+     "colorspace": "",
+     "depth": 0,
+     "filepath": "",
+     "library": null,
+     "size": [
+      0,
+      0
+     ],
+     "source": "VIEWER",
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Render Result"
+   ]
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 1,
+   "items": {
+    "Dots Stroke": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 2
+    }
+   },
+   "names": [
+    "Dots Stroke"
+   ]
+  },
+  "meshes": {
+   "count": 6,
+   "items": {
+    "Suzanne": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    },
+    "Suzanne.001": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    },
+    "Suzanne.002": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    },
+    "Suzanne.003": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    },
+    "Suzanne.004": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    },
+    "Suzanne.005": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "bd0890179a62fb7e7fb15e18b5816768115548576c9d8665e7d411fe7f5b7cfe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "7d87965ec1fb6721c91faecc5748a9ff53bc204813815c975060d501ce4721a7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "b6d54a9bdd56d9b474aa5c1e176f6f30a87c28b0b9310d4fde59b255be6556a6"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "4ca55a674091f8d8605d4444aca65931423f23756b1a929a709e54e42a40d0ca"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "df97ab09c8c26af62742ce4ad76294d66d344a0c9cf3efb908da53bd789c4041"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1005,
+     "edge_hash": "a1d27cacd7ff8181278e2aa08440426c9e8fe6efbcecf450ab861ed748ff08bd",
+     "library": null,
+     "loop_count": 1968,
+     "loop_vertex_hash": "6ec1cabda7b8c112481d1accd9c28bc4821982cff5a400b5133714c42038c1f8",
+     "material_index_hash": "104f5bd71e8fb1d28ae25c0b7a3a5c1af6a0e2c2f8f3b937e101c824f10cc788",
+     "materials": [],
+     "poly_layout_hash": "3a121cc9057ec8e64ca153b39f7f1f23b316b4f65a7210ecb2d1bcba1149ca66",
+     "polygon_count": 500,
+     "position_hash": "50bba93c4eb464cfdd513b77338a58044a7f48e03a97f89673a275f226d33865",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 507
+    }
+   },
+   "names": [
+    "Suzanne",
+    "Suzanne.001",
+    "Suzanne.002",
+    "Suzanne.003",
+    "Suzanne.004",
+    "Suzanne.005"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 8,
+   "items": {
+    "action_constraint_action_owner": {
+     "action": "action_constraint_action",
+     "constraints": [],
+     "data": "Suzanne.004",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      5000000,
+      14669833,
+      2302814
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      5000000,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      2302814,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      5000000,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      2302814,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "action_constraint_constrained": {
+     "constraints": [
+      {
+       "name": "Action",
+       "props": {
+        "action": "<id:action_constraint_action>",
+        "action_slot": "<ptr>",
+        "action_slot_handle": 929201142,
+        "active": true,
+        "enabled": true,
+        "eval_time": 0,
+        "frame_end": 20,
+        "frame_start": 1,
+        "influence": 1000000,
+        "last_slot_identifier": "OBLegacy Slot",
+        "max": 15000000,
+        "min": 10000000,
+        "mix_mode": "AFTER",
+        "mute": false,
+        "name": "Action",
+        "owner_space": "WORLD",
+        "show_expanded": true,
+        "space_object": null,
+        "space_subtarget": "",
+        "subtarget": "",
+        "target": "<id:action_constraint_controller>",
+        "target_space": "WORLD",
+        "transform_channel": "LOCATION_X",
+        "use_bone_object_action": false,
+        "use_eval_time": false
+       },
+       "type": "ACTION"
+      }
+     ],
+     "data": "Suzanne.003",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      14669833,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "action_constraint_controller": {
+     "constraints": [],
+     "data": "Suzanne.005",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      10000000,
+      14669833,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      10000000,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      10000000,
+      0,
+      1000000,
+      0,
+      14669833,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "armature_object": {
+     "action": "ArmatureAction",
+     "constraints": [],
+     "data": "Armature",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      20937031,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      20937031,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      20937031,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "ARMATURE",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "multi_user_object_a": {
+     "action": "multi_user_action",
+     "constraints": [],
+     "data": "Suzanne.001",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      6741439,
+      3758569
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      6741439,
+      0,
+      0,
+      1000000,
+      3758569,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      6741439,
+      0,
+      0,
+      1000000,
+      3758569,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "multi_user_object_b": {
+     "action": "multi_user_action",
+     "constraints": [],
+     "data": "Suzanne.002",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      6741439,
+      3758569
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      6741439,
+      0,
+      0,
+      1000000,
+      3758569,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4745245,
+      0,
+      1000000,
+      0,
+      6741439,
+      0,
+      0,
+      1000000,
+      3758569,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": "offset",
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "nla_object": {
+     "action": "nla_action_active",
+     "constraints": [],
+     "data": "Suzanne",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      3578927
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      3578927,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      3578927,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "offset": {
+     "constraints": [],
+     "data": null,
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4745245,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4745245,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4745245,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "EMPTY",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "action_constraint_action_owner",
+    "action_constraint_constrained",
+    "action_constraint_controller",
+    "armature_object",
+    "multi_user_object_a",
+    "multi_user_object_b",
+    "nla_object",
+    "offset"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {
+       "Collection": {
+        "children": {},
+        "objects": [
+         "action_constraint_action_owner",
+         "action_constraint_constrained",
+         "action_constraint_controller",
+         "armature_object",
+         "multi_user_object_a",
+         "multi_user_object_b",
+         "nla_object",
+         "offset"
+        ]
+       }
+      },
+      "objects": []
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 10,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      50876,
+      50876,
+      50876
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Background",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          50876,
+          50876,
+          50876,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         10000000,
+         300000000
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         300000000,
+         300000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "layered_action_versioning_42.blend"
+}

@@ -234,3 +234,106 @@ exact. (Bonus: fewer hashlib startup warnings.)
 ### Open item unchanged
 LFS-pulled versioning corpus (`blo_do_versions_*`) remains the biggest untested
 readfile surface — layer in post-gate once `git lfs pull` runs.
+**→ Closed by §8 below.**
+
+## 8. VERSIONING CORPUS — old-version `.blend` parity (2026-08-04)
+
+Extends the proven state-dump parity method (§3–§7) to **old-version files** —
+the `blo_do_versions` forward-porting path, flagged in §2/§6 as the single
+largest untested readfile surface. Same schema, same `state_dump.py`,
+`compare_dumps.py` EXACT mode (`--tolerance 0`), same two-run oracle determinism
+discipline. Deliverables under `sandbox/corpus-prep/versioning/`
+(`corpus.list`, `run_dumps.sh`, `run_dumps_wasm.sh`, `goldens/` + `MANIFEST.json`,
+`dumps-wasm/`).
+
+### Corpus pulled (minimal LFS, ~928 KB total, 12 files)
+Pulled from `upstream/tests/files` via `git lfs pull --include=…` (8 files;
+4 were already fetched from tierb-prep runs). Porcelain of the parent repo stays
+series-only; `upstream/` LFS smudge leaves its porcelain series-only too; HEAD
+pinned (`upstream/PIN` = fbe6228777e7). Header version = the 3 ASCII digits in
+the `.blend` header (Mmm packed, so 306 = 3.6, 402 = 4.2), read after
+gzip/zstd decompression. **Graduated span 2.30 → 4.2:**
+
+| label | header ver | ptr | endian | source dir | blend bytes |
+|---|---|---|---|---|---|
+| v230_be_ctrlobject | 2.30 | 4 | **BE** | io_tests/blend_big_endian/2.30 | 30 KB |
+| v236_be_pathdist | 2.36 | 4 | **BE** | io_tests/blend_big_endian/2.36 | 22 KB |
+| v255_nodegroup25 | 2.55 | 8 | LE | node_group | 56 KB |
+| v260_bhead4 | 2.60 | **4** | LE | io_tests/blend_parsing | 58 KB |
+| v272_ge_keyboard | 2.72 | 8 | LE | gameengine_logic/sensors | 79 KB |
+| v272_ge_framing | 2.72 | 8 | LE | gameengine | 98 KB |
+| v273_ge_glsl249 | 2.73 | 8 | LE | gameengine_visual | 79 KB |
+| v273_ge_2dexample | 2.73 | 8 | LE | gameengine_physics | 76 KB |
+| v283_fcurve | 2.83 | 8 | LE | animation (fcurve-versioning) | 70 KB |
+| v300_smallbhead8 | 3.00 | 8 | LE | io_tests/blend_parsing | 114 KB |
+| v306_nodegroup36 | 3.6 | 8 | LE | node_group | 120 KB |
+| v402_layered_action | 4.2 | 8 | LE | animation (layered_action) | 126 KB |
+
+The span deliberately covers the requested 2.7x/2.9x/3.x/4.x **and** deeper
+(2.3x–2.6x), plus pointer-size (`ptr4` vs `ptr8`, the ADR-004 axis) and
+endianness (BE vs LE) as extra variables. BGE-era files (gameengine*) are
+guaranteed pre-2.80 (Game Engine removed in 2.80); `blend_parsing/BHead4`
+(4-byte BHead) and `SmallBHead8` (8-byte BHead) directly exercise the BHead
+width path patch 0018 guards.
+
+### Per-file matrix (oracle golden → wasm verdict)
+
+| label | oracle | wasm verdict | wasm dump == golden |
+|---|---|---|---|
+| v255_nodegroup25 | PASS (2-run det.) | **PASS** | exact |
+| v260_bhead4 | PASS | **PASS** | exact |
+| v272_ge_keyboard | PASS | **PASS** | exact |
+| v272_ge_framing | PASS | **PASS** | exact |
+| v273_ge_glsl249 | PASS | **PASS** | exact |
+| v273_ge_2dexample | PASS | **PASS** | exact |
+| v283_fcurve | PASS | **PASS** | exact |
+| v300_smallbhead8 | PASS | **PASS** | exact |
+| v306_nodegroup36 | PASS | **PASS** | exact |
+| v402_layered_action | PASS | **PASS** | exact |
+| v236_be_pathdist | ORACLE_REFUSE | BE_REFUSE_BOTH | n/a (no golden) |
+| v230_be_ctrlobject | ORACLE_REFUSE | BE_REFUSE_BOTH | n/a (no golden) |
+
+**Wasm summary: PASS=10 DIVERGENCE=0 DETECTOR_REFUSED=0 BE_REFUSE_BOTH=2 LOAD_FAIL=0.**
+Every one of the 10 loadable old files produced a wasm dump whose sha256 **equals**
+the oracle golden sha256 (byte-identical, not merely structurally equal) — verified
+independently by `shasum` and by `compare_dumps.py` (0 divergences each).
+
+### What this proves
+- **Genuine 64-bit→wasm32 `blo_do_versions` parity across 2.55 → 4.2.** The
+  corpus was written by old 64-bit Blenders; the wasm32 build reads it, runs the
+  full versioning forward-port chain, and reconstructs state bit-for-bit
+  identically to the pinned 5.2 oracle. Node graphs (2.55/3.6 nodegroups),
+  slotted-action conversion (4.2 layered_action; 2.83 fcurve-versioning), and
+  legacy mesh/scene DNA (BGE 2.72/2.73) all round-trip exact. `ptr4`-LE
+  (v260_bhead4) reads natively on wasm32 (no pointer narrowing) and also matches.
+- **ADR-004 detector-refusal rate on real old files: 0 / 10 (0%).** None of the
+  ten loadable old **64-bit** files tripped patch 0018's wasm32 pointer-collision
+  detector. The hazard requires *sub-8-aligned adjacent DATA blocks* whose 8→4-byte
+  truncated addresses collide; none of these old writers emitted such a layout
+  (Blender's writefile 8-aligns DATA blocks, and it has done so across this whole
+  version range). So on this graduated sample the interim detector never fires and
+  never false-positives — consistent with the generated §7 corpus (also 0
+  collisions). Evidence that the collision is a real-but-rare structural hazard,
+  not a common one; the structural fix (wasm64 / pointer interner) stays ADR-004
+  deferred. Reproducing an actual DETECTOR_REFUSED needs a file with the unlucky
+  layout (the tierb suite's `bl_node_structure_type_inference` fixture is the one
+  known trigger, per progress M2b-0018) — not present in this old-version sample.
+
+### Finding: big-endian files are refused upstream, not by the wasm layer
+Both BE files (2.30, 2.36; `ptr4`, big-endian) are refused **identically on the
+oracle and the wasm build** with Blender's own message: *"created by a Big Endian
+version of Blender, support for these files has been removed in Blender 5.0."*
+This is an **upstream 5.x removal**, matched on both builds — a documented
+versioning finding, **not** a wasm32-specific gap and **not** the ADR-004
+detector. Recorded (verdict `BE_REFUSE_BOTH` / `ORACLE_REFUSE`) rather than hidden.
+Reading these ancient BE files would require an older Blender to convert first;
+out of scope for the 5.2 pin.
+
+### Sequencing note
+No rebuild was needed — this used the existing `build-wasm/bin/blender.js`
+(M2.5 boot recipe) and `oracle/bpy.sh`. Runners are pure add-ons under
+`sandbox/corpus-prep/versioning/`; nothing under `tests/`, `oracle/`, or
+`upstream/` source was written. This **closes the §6.5 / §2 open item** (versioning
+= the largest untested readfile surface) for the graduated old-version band; a
+fuller sweep (grease-pencil v3, physics caches, library link/append across old
+files) can layer on with the same runners.

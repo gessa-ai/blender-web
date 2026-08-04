@@ -1,0 +1,3639 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 1,
+   "items": {
+    "Camera": {
+     "clip_end": 100000000,
+     "clip_start": 100000,
+     "lens": 50000000,
+     "library": null,
+     "ortho_scale": 7314286,
+     "sensor_height": 24000000,
+     "sensor_width": 36000000,
+     "shift_x": 0,
+     "shift_y": 0,
+     "type": "PERSP",
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Camera"
+   ]
+  },
+  "collections": {
+   "count": 2,
+   "items": {
+    "Collection": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "Camera",
+      "Cube",
+      "Light",
+      "TestObject"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "TestCollection": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [],
+     "use_fake_user": false,
+     "users": 3
+    }
+   },
+   "names": [
+    "Collection",
+    "TestCollection"
+   ]
+  },
+  "curves": {
+   "count": 1,
+   "items": {
+    "BezierCurve": {
+     "bevel_depth": 0,
+     "dimensions": "3D",
+     "extrude": 0,
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "Curve",
+     "spline_count": 1,
+     "splines": [
+      {
+       "order_u": 0,
+       "point_count": 2,
+       "type": "BEZIER",
+       "use_cyclic_u": false
+      }
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "BezierCurve"
+   ]
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 2,
+   "items": {
+    "Render Result": {
+     "channels": 0,
+     "colorspace": "",
+     "depth": 0,
+     "filepath": "",
+     "library": null,
+     "size": [
+      0,
+      0
+     ],
+     "source": "VIEWER",
+     "use_fake_user": false,
+     "users": 1
+    },
+    "TestImage": {
+     "channels": 4,
+     "colorspace": "sRGB",
+     "depth": 32,
+     "filepath": "",
+     "library": null,
+     "size": [
+      16,
+      16
+     ],
+     "source": "GENERATED",
+     "use_fake_user": false,
+     "users": 2
+    }
+   },
+   "names": [
+    "Render Result",
+    "TestImage"
+   ]
+  },
+  "lights": {
+   "count": 1,
+   "items": {
+    "Light": {
+     "color": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "energy": 1000000000,
+     "library": null,
+     "shadow_soft_size": 100000,
+     "type": "POINT",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Light"
+   ]
+  },
+  "materials": {
+   "count": 3,
+   "items": {
+    "Dots Stroke": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 2
+    },
+    "Material": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 8,
+      "links": [
+       [
+        "Group",
+        "Output_30",
+        "Reroute.005",
+        "Input"
+       ],
+       [
+        "Group",
+        "Output_31",
+        "Reroute.006",
+        "Input"
+       ],
+       [
+        "Group",
+        "Output_32",
+        "Reroute.007",
+        "Input"
+       ],
+       [
+        "Group",
+        "Output_33",
+        "Reroute.004",
+        "Input"
+       ],
+       [
+        "Reroute",
+        "Output",
+        "Group",
+        "Input_26"
+       ],
+       [
+        "Reroute.001",
+        "Output",
+        "Group",
+        "Input_27"
+       ],
+       [
+        "Reroute.002",
+        "Output",
+        "Group",
+        "Input_28"
+       ],
+       [
+        "Reroute.003",
+        "Output",
+        "Group",
+        "Input_29"
+       ]
+      ],
+      "node_count": 9,
+      "node_names": [
+       "Group",
+       "Reroute",
+       "Reroute.001",
+       "Reroute.002",
+       "Reroute.003",
+       "Reroute.004",
+       "Reroute.005",
+       "Reroute.006",
+       "Reroute.007"
+      ],
+      "nodes": {
+       "Group": {
+        "inputs": [
+         "Input_26",
+         "Input_27",
+         "Input_28",
+         "Input_29"
+        ],
+        "location": [
+         -75042015,
+         337081512
+        ],
+        "node_tree_ref": "NodeGroup.003",
+        "outputs": [
+         "Output_30",
+         "Output_31",
+         "Output_32",
+         "Output_33"
+        ],
+        "type": "ShaderNodeGroup"
+       },
+       "Reroute": {
+        "input_defaults": {
+         "Input": 0
+        },
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         -125933960,
+         183378082
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.001": {
+        "input_defaults": {
+         "Input": [
+          0,
+          0,
+          0
+         ]
+        },
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         -124107765,
+         162193146
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.002": {
+        "input_defaults": {
+         "Input": [
+          0,
+          0,
+          0,
+          1000000
+         ]
+        },
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         -124107765,
+         137713760
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.003": {
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         -124107765,
+         116148071
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.004": {
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         106559738,
+         237556274
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.005": {
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         108247864,
+         299869263
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.006": {
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         107317711,
+         275532318
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       },
+       "Reroute.007": {
+        "inputs": [
+         "Input"
+        ],
+        "location": [
+         106940674,
+         256185120
+        ],
+        "outputs": [
+         "Output"
+        ],
+        "type": "NodeReroute"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    },
+    "TestMaterial": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Material Output",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         300000000,
+         300000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          0,
+          0,
+          0,
+          1000000
+         ],
+         "Emission Strength": 1000000,
+         "IOR": 1450000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 50000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         10000000,
+         300000000
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 400000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 3
+    }
+   },
+   "names": [
+    "Dots Stroke",
+    "Material",
+    "TestMaterial"
+   ]
+  },
+  "meshes": {
+   "count": 1,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "e7e7200f1a760fe2702142548332a1edbe9fef9b844984a5c620d30251140ff8"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "8c34b079549c12b2378c52955730b2e71546f3ac9a112afcc47338034a58728c"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "52905b7e8c072a6d04c8f9ced2027649a749e3e2ac78bd097f38850a9304b998"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e99e9ed92157fe2247cc7911c3dd42366f4678ad1e1dd3a16de2e16732dff0e6"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "2d563f1494e7521e749a83a99de58489110688b2f079db2f34b25b9e1d1504af",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "8c34b079549c12b2378c52955730b2e71546f3ac9a112afcc47338034a58728c",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e99e9ed92157fe2247cc7911c3dd42366f4678ad1e1dd3a16de2e16732dff0e6",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 8
+    }
+   },
+   "names": [
+    "Cube"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 6,
+   "items": {
+    "Compositing Nodetree": {
+     "bl_idname": "CompositorNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Image",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Image",
+       "socket_type": "NodeSocketColor"
+      }
+     ],
+     "library": null,
+     "link_count": 6,
+     "links": [
+      [
+       "Group",
+       "Output_10",
+       "Reroute.004",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_11",
+       "Reroute.005",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_9",
+       "Reroute",
+       "Input"
+      ],
+      [
+       "Reroute.001",
+       "Output",
+       "Group",
+       "Input_6"
+      ],
+      [
+       "Reroute.002",
+       "Output",
+       "Group",
+       "Input_7"
+      ],
+      [
+       "Reroute.003",
+       "Output",
+       "Group",
+       "Input_8"
+      ]
+     ],
+     "node_count": 7,
+     "node_names": [
+      "Group",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005"
+     ],
+     "nodes": {
+      "Group": {
+       "inputs": [
+        "Input_6",
+        "Input_7",
+        "Input_8"
+       ],
+       "location": [
+        141367279,
+        449716675
+       ],
+       "node_tree_ref": "NodeGroup",
+       "outputs": [
+        "Output_10",
+        "Output_11",
+        "Output_9"
+       ],
+       "type": "CompositorNodeGroup"
+      },
+      "Reroute": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        462390381,
+        410172546
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        88966469,
+        314293854
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        90265770,
+        294307648
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        89168312,
+        274056793
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        458924377,
+        387194733
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        458924377,
+        363890808
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "Geometry Nodes": {
+     "bl_idname": "GeometryNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Geometry",
+       "socket_type": "NodeSocketGeometry"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Geometry",
+       "socket_type": "NodeSocketGeometry"
+      }
+     ],
+     "library": null,
+     "link_count": 24,
+     "links": [
+      [
+       "Group",
+       "Output_19",
+       "Reroute.019",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_20",
+       "Reroute.020",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_21",
+       "Reroute.021",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_22",
+       "Reroute.014",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_23",
+       "Reroute.015",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_24",
+       "Reroute.016",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_25",
+       "Reroute.013",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_26",
+       "Reroute.022",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_27",
+       "Reroute.023",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_7",
+       "Reroute.012",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_8",
+       "Reroute.017",
+       "Input"
+      ],
+      [
+       "Group",
+       "Output_9",
+       "Reroute.018",
+       "Input"
+      ],
+      [
+       "Reroute",
+       "Output",
+       "Group",
+       "Input_4"
+      ],
+      [
+       "Reroute.001",
+       "Output",
+       "Group",
+       "Input_5"
+      ],
+      [
+       "Reroute.002",
+       "Output",
+       "Group",
+       "Input_6"
+      ],
+      [
+       "Reroute.003",
+       "Output",
+       "Group",
+       "Input_10"
+      ],
+      [
+       "Reroute.004",
+       "Output",
+       "Group",
+       "Input_11"
+      ],
+      [
+       "Reroute.005",
+       "Output",
+       "Group",
+       "Input_12"
+      ],
+      [
+       "Reroute.006",
+       "Output",
+       "Group",
+       "Input_13"
+      ],
+      [
+       "Reroute.007",
+       "Output",
+       "Group",
+       "Input_14"
+      ],
+      [
+       "Reroute.008",
+       "Output",
+       "Group",
+       "Input_15"
+      ],
+      [
+       "Reroute.009",
+       "Output",
+       "Group",
+       "Input_16"
+      ],
+      [
+       "Reroute.010",
+       "Output",
+       "Group",
+       "Input_17"
+      ],
+      [
+       "Reroute.011",
+       "Output",
+       "Group",
+       "Input_18"
+      ]
+     ],
+     "node_count": 25,
+     "node_names": [
+      "Group",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005",
+      "Reroute.006",
+      "Reroute.007",
+      "Reroute.008",
+      "Reroute.009",
+      "Reroute.010",
+      "Reroute.011",
+      "Reroute.012",
+      "Reroute.013",
+      "Reroute.014",
+      "Reroute.015",
+      "Reroute.016",
+      "Reroute.017",
+      "Reroute.018",
+      "Reroute.019",
+      "Reroute.020",
+      "Reroute.021",
+      "Reroute.022",
+      "Reroute.023"
+     ],
+     "nodes": {
+      "Group": {
+       "inputs": [
+        "Input_10",
+        "Input_11",
+        "Input_12",
+        "Input_13",
+        "Input_14",
+        "Input_15",
+        "Input_16",
+        "Input_17",
+        "Input_18",
+        "Input_4",
+        "Input_5",
+        "Input_6"
+       ],
+       "location": [
+        -277004639,
+        77623947
+       ],
+       "node_tree_ref": "NodeGroup.002",
+       "outputs": [
+        "Output_19",
+        "Output_20",
+        "Output_21",
+        "Output_22",
+        "Output_23",
+        "Output_24",
+        "Output_25",
+        "Output_26",
+        "Output_27",
+        "Output_7",
+        "Output_8",
+        "Output_9"
+       ],
+       "type": "GeometryNodeGroup"
+      },
+      "Reroute": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -263412506
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -282672913
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -299323975
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "input_defaults": {
+        "Input": ""
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -319099030
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "input_defaults": {
+        "Input": false
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -338864807
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -360337036
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.006": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -382035339
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.007": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -404760651
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.008": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -424695068
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.009": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -448761230
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.010": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -467729095
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.011": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -345378601,
+        -492764465
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.012": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -69519859,
+        46065918
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.013": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -61747192,
+        -180048676
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.014": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -60617004,
+        -106350540
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.015": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -59486794,
+        -132134384
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.016": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -60617004,
+        -158412781
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.017": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -66143410,
+        22189444
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.018": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -65137794,
+        -1863609
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.019": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -62877403,
+        -29238220
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.020": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -62877403,
+        -54031158
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.021": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -61382904,
+        -79703842
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.022": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -61660782,
+        -202236145
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.023": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -60617004,
+        -227949158
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup": {
+     "bl_idname": "CompositorNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Input Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Vector",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 6,
+     "links": [
+      [
+       "Group Input",
+       "Input_6",
+       "Reroute",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_7",
+       "Reroute.001",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_8",
+       "Reroute.002",
+       "Input"
+      ],
+      [
+       "Reroute.003",
+       "Output",
+       "Group Output",
+       "Output_9"
+      ],
+      [
+       "Reroute.004",
+       "Output",
+       "Group Output",
+       "Output_10"
+      ],
+      [
+       "Reroute.005",
+       "Output",
+       "Group Output",
+       "Output_11"
+      ]
+     ],
+     "node_count": 8,
+     "node_names": [
+      "Group Input",
+      "Group Output",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005"
+     ],
+     "nodes": {
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        -9216904,
+        141157898
+       ],
+       "outputs": [
+        "Input_6",
+        "Input_7",
+        "Input_8",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Output_10",
+        "Output_11",
+        "Output_9",
+        "__extend__"
+       ],
+       "location": [
+        3681702,
+        -1001578
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Reroute": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        178831955,
+        108681572
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        171803085,
+        90664162
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        170798965,
+        71645782
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -51113068,
+        -34457050
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -53121323,
+        -58480347
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -57137829,
+        -82503647
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup.001": {
+     "bl_idname": "TextureNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Input Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Vector",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 6,
+     "links": [
+      [
+       "Group Input",
+       "Input_4",
+       "Reroute.003",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_5",
+       "Reroute.004",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_6",
+       "Reroute.005",
+       "Input"
+      ],
+      [
+       "Reroute",
+       "Output",
+       "Group Output",
+       "Output_7"
+      ],
+      [
+       "Reroute.001",
+       "Output",
+       "Group Output",
+       "Output_8"
+      ],
+      [
+       "Reroute.002",
+       "Output",
+       "Group Output",
+       "Output_9"
+      ]
+     ],
+     "node_count": 8,
+     "node_names": [
+      "Group Input",
+      "Group Output",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005"
+     ],
+     "nodes": {
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        180336166,
+        -207417297
+       ],
+       "outputs": [
+        "Input_4",
+        "Input_5",
+        "Input_6",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Output_7",
+        "Output_8",
+        "Output_9",
+        "__extend__"
+       ],
+       "location": [
+        190000000,
+        0
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Reroute": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        142484695,
+        -35983498
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        141399323,
+        -59790123
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        142484695,
+        -85760986
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        367572906,
+        -238500626
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        364891571,
+        -257213684
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        361316437,
+        -280382172
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup.002": {
+     "bl_idname": "GeometryNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Input Bool",
+       "socket_type": "NodeSocketBool"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Collection",
+       "socket_type": "NodeSocketCollection"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Geometry",
+       "socket_type": "NodeSocketGeometry"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Image",
+       "socket_type": "NodeSocketImage"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Int",
+       "socket_type": "NodeSocketInt"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Material",
+       "socket_type": "NodeSocketMaterial"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Object",
+       "socket_type": "NodeSocketObject"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input String",
+       "socket_type": "NodeSocketString"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Texture",
+       "socket_type": ""
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Bool",
+       "socket_type": "NodeSocketBool"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Collection",
+       "socket_type": "NodeSocketCollection"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Geometry",
+       "socket_type": "NodeSocketGeometry"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Image",
+       "socket_type": "NodeSocketImage"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Int",
+       "socket_type": "NodeSocketInt"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Material",
+       "socket_type": "NodeSocketMaterial"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Object",
+       "socket_type": "NodeSocketObject"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output String",
+       "socket_type": "NodeSocketString"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Texture",
+       "socket_type": ""
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Vector",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 24,
+     "links": [
+      [
+       "Group Input",
+       "Input_10",
+       "Reroute.015",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_11",
+       "Reroute.016",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_12",
+       "Reroute.017",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_13",
+       "Reroute.018",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_14",
+       "Reroute.019",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_15",
+       "Reroute.020",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_16",
+       "Reroute.021",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_17",
+       "Reroute.022",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_18",
+       "Reroute.023",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_4",
+       "Reroute.012",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_5",
+       "Reroute.013",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_6",
+       "Reroute.014",
+       "Input"
+      ],
+      [
+       "Reroute",
+       "Output",
+       "Group Output",
+       "Output_7"
+      ],
+      [
+       "Reroute.001",
+       "Output",
+       "Group Output",
+       "Output_8"
+      ],
+      [
+       "Reroute.002",
+       "Output",
+       "Group Output",
+       "Output_9"
+      ],
+      [
+       "Reroute.003",
+       "Output",
+       "Group Output",
+       "Output_19"
+      ],
+      [
+       "Reroute.004",
+       "Output",
+       "Group Output",
+       "Output_20"
+      ],
+      [
+       "Reroute.005",
+       "Output",
+       "Group Output",
+       "Output_21"
+      ],
+      [
+       "Reroute.006",
+       "Output",
+       "Group Output",
+       "Output_22"
+      ],
+      [
+       "Reroute.007",
+       "Output",
+       "Group Output",
+       "Output_23"
+      ],
+      [
+       "Reroute.008",
+       "Output",
+       "Group Output",
+       "Output_24"
+      ],
+      [
+       "Reroute.009",
+       "Output",
+       "Group Output",
+       "Output_25"
+      ],
+      [
+       "Reroute.010",
+       "Output",
+       "Group Output",
+       "Output_26"
+      ],
+      [
+       "Reroute.011",
+       "Output",
+       "Group Output",
+       "Output_27"
+      ]
+     ],
+     "node_count": 26,
+     "node_names": [
+      "Group Input",
+      "Group Output",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005",
+      "Reroute.006",
+      "Reroute.007",
+      "Reroute.008",
+      "Reroute.009",
+      "Reroute.010",
+      "Reroute.011",
+      "Reroute.012",
+      "Reroute.013",
+      "Reroute.014",
+      "Reroute.015",
+      "Reroute.016",
+      "Reroute.017",
+      "Reroute.018",
+      "Reroute.019",
+      "Reroute.020",
+      "Reroute.021",
+      "Reroute.022",
+      "Reroute.023"
+     ],
+     "nodes": {
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        163471375,
+        -392972992
+       ],
+       "outputs": [
+        "Input_10",
+        "Input_11",
+        "Input_12",
+        "Input_13",
+        "Input_14",
+        "Input_15",
+        "Input_16",
+        "Input_17",
+        "Input_18",
+        "Input_4",
+        "Input_5",
+        "Input_6",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Output_19",
+        "Output_20",
+        "Output_21",
+        "Output_22",
+        "Output_23",
+        "Output_24",
+        "Output_25",
+        "Output_26",
+        "Output_27",
+        "Output_7",
+        "Output_8",
+        "Output_9",
+        "__extend__"
+       ],
+       "location": [
+        190000000,
+        0
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Reroute": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        142388412,
+        -35550301
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        143316299,
+        -57771866
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        146099976,
+        -83697029
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "input_defaults": {
+        "Input": ""
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        141460526,
+        -104992699
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "input_defaults": {
+        "Input": false
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        142388412,
+        -131843765
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        140532623,
+        -149435837
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.006": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        140532623,
+        -166102020
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.007": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        134965271,
+        -188323578
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.008": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        139604721,
+        -213322845
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.009": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        139604721,
+        -239248001
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.010": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        139604721,
+        -255914185
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.011": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        138676834,
+        -282765259
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.012": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        342633820,
+        -435937744
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.013": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        341834869,
+        -460651306
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.014": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        342633820,
+        -480581604
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.015": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        341834869,
+        -499714691
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.016": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        345030609,
+        -522036682
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.017": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        344231689,
+        -546750305
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.018": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        345030609,
+        -566680542
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.019": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        344231689,
+        -585813660
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.020": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        347427429,
+        -606541199
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.021": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        346628510,
+        -631254761
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.022": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        347427429,
+        -651185059
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.023": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        346628510,
+        -670318115
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup.003": {
+     "bl_idname": "ShaderNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Input Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Shader",
+       "socket_type": "NodeSocketShader"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Input Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Float",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Shader",
+       "socket_type": "NodeSocketShader"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Output Vector",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 8,
+     "links": [
+      [
+       "Group Input",
+       "Input_26",
+       "Reroute",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_27",
+       "Reroute.001",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_28",
+       "Reroute.002",
+       "Input"
+      ],
+      [
+       "Group Input",
+       "Input_29",
+       "Reroute.003",
+       "Input"
+      ],
+      [
+       "Reroute.004",
+       "Output",
+       "Group Output",
+       "Output_30"
+      ],
+      [
+       "Reroute.005",
+       "Output",
+       "Group Output",
+       "Output_31"
+      ],
+      [
+       "Reroute.006",
+       "Output",
+       "Group Output",
+       "Output_32"
+      ],
+      [
+       "Reroute.007",
+       "Output",
+       "Group Output",
+       "Output_33"
+      ]
+     ],
+     "node_count": 10,
+     "node_names": [
+      "Group Input",
+      "Group Output",
+      "Reroute",
+      "Reroute.001",
+      "Reroute.002",
+      "Reroute.003",
+      "Reroute.004",
+      "Reroute.005",
+      "Reroute.006",
+      "Reroute.007"
+     ],
+     "nodes": {
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        -72660866,
+        164181534
+       ],
+       "outputs": [
+        "Input_26",
+        "Input_27",
+        "Input_28",
+        "Input_29",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Output_30",
+        "Output_31",
+        "Output_32",
+        "Output_33",
+        "__extend__"
+       ],
+       "location": [
+        -77097275,
+        -16489845
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Reroute": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        107952644,
+        130568771
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.001": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        105570946,
+        109179070
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.002": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        106364845,
+        90958214
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.003": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        106364845,
+        64815247
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.004": {
+       "input_defaults": {
+        "Input": 0
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -126247520,
+        -46886520
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.005": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -123865822,
+        -74613907
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.006": {
+       "input_defaults": {
+        "Input": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -122278023,
+        -97588028
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      },
+      "Reroute.007": {
+       "inputs": [
+        "Input"
+       ],
+       "location": [
+        -124659721,
+        -118185516
+       ],
+       "outputs": [
+        "Output"
+       ],
+       "type": "NodeReroute"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Compositing Nodetree",
+    "Geometry Nodes",
+    "NodeGroup",
+    "NodeGroup.001",
+    "NodeGroup.002",
+    "NodeGroup.003"
+   ]
+  },
+  "objects": {
+   "count": 4,
+   "items": {
+    "Camera": {
+     "constraints": [],
+     "data": "Camera",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      7358891,
+      -6925791,
+      4958309
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685921,
+      -324013,
+      651558,
+      7358891,
+      727676,
+      305421,
+      -614170,
+      -6925791,
+      0,
+      895396,
+      445271,
+      4958309,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685921,
+      -324013,
+      651558,
+      7358891,
+      727676,
+      305421,
+      -614170,
+      -6925791,
+      0,
+      895396,
+      445271,
+      4958309,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      0,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CAMERA",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube": {
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [
+      {
+       "name": "GeometryNodes",
+       "props": {
+        "bake_directory": "",
+        "bake_target": "DISK",
+        "is_active": true,
+        "name": "GeometryNodes",
+        "node_group": "<id:Geometry Nodes>",
+        "open_bake_data_blocks_panel": false,
+        "open_bake_panel": false,
+        "open_manage_panel": false,
+        "open_named_attributes_panel": false,
+        "open_output_attributes_panel": false,
+        "open_warnings_panel": true,
+        "show_expanded": true,
+        "show_group_selector": true,
+        "show_in_editmode": true,
+        "show_manage_panel": true,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "use_apply_on_spline": false,
+        "use_pin_to_last": false
+       },
+       "type": "NODES"
+      }
+     ],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Light": {
+     "constraints": [],
+     "data": "Light",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4076245,
+      1005454,
+      5903862
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      650328,
+      55217,
+      1866391
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "LIGHT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "TestObject": {
+     "constraints": [],
+     "data": "BezierCurve",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      "TestMaterial"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CURVE",
+     "use_fake_user": false,
+     "users": 3,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Camera",
+    "Cube",
+    "Light",
+    "TestObject"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": "Camera",
+     "collection_tree": {
+      "children": {
+       "Collection": {
+        "children": {},
+        "objects": [
+         "Camera",
+         "Cube",
+         "Light",
+         "TestObject"
+        ]
+       },
+       "TestCollection": {
+        "children": {},
+        "objects": []
+       }
+      },
+      "objects": []
+     },
+     "compositor": "Compositing Nodetree",
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 1,
+   "items": {
+    "TestTexture": {
+     "library": null,
+     "type": "NONE",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 3
+    }
+   },
+   "names": [
+    "TestTexture"
+   ]
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      50876,
+      50876,
+      50876
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Background",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          50876,
+          50876,
+          50876,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         10000000,
+         300000000
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         300000000,
+         300000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "nodegroup36.blend"
+}

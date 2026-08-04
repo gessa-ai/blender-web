@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Versioning corpus: OLD-version .blend files exercising blo_do_versions on read.
+# Columns: label | path-relative-to-repo-root | header_version | ptr_bytes | endian
+# header_version = 3 ASCII digits from the .blend header (Mmm packed, e.g. 306 = 3.6).
+# Pulled from upstream/tests/files via git-lfs (minimal --include). See §8 of
+# notes/m1-corpus-prep.md. Big-endian entries are recorded as expected upstream
+# refuse (BE read support removed in Blender 5.0) — a documented versioning finding.
+v255_nodegroup25|upstream/tests/files/node_group/nodegroup25.blend|255|8|LE
+v260_bhead4|upstream/tests/files/io_tests/blend_parsing/BHead4.blend|260|4|LE
+v272_ge_keyboard|upstream/tests/files/gameengine_logic/sensors/keyboard.blend|272|8|LE
+v272_ge_framing|upstream/tests/files/gameengine/framing_extend.blend|272|8|LE
+v273_ge_glsl249|upstream/tests/files/gameengine_visual/GLSL_samples_249.blend|273|8|LE
+v273_ge_2dexample|upstream/tests/files/gameengine_physics/2Dexample.blend|273|8|LE
+v283_fcurve|upstream/tests/files/animation/fcurve-versioning-291.blend|283|8|LE
+v300_smallbhead8|upstream/tests/files/io_tests/blend_parsing/SmallBHead8.blend|300|8|LE
+v306_nodegroup36|upstream/tests/files/node_group/nodegroup36.blend|306|8|LE
+v402_layered_action|upstream/tests/files/animation/layered_action_versioning_42.blend|402|8|LE
+v236_be_pathdist|upstream/tests/files/io_tests/blend_big_endian/2.36/pathdist.blend|236|4|BE
+v230_be_ctrlobject|upstream/tests/files/io_tests/blend_big_endian/2.30/CtrlObject.blend|230|4|BE

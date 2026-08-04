@@ -1,0 +1,398 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 1,
+   "items": {
+    "Collection 1": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "Cube"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Collection 1"
+   ]
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 1,
+   "items": {
+    "Cube.001": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "c95849ca360dfc044bbb367a3d6fda99e338bd8cb79b07c73e4dd1f0a10ddb6e"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 19,
+     "edge_hash": "28a1abd1c34517274dfb580656a012fffeed2f09ff0c02a7c63f594de4a667a7",
+     "library": null,
+     "loop_count": 0,
+     "loop_vertex_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "material_index_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "materials": [
+      null
+     ],
+     "poly_layout_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "polygon_count": 0,
+     "position_hash": "c95849ca360dfc044bbb367a3d6fda99e338bd8cb79b07c73e4dd1f0a10ddb6e",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 9
+    }
+   },
+   "names": [
+    "Cube.001"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 1,
+   "items": {
+    "Cube": {
+     "constraints": [],
+     "data": "Cube.001",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      null
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Cube"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {
+       "Collection 1": {
+        "children": {},
+        "objects": [
+         "Cube"
+        ]
+       }
+      },
+      "objects": []
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 25,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "NONE",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "RenderLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 1,
+   "items": {
+    "Text": {
+     "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "library": null,
+     "line_count": 1,
+     "use_fake_user": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Text"
+   ]
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      50876,
+      50876,
+      50876
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 3,
+      "node_names": [
+       "Background",
+       "Frame",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          50876,
+          50876,
+          50876,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         280000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "SmallBHead8.blend"
+}

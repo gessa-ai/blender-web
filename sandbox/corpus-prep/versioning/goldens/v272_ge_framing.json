@@ -1,0 +1,3717 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 3,
+   "items": {
+    "Camera.AUTO": {
+     "clip_end": 100000000,
+     "clip_start": 100000,
+     "lens": 35000000,
+     "library": null,
+     "ortho_scale": 10841001,
+     "sensor_height": 32000000,
+     "sensor_width": 32000000,
+     "shift_x": 0,
+     "shift_y": 0,
+     "type": "PERSP",
+     "use_fake_user": false,
+     "users": 1
+    },
+    "Camera.H": {
+     "clip_end": 100000000,
+     "clip_start": 100000,
+     "lens": 35000000,
+     "library": null,
+     "ortho_scale": 10841001,
+     "sensor_height": 32000000,
+     "sensor_width": 32000000,
+     "shift_x": 0,
+     "shift_y": 0,
+     "type": "PERSP",
+     "use_fake_user": false,
+     "users": 1
+    },
+    "Camera.V": {
+     "clip_end": 100000000,
+     "clip_start": 100000,
+     "lens": 35000000,
+     "library": null,
+     "ortho_scale": 10841001,
+     "sensor_height": 32000000,
+     "sensor_width": 32000000,
+     "shift_x": 0,
+     "shift_y": 0,
+     "type": "PERSP",
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Camera.AUTO",
+    "Camera.H",
+    "Camera.V"
+   ]
+  },
+  "collections": {
+   "count": 1,
+   "items": {
+    "Collection 1": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "Camera.AUTO",
+      "Camera.H",
+      "Camera.V",
+      "Cube",
+      "Cube.001",
+      "Cube.002",
+      "Cube.003",
+      "Cube.004",
+      "Cube.005",
+      "Cube.006",
+      "Cube.007",
+      "Cube.008",
+      "Lamp",
+      "Text",
+      "Text.001"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Collection 1"
+   ]
+  },
+  "curves": {
+   "count": 2,
+   "items": {
+    "Text": {
+     "align_x": "LEFT",
+     "align_y": "TOP_BASELINE",
+     "bevel_depth": 0,
+     "body": "Auto",
+     "dimensions": "2D",
+     "extrude": 0,
+     "font": "Bfont",
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "TextCurve",
+     "size": 1000000,
+     "spline_count": 0,
+     "splines": [],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "Text.001": {
+     "align_x": "LEFT",
+     "align_y": "TOP_BASELINE",
+     "bevel_depth": 0,
+     "body": "Launch the blenderplayer\npress space to alternate cameras\npress 1,2,3 to change sizes",
+     "dimensions": "2D",
+     "extrude": 0,
+     "font": "Bfont",
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "TextCurve",
+     "size": 1000000,
+     "spline_count": 0,
+     "splines": [],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Text",
+    "Text.001"
+   ]
+  },
+  "fonts": {
+   "count": 1,
+   "items": {
+    "Bfont": {
+     "filepath": "<builtin>",
+     "library": null,
+     "use_fake_user": false,
+     "users": 8
+    }
+   },
+   "names": [
+    "Bfont"
+   ]
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 1,
+   "items": {
+    "Lamp": {
+     "color": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "energy": 100000000,
+     "library": null,
+     "shadow_soft_size": 100000,
+     "type": "POINT",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Lamp"
+   ]
+  },
+  "materials": {
+   "count": 5,
+   "items": {
+    "Material": {
+     "diffuse_color": [
+      800000,
+      0,
+      37236,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          0,
+          37236,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          0,
+          37236,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 5
+    },
+    "Material.001": {
+     "diffuse_color": [
+      12605,
+      800000,
+      0,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          12605,
+          800000,
+          0,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          12605,
+          800000,
+          0,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    },
+    "Material.002": {
+     "diffuse_color": [
+      800000,
+      616115,
+      0,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          616115,
+          0,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          616115,
+          0,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    },
+    "Material.003": {
+     "diffuse_color": [
+      800000,
+      208381,
+      0,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          208381,
+          0,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          208381,
+          0,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    },
+    "Material.004": {
+     "diffuse_color": [
+      451737,
+      509956,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 2,
+      "links": [
+       [
+        "Diffuse BSDF",
+        "BSDF",
+        "Material Output.001",
+        "Surface"
+       ],
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 5,
+      "node_names": [
+       "Diffuse BSDF",
+       "Frame",
+       "Material Output",
+       "Material Output.001",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Diffuse BSDF": {
+        "input_defaults": {
+         "Color": [
+          451737,
+          509956,
+          800000,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Roughness",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfDiffuse"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Material Output.001": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         480000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          451737,
+          509956,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Material",
+    "Material.001",
+    "Material.002",
+    "Material.003",
+    "Material.004"
+   ]
+  },
+  "meshes": {
+   "count": 9,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.001": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material.004"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.002": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material.003"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.003": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material.002"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.004": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material.001"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.005": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.006": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.007": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    },
+    "Cube.008": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    }
+   },
+   "names": [
+    "Cube",
+    "Cube.001",
+    "Cube.002",
+    "Cube.003",
+    "Cube.004",
+    "Cube.005",
+    "Cube.006",
+    "Cube.007",
+    "Cube.008"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 15,
+   "items": {
+    "Camera.AUTO": {
+     "constraints": [],
+     "data": "Camera.AUTO",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      7481132,
+      -6507640,
+      5343665
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CAMERA",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Camera.H": {
+     "constraints": [],
+     "data": "Camera.H",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      7481132,
+      -6507640,
+      5343665
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CAMERA",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Camera.V": {
+     "constraints": [],
+     "data": "Camera.V",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      7481132,
+      -6507640,
+      5343665
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CAMERA",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube": {
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.001": {
+     "constraints": [],
+     "data": "Cube.001",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -5066085,
+      -1815665,
+      4960979
+     ],
+     "material_slots": [
+      "Material.004"
+     ],
+     "matrix_basis": [
+      388198,
+      0,
+      0,
+      -5066085,
+      0,
+      388198,
+      0,
+      -1815665,
+      0,
+      0,
+      388198,
+      4960979,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      388198,
+      0,
+      0,
+      -5066085,
+      0,
+      388198,
+      0,
+      -1815665,
+      0,
+      0,
+      388198,
+      4960979,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      388198,
+      388198,
+      388198
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.002": {
+     "constraints": [],
+     "data": "Cube.002",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -1820366,
+      -5070996,
+      -4277557
+     ],
+     "material_slots": [
+      "Material.003"
+     ],
+     "matrix_basis": [
+      388198,
+      0,
+      0,
+      -1820366,
+      0,
+      388198,
+      0,
+      -5070996,
+      0,
+      0,
+      388198,
+      -4277557,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      388198,
+      0,
+      0,
+      -1820366,
+      0,
+      388198,
+      0,
+      -5070996,
+      0,
+      0,
+      388198,
+      -4277557,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      388198,
+      388198,
+      388198
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.003": {
+     "constraints": [],
+     "data": "Cube.003",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      5245466,
+      2517906,
+      -4261678
+     ],
+     "material_slots": [
+      "Material.002"
+     ],
+     "matrix_basis": [
+      388198,
+      0,
+      0,
+      5245466,
+      0,
+      388198,
+      0,
+      2517906,
+      0,
+      0,
+      388198,
+      -4261678,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      388198,
+      0,
+      0,
+      5245466,
+      0,
+      388198,
+      0,
+      2517906,
+      0,
+      0,
+      388198,
+      -4261678,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      388198,
+      388198,
+      388198
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.004": {
+     "constraints": [],
+     "data": "Cube.004",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      2011470,
+      5731812,
+      4902797
+     ],
+     "material_slots": [
+      "Material.001"
+     ],
+     "matrix_basis": [
+      388198,
+      0,
+      0,
+      2011470,
+      0,
+      388198,
+      0,
+      5731812,
+      0,
+      0,
+      388198,
+      4902797,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      388198,
+      0,
+      0,
+      2011470,
+      0,
+      388198,
+      0,
+      5731812,
+      0,
+      0,
+      388198,
+      4902797,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      388198,
+      388198,
+      388198
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.005": {
+     "constraints": [],
+     "data": "Cube.006",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -3245011,
+      -3484328,
+      -6102
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      216680,
+      0,
+      0,
+      -3245011,
+      0,
+      216680,
+      0,
+      -3484328,
+      0,
+      0,
+      216680,
+      -6102,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      216680,
+      0,
+      0,
+      -3245011,
+      0,
+      216680,
+      0,
+      -3484328,
+      0,
+      0,
+      216680,
+      -6102,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      216680,
+      216680,
+      216680
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.006": {
+     "constraints": [],
+     "data": "Cube.007",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      3683861,
+      4075188,
+      171025
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      216680,
+      0,
+      0,
+      3683861,
+      0,
+      216680,
+      0,
+      4075188,
+      0,
+      0,
+      216680,
+      171025,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      216680,
+      0,
+      0,
+      3683861,
+      0,
+      216680,
+      0,
+      4075188,
+      0,
+      0,
+      216680,
+      171025,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      216680,
+      216680,
+      216680
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.007": {
+     "constraints": [],
+     "data": "Cube.005",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -1485745,
+      2035398,
+      4976827
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      216680,
+      0,
+      0,
+      -1485745,
+      0,
+      216680,
+      0,
+      2035398,
+      0,
+      0,
+      216680,
+      4976827,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      216680,
+      0,
+      0,
+      -1485745,
+      0,
+      216680,
+      0,
+      2035398,
+      0,
+      0,
+      216680,
+      4976827,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      216680,
+      216680,
+      216680
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube.008": {
+     "constraints": [],
+     "data": "Cube.008",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      1785456,
+      -1377798,
+      -4515724
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      216680,
+      0,
+      0,
+      1785456,
+      0,
+      216680,
+      0,
+      -1377798,
+      0,
+      0,
+      216680,
+      -4515724,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      216680,
+      0,
+      0,
+      1785456,
+      0,
+      216680,
+      0,
+      -1377798,
+      0,
+      0,
+      216680,
+      -4515724,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      216680,
+      216680,
+      216680
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Lamp": {
+     "constraints": [],
+     "data": "Lamp",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4076245,
+      1005454,
+      5903862
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      650328,
+      55217,
+      1866391
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "LIGHT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Text": {
+     "constraints": [],
+     "data": "Text",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -1087622,
+      -3784642,
+      -3590925
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685881,
+      -317370,
+      654862,
+      -1087622,
+      727634,
+      312469,
+      -610666,
+      -3784642,
+      -10817,
+      895343,
+      445245,
+      -3590925,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685881,
+      -317370,
+      654862,
+      -1087622,
+      727634,
+      312469,
+      -610666,
+      -3784642,
+      -10817,
+      895343,
+      445245,
+      -3590925,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "FONT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Text.001": {
+     "constraints": [],
+     "data": "Text.001",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -3833300,
+      -1578959,
+      3472574
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      352802,
+      -163248,
+      336846,
+      -3833300,
+      374279,
+      160727,
+      -314113,
+      -1578959,
+      -5564,
+      460544,
+      229024,
+      3472574,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      352802,
+      -163248,
+      336846,
+      -3833300,
+      374279,
+      160727,
+      -314113,
+      -1578959,
+      -5564,
+      460544,
+      229024,
+      3472574,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      514378,
+      514378,
+      514378
+     ],
+     "type": "FONT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Camera.AUTO",
+    "Camera.H",
+    "Camera.V",
+    "Cube",
+    "Cube.001",
+    "Cube.002",
+    "Cube.003",
+    "Cube.004",
+    "Cube.005",
+    "Cube.006",
+    "Cube.007",
+    "Cube.008",
+    "Lamp",
+    "Text",
+    "Text.001"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": "Camera.AUTO",
+     "collection_tree": {
+      "children": {
+       "Collection 1": {
+        "children": {},
+        "objects": [
+         "Camera.AUTO",
+         "Camera.H",
+         "Camera.V",
+         "Cube",
+         "Cube.001",
+         "Cube.002",
+         "Cube.003",
+         "Cube.004",
+         "Cube.005",
+         "Cube.006",
+         "Cube.007",
+         "Cube.008",
+         "Lamp",
+         "Text",
+         "Text.001"
+        ]
+       }
+      },
+      "objects": []
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 0,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 50,
+     "resolution_x": 400,
+     "resolution_y": 400,
+     "unit_scale_length": 1000000,
+     "unit_system": "NONE",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "RenderLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 2,
+   "items": {
+    "README": {
+     "content_hash": "18612ec92df36fd21e2889f7c61f4878c024e69a8615e4fc577b22dcbcc295e8",
+     "library": null,
+     "line_count": 20,
+     "use_fake_user": false,
+     "users": 1
+    },
+    "resize.py": {
+     "content_hash": "857ac1c56011514a616d2e9a883cc9f44bba711d38f4c26ff4ce61fcc0cb7a65",
+     "library": null,
+     "line_count": 33,
+     "use_fake_user": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "README",
+    "resize.py"
+   ]
+  },
+  "textures": {
+   "count": 1,
+   "items": {
+    "Tex": {
+     "library": null,
+     "type": "NONE",
+     "use_fake_user": false,
+     "use_nodes": false,
+     "users": 0
+    }
+   },
+   "names": [
+    "Tex"
+   ]
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      20379,
+      10955,
+      12910
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 3,
+      "node_names": [
+       "Background",
+       "Frame",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          20379,
+          10955,
+          12910,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         280000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "framing_extend.blend"
+}

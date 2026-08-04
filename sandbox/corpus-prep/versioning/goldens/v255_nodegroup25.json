@@ -1,0 +1,1847 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 1,
+   "items": {
+    "Camera": {
+     "clip_end": 100000000,
+     "clip_start": 100000,
+     "lens": 35000000,
+     "library": null,
+     "ortho_scale": 7314286,
+     "sensor_height": 24000000,
+     "sensor_width": 36000000,
+     "shift_x": 0,
+     "shift_y": 0,
+     "type": "PERSP",
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Camera"
+   ]
+  },
+  "collections": {
+   "count": 1,
+   "items": {
+    "Collection 1": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "Camera",
+      "Cube",
+      "Lamp"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Collection 1"
+   ]
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 1,
+   "items": {
+    "Lamp": {
+     "color": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "energy": 100000000,
+     "library": null,
+     "shadow_soft_size": 1000000,
+     "type": "POINT",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Lamp"
+   ]
+  },
+  "materials": {
+   "count": 1,
+   "items": {
+    "Material": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 13,
+      "links": [
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Color1"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Color1_001"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Color2"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Color2_001"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Fac"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Fac_001"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Vector"
+       ],
+       [
+        "Material",
+        "Color",
+        "NodeGroup",
+        "Vector_001"
+       ],
+       [
+        "Math",
+        "Value",
+        "Output",
+        "Alpha"
+       ],
+       [
+        "NodeGroup",
+        "Color",
+        "Output",
+        "Color"
+       ],
+       [
+        "NodeGroup",
+        "Color_001",
+        "Math.001",
+        "Value"
+       ],
+       [
+        "NodeGroup",
+        "Value",
+        "Math.002",
+        "Value"
+       ],
+       [
+        "NodeGroup",
+        "Vector",
+        "Math",
+        "Value"
+       ]
+      ],
+      "node_count": 6,
+      "node_names": [
+       "Material",
+       "Math",
+       "Math.001",
+       "Math.002",
+       "NodeGroup",
+       "Output"
+      ],
+      "nodes": {
+       "Material": {
+        "input_defaults": {
+         "Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Refl": 800000,
+         "Spec": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ]
+        },
+        "inputs": [
+         "Color",
+         "Normal",
+         "Refl",
+         "Spec"
+        ],
+        "location": [
+         -124022705,
+         234855530
+        ],
+        "outputs": [
+         "Alpha",
+         "Color",
+         "Normal"
+        ],
+        "type": "NodeUndefined"
+       },
+       "Math": {
+        "input_defaults": {
+         "Value_001": 500000,
+         "Value_002": 500000
+        },
+        "inputs": [
+         "Value",
+         "Value_001",
+         "Value_002"
+        ],
+        "location": [
+         334251709,
+         181964203
+        ],
+        "outputs": [
+         "Value"
+        ],
+        "type": "ShaderNodeMath"
+       },
+       "Math.001": {
+        "input_defaults": {
+         "Value_001": 500000,
+         "Value_002": 500000
+        },
+        "inputs": [
+         "Value",
+         "Value_001",
+         "Value_002"
+        ],
+        "location": [
+         333333740,
+         227840591
+        ],
+        "outputs": [
+         "Value"
+        ],
+        "type": "ShaderNodeMath"
+       },
+       "Math.002": {
+        "input_defaults": {
+         "Value_001": 500000,
+         "Value_002": 500000
+        },
+        "inputs": [
+         "Value",
+         "Value_001",
+         "Value_002"
+        ],
+        "location": [
+         334251709,
+         132417725
+        ],
+        "outputs": [
+         "Value"
+        ],
+        "type": "ShaderNodeMath"
+       },
+       "NodeGroup": {
+        "inputs": [
+         "Color1",
+         "Color1_001",
+         "Color2",
+         "Color2_001",
+         "Fac",
+         "Fac_001",
+         "Vector",
+         "Vector_001"
+        ],
+        "location": [
+         90956192,
+         408206787
+        ],
+        "node_tree_ref": "NodeGroup",
+        "outputs": [
+         "Color",
+         "Color_001",
+         "Value",
+         "Vector"
+        ],
+        "type": "ShaderNodeGroup"
+       },
+       "Output": {
+        "inputs": [
+         "Alpha",
+         "Color"
+        ],
+        "location": [
+         485428650,
+         393587830
+        ],
+        "outputs": [],
+        "type": "NodeUndefined"
+       }
+      }
+     },
+     "roughness": 500000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 2
+    }
+   },
+   "names": [
+    "Material"
+   ]
+  },
+  "meshes": {
+   "count": 1,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "605616f359daaed4e7d8ea23b802fdb1b41bb815e59ee131c881f99e7c4fe6ec"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "INT",
+       "domain": "FACE",
+       "name": "material_index",
+       "values_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "1632d597e2270af7273436503c50ac1e649c6dd8e611d80a7e7add4b3a8cdabb",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "01758576d3845de3bc548af4ea9f5bb4cd77674351b99d670c0d61396f1bac78",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [
+      "Material"
+     ],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "e1baaa71aa5537cb5ef6e1018bca27f19e70a90aede6f80d1f1b4f92b0d67fee",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 8
+    }
+   },
+   "names": [
+    "Cube"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 4,
+   "items": {
+    "Compositing Nodetree": {
+     "bl_idname": "CompositorNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Image",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Image",
+       "socket_type": "NodeSocketColor"
+      }
+     ],
+     "library": null,
+     "link_count": 6,
+     "links": [
+      [
+       "NodeGroup.002",
+       "Alpha",
+       "Math",
+       "Value"
+      ],
+      [
+       "NodeGroup.002",
+       "Alpha_001",
+       "Math",
+       "Value_001"
+      ],
+      [
+       "NodeGroup.002",
+       "Alpha_002",
+       "Math.001",
+       "Value"
+      ],
+      [
+       "NodeGroup.002",
+       "Image",
+       "Group Output",
+       "Socket_1"
+      ],
+      [
+       "Render Layers",
+       "Image",
+       "Vector Math",
+       "Vector"
+      ],
+      [
+       "Vector Math",
+       "Value",
+       "NodeGroup.002",
+       "Fac"
+      ]
+     ],
+     "node_count": 6,
+     "node_names": [
+      "Group Output",
+      "Math",
+      "Math.001",
+      "NodeGroup.002",
+      "Render Layers",
+      "Vector Math"
+     ],
+     "nodes": {
+      "Group Output": {
+       "inputs": [
+        "Socket_1",
+        "__extend__"
+       ],
+       "location": [
+        500271759,
+        529534912
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Math": {
+       "input_defaults": {
+        "Value_002": 500000
+       },
+       "inputs": [
+        "Value",
+        "Value_001",
+        "Value_002"
+       ],
+       "location": [
+        474701477,
+        396804657
+       ],
+       "outputs": [
+        "Value"
+       ],
+       "type": "ShaderNodeMath"
+      },
+      "Math.001": {
+       "input_defaults": {
+        "Value_001": 500000,
+        "Value_002": 500000
+       },
+       "inputs": [
+        "Value",
+        "Value_001",
+        "Value_002"
+       ],
+       "location": [
+        467633057,
+        255493835
+       ],
+       "outputs": [
+        "Value"
+       ],
+       "type": "ShaderNodeMath"
+      },
+      "NodeGroup.002": {
+       "input_defaults": {
+        "ID_value": 800000,
+        "ID_value_001": 800000
+       },
+       "inputs": [
+        "Fac",
+        "ID_value",
+        "ID_value_001"
+       ],
+       "location": [
+        203379608,
+        576639832
+       ],
+       "node_tree_ref": "NodeGroup.002",
+       "outputs": [
+        "Alpha",
+        "Alpha_001",
+        "Alpha_002",
+        "Image"
+       ],
+       "type": "CompositorNodeGroup"
+      },
+      "Render Layers": {
+       "inputs": [],
+       "location": [
+        -28483591,
+        465945068
+       ],
+       "outputs": [
+        "Alpha",
+        "Depth",
+        "Image"
+       ],
+       "type": "CompositorNodeRLayers"
+      },
+      "Vector Math": {
+       "input_defaults": {
+        "Scale": 1000000,
+        "Vector_001": [
+         333333,
+         333333,
+         333333
+        ],
+        "Vector_002": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Scale",
+        "Vector",
+        "Vector_001",
+        "Vector_002"
+       ],
+       "location": [
+        131516418,
+        465945068
+       ],
+       "outputs": [
+        "Value",
+        "Vector"
+       ],
+       "type": "ShaderNodeVectorMath"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup": {
+     "bl_idname": "ShaderNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Color1",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color1",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color2",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color2",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Fac",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Fac",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Vector",
+       "socket_type": "NodeSocketVector"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Value",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Vector",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 14,
+     "links": [
+      [
+       "Group Input",
+       "Color1",
+       "Mix",
+       "A_Color"
+      ],
+      [
+       "Group Input",
+       "Color1_001",
+       "Mix.001",
+       "A_Color"
+      ],
+      [
+       "Group Input",
+       "Color2",
+       "Mix",
+       "B_Color"
+      ],
+      [
+       "Group Input",
+       "Color2_001",
+       "Mix.001",
+       "B_Color"
+      ],
+      [
+       "Group Input",
+       "Fac",
+       "Mix",
+       "Factor_Float"
+      ],
+      [
+       "Group Input",
+       "Fac_001",
+       "Mix.001",
+       "Factor_Float"
+      ],
+      [
+       "Group Input",
+       "Vector",
+       "Vector Math",
+       "Vector"
+      ],
+      [
+       "Group Input",
+       "Vector_001",
+       "Vector Math",
+       "Vector_001"
+      ],
+      [
+       "Mix",
+       "Result_Color",
+       "Group Output",
+       "Color"
+      ],
+      [
+       "Mix.001",
+       "Result_Color",
+       "Group Output",
+       "Color_001"
+      ],
+      [
+       "Vector Math",
+       "Vector",
+       "Group Output",
+       "Vector"
+      ],
+      [
+       "Vector Math",
+       "Vector",
+       "Vector Math.001",
+       "Vector"
+      ],
+      [
+       "Vector Math.001",
+       "Vector",
+       "Vector Math.002",
+       "Vector"
+      ],
+      [
+       "Vector Math.002",
+       "Value",
+       "Group Output",
+       "Value"
+      ]
+     ],
+     "node_count": 7,
+     "node_names": [
+      "Group Input",
+      "Group Output",
+      "Mix",
+      "Mix.001",
+      "Vector Math",
+      "Vector Math.001",
+      "Vector Math.002"
+     ],
+     "nodes": {
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        -134851501,
+        -7340256
+       ],
+       "outputs": [
+        "Color1",
+        "Color1_001",
+        "Color2",
+        "Color2_001",
+        "Fac",
+        "Fac_001",
+        "Vector",
+        "Vector_001",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Color",
+        "Color_001",
+        "Value",
+        "Vector",
+        "__extend__"
+       ],
+       "location": [
+        265202332,
+        -55969238
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Mix": {
+       "input_defaults": {
+        "A_Float": 0,
+        "A_Rotation": [
+         0,
+         0,
+         0
+        ],
+        "A_Vector": [
+         0,
+         0,
+         0
+        ],
+        "B_Float": 0,
+        "B_Rotation": [
+         0,
+         0,
+         0
+        ],
+        "B_Vector": [
+         0,
+         0,
+         0
+        ],
+        "Factor_Vector": [
+         500000,
+         500000,
+         500000
+        ]
+       },
+       "inputs": [
+        "A_Color",
+        "A_Float",
+        "A_Rotation",
+        "A_Vector",
+        "B_Color",
+        "B_Float",
+        "B_Rotation",
+        "B_Vector",
+        "Factor_Float",
+        "Factor_Vector"
+       ],
+       "location": [
+        -12851494,
+        64226929
+       ],
+       "outputs": [
+        "Result_Color",
+        "Result_Float",
+        "Result_Rotation",
+        "Result_Vector"
+       ],
+       "type": "ShaderNodeMix"
+      },
+      "Mix.001": {
+       "input_defaults": {
+        "A_Float": 0,
+        "A_Rotation": [
+         0,
+         0,
+         0
+        ],
+        "A_Vector": [
+         0,
+         0,
+         0
+        ],
+        "B_Float": 0,
+        "B_Rotation": [
+         0,
+         0,
+         0
+        ],
+        "B_Vector": [
+         0,
+         0,
+         0
+        ],
+        "Factor_Vector": [
+         500000,
+         500000,
+         500000
+        ]
+       },
+       "inputs": [
+        "A_Color",
+        "A_Float",
+        "A_Rotation",
+        "A_Vector",
+        "B_Color",
+        "B_Float",
+        "B_Rotation",
+        "B_Vector",
+        "Factor_Float",
+        "Factor_Vector"
+       ],
+       "location": [
+        143202316,
+        18350525
+       ],
+       "outputs": [
+        "Result_Color",
+        "Result_Float",
+        "Result_Rotation",
+        "Result_Vector"
+       ],
+       "type": "ShaderNodeMix"
+      },
+      "Vector Math": {
+       "input_defaults": {
+        "Scale": 1000000,
+        "Vector_002": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Scale",
+        "Vector",
+        "Vector_001",
+        "Vector_002"
+       ],
+       "location": [
+        41308365,
+        -153227203
+       ],
+       "outputs": [
+        "Value",
+        "Vector"
+       ],
+       "type": "ShaderNodeVectorMath"
+      },
+      "Vector Math.001": {
+       "input_defaults": {
+        "Scale": 1000000,
+        "Vector_001": [
+         0,
+         0,
+         0
+        ],
+        "Vector_002": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Scale",
+        "Vector",
+        "Vector_001",
+        "Vector_002"
+       ],
+       "location": [
+        0,
+        0
+       ],
+       "outputs": [
+        "Value",
+        "Vector"
+       ],
+       "type": "ShaderNodeVectorMath"
+      },
+      "Vector Math.002": {
+       "input_defaults": {
+        "Scale": 1000000,
+        "Vector_001": [
+         333333,
+         333333,
+         333333
+        ],
+        "Vector_002": [
+         0,
+         0,
+         0
+        ]
+       },
+       "inputs": [
+        "Scale",
+        "Vector",
+        "Vector_001",
+        "Vector_002"
+       ],
+       "location": [
+        0,
+        0
+       ],
+       "outputs": [
+        "Value",
+        "Vector"
+       ],
+       "type": "ShaderNodeVectorMath"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup.001": {
+     "bl_idname": "TextureNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Color1",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color1",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color2",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Color2",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Nabla",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Size",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Size",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "Val",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Color",
+       "socket_type": "NodeSocketColor"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Normal",
+       "socket_type": "NodeSocketVector"
+      }
+     ],
+     "library": null,
+     "link_count": 11,
+     "links": [
+      [
+       "Checker.001",
+       "Color",
+       "Group Output",
+       "Color"
+      ],
+      [
+       "Checker.002",
+       "Color",
+       "Group Output",
+       "Color_001"
+      ],
+      [
+       "Group Input",
+       "Color1",
+       "Checker.001",
+       "Color1"
+      ],
+      [
+       "Group Input",
+       "Color1_001",
+       "Checker.002",
+       "Color1"
+      ],
+      [
+       "Group Input",
+       "Color2",
+       "Checker.001",
+       "Color2"
+      ],
+      [
+       "Group Input",
+       "Color2_001",
+       "Checker.002",
+       "Color2"
+      ],
+      [
+       "Group Input",
+       "Nabla",
+       "Value to Normal",
+       "Nabla"
+      ],
+      [
+       "Group Input",
+       "Size",
+       "Checker.001",
+       "Size"
+      ],
+      [
+       "Group Input",
+       "Size_001",
+       "Checker.002",
+       "Size"
+      ],
+      [
+       "Group Input",
+       "Val",
+       "Value to Normal",
+       "Val"
+      ],
+      [
+       "Value to Normal",
+       "Normal",
+       "Group Output",
+       "Normal"
+      ]
+     ],
+     "node_count": 5,
+     "node_names": [
+      "Checker.001",
+      "Checker.002",
+      "Group Input",
+      "Group Output",
+      "Value to Normal"
+     ],
+     "nodes": {
+      "Checker.001": {
+       "inputs": [
+        "Color1",
+        "Color2",
+        "Size"
+       ],
+       "location": [
+        -116326363,
+        98450714
+       ],
+       "outputs": [
+        "Color"
+       ],
+       "type": "TextureNodeChecker"
+      },
+      "Checker.002": {
+       "inputs": [
+        "Color1",
+        "Color2",
+        "Size"
+       ],
+       "location": [
+        111231789,
+        288562469
+       ],
+       "outputs": [
+        "Color"
+       ],
+       "type": "TextureNodeChecker"
+      },
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        -238326355,
+        129821686
+       ],
+       "outputs": [
+        "Color1",
+        "Color1_001",
+        "Color2",
+        "Color2_001",
+        "Nabla",
+        "Size",
+        "Size_001",
+        "Val",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "inputs": [
+        "Color",
+        "Color_001",
+        "Normal",
+        "__extend__"
+       ],
+       "location": [
+        233231781,
+        108593391
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "Value to Normal": {
+       "inputs": [
+        "Nabla",
+        "Val"
+       ],
+       "location": [
+        52830376,
+        -61233002
+       ],
+       "outputs": [
+        "Normal"
+       ],
+       "type": "TextureNodeValToNor"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NodeGroup.002": {
+     "bl_idname": "CompositorNodeTree",
+     "interface_sockets": [
+      {
+       "in_out": "INPUT",
+       "name": "Fac",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "ID value",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "INPUT",
+       "name": "ID value",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Alpha",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Alpha",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Alpha",
+       "socket_type": "NodeSocketFloat"
+      },
+      {
+       "in_out": "OUTPUT",
+       "name": "Image",
+       "socket_type": "NodeSocketColor"
+      }
+     ],
+     "library": null,
+     "link_count": 0,
+     "links": [],
+     "node_count": 5,
+     "node_names": [
+      "ColorRamp",
+      "Group Input",
+      "Group Output",
+      "ID Mask",
+      "ID Mask.001"
+     ],
+     "nodes": {
+      "ColorRamp": {
+       "input_defaults": {
+        "Fac": 500000
+       },
+       "inputs": [
+        "Fac"
+       ],
+       "location": [
+        0,
+        0
+       ],
+       "outputs": [
+        "Alpha",
+        "Color"
+       ],
+       "type": "ShaderNodeValToRGB"
+      },
+      "Group Input": {
+       "inputs": [],
+       "location": [
+        -122000000,
+        -171704056
+       ],
+       "outputs": [
+        "Fac",
+        "ID_value",
+        "ID_value_001",
+        "__extend__"
+       ],
+       "type": "NodeGroupInput"
+      },
+      "Group Output": {
+       "input_defaults": {
+        "Alpha": 1000000,
+        "Alpha_001": 0,
+        "Alpha_002": 0,
+        "Image": [
+         0,
+         0,
+         0,
+         1000000
+        ]
+       },
+       "inputs": [
+        "Alpha",
+        "Alpha_001",
+        "Alpha_002",
+        "Image",
+        "__extend__"
+       ],
+       "location": [
+        427878540,
+        -128778046
+       ],
+       "outputs": [],
+       "type": "NodeGroupOutput"
+      },
+      "ID Mask": {
+       "input_defaults": {
+        "Anti-Alias": false,
+        "ID value": 800000,
+        "Index": 0
+       },
+       "inputs": [
+        "Anti-Alias",
+        "ID value",
+        "Index"
+       ],
+       "location": [
+        96967606,
+        -313295380
+       ],
+       "outputs": [
+        "Alpha"
+       ],
+       "type": "CompositorNodeIDMask"
+      },
+      "ID Mask.001": {
+       "input_defaults": {
+        "Anti-Alias": false,
+        "ID value": 800000,
+        "Index": 0
+       },
+       "inputs": [
+        "Anti-Alias",
+        "ID value",
+        "Index"
+       ],
+       "location": [
+        305878540,
+        -201816833
+       ],
+       "outputs": [
+        "Alpha"
+       ],
+       "type": "CompositorNodeIDMask"
+      }
+     },
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Compositing Nodetree",
+    "NodeGroup",
+    "NodeGroup.001",
+    "NodeGroup.002"
+   ]
+  },
+  "objects": {
+   "count": 3,
+   "items": {
+    "Camera": {
+     "constraints": [],
+     "data": "Camera",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      7481132,
+      -6507640,
+      5343665
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      685881,
+      -317370,
+      654862,
+      7481132,
+      727634,
+      312469,
+      -610666,
+      -6507640,
+      -10817,
+      895343,
+      445245,
+      5343665,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      1109319,
+      10817,
+      814928
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CAMERA",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Cube": {
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      "Material"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Lamp": {
+     "constraints": [],
+     "data": "Lamp",
+     "empty_display_size": 1000000,
+     "empty_display_type": "ARROWS",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4076245,
+      1005454,
+      5903862
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      -290865,
+      -771101,
+      566393,
+      4076245,
+      955171,
+      -199883,
+      218391,
+      1005454,
+      -55189,
+      604525,
+      794672,
+      5903862,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      650328,
+      55217,
+      1866391
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "LIGHT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Camera",
+    "Cube",
+    "Lamp"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": "Camera",
+     "collection_tree": {
+      "children": {
+       "Collection 1": {
+        "children": {},
+        "objects": [
+         "Camera",
+         "Cube",
+         "Lamp"
+        ]
+       }
+      },
+      "objects": []
+     },
+     "compositor": "Compositing Nodetree",
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 39,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 50,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "NONE",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "RenderLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 1,
+   "items": {
+    "Tex": {
+     "library": null,
+     "type": "NONE",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 0
+    }
+   },
+   "names": [
+    "Tex"
+   ]
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      50876,
+      50876,
+      50876
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 3,
+      "node_names": [
+       "Background",
+       "Frame",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          50876,
+          50876,
+          50876,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "Frame": {
+        "inputs": [],
+        "location": [
+         0,
+         0
+        ],
+        "outputs": [],
+        "type": "NodeFrame"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         280000000,
+         0
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "nodegroup25.blend"
+}

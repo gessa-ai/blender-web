@@ -1,0 +1,127 @@
+{
+ "files": {
+  "v230_be_ctrlobject": {
+   "blend_bytes": 30515,
+   "blend_sha256": "053b233ce393744e8829333951237978f0080ba0267ace20e0af3861ec86828a",
+   "endian": "BE",
+   "header_version": "230",
+   "oracle_verdict": "ORACLE_REFUSE",
+   "ptr_bytes": 4,
+   "refuse_reason": "failed: Blend file 'CtrlObject.blend' created by a Big Endian version of Blender, support for these files has been removed in Blender 5.0, use an older version ",
+   "source_path": "upstream/tests/files/io_tests/blend_big_endian/2.30/CtrlObject.blend"
+  },
+  "v236_be_pathdist": {
+   "blend_bytes": 22074,
+   "blend_sha256": "245e3bb7056b5f4dcdb1b9213f9b056e9f017638dfa6e75c97dc667607cf524d",
+   "endian": "BE",
+   "header_version": "236",
+   "oracle_verdict": "ORACLE_REFUSE",
+   "ptr_bytes": 4,
+   "refuse_reason": "failed: Blend file 'pathdist.blend' created by a Big Endian version of Blender, support for these files has been removed in Blender 5.0, use an older version of",
+   "source_path": "upstream/tests/files/io_tests/blend_big_endian/2.36/pathdist.blend"
+  },
+  "v255_nodegroup25": {
+   "blend_bytes": 56140,
+   "blend_sha256": "22a7d92429359a314e3fefc6dc7fee68cec9304a9e696f00656d870dfb096848",
+   "dump_sha256": "6973ad0110233dc5d0b6b5bf706484eb9096669a91b10346cc4955c26ed5c5af",
+   "endian": "LE",
+   "header_version": "255",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/node_group/nodegroup25.blend"
+  },
+  "v260_bhead4": {
+   "blend_bytes": 58413,
+   "blend_sha256": "bbf99fe754bb426dd69fa211d6e80b4991728f1f8c201a547f7949b793edf3c2",
+   "dump_sha256": "8f84460d7b7185d8db75a8e2d463f464189e88c59c46532ec817ffa4bb2f4ff9",
+   "endian": "LE",
+   "header_version": "260",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 4,
+   "source_path": "upstream/tests/files/io_tests/blend_parsing/BHead4.blend"
+  },
+  "v272_ge_framing": {
+   "blend_bytes": 98535,
+   "blend_sha256": "7fbd2cfa7f247588873ac67288c9d02cb60386cbd5fb1dd0a52a8ceedf7a13e7",
+   "dump_sha256": "5dffa1451d3222dacfc53a96137c5f580fbc15c01d3c7c4b193ff6d6c5e42523",
+   "endian": "LE",
+   "header_version": "272",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/gameengine/framing_extend.blend"
+  },
+  "v272_ge_keyboard": {
+   "blend_bytes": 79178,
+   "blend_sha256": "7391888ab46061227abe4bb3b69e98b86a6c31522b2f7ea27f3b4f789dc07ead",
+   "dump_sha256": "e0345fd2db0bbd6f63731371006081a9f4ff7f717afdf3c93a998f9403f2d2e2",
+   "endian": "LE",
+   "header_version": "272",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/gameengine_logic/sensors/keyboard.blend"
+  },
+  "v273_ge_2dexample": {
+   "blend_bytes": 75789,
+   "blend_sha256": "82345f664170de8e287d94b5b8341401dc3d2f135dda268b6b3c57500662d086",
+   "dump_sha256": "a8feac6bfd1b5e21bc389e151db33c24d2f1e3b5b0878fecdf204dbfaa73b02b",
+   "endian": "LE",
+   "header_version": "273",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/gameengine_physics/2Dexample.blend"
+  },
+  "v273_ge_glsl249": {
+   "blend_bytes": 79229,
+   "blend_sha256": "a35962abee4cf8c687c688ed96854c25bbd5a7cd09210355deb765b726bc44d6",
+   "dump_sha256": "e5e29ab4e53ffd4d296c6b292083920360e6b9e46dc5f9d19cb22a06d90cfb79",
+   "endian": "LE",
+   "header_version": "273",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/gameengine_visual/GLSL_samples_249.blend"
+  },
+  "v283_fcurve": {
+   "blend_bytes": 70063,
+   "blend_sha256": "c9a2bb76c01ef3f3c4336feeabf18f3fe2c5b1b068626f97a16edd3f049e14ce",
+   "dump_sha256": "fe2f44e30cf25a00f14c086042edad95d3e57e118c918780e0b9e872643d477d",
+   "endian": "LE",
+   "header_version": "283",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/animation/fcurve-versioning-291.blend"
+  },
+  "v300_smallbhead8": {
+   "blend_bytes": 114063,
+   "blend_sha256": "d8760efa9d61eb49d27a69f69b296f54a7164cac5dccaf5e2e2a2644ec9ae645",
+   "dump_sha256": "7a6c9a3740002e24b49febe205f29d020b5c4d89261ae26000f0a0f2f17b451f",
+   "endian": "LE",
+   "header_version": "300",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/io_tests/blend_parsing/SmallBHead8.blend"
+  },
+  "v306_nodegroup36": {
+   "blend_bytes": 120147,
+   "blend_sha256": "5a69143ea228cf0292aba39555bdca0bafc75b6573ed557bb7bacfb50647c7c6",
+   "dump_sha256": "75092264c2442fe7dcae4cb3a32ba87d26d353a19ecc346a227fa3af3a2ca4c4",
+   "endian": "LE",
+   "header_version": "306",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/node_group/nodegroup36.blend"
+  },
+  "v402_layered_action": {
+   "blend_bytes": 126167,
+   "blend_sha256": "60960eece546beb54c7c76f687405a595ef198b5bc8199350ef9efd1aa17e28f",
+   "dump_sha256": "1cfd94a2e84121829b3ec90cbb5da08491fc4e8078166eaa0984dea6e3d31242",
+   "endian": "LE",
+   "header_version": "402",
+   "oracle_verdict": "PASS",
+   "ptr_bytes": 8,
+   "source_path": "upstream/tests/files/animation/layered_action_versioning_42.blend"
+  }
+ },
+ "note": "Versioning corpus candidate goldens (blo_do_versions readfile surface). Deterministic bpy state-dumps, verified byte-identical across two independent oracle invocations. Oracle: Blender 5.2.0 LTS build fbe6228777e7 (matches upstream/PIN). ORACLE_REFUSE rows are files the pinned 5.2 loader rejects (documented versioning finding).",
+ "quant_scale": 1000000,
+ "schema_version": 1
+}

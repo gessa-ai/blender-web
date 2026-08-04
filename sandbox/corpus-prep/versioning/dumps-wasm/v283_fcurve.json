@@ -1,0 +1,430 @@
+{
+ "collections": {
+  "actions": {
+   "count": 1,
+   "items": {
+    "CubeAction": {
+     "fcurve_count": 1,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "a26177be49c1d6dcec58e25b9c881297ebddc8db7a19b22b787cae2958953bb4"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      10000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBLegacy Slot"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "CubeAction"
+   ]
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 1,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "2b763a263441391df7bb670b0544f080d75eae5162241fe31a47e0a0d7464bbe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "3d85bfe74050b6fea7577441799585884b1457927d3ed10771a8ee2d11f256e4"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "4a40dfbc66c11c2d78dd64f1d0ada5090c1bd887fcb51f7549a6a98c9ff9830e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "47b53ed736a79952901420c93a21c7f6836108e69f77849db55313b035bf1e99",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "4a40dfbc66c11c2d78dd64f1d0ada5090c1bd887fcb51f7549a6a98c9ff9830e",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 8
+    }
+   },
+   "names": [
+    "Cube"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 1,
+   "items": {
+    "Cube": {
+     "action": "CubeAction",
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      1000000,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      1000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      1000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Cube"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {},
+      "objects": [
+       "Cube"
+      ]
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 10,
+     "frame_end": 10,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1080,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "RenderLayer"
+     ],
+     "world": "World"
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 2,
+   "items": {
+    "evaluate.py": {
+     "content_hash": "66df7106536ead9a45a831bec752b8f5e732958ff452105b2970902d9f90d5e2",
+     "library": null,
+     "line_count": 9,
+     "use_fake_user": false,
+     "users": 1
+    },
+    "explanation.txt": {
+     "content_hash": "99846a18eb228fb06c1c4a7bf1309da32f392b72dd11d64fcc92d2754fb822cf",
+     "library": null,
+     "line_count": 7,
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "evaluate.py",
+    "explanation.txt"
+   ]
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 1,
+   "items": {
+    "World": {
+     "color": [
+      50876,
+      50876,
+      50876
+     ],
+     "library": null,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Background",
+        "Background",
+        "World Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Background",
+       "World Output"
+      ],
+      "nodes": {
+       "Background": {
+        "input_defaults": {
+         "Color": [
+          30165,
+          30165,
+          30165,
+          1000000
+         ],
+         "Strength": 1000000,
+         "Weight": 0
+        },
+        "inputs": [
+         "Color",
+         "Strength",
+         "Weight"
+        ],
+        "location": [
+         30865910,
+         305227844
+        ],
+        "outputs": [
+         "Background"
+        ],
+        "type": "ShaderNodeBackground"
+       },
+       "World Output": {
+        "inputs": [
+         "Surface",
+         "Volume"
+        ],
+        "location": [
+         300000000,
+         300000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputWorld"
+       }
+      }
+     },
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "World"
+   ]
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "fcurve-versioning-291.blend"
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+
+In-tab WebGPU harness: GHOST_ContextWGPUWeb (emdawnwebgpu) renders a triangle to the
+canvas surface AND to an offscreen texture read back + displayed as <img>.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GHOST-web WebGPU harness</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: #14171c; color: #d6dce4; }
+    header { padding: 12px 20px; background: #1b1f26; border-bottom: 1px solid #2b313b; }
+    header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+    header .sub { color: #8791a0; font-size: 12px; margin-top: 2px; }
+    main { display: flex; gap: 20px; padding: 16px 20px 40px; flex-wrap: wrap; align-items: flex-start; }
+    .col { display: flex; flex-direction: column; gap: 6px; }
+    .cap { font-size: 12px; color: #8791a0; }
+    #gpucanvas { width: 320px; height: 240px; background: #0e1116; border: 1px solid #2b313b; border-radius: 4px; }
+    #readback-img { width: 256px; height: 256px; image-rendering: pixelated; background: #0e1116;
+                    border: 1px solid #2b313b; border-radius: 4px; }
+    #log { flex: 1; min-width: 300px; margin: 0; padding: 10px 12px; background: #0e1116;
+           border: 1px solid #2b313b; border-radius: 6px;
+           font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfd6df;
+           white-space: pre-wrap; max-height: 60vh; overflow: auto; }
+    #log .ok { color: #92e0a5; } #log .bad { color: #ff8f8f; } #log .sys { color: #7f8aa0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GHOST-web WebGPU harness</h1>
+    <div class="sub">GHOST_ContextWGPUWeb via emdawnwebgpu &mdash; onscreen triangle + offscreen render-to-texture readback</div>
+  </header>
+  <main>
+    <div class="col">
+      <span class="cap">canvas surface (present)</span>
+      <canvas id="gpucanvas" width="320" height="240"></canvas>
+    </div>
+    <div class="col">
+      <span class="cap">offscreen readback (render &rarr; buffer &rarr; &lt;img&gt;)</span>
+      <img id="readback-img" width="256" height="256" alt="readback" />
+    </div>
+    <pre id="log"></pre>
+  </main>
+
+  <script src="/build/wgpu_web_test.js"></script>
+  <script src="/boot-wgpu.js"></script>
+</body>
+</html>

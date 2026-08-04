@@ -41,6 +41,7 @@ JSPI. The definitive JSPI-native suspend test is a follow-up browser (Playwright
 | `c_jpeg.c` | C | libjpeg-turbo's classic `error_exit`→`longjmp` path on a corrupt stream (one of our 29 deps) |
 | `d_embed.c` | D | `Py_Initialize` + `PyRun_SimpleString` (raise/except + `import json`) against `libpython3.13.a` — static init + call-trampoline under a JSPI link |
 | `b.c` (Wasm-EH flags) | E | B-shape rebuilt `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm` — data point for the deferred Wasm-EH-migration ADR |
+| `f_try.cpp` (`-DCASE=1\|2\|3`) | F1/F2/F3 | M2.7c: does C++ try/catch break real JSPI suspension like setjmp? F1 suspend inside an active try; F2 try present but not active at the suspend; F3 active try several plain frames above the suspend. Built JS-EH and Wasm-EH; run.sh also reports invoke_* counts (F5) and a setjmp census. Feeds ADR-003. |
 
 Case D links against the M2.0b CONFIG-A tree (`build-python-probe/build-jseh/`, which carries
 CPython-internal `libmpdec`/`libHacl` sublibs not harvested to `lib/wasm`); `run.sh` skips D

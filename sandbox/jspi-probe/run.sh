@@ -69,4 +69,27 @@ echo "  run(jspi, REAL suspend across setjmp):"; runj e_jspi.js
 $BW emcc b.c -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -sASYNCIFY -o e_async.js >/dev/null
 echo "  (Asyncify proxy, for comparison):"; run e_async.js
 
+# ---- M2.7c: does C++ try/catch break suspension like setjmp? -----------------
+echo "== M2.7c: C++ try/catch × real JSPI (F1 active-try-inside, F2 try-present-not-active, F3 active-try-6-frames-up) =="
+WASMDIS="$(ls "$ROOT"/tools/emsdk/upstream/bin/wasm-dis 2>/dev/null)"
+for c in 1 2 3; do
+  $BW em++ f_try.cpp -DCASE=$c -fexceptions -sJSPI -o fjs_$c.js >/dev/null 2>&1
+  $BW em++ f_try.cpp -DCASE=$c -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -sJSPI -o fwe_$c.js >/dev/null 2>&1
+  echo -n "  F$c JS-EH  : "; runj fjs_$c.js
+  echo -n "  F$c Wasm-EH: "; runj fwe_$c.js
+done
+echo "  F5 mechanism — invoke_* (JS-frame) imports per build:"
+for c in 1 2 3; do
+  j=$("$WASMDIS" fjs_$c.wasm 2>/dev/null | grep -cE '\(import "env" "invoke_')
+  w=$("$WASMDIS" fwe_$c.wasm 2>/dev/null | grep -cE '\(import "env" "invoke_')
+  echo "    F$c: JS-EH invoke_*=$j  Wasm-EH invoke_*=$w"
+done
+
+# ---- census: setjmp/longjmp machinery in our JS-EH deps -----------------------
+echo "== census: setjmp/longjmp (emscripten_longjmp/saveSetjmp) refs in built libs =="
+for a in "$ROOT/lib/wasm/lib/libpython3.13.a" "$ROOT/lib/wasm/lib/libjpeg.a"; do
+  [ -f "$a" ] && echo "  $(basename "$a"): $(emnm "$a" 2>/dev/null | grep -icE 'setjmp|longjmp') archive-symbol refs"
+done
+[ -f d.wasm ] && echo "  d.wasm (FULL libpython link incl. libmpdec/expat/hacl): $("$WASMDIS" d.wasm 2>/dev/null | grep -icE 'saveSetjmp|testSetjmp|emscripten_longjmp|__wasm_setjmp|__wasm_longjmp') SjLj-runtime refs"
+
 echo "== done (REAL=$REAL) =="

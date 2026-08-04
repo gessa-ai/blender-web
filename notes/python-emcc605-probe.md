@@ -212,3 +212,66 @@ setjmp/longjmp (JS-EH SjLj) is on the stack. `-fexceptions` by itself does not b
   (3) exercise the **actual suspend topology** Blender uses — i.e. prove no JSPI suspend point
   sits inside a libjpeg/CPython setjmp region under the shipped config. Node cannot stand in
   for that last one.
+
+## M2.7c — C++ try/catch × real JSPI, + setjmp census (ADR-003 evidence)
+
+Real JSPI (Node v24.19.0). Source `sandbox/jspi-probe/f_try.cpp` (parametrized `-DCASE=`),
+driven by `run.sh`. Question: emscripten JS-EH try/catch uses the same JS `invoke_*` trampoline
+as setjmp — does it equally break suspension?
+
+### F-matrix
+| case | shape | JS-EH (`-fexceptions`) | Wasm-EH (`-fwasm-exceptions`, control) |
+|---|---|---|---|
+| F1 | suspend **inside an ACTIVE try** | **FAIL** `SuspendError: trying to suspend JS frames` | **PASS** (r=42) |
+| F2 | fn **contains** try/catch, suspend is **outside/after** it (no active try) | **PASS** (r=42) | **PASS** |
+| F3 | **active try 6 plain frames above** the suspend | **FAIL** same `SuspendError` | **PASS** |
+| F5 | invoke_* (JS-frame) imports in the wasm | 7 / 7 / 8 (present) | **0** (none) |
+
+### The precise rule (and how it differs from setjmp)
+- Under JS-EH, a C++ `try` whose body may throw compiles the enclosing call to a JS `invoke_*`
+  wrapper (a JS frame). JSPI cannot suspend across JS frames, so **suspending while ANY try is
+  ACTIVE on the stack fails** — whether the suspend is directly inside it (F1) or many plain
+  frames below it (F3). F5 confirms invoke_* exist only in JS-EH (7-8) and never in Wasm-EH (0).
+- **Crucial contrast with setjmp:** try/catch only poisons suspension while a try is *active*.
+  A dormant/absent try does not (F2 PASS). setjmp is worse — the mere *presence* of a `setjmp`
+  transforms the **whole function** through JS frames, so a suspend fails even lexically
+  *before* the setjmp (see the node24 update above). So: try-scope discipline is per-active-
+  scope (tractable); setjmp discipline would be per-whole-function (much harder) — but the
+  census below shows setjmp barely exists in our stack.
+
+### Census — setjmp/longjmp machinery in our built JS-EH libs
+Detection: `emscripten_longjmp`/`saveSetjmp` symbol refs (longjmp lowers to `emscripten_longjmp`;
+setjmp is link-time-lowered so counted in the *linked* wasm via the SjLj runtime symbols).
+- `lib/wasm/lib/libpython3.13.a`: **0** setjmp/longjmp refs. `ceval`/`marshal`/`pystate` are
+  NOT longjmp callers.
+- `lib/wasm/lib/libjpeg.a`: **0**. libjpeg-turbo's error model calls an app-provided
+  `error_exit` function pointer — the actual `setjmp`/`longjmp` lives in the **embedding app**
+  (our `c_jpeg.c`), not in the library. `jerror`/`jdmarker` carry no SjLj.
+- **Full libpython link** `d.wasm` (libpython + libmpdec + libexpat + libHacl): **0** SjLj-
+  runtime refs (`saveSetjmp/testSetjmp/emscripten_longjmp/__wasm_setjmp/__wasm_longjmp`). i.e.
+  the *entire* Python static image contains no emscripten setjmp region. (CPython's real setjmp
+  users are `_ctypes`/libffi — not built for us — and test modules.)
+
+### Read for ADR-003 — is option (a) engineerable, or is Wasm-EH forced?
+**Option (a) [keep JS-EH + suspend-topology discipline] is ENGINEERABLE, with bounded guardrails
+— not obviously forced to Wasm-EH.** Evidence:
+1. **The two feared setjmp deps are effectively non-issues.** CPython contributes **zero** setjmp
+   regions to the linked image (so Python running — ceval, import, bytecode — is suspend-safe re
+   setjmp). libjpeg's setjmp is app-side and active only inside the narrow `jpeg_read_*` window
+   under the app's error handler; you do not suspend mid-synchronous-decode.
+2. **try/catch only bites when a try is ACTIVE** (F2). So the discipline reduces to one rule:
+   *never place a JSPI suspend point where a C++ `try` (or the app's jpeg `setjmp`) is live on
+   the stack.* Suspends confined to top-level async boundaries (main-loop tick, event handler
+   entry, a synchronous-fs shim that awaits OPFS at a defined call site) satisfy this.
+3. **The residual risk is the C++ EH-heavy deps (OIIO/OCIO/OpenEXR):** their operations run with
+   active try blocks. A suspend nested *inside* such an operation would `SuspendError`. Option
+   (a) holds only if the architecture guarantees suspends never fire inside those scopes.
+
+**Recommendation:** adopt **(a) provisionally** for the suspending M4+ stack — it avoids the
+29-dep + libpython Wasm-EH rebuild — **gated by a hard architectural invariant**: JSPI suspend
+points live only at top-level async boundaries, never under an active C++ `try` or the jpeg
+`setjmp` scope. Enforce it with the mandatory **M4 Chrome ≥137 browser smoke** asserting the
+real suspend topology (no `SuspendError` under the shipped config). Keep **Wasm-EH as the
+declared fallback** (F1/F3/F4 prove it removes the constraint entirely: invoke_*=0, all suspend
+shapes pass) to switch to iff the suspend surface cannot be confined — that decision is a
+size/perf/dep-rebuild tradeoff, now cleanly separable from JSPI feasibility.

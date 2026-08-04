@@ -2,7 +2,7 @@ Switching to fully guarded memory allocator.
 Blender <VER> LTS
 ................
 ----------------------------------------------------------------------
-Ran 16 tests in 0.073s
+Ran 16 tests in 0.050s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

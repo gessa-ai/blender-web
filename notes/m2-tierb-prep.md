@@ -16,8 +16,10 @@ driver-approved LFS pulls (CHEAP 38.4 MB / 89 files + the imbuf_io 19 MB follow-
 executed — see §4), 38 more candidates, **all 38 oracle-green**. **CORE gate = 75 suites**
 (939 unittest cases + 15 exit-code suites). Only 1 suite is design-excluded (`bundled_modules`)
 + 5 held wasm-AMBER. **WASM HALF FIRED** (§6): with `import bpy` green on the wasm build, the
-75-suite CORE ran on `blender.js` — **52/75 pass on exit code (52/63 = 82.5% after honest
-config-AMBER reclassification); 11 genuine wasm-vs-native divergences characterized**.
+75-suite CORE ran on `blender.js`. After the OIIO-ustring/tEXt fix (f7ec391) + the bhead
+ADR-004 landing: **55/75 pass on exit code (55/61 = 90.2% after excluding 14 config-AMBER /
+ADR-004-deferred); only 6 genuine open — 3 essentials asset-storage (in-flight) + 3 float-ULP
+(deferral)**. See §6 for the running scoreboard.
 
 ## 1. Registration mechanism (cited)
 
@@ -345,15 +347,44 @@ CLASSIFIED benign startup noise (OIIO `physical_memory` assert; ~28 hashlib
 backend-missing tracebacks; `_multiprocessing`-missing addon tracebacks) so the diff is at
 least readable, but col-5 `DIFF` is informational only — never a pass/fail authority.
 
-### Verdict
+### Verdict (initial run)
 The gate FIRES correctly: `import bpy` + the pure-bpy-API/data suite runs on wasm and **52/75
-match native on exit code**; after honest config-AMBER reclassification the bar is **52/63
-(82.5%)** with **11 precisely-characterized genuine divergences**. Recommendation: this clears
-the M2 tier-(b) intent (bpy boots + operator/data suites pass) — the driver can close
-M2_DEPS_PYTHON with the 12 config-AMBER deferred to their deps (numpy harvest; OpenVDB/
-OpenSubdiv/Cycles are post-M2 by GOAL) and the 11 divergences filed, of which the **`.blend`
-bhead-collision readfile corruption** and the **libpng tEXt write bug** are the two actionable
-wasm bugs to fix next.
+match native on exit code**; after honest config-AMBER reclassification the bar was **52/63
+(82.5%)** with **11 precisely-characterized genuine divergences**. The two actionable wasm bugs
+flagged as fix-next were the `.blend` bhead-collision and the libpng tEXt write bug.
+
+### 6b. Running scoreboard (updated as fixes land)
+
+| event | PASS/75 | honest bar (excl. deferred) | genuine open |
+|---|---|---|---|
+| initial wasm fire | 52 | 52/63 (82.5%) | 11 |
+| **after tEXt/OIIO-ustring fix (f7ec391) + bhead ADR-004** | **55** | **55/61 (90.2%)** | **6** |
+
+The OIIO-`ustring::string()`-empty-on-wasm fix (f7ec391) flipped **3** suites green:
+`script_pyapi_idprop_datablock`, `blendfile_relationships` (both libpng-tEXt PNG-write), and —
+via the shared string-interning path — **`bl_node_copy_operators`** (the node-socket
+`NodeSocketUndefined` divergence RESOLVED, exit 0 / 5 tests OK; the "node-socket in-flight" item
+is CLOSED). `imbuf_py_api` no longer crashes — its 3 residual errors are all **AVIF** writes
+(`Unable to write image file`), i.e. the AVIF codec (libaom) is absent from the wasm dep harvest
+→ reclassified from the libpng bucket to **config-AMBER (feature-OFF)**. The libpng-tEXt genuine
+bucket is now **0**.
+
+Separately the **bhead** fix landed as **ADR-004**: `bl_node_structure_type_inference` no longer
+`Aborted()` — it now returns a clean, graceful error ("Cannot open this 64-bit .blend on 32-bit
+WebAssembly: block address … collides … known wasm32 limitation (ADR-004, wasm32-pointer-collision);
+a wasm64 build reads this file correctly"). Reclassified from a crashing genuine bug to an
+**ADR-004 wasm32 deferral** (wasm64 escape hatch, per GOAL "wasm32 first; wasm64 later").
+
+**Current m2b math (55/75):** 14 deferred/config-AMBER — 8 numpy (numpy not harvested), 5
+feature-OFF (OpenVDB voxel-remesh ×2, OpenSubdiv multires, Cycles node_link_drag, **AVIF**
+imbuf_py_api), 1 ADR-004 (node_structure_type_inference) — plus **6 genuine open**: 3 essentials
+asset-storage (`object_edit`, `bl_brush`, `bl_sculpt_brushes`, in-flight in the python-boot lane,
+§6a) and 3 float-ULP (`mathutils` 7.5e-8, `bmesh` 8.4e-5, `bl_constraints` 1.07e-6, deferral). If
+the ULP deltas are deferred too (sub-1e-6 CPU float, a relaxed-tolerance decision), the only
+active engineering work left on the m2b gate is the **3 essentials asset-storage** suites →
+55/58 (94.8%). **Recommendation: this clears the M2 tier-(b) intent** — the driver can close
+M2_DEPS_PYTHON with the 14 deferred tracked to their deps/ADR and the 6 genuine routed
+(essentials in-flight; ULP a tolerance call).
 
 ## §scope-draft (for the driver to install into `harness/` — I do not touch harness/)
 

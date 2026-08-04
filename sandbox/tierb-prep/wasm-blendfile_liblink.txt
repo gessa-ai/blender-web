@@ -1,8 +1,8 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.034  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
-00:01.072  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
-00:01.107  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
+00:01.293  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
+00:01.331  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
+00:01.387  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Info: Saved as "blendlib_basicTestBlendLibLinkSaveLoadBasic.blend"
 
@@ -160,8 +160,8 @@ Info: Saved as "blendfileTestBlendLibLinkSaveLoadBasic.blend"
 Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_basicTestBlendLibLinkSaveLoadBasic.blend', '//blendlib_basicTestBlendLibLinkSaveLoadBasic.blend', parent '<direct>'
 
 read_data:
-[(('Library', 'blendlib_basicTestBlendLibLinkSaveLoadBasic.blend', 1), [])00:01.146  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
-00:01.193  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
+[(('Library', 'blendlib_basicTestBlendLibLinkSaveLoadBasic.blend', 1), [])00:01.461  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
+00:01.508  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkSaveLoadBasic.blend"
 ,
  (('Mesh', 'LibMesh [blendlib_basicTestBlendLibLinkSaveLoadBasic.blend]', 1),
   [('Object',
@@ -330,10 +330,10 @@ read_data:
     1)]),
  (('Object', 'LibMesh [blendlib_basicTestBlendLibLinkSaveLoadBasic.blend]', 1),
   [('Collection',
-    'LibMesh [blendlib_basicTestBlendLibLinkSaveLoadBasic.blend]'00:01.371  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkIndirect.blend"
-00:01.889  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
-00:02.012  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
-00:02.052  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
+    'LibMesh [blendlib_basicTestBlendLibLinkSaveLoadBasic.blend]'00:01.704  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibLinkIndirect.blend"
+00:02.222  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
+00:02.362  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
+00:02.414  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestBlendLibPackedLinkedID.blend"
 ,
     1),
    ('Scene', 'Scene', 1)]),
@@ -434,10 +434,10 @@ reload_data:
  (('Screen', 'Modeling', 1), [('WorkSpace', 'Modeling', 1)]),
  (('Screen', 'Rendering', 1), [('WorkSpace', 'Rendering', 1)]),
  (('Screen', 'Scripting', 1), [('WorkSpace', 'Scripting', 1)]),
- (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)])00:02.326  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
-00:02.333  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
-00:02.378  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
-00:02.383  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
+ (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)])00:02.810  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
+00:02.819  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
+00:02.924  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
+00:02.931  blend.readfile   | WARNING Append: ID 'GRLibMesh' is already linked
 ,
  (('Screen', 'Shading', 1), [('WorkSpace', 'Shading', 1)]),
  (('Screen', 'Texture Paint', 1), [('WorkSpace', 'Texture Paint', 1)]),

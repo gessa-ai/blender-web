@@ -1,28 +1,28 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.062  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
-00:01.064  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
-.00:01.077  geom.mesh        | ERROR Faces offsets do not start at 0. Considering all faces invalid
-.00:01.086  geom.mesh        | ERROR Face 0 has invalid material index -4
-.00:01.090  geom.mesh        | ERROR Corner 0 has out of range edge index 4
-.00:01.092  geom.mesh        | ERROR Edge 0 has equal vertex indices 0
-.00:01.095  geom.mesh        | ERROR Edge 1 is a duplicate of 0
-.00:01.097  geom.mesh        | ERROR Face 1 is a duplicate of 0
-.00:01.101  geom.mesh        | ERROR Corner 2 has incorrect edge index 0
-.00:01.103  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
-.00:01.104  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
-.00:01.109  geom.mesh        | ERROR Attribute position has invalid values at indices: 0
-.00:01.112  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
-00:01.113  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
-.00:01.114  geom.mesh        | ERROR Face 0 has invalid size 0
-00:01.114  geom.mesh        | ERROR Face 1 has missing edge (3, 4)
-.00:01.117  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
-.00:01.119  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/invalid_mdisp_cube.blend"
-00:01.127  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.129  geom.mesh        | ERROR Multires displacement has invalid values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23
+00:01.138  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+00:01.141  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
+.00:01.159  geom.mesh        | ERROR Faces offsets do not start at 0. Considering all faces invalid
+.00:01.164  geom.mesh        | ERROR Face 0 has invalid material index -4
+.00:01.167  geom.mesh        | ERROR Corner 0 has out of range edge index 4
+.00:01.170  geom.mesh        | ERROR Edge 0 has equal vertex indices 0
+.00:01.171  geom.mesh        | ERROR Edge 1 is a duplicate of 0
+.00:01.178  geom.mesh        | ERROR Face 1 is a duplicate of 0
+.00:01.180  geom.mesh        | ERROR Corner 2 has incorrect edge index 0
+.00:01.182  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
+.00:01.183  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+.00:01.188  geom.mesh        | ERROR Attribute position has invalid values at indices: 0
+.00:01.190  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)
+00:01.190  geom.mesh        | ERROR Face 0 has missing edge (0, 3)
+.00:01.192  geom.mesh        | ERROR Face 0 has invalid size 0
+00:01.193  geom.mesh        | ERROR Face 1 has missing edge (3, 4)
+.00:01.196  geom.mesh        | ERROR Face offsets must be monotonically increasing. Considering all faces invalid
+.00:01.200  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/invalid_mdisp_cube.blend"
+00:01.210  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.213  geom.mesh        | ERROR Multires displacement has invalid values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23
 .
 ----------------------------------------------------------------------
-Ran 15 tests in 0.082s
+Ran 15 tests in 0.090s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

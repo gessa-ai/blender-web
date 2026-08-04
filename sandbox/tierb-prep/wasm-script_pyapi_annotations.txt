@@ -3,6 +3,6 @@ Blender <VER> LTS
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 ...............
 ----------------------------------------------------------------------
-Ran 15 tests in 0.004s
+Ran 15 tests in 0.008s
 
 OK

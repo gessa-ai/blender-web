@@ -1,32 +1,32 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.864  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
-00:00.879  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:00.897  depsgraph        | WARNING Dependency cycle detected:
+00:01.278  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:01.297  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.315  depsgraph        | WARNING Dependency cycle detected:
                             |   NTShader Nodetree/NTREE_OUTPUT() depends on
                             |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
                             |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
                             | 
-00:00.897  depsgraph        | WARNING Detected 1 dependency cycles
-.00:00.920  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
-00:00.928  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:00.937  depsgraph        | WARNING Dependency cycle detected:
+00:01.315  depsgraph        | WARNING Detected 1 dependency cycles
+.00:01.328  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:01.339  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.351  depsgraph        | WARNING Dependency cycle detected:
                             |   NTShader Nodetree/NTREE_OUTPUT() depends on
                             |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
                             |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
                             | 
-00:00.937  depsgraph        | WARNING Detected 1 dependency cycles
-.00:00.948  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
-00:00.990  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
-.00:00.997  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
-00:01.021  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
-.00:01.029  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
-00:01.053  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
-.00:01.059  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_group_socket_interface_compositor.blend"
-00:01.063  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.351  depsgraph        | WARNING Detected 1 dependency cycles
+.00:01.363  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:01.415  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:01.425  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:01.458  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:01.468  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:01.496  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:01.501  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_group_socket_interface_compositor.blend"
+00:01.507  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
 .
 ----------------------------------------------------------------------
-Ran 6 tests in 0.220s
+Ran 6 tests in 0.246s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

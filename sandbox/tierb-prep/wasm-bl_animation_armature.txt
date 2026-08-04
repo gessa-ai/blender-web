@@ -1,9 +1,9 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-.00:00.803  blend            | Read blend: "<REPO>/upstream/tests/files/animation/armature_join_with_action_constraints.blend"
+.00:01.155  blend            | Read blend: "<REPO>/upstream/tests/files/animation/armature_join_with_action_constraints.blend"
 .....
 ----------------------------------------------------------------------
-Ran 6 tests in 0.141s
+Ran 6 tests in 0.151s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

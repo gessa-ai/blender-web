@@ -81,9 +81,9 @@ wall="$(perl -e "printf '%.2f', $t1 - $t0")"
 sed -f "$HERE/normalize.sed" "$raw" | perl "$HERE/wasm-denoise.pl" | sed -f "$HERE/wasm-normalize.sed" > "$wout"
 
 # Verdict (PRIMARY = exit code, mirroring the oracle runner's logic).
-if grep -qE '^(OK|FAILED)' "$raw"; then
-  summary="$(grep -E '^(OK|FAILED)' "$raw" | tail -1)"
-  ran="$(grep -E '^Ran [0-9]+ test' "$raw" | tail -1 | sed -E 's/ in .*//')"
+if grep -aqE '^(OK|FAILED)' "$raw"; then
+  summary="$(grep -aE '^(OK|FAILED)' "$raw" | tail -1)"
+  ran="$(grep -aE '^Ran [0-9]+ test' "$raw" | tail -1 | sed -E 's/ in .*//')"
   summary="${ran:+$ran; }$summary"
   case "$summary" in *OK*) verdict=PASS;; *) verdict=FAIL;; esac
   [ "$rc" -eq 0 ] || verdict=FAIL

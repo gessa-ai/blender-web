@@ -1,76 +1,76 @@
 # name	verdict	exit	wall_s	diff	summary
-script_pyapi_bpy_app	PASS	0	1.23	DIFF	Ran 1 test; OK
-script_pyapi_bpy_app_tempdir	PASS	0	1.14	DIFF	Ran 5 tests; OK
-script_pyapi_bpy_path	PASS	0	1.08	DIFF	Ran 1 test; OK
-script_pyapi_bpy_utils_units	PASS	0	1.09	DIFF	Ran 2 tests; OK
-script_pyapi_mathutils	FAIL	1	1.10	DIFF	Ran 180 tests; FAILED (failures=1)
-script_pyapi_bpy_driver_secure_eval	PASS	0	1.06	DIFF	Ran 14 tests; OK
-script_pyapi_idprop	PASS	0	1.09	DIFF	Ran 34 tests; OK
-script_pyapi_idprop_datablock	FAIL	1	2.14	DIFF	exit=1 Node.js v22.16.0
-script_pyapi_prop	PASS	0	1.11	DIFF	Ran 35 tests; OK
-script_pyapi_prop_array	FAIL	1	1.06	DIFF	exit=1 Blender quit
-script_pyapi_text	PASS	0	1.07	DIFF	Ran 5 tests; OK
-script_pyapi_bmesh	FAIL	1	1.11	DIFF	Ran 12 tests; FAILED (failures=2)
-script_pyapi_grease_pencil	PASS	0	1.10	DIFF	Ran 26 tests; OK
-script_pyapi_annotations	PASS	0	1.09	DIFF	Ran 15 tests; OK
-id_management	PASS	0	2.52	DIFF	Ran 8 tests; OK
-bl_rna_paths	PASS	0	1.43	DIFF	Ran 2 tests; OK
-bl_rna_accessors	PASS	0	1.34	DIFF	Ran 1 test; OK
-imbuf_py_api	FAIL	1	1.23	DIFF	exit=1 Node.js v22.16.0
-operator_function_py_api	PASS	0	1.18	DIFF	Ran 33 tests; OK
-operator_wrap_py_api	PASS	0	1.12	DIFF	Ran 48 tests; OK
-blendfile_io	PASS	0	1.82	DIFF	exit=0 Blender quit
-global_undo	PASS	0	1.72	DIFF	exit=0 Blender quit
-geometry_attributes	PASS	0	1.57	DIFF	Ran 16 tests; OK
+script_pyapi_bpy_app	PASS	0	1.38	DIFF	Ran 1 test; OK
+script_pyapi_bpy_app_tempdir	PASS	0	1.39	DIFF	Ran 5 tests; OK
+script_pyapi_bpy_path	PASS	0	1.34	DIFF	Ran 1 test; OK
+script_pyapi_bpy_utils_units	PASS	0	1.28	DIFF	Ran 2 tests; OK
+script_pyapi_mathutils	FAIL	1	1.48	DIFF	Ran 180 tests; FAILED (failures=1)
+script_pyapi_bpy_driver_secure_eval	PASS	0	1.34	DIFF	Ran 14 tests; OK
+script_pyapi_idprop	PASS	0	1.28	DIFF	Ran 34 tests; OK
+script_pyapi_idprop_datablock	PASS	0	2.69	DIFF	exit=0 Blender quit
+script_pyapi_prop	PASS	0	1.57	DIFF	Ran 35 tests; OK
+script_pyapi_prop_array	FAIL	1	1.30	DIFF	exit=1 Blender quit
+script_pyapi_text	PASS	0	1.39	DIFF	Ran 5 tests; OK
+script_pyapi_bmesh	FAIL	1	1.71	DIFF	Ran 12 tests; FAILED (failures=2)
+script_pyapi_grease_pencil	PASS	0	1.38	DIFF	Ran 26 tests; OK
+script_pyapi_annotations	PASS	0	1.23	DIFF	Ran 15 tests; OK
+id_management	PASS	0	3.13	DIFF	Ran 8 tests; OK
+bl_rna_paths	PASS	0	1.97	DIFF	Ran 2 tests; OK
+bl_rna_accessors	PASS	0	1.95	DIFF	Ran 1 test; OK
+imbuf_py_api	FAIL	1	2.02	DIFF	Ran 80 tests; FAILED (errors=3)
+operator_function_py_api	PASS	0	1.48	DIFF	Ran 33 tests; OK
+operator_wrap_py_api	PASS	0	1.20	DIFF	Ran 48 tests; OK
+blendfile_io	PASS	0	1.88	DIFF	exit=0 Blender quit
+global_undo	PASS	0	1.38	DIFF	exit=0 Blender quit
+geometry_attributes	PASS	0	1.32	DIFF	Ran 16 tests; OK
 mesh_join	PASS	0	1.53	DIFF	Ran 10 tests; OK
-object_edit	FAIL	1	1.30	DIFF	Ran 1 test; FAILED (errors=1)
-object_api	PASS	0	1.25	DIFF	Ran 1 test; OK
-node_tools	PASS	0	1.53	DIFF	Ran 4 tests; OK
-compositing_node_group	PASS	0	1.19	DIFF	Ran 1 test; OK
-sequencer_strip_naming	PASS	0	1.19	DIFF	Ran 6 tests; OK
-bl_brush	FAIL	1	1.31	DIFF	Ran 4 tests; FAILED (errors=4)
-bl_voxel_remesh	FAIL	1	1.40	DIFF	Ran 2 tests; FAILED (errors=1)
-bl_sculpt_brush_curve_presets	FAIL	1	1.03	DIFF	exit=1 Blender quit
-bl_animation_bake	PASS	0	1.28	DIFF	Ran 5 tests; OK
-bl_animation_rename	PASS	0	1.27	DIFF	Ran 4 tests; OK
-bl_animation_nla_strip	PASS	0	1.53	DIFF	Ran 7 tests; OK (expected failures=1)
-bl_animation_pose_slide	PASS	0	1.70	DIFF	Ran 11 tests; OK
-script_load_keymap	PASS	0	1.04	DIFF	exit=0 Blender quit
-script_validate_keymap	PASS	0	7.06	DIFF	OK!
-bl_animation_armature	PASS	0	1.21	DIFF	Ran 6 tests; OK
-bl_animation_drivers	PASS	0	1.81	DIFF	Ran 17 tests; OK
-bl_animation_shapekey	PASS	0	1.20	DIFF	Ran 4 tests; OK
-bl_animation_fcurves	PASS	0	2.76	DIFF	Ran 17 tests; OK
-bl_animation_action	PASS	0	1.81	DIFF	Ran 32 tests; OK
-bl_animation_keyframing	PASS	0	1.84	DIFF	Ran 27 tests; OK
-bl_animation_motion_path	PASS	0	1.42	DIFF	Ran 4 tests; OK
-bl_pose_assets	PASS	0	1.23	DIFF	Ran 3 tests; OK
-bl_rigging_symmetrize	PASS	0	1.36	DIFF	Ran 8 tests; OK
-vertex_group_painting	PASS	0	1.51	DIFF	Ran 2 tests; OK
-bl_node_structure_type_inference	FAIL	1	1.35	DIFF	exit=1 Node.js v22.16.0
-bl_node_socket_usage_inference	PASS	0	1.27	DIFF	Ran 1 test; OK
-bl_node_group_compat	PASS	0	1.76	DIFF	Ran 6 tests; OK
-bl_node_group_interface	PASS	0	1.79	DIFF	Ran 25 tests; OK
-bl_node_copy_operators	FAIL	1	10.05	DIFF	Ran 5 tests; FAILED (failures=4)
-bl_node_link_drag	FAIL	1	22.97	DIFF	Ran 4 tests; FAILED (errors=1)
-bl_sculpt_mask	FAIL	1	1.30	DIFF	exit=1 Blender quit
-bl_sculpt_face_set	FAIL	1	1.24	DIFF	exit=1 Blender quit
-bl_multires	FAIL	1	1.53	DIFF	exit=1 Node.js v22.16.0
-bl_sculpt_mesh_filter	FAIL	1	1.07	DIFF	exit=1 Blender quit
-bl_sculpt_automasking	FAIL	1	1.35	DIFF	exit=1 Blender quit
-bl_sculpt_brushes	FAIL	1	1.66	DIFF	exit=1 Node.js v22.16.0
-bl_vertex_paint_brushes	FAIL	1	1.16	DIFF	exit=1 Blender quit
-bl_weight_paint_brushes	FAIL	1	1.15	DIFF	exit=1 Blender quit
-bl_texture_paint_brushes	PASS	0	1.26	DIFF	Ran 1 test; OK (skipped=1)
-bl_voxel_remesh_compare	FAIL	1	1.33	DIFF	exit=1 Blender quit
-physics_cloth	PASS	0	1.44	DIFF	exit=0 Blender quit
-physics_softbody	PASS	0	3.20	DIFF	exit=0 Blender quit
-physics_dynamic_paint	PASS	0	1.93	DIFF	exit=0 Blender quit
-physics_particle_system	PASS	0	1.53	DIFF	exit=0 Blender quit
-physics_particle_instance	PASS	0	1.34	DIFF	exit=0 Blender quit
-bl_constraints	FAIL	1	2.03	DIFF	Ran 14 tests; FAILED (failures=1)
-blendfile_liblink	PASS	0	2.70	DIFF	exit=0 Blender quit
-blendfile_relationships	FAIL	1	2.18	DIFF	exit=1 Node.js v22.16.0
-blendfile_library_overrides	PASS	0	2.30	DIFF	exit=0 Blender quit
-mesh_validate	PASS	0	1.44	DIFF	Ran 15 tests; OK
-object_modifier_array	PASS	0	1.22	DIFF	exit=0 Blender quit
+object_edit	FAIL	1	1.42	DIFF	Ran 1 test; FAILED (errors=1)
+object_api	PASS	0	2.17	DIFF	Ran 1 test; OK
+node_tools	PASS	0	1.67	DIFF	Ran 4 tests; OK
+compositing_node_group	PASS	0	1.34	DIFF	Ran 1 test; OK
+sequencer_strip_naming	PASS	0	1.26	DIFF	Ran 6 tests; OK
+bl_brush	FAIL	1	1.23	DIFF	Ran 4 tests; FAILED (errors=4)
+bl_voxel_remesh	FAIL	1	2.28	DIFF	Ran 2 tests; FAILED (errors=1)
+bl_sculpt_brush_curve_presets	FAIL	1	1.32	DIFF	exit=1 Blender quit
+bl_animation_bake	PASS	0	1.49	DIFF	Ran 5 tests; OK
+bl_animation_rename	PASS	0	1.72	DIFF	Ran 4 tests; OK
+bl_animation_nla_strip	PASS	0	1.88	DIFF	Ran 7 tests; OK (expected failures=1)
+bl_animation_pose_slide	PASS	0	2.25	DIFF	Ran 11 tests; OK
+script_load_keymap	PASS	0	1.28	DIFF	exit=0 Blender quit
+script_validate_keymap	PASS	0	8.39	DIFF	OK!
+bl_animation_armature	PASS	0	1.62	DIFF	Ran 6 tests; OK
+bl_animation_drivers	PASS	0	2.06	DIFF	Ran 17 tests; OK
+bl_animation_shapekey	PASS	0	1.57	DIFF	Ran 4 tests; OK
+bl_animation_fcurves	PASS	0	2.82	DIFF	Ran 17 tests; OK
+bl_animation_action	PASS	0	2.22	DIFF	Ran 32 tests; OK
+bl_animation_keyframing	PASS	0	2.59	DIFF	Ran 27 tests; OK
+bl_animation_motion_path	PASS	0	1.75	DIFF	Ran 4 tests; OK
+bl_pose_assets	PASS	0	1.61	DIFF	Ran 3 tests; OK
+bl_rigging_symmetrize	PASS	0	1.70	DIFF	Ran 8 tests; OK
+vertex_group_painting	PASS	0	2.05	DIFF	Ran 2 tests; OK
+bl_node_structure_type_inference	FAIL	1	1.66	DIFF	Ran 11 tests; FAILED (errors=11)
+bl_node_socket_usage_inference	PASS	0	1.39	DIFF	Ran 1 test; OK
+bl_node_group_compat	PASS	0	2.31	DIFF	Ran 6 tests; OK
+bl_node_group_interface	PASS	0	2.12	DIFF	Ran 25 tests; OK
+bl_node_copy_operators	PASS	0	11.37	DIFF	Ran 5 tests; OK
+bl_node_link_drag	FAIL	1	30.44	DIFF	Ran 4 tests; FAILED (errors=1)
+bl_sculpt_mask	FAIL	1	1.36	DIFF	exit=1 Blender quit
+bl_sculpt_face_set	FAIL	1	1.28	DIFF	exit=1 Blender quit
+bl_multires	FAIL	1	2.32	DIFF	exit=1 Node.js v22.16.0
+bl_sculpt_mesh_filter	FAIL	1	1.63	DIFF	exit=1 Blender quit
+bl_sculpt_automasking	FAIL	1	1.52	DIFF	exit=1 Blender quit
+bl_sculpt_brushes	FAIL	1	2.05	DIFF	exit=1 Node.js v22.16.0
+bl_vertex_paint_brushes	FAIL	1	1.42	DIFF	exit=1 Blender quit
+bl_weight_paint_brushes	FAIL	1	1.42	DIFF	exit=1 Blender quit
+bl_texture_paint_brushes	PASS	0	1.50	DIFF	Ran 1 test; OK (skipped=1)
+bl_voxel_remesh_compare	FAIL	1	1.80	DIFF	exit=1 Blender quit
+physics_cloth	PASS	0	2.15	DIFF	exit=0 Blender quit
+physics_softbody	PASS	0	3.58	DIFF	exit=0 Blender quit
+physics_dynamic_paint	PASS	0	2.12	DIFF	exit=0 Blender quit
+physics_particle_system	PASS	0	1.55	DIFF	exit=0 Blender quit
+physics_particle_instance	PASS	0	1.63	DIFF	exit=0 Blender quit
+bl_constraints	FAIL	1	2.54	DIFF	Ran 14 tests; FAILED (failures=1)
+blendfile_liblink	PASS	0	3.35	DIFF	exit=0 Blender quit
+blendfile_relationships	PASS	0	2.44	DIFF	exit=0 Blender quit
+blendfile_library_overrides	PASS	0	2.46	DIFF	exit=0 Blender quit
+mesh_validate	PASS	0	1.52	DIFF	Ran 15 tests; OK
+object_modifier_array	PASS	0	1.41	DIFF	exit=0 Blender quit

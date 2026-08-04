@@ -11,7 +11,7 @@ Traceback (most recent call last):
 AssertionError: 1.570796251296997 != 1.5707963267948966 within 7 places (7.549789948768648e-08 difference)
 
 ----------------------------------------------------------------------
-Ran 180 tests in 0.029s
+Ran 180 tests in 0.030s
 
 FAILED (failures=1)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

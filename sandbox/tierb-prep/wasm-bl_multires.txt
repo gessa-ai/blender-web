@@ -1,9 +1,9 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.907  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
-00:00.945  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:00.947  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:00.950  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.067  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
+00:01.176  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.178  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.181  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
 FTraceback (most recent call last):
   File "<REPO>/upstream/scripts/modules/addon_utils.py", line 543, in enable
     mod.register()
@@ -15,15 +15,15 @@ FTraceback (most recent call last):
     bpy.utils.register_class(cls)
     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
 ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
-00:01.063  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.064  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.067  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.067  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.068  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.070  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.555  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.560  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.563  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.563  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.566  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.569  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
 Fwarning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.147  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.722  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
 EException in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
@@ -114,7 +114,7 @@ register_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
 warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.214  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.917  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
 Eregister_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
 register_class(...):
@@ -206,8 +206,8 @@ Info: Registering operator class: 'EXTENSIONS_OT_package_install_files', bl_idna
 register_class(...):
 warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.281  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
-00:01.286  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:02.041  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:02.043  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
 BLI_assert failed: source/blender/blenkernel/intern/multires_reshape_util.cc:118, context_init_common(), at 'reshape_context->subdiv != nullptr'
 Aborted()
 worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
@@ -218,13 +218,13 @@ node:internal/event_target:1101
 RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
     at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
     at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187e6a02:wasm-function[96297]:0xADDR)
-    at blender.wasm._BLI_assert_abort() (wasm://wasm/blender.wasm-187e6a02:wasm-function[12836]:0xADDR)
-    at blender.wasm.blender::context_init_common(blender::MultiresReshapeContext*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[8361]:0xADDR)
-    at blender.wasm.blender::multires_reshape_context_create_from_modifier(blender::MultiresReshapeContext*, blender::Object*, blender::MultiresModifierData*, int) (wasm://wasm/blender.wasm-187e6a02:wasm-function[8365]:0xADDR)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-187e7462:wasm-function[96298]:0xADDR)
+    at blender.wasm._BLI_assert_abort() (wasm://wasm/blender.wasm-187e7462:wasm-function[12837]:0xADDR)
+    at blender.wasm.blender::context_init_common(blender::MultiresReshapeContext*) (wasm://wasm/blender.wasm-187e7462:wasm-function[8361]:0xADDR)
+    at blender.wasm.blender::multires_reshape_context_create_from_modifier(blender::MultiresReshapeContext*, blender::Object*, blender::MultiresModifierData*, int) (wasm://wasm/blender.wasm-187e7462:wasm-function[8365]:0xADDR)
     at invoke_iiiii (<REPO>/build-wasm/bin/blender.js:1:156310)
-    at blender.wasm.blender::multiresModifier_subdivide_to_level(blender::Object*, blender::MultiresModifierData*, int, blender::MultiresSubdivideModeType) (wasm://wasm/blender.wasm-187e6a02:wasm-function[8350]:0xADDR)
-    at blender.wasm.blender::ed::object::multires_subdivide_exec(blender::bContext*, blender::wmOperator*) (wasm://wasm/blender.wasm-187e6a02:wasm-function[65123]:0xADDR)
-    at blender.wasm.blender::wm_operator_invoke(blender::bContext*, blender::wmOperatorType*, blender::wmEvent const*, blender::PointerRNA*, blender::ReportList*, bool, bool) (wasm://wasm/blender.wasm-187e6a02:wasm-function[21552]:0xADDR)
+    at blender.wasm.blender::multiresModifier_subdivide_to_level(blender::Object*, blender::MultiresModifierData*, int, blender::MultiresSubdivideModeType) (wasm://wasm/blender.wasm-187e7462:wasm-function[8350]:0xADDR)
+    at blender.wasm.blender::ed::object::multires_subdivide_exec(blender::bContext*, blender::wmOperator*) (wasm://wasm/blender.wasm-187e7462:wasm-function[65124]:0xADDR)
+    at blender.wasm.blender::wm_operator_invoke(blender::bContext*, blender::wmOperatorType*, blender::wmEvent const*, blender::PointerRNA*, blender::ReportList*, bool, bool) (wasm://wasm/blender.wasm-187e7462:wasm-function[21553]:0xADDR)
 
 Node.js v22.16.0

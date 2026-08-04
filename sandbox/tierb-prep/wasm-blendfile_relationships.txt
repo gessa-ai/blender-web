@@ -1,19 +1,19 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.238  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendUserMap.blend"
-00:01.348  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendFilePathMap.blend"
-00:01.370  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.376  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.377  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.377  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.377  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.396  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:01.435  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.441  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.441  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.441  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.441  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.454  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.256  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendUserMap.blend"
+00:01.350  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendFilePathMap.blend"
+00:01.367  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:01.372  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.372  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:01.372  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.372  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:01.394  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.430  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:01.435  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.436  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:01.436  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.436  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:01.450  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
 Traceback (most recent call last):
   File "<REPO>/upstream/scripts/modules/addon_utils.py", line 543, in enable
     mod.register()
@@ -25,30 +25,30 @@ Traceback (most recent call last):
     bpy.utils.register_class(cls)
     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
 ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
-00:01.860  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.863  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.864  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.864  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.864  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.879  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:01.903  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.907  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.908  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.908  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.908  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.922  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:01.951  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:01.956  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.956  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:01.957  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:01.957  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:01.970  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
-00:01.995  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
-00:02.000  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:02.000  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
-00:02.002  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
-00:02.002  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
-00:02.015  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.923  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:01.927  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.927  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:01.928  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.928  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:01.944  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:01.967  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:01.971  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.972  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:01.972  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:01.972  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:01.989  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:02.011  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:02.016  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:02.016  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:02.016  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:02.016  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:02.031  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:02.054  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:02.059  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:02.060  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:02.060  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:02.060  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:02.074  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Info: Saved as "blendlib_indirect_materialTestBlendUserMap.blend"
 Info: Saved as "blendlib_indirect_mainTestBlendUserMap.blend"

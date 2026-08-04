@@ -1,7 +1,7 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.028  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_test.blend"
-00:01.041  blend.doversion  | WARNING Region type 9 missing in space type "Userpref" (id: 19) - removing region
+00:01.106  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_test.blend"
+00:01.120  blend.doversion  | WARNING Region type 9 missing in space type "Userpref" (id: 19) - removing region
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 
 START ParticleSystemTest test.

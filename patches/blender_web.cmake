@@ -40,8 +40,31 @@
 set(BLENDER_WEB_PATCH_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH
     "Directory holding platform_wasm.cmake (the blender-web patches/ dir)" FORCE)
 
-# ---- Web platform: headless core, no native windowing ----------------------
-set(WITH_HEADLESS            ON  CACHE BOOL "" FORCE)  # ship GHOST_SystemWeb instead
+# ---- Web platform: headless core vs windowed profile (M4 T1) ---------------
+# The proven default is the HEADLESS --background boot (BPY_OK in a tab). The
+# WINDOWED web build flips WITH_HEADLESS OFF + WITH_WEBGPU_BACKEND ON + WITH_GHOST_WEB
+# ON so the GHOST factory constructs GHOST_SystemWeb (patch 0025), the WebGPU
+# drawing-context maps (0023), icons_init runs (0024), and WM_main hooks the
+# emscripten main loop (0026). Gated behind WITH_BLENDER_WEB_WINDOWED (default OFF)
+# so the shared headless build is untouched; a dedicated windowed build opts in with
+#   -DWITH_BLENDER_WEB_WINDOWED=ON
+# NOTE: the windowed LINK requires the M3 WebGPU backend — WITH_WEBGPU_BACKEND ON
+# compiles source/blender/gpu/webgpu/ and needs --use-port=emdawnwebgpu on the
+# windowed target's compile/link flags (platform_wasm.cmake browser target; tasks
+# 6-7). See notes/m4-integration.md.
+option(WITH_BLENDER_WEB_WINDOWED
+  "blender-web: build the windowed web target (HEADLESS off, WebGPU + GHOST_WEB on)" OFF)
+option(WITH_GHOST_WEB
+  "blender-web: compile the browser GHOST back-end (platform_web/ghost)" OFF)
+
+if(WITH_BLENDER_WEB_WINDOWED)
+  set(WITH_HEADLESS        OFF CACHE BOOL "" FORCE)  # run the windowed GHOST/UI/DRW path
+  set(WITH_WEBGPU_BACKEND  ON  CACHE BOOL "" FORCE)  # the wasm GPU backend (M3)
+  set(WITH_GHOST_WEB       ON  CACHE BOOL "" FORCE)  # GHOST_SystemWeb + GHOST_ContextWGPUWeb
+else()
+  set(WITH_HEADLESS        ON  CACHE BOOL "" FORCE)  # proven --background BPY_OK default
+  set(WITH_GHOST_WEB       OFF CACHE BOOL "" FORCE)
+endif()
 set(WITH_GHOST_SDL          OFF CACHE BOOL "" FORCE)
 set(WITH_GHOST_X11          OFF CACHE BOOL "" FORCE)
 set(WITH_GHOST_WAYLAND      OFF CACHE BOOL "" FORCE)

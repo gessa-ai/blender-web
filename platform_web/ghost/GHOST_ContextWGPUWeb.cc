@@ -15,12 +15,49 @@
 #include <cstdio>
 #include <utility>
 
-GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const char *canvas_selector)
-    : canvas_selector_(canvas_selector ? canvas_selector : "#canvas")
+GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
+                                           const char *canvas_selector)
+    : GHOST_Context(context_params),
+      canvas_selector_(canvas_selector ? canvas_selector : "#canvas")
 {
 }
 
 GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb() = default;
+
+/* --- GHOST_Context surface --------------------------------------------------- */
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
+{
+  /* The device is acquired asynchronously by initAsync(); the GHOST-web system awaits
+   * it once at startup before the WM loop, so by here it is ready. */
+  return ready_ ? GHOST_kSuccess : GHOST_kFailure;
+}
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()
+{
+  return GHOST_kSuccess;
+}
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
+{
+  return GHOST_kSuccess;
+}
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
+{
+  /* Browser auto-presents the configured canvas on event-loop yield — no Present(). */
+  return GHOST_kSuccess;
+}
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()
+{
+  return GHOST_kSuccess;
+}
+
+GHOST_TSuccess GHOST_ContextWGPUWeb::releaseDrawingContext()
+{
+  return GHOST_kSuccess;
+}
 
 void GHOST_ContextWGPUWeb::initAsync(uint32_t width, uint32_t height, ReadyCallback on_ready)
 {

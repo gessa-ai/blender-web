@@ -1,0 +1,27 @@
+diff --git a/intern/ghost/intern/GHOST_ISystem.cc b/intern/ghost/intern/GHOST_ISystem.cc
+index 08a8b8b5f8b..1e42fef40e9 100644
+--- a/intern/ghost/intern/GHOST_ISystem.cc
++++ b/intern/ghost/intern/GHOST_ISystem.cc
+@@ -14,6 +14,10 @@
+ 
+ #include "GHOST_ISystem.hh"
+ #include "GHOST_SystemHeadless.hh"
++#ifdef WITH_GHOST_WEB
++/* blender-web (M4 T2): browser GHOST back-end (platform_web/ghost). */
++#  include "GHOST_SystemWeb.hh"
++#endif
+ 
+ #if defined(WITH_GHOST_X11) && defined(WITH_GHOST_WAYLAND)
+ #  include "GHOST_SystemWayland.hh"
+@@ -67,6 +71,11 @@ GHOST_TSuccess GHOST_ISystem::createSystem(bool verbose, [[maybe_unused]] bool b
+ 
+ #if defined(WITH_HEADLESS)
+     /* Pass. */
++#elif defined(WITH_GHOST_WEB)
++    /* blender-web (M4 T2): the browser back-end (Emscripten HTML5 + WebGPU). */
++    backends_attempted.push_back({"WEB"});
++    CLOG_INFO(&LOG, "Create Web system");
++    system_ = new GHOST_SystemWeb();
+ #elif defined(WITH_GHOST_X11) && defined(WITH_GHOST_WAYLAND)
+     /* Special case, try Wayland, fall back to X11. */
+     if (has_wayland_libraries) {

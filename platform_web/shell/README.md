@@ -42,38 +42,36 @@ and the devtools console (F12). The status bar shows state / exit code / wall ti
 To change the arguments, edit the single `ARGV` array at the top of `boot.js` (the
 `--python-expr` there prints `BPY_OK <version> <#objects>` once Python boots).
 
-## Expected output (parity with the node build)
+## Expected output (GREEN — full headless boot)
 
-Today this build stops at the **same known pre-Python abort** the node build hits
-(the in-flight DNA reconstruct fix is not yet in it). Reaching this line **in the
-tab** is the M4.pre success criterion — it proves the entire browser layer works:
+The DNA reconstruct fix has landed, so the tab now boots Blender all the way through
+`import bpy` and exits cleanly:
 
 ```
 Blender 5.2.0 LTS
-BLI_assert failed: source/blender/blenkernel/intern/layer_utils.cc:205,
-  BKE_view_layer_object_bases_get(), at '(view_layer->flag & VIEW_LAYER_OUT_OF_SYNC) == 0'
-  Object Bases out of sync, invoke BKE_view_layer_synced_ensure.
-Aborted()
+BPY_OK 5.2.0 LTS 3
+Blender quit
 ```
 
-The page state pill turns **aborted** and `onAbort` is logged — that is the expected
-result for now.
+`3` = objects in the factory startup scene (cube, camera, light). The page state pill
+turns **exited (0)** and the exit code is `0` (wall ~1.6 s for boot + import).
 
-You will also see one benign line before the banner (an OpenImageIO wasm stub, not an
-error): `... sysutil.cpp:214: physical_memory: Assertion ... failed.` The boot
-continues past it.
+You will also see benign noise that does NOT stop the boot:
+- one OpenImageIO wasm stub before the banner:
+  `... sysutil.cpp:214: physical_memory: Assertion ... failed.`;
+- Python `Traceback`s / `ModuleNotFoundError: No module named '_multiprocessing'`
+  and unsupported `sha3`/`shake` hashes — optional C extensions disabled in the
+  libpython harvest; the affected add-ons (e.g. `bl_pkg`) fail to register and
+  Blender continues. `import bpy` still succeeds → `BPY_OK` → exit 0.
 
-### When the DNA fix lands
+### Runtime env (important)
 
-Rebuild `blender_browser` and reload. The banner is then followed by:
-
-```
-BPY_OK 5.2.0 3
-```
-
-(`3` = objects in the factory startup scene: cube, camera, light), the state pill
-turns **exited (0)**, and the exit code is `0`. No shell change is needed — the
-browser layer is already proven end-to-end.
+The shell sets `BLENDER_SYSTEM_RESOURCES=/bw` in `boot.js` (the ONE place, in
+`ENV_VARS`). This is what makes `import bpy` resolve: Blender's scripts folder-id
+reads the umbrella `BLENDER_SYSTEM_RESOURCES` base and looks for
+`<base>/scripts/modules` (appdir.cc:712 → get_path_system_ex:568) — it does NOT read
+a `BLENDER_SYSTEM_SCRIPTS` env of its own. The preload mounts scripts/datafiles/
+python under `/bw`, so `/bw` is the base.
 
 ## Notes / limits
 

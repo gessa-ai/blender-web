@@ -63,12 +63,13 @@
     },
     {
       "id": "node-ungroup-socket-flake",
-      "status": "under-investigation",
+      "status": "resolved",
       "milestone": "M2 (m2b)",
       "revisit": "pending the hunt's outcome \u2014 one instrumented build + a ~150-run background hunt to separate race vs uninitialized-read (fix is copy-on-eval/tree-lock isolation if race, zero-init the reused socket field if uninit)",
       "blocker": "Non-deterministic (~1.4%, ~1 in 70): after the node-group ungroup operator on the threaded wasm profile (-sPROXY_TO_PTHREAD + TBB), a ShaderNodeValue proxy node's output 'Value' socket intermittently resolves to NodeSocketUndefined instead of NodeSocketFloat. Deterministic + correct on the native oracle and on the direct-add control (both wasm and native). Leading hypotheses: a data race (GN eval on TBB workers concurrent with the next operator's tree mutation) or an uninitialized read of a freed-then-reused bNodeSocket field.",
       "impact": "bl_node_copy_operators test_ungroup_proxy_nodes flakes (bl_node_copy_operators.py:426, 'NodeSocketUndefined' != 'NodeSocketFloat', x4 together). A node-system/threading heisenbug, not a one-line port-class fix \u2014 STOP disposition per the fix gate.",
-      "evidence": "notes/m2b-node-ungroup-socket-undefined.md"
+      "evidence": "notes/m2b-node-ungroup-socket-undefined.md",
+      "resolution": "CONFIRMED-FIXED-BY-f7ec391 (shared OIIO ustring TableRep root cause; 0/150 instrumented hunt on fixed build; commit 184035c)"
     },
     {
       "id": "shared-node-clipboard-path",
@@ -134,6 +135,38 @@
       "blocker": "OS-shell affordances (spawning external processes, arbitrary filesystem access outside the sandbox, native file dialogs beyond FSA) are unavailable in the browser sandbox.",
       "impact": "Features depending on OS-shell affordances are unsupported; file access is via WasmFS/OPFS + the File System Access API (M7).",
       "evidence": "GOAL.md:19"
+    },
+    {
+      "id": "feature-off-openvdb",
+      "status": "deferred",
+      "blocker": "OpenVDB not built for wasm (WITH_OPENVDB OFF)",
+      "impact": "bl_voxel_remesh(+compare)",
+      "revisit": "post-launch",
+      "evidence": "notes/m2-tierb-prep.md"
+    },
+    {
+      "id": "feature-off-opensubdiv",
+      "status": "deferred",
+      "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",
+      "impact": "bl_multires",
+      "revisit": "post-launch",
+      "evidence": "notes/m2-tierb-prep.md"
+    },
+    {
+      "id": "feature-off-cycles-engine",
+      "status": "deferred",
+      "blocker": "Cycles OFF until M6 CPU subset",
+      "impact": "bl_node_link_drag cycles cases",
+      "revisit": "M6",
+      "evidence": "notes/m2-tierb-prep.md"
+    },
+    {
+      "id": "feature-off-avif",
+      "status": "deferred",
+      "blocker": "libaom not harvested",
+      "impact": "imbuf_py_api AVIF writes",
+      "revisit": "M7",
+      "evidence": "notes/m2-tierb-prep.md"
     }
   ]
 }

@@ -181,6 +181,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [ ] **M2.5 [python-wasm]** `import bpy` headless in node/worker (tier-(b) entry). **blocked-by M2.3, M2.4.**
 - [ ] **M2.6 [harness]** Stock `--background --factory-startup` operator/bpy suite subset passes vs
   oracle → tier-(b) gate → **`<promise>M2_DEPS_PYTHON</promise>`**. **blocked-by M2.5.**
+  **PREP DONE (98d3c37, notes/m2-tierb-prep.md):** 43/43 oracle-green (38-CORE ≈595 cases,
+  ~2m17s; 4 AMBER wasm-conditional; 1 excluded as parity-theater). m2b scope DRAFTED:
+  exit-code-primary (sidesteps wasm stdout drops), binary-agnostic manifest (same args, swap
+  oracle for node). TRAP documented: TEST_SRC_DIR_EXISTS lies (stub dirs exist, inputs are
+  130-B LFS pointers). **DRIVER DECIDED: cheap LFS pull APPROVED (38.4 MB/89 files →
+  ~doubles suites to ~75; dispatched). Full 0.76 GB pull deferred; render/GPU 447 MB never
+  needed for tier-b.**
 - [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
   JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
   suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS
@@ -247,7 +254,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   device) + WGPUContext, gpu/CMakeLists WITH_WEBGPU block, configure build-native-gpu with
   -DWITH_WEBGPU_BACKEND=ON, link the `gpu` suite binary; VERIFY selection_set(WEBGPU) →
   SetUpTestSuite reaches a live context. **DISPATCHED (same worker).**
+- [x] **M3.T7.pre [gpu-backend]** COMPLETE (4f36210, notes/gpu-t7pre-findings.md): shader-
+  compiler module standalone-proven 4/4 on live Dawn (bindmap re-validated; type-inference
+  table COMPLETE + live-validated for Float/Shadow/Uint arms; compute+SSBO+atomic pipeline
+  created → **T8's R6 pre-cleared**; negative control holds). Sampler arrays: **broken in
+  Tint's reader itself** ("arrays of handle types are not supported", parser.cc:200, pre-
+  split) → **T7 must unroll sampler arrays at GLSL codegen**; map is per-element-ready.
+  **Integration hazard caught: shaderc's bundled SPIRV-Tools vs Tint's static one must not
+  meet in a link — use Blender's shaderc shared dylib.** T7 = wiring, not development.
 - [ ] **M3.T4–T10 [gpu-backend]** Skeleton→context→buffers→shader-pipeline→compute→textures→
   framebuffer/state/immediate/batch, each gated on Blender's own gpu tests vs native Dawn
   (full list + verify criteria: notes/gpu-webgpu-architecture.md §7). Gate: full gpu suite
-  green on Dawn → `<promise>M3_GPU_BACKEND</promise>`.
+  green on Dawn → `<promise>M3_GPU_BACKEND</promise>`. T4 in flight; **T9.pre dispatched**
+  (format tables + data conversion standalone, the other development-heavy chunk).

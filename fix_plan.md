@@ -157,6 +157,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   module aborts at init under node<23; true-JSPI runtime validation = tools-local node≥23
   (follow-up dispatched) + mandatory M4 browser smoke (Chrome ≥137/Playwright, suspending).
   Python stays synchronous on the proxied main thread per ADR-001.
+  **REAL-JSPI UPDATE (26025bd): proxy was FALSE-POSITIVE for the B-shape — JS-EH cannot
+  suspend across setjmp frames (SuspendError); Wasm-EH can. EH sub-decision RE-OPENED for
+  M4+ (ADR-001 appendix); M2's no-suspension posture unaffected.**
+- [ ] **M2.7c [python-wasm PROBE]** Sharpening probe → decides ADR-003 (EH model for the
+  suspending M4+ stack): under real JSPI (tools/node24) + JS-EH, does an ACTIVE C++
+  try/catch on the stack break suspension? Also: inactive-but-try-containing frames; deep
+  C++ stack (TBB-style); Wasm-EH equivalents as control; census of setjmp-containing
+  functions in libpython + libjpeg (sizes option-a's discipline burden). DISPATCHED.
 - [ ] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
 

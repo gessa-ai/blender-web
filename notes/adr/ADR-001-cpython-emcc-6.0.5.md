@@ -75,6 +75,25 @@ demands it. Still open and tracked: `-sJSPI` × setjmp/longjmp at full-Blender l
 optional modules `_ctypes/_ssl/_hashlib/_lzma/_uuid` need libffi/openssl/xz if bpy startup
 requires them (check at M2.5).
 
+## Sub-decision RE-OPENED (appended 2026-08-03 late): EH model is JSPI-load-bearing
+
+Real-JSPI measurement under Node 24 (commit 26025bd, notes/python-emcc605-probe.md §M2.7)
+**inverted the Asyncify-proxy result**: under JS-EH, a real JSPI suspension FAILS
+(`SuspendError: trying to suspend JS frames`) whenever a setjmp-containing function is on
+the stack — even lexically before the setjmp — because `SUPPORT_LONGJMP=emscripten` routes
+through JS `invoke_*` wrappers. Under Wasm-EH the same shape PASSES (SjLj stays in wasm).
+JS-EH remains fine for linking + running WITHOUT suspension (libpython embed passes).
+
+**The JS-EH-for-M2 choice stands** (M2 runs Python synchronously, no suspension). But the
+M4+ decision — where JSPI suspends are real (emdawnwebgpu waits, main-loop yields) — now
+hinges on a sharper question: does an ACTIVE C++ `try/catch` on the stack (same invoke_*
+machinery) also break JS-EH suspension? If yes, JS-EH+JSPI is unusable for any realistic
+Blender suspend topology (try/catch is pervasive in Blender/OIIO/TBB) → **Wasm-EH stack
+migration becomes forced** (rebuild 29 deps + libpython; scripts exist; schedule at a
+boundary before M3/M4 links). If no, option (a) — JS-EH with suspends restricted to
+top-level yield points outside setjmp regions — remains viable. Sharpening probe M2.7c
+dispatched; decision lands on its result as ADR-003.
+
 ## Consequences
 
 - M2.1/M2.2 reword: start from vanilla 3.13.13 + {LONG_BIT, trampoline-from-main} only.

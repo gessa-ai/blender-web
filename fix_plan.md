@@ -201,12 +201,18 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   build.sh pins 3.13). **R1 characterized AND controllable**: sampler split invents a sampler
   binding that bumps subsequent UBO bindings (deterministic); spirv::reader::Options::
   sampler_mappings controls it → T2 = mapping exercise, not open risk.
-- [ ] **M3.T2 [gpu-backend]** Combined-sampler binding audit (R1): Blender-shaped create-info
-  (sampler2D+push-const-UBO+material UBO) through the T1 harness; produce the DETERMINISTIC
-  binding-map spec for wgpu_shader_interface (incl. sampler_mappings usage). **DISPATCHED
-  (T1 worker continues).**
+- [x] **M3.T2 [gpu-backend]** **PASS** (4671835, notes/gpu-binding-map-spec.md = NORMATIVE for
+  T7): Blender's scheme = single set-0, dense sequential bindings (vk_shader_interface.cc:205).
+  Default Tint per-stage renumbering BREAKS cross-stage layouts (negative control: Dawn REJECTS
+  pipeline — R1 confirmed real). Fix: sampler_mappings keyed by original {0,N} → {0,256+N};
+  pipeline creation PASSES with explicit BGL. **T7 HARD RULE: non-empty map disables the
+  conflict pass — EVERY combined sampler must be mapped.** Open for T7: sampler arrays
+  (probe first), SAMPLER_BASE policy, sampler/texture type inference for BGL.
 - [ ] **M3.T3 [gpu-backend]** GHOST_ContextWGPU offscreen (native Dawn, no surface) +
-  WITH_WEBGPU_BACKEND option; headless bin gets live WGPUDevice. **blocked-by T1.**
+  WITH_WEBGPU_BACKEND option; headless bin gets live WGPUDevice via the gpu-test bootstrap.
+  Requires the NATIVE macOS Blender harness (upstream `make update`-style lib/macos_arm64
+  precompiled libs, ~7GB, lands under upstream/lib/ = blender-gitignored → porcelain stays
+  clean; separate native build tree). **DISPATCHED (same worker).**
 - [ ] **M3.T4–T10 [gpu-backend]** Skeleton→context→buffers→shader-pipeline→compute→textures→
   framebuffer/state/immediate/batch, each gated on Blender's own gpu tests vs native Dawn
   (full list + verify criteria: notes/gpu-webgpu-architecture.md §7). Gate: full gpu suite

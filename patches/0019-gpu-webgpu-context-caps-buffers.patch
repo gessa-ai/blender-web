@@ -1,0 +1,913 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+new file mode 100644
+index 0000000..3c9fd26
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -0,0 +1,118 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_storage_buffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_storage_buffer.hh"
++
++#include "GPU_context.hh"
++#include "GPU_vertex_buffer.hh"
++#include "gpu_context_private.hh"
++
++#include "wgpu_context.hh"
++#include "wgpu_vertex_buffer.hh"
++
++#include <cstring>
++#include <vector>
++
++namespace blender::gpu {
++
++/** The active WebGPU context (owns the live Dawn instance/device/queue). */
++static WGPUContext *active_context()
++{
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++bool WGPUStorageBuffer::ensure()
++{
++  if (buffer_.valid()) {
++    return true;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return false;
++  }
++  const webgpu::UsageType usage = (usage_ == GPU_USAGE_DEVICE_ONLY) ?
++                                      webgpu::UsageType::DeviceOnly :
++                                      webgpu::UsageType::Dynamic;
++  /* readable=true: storage buffers can be read back (GPU_storagebuf_read). */
++  return buffer_.create(
++      ctx->device_get(), webgpu::BufferKind::Storage, usage, size_in_bytes_, nullptr, true);
++}
++
++void WGPUStorageBuffer::update(const void *data)
++{
++  if (data == nullptr || !ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  const size_t n = webgpu::align_up(usage_size_in_bytes_, webgpu::kCopyAlignment);
++  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data, n);
++}
++
++void WGPUStorageBuffer::clear(uint32_t clear_value)
++{
++  if (!ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  /* WebGPU has no fill-with-value primitive; upload a host vector of the 32-bit
++   * pattern. size_in_bytes_ is a multiple of 4 for storage buffers. */
++  const size_t words = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment) / sizeof(uint32_t);
++  std::vector<uint32_t> pattern(words, clear_value);
++  buffer_.update_sub(
++      ctx->device_get(), ctx->queue_get(), 0, pattern.data(), words * sizeof(uint32_t));
++}
++
++void WGPUStorageBuffer::copy_sub(VertBuf *src, uint dst_offset, uint src_offset, uint copy_size)
++{
++  if (!ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++
++  /* Make sure the source vertex buffer's GPU buffer exists and is uploaded. */
++  WGPUVertexBuffer *src_vbo = unwrap(src);
++  src_vbo->upload();
++  const webgpu::Buffer &src_buffer = src_vbo->buffer();
++  if (!src_buffer.valid()) {
++    return;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyBufferToBuffer(
++      src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUStorageBuffer::read(void *data)
++{
++  if (data == nullptr || !ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  std::vector<uint8_t> bytes = buffer_.read(
++      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_in_bytes_);
++  if (bytes.size() == size_in_bytes_) {
++    std::memcpy(data, bytes.data(), size_in_bytes_);
++  }
++}
++
++/* Binding is resolved at bind-group / pipeline assembly (wgpu_bind_group, T7). */
++void WGPUStorageBuffer::bind(int /*slot*/) {}
++void WGPUStorageBuffer::unbind() {}
++
++/* read() is synchronous (blocks on the instance), so the async flush is a no-op;
++ * the Indirect usage bit is set at creation, so no explicit sync is needed. */
++void WGPUStorageBuffer::async_flush_to_host() {}
++void WGPUStorageBuffer::sync_as_indirect_buffer() {}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
+new file mode 100644
+index 0000000..35ee66d
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
+@@ -0,0 +1,65 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_vertex_buffer.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * `VertBuf` on the WebGPU backend, backed by the common `webgpu::Buffer`
++ * (Vertex | Storage | Copy* usage — a vertex buffer may also be read as an SSBO
++ * by compute, and copied from as the source of GPU_storagebuf_copy_sub_from_vertbuf).
++ * The GPU buffer is allocated lazily on first `upload()`; the host copy is kept
++ * per the usage hint (dropped for STATIC after upload, as the Vulkan backend does).
++ * `bind_as_ssbo` / `bind_as_texture` are deferred to bind-group assembly (T7 / lane B).
++ */
++
++#pragma once
++
++#include "GPU_vertex_buffer.hh"
++
++#include "wgpu_buffer.hh"
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUVertexBuffer : public VertBuf {
++ public:
++  ~WGPUVertexBuffer() override;
++
++  void bind_as_ssbo(uint binding) override;
++  void bind_as_texture(uint binding) override;
++  void wrap_handle(uint64_t handle) override;
++
++  void update_sub(uint start, uint len, const void *data) override;
++  void read(void *data) const override;
++
++  const webgpu::Buffer &buffer() const
++  {
++    return buffer_;
++  }
++
++ protected:
++  void acquire_data() override;
++  void resize_data() override;
++  void release_data() override;
++  void upload_data() override;
++
++ private:
++  void allocate();
++
++  webgpu::Buffer buffer_;
++  bool data_uploaded_ = false;
++
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUVertexBuffer")
++};
++
++static inline WGPUVertexBuffer *unwrap(VertBuf *vertex_buffer)
++{
++  return static_cast<WGPUVertexBuffer *>(vertex_buffer);
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+new file mode 100644
+index 0000000..0e02e7d
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -0,0 +1,161 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_vertex_buffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_vertex_buffer.hh"
++
++#include "GPU_context.hh"
++#include "gpu_context_private.hh"
++
++#include "wgpu_context.hh"
++
++#include "MEM_guardedalloc.h"
++
++#include "BLI_utildefines.h"
++
++#include <cstring>
++#include <vector>
++
++namespace blender::gpu {
++
++/** The active WebGPU context. */
++static WGPUContext *active_context()
++{
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++/** Map Blender's base `GPUUsageType` (low bits) to the buffer wrapper's usage. */
++static webgpu::UsageType to_wgpu_usage(GPUUsageType usage)
++{
++  switch (usage & 0x3) {
++    case GPU_USAGE_STREAM:
++      return webgpu::UsageType::Stream;
++    case GPU_USAGE_STATIC:
++      return webgpu::UsageType::Static;
++    case GPU_USAGE_DYNAMIC:
++      return webgpu::UsageType::Dynamic;
++    case GPU_USAGE_DEVICE_ONLY:
++      return webgpu::UsageType::DeviceOnly;
++    default:
++      return webgpu::UsageType::Static;
++  }
++}
++
++WGPUVertexBuffer::~WGPUVertexBuffer()
++{
++  release_data();
++}
++
++void WGPUVertexBuffer::allocate()
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  /* Vertex | Storage | Copy* (readable=true so it can be the CopySrc of
++   * GPU_storagebuf_copy_sub_from_vertbuf and of read()). */
++  buffer_.create(ctx->device_get(),
++                 webgpu::BufferKind::Vertex,
++                 to_wgpu_usage(usage_),
++                 size_alloc_get(),
++                 nullptr,
++                 true);
++}
++
++void WGPUVertexBuffer::upload_data()
++{
++  if (!buffer_.valid()) {
++    allocate();
++    if (!buffer_.valid()) {
++      return; /* allocation failed (e.g. no active context). */
++    }
++  }
++
++  /* DEVICE_ONLY buffers hold no host copy and are never uploaded from host. */
++  if (!ELEM(usage_ & 0x3, GPU_USAGE_STATIC, GPU_USAGE_STREAM, GPU_USAGE_DYNAMIC)) {
++    return;
++  }
++
++  if (flag & GPU_VERTBUF_DATA_DIRTY) {
++    const size_t used = size_used_get();
++    if (data_ != nullptr && used > 0) {
++      WGPUContext *ctx = active_context();
++      buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data_, used);
++    }
++    if ((usage_ & 0x3) == GPU_USAGE_STATIC) {
++      MEM_SAFE_DELETE(data_);
++    }
++    data_uploaded_ = true;
++    flag &= ~GPU_VERTBUF_DATA_DIRTY;
++    flag |= GPU_VERTBUF_DATA_UPLOADED;
++  }
++}
++
++void WGPUVertexBuffer::update_sub(uint start, uint len, const void *data)
++{
++  if (!buffer_.valid() || data == nullptr) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), start, data, len);
++}
++
++void WGPUVertexBuffer::read(void *data) const
++{
++  if (!buffer_.valid()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  std::vector<uint8_t> bytes = buffer_.read(
++      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_used_get());
++  if (!bytes.empty()) {
++    std::memcpy(data, bytes.data(), bytes.size());
++  }
++}
++
++void WGPUVertexBuffer::acquire_data()
++{
++  if ((usage_ & 0x3) == GPU_USAGE_DEVICE_ONLY) {
++    return;
++  }
++  /* Discard previous data if any. */
++  MEM_SAFE_DELETE(data_);
++  data_ = MEM_new_array_uninitialized<uchar>(this->size_alloc_get(), __func__);
++}
++
++void WGPUVertexBuffer::resize_data()
++{
++  if ((usage_ & 0x3) == GPU_USAGE_DEVICE_ONLY) {
++    return;
++  }
++  data_ = static_cast<uchar *>(
++      MEM_realloc_uninitialized(data_, sizeof(uchar) * this->size_alloc_get()));
++}
++
++void WGPUVertexBuffer::release_data()
++{
++  /* Drop the GPU buffer (RAII releases the wgpu::Buffer handle). */
++  buffer_ = webgpu::Buffer();
++  MEM_SAFE_DELETE(data_);
++}
++
++/* Binding paths are deferred to the state manager / bind-group assembly (lane B,
++ * T7): a vertex buffer read as an SSBO or bound as a texel buffer is a draw-time
++ * concern the buffer object does not resolve on its own. */
++void WGPUVertexBuffer::bind_as_ssbo(uint /*binding*/) {}
++void WGPUVertexBuffer::bind_as_texture(uint /*binding*/) {}
++
++void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)
++{
++  /* Importing an externally-owned GPU buffer handle is not supported yet
++   * (the Vulkan backend also leaves this NOT_YET_IMPLEMENTED). */
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+new file mode 100644
+index 0000000..271222f
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -0,0 +1,61 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_index_buffer.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * `IndexBuf` on the WebGPU backend, backed by the common `webgpu::Buffer`
++ * (Index | Storage | Copy* usage). Uploaded on first use via `mappedAtCreation`
++ * (so odd U16 buffer sizes upload without the 4-byte writeBuffer constraint).
++ * Blender uses both 16- and 32-bit index buffers; U16 buffers carry an
++ * `index_base_` applied at draw time, handled by the draw encoder (lane B).
++ * `update_sub` / `strip_restart_indices` are left unimplemented as on Vulkan.
++ */
++
++#pragma once
++
++#include "GPU_index_buffer.hh"
++
++#include "wgpu_buffer.hh"
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUIndexBuffer : public IndexBuf {
++ public:
++  ~WGPUIndexBuffer() override = default;
++
++  void upload_data() override;
++  void bind_as_ssbo(uint binding) override;
++  void read(uint32_t *data) const override;
++  void update_sub(uint start, uint len, const void *data) override;
++
++  /** WebGPU index format for this buffer (Uint16 / Uint32). */
++  wgpu::IndexFormat index_format() const
++  {
++    return webgpu::to_wgpu_index_format(is_32bit());
++  }
++
++  const webgpu::Buffer &buffer() const;
++
++ private:
++  void strip_restart_indices() override;
++  void allocate();
++
++  webgpu::Buffer buffer_;
++  bool data_uploaded_ = false;
++
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUIndexBuffer")
++};
++
++static inline WGPUIndexBuffer *unwrap(IndexBuf *index_buffer)
++{
++  return static_cast<WGPUIndexBuffer *>(index_buffer);
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+new file mode 100644
+index 0000000..8ce46c6
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -0,0 +1,115 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_index_buffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_index_buffer.hh"
++
++#include "GPU_context.hh"
++#include "gpu_context_private.hh"
++
++#include "wgpu_context.hh"
++
++#include "MEM_guardedalloc.h"
++
++#include <cstring>
++#include <vector>
++
++namespace blender::gpu {
++
++/** The active WebGPU context. */
++static WGPUContext *active_context()
++{
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++void WGPUIndexBuffer::allocate()
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  buffer_.create(ctx->device_get(),
++                 webgpu::BufferKind::Index,
++                 webgpu::UsageType::Static,
++                 size_get(),
++                 nullptr,
++                 true);
++}
++
++void WGPUIndexBuffer::upload_data()
++{
++  if (is_subrange_) {
++    src_->upload_data();
++    return;
++  }
++  if (buffer_.valid()) {
++    return; /* already uploaded (update_sub handles later edits). */
++  }
++
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++
++  if (data_ == nullptr) {
++    /* Build-on-device index buffer: allocate empty, filled by a compute pass. */
++    allocate();
++    return;
++  }
++
++  /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
++   * still copies exactly. readable=true so read() can stage it back. */
++  buffer_.create(ctx->device_get(),
++                 webgpu::BufferKind::Index,
++                 webgpu::UsageType::Static,
++                 size_get(),
++                 data_,
++                 true);
++
++  /* Ownership of the index data was transferred to this IndexBuf; free it now
++   * (and null it) so the base destructor does not double-free. */
++  MEM_SAFE_DELETE_VOID(data_);
++  data_uploaded_ = true;
++}
++
++const webgpu::Buffer &WGPUIndexBuffer::buffer() const
++{
++  return is_subrange_ ? unwrap(src_)->buffer() : buffer_;
++}
++
++void WGPUIndexBuffer::read(uint32_t *data) const
++{
++  const webgpu::Buffer &buf = buffer();
++  if (!buf.valid()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  std::vector<uint8_t> bytes = buf.read(
++      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_get());
++  if (!bytes.empty()) {
++    std::memcpy(data, bytes.data(), bytes.size());
++  }
++}
++
++/* Binding a index buffer as an SSBO is a draw/compute-time concern resolved by
++ * the state manager (lane B); the object itself does nothing here. */
++void WGPUIndexBuffer::bind_as_ssbo(uint /*binding*/) {}
++
++void WGPUIndexBuffer::update_sub(uint /*start*/, uint /*len*/, const void * /*data*/)
++{
++  /* Not implemented (the Vulkan backend leaves this NOT_YET_IMPLEMENTED too). */
++}
++
++void WGPUIndexBuffer::strip_restart_indices()
++{
++  /* Not implemented (matches the Vulkan backend). */
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 464cfd9..f193284 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -62,7 +62,7 @@ class Buffer {
+                             const wgpu::Device &device,
+                             const wgpu::Queue &queue,
+                             size_t offset,
+-                            size_t size);
++                            size_t size) const;
+ 
+   const wgpu::Buffer &handle() const
+   {
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 7e51148..5fb36a7 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -128,7 +128,7 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                   const wgpu::Device &device,
+                                   const wgpu::Queue &queue,
+                                   size_t offset,
+-                                  size_t size)
++                                  size_t size) const
+ {
+   std::vector<uint8_t> out;
+   if (handle_ == nullptr || !readable_ || size == 0) {
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 50f81d1..bd6db34 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -11,8 +11,10 @@
+ 
+ #include "wgpu_backend.hh"
+ #include "wgpu_context.hh"
++#include "wgpu_index_buffer.hh"
+ #include "wgpu_storage_buffer.hh"
+ #include "wgpu_uniform_buffer.hh"
++#include "wgpu_vertex_buffer.hh"
+ 
+ #include "gpu_texture_pool_private.hh"
+ 
+@@ -59,8 +61,7 @@ FrameBuffer *WGPUBackend::framebuffer_alloc(const char * /*name*/)
+ }
+ IndexBuf *WGPUBackend::indexbuf_alloc()
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  return new WGPUIndexBuffer();
+ }
+ PixelBuffer *WGPUBackend::pixelbuf_alloc(size_t /*size*/)
+ {
+@@ -96,14 +97,12 @@ UniformBuf *WGPUBackend::uniformbuf_alloc(size_t size, const char *name)
+ }
+ StorageBuf *WGPUBackend::storagebuf_alloc(size_t size, GPUUsageType usage, const char *name)
+ {
+-  /* The bootstrap's DebugDraw allocates one storage buffer; a no-op stub
+-   * survives bring-up (see wgpu_storage_buffer.hh). Real impl = T6. */
++  /* Functional GPUBuffer-backed storage buffer (update / clear / copy_sub / read). */
+   return new WGPUStorageBuffer(size, usage, name);
+ }
+ VertBuf *WGPUBackend::vertbuf_alloc()
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  return new WGPUVertexBuffer();
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 415d7f1..c55cb66 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -8,10 +8,11 @@
+ /** \file
+  * \ingroup gpu
+  *
+- * M3.T4 WGPUContext skeleton. Wraps the live Dawn device/queue carried by
+- * GHOST_ContextWGPU. The 14 `Context` pure-virtuals are safe no-ops for the
+- * bootstrap (no draws); StateManager/Immediate and the real frame machinery
+- * arrive with T5/T10.
++ * WGPUContext. Wraps the live Dawn instance/adapter/device/queue carried by
++ * GHOST_ContextWGPU. T5 makes `activate`/`deactivate` real (single-context
++ * bookkeeping) and probes the device limits into `GPUCapabilities` (GCaps).
++ * StateManager/Immediate and the render frame machinery arrive with T10/lane B,
++ * so `begin_frame`/`end_frame`/`flush`/`finish` remain no-ops for now.
+  */
+ 
+ #pragma once
+@@ -48,6 +49,14 @@ class WGPUContext : public Context {
+   void debug_unbind_all_ubo() override;
+   void debug_unbind_all_ssbo() override;
+ 
++  wgpu::Instance instance_get() const
++  {
++    return instance_;
++  }
++  wgpu::Adapter adapter_get() const
++  {
++    return adapter_;
++  }
+   wgpu::Device device_get() const
+   {
+     return device_;
+@@ -62,9 +71,17 @@ class WGPUContext : public Context {
+   }
+ 
+  private:
++  /** Probe the live device limits into the global `GPUCapabilities` (GCaps).
++   * Device-probed, mirroring VKBackend::capabilities_init (vk_backend.cc:905). */
++  void capabilities_init();
++
++  wgpu::Instance instance_ = nullptr;
++  wgpu::Adapter adapter_ = nullptr;
+   wgpu::Device device_ = nullptr;
+   wgpu::Queue queue_ = nullptr;
+   std::string adapter_name_;
++  /** Set between activate() and deactivate(); guards double-activation. */
++  bool is_active_ = false;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 673f4a8..3c64d29 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -11,12 +11,21 @@
+ 
+ #include "wgpu_context.hh"
+ 
++#include "BLI_assert.h"
++#include "BLI_threads.h"
++#include "BLI_utildefines.h"
++
++#include "gpu_capabilities_private.hh"
++
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+  * intern/ghost/intern to this TU's include path. Production should instead route
+  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
+  * the gpu module never sees a GHOST-private header — noted in the T4 findings. */
+ #include "GHOST_ContextWGPU.hh"
+ 
++#include <algorithm>
++#include <climits>
++
+ namespace blender::gpu {
+ 
+ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+@@ -25,11 +34,19 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+ 
+   /* The context was created by GHOST_SystemHeadless::createOffscreenContext for
+    * GHOST_kDrawingContextTypeWebGPU, so it is a GHOST_ContextWGPU. Borrow its
+-   * already-initialized Dawn device/queue (ownership stays with GHOST). */
++   * already-initialized Dawn instance/adapter/device/queue (ownership stays with
++   * GHOST). */
+   GHOST_ContextWGPU *wgpu_ghost = static_cast<GHOST_ContextWGPU *>(ghost_context);
++  instance_ = wgpu_ghost->getInstance();
++  adapter_ = wgpu_ghost->getAdapter();
+   device_ = wgpu_ghost->getDevice();
+   queue_ = wgpu_ghost->getQueue();
+   adapter_name_ = wgpu_ghost->getAdapterName();
++
++  /* Fill the global capability table from the live device limits. Device-probed
++   * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
++   * floors — the M4 Pro / Dawn adapter reports much higher limits. */
++  capabilities_init();
+ }
+ 
+ WGPUContext::~WGPUContext()
+@@ -37,9 +54,81 @@ WGPUContext::~WGPUContext()
+   free_resources();
+ }
+ 
+-/* --- Bootstrap-safe no-ops (no draws exercised at M3.T4). ----------------- */
+-void WGPUContext::activate() {}
+-void WGPUContext::deactivate() {}
++/* --- Activation --------------------------------------------------------- */
++/* Mirror VKContext::activate/deactivate but without the render-graph (WebGPU's
++ * implicit model needs none) and without immActivate — the WGPUImmediate is a
++ * lane-B class not yet constructed by this context. Once it lands, immActivate/
++ * immDeactivate hook in here exactly as the Vulkan backend does. */
++void WGPUContext::activate()
++{
++  BLI_assert(is_active_ == false);
++  is_active_ = true;
++}
++
++void WGPUContext::deactivate()
++{
++  is_active_ = false;
++}
++
++void WGPUContext::capabilities_init()
++{
++  wgpu::Limits limits = {};
++  /* ConvertibleStatus converts to bool == (status == Success). */
++  if (device_ == nullptr || !device_.GetLimits(&limits)) {
++    return;
++  }
++
++  /* Reset all capabilities from any previous context (mirrors vk_backend.cc:911). */
++  GCaps = {};
++
++  /* WebGPU has no geometry-shader stage and no shader stencil export. */
++  GCaps.geometry_shader_support = false;
++  GCaps.stencil_export_support = false;
++
++  GCaps.max_texture_size = std::max(int(limits.maxTextureDimension1D),
++                                    int(limits.maxTextureDimension2D));
++  GCaps.max_texture_3d_size = int(std::min<uint64_t>(limits.maxTextureDimension3D, INT_MAX));
++  GCaps.max_buffer_texture_size = uint32_t(std::min<uint64_t>(limits.maxBufferSize, UINT_MAX));
++  GCaps.max_texture_layers = int(std::min<uint64_t>(limits.maxTextureArrayLayers, INT_MAX));
++  GCaps.max_textures = int(std::min<uint64_t>(limits.maxSampledTexturesPerShaderStage, INT_MAX));
++  GCaps.max_images = int(std::min<uint64_t>(limits.maxStorageTexturesPerShaderStage, INT_MAX));
++  /* WebGPU exposes a single per-dimension workgroup-count cap (not per axis). */
++  const int wg_count = int(std::min<uint64_t>(limits.maxComputeWorkgroupsPerDimension, INT_MAX));
++  GCaps.max_work_group_count[0] = wg_count;
++  GCaps.max_work_group_count[1] = wg_count;
++  GCaps.max_work_group_count[2] = wg_count;
++  GCaps.max_work_group_size[0] = int(std::min<uint64_t>(limits.maxComputeWorkgroupSizeX, INT_MAX));
++  GCaps.max_work_group_size[1] = int(std::min<uint64_t>(limits.maxComputeWorkgroupSizeY, INT_MAX));
++  GCaps.max_work_group_size[2] = int(std::min<uint64_t>(limits.maxComputeWorkgroupSizeZ, INT_MAX));
++  GCaps.max_uniforms_vert = GCaps.max_uniforms_frag = int(
++      std::min<uint64_t>(limits.maxUniformBuffersPerShaderStage, INT_MAX));
++  /* No maxDrawIndirectCount / maxDrawIndexedIndexValue analogs in WebGPU; the
++   * spec places no cap here, so use INT_MAX (as the VK path clamps to). */
++  GCaps.max_batch_indices = INT_MAX;
++  GCaps.max_batch_vertices = INT_MAX;
++  GCaps.max_vertex_attribs = int(std::min<uint64_t>(limits.maxVertexAttributes, INT_MAX));
++  /* maxInterStageShaderVariables counts vec4 slots; ×4 → float components. */
++  GCaps.max_varying_floats = int(
++      std::min<uint64_t>(uint64_t(limits.maxInterStageShaderVariables) * 4u, INT_MAX));
++  GCaps.max_shader_storage_buffer_bindings = GCaps.max_compute_shader_storage_blocks = int(
++      std::min<uint64_t>(limits.maxStorageBuffersPerShaderStage, INT_MAX));
++  GCaps.max_uniform_buffer_size = size_t(limits.maxUniformBufferBindingSize);
++  GCaps.max_storage_buffer_size = size_t(limits.maxStorageBufferBindingSize);
++  GCaps.storage_buffer_alignment = limits.minStorageBufferOffsetAlignment;
++
++  GCaps.max_parallel_compilations = BLI_system_thread_count();
++  /* WebGPU exposes no device memory statistics — memory_statistics_get() → 0/0. */
++  GCaps.mem_stats_support = false;
++  /* No portable WebGPU device-extension enumeration; leave the extension table empty. */
++  GCaps.extensions_len = 0;
++  GCaps.extension_get = nullptr;
++
++  /* Use the backend-agnostic frontend texture pool (texturepool_alloc returns
++   * TexturePoolImpl), the same fallback the Vulkan backend selects. */
++  GCaps.texture_pool_workaround = true;
++}
++
++/* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
+ void WGPUContext::begin_frame() {}
+ void WGPUContext::end_frame() {}
+ void WGPUContext::flush() {}
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.hh b/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
+index bf89c36..825623a 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
+@@ -8,40 +8,57 @@
+ /** \file
+  * \ingroup gpu
+  *
+- * M3.T4 minimal no-op StorageBuf. The gpu-test bootstrap's DebugDraw allocates
+- * exactly one storage buffer and `push_update()`s it, but never reads it back or
+- * binds it for a draw during bring-up, so no-op methods survive. The real
+- * GPUBuffer-backed implementation (writeBuffer / mapAsync) is T6.
++ * `StorageBuf` on the WebGPU backend, backed by the common `webgpu::Buffer`
++ * (Storage | Indirect | Copy* usage). Created lazily on first use.
++ *   - `update`  → `queue.writeBuffer` / staging (proven buffer wrapper);
++ *   - `clear`   → WebGPU has no fill-with-pattern, so a host-side vector of the
++ *                 32-bit clear value is uploaded (faithful to the per-word clear
++ *                 semantics the tests assert);
++ *   - `copy_sub`→ `CopyBufferToBuffer` from a vertex buffer's GPU buffer;
++ *   - `read`    → MAP_READ staging buffer + `CopyBufferToBuffer` (synchronous).
++ * Binding is deferred to bind-group / pipeline assembly (T7 / lane B).
+  */
+ 
+ #pragma once
+ 
++#include "GPU_vertex_buffer.hh" /* GPUUsageType */
++
+ #include "gpu_storage_buffer_private.hh"
+ 
++#include "wgpu_buffer.hh"
++
+ #include "MEM_guardedalloc.h"
+ 
+ namespace blender::gpu {
+ 
+ class WGPUStorageBuffer : public StorageBuf {
+  public:
+-  WGPUStorageBuffer(size_t size, GPUUsageType /*usage*/, const char *name)
+-      : StorageBuf(size, name)
++  WGPUStorageBuffer(size_t size, GPUUsageType usage, const char *name)
++      : StorageBuf(size, name), usage_(usage)
+   {
+   }
++  ~WGPUStorageBuffer() override = default;
++
++  void update(const void *data) override;
++  void bind(int slot) override;
++  void unbind() override;
++  void clear(uint32_t clear_value) override;
++  void copy_sub(VertBuf *src, uint dst_offset, uint src_offset, uint copy_size) override;
++  void read(void *data) override;
++  void async_flush_to_host() override;
++  void sync_as_indirect_buffer() override;
+ 
+-  void update(const void * /*data*/) override {}
+-  void bind(int /*slot*/) override {}
+-  void unbind() override {}
+-  void clear(uint32_t /*clear_value*/) override {}
+-  void copy_sub(VertBuf * /*src*/,
+-                uint /*dst_offset*/,
+-                uint /*src_offset*/,
+-                uint /*copy_size*/) override
++  const webgpu::Buffer &buffer() const
+   {
++    return buffer_;
+   }
+-  void read(void * /*data*/) override {}
+-  void async_flush_to_host() override {}
+-  void sync_as_indirect_buffer() override {}
++
++ private:
++  /** Create the underlying buffer on first use. Returns false if no context. */
++  bool ensure();
++
++  webgpu::Buffer buffer_;
++  GPUUsageType usage_ = GPU_USAGE_STATIC;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUStorageBuffer")
+ };
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index 2b87587..62e0450 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -478,19 +478,26 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_backend.cc
+     webgpu/wgpu_buffer.cc
+     webgpu/wgpu_context.cc
++    webgpu/wgpu_index_buffer.cc
++    webgpu/wgpu_storage_buffer.cc
+     webgpu/wgpu_uniform_buffer.cc
++    webgpu/wgpu_vertex_buffer.cc
+     webgpu/wgpu_texture_format.cc
+     webgpu/wgpu_data_conversion.cc
++    webgpu/wgpu_state_table.cc
+ 
+     webgpu/wgpu_backend.hh
+     webgpu/wgpu_buffer.hh
+     webgpu/wgpu_common.hh
+     webgpu/wgpu_context.hh
++    webgpu/wgpu_index_buffer.hh
+     webgpu/wgpu_storage_buffer.hh
+     webgpu/wgpu_uniform_buffer.hh
++    webgpu/wgpu_vertex_buffer.hh
+     webgpu/wgpu_texture_format.hh
+     webgpu/wgpu_texture_format_list.h
+     webgpu/wgpu_data_conversion.hh
++    webgpu/wgpu_state_table.hh
+   )
+   list(APPEND INC
+     webgpu

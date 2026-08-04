@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/blenloader/intern/readfile.cc @ fbe6228777e7
+#
+# ADR-004 Decision 1 — loud wasm32 pointer-collision detector (interim safety gate, NOT
+# the structural fix). Reading a 64-bit .blend on wasm32 narrows 8-byte block addresses to
+# 4 bytes (BLO_core_bhead.hh uint32_from_uint64_ptr, >>3); sub-8-aligned adjacent DATA
+# blocks then collide -> per-ID data-map abort or (worse) SILENT pointer mis-resolution
+# (see notes/m2-bhead-pointer-collision.md, c374c50). blo_read_file_internal now runs a
+# header-only pre-scan (wasm32 64-bit-file reads only; #ifdef __EMSCRIPTEN__ + gated on
+# !FD_FLAGS_FILE_POINTSIZE_IS_4 and !FD_FLAGS_IS_MEMFILE) that detects a duplicate truncated
+# address within any maximal run of consecutive DATA blocks (== one ID's data map, matching
+# read_data_into_datamap) and REFUSES the read up front with a clear ADR-004 message,
+# before any partial state is built. Zero effect on non-colliding files and on native
+# (fully guarded). Structural fix (wasm64 vs interner) is probe-gated per ADR-004.
+diff --git a/source/blender/blenloader/intern/readfile.cc b/source/blender/blenloader/intern/readfile.cc
+index 7c15bdcb2a2..827160fa862 100644
+--- a/source/blender/blenloader/intern/readfile.cc
++++ b/source/blender/blenloader/intern/readfile.cc
+@@ -558,6 +558,59 @@ static void read_file_bhead_idname_map_create(FileData *fd)
+   }
+ }
+ 
++#ifdef __EMSCRIPTEN__
++/**
++ * blender-web / ADR-004 (wasm32-pointer-collision): reading a 64-bit `.blend` on wasm32
++ * narrows every 8-byte block address to 4 bytes (`uint32_from_uint64_ptr`, `>>3`, which
++ * assumes 8-byte alignment). Real writers emit sub-8-aligned adjacent DATA blocks whose
++ * distinct addresses then collide; that aborts the per-ID data map or, worse, SILENTLY
++ * mis-resolves pointer fields. Detect the collision up front and refuse the read with a
++ * clear message, converting a data-dependent corruption risk into a deterministic,
++ * user-visible failure. Zero effect on non-colliding files (the vast majority); the
++ * structural fix (wasm64, or a pointer interner) is tracked by ADR-004.
++ *
++ * Scope mirrors #read_data_into_datamap: a per-ID data map is a maximal run of consecutive
++ * DATA blocks (cleared per ID), so truncated addresses must be unique WITHIN a run — a
++ * global check would false-positive on legitimate cross-ID address reuse. Header-only pass
++ * (read-on-demand defers block data), so it is cheap and native-unaffected (guarded).
++ *
++ * \return true if a collision was found and the read must be refused.
++ */
++static bool blo_wasm32_pointer_collision_refuse(FileData *fd)
++{
++  /* A 32-bit file needs no narrowing; undo/memfile bheads carry live native pointers. */
++  if ((fd->flags & FD_FLAGS_FILE_POINTSIZE_IS_4) != 0 || (fd->flags & FD_FLAGS_IS_MEMFILE) != 0) {
++    return false;
++  }
++  Set<const void *> data_run_olds;
++  const void *collided_old = nullptr;
++  for (BHead *bhead = blo_bhead_first(fd); bhead != nullptr; bhead = blo_bhead_next(fd, bhead)) {
++    if (bhead->code == BLO_CODE_DATA) {
++      if (bhead->old != nullptr && !data_run_olds.add(bhead->old)) {
++        collided_old = bhead->old;
++        break;
++      }
++    }
++    else {
++      /* End of one ID's data map (matches read_data_into_datamap's oldnewmap_clear). */
++      data_run_olds.clear();
++    }
++  }
++  if (collided_old == nullptr) {
++    return false;
++  }
++  BLO_reportf_wrap(
++      fd->reports,
++      RPT_ERROR,
++      "Cannot open this 64-bit .blend on 32-bit WebAssembly: block address %p collides with "
++      "another block after truncation to 32 bits, so its data pointers cannot be resolved "
++      "without corruption. This is a known wasm32 limitation (see ADR-004, "
++      "wasm32-pointer-collision); a wasm64 build reads this file correctly.",
++      collided_old);
++  return true;
++}
++#endif /* __EMSCRIPTEN__ */
++
+ void blo_readfile_invalidate(FileData *fd, Main *bmain, const char *message)
+ {
+   /* Tag given `bmain`, and 'root 'local' main one (in case given one is a library one) as invalid.
+@@ -4153,6 +4206,14 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
+   BHead *bhead = blo_bhead_first(fd);
+   BlendFileData *bfd;
+ 
++#ifdef __EMSCRIPTEN__
++  /* ADR-004: refuse a 64-bit .blend whose block addresses collide under wasm32's 32-bit
++   * truncation, up front, before any partial state is built. */
++  if (blo_wasm32_pointer_collision_refuse(fd)) {
++    return nullptr;
++  }
++#endif
++
+   const bool is_undo = (fd->flags & FD_FLAGS_IS_MEMFILE) != 0;
+   if (is_undo) {
+     CLOG_DEBUG(&LOG_UNDO, "UNDO: read step");

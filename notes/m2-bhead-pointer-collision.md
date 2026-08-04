@@ -108,3 +108,27 @@ it is not a 0014-style guarded one-file change.
 - Code: BLO_core_bhead.hh:124 (uint32_from_uint64_ptr), blo_core_bhead.cc:22-30,
   dna_genfile.cc:929 (cast_pointer_64_to_32), readfile.cc:266/1458/1921/2786-2792.
 - upstream untouched by this task (only prior patch-0014 dna_genfile change persists).
+
+## Patch 0018 — ADR-004 Decision 1 loud detector: LANDED + VERIFIED (2026-08-04)
+
+`blo_read_file_internal` now runs `blo_wasm32_pointer_collision_refuse()` up front
+(readfile.cc, `#ifdef __EMSCRIPTEN__`, gated on a 64-bit file read that is not undo:
+`!FD_FLAGS_FILE_POINTSIZE_IS_4 && !FD_FLAGS_IS_MEMFILE`). Header-only pass (read-on-demand
+defers block data); within each maximal run of consecutive DATA blocks (== one ID's data
+map) it detects a duplicate truncated `bhead->old` and refuses with a clear ADR-004 message
+before any state is built. Native byte-identical (fully guarded).
+
+VERIFIED on the relinked wasm blender via the m2b harness (run_suite_wasm.sh):
+- `bl_node_structure_type_inference` (the colliding file): now fails with
+  `RuntimeError: Loading "…structure_type_inference.blend" failed: Cannot open this 64-bit
+  .blend on 32-bit WebAssembly: block address 0x… collides … see ADR-004,
+  wasm32-pointer-collision; a wasm64 build reads this file correctly.` — the old
+  `Blendfile corruption: … same old address … Aborted()` map-insert abort is GONE.
+- No false positives (ADR-004-hits=0) and still PASS: blendfile_io, bl_node_group_interface
+  (25 OK), bl_node_socket_usage_inference (1 OK), bl_node_group_compat (6 OK), node_tools
+  (4 OK), bl_animation_action (32 OK). bl_constraints unchanged (its 1 pre-existing failure
+  is unrelated; ADR-004-hits=0).
+- Direct corpus read: `open_mainfile(mesh_dense.blend)` → CORPUS_READ_OK objects=2, exit 0,
+  no ADR-004. Corpus reads unaffected.
+Per ADR-004 Decision 2, the colliding suite reclassifies to blocked-by-ADR-004 (loud, not
+silent). Structural fix (wasm64 vs interner) rides on the Memory64 probe.

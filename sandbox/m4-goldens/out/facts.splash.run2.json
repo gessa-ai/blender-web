@@ -1,0 +1,15 @@
+{
+  "blender_version": "5.2.0 LTS",
+  "build_hash": "fbe6228777e7",
+  "engine": "BLENDER_EEVEE",
+  "mode": "splash",
+  "pref_dpi": 144,
+  "pref_pixel_size": 2.0,
+  "pref_ui_scale": 2.0,
+  "render_pct": 100,
+  "render_res_x": 1920,
+  "render_res_y": 1080,
+  "run": "2",
+  "window_height_px": 720,
+  "window_width_px": 1280
+}

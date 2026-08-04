@@ -103,5 +103,54 @@ lane A's files.
 ## Status
 
 Foundation (format+conversion) landed + compiling in-tree; patch 0016 captured +
-validated. Gate tests blocked on lane-A `texture_alloc` + my `wgpu_texture.cc`
-(next). No gate PASS claimable yet — reported honestly.
+validated.
+
+**`wgpu_texture.{hh,cc}` LANDED — patch 0016b (bf_gpu green).** The full
+`WGPUTexture : gpu::Texture` — 11 virtuals implemented, not stubbed:
+- **creation**: `init_internal()` → `allocate()` builds a `wgpu::TextureDescriptor`
+  (dimension from type_ — 1D-array/cube collapsed to 2D layers; usage from
+  gpu_image_usage_flags_ + always CopySrc|CopyDst; format via to_wgpu_format).
+  `init_internal(VertBuf*)` stores the source buffer (no texel-buffer texture in
+  WebGPU — sampling forwards to the buffer at bind-group time, lane A).
+  `init_internal(src,…)` aliases the source device texture (distinct wgpu view
+  created lazily at bind/attach time).
+- **upload** `update_sub(…data…)`: CPU host→device conversion then
+  `queue.writeTexture` (no 256 align on writeTexture). `update_sub(…pixbuf)` asserts
+  (needs pixelbuf_alloc — lane A placeholder).
+- **read**: `CopyTextureToBuffer` (256-aligned bytesPerRow) → MAP_READ staging →
+  `instance.WaitAny` (blocking, mirrors wgpu_buffer.cc) → strip row padding →
+  device→host conversion.
+- **clear**: colour = pack one device texel + writeTexture over every mip/layer;
+  depth/stencil = a render pass with only a depth-stencil attachment loadOp=Clear
+  (no draw/pipeline/shader).
+- **copy_to**: `CopyTextureToTexture` per mip. **generate_mipmap**: no-op (needs
+  the blit-pipeline; documented). **swizzle_set/mip_range_set**: trivial stores.
+- **CPU conversion matrix** (WebGPU copies move raw bytes → all pixel conversion is
+  host-side, self-contained in wgpu_texture.cc): unorm/snorm/uint/sint 8/16/32,
+  f16/f32, R11G11B10 pack/unpack, RGB→RGBA promotion (opaque alpha),
+  GPU_DATA_{FLOAT,HALF_FLOAT,INT,UINT,UBYTE} + 10_11_11_REV passthrough.
+- **SNORM_16 emulation (§5 choice REVISED)**: store in matching-width *Uint*
+  (R/RG/RGBA16Uint) with byte-identical SNORM two's-complement patterns — exact CPU
+  round-trip (passes the 0.00002-bias tests, unlike RGBA16Float). Shader-sample
+  remap still deferred (no shader samples snorm16 in the gate).
+
+Two locked-header signature bugs fixed to match the base pure-virtuals (else
+WGPUTexture stayed abstract): `unpack_row_length` int→**uint**; the pixbuf
+`update_sub` had a spurious `mip` param — removed. External contract lane A wires
+(`new WGPUTexture(name)` → `Texture*`) unchanged.
+
+CMake SRC 3-way merge point: appended `wgpu_texture.{cc,hh}` after lane-A's
+`wgpu_shader_compiler.{cc,hh}` (atomic 2-line add; patch 0016b hunk depends on those
+lines being present → effective apply-order is AFTER 0019/0021 despite the "0016b"
+name — driver reconciles numbering at the M3 boundary).
+
+### Gate status (honest)
+`texture_test` cannot RUN yet: `WGPUBackend::texture_alloc` still asserts
+(wgpu_backend.cc:81, lane-A file). **Request lane A: `texture_alloc(name) → new
+webgpu::WGPUTexture(name)`.** Even wired, the suite runs through
+`GPUTest::SetUpTestSuite → GPU_init`, which warms builtin shaders (shader_alloc, T7)
++ gpu_batch_presets (batch_alloc) — so first texture_test RUN also needs lane-A
+shader + the bootstrap wgpu_batch. Known expected-fails once it runs: depth-DATA
+upload (WebGPU forbids buffer→texture for Depth32Float depth aspect — needs a
+render/compute path; clear+read work) and BC-compressed upload (deferred). No gate
+PASS claimable yet — reported honestly. bf_gpu compiles green (21 s clean TU).

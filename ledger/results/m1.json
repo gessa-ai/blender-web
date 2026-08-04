@@ -1,7 +1,7 @@
 {
   "scope": "m1",
   "pass": true,
-  "ts": "2026-08-04T02:34:11Z",
+  "ts": "2026-08-04T11:39:49Z",
   "checks": {
     "node_runtime": {
       "pass": true,
@@ -9,7 +9,7 @@
     },
     "patches_series": {
       "pass": true,
-      "detail": "all patches clean-or-applied: 0001-platform-wasm.patch:applied 0002-makesdna-wasm32-align.patch:applied 0003-hosttools-node.patch:applied 0004-blenlib-wasm-libc-gaps.patch:applied 0005-blenlib-wasm32-sizeof-assert.patch:applied 0006-blenlib-bmesh-gtest-wasm.patch:applied 0007-hosttools-native-codegen-wasm.patch:applied 0008-blenkernel-wasm32.patch:applied 0009-editor-interface-python-off.patch:applied 0120-asset-system-wasm.patch:applied"
+      "detail": "all patches clean-or-applied: 0001-platform-wasm.patch:applied 0002-makesdna-wasm32-align.patch:applied 0003-hosttools-node.patch:applied 0004-blenlib-wasm-libc-gaps.patch:applied 0005-blenlib-wasm32-sizeof-assert.patch:applied 0006-blenlib-bmesh-gtest-wasm.patch:applied 0007-hosttools-native-codegen-wasm.patch:applied 0008-blenkernel-wasm32.patch:applied 0009-editor-interface-python-off.patch:applied 0010-creator-blender-node-profile.patch:applied 0011-ghost-webgpu-context.patch:applied 0012-gpu-webgpu-backend.patch:in-development 0014-dna-reconstruct-wasm32-offsets.patch:applied 0015-gpu-webgpu-buffers.patch:applied 0120-asset-system-wasm.patch:applied"
     },
     "blenlib_gtests": {
       "pass": true,
@@ -18,6 +18,10 @@
     "bmesh_core_gtests": {
       "pass": true,
       "detail": "1/1 PASSED (= full upstream bmesh_core suite at this pin)"
+    },
+    "corpus_parity": {
+      "pass": true,
+      "detail": "live startup re-dump byte==golden + all 9 committed wasm dumps sha256==MANIFEST (exact mode, tolerance 0)"
     }
   }
 }

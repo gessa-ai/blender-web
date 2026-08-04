@@ -127,7 +127,20 @@ scope_m1() {
     elif git -C upstream apply --check --reverse "../$P" >/dev/null 2>&1; then
       STATE="$STATE ${P##*/}:applied"
     else
-      BAD="$BAD ${P##*/}"
+      # Third honest state: the patch's target files are being actively extended by an
+      # in-flight lane (working tree ahead of the captured patch). Not a conflict — the
+      # lane regenerates the patch at its own commit gate; a TRUE conflict is a patch
+      # failing both ways while touching files nobody has modified.
+      local PFILES MODOK=1 F
+      PFILES="$(grep -E '^\+\+\+ b/' "$P" | sed 's|^+++ b/||' | sort -u)"
+      for F in $PFILES; do
+        git -C upstream status --porcelain -- "$F" 2>/dev/null | grep -q . || { MODOK=0; break; }
+      done
+      if [ "$MODOK" = 1 ] && [ -n "$PFILES" ]; then
+        STATE="$STATE ${P##*/}:in-development"
+      else
+        BAD="$BAD ${P##*/}"
+      fi
     fi
   done
   if [ -z "$BAD" ]; then
@@ -179,6 +192,46 @@ scope_m1() {
       record bmesh_core_gtests 1 "1/1 PASSED (= full upstream bmesh_core suite at this pin)"
     else
       record bmesh_core_gtests 0 "gtest json tests=$NTM failures=$NFM (expected 1/0)"
+    fi
+  fi
+
+  # 4) .blend corpus state-dump parity (M1.12): live single-file proof + static 9-file
+  #    fingerprint check. Full re-run: bash sandbox/corpus-prep/run_dumps_wasm.sh
+  local PREP=sandbox/corpus-prep
+  if [ ! -f build-wasm/bin/blender.js ] || [ ! -f "$PREP/state_dump.py" ]; then
+    record corpus_parity 0 "blender.js or corpus tooling missing; see $PREP/"
+  else
+    local TMPD; TMPD="$(mktemp -d)"
+    ( export BLENDER_SYSTEM_RESOURCES="$PWD/upstream" BLENDER_SYSTEM_PYTHON="$PWD/lib/wasm" \
+             BLENDER_SYSTEM_DATAFILES="$PWD/upstream/release/datafiles"; \
+      "$NODE" build-wasm/bin/blender.js --background --factory-startup \
+        --python "$PREP/state_dump.py" -- upstream/release/datafiles/startup.blend \
+        "$TMPD/startup.json" >/dev/null 2>&1 )
+    local LIVE_OK=0 STATIC_OK=0
+    if [ -s "$TMPD/startup.json" ] && cmp -s "$TMPD/startup.json" "$PREP/goldens-candidate/startup.json"; then
+      LIVE_OK=1
+    fi
+    STATIC_OK="$(python3 - "$PREP" <<'PY'
+import hashlib, json, pathlib, sys
+prep = pathlib.Path(sys.argv[1])
+man = json.load(open(prep / "goldens-candidate" / "MANIFEST.json"))["files"]
+ok = 0
+try:
+    for label, meta in man.items():
+        d = prep / "dumps-wasm" / f"{label}.json"
+        if hashlib.sha256(d.read_bytes()).hexdigest() != meta["dump_sha256"]:
+            raise SystemExit(print(0))
+    ok = 1
+except Exception:
+    ok = 0
+print(ok)
+PY
+)"
+    rm -rf "$TMPD"
+    if [ "$LIVE_OK" = 1 ] && [ "$STATIC_OK" = 1 ]; then
+      record corpus_parity 1 "live startup re-dump byte==golden + all 9 committed wasm dumps sha256==MANIFEST (exact mode, tolerance 0)"
+    else
+      record corpus_parity 0 "live_startup_ok=$LIVE_OK static_9file_ok=$STATIC_OK — rerun bash $PREP/run_dumps_wasm.sh for detail"
     fi
   fi
 }

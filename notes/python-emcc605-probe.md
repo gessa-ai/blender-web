@@ -161,3 +161,54 @@ browser/Playwright harness.
 - **Wasm-EH migration (deferred ADR):** E shows the Wasm-EH + wasm-longjmp + JSPI combo both
   links and passes the proxy, so the deferred migration is not blocked by JSPI on the EH
   axis — the decision stays a size/perf/dep-rebuild tradeoff, not a JSPI-compatibility one.
+
+## UPDATE — real JSPI under a tools-local Node 24 (supersedes the Asyncify proxy)
+
+The proxy gap is now closed with a real JSPI runtime. Installed tools-local (gitignored,
+no PATH changes): **Node v24.19.0 darwin-arm64**, official nodejs.org prebuilt, SHA-256
+`8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d` (verified vs published
+SHASUMS256.txt) at `tools/node24/node-v24.19.0-darwin-arm64/`. It exposes the new
+`WebAssembly.Suspending`/`promising` API under `--experimental-wasm-jspi` (still flagged in
+24.x; unflagged in Chrome ≥137). Re-ran the committed `-sJSPI` artifacts under it:
+
+| case | shape | real-JSPI runtime (node24 `--experimental-wasm-jspi`) |
+|---|---|---|
+| A | JS-EH setjmp/longjmp, NO suspension | **PASS** (instantiates + runs; longjmp ok) |
+| B1 | JS-EH, setjmp → **real** suspend → longjmp | **FAIL** — `SuspendError: trying to suspend JS frames` (proxy said PASS — **false positive**) |
+| B2 | JS-EH, suspend inside setjmp region, normal return | **FAIL** — same `SuspendError` (fails at the suspend, before any longjmp) |
+| E | Wasm-EH (`-fwasm-exceptions -sSUPPORT_LONGJMP=wasm`), setjmp → **real** suspend → longjmp | **PASS** (B1=42, B2=100) |
+| D | libpython embed, `-sJSPI` link, NO suspension | **PASS** (`{"ok":1024}`; init + trampoline fine under a real JSPI link) |
+
+### What the proxy got wrong, and the precise rule
+Asyncify (=1) keeps everything in wasm via instrument-and-rewind and tolerated the JS-EH
+setjmp frames; **native JSPI cannot suspend across JS frames**, and emscripten's
+`SUPPORT_LONGJMP=emscripten` (our JS-EH default) implements setjmp/longjmp with JS-level
+`invoke_*` wrappers. Isolation runs on node24 pin the boundary:
+- suspend with **no EH, no setjmp** → PASS; suspend with **`-fexceptions` but no setjmp** →
+  PASS. So JS/C++ **exceptions alone are JSPI-safe**.
+- a function that merely **contains a `setjmp`** (emscripten SjLj) → **`SuspendError`** for a
+  suspend anywhere in it — *even when the suspend executes before the `setjmp` lexically*
+  (emscripten wraps the whole setjmp-containing function through JS frames).
+- Wasm SjLj (`-sSUPPORT_LONGJMP=wasm`, requires `-fwasm-exceptions`) stays in wasm → suspends
+  fine (case E).
+
+**Rule:** under real JSPI, you may not suspend while a function compiled with emscripten
+setjmp/longjmp (JS-EH SjLj) is on the stack. `-fexceptions` by itself does not block it —
+`setjmp` does.
+
+### Revised implications (these supersede the proxy-based ones above)
+- **This re-opens ADR-001's deferred EH sub-decision as JSPI-load-bearing, not just size/perf.**
+  Our two setjmp-using deps — **libjpeg-turbo** (error path) and **CPython** (internals) —
+  are compiled JS-EH today. If Blender ever JSPI-suspends while either is on the stack, it
+  will `SuspendError`. Options: (a) keep JS-EH and **architecturally guarantee suspends occur
+  only at top-level yield points, never nested inside a setjmp-using dep**; or (b) migrate the
+  stack to **Wasm-EH** (`-fwasm-exceptions` + `-sSUPPORT_LONGJMP=wasm`), which case E proves is
+  JSPI-suspend-clean — at the cost of rebuilding the 29 deps + libpython (mixing is forbidden
+  in one link). The M2 "JS-EH is free" conclusion still holds for *linking/running without
+  suspension* (A, D pass), but not for *suspending across setjmp*.
+- **M4 browser smoke remains MANDATORY** regardless: node24 is a proxy for the API, but Chrome
+  ≥137 is the shipping runtime. It must (1) confirm A/D-style JSPI links instantiate + run in
+  Chrome; (2) reproduce the B-shape `SuspendError` (or its absence) for whatever EH model ships;
+  (3) exercise the **actual suspend topology** Blender uses — i.e. prove no JSPI suspend point
+  sits inside a libjpeg/CPython setjmp region under the shipped config. Node cannot stand in
+  for that last one.

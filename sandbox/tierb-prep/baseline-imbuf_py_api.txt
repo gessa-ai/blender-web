@@ -1,7 +1,7 @@
 ............................................................TIFFReadDirectory: Warning, Sum of Photometric type-related color channels and ExtraSamples doesn't match SamplesPerPixel. Defining non-color channels as ExtraSamples..
 ....................
 ----------------------------------------------------------------------
-Ran 80 tests in 0.082s
+Ran 80 tests in 0.075s
 
 OK
 Switching to fully guarded memory allocator.

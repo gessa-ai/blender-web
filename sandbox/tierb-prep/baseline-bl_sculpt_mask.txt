@@ -1,13 +1,13 @@
-00:00.318  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
-.00:00.350  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
-.00:00.367  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
-..00:00.428  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
-.00:00.445  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
-.00:00.455  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_valley.blend"
-.00:00.476  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+00:00.296  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.00:00.327  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.00:00.343  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+..00:00.403  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
+.00:00.419  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
+.00:00.428  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_valley.blend"
+.00:00.448  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
 .
 ----------------------------------------------------------------------
-Ran 8 tests in 0.175s
+Ran 8 tests in 0.168s
 
 OK
 Switching to fully guarded memory allocator.

@@ -1,4 +1,4 @@
-00:00.283  blend            | Read blend: "<REPO>/upstream/tests/files/modifier_stack/array_test.blend"
+00:00.263  blend            | Read blend: "<REPO>/upstream/tests/files/modifier_stack/array_test.blend"
 [==========] Running 1 tests from 1 test case.
 [----------] 1 tests from merge
 [ RUN      ] complex_merge_case

@@ -1,0 +1,73 @@
+00:00.285  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendUserMap.blend"
+00:00.309  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_mainTestBlendFilePathMap.blend"
+00:00.314  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.316  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.316  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.316  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.316  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.320  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.324  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.326  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.326  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.326  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.326  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.330  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.385  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.386  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.386  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.386  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.386  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.391  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.395  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.396  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.396  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.396  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.396  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.401  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.405  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.406  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.406  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.406  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.406  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.411  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.414  blend            | Read blend: "<REPO>/upstream/tests/files/libraries_and_linking/library_test_scene.blend"
+00:00.416  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.416  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.001'
+00:00.416  lib.main_namemap | WARNING ID name 'LIlib' (from library '<None>') is found more than once
+00:00.416  lib.main_namemap | WARNING 	ID has been renamed to 'LIlib.002'
+00:00.421  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+Info: Saved as "blendlib_indirect_materialTestBlendUserMap.blend"
+Info: Saved as "blendlib_indirect_mainTestBlendUserMap.blend"
+Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_materialTestBlendUserMap.blend', '//blendlib_indirect_materialTestBlendUserMap.blend', parent '<direct>'
+Info: Saved as "blendlib_indirect_materialTestBlendFilePathMap.blend"
+Info: Saved as "blendlib_indirect_mainTestBlendFilePathMap.blend"
+Info: Read library: '<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendlib_indirect_materialTestBlendFilePathMap.blend', '//blendlib_indirect_materialTestBlendFilePathMap.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Info: Saved as "scene.blend"
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/indirect_datablocks.blend', '//libraries/indirect_datablocks.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_B.blend', '//libraries/direct_linked_B.blend', parent '<direct>'
+Info: Read library: '<REPO>/upstream/tests/files/libraries_and_linking/libraries/direct_linked_A.blend', '//libraries/direct_linked_A.blend', parent '<direct>'
+Warning: Proxies have been removed from Blender (1 proxies were automatically converted to library overrides, 0 proxies could not be converted and were cleared). Consider re-saving any library .blend file with the newest Blender version
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

@@ -1,17 +1,17 @@
-00:00.302  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.313  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.322  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.330  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.340  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.349  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.358  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.367  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.376  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.384  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-.00:00.393  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+00:00.268  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.278  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.287  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.295  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.303  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.312  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.320  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.328  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.337  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.345  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+.00:00.353  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
 .
 ----------------------------------------------------------------------
-Ran 11 tests in 0.101s
+Ran 11 tests in 0.093s
 
 OK
 Switching to fully guarded memory allocator.

@@ -1,9 +1,9 @@
-00:00.310  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.335  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.347  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+00:00.295  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.320  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.331  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
 .
 ----------------------------------------------------------------------
-Ran 3 tests in 0.050s
+Ran 3 tests in 0.048s
 
 OK
 Switching to fully guarded memory allocator.

@@ -1,20 +1,20 @@
-00:00.291  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.297  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.302  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.306  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.311  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+00:00.270  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.276  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.280  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.284  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.288  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.292  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.296  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.300  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.304  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.308  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.312  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
 .00:00.316  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.320  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.325  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.330  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.334  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.339  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.343  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.347  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
-.00:00.352  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.319  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.323  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
 .
 ----------------------------------------------------------------------
-Ran 14 tests in 0.066s
+Ran 14 tests in 0.057s
 
 OK
 Switching to fully guarded memory allocator.

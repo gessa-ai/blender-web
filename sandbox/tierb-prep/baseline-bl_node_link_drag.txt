@@ -1,23 +1,23 @@
-00:00.298  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-.00:01.422  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-00:01.479  reports          | No bundle signature found
+00:00.281  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+.00:01.375  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:01.430  reports          | No bundle signature found
 Switching to fully guarded memory allocator.
 Blender 5.2.0 LTS (hash <PIN> built <DATE>)
-00:01.480  reports          | No closure signature found
-00:01.765  reports          | No bundle signature found
-00:01.766  reports          | No closure signature found
-.00:02.118  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-00:02.176  reports          | No bundle signature found
-00:02.177  reports          | No closure signature found
-00:02.454  reports          | No bundle signature found
-00:02.455  reports          | No closure signature found
-.00:02.775  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-00:02.958  reports          | No bundle signature found
-00:02.963  reports          | No closure signature found
-00:04.272  reports          | No bundle signature found
-00:04.276  reports          | No closure signature found
+00:01.431  reports          | No closure signature found
+00:01.707  reports          | No bundle signature found
+00:01.708  reports          | No closure signature found
+.00:02.048  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:02.103  reports          | No bundle signature found
+00:02.104  reports          | No closure signature found
+00:02.378  reports          | No bundle signature found
+00:02.378  reports          | No closure signature found
+.00:02.695  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:02.880  reports          | No bundle signature found
+00:02.886  reports          | No closure signature found
+00:04.168  reports          | No bundle signature found
+00:04.171  reports          | No closure signature found
 .
 ----------------------------------------------------------------------
-Ran 4 tests in 5.729s
+Ran 4 tests in 5.624s
 
 OK

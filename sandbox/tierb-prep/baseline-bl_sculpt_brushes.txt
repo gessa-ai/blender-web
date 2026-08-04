@@ -65,7 +65,7 @@ test_twist_boundary_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test
 test_twist_brush_creates_valid_data (__main__.MeshBrushTests.test_twist_brush_creates_valid_data) ... ok
 
 ----------------------------------------------------------------------
-Ran 65 tests in 16.120s
+Ran 65 tests in 15.726s
 
 OK (skipped=7)
 Switching to fully guarded memory allocator.

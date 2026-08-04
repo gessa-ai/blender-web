@@ -1,4 +1,4 @@
-00:00.280  blend            | Read blend: "<REPO>/upstream/tests/files/physics/cloth_test.blend"
+00:00.267  blend            | Read blend: "<REPO>/upstream/tests/files/physics/cloth_test.blend"
 
 START ClothSimple test.
 PASSED ClothSimple test successfully.

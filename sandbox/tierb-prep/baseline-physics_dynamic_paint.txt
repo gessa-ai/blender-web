@@ -1,4 +1,4 @@
-00:00.284  blend            | Read blend: "<REPO>/upstream/tests/files/physics/dynamic_paint_test.blend"
+00:00.267  blend            | Read blend: "<REPO>/upstream/tests/files/physics/dynamic_paint_test.blend"
 
 START DynamicPaintSimple test.
 PASSED DynamicPaintSimple test successfully.

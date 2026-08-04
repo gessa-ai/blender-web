@@ -1,4 +1,4 @@
-00:00.282  blend            | Read blend: "<REPO>/upstream/tests/files/physics/softbody_test.blend"
+00:00.264  blend            | Read blend: "<REPO>/upstream/tests/files/physics/softbody_test.blend"
 
 START SoftBodySimple test.
 PASSED SoftBodySimple test successfully.

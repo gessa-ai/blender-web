@@ -1,18 +1,18 @@
-00:00.308  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.342  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.363  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.384  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.404  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.425  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.445  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.466  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+00:00.292  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.324  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.344  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.364  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.385  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.405  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.424  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.444  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.467  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
 .00:00.488  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.510  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.531  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
-.00:00.552  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.508  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.528  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
 .
 ----------------------------------------------------------------------
-Ran 12 tests in 0.264s
+Ran 12 tests in 0.257s
 
 OK
 Switching to fully guarded memory allocator.

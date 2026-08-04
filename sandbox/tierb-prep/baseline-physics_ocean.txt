@@ -1,4 +1,4 @@
-00:00.279  blend            | Read blend: "<REPO>/upstream/tests/files/physics/ocean_test.blend"
+00:00.269  blend            | Read blend: "<REPO>/upstream/tests/files/physics/ocean_test.blend"
 
 START PlaneOcean test.
 PASSED PlaneOcean test successfully.

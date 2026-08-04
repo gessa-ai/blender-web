@@ -1,7 +1,7 @@
-.00:00.306  blend            | Read blend: "<REPO>/upstream/tests/files/animation/armature_join_with_action_constraints.blend"
+.00:00.281  blend            | Read blend: "<REPO>/upstream/tests/files/animation/armature_join_with_action_constraints.blend"
 .....
 ----------------------------------------------------------------------
-Ran 6 tests in 0.031s
+Ran 6 tests in 0.027s
 
 OK
 [92mloading empty homefile[0m

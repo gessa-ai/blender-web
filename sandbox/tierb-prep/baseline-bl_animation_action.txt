@@ -1,20 +1,20 @@
-.00:00.312  reports          | ERROR Cannot set slot without an assigned Action.
+.00:00.283  reports          | ERROR Cannot set slot without an assigned Action.
 Switching to fully guarded memory allocator.
 Blender 5.2.0 LTS (hash <PIN> built <DATE>)
-.00:00.321  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
+.00:00.290  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
                             | 
-00:00.321  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
+00:00.290  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
                             | 
-.......................00:00.382  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
-.00:00.389  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
-.00:00.411  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
-.00:00.418  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:00.424  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:00.430  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:00.436  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.......................00:00.347  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.354  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.374  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
+.00:00.381  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.386  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.391  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:00.396  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
 .
 ----------------------------------------------------------------------
-Ran 32 tests in 0.139s
+Ran 32 tests in 0.128s
 
 OK
 WARNING: ignoring assignment to target_id_type of Slot 'OBLegacy Slot' in Action 'ACAction Without IDRoot'. A Slot's target_id_type can only be changed when currently 'UNSPECIFIED'.

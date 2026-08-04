@@ -1,5 +1,5 @@
-00:00.295  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/socket_usage_inference.blend"
-00:00.300  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+00:00.271  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/socket_usage_inference.blend"
+00:00.275  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
 .
 ----------------------------------------------------------------------
 Ran 1 test in 0.006s

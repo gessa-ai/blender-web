@@ -1,9 +1,9 @@
-00:00.277  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/voxel_remesh_compare.blend"
+00:00.263  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/voxel_remesh_compare.blend"
 
 START Color Interpolation test.
-00:00.300  blend.writefile  | WARNING Found an ID 'OBexpected objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
-00:00.300  blend.writefile  | WARNING Found an ID 'OBtest objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
-00:00.300  reports          | Found IDs flagged as copy/paste clipboard data while writing a regular blendfile, the flag has been cleared in these IDs
+00:00.285  blend.writefile  | WARNING Found an ID 'OBexpected objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.285  blend.writefile  | WARNING Found an ID 'OBtest objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.285  reports          | Found IDs flagged as copy/paste clipboard data while writing a regular blendfile, the flag has been cleared in these IDs
 Switching to fully guarded memory allocator.
 Blender 5.2.0 LTS (hash <PIN> built <DATE>)
 PASSED Color Interpolation test successfully.

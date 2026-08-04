@@ -1,5 +1,5 @@
-00:00.279  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_test.blend"
-00:00.282  blend.doversion  | WARNING Region type 9 missing in space type "Userpref" (id: 19) - removing region
+00:00.264  blend            | Read blend: "<REPO>/upstream/tests/files/physics/physics_particle_test.blend"
+00:00.267  blend.doversion  | WARNING Region type 9 missing in space type "Userpref" (id: 19) - removing region
 
 START ParticleSystemTest test.
 PASSED ParticleSystemTest test successfully.

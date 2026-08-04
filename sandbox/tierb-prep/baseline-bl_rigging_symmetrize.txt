@@ -1,7 +1,7 @@
-.......00:00.335  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
+.......00:00.300  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
 .
 ----------------------------------------------------------------------
-Ran 8 tests in 0.057s
+Ran 8 tests in 0.052s
 
 OK
 Switching to fully guarded memory allocator.

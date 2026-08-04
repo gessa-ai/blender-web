@@ -1,7 +1,7 @@
-00:00.286  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
+00:00.271  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
 .....
 ----------------------------------------------------------------------
-Ran 5 tests in 0.195s
+Ran 5 tests in 0.192s
 
 OK
 Switching to fully guarded memory allocator.

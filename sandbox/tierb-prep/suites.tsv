@@ -104,16 +104,13 @@ physics_particle_instance	@SRC@/physics/physics_particle_instance.blend	--python
 physics_ocean	@SRC@/physics/ocean_test.blend	--python @PY@/physics_ocean.py -- --run-all-tests	blend
 # --- Group J: constraints (data: tests/files/constraints/) ---
 bl_constraints	bl_constraints.py	--testdir @SRC@/constraints
-# --- Group K: library link/override (data: tests/files/libraries_and_linking/) ---
+# --- Group K: library link/override/relationships (data: libraries_and_linking/ + imbuf_io/) ---
+# blendfile_liblink + blendfile_relationships use --src-test-dir @SRC@/ (whole tree); their
+# linked .blend transitively references real images under tests/files/imbuf_io/reference/ — so
+# they need imbuf_io/ pulled (done, 19 MB). Green once the referenced jpeg is real content.
+blendfile_liblink	bl_blendfile_liblink.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
+blendfile_relationships	bl_blendfile_relationships.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
 blendfile_library_overrides	bl_blendfile_library_overrides.py	--output-dir @OUT@/blendfile_io/ --test-dir @SRC@/libraries_and_linking
-# EXCLUDED — oracle-RED on the CHEAP pull. blendfile_liblink + blendfile_relationships
-# use --src-test-dir @SRC@/ (whole tree); their linked .blend transitively references a
-# real image tests/files/imbuf_io/reference/jpeg-rgb-90__from__rgba08.jpg which is STILL
-# an LFS stub (imbuf_io not in the cheap pull) -> IMB_load_image_from_memory unknown
-# file-format -> SIGABRT (exit 134). Unlockable by additionally pulling imbuf_io/ (19 MB) —
-# follow-on driver decision. Left commented (not carried red):
-#blendfile_liblink	bl_blendfile_liblink.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
-#blendfile_relationships	bl_blendfile_relationships.py	--src-test-dir @SRC@/ --output-dir @OUT@/blendfile_io/
 # --- Group L: mesh validate (data: tests/files/sculpting + invalid_blendfiles) — allow_error ---
 mesh_validate	mesh_validate.py	--testdir @SRC@	allow_error
 # --- Group M: modifier stack (data: tests/files/modifier_stack/) — embedded --python-text ---

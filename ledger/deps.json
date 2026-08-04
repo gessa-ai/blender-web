@@ -1,14 +1,8 @@
 {
+  "_m2_8_audit": "M2.8 (2026-08-04): deps.json completeness gate. Every harvested lib/wasm/lib/*.a runtime artifact in `wasm_built` now carries {license (SPDX id), gpl_compatible, rationale, source}. Build-time-only / native-harness deps recorded under `toolchain` with build_time:true. FINDING: every SHIPPED runtime dep is GPL-compatible under Blender's GPL-2.0-or-later — the two Apache-2.0 deps (oneTBB, OpenImageIO) and the one MPL-2.0 dep (Eigen) are GPL-compatible via the or-later→GPLv3 path / MPL-2.0's GPL-compat clause (same posture as upstream Blender, which is GPL-2.0-or-later precisely to combine with them). No GPL-incompatible runtime dep. Versions/hashes cross-checked against upstream/build_files/build_environment/cmake/versions.cmake at the pin.",
   "decided": {},
-  "pending": [
-    "python",
-    "openexr",
-    "oiio",
-    "ocio",
-    "zlib",
-    "freetype",
-    "epoxy?"
-  ],
+  "pending": [],
+  "_pending_note": "Empty: all wave-0/1/2 deps are built + harvested — authoritative per-artifact records are in `wasm_built`. Remaining gaps are OPTIONAL Python C-extension modules (numpy/_ctypes(libffi)/_ssl+_hashlib(openssl)/_lzma(xz)/sqlite3), tracked as deferrals in ledger/deferred.json (optional-python-modules), not as core deps.",
   "mandatory_minimal": {
     "_note": "Evidence-derived (pin fbe6228777e7). HARD deps that must exist before Blender core links even with every optional WITH_* OFF. Sources: platform_unix.cmake unconditional find_package(REQUIRED); dependency_targets.cmake link targets; blenlib/CMakeLists.txt LIB list. See notes/m1-dep-graph.md.",
     "_critical_finding": "blenlib PUBLIC-links OpenImageIO::OpenImageIO (dependency_targets.cmake:143) + fmt/zlib/zstd/tbb, so the Imath->OpenEXR->OIIO stack is on the M1 tier-(a) gtest critical path, NOT deferrable to M2.",
@@ -266,119 +260,212 @@
     "imath": {
       "version": "3.2.2",
       "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "Half/float pixel + matrix types; transitive runtime dep via OpenEXR/OIIO/OCIO (blenlib PUBLIC-links OIIO). Part of the ASWF OpenEXR project.",
+      "source": "versions.cmake:168 IMATH_VERSION 3.2.2 (MD5 e29f25ce926ac53d8e0a52197299f61b); built by scripts/deps/imath.sh",
       "notes": "static -pthread; CMake config at lib/wasm/lib/cmake/Imath (verified find_package-ready); emcc link test OK; libImath-3_2.a"
     },
     "eigen": {
       "version": "8a1083e9bf41b91fdea6546681f806154efdc25a",
       "status": "ok",
+      "license": "MPL-2.0",
+      "gpl_compatible": true,
+      "rationale": "Header-only linear algebra used across blenlib/blenkernel math. MPL-2.0 is GPL-compatible (FSF-listed) and Eigen ships no 'Incompatible With Secondary Licenses' notice; the modules Blender compiles (Core/Dense) are MPL-2.0.",
+      "source": "versions.cmake:1479 EIGEN_VERSION 8a1083e9 (commit pinned by Blender; MD5/SHA per versions.cmake:1481); built by scripts/deps/eigen.sh",
       "notes": "header-only; config at lib/wasm/share/eigen3/cmake; EIGEN_BUILD_BLAS/LAPACK=OFF (install had no built blas .a); TBB patch skipped; emcc compile test <Eigen/Dense> OK"
     },
     "zlib": {
       "version": "1.3.1",
       "status": "ok",
+      "license": "Zlib",
+      "gpl_compatible": true,
+      "rationale": "DEFLATE codec; transitive everywhere (.blend zstd-adjacent paths, PNG/TIFF/EXR/minizip/freetype). Permissive Zlib license.",
+      "source": "versions.cmake:42 ZLIB_VERSION 1.3.1 (MD5 9855b6d802d7fe5b7bd5b196a2271655); built by scripts/deps/zlib.sh",
       "notes": "built from Blender-pinned source into lib/wasm (real libz.a) rather than only the emcc --use-port=zlib port, so downstream find_package(ZLIB) for OpenEXR/OIIO/libpng/minizip resolves against a discoverable static archive+header; -pthread; link+run test OK (zlibVersion 1.3.1)"
     },
     "zstd": {
       "version": "1.5.7",
       "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "Zstandard compression for .blend read/write; linked by blenlib. Dual-licensed BSD-3-Clause OR GPL-2.0; we take the permissive BSD-3-Clause grant.",
+      "source": "versions.cmake:1018 ZSTD_VERSION 1.5.7 (SHA256 eb33e51f...); built by scripts/deps/zstd.sh",
       "notes": "build/cmake, static only, programs/tests/multithread OFF, -pthread; link+run test OK (ZSTD_versionNumber 10507)"
     },
     "fmt": {
       "version": "12.1.0",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "{fmt} formatting library; OIIO dependency and used in Blender. Permissive MIT.",
+      "source": "versions.cmake:309 FMT_VERSION 12.1.0 (SHA256 ea7de429...); built by scripts/deps/fmt.sh",
       "notes": "FMT_TEST/FMT_DOC OFF, static, -pthread; link+run test OK; installs lib/cmake/fmt config"
     },
     "tbb": {
       "version": "2022.3.0",
       "status": "ok",
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "gpl_compatible_note": "Apache-2.0 is incompatible with GPLv2 alone but compatible with GPLv3. Blender is GPL-2.0-OR-LATER, so the combined work is conveyed under GPLv3 terms — the same reason upstream Blender ships oneTBB. LICENSES/Apache-2.0.txt present.",
+      "rationale": "oneTBB task/threading substrate over -pthread + SharedArrayBuffer (WITH_TBB default ON; Eigen opts into EIGEN_HAS_TBB). Threading is the wasm risk; see notes/deps-tbb.md.",
+      "source": "versions.cmake:410 TBB_VERSION v2022.3.0 (MD5 2b242c465b194ac8e1451ea1354873ae); built by scripts/deps/tbb.sh; notes/deps-tbb.md",
       "notes": "oneTBB v2022.3.0 static (BUILD_SHARED_LIBS=OFF) via emcc 6.0.5; -pthread; TBBMALLOC on, PROXY off (would collide with -sMALLOC=mimalloc). parallel_for VERIFIED running under wasm threads in node (14 threads, exact sum, no deadlock). Consumer flags: -pthread -fexceptions -sPROXY_TO_PTHREAD (browser-critical; node ok without) -sPTHREAD_POOL_SIZE. See notes/deps-tbb.md. libtbb.a+libtbbmalloc.a+cmake config in lib/wasm."
     },
     "libjpeg": {
       "version": "2.1.3",
       "status": "ok",
+      "license": "IJG AND BSD-3-Clause AND Zlib",
+      "gpl_compatible": true,
+      "rationale": "libjpeg-turbo JPEG codec; OIIO reader + Blender image IO. All three component licenses (IJG, BSD-3-Clause, Zlib) are GPL-compatible.",
+      "source": "versions.cmake:82 JPEG_VERSION 2.1.3 (MD5 627b980fad0573e08e4c3b80b290fc91); built by scripts/deps/libjpeg.sh",
       "notes": "libjpeg-turbo, WITH_SIMD=OFF (no wasm asm), static, -pthread, JPEG8; needed CMAKE_POLICY_VERSION_MINIMUM=3.5; bundled GNUInstallDirs put .a in build tree so archive harvested to prefix/lib. scripts/deps/libjpeg.sh"
     },
     "libpng": {
       "version": "1.6.58",
       "status": "ok",
+      "license": "libpng-2.0",
+      "gpl_compatible": true,
+      "rationale": "PNG codec; OIIO reader + Blender image IO. libpng 1.6.36+ uses the PNG Reference Library License v2 (SPDX libpng-2.0), a permissive GPL-compatible license.",
+      "source": "versions.cmake:65 PNG_VERSION 1.6.58 (SHA256 28eb403f...); built by scripts/deps/libpng.sh",
       "notes": "static, -pthread, PNG_HARDWARE_OPTIMIZATIONS=OFF; links against lib/wasm zlib 1.3.1. scripts/deps/libpng.sh"
     },
     "epoxy": {
       "version": "1.5.10",
       "status": "skipped",
+      "shipped": false,
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "GL/EGL loader — NOT built and NOT shipped: no GL consumer in the WebGPU-only build (WITH_OPENGL_BACKEND OFF). Recorded for completeness; not a runtime dep.",
       "notes": "M1.2: WITH_OPENGL_BACKEND OFF in platform_wasm.cmake; only REQUIRED find lived in platform_unix (bypassed). No GL consumer in WebGPU build; not cross-compiled."
     },
     "vulkan": {
       "status": "skipped",
+      "shipped": false,
       "notes": "M1.2: WITH_VULKAN_BACKEND forced OFF in platform_wasm.cmake; WebGPU backend replaces it. Not built."
     },
     "shaderc": {
       "status": "skipped",
+      "shipped": false,
+      "note_license": "When re-introduced by gpu/webgpu in M3 (BSL->SPIR-V->WGSL), shaderc is Apache-2.0 (build-time host-side); track under `toolchain` at that point.",
       "notes": "M1.2: dropped with Vulkan backend; BSL->SPIR-V->WGSL chain re-introduces it via gpu/webgpu in M3. Not built."
     },
     "libdeflate": {
       "version": "1.18",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "OpenEXR 3.4 core compression backend (replaces zlib in EXR core). Permissive MIT.",
+      "source": "versions.cmake:149 DEFLATE_VERSION 1.18 (MD5 a29d9dd653cbe03f2d5cd83972063f9e); built by scripts/deps/libdeflate.sh",
       "notes": "OpenEXR 3.4 compression backend (replaces zlib in EXR core). Static, -pthread, GZIP/SHARED/TESTS OFF. Built externally + installed (vendored copy in openexr tarball is EXCLUDE_FROM_ALL, never installed). CMake config lib/cmake/libdeflate (libdeflate::libdeflate_static). scripts/deps/libdeflate.sh"
     },
     "openjph": {
       "version": "0.25.2",
       "status": "ok",
+      "license": "BSD-2-Clause",
+      "gpl_compatible": true,
+      "rationale": "HTJ2K codec linked PRIVATE by OpenEXRCore. Permissive 2-clause BSD.",
+      "source": "versions.cmake:632 OPENJPH_VERSION 0.25.2 (SHA256 ae5f0956...); built by scripts/deps/openjph.sh",
       "notes": "HTJ2K codec linked PRIVATE by OpenEXRCore. OpenJPH has native EMSCRIPTEN support (auto BUILD_SHARED_LIBS OFF, TIFF OFF). OJPH_DISABLE_SIMD=ON => generic wasm codepath (no -msimd128), matching -pthread-only stack. Built externally+installed (vendored openexr copy not installed). libopenjph.a + config lib/cmake/openjph (openjph-config.cmake). scripts/deps/openjph.sh"
     },
     "openexr": {
       "version": "3.4.10",
       "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "EXR image IO (Iex/IlmThread/OpenEXR/OpenEXRCore/OpenEXRUtil); on the M1 tier-(a) gtest critical path because blenlib PUBLIC-links OIIO which requires EXR. ASWF project, BSD-3-Clause.",
+      "source": "versions.cmake:158 OPENEXR_VERSION 3.4.10 (MD5 8926ba09c4e4cd21c7a0fa2d2b39fa82); built by scripts/deps/openexr.sh",
       "notes": "Static, -pthread (IlmThread pthreads). find_package(Imath CONFIG) resolves from prefix via Imath_DIR. 3.4 core needs libdeflate+openjph -> external via libdeflate_DIR/openjph_DIR (OPENEXR_FORCE_INTERNAL_*=OFF). Tools/examples/python/tests OFF. Libs Iex/IlmThread/OpenEXR/OpenEXRCore/OpenEXRUtil-3_4. emcc link test (Header+ChannelList+ZIP_COMPRESSION) OK, 240K wasm. Config lib/cmake/OpenEXR. scripts/deps/openexr.sh"
     },
     "tiff": {
       "version": "4.7.1",
       "status": "ok",
+      "license": "libtiff",
+      "gpl_compatible": true,
+      "rationale": "libtiff — OIIO REQUIRED_DEP (TIFF reader). Permissive MIT-style libtiff license.",
+      "source": "versions.cmake:330 TIFF_VERSION 4.7.1 (MD5 f1044dd3b4466cc53464210148e08146); built by scripts/deps/libtiff.sh",
       "notes": "libtiff static, -pthread. Explicit ZLIB(libz.a)+JPEG(libjpeg.a) from prefix; lzma/jbig/zstd/webp/lerc OFF; tools/tests/contrib/docs OFF. ZIP via zlib (libdeflate off, matches upstream tiff.cmake). libtiff.a+libtiffxx.a. emcc link test (TIFFGetVersion) OK. Needed by OIIO REQUIRED_DEP. scripts/deps/libtiff.sh"
     },
     "robinmap": {
       "version": "1.3.0",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "tsl::robin_map header-only hash map; OIIO REQUIRED_DEP. Permissive MIT.",
+      "source": "versions.cmake:321 ROBINMAP_VERSION v1.3.0 (SHA256 a8424ad3...); built by scripts/deps/robinmap.sh",
       "notes": "tsl::robin_map header-only; OIIO REQUIRED_DEP. CMAKE_POLICY_VERSION_MINIMUM=3.5. Config at share/cmake/tsl-robin-map (NOT lib/cmake); consumer passes ROBINMAP_INCLUDE_DIR=include for OIIO's FindRobinmap. scripts/deps/robinmap.sh"
     },
     "expat": {
       "version": "2.7.5",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "libexpat XML parser; OCIO dependency. Permissive MIT.",
+      "source": "versions.cmake:739 EXPAT_VERSION 2_7_5 (MD5 aecc4366ab1a5189d8f027c369305c9a); built by scripts/deps/expat.sh",
       "notes": "libexpat static -pthread; OCIO dep. Tools/tests/examples OFF. Config lib/cmake/expat-2.7.5. scripts/deps/expat.sh"
     },
     "pystring": {
       "version": "1.1.3",
       "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "Python-style string ops; OCIO dependency (Sony Pictures Imageworks). BSD-3-Clause.",
+      "source": "versions.cmake:730 PYSTRING_VERSION v1.1.3 (MD5 f2c68786b359f5e4e62bed53bc4fb86d); built by scripts/deps/pystring.sh",
       "notes": "OCIO dep; ships no CMake -> minimal CMakeLists written (Blender-style). libpystring.a + include/pystring.h; no config pkg (OCIO Findpystring uses pystring_ROOT/INCLUDE_DIR/LIBRARY). scripts/deps/pystring.sh"
     },
     "yamlcpp": {
       "version": "0.8.0",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "yaml-cpp config parser; OCIO dependency (reads .ocio configs). Permissive MIT.",
+      "source": "versions.cmake:721 YAMLCPP_VERSION 0.8.0 (MD5 1d2c7975edba60e995abe3c4af6480e5); built by scripts/deps/yamlcpp.sh",
       "notes": "yaml-cpp static -pthread; OCIO dep. Tests/tools/contrib OFF. Config lib/cmake/yaml-cpp. scripts/deps/yamlcpp.sh"
     },
     "minizipng": {
       "version": "4.0.10",
       "status": "ok",
+      "license": "Zlib",
+      "gpl_compatible": true,
+      "rationale": "minizip-ng zip container (zlib-only build); OCIO dependency. Permissive Zlib license.",
+      "source": "versions.cmake:273 MINIZIPNG_VERSION 4.0.10 (MD5 9b4de14db78016419598d0f292fde244); built by scripts/deps/minizipng.sh",
       "notes": "minizip-ng static -pthread; OCIO dep. zlib-only (all other compression OFF, matches OCIO/Blender), MZ_COMPAT=ON -> libminizip.a; headers include/minizip-ng/minizip. Consumer passes minizip-ng_INCLUDE_DIR/_LIBRARY (NOT minizip-ng_ROOT: OCIO's Findminizip-ng has a ROOT-defined get_target_property trap). scripts/deps/minizipng.sh"
     },
     "opencolorio": {
       "version": "2.5.0",
       "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "Color management (OCIO configs, transforms). HARD dep of OIIO 3.x (color_ocio.cpp unconditional) so it is on the tier-(a) gtest critical path via blenlib->OIIO. ASWF project, BSD-3-Clause. See notes/deps-oiio.md.",
+      "source": "versions.cmake:263 OPENCOLORIO_VERSION 2.5.0 (MD5 41d6b62ac672ed333ebfdcc1108407e0); built by scripts/deps/opencolorio.sh",
       "notes": "HARD dep of OIIO 3.x (not deferrable \u2014 see notes/deps-oiio.md). Static -pthread -fexceptions, OCIO_USE_SIMD/SSE=OFF, apps/python/nuke/java/docs/tests/GPU OFF, INSTALL_EXT_PACKAGES=NONE. External deps: Imath/yaml-cpp/expat/pystring/minizip-ng/zlib via explicit *_DIR + INCLUDE/LIBRARY. libOpenColorIO.a 13MB, config lib/cmake/OpenColorIO. scripts/deps/opencolorio.sh"
     },
     "openimageio": {
       "version": "3.1.13.1",
       "status": "ok",
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "gpl_compatible_note": "Apache-2.0: incompatible with GPLv2 alone, compatible with GPLv3. Blender is GPL-2.0-OR-LATER so the combined work is conveyed under GPLv3 — the same reason upstream Blender ships OpenImageIO. Bundles pugixml (MIT, USE_EXTERNAL_PUGIXML=OFF) statically. LICENSES/Apache-2.0.txt present.",
+      "rationale": "Image IO abstraction (EXR/TIFF/PNG/JPEG readers). blenlib PUBLIC-links OpenImageIO::OpenImageIO (dependency_targets.cmake:143) so it is a mandatory tier-(a) runtime dep, not optional. THE long pole. See notes/deps-oiio.md.",
+      "source": "versions.cmake:298 OPENIMAGEIO_VERSION v3.1.13.1 (MD5 9f6f083900680b79ca4a136270103844); built by scripts/deps/openimageio.sh",
       "notes": "THE long pole \u2014 built OK. Static -pthread -fexceptions. Trimmed readers EXR/TIFF/PNG/JPEG only; EMBEDPLUGINS on, no tools/python/tbb/webp/oj/heif/raw/jxl/ocv/qt/freetype; USE_SIMD=0; USE_EXTERNAL_PUGIXML=OFF (bundled). OCIO ON (mandatory in 3.x). No host-tool run step. Source patches: OCIO link guards + libutil __EMSCRIPTEN__ port (strcasecmp_l/isatty/usleep/this_program_path). emcc link test builds ImageSpec+serialize -> wasm OK. libOpenImageIO.a 26MB + libOpenImageIO_Util.a, config lib/cmake/OpenImageIO. Consumer (Blender find_package) must pass the full transitive hint-var set; see notes/deps-oiio.md. scripts/deps/openimageio.sh"
     },
     "brotli": {
       "version": "1.0.9",
       "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "rationale": "woff2/freetype compression backend; freetype is compiled FT_REQUIRE_BROTLI=ON. Permissive MIT. See notes/deps-freetype.md.",
+      "source": "versions.cmake:1038 BROTLI_VERSION 1.0.9 (SHA256 f9e8d81d...); built by scripts/deps/brotli.sh",
       "notes": "woff2/freetype compression backend. Static -pthread, BUILD_SHARED_LIBS=OFF, BROTLI_DISABLE_TESTS=ON. brotli 1.0.9 auto-detects BROTLI_BUNDLED_MODE=ON under emcmake so its install() is a no-op; archives harvested directly (libbrotli{common,dec,enc}-static.a + c/include/brotli/*.h). FindBrotli.cmake resolves via BROTLI_ROOT_DIR=lib/wasm. scripts/deps/brotli.sh"
     },
     "freetype": {
       "version": "2.13.3",
       "status": "ok",
+      "license": "FTL OR GPL-2.0-or-later",
+      "gpl_compatible": true,
+      "rationale": "Font rendering. REQUIRED and NOT deferrable — no WITH_FREETYPE off-switch and check_freetype_for_brotli() FATALs without a brotli-enabled freetype. Dual FreeType-License (FTL) / GPL-2.0-or-later; both are GPL-compatible. See notes/deps-freetype.md.",
+      "source": "versions.cmake:194 FREETYPE_VERSION 2.13.3 (MD5 ac1f0b517f62bd40d50bc995faa5741d); built by scripts/deps/freetype.sh",
       "notes": "REQUIRED, NOT deferrable: no WITH_FREETYPE off-switch; check_freetype_for_brotli() FATALs without brotli-enabled freetype. Static -pthread; FT_REQUIRE_BROTLI=ON + FT_REQUIRE_ZLIB=ON, FT_DISABLE_{BZIP2,HARFBUZZ,PNG}=ON, links lib/wasm brotli+zlib. Installs libfreetype.a (no 2ST postfix) + include/freetype2/. FT_CONFIG_OPTION_USE_BROTLI baked into installed ftoption.h (script asserts). scripts/deps/freetype.sh. See notes/deps-freetype.md"
     },
     "python": {
@@ -388,8 +475,48 @@
       "gpl_compatible": true,
       "hash": "md5:3a19dd420883dd599728c9dd07c141e7",
       "hash_provenance": "versions.cmake:385 (PYTHON_HASH, MD5) — verified against downloaded tarball",
+      "source": "versions.cmake:381 PYTHON_VERSION 3.13.13 (MD5 3a19dd420883dd599728c9dd07c141e7); built by scripts/deps/python.sh",
       "rationale": "WITH_PYTHON mandatory for bpy/UI (D-4); Blender 5.2 pins exactly 3.13 (FindPythonLibsUnix hardcodes 3.13).",
       "notes": "M2.1/M2.2 (2026-08-03). Vanilla CPython 3.13.13 static libpython3.13.a for wasm32-emscripten, browser target, JS-EH (-fexceptions; SUPPORT_LONGJMP defaults emscripten) per ADR-001 appendix + M2.0b probe (notes/python-emcc605-probe.md) — matches the JS-EH deps stack, zero dep rebuild. ZERO source patches on emcc 6.0.5 (3.13.13 ships in-tree Python/emscripten_trampoline.c; LONG_BIT not hit). Native bootstrap python.exe (macOS case-insensitive FS) via --with-build-python. Harvest is unix-layout / FindPythonLibsUnix-ready: lib/libpython3.13.a (42.2MB, 2850 defined-T syms = probe parity), include/python3.13/ (Python.h + cpython/ + internal/ + pyconfig.h), lib/python3.13/ (unzipped stdlib incl. build-generated _sysconfigdata__emscripten_wasm32-emscripten.py; CPython test suite excluded). Optional modules absent — need deps not yet harvested: _ctypes(libffi) _ssl/_hashlib(openssl) _lzma(xz) _uuid. Built + harvested by scripts/deps/python.sh (idempotent). WITH_PYTHON NOT yet enabled in blender_web.cmake (M2.3, driver-gated)."
+    }
+  },
+  "toolchain": {
+    "_note": "Build-time / host-tool / native-harness deps. These are NOT compiled into the shipped blender.wasm payload (build_time:true), so GPL-compatibility of the runtime aggregate does not depend on them; recorded for provenance + audit completeness. emdawnwebgpu is the one FUTURE runtime (browser) dep, pending M4.",
+    "emscripten": {
+      "version": "6.0.5",
+      "build_time": true,
+      "license": "MIT AND NCSA",
+      "gpl_compatible": true,
+      "rationale": "The wasm compiler toolchain (emcc/em++ 6.0.5, bundled node 22.16.0). Build-time only; emitted code carries no emscripten license obligation on the shipped wasm beyond the permissive MIT/NCSA runtime bits.",
+      "source": "oracle/TOOLCHAIN — emsdk release dbd755b5da399329c2576f6e3dfa7f419f5d8409; emcc 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271); GOAL floor >=4.0.10"
+    },
+    "dawn": {
+      "version": "chromium/7989 @ 36cf1fae0cd8a81a4fb4580751648b80b2e6255c",
+      "build_time": true,
+      "native_only": true,
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "Dawn (native WebGPU impl) + Tint (SPIR-V reader / WGSL writer, same repo) for the M3 native gpu-module harness (GLSL->SPIR-V->Tint->WGSL->wgpuDeviceCreateShaderModule on Dawn/Metal). NOT in the wasm payload — the browser uses the emdawnwebgpu port instead. BSD-3-Clause.",
+      "source": "notes/gpu-dawn-probe.md §1 (dawn.googlesource.com/dawn, --depth 1 --branch chromium/7989); sandbox/dawn-probe/"
+    },
+    "glslang": {
+      "version": "16.4.0",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "BSD-3-Clause AND Apache-2.0 AND MIT",
+      "gpl_compatible": true,
+      "rationale": "GLSL->SPIR-V host tool for the M3 shader probes (glslangValidator; pulled spirv-tools 1.4.357.0 for spirv-val/dis). Build-time host tool only, NOT a runtime/browser dep. Mixed BSD-3-Clause/Apache-2.0/MIT (all GPL-compatible under GPL-2.0-or-later->GPLv3).",
+      "source": "notes/gpu-dawn-probe.md §2 (brew install glslang)"
+    },
+    "emdawnwebgpu": {
+      "version": "port (emscripten 6.0.5; emdawnwebgpu.175430)",
+      "build_time": false,
+      "status": "pending-M4",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "rationale": "The browser WebGPU runtime binding (--use-port=emdawnwebgpu), Dawn-derived (BSD-3-Clause). Becomes a shipped RUNTIME dep at M4 (first-pixels); resolves + downloads on first use, exact port pin to be recorded when M4 pins it (see notes/gpu-shader-chain.md §5 open-question 3). Compile-only probe (--use-port=emdawnwebgpu -c) OK per oracle/TOOLCHAIN.",
+      "source": "oracle/TOOLCHAIN (emdawnwebgpu port line); GOAL Emscripten posture"
     }
   }
 }

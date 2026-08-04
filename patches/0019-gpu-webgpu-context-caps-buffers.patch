@@ -548,6 +548,643 @@ index 0000000..8ce46c6
 +}
 +
 +}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.hh b/source/blender/gpu/webgpu/wgpu_shader_interface_map.hh
+new file mode 100644
+index 0000000..a0eaeee
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.hh
+@@ -0,0 +1,155 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * M3.T7.pre — WebGPU shader-interface mapping (standalone, drop-in for
++ * `source/blender/gpu/webgpu/wgpu_shader_interface.cc`).
++ *
++ * PURE mapping logic: it takes a backend-neutral description of the resources a
++ * `GPUShaderCreateInfo` provides (the list of {resource class, dense set-0
++ * binding N, texel/dim qualifier, using stages}) and computes, per the NORMATIVE
++ * spec `notes/gpu-binding-map-spec.md`:
++ *
++ *   1. `sampler_mappings` — the Tint `spirv::reader::Options::sampler_mappings`
++ *      table. For every combined sampler at Blender binding N, the SAMPLER HALF
++ *      is steered to (0, SAMPLER_BASE + N); the texture half and every
++ *      non-sampler resource keep their Blender binding N (spec §4.1). Exposed as
++ *      backend-neutral (group,binding) pairs so this header pulls in NO Tint
++ *      dependency; `wgpu_shader_compiler` converts them to `tint::BindingPoint`.
++ *
++ *   2. `entries` — the `wgpu::BindGroupLayoutEntry` list for the single group-0
++ *      bind-group layout (spec §5), including SamplerBindingType /
++ *      TextureSampleType inference from Blender's sampler qualifiers
++ *      (open-question-3). One combined sampler yields TWO entries: the texture
++ *      half at N and the sampler half at SAMPLER_BASE + N.
++ *
++ * No Dawn device is required to build the map — it is unit-testable in isolation.
++ * The only external type surface is `wgpu::BindGroupLayoutEntry` and the WGSL
++ * binding-type enums (webgpu_cpp.h), exactly as the real backend file uses. */
++
++#pragma once
++
++#include <cstdint>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "webgpu/webgpu_cpp.h"
++
++namespace blender::gpu::webgpu {
++
++/* ---- Input: create-info resource description (backend-neutral) ------------- */
++
++/** Bitmask of the shader stages that reference a resource -> WGSL `visibility`
++ * (the OR of the using stages; a shared binding gets Vertex|Fragment). Values
++ * match `wgpu::ShaderStage` for a trivial conversion. */
++enum ShaderStageMask : uint32_t {
++  STAGE_NONE = 0u,
++  STAGE_VERTEX = 1u,
++  STAGE_FRAGMENT = 2u,
++  STAGE_COMPUTE = 4u,
++};
++
++/** create-info resource class (mirrors `ShaderCreateInfo::Resource::BindType`
++ * plus the push-constant fallback UBO, which is just a UNIFORM_BUFFER). */
++enum class ResourceKind : uint8_t {
++  UniformBuffer,  /* UBO, incl. push-constant fallback UBO (spec §1). */
++  StorageBuffer,  /* SSBO (read-only or read-write). */
++  Sampler,        /* combined sampler2D/usampler.../samplerShadow (split in WGSL). */
++  StorageImage,   /* image2D / imageLoad|Store. */
++};
++
++/** Texel class of a sampler/image resource. Enumerates upstream `ImageType`'s
++ * texel families (`gpu_shader_create_info.hh:517-555`, read-only):
++ *   Float{n}   -> sampler{n}        (filterable float)
++ *   Uint{n}    -> usampler{n}       (unfilterable uint)
++ *   Int{n}     -> isampler{n}       (unfilterable sint)
++ *   Depth{n}   -> sampler{n}Depth   (depth, sampled non-compare)
++ *   Shadow{n}  -> sampler{n}Shadow  (depth, compare -> sampler_comparison)
++ *   Atomic*{n} -> usampler/isampler{n}Atomic (storage image r32ui/r32i; see
++ *                 ResourceKind::StorageImage — atomics live on images, not samplers) */
++enum class TexelClass : uint8_t { Float, Uint, Int, Depth, Shadow };
++
++/** Sampler/image dimensionality (upstream `ImageType` `TYPES_EXPAND` list). */
++enum class TexDim : uint8_t { e1D, e1DArray, e2D, e2DArray, e3D, Cube, CubeArray, Buffer };
++
++/** One create-info resource. `binding` is Blender's DENSE set-0 binding N (the
++ * value emitted in `layout(binding = N)` by the shader_interface, NOT the
++ * create-info slot — see spec §1). */
++struct ResourceDesc {
++  ResourceKind kind = ResourceKind::UniformBuffer;
++  uint32_t binding = 0;         /* dense set-0 N */
++  uint32_t stages = STAGE_NONE; /* ShaderStageMask */
++
++  /* sampler / storage-image only: */
++  TexelClass texel = TexelClass::Float;
++  TexDim dim = TexDim::e2D;
++  bool filtering = true;        /* GPUSamplerState LINEAR -> Filtering sampler */
++  uint32_t array_size = 1;      /* sampler2D tex[array_size]; 1 == scalar */
++
++  /* storage buffer only: */
++  bool storage_readonly = true;
++
++  /* storage image only: */
++  wgpu::StorageTextureAccess image_access = wgpu::StorageTextureAccess::WriteOnly;
++  wgpu::TextureFormat image_format = wgpu::TextureFormat::RGBA8Unorm;
++
++  const char *name = "";        /* diagnostics only */
++};
++
++/* ---- Output: the computed interface map ----------------------------------- */
++
++/** A backend-neutral (group, binding) point — avoids leaking Tint into this
++ * header. `wgpu_shader_compiler` converts these to `tint::BindingPoint`. */
++struct BindPoint {
++  uint32_t group = 0;
++  uint32_t binding = 0;
++};
++
++/** One combined-sampler remap: sampler half key (0,N) -> value (0,BASE+N). */
++struct SamplerRemap {
++  BindPoint from; /* the combined sampler's ORIGINAL (set,binding) = Blender N */
++  BindPoint to;   /* reserved-range sampler location */
++};
++
++struct InterfaceMap {
++  bool ok = true;
++  std::string error;
++
++  uint32_t sampler_base = 0; /* SAMPLER_BASE actually used */
++
++  /* Feeds Tint's spirv::reader::Options::sampler_mappings. One entry per
++   * combined sampler ELEMENT (arrays expand — see wgpu_shader_interface_map.cc
++   * and notes/gpu-t7pre-findings.md §sampler-array). */
++  std::vector<SamplerRemap> sampler_mappings;
++
++  /* The single group-0 bind-group layout (spec §5). */
++  std::vector<wgpu::BindGroupLayoutEntry> entries;
++};
++
++/* ---- The mapping function -------------------------------------------------- */
++
++/** SAMPLER_BASE policy. Fixed 256 (spec §4.1 / open-question-2): simplest and
++ * provably safe at the pin (Blender set-0 resource count << 256 <
++ * maxBindingsPerBindGroup=1000). `build_interface_map` still asserts the bound
++ * so a pathological input fails loudly rather than mis-binding. */
++constexpr uint32_t kSamplerBindingBaseFixed = 256u;
++
++/** Compute the interface map from a create-info resource list.
++ * `sampler_base` == 0 selects the fixed policy (kSamplerBindingBaseFixed);
++ * a non-zero value pins a caller-chosen base (asserted collision-free). */
++InterfaceMap build_interface_map(const std::vector<ResourceDesc> &resources,
++                                 uint32_t sampler_base = 0);
++
++/** Infer the WGSL texture sample type Tint will emit for a texel class, so the
++ * BGL agrees with the module (open-question-3). Exposed for tests/report. */
++wgpu::TextureSampleType infer_sample_type(TexelClass texel, bool filtering);
++
++/** Infer the WGSL sampler binding type from the qualifier (open-question-3). */
++wgpu::SamplerBindingType infer_sampler_type(TexelClass texel, bool filtering);
++
++/** Map upstream `ImageType` dimensionality to a WGSL view dimension. */
++wgpu::TextureViewDimension infer_view_dimension(TexDim dim);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+new file mode 100644
+index 0000000..ddaeb1d
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+@@ -0,0 +1,233 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * Implements the NORMATIVE binding map of `notes/gpu-binding-map-spec.md` §4-§5.
++ * See wgpu_shader_interface_map.hh for the API contract. */
++
++#include "wgpu_shader_interface_map.hh"
++
++namespace blender::gpu::webgpu {
++
++/* WebGPU guaranteed limit; both native Dawn (native/Limits.cpp:133) and the
++ * emdawnwebgpu port expose maxBindingsPerBindGroup = 1000 (spec §4.1). */
++static constexpr uint32_t kMaxBindingsPerBindGroup = 1000u;
++
++wgpu::TextureSampleType infer_sample_type(TexelClass texel, bool filtering)
++{
++  switch (texel) {
++    case TexelClass::Float:
++      /* Tint emits texture_2d<f32>. A non-filtering float sampler (data
++       * textures, GPUSamplerState without LINEAR) must pair with the
++       * UnfilterableFloat sample type; a filtering one with Float. */
++      return filtering ? wgpu::TextureSampleType::Float
++                       : wgpu::TextureSampleType::UnfilterableFloat;
++    case TexelClass::Uint:
++      /* Tint emits texture_2d<u32>. Integer textures are never filterable. */
++      return wgpu::TextureSampleType::Uint;
++    case TexelClass::Int:
++      return wgpu::TextureSampleType::Sint;
++    case TexelClass::Depth:
++    case TexelClass::Shadow:
++      /* Tint emits texture_depth_2d for both; the sampler type distinguishes
++       * plain fetch (NonFiltering/Filtering) from compare (Comparison). */
++      return wgpu::TextureSampleType::Depth;
++  }
++  return wgpu::TextureSampleType::Float;
++}
++
++wgpu::SamplerBindingType infer_sampler_type(TexelClass texel, bool filtering)
++{
++  switch (texel) {
++    case TexelClass::Float:
++      return filtering ? wgpu::SamplerBindingType::Filtering
++                       : wgpu::SamplerBindingType::NonFiltering;
++    case TexelClass::Uint:
++    case TexelClass::Int:
++      /* Integer textures cannot be filtered; only textureLoad (no sampler) is
++       * valid on them in WGSL, so any declared sampler half is NonFiltering. */
++      return wgpu::SamplerBindingType::NonFiltering;
++    case TexelClass::Depth:
++      /* Plain depth fetch: NonFiltering is always valid. */
++      return wgpu::SamplerBindingType::NonFiltering;
++    case TexelClass::Shadow:
++      /* Compare sampling -> Tint emits sampler_comparison. */
++      return wgpu::SamplerBindingType::Comparison;
++  }
++  return wgpu::SamplerBindingType::Filtering;
++}
++
++wgpu::TextureViewDimension infer_view_dimension(TexDim dim)
++{
++  switch (dim) {
++    case TexDim::e1D:
++      return wgpu::TextureViewDimension::e1D;
++    case TexDim::e1DArray:
++      /* WGSL has no 1D-array sampled texture; callers should not hit this. */
++      return wgpu::TextureViewDimension::e2DArray;
++    case TexDim::e2D:
++      return wgpu::TextureViewDimension::e2D;
++    case TexDim::e2DArray:
++      return wgpu::TextureViewDimension::e2DArray;
++    case TexDim::e3D:
++      return wgpu::TextureViewDimension::e3D;
++    case TexDim::Cube:
++      return wgpu::TextureViewDimension::Cube;
++    case TexDim::CubeArray:
++      return wgpu::TextureViewDimension::CubeArray;
++    case TexDim::Buffer:
++      /* texture buffers are a distinct WGSL type with no view dimension; caller
++       * should route these to textureLoad-only handling. */
++      return wgpu::TextureViewDimension::e1D;
++  }
++  return wgpu::TextureViewDimension::e2D;
++}
++
++static wgpu::ShaderStage to_wgpu_visibility(uint32_t stages)
++{
++  wgpu::ShaderStage v = wgpu::ShaderStage::None;
++  if (stages & STAGE_VERTEX) {
++    v |= wgpu::ShaderStage::Vertex;
++  }
++  if (stages & STAGE_FRAGMENT) {
++    v |= wgpu::ShaderStage::Fragment;
++  }
++  if (stages & STAGE_COMPUTE) {
++    v |= wgpu::ShaderStage::Compute;
++  }
++  return v;
++}
++
++static wgpu::BindGroupLayoutEntry make_buffer_entry(uint32_t binding,
++                                                    wgpu::ShaderStage vis,
++                                                    wgpu::BufferBindingType type)
++{
++  wgpu::BindGroupLayoutEntry e = {};
++  e.binding = binding;
++  e.visibility = vis;
++  e.buffer.type = type;
++  return e;
++}
++
++static wgpu::BindGroupLayoutEntry make_texture_entry(uint32_t binding,
++                                                     wgpu::ShaderStage vis,
++                                                     const ResourceDesc &r)
++{
++  wgpu::BindGroupLayoutEntry e = {};
++  e.binding = binding;
++  e.visibility = vis;
++  e.texture.sampleType = infer_sample_type(r.texel, r.filtering);
++  e.texture.viewDimension = infer_view_dimension(r.dim);
++  e.texture.multisampled = false;
++  return e;
++}
++
++static wgpu::BindGroupLayoutEntry make_sampler_entry(uint32_t binding,
++                                                     wgpu::ShaderStage vis,
++                                                     const ResourceDesc &r)
++{
++  wgpu::BindGroupLayoutEntry e = {};
++  e.binding = binding;
++  e.visibility = vis;
++  e.sampler.type = infer_sampler_type(r.texel, r.filtering);
++  return e;
++}
++
++static wgpu::BindGroupLayoutEntry make_storage_image_entry(uint32_t binding,
++                                                           wgpu::ShaderStage vis,
++                                                           const ResourceDesc &r)
++{
++  wgpu::BindGroupLayoutEntry e = {};
++  e.binding = binding;
++  e.visibility = vis;
++  e.storageTexture.access = r.image_access;
++  e.storageTexture.format = r.image_format;
++  e.storageTexture.viewDimension = infer_view_dimension(r.dim);
++  return e;
++}
++
++InterfaceMap build_interface_map(const std::vector<ResourceDesc> &resources,
++                                 uint32_t sampler_base)
++{
++  InterfaceMap map;
++
++  /* Bound the resource-binding space and choose SAMPLER_BASE (spec §4.1). */
++  uint32_t max_resource_binding = 0;
++  uint32_t max_sampler_binding = 0;
++  bool have_sampler = false;
++  for (const ResourceDesc &r : resources) {
++    /* An array sampler occupies bindings [N, N+array_size); count the top. */
++    const uint32_t top = r.binding + (r.array_size > 0 ? r.array_size - 1 : 0);
++    if (top > max_resource_binding) {
++      max_resource_binding = top;
++    }
++    if (r.kind == ResourceKind::Sampler) {
++      have_sampler = true;
++      if (top > max_sampler_binding) {
++        max_sampler_binding = top;
++      }
++    }
++  }
++
++  map.sampler_base = sampler_base != 0 ? sampler_base : kSamplerBindingBaseFixed;
++
++  /* HARD invariants (spec §4.1): resources sit below the reserved base, and the
++   * top reserved sampler binding stays under the device limit. */
++  if (have_sampler && map.sampler_base <= max_resource_binding) {
++    map.ok = false;
++    map.error = "SAMPLER_BASE (" + std::to_string(map.sampler_base) +
++                ") must exceed max resource binding (" +
++                std::to_string(max_resource_binding) + ")";
++    return map;
++  }
++  if (have_sampler && map.sampler_base + max_sampler_binding >= kMaxBindingsPerBindGroup) {
++    map.ok = false;
++    map.error = "SAMPLER_BASE + max sampler binding (" +
++                std::to_string(map.sampler_base + max_sampler_binding) +
++                ") exceeds maxBindingsPerBindGroup=" +
++                std::to_string(kMaxBindingsPerBindGroup);
++    return map;
++  }
++
++  for (const ResourceDesc &r : resources) {
++    const wgpu::ShaderStage vis = to_wgpu_visibility(r.stages);
++    switch (r.kind) {
++      case ResourceKind::UniformBuffer:
++        map.entries.push_back(
++            make_buffer_entry(r.binding, vis, wgpu::BufferBindingType::Uniform));
++        break;
++      case ResourceKind::StorageBuffer:
++        map.entries.push_back(make_buffer_entry(
++            r.binding, vis,
++            r.storage_readonly ? wgpu::BufferBindingType::ReadOnlyStorage
++                               : wgpu::BufferBindingType::Storage));
++        break;
++      case ResourceKind::StorageImage:
++        map.entries.push_back(make_storage_image_entry(r.binding, vis, r));
++        break;
++      case ResourceKind::Sampler: {
++        /* Per array element: one combined sampler at binding N+i splits into a
++         * texture half (kept at N+i) and a sampler half (reserved BASE+N+i).
++         * A scalar sampler is just array_size == 1. Every element gets its own
++         * sampler_mappings key (see findings §sampler-array). */
++        const uint32_t count = r.array_size > 0 ? r.array_size : 1;
++        for (uint32_t i = 0; i < count; i++) {
++          const uint32_t n = r.binding + i;
++          /* texture half stays at N (spec §4.1). */
++          map.entries.push_back(make_texture_entry(n, vis, r));
++          /* sampler half -> reserved BASE + N. */
++          map.entries.push_back(
++              make_sampler_entry(map.sampler_base + n, vis, r));
++          map.sampler_mappings.push_back(
++              {BindPoint{0u, n}, BindPoint{0u, map.sampler_base + n}});
++        }
++        break;
++      }
++    }
++  }
++
++  return map;
++}
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_compiler.hh b/source/blender/gpu/webgpu/wgpu_shader_compiler.hh
+new file mode 100644
+index 0000000..c04e4bb
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_compiler.hh
+@@ -0,0 +1,90 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * M3.T7.pre — WebGPU shader compiler (standalone, drop-in for
++ * `source/blender/gpu/webgpu/wgpu_shader_compiler.cc`).
++ *
++ * Drives the full M3 shader chain in-process, exactly as the real backend will:
++ *
++ *   GLSL (per stage)
++ *     -> shaderc CompileGlslToSpv, env vulkan_1_1 => SPIR-V 1.3   [HARD constraint]
++ *     -> tint::spirv::reader::ReadIR  (sampler_mappings from the interface map)
++ *     -> tint::wgsl::writer::ProgramFromIR -> Generate            => WGSL text
++ *
++ * The SPIR-V 1.3 target is load-bearing: Tint's IR SPIR-V reader HARDCODES
++ * SPV_ENV_VULKAN_1_1 (`src/tint/lang/spirv/reader/parser/parser.cc:95`), so a
++ * Vulkan-1.2 / SPIR-V-1.5 module (what Blender's Vulkan backend emits) is
++ * rejected. See notes/gpu-dawn-probe.md §4a.
++ *
++ * The compiler couples the interface map (binding numbers + BGL entries) to the
++ * translation so the WGSL Tint emits binds identically to the layout the backend
++ * builds — the whole point of the normative spec. */
++
++#pragma once
++
++#include <cstdint>
++#include <string>
++#include <vector>
++
++#include "wgpu_shader_interface_map.hh"
++
++namespace blender::gpu::webgpu {
++
++/** GLSL source per stage. An empty string means the stage is absent. A shader is
++ * either graphics (vertex [+ fragment]) or compute; the compiler compiles
++ * whichever are non-empty. */
++struct ShaderStageSources {
++  std::string vertex;
++  std::string fragment;
++  std::string compute;
++  std::string name = "shader"; /* diagnostics / shaderc file tag */
++};
++
++struct CompileResult {
++  bool ok = false;
++  std::string error;
++
++  /* Empty if the corresponding stage was absent. */
++  std::string vertex_wgsl;
++  std::string fragment_wgsl;
++  std::string compute_wgsl;
++
++  /* Binding numbers + the single group-0 bind-group layout. */
++  InterfaceMap interface;
++};
++
++struct CompileOptions {
++  /* SAMPLER_BASE override (0 = fixed policy, spec open-question-2). */
++  uint32_t sampler_base = 0;
++  /* Optimize the SPIR-V before Tint. Off by default to keep the reflection /
++   * binding surface identical to the GLSL (matches this harness's needs; the
++   * in-tree backend may mirror Blender's shaderc performance level). */
++  bool optimize = false;
++};
++
++/** Compile a create-info-shaped shader. `resources` is the create-info resource
++ * list (dense set-0 bindings); it drives both the sampler_mappings handed to
++ * Tint and the returned BGL. */
++CompileResult compile_shader(const ShaderStageSources &sources,
++                             const std::vector<ResourceDesc> &resources,
++                             const CompileOptions &options = {});
++
++/* ---- Lower-level building blocks (exposed for the sampler-array probe) ----- */
++
++/** GLSL -> SPIR-V 1.3 (vulkan_1_1) via shaderc. `stage` is a shaderc kind cast;
++ * returns empty on failure with `error` set. */
++std::vector<uint32_t> compile_glsl_to_spirv(const std::string &glsl,
++                                             int shaderc_kind,
++                                             const std::string &name,
++                                             bool optimize,
++                                             std::string &error);
++
++/** SPIR-V -> WGSL via Tint, applying `sampler_mappings` ({0,N}->{0,BASE+N}). */
++bool translate_spirv_to_wgsl(const std::vector<uint32_t> &spirv,
++                             const std::vector<SamplerRemap> &sampler_mappings,
++                             std::string &out_wgsl,
++                             std::string &error);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_compiler.cc b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+new file mode 100644
+index 0000000..3f70734
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+@@ -0,0 +1,135 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * Implements the M3 shader chain: shaderc(GLSL->SPIR-V 1.3) -> Tint(SPIR-V->WGSL)
++ * with the normative sampler_mappings. See wgpu_shader_compiler.hh. */
++
++#include "wgpu_shader_compiler.hh"
++
++#include <sstream>
++
++#include <shaderc/shaderc.hpp>
++
++#include "src/tint/api/common/binding_point.h"
++#include "src/tint/lang/core/ir/module.h"
++#include "src/tint/lang/spirv/reader/reader.h"
++#include "src/tint/lang/wgsl/program/program.h"
++#include "src/tint/lang/wgsl/writer/writer.h"
++
++namespace blender::gpu::webgpu {
++
++std::vector<uint32_t> compile_glsl_to_spirv(const std::string &glsl,
++                                            int shaderc_kind,
++                                            const std::string &name,
++                                            bool optimize,
++                                            std::string &error)
++{
++  shaderc::Compiler compiler;
++  shaderc::CompileOptions options;
++
++  /* HARD constraint (notes/gpu-dawn-probe.md §4a): Tint's IR SPIR-V reader
++   * hardcodes SPV_ENV_VULKAN_1_1, so we MUST emit SPIR-V 1.3. Blender's Vulkan
++   * backend uses vulkan_1_2 (SPIR-V 1.5) -> would be rejected by Tint. */
++  options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_1);
++  options.SetSourceLanguage(shaderc_source_language_glsl);
++  options.SetOptimizationLevel(optimize ? shaderc_optimization_level_performance
++                                        : shaderc_optimization_level_zero);
++  /* Match Blender's raised id-bound (vk_shader_compiler.cc:238). */
++  /* (shaderc has no public SetMaxIdBound; the default suffices for these.) */
++
++  shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(
++      glsl, static_cast<shaderc_shader_kind>(shaderc_kind), name.c_str(), "main", options);
++
++  if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
++    error = "shaderc [" + name + "]: " + result.GetErrorMessage();
++    return {};
++  }
++  return {result.cbegin(), result.cend()};
++}
++
++bool translate_spirv_to_wgsl(const std::vector<uint32_t> &spirv,
++                             const std::vector<SamplerRemap> &sampler_mappings,
++                             std::string &out_wgsl,
++                             std::string &error)
++{
++  tint::spirv::reader::Options reader_opts;
++  for (const SamplerRemap &m : sampler_mappings) {
++    reader_opts.sampler_mappings[tint::BindingPoint{m.from.group, m.from.binding}] =
++        tint::BindingPoint{m.to.group, m.to.binding};
++  }
++
++  auto ir = tint::spirv::reader::ReadIR(spirv, reader_opts);
++  if (ir != tint::Success) {
++    std::stringstream ss;
++    ss << ir.Failure();
++    error = "tint ReadIR: " + ss.str();
++    return false;
++  }
++  tint::wgsl::writer::Options writer_opts;
++  auto prog = tint::wgsl::writer::ProgramFromIR(ir.Get(), writer_opts);
++  if (prog != tint::Success) {
++    std::stringstream ss;
++    ss << prog.Failure();
++    error = "tint ProgramFromIR: " + ss.str();
++    return false;
++  }
++  tint::Program program = prog.Move();
++  auto gen = tint::wgsl::writer::Generate(program, writer_opts);
++  if (gen != tint::Success) {
++    std::stringstream ss;
++    ss << gen.Failure();
++    error = "tint Generate: " + ss.str();
++    return false;
++  }
++  out_wgsl = gen.Get().wgsl;
++  return true;
++}
++
++CompileResult compile_shader(const ShaderStageSources &sources,
++                             const std::vector<ResourceDesc> &resources,
++                             const CompileOptions &options)
++{
++  CompileResult out;
++
++  /* 1. Interface map: binding numbers + sampler_mappings + BGL. */
++  out.interface = build_interface_map(resources, options.sampler_base);
++  if (!out.interface.ok) {
++    out.error = "interface map: " + out.interface.error;
++    return out;
++  }
++  const std::vector<SamplerRemap> &maps = out.interface.sampler_mappings;
++
++  /* 2+3. Compile + translate each present stage. */
++  struct Stage {
++    const std::string &glsl;
++    int kind;
++    std::string &wgsl_out;
++  };
++  std::string err;
++  auto run_stage = [&](const std::string &glsl, int kind, std::string &wgsl_out) -> bool {
++    if (glsl.empty()) {
++      return true;
++    }
++    std::vector<uint32_t> spirv =
++        compile_glsl_to_spirv(glsl, kind, sources.name, options.optimize, err);
++    if (spirv.empty()) {
++      return false;
++    }
++    return translate_spirv_to_wgsl(spirv, maps, wgsl_out, err);
++  };
++
++  if (!run_stage(sources.vertex, shaderc_vertex_shader, out.vertex_wgsl) ||
++      !run_stage(sources.fragment, shaderc_fragment_shader, out.fragment_wgsl) ||
++      !run_stage(sources.compute, shaderc_compute_shader, out.compute_wgsl))
++  {
++    out.error = err;
++    return out;
++  }
++
++  out.ok = true;
++  return out;
++}
++
++}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
 index 464cfd9..f193284 100644
 --- a/source/blender/gpu/webgpu/wgpu_buffer.hh
@@ -881,10 +1518,10 @@ index bf89c36..825623a 100644
    MEM_CXX_CLASS_ALLOC_FUNCS("WGPUStorageBuffer")
  };
 diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
-index 2b87587..62e0450 100644
+index 2b87587..2808124 100644
 --- a/source/blender/gpu/CMakeLists.txt
 +++ b/source/blender/gpu/CMakeLists.txt
-@@ -478,19 +478,26 @@ if(WITH_WEBGPU_BACKEND)
+@@ -478,19 +478,30 @@ if(WITH_WEBGPU_BACKEND)
      webgpu/wgpu_backend.cc
      webgpu/wgpu_buffer.cc
      webgpu/wgpu_context.cc
@@ -895,6 +1532,8 @@ index 2b87587..62e0450 100644
      webgpu/wgpu_texture_format.cc
      webgpu/wgpu_data_conversion.cc
 +    webgpu/wgpu_state_table.cc
++    webgpu/wgpu_shader_interface_map.cc
++    webgpu/wgpu_shader_compiler.cc
  
      webgpu/wgpu_backend.hh
      webgpu/wgpu_buffer.hh
@@ -908,6 +1547,22 @@ index 2b87587..62e0450 100644
      webgpu/wgpu_texture_format_list.h
      webgpu/wgpu_data_conversion.hh
 +    webgpu/wgpu_state_table.hh
++    webgpu/wgpu_shader_interface_map.hh
++    webgpu/wgpu_shader_compiler.hh
    )
    list(APPEND INC
      webgpu
+@@ -500,6 +511,13 @@ if(WITH_WEBGPU_BACKEND)
+   )
+   list(APPEND INC_SYS
+     ${DAWN_INCLUDE_DIRS}
++    # T7 shader chain: Tint (SPIR-V reader / WGSL writer) headers live in the Dawn
++    # source tree (src/tint/...); shaderc for in-process GLSL->SPIR-V. Passed as
++    # cache vars at configure (see notes/gpu-laneA-integration T7 recipe). Linking
++    # the Tint archives is a separate executable-level step — the compiler TUs are
++    # compiled here but not yet referenced, so no exec pulls them (or Tint) yet.
++    ${TINT_INCLUDE_DIRS}
++    ${SHADERC_INCLUDE_DIR}
+   )
+   list(APPEND LIB
+     ${DAWN_LIBRARIES}

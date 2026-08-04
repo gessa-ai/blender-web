@@ -485,6 +485,8 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_texture_format.cc
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_state_table.cc
+    webgpu/wgpu_shader_interface_map.cc
+    webgpu/wgpu_shader_compiler.cc
 
     webgpu/wgpu_backend.hh
     webgpu/wgpu_buffer.hh
@@ -498,6 +500,8 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_texture_format_list.h
     webgpu/wgpu_data_conversion.hh
     webgpu/wgpu_state_table.hh
+    webgpu/wgpu_shader_interface_map.hh
+    webgpu/wgpu_shader_compiler.hh
   )
   list(APPEND INC
     webgpu
@@ -507,6 +511,13 @@ if(WITH_WEBGPU_BACKEND)
   )
   list(APPEND INC_SYS
     ${DAWN_INCLUDE_DIRS}
+    # T7 shader chain: Tint (SPIR-V reader / WGSL writer) headers live in the Dawn
+    # source tree (src/tint/...); shaderc for in-process GLSL->SPIR-V. Passed as
+    # cache vars at configure (see notes/gpu-laneA-integration T7 recipe). Linking
+    # the Tint archives is a separate executable-level step — the compiler TUs are
+    # compiled here but not yet referenced, so no exec pulls them (or Tint) yet.
+    ${TINT_INCLUDE_DIRS}
+    ${SHADERC_INCLUDE_DIR}
   )
   list(APPEND LIB
     ${DAWN_LIBRARIES}

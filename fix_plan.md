@@ -167,11 +167,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   **REAL-JSPI UPDATE (26025bd): proxy was FALSE-POSITIVE for the B-shape — JS-EH cannot
   suspend across setjmp frames (SuspendError); Wasm-EH can. EH sub-decision RE-OPENED for
   M4+ (ADR-001 appendix); M2's no-suspension posture unaffected.**
-- [ ] **M2.7c [python-wasm PROBE]** Sharpening probe → decides ADR-003 (EH model for the
-  suspending M4+ stack): under real JSPI (tools/node24) + JS-EH, does an ACTIVE C++
-  try/catch on the stack break suspension? Also: inactive-but-try-containing frames; deep
-  C++ stack (TBB-style); Wasm-EH equivalents as control; census of setjmp-containing
-  functions in libpython + libjpeg (sizes option-a's discipline burden). DISPATCHED.
+- [x] **M2.7c [python-wasm PROBE]** DONE (cb4258c) → **ADR-003 ACCEPTED**: active-try breaks
+  JS-EH suspension (F1/F3), dormant doesn't (F2); mechanism = invoke_* (7-8 vs Wasm-EH 0);
+  CENSUS: libpython static image has ZERO setjmp regions (ctypes/libffi unbuilt), libjpeg's
+  setjmp is app-side. DECISION: keep JS-EH stack-wide + hard invariant (suspends only at
+  top-level async boundaries, never under active try / live jpeg setjmp) + mandatory M4
+  Chrome≥137 topology smoke; Wasm-EH = declared fallback (proven viable, scheduled
+  machine-day if triggered).
 - [ ] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
 

@@ -5,11 +5,39 @@ SPDX-License-Identifier: CC0-1.0
 
 # M4.pre — the browser boot shell (ghost-web)
 
-Status (2026-08-04): **COMPLETE.** The browser link profile boots in a real Chrome
-tab to the exact known pre-Python abort — full parity with the node NODERAWFS build.
-Everything browser-side is proven; the tab goes green the moment the in-flight DNA
-reconstruct fix (notes/m2-dna-reconstruct-diagnosis.md) lands in a `blender_browser`
-rebuild.
+Status (2026-08-04): **GREEN — full headless boot in the tab.** After the DNA
+reconstruct fix landed, `blender_browser` was relinked (picks up the DNA-fixed `bf_*`
+archives + trampoline-fixed libpython) and now boots Blender all the way through
+`import bpy` in a real Chrome tab:
+```
+crossOriginIsolated=true
+Blender 5.2.0 LTS
+BPY_OK 5.2.0 LTS 3        (3 objects: cube, camera, light)
+Blender quit
+process exited, code 0    (state: exited(0), wall ~1.64 s)
+```
+The earlier milestone (parity to the known pre-Python abort) is superseded by this.
+
+### The scripts-path fix (BLENDER_SYSTEM_RESOURCES) — no rebuild
+
+Post-DNA-fix, the first relink stopped at `bpy: couldn't find 'scripts/modules'` →
+`ModuleNotFoundError: No module named '_bpy_types'` in BOTH node and Chrome — so NOT
+the node-only fstat issue. Root cause (instrumented, not the node fstat shim): the
+`BLENDER_SYSTEM_SCRIPTS` folder-id does **not** read a scripts-specific env var; it
+resolves via the umbrella base `BLENDER_SYSTEM_RESOURCES` and looks for
+`<base>/scripts/modules` (appdir.cc:712 `case BLENDER_SYSTEM_SCRIPTS` →
+`get_path_system_ex` appdir.cc:568 tests `BLENDER_SYSTEM_RESOURCES`). The
+m2-python-boot.md recipe's `BLENDER_SYSTEM_SCRIPTS=upstream/scripts` was never
+Python-verified (that boot aborted pre-Python). A standalone WASMFS probe confirmed
+ENV-injection + preloaded-dir `stat`/`opendir` work fine on the PROXY_TO_PTHREAD
+worker — the FS/threading were never the problem. Fix = a **runtime env change only**
+(no rebuild): set `BLENDER_SYSTEM_RESOURCES=/bw` in boot.js `ENV_VARS`. Since the
+preload mounts scripts/datafiles/python under `/bw`, `/bw` is the base; all three
+resolve. Verified `BPY_OK 5.2.0 LTS 3` + exit 0 under both node and real Chrome.
+
+Benign non-fatal noise (does not stop boot): OIIO `physical_memory` wasm stub; Python
+`Traceback`s for disabled optional C-extensions (`_multiprocessing`, `sha3`/`shake`)
+that make the `bl_pkg` add-on's `register()` fail — Blender catches it and continues.
 
 ## What shipped
 

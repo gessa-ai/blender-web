@@ -28,6 +28,11 @@ const ARGV = [
 // binary (see the browser link profile). These MUST match the @<vpath> targets
 // there. Exposed to Blender via getenv → the runtime ENV object.
 const ENV_VARS = {
+  // Umbrella base: appdir resolves the scripts dir as <RESOURCES>/scripts/modules
+  // (the BLENDER_SYSTEM_SCRIPTS folder-id does NOT read its own env — see
+  // appdir.cc:712 -> get_path_system_ex:568). Our preload mounts scripts/datafiles/
+  // python under /bw, so /bw is the base. This is what makes `import bpy` resolve.
+  BLENDER_SYSTEM_RESOURCES: "/bw",
   // CPython finds its stdlib at <BLENDER_SYSTEM_PYTHON>/lib/python3.13
   BLENDER_SYSTEM_PYTHON: "/bw/python",
   BLENDER_SYSTEM_SCRIPTS: "/bw/scripts",

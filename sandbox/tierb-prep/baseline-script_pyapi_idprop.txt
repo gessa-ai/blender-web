@@ -1,0 +1,9 @@
+............................File "<REPO>/upstream/tests/python/bl_pyapi_idprop.py", line 283, in <lambda>
+File "<REPO>/upstream/tests/python/bl_pyapi_idprop.py", line 284, in <lambda>
+...........
+----------------------------------------------------------------------
+Ran 39 tests in 0.002s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

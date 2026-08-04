@@ -1,0 +1,4 @@
+Testing bundled modules in Blender executable.
+Testing bundled modules in Python executable.
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

@@ -1,0 +1,11 @@
+.............................00:01.309  reports          | ERROR Array length mismatch (got 7, expected more)
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+00:01.309  reports          | ERROR Array length mismatch (got 7, expected more)
+00:01.309  reports          | ERROR Array length mismatch (got 23, expected more)
+00:01.309  reports          | ERROR Array length mismatch (got 23, expected more)
+.............
+----------------------------------------------------------------------
+Ran 42 tests in 0.115s
+
+OK

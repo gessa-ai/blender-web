@@ -1,0 +1,16 @@
+00:01.593  blend            | Read blend: "<TMP>"
+00:01.726  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:01.832  blend            | Read blend: "<TMP>"
+00:01.972  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:02.042  blend            | Read blend: "<TMP>"
+00:02.261  blend            | Read blend: "<TMP>"
+Info: Saved as "lib.blend"
+Info: Saved as "test.blend"
+Info: Read library: '<TMP>', '//lib.blend', parent '<direct>'
+Info: Saved as "test.blend"
+Info: Read library: '<TMP>', '//lib.blend', parent '<direct>'
+Info: Saved as "test.blend_"
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

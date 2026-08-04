@@ -1,0 +1,8 @@
+............................................................TIFFReadDirectory: Warning, Sum of Photometric type-related color channels and ExtraSamples doesn't match SamplesPerPixel. Defining non-color channels as ExtraSamples..
+....................
+----------------------------------------------------------------------
+Ran 80 tests in 0.363s
+
+OK
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)

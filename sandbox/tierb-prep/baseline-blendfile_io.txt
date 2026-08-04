@@ -1,0 +1,122 @@
+00:01.054  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:01.072  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io.blend"
+00:01.152  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfile_io_partial.blend"
+00:01.178  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:01.193  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+00:01.341  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/blendfile_io/blendfileTestIdRuntimeTag.blend"
+
+orig_data 1:
+[(('Mesh', 'OrphanedMesh', 0), []),
+ (('Scene', 'Scene', 1), [('WindowManager', 'WinMan', 1)]),
+ (('Screen', 'Animation', 1), [('WorkSpace', 'Animation', 1)]),
+ (('Screen', 'Compositing', 1), [('WorkSpace', 'Compositing', 1)]),
+ (('Screen', 'Geometry Nodes', 1), [('WorkSpace', 'Geometry Nodes', 1)]),
+ (('Screen', 'Layout', 1), [('WorkSpace', 'Layout', 1)]),
+ (('Screen', 'Modeling', 1), [('WorkSpace', 'Modeling', 1)]),
+ (('Screen', 'Rendering', 1), [('WorkSpace', 'Rendering', 1)]),
+ (('Screen', 'Scripting', 1), [('WorkSpace', 'Scripting', 1)]),
+ (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)]),
+ (('Screen', 'Shading', 1), [('WorkSpace', 'Shading', 1)]),
+ (('Screen', 'Texture Paint', 1), [('WorkSpace', 'Texture Paint', 1)]),
+ (('Screen', 'UV Editing', 1), [('WorkSpace', 'UV Editing', 1)]),
+ (('WindowManager', 'WinMan', 1), []),
+ (('WorkSpace', 'Animation', 1), []),
+ (('WorkSpace', 'Compositing', 1), []),
+ (('WorkSpace', 'Geometry Nodes', 1), []),
+ (('WorkSpace', 'Layout', 1), [('WindowManager', 'WinMan', 1)]),
+ (('WorkSpace', 'Modeling', 1), []),
+ (('WorkSpace', 'Rendering', 1), []),
+ (('WorkSpace', 'Scripting', 1), []),
+ (('WorkSpace', 'Sculpting', 1), []),
+ (('WorkSpace', 'Shading', 1), []),
+ (('WorkSpace', 'Texture Paint', 1), []),
+ (('WorkSpace', 'UV Editing', 1), [])]
+Info: Saved as "blendfile_io.blend"
+
+read_data 1:
+[(('Scene', 'Scene', 1), [('WindowManager', 'WinMan', 1)]),
+ (('Screen', 'Animation', 1), [('WorkSpace', 'Animation', 1)]),
+ (('Screen', 'Compositing', 1), [('WorkSpace', 'Compositing', 1)]),
+ (('Screen', 'Geometry Nodes', 1), [('WorkSpace', 'Geometry Nodes', 1)]),
+ (('Screen', 'Layout', 1), [('WorkSpace', 'Layout', 1)]),
+ (('Screen', 'Modeling', 1), [('WorkSpace', 'Modeling', 1)]),
+ (('Screen', 'Rendering', 1), [('WorkSpace', 'Rendering', 1)]),
+ (('Screen', 'Scripting', 1), [('WorkSpace', 'Scripting', 1)]),
+ (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)]),
+ (('Screen', 'Shading', 1), [('WorkSpace', 'Shading', 1)]),
+ (('Screen', 'Texture Paint', 1), [('WorkSpace', 'Texture Paint', 1)]),
+ (('Screen', 'UV Editing', 1), [('WorkSpace', 'UV Editing', 1)]),
+ (('WindowManager', 'WinMan', 1), []),
+ (('WorkSpace', 'Animation', 1), []),
+ (('WorkSpace', 'Compositing', 1), []),
+ (('WorkSpace', 'Geometry Nodes', 1), []),
+ (('WorkSpace', 'Layout', 1), [('WindowManager', 'WinMan', 1)]),
+ (('WorkSpace', 'Modeling', 1), []),
+ (('WorkSpace', 'Rendering', 1), []),
+ (('WorkSpace', 'Scripting', 1), []),
+ (('WorkSpace', 'Sculpting', 1), []),
+ (('WorkSpace', 'Shading', 1), []),
+ (('WorkSpace', 'Texture Paint', 1), []),
+ (('WorkSpace', 'UV Editing', 1), [])]
+
+orig_data 2:
+[(('Scene', 'Scene', 1), [('WindowManager', 'WinMan', 1)]),
+ (('Screen', 'Animation', 1), [('WorkSpace', 'Animation', 1)]),
+ (('Screen', 'Compositing', 1), [('WorkSpace', 'Compositing', 1)]),
+ (('Screen', 'Geometry Nodes', 1), [('WorkSpace', 'Geometry Nodes', 1)]),
+ (('Screen', 'Layout', 1), [('WorkSpace', 'Layout', 1)]),
+ (('Screen', 'Modeling', 1), [('WorkSpace', 'Modeling', 1)]),
+ (('Screen', 'Rendering', 1), [('WorkSpace', 'Rendering', 1)]),
+ (('Screen', 'Scripting', 1), [('WorkSpace', 'Scripting', 1)]),
+ (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)]),
+ (('Screen', 'Shading', 1), [('WorkSpace', 'Shading', 1)]),
+ (('Screen', 'Texture Paint', 1), [('WorkSpace', 'Texture Paint', 1)]),
+ (('Screen', 'UV Editing', 1), [('WorkSpace', 'UV Editing', 1)]),
+ (('WindowManager', 'WinMan', 1), []),
+ (('WorkSpace', 'Animation', 1), []),
+ (('WorkSpace', 'Compositing', 1), []),
+ (('WorkSpace', 'Geometry Nodes', 1), []),
+ (('WorkSpace', 'Layout', 1), [('WindowManager', 'WinMan', 1)]),
+ (('WorkSpace', 'Modeling', 1), []),
+ (('WorkSpace', 'Rendering', 1), []),
+ (('WorkSpace', 'Scripting', 1), []),
+ (('WorkSpace', 'Sculpting', 1), []),
+ (('WorkSpace', 'Shading', 1), []),
+ (('WorkSpace', 'Texture Paint', 1), []),
+ (('WorkSpace', 'UV Editing', 1), [])]
+Info: Saved as "blendfile_io.blend"
+
+read_data 2:
+[(('Scene', 'Scene', 1), [('WindowManager', 'WinMan', 1)]),
+ (('Screen', 'Animation', 1), [('WorkSpace', 'Animation', 1)]),
+ (('Screen', 'Compositing', 1), [('WorkSpace', 'Compositing', 1)]),
+ (('Screen', 'Geometry Nodes', 1), [('WorkSpace', 'Geometry Nodes', 1)]),
+ (('Screen', 'Layout', 1), [('WorkSpace', 'Layout', 1)]),
+ (('Screen', 'Modeling', 1), [('WorkSpace', 'Modeling', 1)]),
+ (('Screen', 'Rendering', 1), [('WorkSpace', 'Rendering', 1)]),
+ (('Screen', 'Scripting', 1), [('WorkSpace', 'Scripting', 1)]),
+ (('Screen', 'Sculpting', 1), [('WorkSpace', 'Sculpting', 1)]),
+ (('Screen', 'Shading', 1), [('WorkSpace', 'Shading', 1)]),
+ (('Screen', 'Texture Paint', 1), [('WorkSpace', 'Texture Paint', 1)]),
+ (('Screen', 'UV Editing', 1), [('WorkSpace', 'UV Editing', 1)]),
+ (('WindowManager', 'WinMan', 1), []),
+ (('WorkSpace', 'Animation', 1), []),
+ (('WorkSpace', 'Compositing', 1), []),
+ (('WorkSpace', 'Geometry Nodes', 1), []),
+ (('WorkSpace', 'Layout', 1), [('WindowManager', 'WinMan', 1)]),
+ (('WorkSpace', 'Modeling', 1), []),
+ (('WorkSpace', 'Rendering', 1), []),
+ (('WorkSpace', 'Scripting', 1), []),
+ (('WorkSpace', 'Sculpting', 1), []),
+ (('WorkSpace', 'Shading', 1), []),
+ (('WorkSpace', 'Texture Paint', 1), []),
+ (('WorkSpace', 'UV Editing', 1), [])]
+Warning: Library file, loading empty scene
+Info: Saved as "blendfileTestIdRuntimeTag.blend"
+Info: Saved as "blendfileTestIdRuntimeTag.blend"
+Info: Saved as "blendlib_runtimetag_basicTestIdRuntimeTag.blend"
+Info: Saved as "blendfileTestIdRuntimeTag.blend"
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

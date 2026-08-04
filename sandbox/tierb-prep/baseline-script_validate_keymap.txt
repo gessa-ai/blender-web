@@ -1,0 +1,24 @@
+KeyMap Validate: Blender(select_mouse-LEFT.use_alt_tool-False) ... register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+OK!
+KeyMap Validate: Blender(select_mouse-LEFT.use_alt_tool-True) ... register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+OK!
+KeyMap Validate: Blender(select_mouse-RIGHT.rmb_action-TWEAK) ... register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+OK!
+KeyMap Validate: Blender(select_mouse-RIGHT.rmb_action-FALLBACK_TOOL) ... register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+register_class(...):
+Info: Registering key-config preferences class: 'Prefs', bl_idname 'Blender' has been registered before, unregistering previous
+OK!
+KeyMap Validate: Blender_27x ... OK!
+KeyMap Validate: Industry_Compatible ... OK!
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

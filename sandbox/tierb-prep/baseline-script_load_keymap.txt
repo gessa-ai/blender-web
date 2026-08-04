@@ -1,0 +1,195 @@
+Keymaps that are in 'bl_keymap_utils.keymap_hierarchy' but not blender
+	Image Editor Tool: Uv, Rotate (fallback)
+	Generic Gizmo Click Drag
+	Region Context Menu
+	Image Editor Tool: Uv, Move
+	Preview Tool: Scale
+	3D View Tool: Edit Mesh, Knife (fallback)
+	Preview Tool: Sample
+	3D View Tool: Sculpt, Box Mask (fallback)
+	3D View Tool: Object, Add Primitive (fallback)
+	3D View Tool: Sculpt, Polyline Face Set (fallback)
+	3D View Tool: Edit Curve, Radius (fallback)
+	Node Tool: Select Box (fallback)
+	Image Editor Tool: Sample
+	3D View Tool: Push
+	3D View Tool: Edit Mesh, Smooth (fallback)
+	3D View Tool: Sculpt, Polyline Trim (fallback)
+	3D View Tool: Sculpt, Color Filter (fallback)
+	3D View Tool: Edit Mesh, Rip Region (fallback)
+	Node Tool: Select Circle (fallback)
+	3D View Tool: Sculpt, Polyline Hide (fallback)
+	3D View Tool: Edit Mesh, Extrude Along Normals (fallback)
+	Image Editor Tool: Uv, Rip Region (fallback)
+	3D View Tool: Sculpt, Box Trim (fallback)
+	3D View Tool: Relax (fallback)
+	3D View Tool: Edit Mesh, Randomize (fallback)
+	Node Tool: Select Box
+	3D View Tool: Sculpt, Lasso Mask (fallback)
+	Generic Gizmo Select
+	Sequencer Tool: Slip (fallback)
+	3D View Tool: Edit Curve, Extrude to Cursor (fallback)
+	3D View Tool: Select Box
+	3D View Tool: Transform (fallback)
+	Image Editor Tool: Uv, Cursor (fallback)
+	3D View Tool: Relax
+	3D View Tool: Edit Armature, Extrude to Cursor (fallback)
+	Sequencer Tool: Blade (fallback)
+	Generic Tool: Annotate Polygon
+	3D View Tool: Rotate
+	3D View Tool: Edit Mesh, Vertex Slide (fallback)
+	Image Editor Tool: Uv, Pinch (fallback)
+	3D View Tool: Shear (fallback)
+	3D View Tool: Edit Mesh, To Sphere (fallback)
+	Preview Tool: Select Box (fallback)
+	Preview Tool: Select Box
+	Image View
+	View2D Buttons List
+	3D View Tool: Breakdowner
+	Generic Tool: Annotate Line
+	3D View Tool: Edit Mesh, Inset Faces (fallback)
+	3D View Tool: Select Circle
+	3D View Tool: Cursor (fallback)
+	Preview Tool: Move
+	Preview Tool: Sample (fallback)
+	3D View Tool: Sculpt, Box Face Set (fallback)
+	Generic Tool: Annotate (fallback)
+	3D View Tool: Edit Text, Select Text (fallback)
+	3D View Tool: Edit Mesh, Bisect (fallback)
+	Image Editor Tool: Uv, Grab (fallback)
+	3D View Tool: Edit Mesh, Rip Edge (fallback)
+	Image Editor Tool: Sample (fallback)
+	3D View Tool: Scale (fallback)
+	UV Sculpt
+	3D View Tool: Edit Mesh, Shrink/Fatten (fallback)
+	3D View Tool: Breakdowner (fallback)
+	3D View Tool: Edit Mesh, Spin (fallback)
+	3D View Tool: Edit Armature, Bone Envelope (fallback)
+	Node Tool: Tweak
+	Sequencer Tool: Blade
+	3D View Tool: Rotate (fallback)
+	Generic Tool: Annotate Line (fallback)
+	3D View Tool: Sculpt, Polyline Mask (fallback)
+	3D View Tool: Sculpt, Lasso Face Set (fallback)
+	Generic Tool: Annotate Eraser
+	3D View Tool: Sculpt, Line Trim (fallback)
+	Sequencer Tool: Slip
+	3D View Tool: Edit Mesh, Extrude Region (fallback)
+	Node Tool: Select Circle
+	Preview Tool: Rotate (fallback)
+	Preview Tool: Move (fallback)
+	3D View Tool: Edit Armature, B-Bone Size (fallback)
+	3D View Tool: Object, Add Primitive
+	Preview Tool: Scale (fallback)
+	Node Tool: Select Lasso
+	Image Editor Tool: Uv, Select Circle (fallback)
+	3D View Tool: Measure (fallback)
+	Preview Tool: Select Circle
+	Sequencer Tool: Select Box (fallback)
+	3D View Tool: Select Lasso (fallback)
+	3D View Tool: Select Lasso
+	3D View Tool: Move (fallback)
+	Generic Tool: Annotate Eraser (fallback)
+	3D View Tool: Sculpt, Line Face Set (fallback)
+	3D View Tool: Sculpt, Face Set Edit
+	3D View Tool: Edit Curve, Randomize (fallback)
+	3D View Tool: Paint Weight, Gradient (fallback)
+	3D View Tool: Sculpt, Line Hide (fallback)
+	3D View Tool: Edit Mesh, Extrude Individual (fallback)
+	3D View Tool: Sculpt, Mesh Filter (fallback)
+	Preview Tool: Cursor (fallback)
+	Node Tool: Select Lasso (fallback)
+	3D View Tool: Edit Curve, Draw (fallback)
+	3D View Tool: Edit Mesh, Extrude Manifold (fallback)
+	3D View Tool: Shear
+	3D View Tool: Move
+	Image Editor Tool: Uv, Select Lasso (fallback)
+	Image Editor Tool: Uv, Scale (fallback)
+	3D View Tool: Edit Curve, Extrude (fallback)
+	3D View Tool: Tweak
+	Preview Tool: Select Circle (fallback)
+	Image Editor Tool: Uv, Scale
+	Node Tool: Tweak (fallback)
+	3D View Tool: Edit Armature, Extrude (fallback)
+	3D View Tool: Edit Mesh, Bevel (fallback)
+	3D View Tool: Transform
+	Image Editor Tool: Uv, Rotate
+	3D View Tool: Edit Armature, Roll (fallback)
+	Preview Tool: Cursor
+	Sequencer Tool: Select Lasso
+	3D View Tool: Edit Mesh, Edge Slide (fallback)
+	Preview Tool: Rotate
+	Sequencer Tool: Select Circle
+	Preview Tool: Tweak
+	3D View Tool: Sculpt, Box Hide (fallback)
+	3D View Tool: Sculpt, Mask by Color (fallback)
+	3D View Tool: Paint Weight, Sample Vertex Group (fallback)
+	Generic Tool: Annotate Polygon (fallback)
+	Image Editor Tool: Uv, Tweak (fallback)
+	Preview Tool: Select Lasso (fallback)
+	3D View Tool: Edit Curve, Tilt (fallback)
+	Image Editor Tool: Uv, Relax (fallback)
+	3D View Tool: Sculpt, Lasso Trim (fallback)
+	3D View Tool: Paint Weight, Sample Weight (fallback)
+	3D View Tool: Sculpt, Face Set Edit (fallback)
+	3D View Tool: Select Box (fallback)
+	Preview Tool: Tweak (fallback)
+	Generic Tool: Annotate
+	Sequencer Tool: Select Circle (fallback)
+	3D View Tool: Measure
+	3D View Tool: Select Circle (fallback)
+	3D View Tool: Sculpt, Line Mask (fallback)
+	Generic Gizmo Drag
+	3D View Tool: Edit Curve, Curve Pen (fallback)
+	Sequencer Tool: Select Box
+	3D View Tool: Scale
+	Image Editor Tool: Uv, Move (fallback)
+	3D View Tool: Sculpt, Line Project (fallback)
+	3D View Tool: Sculpt, Lasso Hide (fallback)
+	3D View Tool: Edit Mesh, Poly Build (fallback)
+	3D View Tool: Sculpt, Cloth Filter (fallback)
+	3D View Tool: Edit Mesh, Extrude to Cursor (fallback)
+	Sequencer Tool: Select Lasso (fallback)
+	3D View Tool: Edit Mesh, Offset Edge Loop Cut (fallback)
+	3D View Tool: Edit Mesh, Push/Pull (fallback)
+	3D View Tool: Tweak (fallback)
+	3D View Tool: Edit Mesh, Loop Cut (fallback)
+	3D View Tool: Push (fallback)
+	Image Editor Tool: Uv, Select Box (fallback)
+	Preview Tool: Select Lasso
+	3D View Tool: Cursor
+Keymaps that are in blender but not in 'bl_keymap_utils.keymap_hierarchy'
+    ('Sequencer Channels', 'SEQUENCE_EDITOR', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Polyline', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Curve', 'VIEW_3D', 'WINDOW', []),
+    ('Preferences', 'PREFERENCES', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Circle', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Edit Curves, Pen', 'VIEW_3D', 'WINDOW', []),
+    ('Transform Axis Target Modal Map', 'EMPTY', 'WINDOW', []),
+    ('Image Editor Tool: Mask, Tweak', 'IMAGE_EDITOR', 'WINDOW', []),
+    ('Image Editor Tool: Mask, Select Lasso', 'IMAGE_EDITOR', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Trim', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Box', 'VIEW_3D', 'WINDOW', []),
+    ('Interpolate Tool Modal Map', 'EMPTY', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Arc', 'VIEW_3D', 'WINDOW', []),
+    ('Slip Modal', 'EMPTY', 'WINDOW', []),
+    ('3D View Tool: Edit Grease Pencil, Interpolate', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Edit Grease Pencil, Gradient', 'VIEW_3D', 'WINDOW', []),
+    ('Image Editor Tool: Mask, Select Circle', 'IMAGE_EDITOR', 'WINDOW', []),
+    ('Gesture Lasso', 'EMPTY', 'WINDOW', []),
+    ('3D View Tool: Edit Grease Pencil, Pen', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Interpolate', 'VIEW_3D', 'WINDOW', []),
+    ('Image Editor Tool: Mask, Select Box', 'IMAGE_EDITOR', 'WINDOW', []),
+    ('Grease Pencil Selection', 'EMPTY', 'WINDOW', []),
+    ('Node Link Modal Map', 'EMPTY', 'WINDOW', []),
+    ('Gesture Polyline', 'EMPTY', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Line', 'VIEW_3D', 'WINDOW', []),
+    ('Node Resize Modal Map', 'EMPTY', 'WINDOW', []),
+    ('3D View Tool: Paint Grease Pencil, Eyedropper', 'VIEW_3D', 'WINDOW', []),
+    ('3D View Tool: Edit Curves, Draw', 'VIEW_3D', 'WINDOW', []),
+Comparing keymap space/region types...
+done!
+Switching to fully guarded memory allocator.
+Blender 5.2.0 LTS (hash <PIN> built <DATE>)
+
+Blender quit

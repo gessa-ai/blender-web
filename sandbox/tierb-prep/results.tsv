@@ -1,0 +1,44 @@
+# name	verdict	exit	wall_s	summary
+script_pyapi_bpy_app	PASS	0	1.99	Ran 1 test; OK
+script_pyapi_bpy_app_tempdir	PASS	0	2.19	Ran 5 tests; OK
+script_pyapi_bpy_path	PASS	0	1.99	Ran 1 test; OK
+script_pyapi_bpy_utils_units	PASS	0	1.96	Ran 2 tests; OK
+script_pyapi_mathutils	PASS	0	2.09	Ran 180 tests; OK
+script_pyapi_bpy_driver_secure_eval	PASS	0	1.93	Ran 14 tests; OK
+script_pyapi_idprop	PASS	0	2.11	Ran 39 tests; OK
+script_pyapi_idprop_datablock	PASS	0	3.19	exit=0 Blender quit
+script_pyapi_prop	PASS	0	1.84	Ran 35 tests; OK
+script_pyapi_prop_array	PASS	0	1.89	Ran 42 tests; OK
+script_pyapi_text	PASS	0	1.49	Ran 5 tests; OK
+script_pyapi_bmesh	PASS	0	1.88	Ran 12 tests; OK
+script_pyapi_grease_pencil	PASS	0	1.46	Ran 26 tests; OK
+script_pyapi_annotations	PASS	0	1.24	Ran 15 tests; OK
+script_pyapi_doc_gen	PASS	0	40.97	Ran 1 test; OK
+id_management	PASS	0	4.78	Ran 8 tests; OK
+bl_rna_paths	PASS	0	2.06	Ran 2 tests; OK
+bl_rna_accessors	PASS	0	2.18	Ran 1 test; OK
+imbuf_py_api	PASS	0	2.34	Ran 80 tests; OK
+operator_function_py_api	PASS	0	1.85	Ran 33 tests; OK
+operator_wrap_py_api	PASS	0	1.90	Ran 48 tests; OK
+blendfile_io	PASS	0	2.10	exit=0 Blender quit
+global_undo	PASS	0	2.05	exit=0 Blender quit
+geometry_attributes	PASS	0	2.25	Ran 16 tests; OK
+mesh_join	PASS	0	2.03	Ran 10 tests; OK
+object_edit	PASS	0	2.58	Ran 1 test; OK
+object_api	PASS	0	1.73	Ran 1 test; OK
+node_tools	PASS	0	1.39	Ran 4 tests; OK
+compositing_node_group	PASS	0	0.94	Ran 1 test; OK
+sequencer_strip_naming	PASS	0	0.90	Ran 6 tests; OK
+bl_brush	PASS	0	1.25	Ran 4 tests; OK
+bl_voxel_remesh	PASS	0	2.07	Ran 2 tests; OK
+bl_sculpt_brush_curve_presets	PASS	0	2.87	Ran 9 tests; OK
+bl_animation_bake	PASS	0	1.59	Ran 5 tests; OK
+bl_animation_rename	PASS	0	1.53	Ran 4 tests; OK
+bl_animation_nla_strip	PASS	0	1.99	Ran 7 tests; OK (expected failures=1)
+bl_animation_pose_slide	PASS	0	1.41	Ran 11 tests; OK
+script_load_keymap	PASS	0	1.39	exit=0 Blender quit
+script_validate_keymap	PASS	0	10.78	OK!
+script_load_addons	PASS	0	2.18	exit=0 Blender quit
+script_load_modules	PASS	0	1.93	exit=0 Blender quit
+script_bundled_modules	PASS	0	3.08	exit=0 Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:31:22)
+script_disk_file_hash_service_test	PASS	0	1.41	Ran 12 tests; OK

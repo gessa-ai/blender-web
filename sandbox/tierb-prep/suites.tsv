@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Tier-(b) ORACLE-runnable candidate manifest.
+# Columns (TAB-separated):  ctest_name  <TAB>  script_relpath  <TAB>  extra_args
+# script_relpath is under upstream/tests/python/.  extra_args placeholders:
+#   @OUT@ = scratch output dir (per-run), @SRC@ = upstream/tests/files (stub tree,
+#   used only where a path must merely EXIST, never for real asset content).
+# ctest_name mirrors the name in upstream/tests/python/CMakeLists.txt so the m2
+# harness scope can map 1:1.  Lines starting with '#' are ignored.
+#
+# --- Group A: bpy Python API (pure python, factory-startup) ---
+script_pyapi_bpy_app	bl_pyapi_bpy_app.py
+script_pyapi_bpy_app_tempdir	bl_pyapi_bpy_app_tempdir.py
+script_pyapi_bpy_path	bl_pyapi_bpy_path.py
+script_pyapi_bpy_utils_units	bl_pyapi_bpy_utils_units.py
+script_pyapi_mathutils	bl_pyapi_mathutils.py
+script_pyapi_bpy_driver_secure_eval	bl_pyapi_bpy_driver_secure_eval.py
+script_pyapi_idprop	bl_pyapi_idprop.py
+script_pyapi_idprop_datablock	bl_pyapi_idprop_datablock.py
+script_pyapi_prop	bl_pyapi_prop.py
+script_pyapi_prop_array	bl_pyapi_prop_array.py
+script_pyapi_text	bl_pyapi_text.py
+script_pyapi_bmesh	bl_pyapi_bmesh.py
+script_pyapi_grease_pencil	bl_pyapi_grease_pencil.py
+script_pyapi_annotations	bl_pyapi_annotations.py
+script_pyapi_doc_gen	bl_pyapi_doc_gen.py
+# --- Group B: RNA / ID / operator API ---
+id_management	bl_id_management.py
+bl_rna_paths	bl_rna_paths.py
+bl_rna_accessors	bl_rna_accessors.py
+imbuf_py_api	bl_imbuf_py_api.py
+operator_function_py_api	bl_operator_function_py_api.py
+operator_wrap_py_api	bl_operator_wrap_py_api.py
+# --- Group C: data / operators, self-contained (procedural mesh, no external .blend) ---
+blendfile_io	bl_blendfile_io.py	--output-dir @OUT@/blendfile_io/
+global_undo	bl_global_undo.py	--src-test-dir @SRC@/ --output-dir @OUT@/global_undo/
+geometry_attributes	bl_geometry_attributes.py
+mesh_join	mesh_join.py
+object_edit	object_edit.py
+object_api	bl_object.py
+node_tools	bl_node_tool.py
+compositing_node_group	compositing_node_group.py
+sequencer_strip_naming	sequencer_strip_naming.py
+bl_brush	sculpt_paint/brush_asset_test.py
+bl_voxel_remesh	sculpt_paint/voxel_remesh_test.py
+bl_sculpt_brush_curve_presets	sculpt_paint/brush_strength_curves_test.py	--testdir @SRC@/sculpting
+# --- Group D: animation, procedural ---
+bl_animation_bake	bl_animation_bake.py
+bl_animation_rename	bl_animation_rename.py
+bl_animation_nla_strip	bl_animation_nla_strip.py
+bl_animation_pose_slide	bl_animation_pose_slide.py
+# --- Group E: loaders / validators (bundled scripts, no tests/files data) ---
+script_load_keymap	bl_keymap_completeness.py
+script_validate_keymap	bl_keymap_validate.py	--relaxed
+script_load_addons	bl_load_addons.py
+script_load_modules	bl_load_py_modules.py
+script_bundled_modules	bl_bundled_modules.py	--inside-blender
+script_disk_file_hash_service_test	bl_disk_file_hash_service_test.py

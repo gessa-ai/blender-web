@@ -178,3 +178,59 @@ exit 1. Verified.
    goldens before trusting the batch.
 5. **Corpus depth:** versioning (`blo_do_versions`) is the largest untested
    readfile surface and needs an LFS pull of `upstream/tests/files` to cover.
+
+## 7. WASM-SIDE RESULTS (2026-08-04) — M1.12 GATE GREEN, closes M1_CORE_BOOTS
+
+Ran `state_dump.py` on the **WASM `blender` build** (node + NODERAWFS; M2.5 boot
+recipe — trampoline + fstat shim) over all 9 corpus files, via
+`sandbox/corpus-prep/run_dumps_wasm.sh` → `dumps-wasm/`. Each `bpy.ops.wm.open_mainfile`
+exercises the real wasm readfile/DNA reconstruction (the corpus was written by the
+64-bit oracle; wasm32 reads it — the exact path the driver's DNA fix, patch 0014,
+repaired). Compared to the oracle candidate goldens with `compare_dumps.py` in
+**EXACT mode (`--tolerance 0`)**.
+
+**Result: 9/9 PASS, all BYTE-IDENTICAL to the oracle goldens** (wasm dump sha256 ==
+`MANIFEST.json` `dump_sha256`, not merely structurally equal):
+
+| file | wasm dump sha256 (== oracle golden) | verdict |
+|---|---|---|
+| startup | `1692c242c17827cf…` | PASS (exact) |
+| mesh_dense | `a35eede927a5cb81…` | PASS (exact) |
+| modifiers | `179015c3f694fc41…` | PASS (exact) |
+| animation | `636351c5c4459055…` | PASS (exact) |
+| materials_nodes | `89087b3b6dbaa05d…` | PASS (exact) |
+| curves_text | `8e98f222569109c9…` | PASS (exact) |
+| armature | `fc178d44da7ca84d…` | PASS (exact) |
+| collections_instancing | `afaacbfa4cd4b191…` | PASS (exact) |
+| stress_mixed | `0bd6f6b9ea0609df…` | PASS (exact) |
+
+Zero divergences, zero tolerance consumed (gate ran at `--tolerance 0`). No
+`_dump_error` in any dump.
+
+**Wasm-side determinism:** `startup.blend` dumped twice in separate node processes →
+**byte-identical** (`1692c242c17827cf…`, which also equals the oracle golden). So the
+wasm build is deterministic AND matches native — the designed-out-float contract
+holds across the toolchains.
+
+**Coverage proven bit-exact on wasm:** the state fingerprints are byte-identical, so
+every hashed verbatim-from-file array read the same bits on wasm32 as on the 64-bit
+oracle — mesh CustomData (all domains, 15 attrs, UV/byte-color/custom-float/vgroup),
+modifier stack + inter-object pointers, slotted actions/fcurves/drivers, shader node
+graphs + node group, TextCurve/Bezier/NURBS + VFont, armature rest-pose bones,
+collection hierarchy + dupli instancing, 20-user shared mesh + orphans, and the
+zstd-decompressed startup baseline. This is genuine 64-bit→wasm32 readfile parity, not
+a synthetic-parser check.
+
+### One build fix required to run the gate (not a parity failure)
+The FIRST wasm run failed 8/9 with `_dump_error: AttributeError("module 'hashlib' has
+no attribute 'sha256'")` — a side effect of M2.5's optional-module trim (state_dump.py
+sha256-hashes mesh data). This was NOT a readfile bug (curves_text, which has no mesh
+sha256 path, passed byte-identical, and determinism passed). Fix: re-enabled the
+`_sha2` CPython module in `scripts/deps/python.sh` (it builds `libHacl_Hash_SHA2.a`,
+which the harvest merges cleanly, and provides `hashlib.sha256`; md5/sha1/sha3/blake2
+stay off — their Hacl code has no standalone archive). libpython rebuilt; re-run → 9/9
+exact. (Bonus: fewer hashlib startup warnings.)
+
+### Open item unchanged
+LFS-pulled versioning corpus (`blo_do_versions_*`) remains the biggest untested
+readfile surface — layer in post-gate once `git lfs pull` runs.

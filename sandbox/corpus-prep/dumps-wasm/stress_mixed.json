@@ -1,0 +1,2828 @@
+{
+ "collections": {
+  "actions": {
+   "count": 1,
+   "items": {
+    "Inst00Action": {
+     "fcurve_count": 3,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "349b56aa445ef342358b2b7ac7f5dd175e79e660d2dba699304c50926e60b22f"
+      },
+      {
+       "array_index": 1,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "349b56aa445ef342358b2b7ac7f5dd175e79e660d2dba699304c50926e60b22f"
+      },
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "84a9a66061c25ee8dc75b4f850b70cefe0e416511c45e14a94dd7af7a8b1a3b4"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      24000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBInst00"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Inst00Action"
+   ]
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 1,
+   "items": {
+    "Instances": {
+     "children": [],
+     "instance_offset": [
+      0,
+      0,
+      0
+     ],
+     "library": null,
+     "objects": [
+      "Inst00",
+      "Inst01",
+      "Inst02",
+      "Inst03",
+      "Inst04",
+      "Inst05",
+      "Inst06",
+      "Inst07",
+      "Inst08",
+      "Inst09",
+      "Inst10",
+      "Inst11",
+      "Inst12",
+      "Inst13",
+      "Inst14",
+      "Inst15",
+      "Inst16",
+      "Inst17",
+      "Inst18",
+      "Inst19",
+      "Pivot",
+      "PivotChild"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "Instances"
+   ]
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 2,
+   "items": {
+    "OrphanMat": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Material Output",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         200000000,
+         100000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         -200000000,
+         100000000
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 400000,
+     "use_fake_user": true,
+     "use_nodes": true,
+     "users": 1
+    },
+    "SharedMat": {
+     "diffuse_color": [
+      800000,
+      800000,
+      800000,
+      1000000
+     ],
+     "library": null,
+     "metallic": 0,
+     "node_tree": {
+      "interface_sockets": [],
+      "link_count": 1,
+      "links": [
+       [
+        "Principled BSDF",
+        "BSDF",
+        "Material Output",
+        "Surface"
+       ]
+      ],
+      "node_count": 2,
+      "node_names": [
+       "Material Output",
+       "Principled BSDF"
+      ],
+      "nodes": {
+       "Material Output": {
+        "input_defaults": {
+         "Displacement": [
+          0,
+          0,
+          0
+         ],
+         "Thickness": 0
+        },
+        "inputs": [
+         "Displacement",
+         "Surface",
+         "Thickness",
+         "Volume"
+        ],
+        "location": [
+         200000000,
+         100000000
+        ],
+        "outputs": [],
+        "type": "ShaderNodeOutputMaterial"
+       },
+       "Principled BSDF": {
+        "input_defaults": {
+         "Alpha": 1000000,
+         "Anisotropic": 0,
+         "Anisotropic Rotation": 0,
+         "Base Color": [
+          800000,
+          800000,
+          800000,
+          1000000
+         ],
+         "Coat IOR": 1500000,
+         "Coat Normal": [
+          0,
+          0,
+          0
+         ],
+         "Coat Roughness": 30000,
+         "Coat Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Coat Weight": 0,
+         "Diffuse Roughness": 0,
+         "Emission Color": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Emission Strength": 0,
+         "IOR": 1500000,
+         "Metallic": 0,
+         "Normal": [
+          0,
+          0,
+          0
+         ],
+         "Roughness": 500000,
+         "Sheen Roughness": 500000,
+         "Sheen Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Sheen Weight": 0,
+         "Specular IOR Level": 500000,
+         "Specular Tint": [
+          1000000,
+          1000000,
+          1000000,
+          1000000
+         ],
+         "Subsurface Anisotropy": 0,
+         "Subsurface IOR": 1400000,
+         "Subsurface Radius": [
+          1000000,
+          200000,
+          100000
+         ],
+         "Subsurface Scale": 5000,
+         "Subsurface Weight": 0,
+         "Tangent": [
+          0,
+          0,
+          0
+         ],
+         "Thin Film IOR": 1330000,
+         "Thin Film Thickness": 0,
+         "Thin Wall": false,
+         "Transmission Weight": 0,
+         "Weight": 0
+        },
+        "inputs": [
+         "Alpha",
+         "Anisotropic",
+         "Anisotropic Rotation",
+         "Base Color",
+         "Coat IOR",
+         "Coat Normal",
+         "Coat Roughness",
+         "Coat Tint",
+         "Coat Weight",
+         "Diffuse Roughness",
+         "Emission Color",
+         "Emission Strength",
+         "IOR",
+         "Metallic",
+         "Normal",
+         "Roughness",
+         "Sheen Roughness",
+         "Sheen Tint",
+         "Sheen Weight",
+         "Specular IOR Level",
+         "Specular Tint",
+         "Subsurface Anisotropy",
+         "Subsurface IOR",
+         "Subsurface Radius",
+         "Subsurface Scale",
+         "Subsurface Weight",
+         "Tangent",
+         "Thin Film IOR",
+         "Thin Film Thickness",
+         "Thin Wall",
+         "Transmission Weight",
+         "Weight"
+        ],
+        "location": [
+         -200000000,
+         100000000
+        ],
+        "outputs": [
+         "BSDF"
+        ],
+        "type": "ShaderNodeBsdfPrincipled"
+       }
+      }
+     },
+     "roughness": 400000,
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "OrphanMat",
+    "SharedMat"
+   ]
+  },
+  "meshes": {
+   "count": 2,
+   "items": {
+    "OrphanMesh": {
+     "attributes": [],
+     "color_attributes": [],
+     "edge_count": 0,
+     "edge_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "library": null,
+     "loop_count": 0,
+     "loop_vertex_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "material_index_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "materials": [],
+     "poly_layout_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "polygon_count": 0,
+     "position_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "use_fake_user": true,
+     "users": 1,
+     "uv_layers": [],
+     "vertex_count": 0
+    },
+    "SharedMesh": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "52f10346dec2cae7d5eb2e621865492919bfdbd7028293e1916fb8160338453a"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "b3bd48456b8b1231e07d2e3cc36df6558247a86020ea332aacd824a17a13bf9b"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "46d43617d9d40b7e76bb43927a74fe62eda066b6ee390348c84fd7b9bc06d8a4"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "a7d16a29596cd811078ce819de9088d527197e54295edb34260b10be4936295e"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 120,
+     "edge_hash": "3d04ef2d6b0426aee57dfd709918da232d54da79c503ceeea7868d2bb26f1984",
+     "library": null,
+     "loop_count": 240,
+     "loop_vertex_hash": "b3bd48456b8b1231e07d2e3cc36df6558247a86020ea332aacd824a17a13bf9b",
+     "material_index_hash": "e5d7648f77ab90464f1ae03ead3e7b19cabdf5e51a18816f52aa7bbeaf104568",
+     "materials": [
+      "SharedMat"
+     ],
+     "poly_layout_hash": "e9e3153b3fc04acb845e3e3bc15b87427a910c215ef13615ef022867e312ac53",
+     "polygon_count": 80,
+     "position_hash": "46d43617d9d40b7e76bb43927a74fe62eda066b6ee390348c84fd7b9bc06d8a4",
+     "use_fake_user": false,
+     "users": 20,
+     "uv_layers": [],
+     "vertex_count": 42
+    }
+   },
+   "names": [
+    "OrphanMesh",
+    "SharedMesh"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 22,
+   "items": {
+    "Inst00": {
+     "action": "Inst00Action",
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst01": {
+     "action": null,
+     "constraints": [],
+     "data": "SharedMesh",
+     "drivers": [
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "expression": "0.0",
+       "type": "AVERAGE",
+       "use_self": false,
+       "variables": [
+        {
+         "name": "z",
+         "targets": [
+          {
+           "bone_target": "",
+           "data_path": "",
+           "id": "Inst00",
+           "id_type": "OBJECT",
+           "transform_space": "WORLD_SPACE",
+           "transform_type": "LOC_Z"
+          }
+         ],
+         "type": "TRANSFORMS"
+        }
+       ]
+      }
+     ],
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      2000000,
+      0,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst02": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4000000,
+      0,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst03": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      6000000,
+      0,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst04": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      8000000,
+      0,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst05": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      2000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst06": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      2000000,
+      2000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst07": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4000000,
+      2000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst08": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      6000000,
+      2000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst09": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      8000000,
+      2000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      2000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst10": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      4000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst11": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      2000000,
+      4000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst12": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4000000,
+      4000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst13": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      6000000,
+      4000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst14": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      8000000,
+      4000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      4000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst15": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      6000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst16": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      2000000,
+      6000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      2000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst17": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4000000,
+      6000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst18": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      6000000,
+      6000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      6000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Inst19": {
+     "constraints": [],
+     "data": "SharedMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      8000000,
+      6000000,
+      0
+     ],
+     "material_slots": [
+      "SharedMat"
+     ],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      8000000,
+      0,
+      1000000,
+      0,
+      6000000,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Pivot": {
+     "constraints": [],
+     "data": null,
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "EMPTY",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "PivotChild": {
+     "constraints": [],
+     "data": null,
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": "Pivot",
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "EMPTY",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Inst00",
+    "Inst01",
+    "Inst02",
+    "Inst03",
+    "Inst04",
+    "Inst05",
+    "Inst06",
+    "Inst07",
+    "Inst08",
+    "Inst09",
+    "Inst10",
+    "Inst11",
+    "Inst12",
+    "Inst13",
+    "Inst14",
+    "Inst15",
+    "Inst16",
+    "Inst17",
+    "Inst18",
+    "Inst19",
+    "Pivot",
+    "PivotChild"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {
+       "Instances": {
+        "children": {},
+        "objects": [
+         "Inst00",
+         "Inst01",
+         "Inst02",
+         "Inst03",
+         "Inst04",
+         "Inst05",
+         "Inst06",
+         "Inst07",
+         "Inst08",
+         "Inst09",
+         "Inst10",
+         "Inst11",
+         "Inst12",
+         "Inst13",
+         "Inst14",
+         "Inst15",
+         "Inst16",
+         "Inst17",
+         "Inst18",
+         "Inst19",
+         "Pivot",
+         "PivotChild"
+        ]
+       }
+      },
+      "objects": []
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 24,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": null
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 0,
+   "items": {},
+   "names": []
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "stress_mixed.blend"
+}

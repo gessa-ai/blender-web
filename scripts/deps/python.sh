@@ -96,9 +96,12 @@ cd "$XBUILD"
 #                               does not). No stdlib import fatals without them.
 #   _decimal                 -> needs bundled libmpdec; the `decimal` module falls
 #                               back to the pure-python `_pydecimal` automatically.
-#   _md5 _sha1 _sha2 _sha3   -> need CPython's bundled Hacl* archives (built per
-#   _blake2                     algorithm, not cleanly one lib); `hashlib` still
-#                               imports (algorithms just unavailable until re-added).
+#   _md5 _sha1 _sha3 _blake2 -> need CPython's bundled Hacl* archives that DON'T
+#                               build as a standalone .a (only SHA2 does); `hashlib`
+#                               still imports, these algorithms just unavailable.
+#   _sha2 is KEPT (re-enabled): it builds libHacl_Hash_SHA2.a which the harvest
+#     merges cleanly, and it provides hashlib.sha256 — required by Blender and by
+#     the M1.12 state_dump.py parity dumper (which sha256-hashes mesh data).
 #   pyexpat _elementtree     -> need CPython's bundled expat, which would duplicate
 #                               lib/wasm's libexpat.a (linked for OCIO). XML parsing
 #                               is not on the bpy boot path.
@@ -128,7 +131,7 @@ LDFLAGS="-fexceptions" \
     --disable-shared --disable-ipv6 \
     py_cv_module__sqlite3=n/a py_cv_module__bz2=n/a \
     py_cv_module__decimal=n/a \
-    py_cv_module__md5=n/a py_cv_module__sha1=n/a py_cv_module__sha2=n/a \
+    py_cv_module__md5=n/a py_cv_module__sha1=n/a \
     py_cv_module__sha3=n/a py_cv_module__blake2=n/a \
     py_cv_module_pyexpat=n/a py_cv_module__elementtree=n/a
 

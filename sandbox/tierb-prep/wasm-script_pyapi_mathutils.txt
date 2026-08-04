@@ -1,0 +1,17 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+..................................................................................................................................F.................................................
+======================================================================
+FAIL: test_orthogonal (__main__.VectorTesting.test_orthogonal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_pyapi_mathutils.py", line 666, in test_orthogonal
+    self.assertAlmostEqual(v.angle(v.orthogonal()), angle_90d)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1.570796251296997 != 1.5707963267948966 within 7 places (7.549789948768648e-08 difference)
+
+----------------------------------------------------------------------
+Ran 180 tests in 0.028s
+
+FAILED (failures=1)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

@@ -1,0 +1,49 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.649  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.673  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.692  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.711  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.727  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.740  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.757  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.772  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.787  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.802  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.816  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.830  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.843  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+.00:00.857  blend            | Read blend: "<REPO>/upstream/tests/files/constraints/constraints.blend"
+F
+======================================================================
+FAIL: test_simple_parent (__main__.ObjectSolverTest.test_simple_parent)
+Object Solver: simple evaluation of parent.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_constraints.py", line 293, in test_simple_parent
+    self.matrix_test('Object Solver.owner', Matrix((
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        (0.9992387294769287, 0.019843989983201027, -0.03359176591038704, 0.10000025480985641),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        (0.0, 0.0, 0.0, 1.0),
+        ^^^^^^^^^^^^^^^^^^^^^
+    )))
+    ^^^
+  File "<REPO>/upstream/tests/python/bl_constraints.py", line 68, in matrix_test
+    self.assert_matrix(actual, expect, object_name)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<REPO>/upstream/tests/python/bl_constraints.py", line 42, in assert_matrix
+    self.assertAlmostEqual(
+    ~~~~~~~~~~~~~~~~~~~~~~^
+        actual, expect, places=places, delta=delta,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        msg=f'Matrix of object {object_name!r} failed: {actual} != {expect} at element [{row}][{col}]')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0.20000046491622925 != 0.1999993920326233 within 1e-06 delta (1.0728836059570312e-06 difference) : Matrix of object 'Object Solver.owner' failed: 0.20000046491622925 != 0.1999993920326233 at element [1][3]
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.223s
+
+FAILED (failures=1)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

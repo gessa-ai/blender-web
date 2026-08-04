@@ -1,0 +1,27 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+.00:00.695  reports          | ERROR Cannot set slot without an assigned Action.
+.00:00.723  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
+                            | 
+00:00.723  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
+                            | 
+....WARNING: ignoring assignment to target_id_type of Slot 'OBLegacy Slot' in Action 'ACAction Without IDRoot'. A Slot's target_id_type can only be changed when currently 'UNSPECIFIED'.
+......ERROR: one of the ID's for the groups to assign to is invalid (ptr=0xADDR, val=0)
+ERROR: F-Curve (datapath: 'location') doesn't belong to the same channel bag as channel group 'group1'
+.............00:00.901  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.925  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:01.012  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
+00:01.026  blend            | WARNING 1 local ObjectData are reported to be missing, this should never happen
+.00:01.029  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.045  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.059  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.075  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.
+----------------------------------------------------------------------
+Ran 32 tests in 0.430s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Info: Saved as "liboverride-action-slot.blend"
+Info: Read library: '<REPO>/upstream/tests/files/animation/liboverride-action-slot-libfile.blend', '//../../../../upstream/tests/files/animation/liboverride-action-slot-libfile.blend', parent '<direct>'
+Info: Cannot find object data of Library Suzanne lib //../../../../upstream/tests/files/animation/liboverride-action-slot-libfile.blend

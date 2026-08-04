@@ -15,8 +15,9 @@ Status: **oracle baselines GREEN**. Two waves: (1) 43 zero-data candidates; (2) 
 driver-approved LFS pulls (CHEAP 38.4 MB / 89 files + the imbuf_io 19 MB follow-on, both
 executed — see §4), 38 more candidates, **all 38 oracle-green**. **CORE gate = 75 suites**
 (939 unittest cases + 15 exit-code suites). Only 1 suite is design-excluded (`bundled_modules`)
-+ 5 held wasm-AMBER. wasm half is a diff-run the moment `import bpy` works (DNA reconstruct fix
-in flight, see notes/m2-dna-reconstruct-diagnosis.md).
++ 5 held wasm-AMBER. **WASM HALF FIRED** (§6): with `import bpy` green on the wasm build, the
+75-suite CORE ran on `blender.js` — **52/75 pass on exit code (52/63 = 82.5% after honest
+config-AMBER reclassification); 11 genuine wasm-vs-native divergences characterized**.
 
 ## 1. Registration mechanism (cited)
 
@@ -218,6 +219,75 @@ _more_ wasm-stable, not less. `physics_*` are CPU-only sims (no GPU) — wasm-pl
 - `physics_ocean` — oracle-GREEN but **wasm-AMBER**: `WITH_MOD_OCEANSIM OFF … FORCE`
   (patches/blender_web.cmake:113) means the ocean modifier does not exist on the web build, so
   it cannot pass on wasm. Green on the native oracle only; held out of the CORE gate.
+
+## 6. WASM GATE RESULTS — the 75-suite CORE diff-run (the actual tier-(b) fire)
+
+Ran all 75 CORE suites on the **wasm build** (`build-wasm/bin/blender.js` under emsdk node
+22.16.0, `BLENDER_SYSTEM_RESOURCES/PYTHON/DATAFILES` per notes/m2-python-boot.md; the
+NODEFS.fstat `--pre-js` shim is linked into the binary). Runner `run_core_wasm.sh` →
+`results-wasm.tsv`; per-suite normalized wasm output `wasm-<name>.txt`. Total wall **144 s
+(~2.4 min)**, slowest `bl_node_link_drag` 17.5 s.
+
+**PRIMARY gate (exit code): 52 / 75 GREEN.** The 23 failures are the tier-(b) SIGNAL — real
+wasm-vs-native differences, characterized precisely below (first divergence cited). They fall
+into 7 buckets; **12 are config-AMBER** (the web build cannot pass them by construction — same
+class as `physics_ocean`), leaving **63 as the honest CORE bar: 52 green + 11 genuine
+divergences (82.5%)**.
+
+### Config-AMBER (12) — cannot pass on the current web build by construction; reclassify, don't count red
+- **numpy not bundled (8)** — the suite's own `import numpy` fails (`WITH_PYTHON_INSTALL_NUMPY OFF`,
+  m2-python-boot.md). Not a Blender divergence; passes the moment numpy is harvested. Suites:
+  `script_pyapi_prop_array`, `bl_sculpt_brush_curve_presets`, `bl_sculpt_mask`,
+  `bl_sculpt_face_set`, `bl_sculpt_mesh_filter`, `bl_sculpt_automasking`,
+  `bl_vertex_paint_brushes`, `bl_weight_paint_brushes`. (Joins the existing numpy-AMBER set.)
+- **feature compiled OFF (4)** — forced OFF per GOAL: `bl_voxel_remesh` + `bl_voxel_remesh_compare`
+  (OpenVDB OFF → "Voxel remesher failed to create mesh"), `bl_multires` (OpenSubdiv OFF →
+  Multires "Disabled, built without OpenSubdiv" then `multiresModifier_subdivide_to_level`
+  **crashes** — a skip-not-crash robustness bug worth filing), `bl_node_link_drag` (Cycles OFF →
+  `enum "CYCLES" not found in ('BLENDER_EEVEE','BLENDER_WORKBENCH')`).
+
+### Genuine wasm divergences (11) — the valuable tier-(b) findings (file as M2-followup / M3)
+- **Float precision (3)** — cross-platform numeric (Blender vectors are float32; wasm `acosf`/libm
+  rounds differently): `script_pyapi_mathutils` `test_orthogonal` `bl_pyapi_mathutils.py:666`
+  `1.570796251296997 != 1.5707963267948966` (Δ 7.5e-08, `assertAlmostEqual` places=7);
+  `script_pyapi_bmesh` (failures=2: `651.346363723278 != 651.346448` Δ 8.4e-05, + one
+  set-membership diff); `bl_constraints` (Object-Solver constraint matrix
+  `0.20000046 != 0.19999939` Δ 1.07e-06 at [1][3]). Likely need a relaxed wasm tolerance or a
+  libm review — a genuine parity datum.
+- **libpng tEXt "invalid keyword" on PNG write (3)** — the wasm libpng/OIIO write path rejects a
+  tEXt metadata keyword → `PNG write error: tEXt: invalid keyword` → suite fails/crashes. One
+  bug fixes all three: `imbuf_py_api`, `script_pyapi_idprop_datablock`, `blendfile_relationships`.
+- **`.blend` readfile corruption on wasm32 (1)** — `bl_node_structure_type_inference`:
+  `Blendfile corruption: Invalid, or multiple bhead with same old address value (0xefec4e70)` →
+  `Aborted()`. Same 64→32 pointer/DNA family as the master_collection fix (patch 0014), resurfacing
+  on real node-group `.blend`s. **Highest-value bug** — likely mis-reads other files silently too.
+- **essentials-asset load gap (3)** — `RuntimeError: No asset found at path ""`: the bundled
+  essentials `.blend` asset library (brushes / auto-smooth GN) does not resolve on wasm:
+  `object_edit` (`test_auto_smooth_detection`), `bl_brush` (4 errors), `bl_sculpt_brushes`. A
+  datafiles/asset-path resolution issue under NODERAWFS, not a logic divergence.
+- **node-socket type undefined (1)** — `bl_node_copy_operators`: sockets read back
+  `'NodeSocketUndefined' != 'NodeSocketFloat'` (×4) — a node-type registration / socket-idname
+  divergence on wasm.
+
+### Secondary normalized-diff — NON-authoritative (as designed)
+All 75 show `DIFF` in `results-wasm.tsv` col 5, INCLUDING the 52 green. Cause: under threaded
+wasm stdio the guardedalloc banner + stderr **interleave in a different order** than native
+(the H-4/H-5 "stdout capture UNRELIABLE" problem), plus wasm emits extra addon-register
+warnings and omits the build-hash banner. This is fundamentally non-normalizable, which is
+exactly why the gate is **exit-code-primary**. `wasm-denoise.pl` + `wasm-normalize.sed` strip the
+CLASSIFIED benign startup noise (OIIO `physical_memory` assert; ~28 hashlib
+backend-missing tracebacks; `_multiprocessing`-missing addon tracebacks) so the diff is at
+least readable, but col-5 `DIFF` is informational only — never a pass/fail authority.
+
+### Verdict
+The gate FIRES correctly: `import bpy` + the pure-bpy-API/data suite runs on wasm and **52/75
+match native on exit code**; after honest config-AMBER reclassification the bar is **52/63
+(82.5%)** with **11 precisely-characterized genuine divergences**. Recommendation: this clears
+the M2 tier-(b) intent (bpy boots + operator/data suites pass) — the driver can close
+M2_DEPS_PYTHON with the 12 config-AMBER deferred to their deps (numpy harvest; OpenVDB/
+OpenSubdiv/Cycles are post-M2 by GOAL) and the 11 divergences filed, of which the **`.blend`
+bhead-collision readfile corruption** and the **libpng tEXt write bug** are the two actionable
+wasm bugs to fix next.
 
 ## §scope-draft (for the driver to install into `harness/` — I do not touch harness/)
 

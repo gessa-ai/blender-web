@@ -1,0 +1,9 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+.......00:00.775  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
+.
+----------------------------------------------------------------------
+Ran 8 tests in 0.198s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

@@ -1,0 +1,11 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/face_set_test.py", line 12, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+
+Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/face_set_test.py', exiting.
+
+Blender quit

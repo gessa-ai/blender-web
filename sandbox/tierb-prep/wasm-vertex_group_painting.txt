@@ -1,0 +1,11 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.684  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
+.00:00.724  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
+.
+----------------------------------------------------------------------
+Ran 2 tests in 0.090s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Error: All groups are locked

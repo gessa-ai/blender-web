@@ -1,0 +1,8 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+.................
+----------------------------------------------------------------------
+Ran 17 tests in 0.278s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

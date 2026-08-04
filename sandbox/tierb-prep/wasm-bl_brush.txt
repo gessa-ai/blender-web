@@ -1,0 +1,71 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+EEEE
+======================================================================
+ERROR: test_loads_essential_asset (__main__.AssetActivateTest.test_loads_essential_asset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/brush_asset_test.py", line 18, in setUp
+    bpy.ops.brush.asset_activate(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        asset_library_type='ESSENTIALS',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: No asset found at path ""
+
+
+======================================================================
+ERROR: test_toggle_when_brush_differs_sets_specified_brush (__main__.AssetActivateTest.test_toggle_when_brush_differs_sets_specified_brush)
+Test that using the 'Toggle' parameter when the brush is not active still activates the correct brush
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/brush_asset_test.py", line 18, in setUp
+    bpy.ops.brush.asset_activate(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        asset_library_type='ESSENTIALS',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: No asset found at path ""
+
+
+======================================================================
+ERROR: test_toggle_when_brush_matches_sets_previous_brush (__main__.AssetActivateTest.test_toggle_when_brush_matches_sets_previous_brush)
+Test that using the 'Toggle' parameter when the brush is active activates the previously activated brush
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/brush_asset_test.py", line 18, in setUp
+    bpy.ops.brush.asset_activate(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        asset_library_type='ESSENTIALS',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Draw')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: No asset found at path ""
+
+
+======================================================================
+ERROR: test_saves_asset_locally (__main__.AssetSaveAsTest.test_saves_asset_locally)
+Test that saving an asset to the local creates a copy correctly
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/brush_asset_test.py", line 55, in setUp
+    bpy.ops.brush.asset_activate(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        asset_library_type='ESSENTIALS',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        relative_asset_identifier='brushes/essentials_brushes-mesh_sculpt.blend/Brush/Smooth')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Error: No asset found at path ""
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.012s
+
+FAILED (errors=4)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Error: No asset found at path ""
+Error: No asset found at path ""
+Error: No asset found at path ""
+Error: No asset found at path ""

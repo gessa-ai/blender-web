@@ -1,0 +1,33 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.651  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.681  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.714  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.726  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.739  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.749  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.760  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.772  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.782  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.793  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.818  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.828  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.838  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.848  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.859  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.868  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.878  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.891  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.901  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.918  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.927  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.936  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.945  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.955  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.00:00.965  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/empty.blend"
+.
+----------------------------------------------------------------------
+Ran 25 tests in 0.325s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

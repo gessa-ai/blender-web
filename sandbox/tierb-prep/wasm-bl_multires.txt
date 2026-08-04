@@ -1,0 +1,230 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.654  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/apply_base_monkey.blend"
+00:00.681  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.682  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.684  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+FTraceback (most recent call last):
+  File "<REPO>/upstream/scripts/modules/addon_utils.py", line 543, in enable
+    mod.register()
+    ~~~~~~~~~~~~^^
+  File "<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py", line 909, in register
+    bl_extension_ops.register()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "<REPO>/upstream/scripts/addons_core/bl_pkg/bl_extension_ops.py", line 4108, in register
+    bpy.utils.register_class(cls)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
+00:00.775  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.776  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.778  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.779  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.780  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.782  object.modifier  | WARNING Object: "Cube.001", Modifier: "Multires", Disabled, built without OpenSubdiv
+Fwarning: registered duplicate command "extension", this will be inaccessible
+warning: registered duplicate command "asset_listing", this will be inaccessible
+00:00.841  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+EException in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
+module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py' reloading...
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync', bl_idname 'extensions.repo_sync' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_enable_from_drop', bl_idname 'extensions.repo_enable_from_drop' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock', bl_idname 'extensions.repo_unlock' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_files', bl_idname 'extensions.package_install_files' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install', bl_idname 'extensions.package_install' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall', bl_idname 'extensions.package_uninstall' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_system', bl_idname 'extensions.package_uninstall_system' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_disable', bl_idname 'extensions.package_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_enable', bl_idname 'extensions.package_theme_enable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_disable', bl_idname 'extensions.package_theme_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_upgrade_all', bl_idname 'extensions.package_upgrade_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_marked', bl_idname 'extensions.package_install_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_marked', bl_idname 'extensions.package_uninstall_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear_errors', bl_idname 'extensions.status_clear_errors' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear', bl_idname 'extensions.status_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_set', bl_idname 'extensions.package_show_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_clear', bl_idname 'extensions.package_show_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set', bl_idname 'extensions.package_mark_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear', bl_idname 'extensions.package_mark_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set_all', bl_idname 'extensions.package_mark_set_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear_all', bl_idname 'extensions.package_mark_clear_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_settings', bl_idname 'extensions.package_show_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_obsolete_marked', bl_idname 'extensions.package_obsolete_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_lock_all', bl_idname 'extensions.repo_lock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock_all', bl_idname 'extensions.repo_unlock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_tags_set', bl_idname 'extensions.userpref_tags_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_for_update', bl_idname 'extensions.userpref_show_for_update' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_online', bl_idname 'extensions.userpref_show_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online', bl_idname 'extensions.userpref_allow_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online_popup', bl_idname 'extensions.userpref_allow_online_popup' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_addons_tags', bl_idname 'USERPREF_PT_addons_tags' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_addons_settings', bl_idname 'USERPREF_MT_addons_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_extensions_filter', bl_idname 'USERPREF_PT_extensions_filter' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_settings', bl_idname 'USERPREF_MT_extensions_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_item', bl_idname 'USERPREF_MT_extensions_item' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_active_repo_extra', bl_idname 'USERPREF_MT_extensions_active_repo_extra' has been registered before, unregistering previous
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Error: No valid subdivisions found to rebuild a lower level
+Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
+module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py' reloading...
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync', bl_idname 'extensions.repo_sync' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
+warning: registered duplicate command "extension", this will be inaccessible
+warning: registered duplicate command "asset_listing", this will be inaccessible
+00:00.898  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+Eregister_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_enable_from_drop', bl_idname 'extensions.repo_enable_from_drop' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock', bl_idname 'extensions.repo_unlock' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_files', bl_idname 'extensions.package_install_files' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install', bl_idname 'extensions.package_install' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall', bl_idname 'extensions.package_uninstall' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_system', bl_idname 'extensions.package_uninstall_system' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_disable', bl_idname 'extensions.package_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_enable', bl_idname 'extensions.package_theme_enable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_theme_disable', bl_idname 'extensions.package_theme_disable' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_upgrade_all', bl_idname 'extensions.package_upgrade_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_marked', bl_idname 'extensions.package_install_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_uninstall_marked', bl_idname 'extensions.package_uninstall_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear_errors', bl_idname 'extensions.status_clear_errors' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_status_clear', bl_idname 'extensions.status_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_set', bl_idname 'extensions.package_show_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_clear', bl_idname 'extensions.package_show_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set', bl_idname 'extensions.package_mark_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear', bl_idname 'extensions.package_mark_clear' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_set_all', bl_idname 'extensions.package_mark_set_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_mark_clear_all', bl_idname 'extensions.package_mark_clear_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_show_settings', bl_idname 'extensions.package_show_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_obsolete_marked', bl_idname 'extensions.package_obsolete_marked' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_lock_all', bl_idname 'extensions.repo_lock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock_all', bl_idname 'extensions.repo_unlock_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_tags_set', bl_idname 'extensions.userpref_tags_set' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_for_update', bl_idname 'extensions.userpref_show_for_update' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_show_online', bl_idname 'extensions.userpref_show_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online', bl_idname 'extensions.userpref_allow_online' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_userpref_allow_online_popup', bl_idname 'extensions.userpref_allow_online_popup' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_addons_tags', bl_idname 'USERPREF_PT_addons_tags' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_addons_settings', bl_idname 'USERPREF_MT_addons_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering panel class: 'USERPREF_PT_extensions_filter', bl_idname 'USERPREF_PT_extensions_filter' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_settings', bl_idname 'USERPREF_MT_extensions_settings' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_item', bl_idname 'USERPREF_MT_extensions_item' has been registered before, unregistering previous
+register_class(...):
+Info: Registering menu class: 'USERPREF_MT_extensions_active_repo_extra', bl_idname 'USERPREF_MT_extensions_active_repo_extra' has been registered before, unregistering previous
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Error: No valid subdivisions found to rebuild a lower level
+Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
+module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py' reloading...
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync', bl_idname 'extensions.repo_sync' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_enable_from_drop', bl_idname 'extensions.repo_enable_from_drop' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_unlock', bl_idname 'extensions.repo_unlock' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_package_install_files', bl_idname 'extensions.package_install_files' has been registered before, unregistering previous
+register_class(...):
+warning: registered duplicate command "extension", this will be inaccessible
+warning: registered duplicate command "asset_listing", this will be inaccessible
+00:00.951  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:00.953  object.modifier  | WARNING Object: "Cube", Modifier: "Multires", Disabled, built without OpenSubdiv
+BLI_assert failed: source/blender/blenkernel/intern/multires_reshape_util.cc:118, context_init_common(), at 'reshape_context->subdiv != nullptr'
+Aborted()
+worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
+node:internal/event_target:1101
+  process.nextTick(() => { throw err; });
+                           ^
+
+RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
+    at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
+    at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-187c8426:wasm-function[96271]:0xADDR)
+    at blender.wasm._BLI_assert_abort() (wasm://wasm/blender.wasm-187c8426:wasm-function[12836]:0xADDR)
+    at blender.wasm.blender::context_init_common(blender::MultiresReshapeContext*) (wasm://wasm/blender.wasm-187c8426:wasm-function[8361]:0xADDR)
+    at blender.wasm.blender::multires_reshape_context_create_from_modifier(blender::MultiresReshapeContext*, blender::Object*, blender::MultiresModifierData*, int) (wasm://wasm/blender.wasm-187c8426:wasm-function[8365]:0xADDR)
+    at invoke_iiiii (<REPO>/build-wasm/bin/blender.js:1:156310)
+    at blender.wasm.blender::multiresModifier_subdivide_to_level(blender::Object*, blender::MultiresModifierData*, int, blender::MultiresSubdivideModeType) (wasm://wasm/blender.wasm-187c8426:wasm-function[8350]:0xADDR)
+    at blender.wasm.blender::ed::object::multires_subdivide_exec(blender::bContext*, blender::wmOperator*) (wasm://wasm/blender.wasm-187c8426:wasm-function[65123]:0xADDR)
+    at blender.wasm.blender::wm_operator_invoke(blender::bContext*, blender::wmOperatorType*, blender::wmEvent const*, blender::PointerRNA*, blender::ReportList*, bool, bool) (wasm://wasm/blender.wasm-187c8426:wasm-function[21552]:0xADDR)
+
+Node.js v22.16.0

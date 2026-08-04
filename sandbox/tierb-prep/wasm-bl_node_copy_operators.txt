@@ -1,0 +1,98 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.655  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+00:00.894  reports          | Merged 2 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 0 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.052  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.225  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.373  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.523  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.672  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.822  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.962  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.109  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.253  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.393  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.533  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.703  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.849  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.992  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.131  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.304  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.489  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+.00:03.591  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:04.844  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:06.068  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:07.080  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+FFFF
+======================================================================
+FAIL: test_ungroup (__main__.NodeMakeGroupTest.test_ungroup) (test_socket='Value', expected_socket='Value', case='test_ungroup_proxy_nodes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_node_copy_operators.py", line 426, in compare_socket
+    self.assertEqual(test_socket.bl_idname, expected_socket.bl_idname)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'NodeSocketUndefined' != 'NodeSocketFloat'
+- NodeSocketUndefined
++ NodeSocketFloat
+
+
+======================================================================
+FAIL: test_ungroup (__main__.NodeMakeGroupTest.test_ungroup) (test_socket='Value', expected_socket='Value', case='test_ungroup_proxy_nodes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_node_copy_operators.py", line 426, in compare_socket
+    self.assertEqual(test_socket.bl_idname, expected_socket.bl_idname)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'NodeSocketUndefined' != 'NodeSocketFloat'
+- NodeSocketUndefined
++ NodeSocketFloat
+
+
+======================================================================
+FAIL: test_ungroup (__main__.NodeMakeGroupTest.test_ungroup) (test_socket='Value', expected_socket='Value', case='test_ungroup_proxy_nodes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_node_copy_operators.py", line 426, in compare_socket
+    self.assertEqual(test_socket.bl_idname, expected_socket.bl_idname)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'NodeSocketUndefined' != 'NodeSocketFloat'
+- NodeSocketUndefined
++ NodeSocketFloat
+
+
+======================================================================
+FAIL: test_ungroup (__main__.NodeMakeGroupTest.test_ungroup) (test_socket='Value', expected_socket='Value', case='test_ungroup_proxy_nodes')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_node_copy_operators.py", line 426, in compare_socket
+    self.assertEqual(test_socket.bl_idname, expected_socket.bl_idname)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'NodeSocketUndefined' != 'NodeSocketFloat'
+- NodeSocketUndefined
++ NodeSocketFloat
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 7.215s
+
+FAILED (failures=4)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 4 selected node(s)
+Info: Copied 4 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 2 selected node(s)
+Info: Copied 5 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+Info: Copied 1 selected node(s)
+1 ['Group.005']
+Info: Copied 1 selected node(s)

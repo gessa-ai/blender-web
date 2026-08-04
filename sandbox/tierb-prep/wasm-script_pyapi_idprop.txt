@@ -1,0 +1,10 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+.......................File "<REPO>/upstream/tests/python/bl_pyapi_idprop.py", line 283, in <lambda>
+File "<REPO>/upstream/tests/python/bl_pyapi_idprop.py", line 284, in <lambda>
+...........
+----------------------------------------------------------------------
+Ran 34 tests in 0.024s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

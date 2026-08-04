@@ -1,0 +1,29 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.644  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+.00:04.111  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+E00:04.121  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:04.271  reports          | No bundle signature found
+00:04.274  reports          | No closure signature found
+00:05.041  reports          | No bundle signature found
+00:05.043  reports          | No closure signature found
+.00:05.924  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:06.580  reports          | No bundle signature found
+00:06.605  reports          | No closure signature found
+00:11.285  reports          | No bundle signature found
+00:11.301  reports          | No closure signature found
+.
+======================================================================
+ERROR: test_cycles_shader_nodes (__main__.AbstractNodeCopyOperatorTest.test_cycles_shader_nodes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_node_link_drag.py", line 156, in test_cycles_shader_nodes
+    bpy.context.scene.render.engine = 'CYCLES'
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: bpy_struct: item.attr = val: enum "CYCLES" not found in ('BLENDER_EEVEE', 'BLENDER_WORKBENCH')
+
+----------------------------------------------------------------------
+Ran 4 tests in 16.649s
+
+FAILED (errors=1)
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

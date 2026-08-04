@@ -1,0 +1,38 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.633  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/voxel_remesh_compare.blend"
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+
+START Color Interpolation test.
+00:00.693  blend.writefile  | WARNING Found an ID 'OBexpected objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.693  blend.writefile  | WARNING Found an ID 'OBtest objects' flagged as copy/paste clipboard data while writing a regular blendfile, clearing the flag
+00:00.693  reports          | Found IDs flagged as copy/paste clipboard data while writing a regular blendfile, the flag has been cleared in these IDs
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/sculpt_paint/voxel_remesh_compare_test.py", line 36, in <module>
+    main()
+    ~~~~^^
+  File "<REPO>/upstream/tests/python/sculpt_paint/voxel_remesh_compare_test.py", line 32, in main
+    modifiers_test.main()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 1000, in main
+    self.run_all_tests()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 929, in run_all_tests
+    success = self.run_test(test_name)
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 971, in run_test
+    success = test.run_test()
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 297, in run_test
+    self.apply_operations(self.evaluated_object.name)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 548, in apply_operations
+    self._apply_operator(operation)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "<REPO>/upstream/tests/python/sculpt_paint/../modules/mesh_test.py", line 771, in _apply_operator
+    retval = operator_fn(**operator.operator_parameters)
+RuntimeError: Error: Voxel remesher failed to create mesh
+
+Error: Voxel remesher failed to create mesh
+
+Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/voxel_remesh_compare_test.py', exiting.
+
+Blender quit

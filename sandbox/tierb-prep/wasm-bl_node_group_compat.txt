@@ -1,0 +1,32 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.654  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:00.662  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.672  depsgraph        | WARNING Dependency cycle detected:
+                            |   NTShader Nodetree/NTREE_OUTPUT() depends on
+                            |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
+                            |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
+                            | 
+00:00.672  depsgraph        | WARNING Detected 1 dependency cycles
+.00:00.684  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup25.blend"
+00:00.689  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+00:00.695  depsgraph        | WARNING Dependency cycle detected:
+                            |   NTShader Nodetree/NTREE_OUTPUT() depends on
+                            |   MAMaterial/MATERIAL_UPDATE() via 'Material -> Node'
+                            |   NTShader Nodetree/NTREE_OUTPUT() via 'Material's NTree'
+                            | 
+00:00.695  depsgraph        | WARNING Detected 1 dependency cycles
+.00:00.700  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.732  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.735  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.757  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.762  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/nodegroup36.blend"
+00:00.783  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+.00:00.786  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_group_socket_interface_compositor.blend"
+00:00.790  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+.
+----------------------------------------------------------------------
+Ran 6 tests in 0.147s
+
+OK
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

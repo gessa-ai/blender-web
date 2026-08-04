@@ -1,0 +1,23 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+00:00.648  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+00:00.653  blend.readfile   | ERROR Blendfile corruption: Invalid, or multiple `bhead` with same old address value (0xADDR) for a given ID.
+Aborted()
+worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
+node:internal/event_target:1101
+  process.nextTick(() => { throw err; });
+                           ^
+
+RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
+    at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
+    at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-187c8426:wasm-function[96271]:0xADDR)
+    at blender.wasm.blender::clog_abort_on_error_callback(void*) (wasm://wasm/blender.wasm-187c8426:wasm-function[535]:0xADDR)
+    at blender.wasm.CLG_logf(CLG_LogType const*, CLG_Level, char const*, char const*, char const*, ...) (wasm://wasm/blender.wasm-187c8426:wasm-function[20323]:0xADDR)
+    at blender.wasm.blender::read_data_into_datamap(blender::FileData*, blender::BHead*, char const*, int) (wasm://wasm/blender.wasm-187c8426:wasm-function[23203]:0xADDR)
+    at blender.wasm.blender::read_libblock(blender::FileData*, blender::Main*, blender::BHead*, int, blender::ID_Readfile_Data::Tags, bool, blender::ID**) (wasm://wasm/blender.wasm-187c8426:wasm-function[23224]:0xADDR)
+    at blender.wasm.blender::blo_read_file_internal(blender::FileData*, char const*) (wasm://wasm/blender.wasm-187c8426:wasm-function[23208]:0xADDR)
+    at blender.wasm.blender::BLO_read_from_file(char const*, blender::eBLOReadSkip, blender::BlendFileReadReport*) (wasm://wasm/blender.wasm-187c8426:wasm-function[23167]:0xADDR)
+    at blender.wasm.blender::BKE_blendfile_read(char const*, blender::BlendFileReadParams const*, blender::BlendFileReadReport*) (wasm://wasm/blender.wasm-187c8426:wasm-function[637]:0xADDR)
+
+Node.js v22.16.0

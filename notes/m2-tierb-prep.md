@@ -290,10 +290,37 @@ datafiles dir (`_datafiles_wasm/` = `release/datafiles` symlinks + `assets/ → 
 so `<DATAFILES>/assets` matches a real install. Evidence it worked: the `asset_activate` error
 moved from `path ""` to the full resolved path, and the essentials `.blend` loads 64 brushes via
 `libraries.load`. **This is the correct payload packaging** — the shipping wasm build must place
-`assets/` in its datafiles payload. It did NOT flip the 3 suites green: the residual blocker is
-now precisely one code path — `asset::list::storage_fetch_blocking` not populating the asset list
-on wasm — filed as a genuine asset-system bug (verify porcelain stayed patch-series-only after the
-pull: 30 → 30, HEAD `fbe6228777e7`).
+`assets/` in its datafiles payload (porcelain stayed patch-series-only after the pull: 30 → 30,
+HEAD `fbe6228777e7`).
+
+**Deeper root-cause of the residual divergence (driver follow-on).** Traced
+`storage_fetch_blocking` → `AssetList::ensure_blocking` → `filelist_readjob_blocking_run`
+(filelist_readjob.cc:265) → `filelist_readjob_start_ex(…, force_blocking_read=true)` which runs
+the read **single-threaded inline** (filelist_readjob.cc:227-235, `filelist_readjob_startjob` +
+`endjob` directly). The read is `filelist_readjob_recursive_dir_add_items` →
+`filelist_readjob_list_lib` = `BLO_blendhandle_from_file` + `BLO_blendhandle_get_datablock_info`
+(filelist_readjob_common.cc:576/598). The "No asset found" is raised at asset_menu_utils.cc:128
+*after* `list::is_loaded` is TRUE — the list loaded but nothing matched the weak-reference.
+
+**GROUND-TRUTH ISOLATION (decisive):** ran `brush_asset_test.py` on the NATIVE oracle pointed at
+the SAME composed `_datafiles_wasm` (`BLENDER_SYSTEM_DATAFILES=…/_datafiles_wasm`) → **PASS (OK,
+exit 0)**. Same data, same paths, same test → passes native, fails wasm. So the divergence is the
+**wasm runtime**, not payload/data/path. Systematically EXCLUDED:
+- payload/path — native+composed passes; `system_resource('DATAFILES')` + `os.listdir` + `os.stat`
+  all correct on wasm;
+- asset indexer — `preferences.experimental.use_asset_indexing=False` does not fix it;
+- job/threading — the blocking path is single-threaded inline (no WM_jobs / worker);
+- readfile/bhead family — `--debug` run emits **0** read/`bhead`/corruption errors during the scan
+  (so NOT the same bug as node_structure_type_inference), and a direct `libraries.load(
+  assets_only=True)` returns 64 brushes fine.
+
+**STOP — with evidence (architectural, not payload).** The scan runs clean yet the ESSENTIALS/All
+asset list ends up without the requested asset on wasm, isolated to the C++
+`filelist_readjob_list_lib` / `BLO_blendhandle_get_datablock_info` asset-listing path. Localizing
+empty-list vs weak-ref-identifier-mismatch requires C-level instrumentation + a wasm rebuild
+(beyond boot-recipe probing) — a source/rebuild task for the python-wasm lane, NOT fixable at the
+payload/invocation layer. Payload half is fixed and shipping-relevant; the residual is one named,
+well-bounded wasm asset-listing divergence.
 
 **node-socket → HYPOTHESIS CORRECTED, kept as genuine divergence.** The driver's steer
 (network-socket / stdlib syscall → possible config-AMBER) does **not** hold: the honesty

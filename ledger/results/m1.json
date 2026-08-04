@@ -1,7 +1,7 @@
 {
   "scope": "m1",
-  "pass": false,
-  "ts": "2026-08-03T15:32:17Z",
+  "pass": true,
+  "ts": "2026-08-04T02:21:00Z",
   "checks": {
     "blenlib_test_link": {
       "pass": true,
@@ -16,12 +16,12 @@
       "detail": "1/1: path_utils.ExtensionEnsure exposed a REAL ILP32 bug in Blender's path_utils.cc BLI_path_extension_ensure: `a = path_len - 1` with path_len==0 underflows size_t to 0xFFFFFFFF -> +4294967295 in int64_t on wasm32 (loop runs OOB) vs -1 on LP64. Fixed in patch 0006 by casting to signed before subtracting; native LP64 behavior byte-identical. Test now GREEN. The free cross-build oracle did exactly its job."
     },
     "bmesh_core_test_link": {
-      "pass": false,
-      "detail": "0/1 BLOCKED, not a test defect. Blender builds NO standalone per-suite test executable: `bmesh_core`/`bmesh_core_test` are CTest names registered against ONE combined runner bin/tests/blender_test.js whose link line pulls ~200 archives (essentially all of Blender). The bmesh suite (libbmesh_tests.a) resolves only inside that binary. bf_bmesh PRIVATE-depends on bf::blenkernel + bf::depsgraph + bf::blentranslation (+animrig transitively); none of these -- nor bf_bmesh itself -- are built for wasm (M1.9 delivered only bf_blenlib + bf_dna). Verified: build-wasm/lib has no libbf_bmesh/blenkernel/depsgraph/animrig/rna .a. Running bmesh_core on wasm requires porting blenkernel + depsgraph (+RNA makesrna generation, datatoc host-tool wiring) -- the remainder of M1 headless-core / M2 territory. No pass fabricated."
+      "pass": true,
+      "detail": "1/1 linked: bmesh_core_test.js + .wasm (62.1 MB) via WITH_TESTS_SINGLE_BINARY=OFF standalone route (recon-decided). Full core closure linked: 90 wave-2 archives (P1-P5, one source fix total: patch 0120 asset_system WITH_PYTHON=OFF dead-path) + bf_rna + all lib/wasm deps. ONE undefined symbol across the ~200-archive link: BPY_string_compile_check from interface_handlers.cc (unguarded WITH_PYTHON=OFF call sites, latent upstream bug) -> patch 0009 guards both sites with #ifdef WITH_PYTHON (native PYTHON=ON byte-identical). Linked clean on retry, 26s."
     },
     "bmesh_core_test_run": {
-      "pass": false,
-      "detail": "0/1 not reached: the suite cannot link until bf_blenkernel + bf_depsgraph compile for wasm32 and a runnable test binary is wired. Structural milestone gap upstream of the harness (see notes/harness-issues.md H-5). No result fabricated."
+      "pass": true,
+      "detail": "1/1 PASSED under node 22.16 (emsdk), exit 0, 116ms total. VERIFIED vs upstream: bmesh_core_test.cc contains exactly ONE test (BMVertCreate, line 17) so 1/1 = full native parity, no truncation. The gate value is the boot: guardedalloc+DNA+RNA+blenkernel init+imbuf/OCIO+TBB all initialize on wasm32 to test-readiness. Environmental warts (non-fatal, recorded): OIIO Sysutil::physical_memory unimplemented-platform assert PRINT at startup (needs __EMSCRIPTEN__ impl, cosmetic); OCIO colormanagement fallback mode (no config in headless run, expected)."
     }
   }
 }

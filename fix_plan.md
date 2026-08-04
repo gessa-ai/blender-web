@@ -88,10 +88,12 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [x] **M1.10 [harness]** blenlib gtests GREEN on wasm/node: **1655/1665**, 10 non-passes all
   characterized non-faithfulness (9 fenv deferral + 1 macOS-host chdir). `ledger/results/m1.json`.
   Harness `m1` scope registration deferred to the M1-boundary reconcile (H-4).
-- [ ] **M1.11 [harness]** Link + run the **bmesh_core gtest** suite under node → tier-(a) gate 2⁄2.
-  **blocked-by M1.13, M1.14, M1.15, M1.15b.** DECIDED (recon 2026-08-03, notes/m1-closure-recon.md):
-  standalone `bmesh_core_test` via `WITH_TESTS_SINGLE_BINARY OFF` flip — NOT hand-link, NOT
-  combined blender_test.
+- [x] **M1.11 [harness]** **TIER-(a) GATE 2/2 GREEN** (2026-08-04, driver): bmesh_core_test.js
+  linked (62.1MB, ~200 archives, SINGLE_BINARY=OFF standalone route) + runs under node: **1/1
+  PASSED, exit 0, 116ms** — verified = the FULL upstream suite (bmesh_core_test.cc has exactly
+  one TEST_F, BMVertCreate). One link fix: patch 0009 (unguarded WITH_PYTHON=OFF BPY_ call
+  sites in interface_handlers.cc — latent upstream bug). m1.json 5/5, gate green. Warts
+  recorded: OIIO physical_memory assert-print, OCIO fallback (both environmental, non-fatal).
 - [ ] **M1.12 [harness]** `.blend` corpus loads with state-dump parity vs the native oracle →
   completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.** ORACLE-SIDE DONE
   (0121ea3): 9-file corpus (LFS corpus is ALL pointer stubs — 1965 files; only startup.blend

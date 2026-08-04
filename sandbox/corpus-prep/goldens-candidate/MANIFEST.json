@@ -1,0 +1,61 @@
+{
+ "files": {
+  "animation": {
+   "blend_bytes": 517155,
+   "blend_sha256": "c4eeb78f1300d91fa1d713d5b7a7de08a017852e3be28f253c53c82dd65b399f",
+   "dump_sha256": "636351c5c44590557e3a6aaeee65407f6c93250dd9e24d18ba731b5e7af7dcd0",
+   "source_path": "sandbox/corpus-prep/corpus/animation.blend"
+  },
+  "armature": {
+   "blend_bytes": 509459,
+   "blend_sha256": "47a8bde5d52014b7374c3bffbdccdcad2af89c58fdda8626cdacf6a18b336fc5",
+   "dump_sha256": "fc178d44da7ca84d510e9e05e298d956652a2aab84b614d1a3df9e4c1d2ade98",
+   "source_path": "sandbox/corpus-prep/corpus/armature.blend"
+  },
+  "collections_instancing": {
+   "blend_bytes": 505506,
+   "blend_sha256": "825897d62f036bef01b965761ab251ba78add5c792aaf2c784c8b94079d4d2d4",
+   "dump_sha256": "afaacbfa4cd4b191f7fa475c065955af99ed41d1ef1c949f8c0eaa5079cf7e03",
+   "source_path": "sandbox/corpus-prep/corpus/collections_instancing.blend"
+  },
+  "curves_text": {
+   "blend_bytes": 497193,
+   "blend_sha256": "e37bf9ef450fe1474ca53309faec21c46cd53d163d9e64cf6b2ed51c0abe7b0e",
+   "dump_sha256": "8e98f222569109c920eea1e28cc322455c23fa5b878914cab4d4d352b3f5c745",
+   "source_path": "sandbox/corpus-prep/corpus/curves_text.blend"
+  },
+  "materials_nodes": {
+   "blend_bytes": 616075,
+   "blend_sha256": "73d7eda330a0ffe898e239adc9f58e1eec267f56cfd87594c704777f70de410f",
+   "dump_sha256": "89087b3b6dbaa05d312efa7d14db1cbddb264ad98087c8893c163a981137bf24",
+   "source_path": "sandbox/corpus-prep/corpus/materials_nodes.blend"
+  },
+  "mesh_dense": {
+   "blend_bytes": 2645141,
+   "blend_sha256": "54293498822334e49e1c5561570e74f2c2440861b3caba95d96bbc8b218ed56b",
+   "dump_sha256": "a35eede927a5cb81bf3e48266bf93d67d9d8c114a56915f43a1d80f36ef9baa2",
+   "source_path": "sandbox/corpus-prep/corpus/mesh_dense.blend"
+  },
+  "modifiers": {
+   "blend_bytes": 505801,
+   "blend_sha256": "f3569d6f696dcb5f10195e3b4dc4bfb107dea5fedb7b717edaa7257d39817956",
+   "dump_sha256": "179015c3f694fc41d6b26e8210e937cfa6354a876599feba94f0a4c6d8832b35",
+   "source_path": "sandbox/corpus-prep/corpus/modifiers.blend"
+  },
+  "startup": {
+   "blend_bytes": 121384,
+   "blend_sha256": "1335899143c7e77bcb0f6e3680fd99078c0af481a1238e4ed7d4eb1ddd7dd353",
+   "dump_sha256": "1692c242c17827cf35ad3c23358bc1ca3a861e7773c5353f4d611c86787955ad",
+   "source_path": "upstream/release/datafiles/startup.blend"
+  },
+  "stress_mixed": {
+   "blend_bytes": 581494,
+   "blend_sha256": "c2a7974ceec3da3ed11a102d924f3318ea82ffa29fd393a8ff5103b6181b4e2e",
+   "dump_sha256": "0bd6f6b9ea0609df2d2d9ee5b341d1caf05e51ee6b370d7fa44be6396c6173d8",
+   "source_path": "sandbox/corpus-prep/corpus/stress_mixed.blend"
+  }
+ },
+ "note": "M1.12 candidate goldens. Deterministic bpy state-dumps, verified byte-identical across two independent oracle invocations. Oracle: Blender 5.2.0 LTS build fbe6228777e7 (matches upstream/PIN).",
+ "quant_scale": 1000000,
+ "schema_version": 1
+}

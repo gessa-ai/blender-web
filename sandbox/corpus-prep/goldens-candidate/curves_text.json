@@ -1,0 +1,497 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "curves": {
+   "count": 3,
+   "items": {
+    "BezCircleCurve": {
+     "bevel_depth": 50000,
+     "dimensions": "3D",
+     "extrude": 0,
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "Curve",
+     "spline_count": 1,
+     "splines": [
+      {
+       "order_u": 0,
+       "point_count": 4,
+       "type": "BEZIER",
+       "use_cyclic_u": true
+      }
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "LabelCurve": {
+     "align_x": "LEFT",
+     "align_y": "TOP_BASELINE",
+     "bevel_depth": 0,
+     "body": "Blender Web 5.2",
+     "dimensions": "3D",
+     "extrude": 50000,
+     "font": "Bfont Regular",
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "TextCurve",
+     "size": 1500000,
+     "spline_count": 0,
+     "splines": [],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "NurbsPathCurve": {
+     "bevel_depth": 0,
+     "dimensions": "3D",
+     "extrude": 0,
+     "library": null,
+     "resolution_u": 12,
+     "rna_type": "Curve",
+     "spline_count": 1,
+     "splines": [
+      {
+       "order_u": 5,
+       "point_count": 5,
+       "type": "NURBS",
+       "use_cyclic_u": false
+      }
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "BezCircleCurve",
+    "LabelCurve",
+    "NurbsPathCurve"
+   ]
+  },
+  "fonts": {
+   "count": 1,
+   "items": {
+    "Bfont Regular": {
+     "filepath": "<builtin>",
+     "library": null,
+     "use_fake_user": false,
+     "users": 4
+    }
+   },
+   "names": [
+    "Bfont Regular"
+   ]
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 3,
+   "items": {
+    "BezCircle": {
+     "constraints": [],
+     "data": "BezCircleCurve",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      3000000,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      3000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      3000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CURVE",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "Label": {
+     "constraints": [],
+     "data": "LabelCurve",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "FONT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "NurbsPath": {
+     "constraints": [],
+     "data": "NurbsPathCurve",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      -3000000,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      -3000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      -3000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "CURVE",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "BezCircle",
+    "Label",
+    "NurbsPath"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {},
+      "objects": [
+       "BezCircle",
+       "Label",
+       "NurbsPath"
+      ]
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": null
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 0,
+   "items": {},
+   "names": []
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "curves_text.blend"
+}

@@ -1,0 +1,770 @@
+{
+ "collections": {
+  "actions": {
+   "count": 2,
+   "items": {
+    "AnimCubeAction": {
+     "fcurve_count": 9,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "00f7b62fc8a6d808fc7b834e8557bb5459436b6714665fc6b580effc71b929a3"
+      },
+      {
+       "array_index": 1,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "d9300d216d4b5e5c33117cb9a3769efed5f38b381c350c9edede7ef90c5e2a76"
+      },
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "230e3e4f88a5d7353027c2bb489c7f0e39aba8832f6ea5323b7c76a9a73c0371"
+      },
+      {
+       "array_index": 0,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "e3e62a62a72fdaff49ac620fd66a1e6fc7bb3d85d3df5f04ea6cdf237e892154"
+      },
+      {
+       "array_index": 1,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "3bf81e051f30d3c1c29bb3a5cb26b9d63f19f614e0d0c2db2d485a33721430ee"
+      },
+      {
+       "array_index": 2,
+       "data_path": "rotation_euler",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 3,
+       "keyframes_hash": "b195e62e227936e21c71d2c63576c0ba7a24cb9475e456bcb91c892205150d51"
+      },
+      {
+       "array_index": 0,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "31bc00d5e403d60ace6721057a4fbc49678e45e0cca73313d4b1afa16b15fb07"
+      },
+      {
+       "array_index": 1,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "31bc00d5e403d60ace6721057a4fbc49678e45e0cca73313d4b1afa16b15fb07"
+      },
+      {
+       "array_index": 2,
+       "data_path": "scale",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "31bc00d5e403d60ace6721057a4fbc49678e45e0cca73313d4b1afa16b15fb07"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      30000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "OBAnimCube"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    },
+    "PointAction": {
+     "fcurve_count": 1,
+     "fcurves": [
+      {
+       "array_index": 0,
+       "data_path": "energy",
+       "extrapolation": "CONSTANT",
+       "keyframe_count": 2,
+       "keyframes_hash": "48459075746bcdf2bea6e964b0f57c797f2aff83bd186500be6625a051cc75a6"
+      }
+     ],
+     "frame_range": [
+      1000000,
+      40000000
+     ],
+     "layer_count": 1,
+     "library": null,
+     "slot_count": 1,
+     "slot_identifiers": [
+      "LAPoint"
+     ],
+     "use_fake_user": false,
+     "users": 1
+    }
+   },
+   "names": [
+    "AnimCubeAction",
+    "PointAction"
+   ]
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 1,
+   "items": {
+    "Point": {
+     "color": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "energy": 10000000,
+     "library": null,
+     "shadow_soft_size": 0,
+     "type": "POINT",
+     "use_fake_user": false,
+     "use_nodes": true,
+     "users": 1
+    }
+   },
+   "names": [
+    "Point"
+   ]
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 2,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "2b763a263441391df7bb670b0544f080d75eae5162241fe31a47e0a0d7464bbe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "3d85bfe74050b6fea7577441799585884b1457927d3ed10771a8ee2d11f256e4"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "3d8e331b368b5e96c1bca4f3ea06f4c752b0b21b91b3a24542b41dbbd96937d9"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "47b53ed736a79952901420c93a21c7f6836108e69f77849db55313b035bf1e99",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "3d8e331b368b5e96c1bca4f3ea06f4c752b0b21b91b3a24542b41dbbd96937d9",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 8
+    },
+    "Cube.001": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "2b763a263441391df7bb670b0544f080d75eae5162241fe31a47e0a0d7464bbe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "3d85bfe74050b6fea7577441799585884b1457927d3ed10771a8ee2d11f256e4"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "9c65f2c9bb902283863e0b49c8325508087861b77b8f69b5977d0420e37699d8"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "47b53ed736a79952901420c93a21c7f6836108e69f77849db55313b035bf1e99",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "9c65f2c9bb902283863e0b49c8325508087861b77b8f69b5977d0420e37699d8",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 8
+    }
+   },
+   "names": [
+    "Cube",
+    "Cube.001"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 3,
+   "items": {
+    "AnimCube": {
+     "action": "AnimCubeAction",
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "AnimLight": {
+     "constraints": [],
+     "data": "Point",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      3000000,
+      3000000,
+      3000000
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      3000000,
+      0,
+      1000000,
+      0,
+      3000000,
+      0,
+      0,
+      1000000,
+      3000000,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      3000000,
+      0,
+      1000000,
+      0,
+      3000000,
+      0,
+      0,
+      1000000,
+      3000000,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "LIGHT",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "DrivenCube": {
+     "action": null,
+     "constraints": [],
+     "data": "Cube.001",
+     "drivers": [
+      {
+       "array_index": 2,
+       "data_path": "location",
+       "expression": "src * 2.0",
+       "type": "SCRIPTED",
+       "use_self": false,
+       "variables": [
+        {
+         "name": "src",
+         "targets": [
+          {
+           "bone_target": "",
+           "data_path": "",
+           "id": "AnimCube",
+           "id_type": "OBJECT",
+           "transform_space": "WORLD_SPACE",
+           "transform_type": "LOC_X"
+          }
+         ],
+         "type": "TRANSFORMS"
+        }
+       ]
+      }
+     ],
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "AnimCube",
+    "AnimLight",
+    "DrivenCube"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {},
+      "objects": [
+       "AnimCube",
+       "AnimLight",
+       "DrivenCube"
+      ]
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 40,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": null
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 0,
+   "items": {},
+   "names": []
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "animation.blend"
+}

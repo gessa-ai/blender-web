@@ -1,0 +1,741 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 2,
+   "items": {
+    "Cube": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "2b763a263441391df7bb670b0544f080d75eae5162241fe31a47e0a0d7464bbe"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "21d3e2c6a7106cc496d3802b87a3d5170784769fbde81885ad9028686721c39e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "e6fa451eb518075047cc1ed97501e50c138aee1787a726d393f04a98ec232741"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "50ccade93e8945c61ecad245a926b072c7b4c701c0c709aa7820c6456074f803"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "3d85bfe74050b6fea7577441799585884b1457927d3ed10771a8ee2d11f256e4"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "4a40dfbc66c11c2d78dd64f1d0ada5090c1bd887fcb51f7549a6a98c9ff9830e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "bcc57c2c39211c70546442433b95663780caa1e2cd0b39359f1c02ba8fc0d44f"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 12,
+     "edge_hash": "47b53ed736a79952901420c93a21c7f6836108e69f77849db55313b035bf1e99",
+     "library": null,
+     "loop_count": 24,
+     "loop_vertex_hash": "6345b0e79e29162165b8ef24428353750b3e98d0a247d6d24b971ca436a7183f",
+     "material_index_hash": "880dd88dc16659c0e72d13cc7da39e075812428cc08a1f487fa529212cfc829b",
+     "materials": [],
+     "poly_layout_hash": "cda21e4497be2490b22ae0d9c04d13aaac27990673307e84c0df4a7bdea5efc4",
+     "polygon_count": 6,
+     "position_hash": "4a40dfbc66c11c2d78dd64f1d0ada5090c1bd887fcb51f7549a6a98c9ff9830e",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 8
+    },
+    "Cylinder": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "5c0b3d7ad1897852b9b33ee6b357ef3e9777f74be3da53bdd69dea6dae40cd5b"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "df77a63691fdbb967c9db632d0fa4fbffc37b9d54b75dbc6b52ff27b3e686f10"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "d6b0d375967071ab85f8b951dd2e789621b1eb419cea26f48d4d298dd62f191d"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "9e2965300161bf89624a745722707fa49258e280879d2756ac58e482e383da8e"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "22d56c5f3a2bf929df4dcdd2646b08917ab280a3354e32cb1982207a2b1846b4"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "265d0ec2964b66bfce4ac1ccb7b3dd6209083b505c789acf2ff22eb1c6ee9cdc"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "e8dbfebdc8e33335af3cd3841c9b60fcebe1080c0499f826fe79aaa235dd4a55"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "265d0ec2964b66bfce4ac1ccb7b3dd6209083b505c789acf2ff22eb1c6ee9cdc"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "d0c053b6816e73a73bcbe961028378e91e882f913acbc5631a221933ac533b93"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "50e2f586760617317019e2069050cafd75aa22cca155d791b81bc20dfc3b2fce"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "9e2965300161bf89624a745722707fa49258e280879d2756ac58e482e383da8e"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 96,
+     "edge_hash": "2a4e57ec478601d44b4400a2dc6b62b8892b0243b0a52bce3ea65a0a11e727b2",
+     "library": null,
+     "loop_count": 192,
+     "loop_vertex_hash": "df77a63691fdbb967c9db632d0fa4fbffc37b9d54b75dbc6b52ff27b3e686f10",
+     "material_index_hash": "e8dbfebdc8e33335af3cd3841c9b60fcebe1080c0499f826fe79aaa235dd4a55",
+     "materials": [],
+     "poly_layout_hash": "73aaf0e74555ac26a4a2a48a62ba67a309e70e27ab5e0945740c938d6286af93",
+     "polygon_count": 34,
+     "position_hash": "50e2f586760617317019e2069050cafd75aa22cca155d791b81bc20dfc3b2fce",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 64
+    }
+   },
+   "names": [
+    "Cube",
+    "Cylinder"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 2,
+   "items": {
+    "Cutter": {
+     "constraints": [],
+     "data": "Cylinder",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    },
+    "ModifiedCube": {
+     "constraints": [],
+     "data": "Cube",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [
+      {
+       "name": "Subdivision",
+       "props": {
+        "adaptive_object_edge_length": 10000,
+        "adaptive_pixel_size": 1000000,
+        "adaptive_space": "PIXEL",
+        "boundary_smooth": "ALL",
+        "is_active": false,
+        "levels": 2,
+        "name": "Subdivision",
+        "open_adaptive_subdivision_panel": false,
+        "open_advanced_panel": false,
+        "quality": 3,
+        "render_levels": 3,
+        "show_expanded": true,
+        "show_in_editmode": true,
+        "show_on_cage": false,
+        "show_only_control_edges": true,
+        "show_render": true,
+        "show_viewport": true,
+        "subdivision_type": "CATMULL_CLARK",
+        "use_adaptive_subdivision": false,
+        "use_apply_on_spline": false,
+        "use_creases": true,
+        "use_custom_normals": false,
+        "use_limit_surface": true,
+        "use_pin_to_last": false,
+        "uv_smooth": "PRESERVE_BOUNDARIES"
+       },
+       "type": "SUBSURF"
+      },
+      {
+       "name": "Mirror",
+       "props": {
+        "bisect_threshold": 1000,
+        "is_active": false,
+        "merge_threshold": 1000,
+        "mirror_object": null,
+        "mirror_offset_u": 0,
+        "mirror_offset_v": 0,
+        "name": "Mirror",
+        "offset_u": 0,
+        "offset_v": 0,
+        "show_expanded": true,
+        "show_in_editmode": true,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "use_apply_on_spline": false,
+        "use_axis": [
+         true,
+         true,
+         false
+        ],
+        "use_bisect_axis": [
+         false,
+         false,
+         false
+        ],
+        "use_bisect_flip_axis": [
+         false,
+         false,
+         false
+        ],
+        "use_clip": false,
+        "use_mirror_merge": true,
+        "use_mirror_u": false,
+        "use_mirror_udim": false,
+        "use_mirror_v": false,
+        "use_mirror_vertex_groups": true,
+        "use_pin_to_last": false
+       },
+       "type": "MIRROR"
+      },
+      {
+       "name": "Array",
+       "props": {
+        "constant_offset_displace": [
+         1000000,
+         0,
+         0
+        ],
+        "count": 3,
+        "curve": null,
+        "end_cap": null,
+        "fit_length": 0,
+        "fit_type": "FIXED_COUNT",
+        "is_active": false,
+        "merge_threshold": 10000,
+        "name": "Array",
+        "offset_object": null,
+        "offset_u": 0,
+        "offset_v": 0,
+        "relative_offset_displace": [
+         1500000,
+         0,
+         0
+        ],
+        "show_expanded": true,
+        "show_in_editmode": true,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "start_cap": null,
+        "use_apply_on_spline": false,
+        "use_constant_offset": false,
+        "use_merge_vertices": false,
+        "use_merge_vertices_cap": false,
+        "use_object_offset": false,
+        "use_pin_to_last": false,
+        "use_relative_offset": true
+       },
+       "type": "ARRAY"
+      },
+      {
+       "name": "Bevel",
+       "props": {
+        "affect": "EDGES",
+        "angle_limit": 523599,
+        "edge_weight": "bevel_weight_edge",
+        "face_strength_mode": "FSTR_NONE",
+        "harden_normals": false,
+        "invert_vertex_group": false,
+        "is_active": false,
+        "limit_method": "ANGLE",
+        "loop_slide": true,
+        "mark_seam": false,
+        "mark_sharp": false,
+        "material": -1,
+        "miter_inner": "MITER_SHARP",
+        "miter_outer": "MITER_SHARP",
+        "name": "Bevel",
+        "offset_type": "OFFSET",
+        "profile": 500000,
+        "profile_type": "SUPERELLIPSE",
+        "segments": 2,
+        "show_expanded": true,
+        "show_in_editmode": true,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "spread": 100000,
+        "use_apply_on_spline": false,
+        "use_clamp_overlap": true,
+        "use_pin_to_last": false,
+        "vertex_group": "",
+        "vertex_weight": "bevel_weight_vert",
+        "vmesh_method": "ADJ",
+        "width": 50000,
+        "width_pct": 50000
+       },
+       "type": "BEVEL"
+      },
+      {
+       "name": "Solidify",
+       "props": {
+        "bevel_convex": 0,
+        "edge_crease_inner": 0,
+        "edge_crease_outer": 0,
+        "edge_crease_rim": 0,
+        "invert_vertex_group": false,
+        "is_active": false,
+        "material_offset": 0,
+        "material_offset_rim": 0,
+        "name": "Solidify",
+        "nonmanifold_boundary_mode": "NONE",
+        "nonmanifold_merge_threshold": 100,
+        "nonmanifold_thickness_mode": "CONSTRAINTS",
+        "offset": -1000000,
+        "rim_vertex_group": "",
+        "shell_vertex_group": "",
+        "show_expanded": true,
+        "show_in_editmode": true,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "solidify_mode": "EXTRUDE",
+        "thickness": 100000,
+        "thickness_clamp": 0,
+        "thickness_vertex_group": 0,
+        "use_apply_on_spline": false,
+        "use_even_offset": false,
+        "use_flat_faces": false,
+        "use_flip_normals": false,
+        "use_pin_to_last": false,
+        "use_quality_normals": false,
+        "use_rim": true,
+        "use_rim_only": false,
+        "use_thickness_angle_clamp": false,
+        "vertex_group": ""
+       },
+       "type": "SOLIDIFY"
+      },
+      {
+       "name": "Boolean",
+       "props": {
+        "collection": null,
+        "debug_options": "set()",
+        "double_threshold": 1,
+        "is_active": true,
+        "material_mode": "INDEX",
+        "name": "Boolean",
+        "object": "<id:Cutter>",
+        "operand_type": "OBJECT",
+        "operation": "DIFFERENCE",
+        "show_expanded": true,
+        "show_in_editmode": false,
+        "show_on_cage": false,
+        "show_render": true,
+        "show_viewport": true,
+        "solver": "EXACT",
+        "use_apply_on_spline": false,
+        "use_hole_tolerant": false,
+        "use_pin_to_last": false,
+        "use_self": false
+       },
+       "type": "BOOLEAN"
+      }
+     ],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "Cutter",
+    "ModifiedCube"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {},
+      "objects": [
+       "Cutter",
+       "ModifiedCube"
+      ]
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": null
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 0,
+   "items": {},
+   "names": []
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "modifiers.blend"
+}

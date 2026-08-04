@@ -1,0 +1,545 @@
+{
+ "collections": {
+  "actions": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "armatures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "cameras": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "collections": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "curves": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "fonts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "grease_pencils": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "images": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "lights": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "materials": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "meshes": {
+   "count": 2,
+   "items": {
+    "DenseGridMesh": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "26ff34f663700d72864376561c27553882be5adb955db22551b9cb562a8ca7d6"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "726aa9bf72fa17df3d4f0dc3a1cdcc31c7f60c3f54f82a7d185fe5aa1f2dc681"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "91c65144b03cdd9c5ff03fd6d286229e3c46eb76617c34a75e9c4b45cd6c584f"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "cca89d03c6f92d32946a908ef21a12e79f62103d3c490787237df0b3b652517d"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "4f59e2b382724f5bba49e844bf4ec72cb65206fdc46af99d3e4bf7b4c90902e9"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "48e4adaa0449aea242752a467acc13c133de099cb6c2462dd46dcfced7471134"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "4aba07683f1d64a3f6c5f67e2fc8d026481baa10ecabb1f87657e73d4f0bf2a5"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "48e4adaa0449aea242752a467acc13c133de099cb6c2462dd46dcfced7471134"
+      },
+      {
+       "data_type": "BYTE_COLOR",
+       "domain": "CORNER",
+       "name": "Col",
+       "values_hash": "2085a585d47cdef70bf248ee74bdb8bb873161b6307c0c623580abe47b8d7164"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "19ad8613ba2b78e5449dd5f76013dc96a40f3afa17fad12b1c6b8544e5d14664"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVSecond",
+       "values_hash": "19ad8613ba2b78e5449dd5f76013dc96a40f3afa17fad12b1c6b8544e5d14664"
+      },
+      {
+       "data_type": "FLOAT",
+       "domain": "POINT",
+       "name": "height",
+       "values_hash": "a3f53fe2636002a974402891f7e8bf5740c7e4e40721e025308e3649fd184169"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "7152b0bd142d7bb55062eee201bbfdb836c1d518213932b496a9df651af471f7"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "cca89d03c6f92d32946a908ef21a12e79f62103d3c490787237df0b3b652517d"
+      }
+     ],
+     "color_attributes": [
+      "Col"
+     ],
+     "edge_count": 20200,
+     "edge_hash": "a1636e29088b83bcd5dcc304643875e2797cc3b130e23738242035cfce67a1a9",
+     "library": null,
+     "loop_count": 40000,
+     "loop_vertex_hash": "726aa9bf72fa17df3d4f0dc3a1cdcc31c7f60c3f54f82a7d185fe5aa1f2dc681",
+     "material_index_hash": "4aba07683f1d64a3f6c5f67e2fc8d026481baa10ecabb1f87657e73d4f0bf2a5",
+     "materials": [],
+     "poly_layout_hash": "eb6ab924300d6f519ef789940f9ec67be2be89ee633519724b0f567f06db7170",
+     "polygon_count": 10000,
+     "position_hash": "7152b0bd142d7bb55062eee201bbfdb836c1d518213932b496a9df651af471f7",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap",
+      "UVSecond"
+     ],
+     "vertex_count": 10201
+    },
+    "IcoMesh": {
+     "attributes": [
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_edge",
+       "values_hash": "78f479b39201635d8e818d1d0acd398f550c39bbcd612cce5f63f74ff5e44105"
+      },
+      {
+       "data_type": "INT",
+       "domain": "CORNER",
+       "name": ".corner_vert",
+       "values_hash": "0e5d9b07b5d7f2e49b784b2c2efa952480e462b185eeef5e37e2ce3bd4659408"
+      },
+      {
+       "data_type": "INT32_2D",
+       "domain": "EDGE",
+       "name": ".edge_verts",
+       "values_hash": null
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "EDGE",
+       "name": ".select_edge",
+       "values_hash": "72fe16219aa68e0d0f82ff0f21fa046bd4070a4e573fd94dcaeb61ec4aeec3bd"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".select_poly",
+       "values_hash": "515c9f396c1cc3f4e1cdf04f00ceee4a019d5a286fa611a100d266c5868997fd"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "POINT",
+       "name": ".select_vert",
+       "values_hash": "c0083d44eed79d212eeb92cdefcabbb90641098e9d9ba36084a062c40ded7b32"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_edge",
+       "values_hash": "72b0952abb6adc493e48c51f71a4e4e86e9e8ebb2f7f5bf51505cbc5a5a5b821"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": ".uv_select_face",
+       "values_hash": "6faa4d98e7f28755e1a8d1bff01072a947d5b61882128bdc358e93bfe824729c"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "CORNER",
+       "name": ".uv_select_vert",
+       "values_hash": "72b0952abb6adc493e48c51f71a4e4e86e9e8ebb2f7f5bf51505cbc5a5a5b821"
+      },
+      {
+       "data_type": "FLOAT2",
+       "domain": "CORNER",
+       "name": "UVMap",
+       "values_hash": "ad4e992ec1183495e6b14b9e3f90edf01c2b0777ec00d9781140c77876b90072"
+      },
+      {
+       "data_type": "FLOAT_VECTOR",
+       "domain": "POINT",
+       "name": "position",
+       "values_hash": "0d9bdb8991a5454daad756b799cc0776e51f7819dbfb39fed5f6dd4e522b75f4"
+      },
+      {
+       "data_type": "BOOLEAN",
+       "domain": "FACE",
+       "name": "sharp_face",
+       "values_hash": "515c9f396c1cc3f4e1cdf04f00ceee4a019d5a286fa611a100d266c5868997fd"
+      }
+     ],
+     "color_attributes": [],
+     "edge_count": 1920,
+     "edge_hash": "6c43d4451be0940f4d2378e986a220c6249af390d7dc7d61198cb14d94ec07cd",
+     "library": null,
+     "loop_count": 3840,
+     "loop_vertex_hash": "0e5d9b07b5d7f2e49b784b2c2efa952480e462b185eeef5e37e2ce3bd4659408",
+     "material_index_hash": "6faa4d98e7f28755e1a8d1bff01072a947d5b61882128bdc358e93bfe824729c",
+     "materials": [],
+     "poly_layout_hash": "6836991e80e6604a7e744dae87aad557f8d623b4f22683d1efd6159ce314d0ae",
+     "polygon_count": 1280,
+     "position_hash": "0d9bdb8991a5454daad756b799cc0776e51f7819dbfb39fed5f6dd4e522b75f4",
+     "use_fake_user": false,
+     "users": 1,
+     "uv_layers": [
+      "UVMap"
+     ],
+     "vertex_count": 642
+    }
+   },
+   "names": [
+    "DenseGridMesh",
+    "IcoMesh"
+   ]
+  },
+  "metaballs": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "node_groups": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "objects": {
+   "count": 2,
+   "items": {
+    "DenseGrid": {
+     "constraints": [],
+     "data": "DenseGridMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      0,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": [
+      "Falloff"
+     ]
+    },
+    "Ico": {
+     "constraints": [],
+     "data": "IcoMesh",
+     "empty_display_size": 1000000,
+     "empty_display_type": "PLAIN_AXES",
+     "instance_collection": null,
+     "instance_type": "NONE",
+     "library": null,
+     "location": [
+      4000000,
+      0,
+      0
+     ],
+     "material_slots": [],
+     "matrix_basis": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_parent_inverse": [
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "matrix_world": [
+      1000000,
+      0,
+      0,
+      4000000,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000,
+      0,
+      0,
+      0,
+      0,
+      1000000
+     ],
+     "modifiers": [],
+     "parent": null,
+     "parent_bone": "",
+     "parent_type": "OBJECT",
+     "rotation_euler": [
+      0,
+      0,
+      0
+     ],
+     "rotation_mode": "XYZ",
+     "rotation_quaternion": [
+      1000000,
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1000000,
+      1000000,
+      1000000
+     ],
+     "type": "MESH",
+     "use_fake_user": false,
+     "users": 1,
+     "vertex_groups": []
+    }
+   },
+   "names": [
+    "DenseGrid",
+    "Ico"
+   ]
+  },
+  "particles": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "scenes": {
+   "count": 1,
+   "items": {
+    "Scene": {
+     "camera": null,
+     "collection_tree": {
+      "children": {},
+      "objects": [
+       "DenseGrid",
+       "Ico"
+      ]
+     },
+     "compositor": null,
+     "engine": "BLENDER_EEVEE",
+     "film_transparent": false,
+     "fps": 24,
+     "fps_base": 1000000,
+     "frame_current": 1,
+     "frame_end": 250,
+     "frame_start": 1,
+     "library": null,
+     "resolution_percentage": 100,
+     "resolution_x": 1920,
+     "resolution_y": 1080,
+     "unit_scale_length": 1000000,
+     "unit_system": "METRIC",
+     "use_fake_user": false,
+     "users": 1,
+     "view_layers": [
+      "ViewLayer"
+     ],
+     "world": null
+    }
+   },
+   "names": [
+    "Scene"
+   ]
+  },
+  "speakers": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "texts": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "textures": {
+   "count": 0,
+   "items": {},
+   "names": []
+  },
+  "worlds": {
+   "count": 0,
+   "items": {},
+   "names": []
+  }
+ },
+ "quant_scale": 1000000,
+ "schema_version": 1,
+ "source_name": "mesh_dense.blend"
+}

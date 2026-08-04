@@ -1,24 +1,25 @@
 diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
 --- a/source/blender/gpu/CMakeLists.txt
 +++ b/source/blender/gpu/CMakeLists.txt
-@@ -478,12 +478,17 @@
-     webgpu/wgpu_backend.cc
-     webgpu/wgpu_buffer.cc
-     webgpu/wgpu_context.cc
+@@ -482,6 +482,8 @@
+     webgpu/wgpu_storage_buffer.cc
+     webgpu/wgpu_uniform_buffer.cc
+     webgpu/wgpu_vertex_buffer.cc
 +    webgpu/wgpu_texture_format.cc
 +    webgpu/wgpu_data_conversion.cc
+     webgpu/wgpu_state_table.cc
  
      webgpu/wgpu_backend.hh
-     webgpu/wgpu_buffer.hh
-     webgpu/wgpu_common.hh
-     webgpu/wgpu_context.hh
+@@ -492,6 +494,9 @@
      webgpu/wgpu_storage_buffer.hh
+     webgpu/wgpu_uniform_buffer.hh
+     webgpu/wgpu_vertex_buffer.hh
 +    webgpu/wgpu_texture_format.hh
 +    webgpu/wgpu_texture_format_list.h
 +    webgpu/wgpu_data_conversion.hh
+     webgpu/wgpu_state_table.hh
    )
    list(APPEND INC
-     webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
 new file mode 100644
 index 00000000000..ad5a7411f85

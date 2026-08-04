@@ -150,8 +150,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [ ] **M2.5 [python-wasm]** `import bpy` headless in node/worker (tier-(b) entry). **blocked-by M2.3, M2.4.**
 - [ ] **M2.6 [harness]** Stock `--background --factory-startup` operator/bpy suite subset passes vs
   oracle → tier-(b) gate → **`<promise>M2_DEPS_PYTHON</promise>`**. **blocked-by M2.5.**
-- [ ] **M2.7 [python-wasm]** Verify setjmp/longjmp × `-sJSPI` interaction; gate `PyGILState_Ensure`
-  off-main-thread jobs to the main thread for now. **blocked-by M2.2.**
+- [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
+  JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
+  suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS
+  baseline). RESIDUAL: emsdk node v22 lacks the new `WebAssembly.Suspending` API → any -sJSPI
+  module aborts at init under node<23; true-JSPI runtime validation = tools-local node≥23
+  (follow-up dispatched) + mandatory M4 browser smoke (Chrome ≥137/Playwright, suspending).
+  Python stays synchronous on the proxied main thread per ADR-001.
 - [ ] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
 

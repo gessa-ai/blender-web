@@ -158,14 +158,22 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   (patch 0010, last--sMALLOC-wins); libpython rebuilt -matomics -mbulk-memory self-contained
   (optional C-exts needing sqlite/bz2/mpdec/Hacl disabled — revisit if bpy needs); INITIAL_MEMORY
   512M/STACK 8M; PROXY_TO_PTHREAD stays ON (proven gtest profile, TBB). notes/m2-python-boot.md.
-- [ ] **M2.5a [driver→worker DIAGNOSTIC] `import bpy` BLOCKED at first .blend read — DNA smell:**
-  `Scene.master_collection` (Collection*, immediately after ListBaseT<ViewLayer>) reads NULL raw
-  during 64→32 DNA_struct_reconstruct of startup.blend (readfile "invalid root collection" NOT
-  emitted → struct-field offset disagreement, not newdataadr). → layer sync bails (layer.cc:1376)
-  → assert layer_utils.cc:205. Definitive test: makesdna SDNA offsets vs compiled offsetof, FULL
-  Scene table diff (catches silent misreads too). Suspect: makesdna sizing of templated DNA
-  members (ListBaseT<>) under the wasm32 model — patch-0002 class. **DISPATCHED to the 0002
-  author-worker; fix requires model-correct extension of 0002 + dna_verify green + boot green.**
+- [x] **M2.5a [DIAGNOSED]** (eb15a17, notes/m2-dna-reconstruct-diagnosis.md): NOT makesdna —
+  patch 0002 proven correct (9357/9357 offsets, 992 structs, 0 mismatch). Root cause =
+  **runtime `create_reconstruct_steps_for_struct` (dna_genfile.cc:1497-1508) accumulates target
+  offsets UNPADDED** — an independent copy of the i386 model 0002 fixed in the generator;
+  invisible on LP64 (hand-padding == unpadded), drifts on wasm32 from customdata_mask (5012 vs
+  5016) through master_collection (5404 vs 5408 → NULL read). Blast radius MEASURED: exactly 1
+  divergent struct in the whole SDNA (Scene, 17/51 members) — but reconstructed on every .blend
+  open. ListBaseT hypothesis disproven. dna_verify gap explained: it certifies write-side tables,
+  never the runtime accumulation — remains trustworthy for what it certifies.
+- [ ] **M2.5b [DRIVER-DECIDED FIX, dispatched]** Single-source-of-truth: reconstruct consumes
+  makesdna's verified padded offsets (check generated dna_type_offsets.h first — may already
+  carry them) instead of re-accumulating, `__EMSCRIPTEN__`-guarded, native byte-identical.
+  REJECTED: duplicating the alignment model in dna_genfile (model duplication caused this);
+  Scene special-case (forbidden); wasm64 flip (invalidates the built world). Patch **0014**.
+  Verify: full-table runtime-vs-compiled scan → 0 divergence incl. Scene; boot smoke → BPY_OK;
+  corpus load regression once bpy is up.
 - [x] **M2.4 [build-deps]** Already done during M1: OCIO subtree forced by OIIO 3.x hard-dep
   (M1.6, commit 5e379cd), freetype+brotli forced by no-off-switch (M1.8, 25ad33a). Verified
   present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/

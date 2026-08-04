@@ -58,13 +58,18 @@ echo "Using Python for Dawn codegen: $PYBIN"
 echo "== [1/3] GLSL -> SPIR-V (Vulkan 1.1 / SPIR-V 1.3) =="
 glslangValidator -V --target-env vulkan1.1 "$HERE/shaders/probe.vert" -o "$BUILD/probe.vert.spv"
 glslangValidator -V --target-env vulkan1.1 "$HERE/shaders/probe.frag" -o "$BUILD/probe.frag.spv"
+glslangValidator -V --target-env vulkan1.1 "$HERE/shaders/bindmap.vert" -o "$BUILD/bindmap.vert.spv"
+glslangValidator -V --target-env vulkan1.1 "$HERE/shaders/bindmap.frag" -o "$BUILD/bindmap.frag.spv"
 
-echo "== [2/3] configure + build probe (Dawn+Tint via add_subdirectory) =="
+echo "== [2/3] configure + build probes (Dawn+Tint via add_subdirectory) =="
 cmake -G Ninja -S "$HERE" -B "$BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DPython3_EXECUTABLE="$PYBIN"
-ninja -C "$BUILD" dawn_probe
+ninja -C "$BUILD" dawn_probe dawn_bindmap_probe
 
-echo "== [3/3] run probe =="
+echo "== [3/3] run probes =="
+echo "---- T1: shader-chain smoke (dawn_probe) ----"
 "$BUILD/dawn_probe" "$BUILD/probe.vert.spv" "$BUILD/probe.frag.spv"
+echo "---- T2: combined-sampler binding audit (dawn_bindmap_probe) ----"
+"$BUILD/dawn_bindmap_probe" "$BUILD/bindmap.vert.spv" "$BUILD/bindmap.frag.spv"

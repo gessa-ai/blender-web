@@ -39,12 +39,7 @@ set(DAWN_BUILD_PROTOBUF     OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(${DAWN_SRC_DIR} ${CMAKE_BINARY_DIR}/dawn EXCLUDE_FROM_ALL)
 
-add_executable(dawn_probe probe.cc)
-
-# Tint headers are rooted at the Dawn source dir ("src/tint/...").
-target_include_directories(dawn_probe PRIVATE ${DAWN_SRC_DIR})
-
-target_link_libraries(dawn_probe PRIVATE
+set(_dawn_probe_libs
   # Dawn native device + wgpu* impl + C++ headers (the documented external target).
   dawn::webgpu_dawn
   # Tint shader chain. The monolithic bundle does NOT include the SPIR-V reader
@@ -54,3 +49,13 @@ target_link_libraries(dawn_probe PRIVATE
   tint_lang_wgsl_writer
   tint_api
 )
+
+# T1 probe (shader-chain smoke).
+add_executable(dawn_probe probe.cc)
+target_include_directories(dawn_probe PRIVATE ${DAWN_SRC_DIR})  # Tint "src/tint/..." headers
+target_link_libraries(dawn_probe PRIVATE ${_dawn_probe_libs})
+
+# T2 probe (combined-sampler binding audit + render-pipeline composition).
+add_executable(dawn_bindmap_probe probe_bindmap.cc)
+target_include_directories(dawn_bindmap_probe PRIVATE ${DAWN_SRC_DIR})
+target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})

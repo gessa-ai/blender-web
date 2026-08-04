@@ -118,12 +118,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna executes
   (first verification — forced by bf_rna before blenkernel) + datatoc/shader_tool two-half fixes
   (exact lines in notes/m1-closure-recon.md). (In worker scope when hit during M1.13/14.)
-- [ ] **M1.15b [build-deps]** **The wide grind (recon-sized):** `WITH_TESTS_SINGLE_BINARY OFF`
-  in blender_web.cmake, then `ninja bmesh_core_test` drives the remaining **~150-archive**
-  closure (gpu frontend w/ backends OFF, draw, nodes, imbuf+codecs, modifiers, render,
-  sequencer, windowmanager, ~18 bf_editor_*, blenloader, blenfont, asset_system, functions,
-  ikplugin, shader_fx, simulation, small intern/extern leaves). All hazard-scanned CLEAN —
-  expect mechanical fixes, not ABI work. **blocked-by M1.13, M1.14.**
+- [ ] **M1.15b [build-deps]** **The wide grind — PARTITIONED (45ed7ab,
+  notes/m1-wave2-partition.md):** 90 unbuilt archives / 2147 TU, PROVEN compile-independent
+  (object rules order-depend only on codegen, never sibling .a) → **5-way fan-out fires on
+  CODEGEN-GREEN (M1.13a), not blenkernel-green.** P1 gpu/draw/wm/render/imbuf (341 TU,
+  HIGH-novel → strongest worker) | P2 kernel hub incl. blenkernel (453, current worker
+  continues) | P3 bmesh/nodes/modifiers (479, codex candidate) | P4 editor tools (430) |
+  P5 editor spaces (444). Patch ranges reserved P1:0100-0119 … P5:0180-0199. Cross-partition
+  escalations: DNA/RNA-regen fixes → driver-only; ED_*.hh shared-header seam (P4/P5) → P4
+  owns, P5 requests. Driver's serialized tail: SINGLE_BINARY OFF flip + `ninja
+  bmesh_core_test`. **blocked-by M1.13a (tree in use until then).**
 - [ ] **M1.16 [driver]** M1-boundary harness reconcile: lift lock, register `m1` scope per H-4
   (blenlib assert 1655/10-characterized), add bmesh check once M1.11 lands, re-lock, re-run
   `--scope m0` + `--regress`. **blocked-by M1.11.**

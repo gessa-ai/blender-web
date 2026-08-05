@@ -310,19 +310,24 @@ function(blender_web_browser_binary src_target)
   # ---- M4 windowed (WITH_WEBGPU_BACKEND) link additions ------------------------
   # The base flags above OVERWRITE LINK_FLAGS, so the WebGPU arm's PLATFORM_LINKFLAGS
   # (--use-port=emdawnwebgpu) are dropped for this target — re-add them here, plus:
-  #   * -sJSPI: the one-time startup device await. GHOST_ContextWGPUWeb::
-  #     initializeDrawingContext() acquires the device via wgpu WaitAny, which under
-  #     JSPI SUSPENDS (yields to the event loop) instead of blocking — ADR-003-legal
-  #     at this init boundary (notes/ghost-web-wgpu-context.md §wait-shape,
-  #     notes/m4-integration.md T4).
   #   * -sSTACK_SIZE=32MB (+ DEFAULT_PTHREAD_STACK_SIZE): the runtime shader chain
   #     (glslang/Tint recursion) blows emscripten's 64 KB default; deps-shader-chain.md
   #     finding 3. Later -s wins, so this overrides the 8 MB above.
+  # NO -sJSPI (M4 T9 empirical finding, notes/m4-integration.md T9): -sJSPI was added
+  # for GHOST_ContextWGPUWeb::initializeDrawingContext()'s WaitAny device await, but
+  # (a) it is UNNEEDED — main() (and thus the await) runs on the PROXY_TO_PTHREAD WM
+  # worker, where WaitAny/Atomics.wait may BLOCK synchronously (a worker can block; the
+  # cross-thread device-ready future is signalled from the browser main thread), and
+  # (b) it is HARMFUL — Emscripten wraps only `main`/the pthread entry with
+  # WebAssembly.promising; `__wasm_call_ctors` runs raw on the MAIN thread in
+  # initRuntime() BEFORE main, so any -sJSPI suspend reached from a C++ static ctor
+  # (observed: std::ios_base::Init::Init during _GLOBAL__I) throws
+  # "trying to suspend without WebAssembly.promising" and aborts boot before the banner.
   # WGPU_TINT_LIBS (shaderc+Tint archives) are linked via bf_gpu's LINK_LIBRARIES,
   # cloned into this target — no extra flag needed here.
   if(WITH_WEBGPU_BACKEND)
     string(APPEND _bw_browser_flags
-      " --use-port=emdawnwebgpu -sJSPI"
+      " --use-port=emdawnwebgpu"
       " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432")
   endif()
 

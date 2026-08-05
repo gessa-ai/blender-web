@@ -138,12 +138,54 @@ and the T6 `WaitAny` await all compile with `WITH_GHOST_WEB`+`WITH_WEBGPU_BACKEN
 (needed the ghost `CMakeLists.txt` `INC` fix: add `intern` so the out-of-tree sources see
 the GHOST base headers — patch 0027).
 
-**T9 — full windowed LINK (remaining; the gate).** `ninja -C build-wasm-windowed
-blender_browser` compiles the entire windowed Blender for wasm for the FIRST time
-(editors/interface/draw + webgpu backend + Tint/shaderc) — a large COLD build (no ccache
-populated for this config). It is NOT run here (a full cold Blender-wasm build + link is
-a multi-hour step, and ninja-locked's lock is global — it must not block the shared
-`build-wasm` lanes). The remaining gate: drive that link (expect first-ever
-windowed-wasm-link symbol gaps to surface — the honest characterization step), then boot
-to the expected first-draw abort (backend runtime incomplete until lane A finalizes).
-Everything up to and including the GHOST layer is validated; the link is the vehicle.
+**T9 — full windowed LINK + boot characterization (DONE 2026-08-05).** The cold windowed
+`blender_browser` linked clean (`bin/blender_browser.{wasm 921 MB,js,data 117 MB}`) — NO
+symbol gaps; the browser link profile (`blender_web_browser_binary()`) already carried the
+whole editors/interface/draw + webgpu backend + Tint/shaderc closure. Booted in a real
+Chrome tab via the M4 windowed shell (`platform_web/shell/windowed.html` + `boot-windowed.js`,
+served by `BLENDER_WEB_BIN=build-wasm-windowed/bin scripts/serve-web.sh 8123`; argv
+`--factory-startup`, NO `--background`, canvas `#canvas`). Three blockers surfaced in
+dependency order; the first two were windowed-integration bugs I fixed, the third is a
+gpu-backend/emdawnwebgpu bug (characterized, handed to lane A):
+
+1. **`-sJSPI` ctor-suspend crash (FIXED — link flag).** Boot aborted during `initRuntime`
+   BEFORE `main()`: `SuspendError: trying to suspend without WebAssembly.promising`, stack
+   `__wasm_call_ctors → _GLOBAL__I → std::ios_base::Init::Init()`. Emscripten wraps only
+   `main`/`__main_argc_argv` (and the proxied pthread entry `invokeEntryPoint`) with
+   `WebAssembly.promising`; `initRuntime()` calls `__wasm_call_ctors()` RAW on the MAIN
+   thread, so any `-sJSPI` suspend reached from a C++ static ctor has no Suspender → abort.
+   Fix: DROP `-sJSPI` from the browser arm — main()/the WaitAny device await run on the
+   PROXY_TO_PTHREAD WM worker, which BLOCKS via `Atomics.wait` (JSPI unneeded and harmful).
+   `patches/platform_wasm.cmake` browser arm; `notes/porting-patterns.md` Class 4.
+
+2. **Missing `-DWITH_WEBGPU_BACKEND` in windowmanager (FIXED — patch 0065).** Next abort:
+   `BLI_assert_unreachable()` at `wm_window.cc:2399`, INSIDE `case GPU_BACKEND_WEBGPU:`
+   after the `#endif` — i.e. backend selection correctly returned `GPU_BACKEND_WEBGPU` but
+   the `#ifdef WITH_WEBGPU_BACKEND` guard (patch 0023) was compiled OUT. Blender adds the
+   backend define PER consuming module (`add_definitions` in gpu/, intern/ghost/, +
+   VULKAN's in creator/draw/windowmanager/…); patch 0023 added the wm_window.cc case but
+   not the matching define in `windowmanager/CMakeLists.txt`. `patches/0065-wm-webgpu-
+   backend-define.patch` mirrors the OPENGL/VULKAN blocks (gated `if(WITH_WEBGPU_BACKEND)`).
+
+3. **emdawnwebgpu RefCounted unaligned 64-bit atomic (LANE A / gpu-backend — characterized,
+   NOT mine).** With (1)+(2) fixed the boot reaches `GPU_context_create` (wm_window.cc:1045,
+   real window creation) → `WGPUBackend::context_alloc` → `WGPUContext::WGPUContext` ctor →
+   `wgpuInstanceAddRef` → `(anonymous namespace)::RefCounted::AddRef()` →
+   `std::atomic<uint64_t>::fetch_add` → `RuntimeError: operation does not support unaligned
+   accesses`. wasm32 i64 atomic RMW needs 8-byte alignment; the Dawn/emdawnwebgpu RefCounted
+   refcount lands misaligned. This is BEFORE the device await, so every windowed-integration
+   seam (GHOST factory, drawing-context map, context selection, GPU_context_create call) is
+   validated. Fix belongs to the WebGPU backend/emdawnwebgpu port (gpu/webgpu, lane A):
+   ensure `RefCounted`'s `std::atomic<uint64_t>` is 8-byte-aligned on wasm32 — likely an
+   allocation/struct-packing alignment fix in the emdawnwebgpu port or a wasm32 build flag.
+   (Note: patch 0075's per-thread/main-context workaround was already in this binary — it
+   does not address this alignment trap.) Also benign: `unsupported syscall
+   __syscall_prlimit64` (Emscripten libc gap, non-fatal), and the OIIO `physical_memory`
+   stub (same as headless). Diagnostic capture used a throwaway `-sASSERTIONS=2` relink,
+   reverted; the committed browser arm is the clean profile.
+
+**Next windowed task:** first-window pixels, gated on lane A fixing blocker #3 (the
+emdawnwebgpu RefCounted wasm32 atomic alignment). Once `WGPUContext` constructs, the path
+continues into `initializeDrawingContext()`'s worker-blocking `WaitAny` device await —
+whose empirical validation (coordinator's "does Atomics.wait block work on the WM worker")
+is the FOLLOWING unknown, not yet reached.

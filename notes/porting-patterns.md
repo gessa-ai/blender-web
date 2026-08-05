@@ -95,3 +95,20 @@ the value. Fix: widen the specific value/field to a fixed 64-bit type under
 __EMSCRIPTEN__ (LP64 unchanged). Check the field isn't DNA-serialized first; if it is,
 STOP (that's an ABI-layout change). IDCacheKey is pure-runtime, so widening was safe.
 Patch 0008.
+
+## Class 4 — JSPI (`-sJSPI`) suspends are ILLEGAL during C++ static ctors under PROXY_TO_PTHREAD
+Signature: `SuspendError: trying to suspend without WebAssembly.promising`, stack
+originating from `__wasm_call_ctors` → a C++ global-init function (`_GLOBAL__I_*`) →
+a static ctor (observed: `std::ios_base::Init::Init()`), i.e. BEFORE `main()` and
+before `onRuntimeInitialized` even fires — the boot dies during `initRuntime()` with no
+app output. Root cause: Emscripten's `-sJSPI` wraps only `main`/`__main_argc_argv`
+(exportPattern) and the pthread entry (`invokeEntryPoint`, via `WebAssembly.promising`)
+as suspendable; but `initRuntime()` calls `wasmExports["__wasm_call_ctors"]()` RAW on
+the MAIN thread (guarded `if (ENVIRONMENT_IS_PTHREAD) return`), so any op a static ctor
+performs that `-sJSPI` lowered to a suspend has no Suspender on the stack → abort. Fix:
+when `main()` runs on a `-sPROXY_TO_PTHREAD` WORKER, that worker can block
+(`Atomics.wait`), so blocking `WaitAny`/futex waits work there WITHOUT JSPI — drop
+`-sJSPI` and keep the device await as a blocking `WaitAny` on the worker; the cross-thread
+device-ready future is signalled from the browser main thread. A main-thread suspend, if
+ever genuinely needed, must be reached from a promising-wrapped export, never from ctors.
+See `notes/m4-integration.md` T9, `patches/platform_wasm.cmake` (browser arm).

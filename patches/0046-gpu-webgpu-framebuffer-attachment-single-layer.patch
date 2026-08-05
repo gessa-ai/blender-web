@@ -1,0 +1,23 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index 096fd35..e3365be 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -41,7 +41,17 @@ static webgpu::WGPUTexture *as_wgpu(Texture *tex)
+ static wgpu::TextureView attachment_view(const GPUAttachment &att)
+ {
+   webgpu::WGPUTexture *wt = as_wgpu(att.tex);
+-  if (att.mip <= 0 && att.layer < 0) {
++  /* A render-pass attachment view must resolve to a SINGLE array layer: Dawn rejects
++   * a multi-layer view ("layer count (N) ... used as attachment is greater than 1").
++   * The default whole-texture CreateView() gives a 2D-array/cube view when the texture
++   * has >1 layer, so only take that fast path for a genuine single-layer 2D texture.
++   * A layer<0 attachment on an array texture (GPU-frontend "layered rendering", which
++   * WebGPU cannot express in one pass) is clamped to layer 0 here — see the
++   * multi-viewport characterization in notes/gpu-laneB-integration.md. */
++  const uint32_t layer_count = (wt->texture() != nullptr) ?
++                                   wt->texture().GetDepthOrArrayLayers() :
++                                   1u;
++  if (att.mip <= 0 && att.layer < 0 && layer_count <= 1) {
+     return wt->texture().CreateView();
+   }
+   wgpu::TextureViewDescriptor vd = {};

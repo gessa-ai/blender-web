@@ -447,6 +447,80 @@ set(EPOXY_INCLUDE_DIRS "" CACHE STRING "" FORCE)
 set(EPOXY_LIBRARIES    "" CACHE STRING "" FORCE)
 
 # -----------------------------------------------------------------------------
+# WebGPU backend for wasm (cycle-6) — emdawnwebgpu port + wasm Tint/shaderc harvest
+#
+# ADDITIVE + DEFAULT OFF. WITH_WEBGPU_BACKEND defaults OFF (root CMakeLists.txt:961)
+# and is declared BEFORE this file is included (:1555), so this arm is INERT in the
+# shared headless build-wasm — that configure is untouched. A dedicated WebGPU
+# compile tree opts in with `-DWITH_WEBGPU_BACKEND=ON` (WITH_HEADLESS stays ON: this
+# is the GPU-backend arm ONLY; it does NOT pull the windowed GHOST/UI stack the way
+# WITH_BLENDER_WEB_WINDOWED does — that is a separate, heavier profile).
+#
+# gpu/CMakeLists.txt's WITH_WEBGPU_BACKEND arm (:476) consumes DAWN_INCLUDE_DIRS /
+# TINT_INCLUDE_DIRS / SHADERC_INCLUDE_DIR (INC_SYS) + DAWN_LIBRARIES / WGPU_TINT_LIBS
+# (LIB). build-native-gpu points those at a native Dawn checkout. The wasm mapping:
+#   * webgpu.h / webgpu_cpp.h come from the emdawnwebgpu PORT via --use-port (NOT a
+#     Dawn include dir): the port tracks the same chromium/7989 C++ spelling the
+#     backend TUs were written against — verified, all 18 webgpu TUs compile clean
+#     with ZERO source changes (notes/gpu-wasm-compile.md). So DAWN_INCLUDE_DIRS is
+#     empty; the port include is added to the COMPILE flags globally instead.
+#   * Tint headers = the pinned Dawn source (src/tint/...), same as native.
+#   * shaderc headers = the cross-compiled harvest lib/wasm/shaderc/include.
+#   * WGPU_TINT_LIBS (the archive set) is a LINK-time concern (the later full-binary
+#     step, not this compile round); wired from the harvested ordered lists so the
+#     eventual link is ready. emdawnwebgpu provides the device at link, so
+#     DAWN_LIBRARIES stays empty.
+if(WITH_WEBGPU_BACKEND)
+  get_filename_component(_bw_repo "${BLENDER_WEB_PATCH_DIR}/.." ABSOLUTE)
+  set(_bw_dawn "${_bw_repo}/build-dawn/dawn")
+  if(NOT EXISTS "${_bw_dawn}/src/tint/lang/spirv/reader/reader.h")
+    message(FATAL_ERROR
+      "blender-web: WITH_WEBGPU_BACKEND=ON but the pinned Dawn/Tint source is missing "
+      "at ${_bw_dawn} (needed for Tint headers). See notes/gpu-dawn-probe.md.")
+  endif()
+  if(NOT EXISTS "${LIBDIR}/shaderc/include/shaderc/shaderc.hpp")
+    message(FATAL_ERROR
+      "blender-web: WITH_WEBGPU_BACKEND=ON but the wasm shaderc harvest is missing at "
+      "${LIBDIR}/shaderc. Build it: scripts/deps/shaderc.sh (notes/deps-shader-chain.md).")
+  endif()
+
+  # emdawnwebgpu port: webgpu/webgpu{,_cpp}.h at COMPILE (and the JS/wasm binding at
+  # LINK). MUST be on the compile flags so the backend TUs resolve the header.
+  string(APPEND CMAKE_C_FLAGS       " --use-port=emdawnwebgpu")
+  string(APPEND CMAKE_CXX_FLAGS     " --use-port=emdawnwebgpu")
+  string(APPEND PLATFORM_CFLAGS     " --use-port=emdawnwebgpu")
+  string(APPEND PLATFORM_LINKFLAGS  " --use-port=emdawnwebgpu")
+
+  set(DAWN_INCLUDE_DIRS   ""                          CACHE STRING "" FORCE)
+  set(TINT_INCLUDE_DIRS   "${_bw_dawn}"               CACHE STRING "" FORCE)
+  set(SHADERC_INCLUDE_DIR "${LIBDIR}/shaderc/include" CACHE PATH   "" FORCE)
+
+  # LINK-time archive set (later step): shaderc bundle first, then tint (which
+  # carries the single shared SPIRV-Tools). Read from the harvested ordered lists.
+  set(DAWN_LIBRARIES "" CACHE STRING "" FORCE)
+  set(_wgpu_libs "")
+  if(EXISTS "${LIBDIR}/shaderc/shaderc-archives.txt")
+    file(STRINGS "${LIBDIR}/shaderc/shaderc-archives.txt" _bw_sc)
+    foreach(_a IN LISTS _bw_sc)
+      list(APPEND _wgpu_libs "${LIBDIR}/shaderc/lib/${_a}")
+    endforeach()
+  endif()
+  if(EXISTS "${LIBDIR}/tint/tint-archives.txt")
+    file(STRINGS "${LIBDIR}/tint/tint-archives.txt" _bw_tn)
+    foreach(_a IN LISTS _bw_tn)
+      list(APPEND _wgpu_libs "${LIBDIR}/tint/lib/${_a}")
+    endforeach()
+  endif()
+  set(WGPU_TINT_LIBS "${_wgpu_libs}" CACHE STRING "" FORCE)
+  unset(_wgpu_libs)
+
+  if(FIRST_RUN)
+    message(STATUS "blender-web: WebGPU backend ON — emdawnwebgpu port + "
+                   "Tint(${_bw_dawn}) + shaderc(${LIBDIR}/shaderc/include)")
+  endif()
+endif()
+
+# -----------------------------------------------------------------------------
 # Dependency resolution against the real lib/wasm prefix (M1.8)
 #
 # This file REPLACES platform_unix.cmake for the Emscripten branch, so none of

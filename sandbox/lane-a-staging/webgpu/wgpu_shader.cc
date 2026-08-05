@@ -24,12 +24,15 @@
 
 #include "gpu_shader_dependency_private.hh"
 
+#include "BLI_map.hh"
+#include "BLI_memory_utils.hh"
 #include "BLI_string_ref.hh"
 #include "BLI_vector.hh"
 
 #include "CLG_log.h"
 
 #include <algorithm>
+#include <cstring>
 #include <sstream>
 
 namespace blender::gpu {
@@ -38,6 +41,7 @@ using namespace shader;
 namespace wgi = blender::gpu::webgpu;
 
 static CLG_LogRef LOG = {"gpu.webgpu"};
+
 
 /* -------------------------------------------------------------------------- */
 /** \name GLSL type / format helpers (ported from vk_shader.cc)
@@ -181,6 +185,22 @@ static void print_qualifier(std::ostream &os, const Qualifier &qualifiers)
   }
 }
 
+/* Storage-buffer qualifier: WGSL has no write-only storage address space (Tint
+ * rejects `var<storage>` without read/read_write). So a GLSL `writeonly` SSBO is
+ * promoted to read_write; only a genuinely read-only buffer keeps `readonly`. */
+static void print_storage_buffer_qualifier(std::ostream &os, const Qualifier &qualifiers)
+{
+  if (bool(qualifiers & Qualifier::no_restrict) == false) {
+    os << "restrict ";
+  }
+  const bool readable = bool(qualifiers & Qualifier::read);
+  const bool writable = bool(qualifiers & Qualifier::write);
+  if (readable && !writable) {
+    os << "readonly ";
+  }
+  /* write-only or read+write → emit no access qualifier (read_write in WGSL). */
+}
+
 static void print_image_type(std::ostream &os,
                              const ImageType &type,
                              const ShaderCreateInfo::Resource::BindType bind_type)
@@ -310,14 +330,42 @@ static void print_image_type(std::ostream &os,
   os << " ";
 }
 
-/* Dense set-0 binding = the create-info resource slot (WebGPU has one descriptor
- * space; the combined-sampler split + reserved sampler range are applied later by
- * the interface map / Tint, not in the GLSL). */
+/* Assign each create-info resource a UNIQUE dense group-0 binding, in the canonical
+ * pass→batch→geometry order. Blender's create-info `slot` collides across resource
+ * classes (image/sampler/UBO/SSBO reuse slot numbers, since Vulkan gives each its
+ * own descriptor space), but WGSL/WebGPU has one binding space per group and Tint
+ * rejects duplicate `@group(0) @binding(N)`. Returns the resource count, which is
+ * the binding used for the push-constant fallback UBO. */
+static uint32_t build_dense_bindings(const shader::ShaderCreateInfo &info,
+                                     blender::Map<uint32_t, uint32_t> &r_map)
+{
+  uint32_t binding = 0;
+  auto scan = [&](const auto &list) {
+    for (const ShaderCreateInfo::Resource &res : list) {
+      r_map.add_overwrite((uint32_t(res.bind_type) << 24) | uint32_t(res.slot), binding);
+      binding++;
+    }
+  };
+  scan(info.pass_resources_);
+  scan(info.batch_resources_);
+  scan(info.geometry_resources_);
+  return binding;
+}
+
+static uint32_t dense_binding_of(const blender::Map<uint32_t, uint32_t> &map,
+                                 const ShaderCreateInfo::Resource &res)
+{
+  return map.lookup((uint32_t(res.bind_type) << 24) | uint32_t(res.slot));
+}
+
+/* Dense set-0 binding (the combined-sampler split + reserved sampler range are
+ * applied later by the interface map / Tint, not in the GLSL). */
 static void print_resource(std::ostream &os,
+                           uint32_t binding,
                            const ShaderCreateInfo::Resource &res,
                            const ShaderCreateInfo &info)
 {
-  os << "layout(binding = " << uint32_t(res.slot);
+  os << "layout(binding = " << binding;
   if (res.bind_type == ShaderCreateInfo::Resource::BindType::IMAGE) {
     os << ", " << to_string(res.image.format);
   }
@@ -347,12 +395,36 @@ static void print_resource(std::ostream &os,
          << "; };";
       break;
     case ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER:
-      print_qualifier(os, res.storagebuf.qualifiers);
+      print_storage_buffer_qualifier(os, res.storagebuf.qualifiers);
       os << "buffer _" << res.storagebuf.name.str_no_array() << " { "
          << info.buffer_typename(res.storagebuf.type_name) << " " << res.storagebuf.name << "; };";
       break;
   }
-  os << "\n";
+}
+
+/* Defer a resource declaration into the create-info placeholder macro
+ * (`#define CREATE_INFO_RES_<freq>_<info> \ …`), exactly as the Vulkan backend does
+ * (vk_shader.cc:408). The shader-translation tool emits the matching placeholder
+ * (`#ifdef CREATE_INFO_RES_<freq>_<info> … #endif`) in the resolved source AFTER the
+ * (possibly `[[host_shared]]`) struct definitions and the `#define <Struct>_host_shared_
+ * <Struct>` aliases they carry, so a buffer whose element type is `<Struct>_host_shared_`
+ * resolves to the real struct at expansion time. Emitting the declaration inline in the
+ * resources block (which precedes the resolved `code`) instead references that alias
+ * before its `#define`, and shaderc rejects the still-suffixed identifier with a "syntax
+ * error, unexpected IDENTIFIER" — the bug this fixes. Consecutive resources sharing an
+ * `info_name` accumulate into one macro via `\`-continuation. */
+static void print_resource_deferred(std::ostream &os,
+                                    uint32_t binding,
+                                    const ShaderCreateInfo::Resource &res,
+                                    const ShaderCreateInfo &info,
+                                    const char *frequency,
+                                    StringRefNull &active_info_name)
+{
+  if (assign_if_different(active_info_name, res.info_name)) {
+    os << "\n#define CREATE_INFO_RES_" << frequency << "_" << res.info_name << " \\\n";
+  }
+  print_resource(os, binding, res, info);
+  os << " \\\n";
 }
 
 static inline int get_location_count(const Type &type)
@@ -417,6 +489,196 @@ static void print_interface(std::ostream &os,
 /** \} */
 
 /* -------------------------------------------------------------------------- */
+/** \name Shader interface (name → location/binding) + std140 push-constant layout
+ * \{ */
+
+/* std140 base alignment + size for a create-info Type (single element or array). */
+static void std140_align_size(Type t, int array_size, uint32_t &r_align, uint32_t &r_size)
+{
+  uint32_t a, s;
+  switch (t) {
+    case Type::float_t:
+    case Type::int_t:
+    case Type::uint_t:
+    case Type::bool_t:
+      a = 4;
+      s = 4;
+      break;
+    case Type::float2_t:
+    case Type::int2_t:
+    case Type::uint2_t:
+      a = 8;
+      s = 8;
+      break;
+    case Type::float3_t:
+    case Type::int3_t:
+    case Type::uint3_t:
+      a = 16;
+      s = 12;
+      break;
+    case Type::float4_t:
+    case Type::int4_t:
+    case Type::uint4_t:
+      a = 16;
+      s = 16;
+      break;
+    case Type::float3x3_t:
+      a = 16;
+      s = 48;
+      break;
+    case Type::float4x4_t:
+      a = 16;
+      s = 64;
+      break;
+    default:
+      a = 16;
+      s = 16;
+      break;
+  }
+  if (array_size > 0) {
+    r_align = 16;
+    const uint32_t stride = (s + 15u) & ~15u;
+    r_size = stride * uint32_t(array_size);
+  }
+  else {
+    r_align = a;
+    r_size = s;
+  }
+}
+
+static constexpr int32_t PUSH_CONSTANT_LOCATION_BASE = 1024;
+
+/* Minimal ShaderInterface: name → location/binding for attributes, UBOs, samplers,
+ * images, push-constants (as uniforms at 1024+i), SSBOs, constants. Mirrors
+ * VKShaderInterface's ordering so the frontend name lookups resolve identically. */
+class WGPUShaderInterface : public ShaderInterface {
+ public:
+  void init(const shader::ShaderCreateInfo &info)
+  {
+    using Resource = ShaderCreateInfo::Resource;
+    static const char PUSH_FALLBACK[] = "push_constants_fallback";
+
+    Vector<Resource> all;
+    all.extend(info.pass_resources_);
+    all.extend(info.batch_resources_);
+    all.extend(info.geometry_resources_);
+
+    /* Unique dense group-0 bindings (same assignment as the codegen + ResourceDesc). */
+    blender::Map<uint32_t, uint32_t> bindings;
+    build_dense_bindings(info, bindings);
+
+    attr_len_ = info.vertex_inputs_.size();
+    uniform_len_ = info.push_constants_.size();
+    constant_len_ = info.specialization_constants_.size();
+    ssbo_len_ = 0;
+    ubo_len_ = 0;
+    for (const Resource &res : all) {
+      switch (res.bind_type) {
+        case Resource::BindType::IMAGE:
+        case Resource::BindType::SAMPLER:
+          uniform_len_++;
+          break;
+        case Resource::BindType::UNIFORM_BUFFER:
+          ubo_len_++;
+          break;
+        case Resource::BindType::STORAGE_BUFFER:
+          ssbo_len_++;
+          break;
+      }
+    }
+    size_t names_size = info.interface_names_size_;
+    const bool has_push = !info.push_constants_.is_empty();
+    if (has_push) {
+      ubo_len_++; /* fallback UBO for the push-constant block. */
+      names_size += sizeof(PUSH_FALLBACK);
+    }
+
+    const int input_tot_len = attr_len_ + ubo_len_ + uniform_len_ + ssbo_len_ + constant_len_;
+    inputs_ = MEM_new_array_zeroed<ShaderInput>(input_tot_len, __func__);
+    name_buffer_ = MEM_new_array_uninitialized<char>(names_size, "name_buffer");
+    uint32_t name_offset = 0;
+    ShaderInput *in = inputs_;
+
+    /* Attributes. */
+    for (const ShaderCreateInfo::VertIn &attr : info.vertex_inputs_) {
+      copy_input_name(in, attr.name, name_buffer_, name_offset);
+      in->location = in->binding = attr.index;
+      if (in->location != -1) {
+        enabled_attr_mask_ |= (1 << in->location);
+        attr_types_[in->location] = uint8_t(attr.type);
+      }
+      in++;
+    }
+    /* Uniform blocks. */
+    for (const Resource &res : all) {
+      if (res.bind_type == Resource::BindType::UNIFORM_BUFFER) {
+        const uint32_t b = dense_binding_of(bindings, res);
+        copy_input_name(in, res.uniformbuf.name, name_buffer_, name_offset);
+        in->location = in->binding = int32_t(b);
+        enabled_ubo_mask_ |= (1 << b);
+        in++;
+      }
+    }
+    if (has_push) {
+      copy_input_name(in, PUSH_FALLBACK, name_buffer_, name_offset);
+      in->location = in->binding = -1;
+      in++;
+    }
+    /* Samplers + images (uniform section). */
+    for (const Resource &res : all) {
+      if (res.bind_type == Resource::BindType::SAMPLER) {
+        const uint32_t b = dense_binding_of(bindings, res);
+        copy_input_name(in, res.sampler.name, name_buffer_, name_offset);
+        in->location = in->binding = int32_t(b);
+        enabled_tex_mask_ |= (uint64_t(1) << b);
+        in++;
+      }
+    }
+    for (const Resource &res : all) {
+      if (res.bind_type == Resource::BindType::IMAGE) {
+        const uint32_t b = dense_binding_of(bindings, res);
+        copy_input_name(in, res.image.name, name_buffer_, name_offset);
+        in->location = in->binding = int32_t(b);
+        enabled_ima_mask_ |= (1 << b);
+        in++;
+      }
+    }
+    /* Push-constants (uniform section, location base 1024). */
+    int32_t push_location = PUSH_CONSTANT_LOCATION_BASE;
+    for (const ShaderCreateInfo::PushConst &pc : info.push_constants_) {
+      copy_input_name(in, pc.name, name_buffer_, name_offset);
+      in->location = push_location++;
+      in->binding = -1;
+      in++;
+    }
+    /* Storage buffers. */
+    for (const Resource &res : all) {
+      if (res.bind_type == Resource::BindType::STORAGE_BUFFER) {
+        const uint32_t b = dense_binding_of(bindings, res);
+        copy_input_name(in, res.storagebuf.name, name_buffer_, name_offset);
+        in->location = in->binding = int32_t(b);
+        enabled_ssbo_mask_ |= (1 << b);
+        in++;
+      }
+    }
+    /* Specialization constants. */
+    int constant_id = 0;
+    for (const SpecializationConstant &c : info.specialization_constants_) {
+      copy_input_name(in, c.name, name_buffer_, name_offset);
+      in->location = constant_id++;
+      in++;
+    }
+
+    set_image_formats_from_info(info);
+    sort_inputs();
+  }
+
+  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShaderInterface")
+};
+
+/** \} */
+
+/* -------------------------------------------------------------------------- */
 /** \name WGPUShader
  * \{ */
 
@@ -437,28 +699,37 @@ const shader::ShaderCreateInfo &WGPUShader::patch_create_info(
 std::string WGPUShader::resources_declare(const shader::ShaderCreateInfo &info) const
 {
   std::stringstream ss;
-  for (const ShaderCreateInfo::Resource &res : info.pass_resources_) {
-    print_resource(ss, res, info);
+  blender::Map<uint32_t, uint32_t> bindings;
+  const uint32_t resource_count = build_dense_bindings(info, bindings);
+  /* Resource declarations are deferred into the per-create-info placeholder macros so
+   * that `_host_shared_` struct-alias references resolve at expansion time (see
+   * print_resource_deferred). Group by frequency exactly like vk_shader.cc:816. */
+  {
+    StringRefNull active_info = "";
+    for (const ShaderCreateInfo::Resource &res : info.pass_resources_) {
+      print_resource_deferred(ss, dense_binding_of(bindings, res), res, info, "PASS", active_info);
+    }
+    ss << "\n";
   }
-  for (const ShaderCreateInfo::Resource &res : info.batch_resources_) {
-    print_resource(ss, res, info);
+  {
+    StringRefNull active_info = "";
+    for (const ShaderCreateInfo::Resource &res : info.batch_resources_) {
+      print_resource_deferred(ss, dense_binding_of(bindings, res), res, info, "BATCH", active_info);
+    }
+    ss << "\n";
   }
-  for (const ShaderCreateInfo::Resource &res : info.geometry_resources_) {
-    print_resource(ss, res, info);
+  {
+    StringRefNull active_info = "";
+    for (const ShaderCreateInfo::Resource &res : info.geometry_resources_) {
+      print_resource_deferred(
+          ss, dense_binding_of(bindings, res), res, info, "GEOMETRY", active_info);
+    }
+    ss << "\n";
   }
-  /* Push constants → a UBO (WebGPU has no push constants). Placed at the binding
-   * after the highest resource slot. */
+  /* Push constants → a UBO (WebGPU has no push constants). Placed at the dense
+   * binding after the last resource. */
   if (!info.push_constants_.is_empty()) {
-    int max_slot = -1;
-    auto scan = [&](const auto &list) {
-      for (const ShaderCreateInfo::Resource &res : list) {
-        max_slot = std::max(max_slot, res.slot);
-      }
-    };
-    scan(info.pass_resources_);
-    scan(info.batch_resources_);
-    scan(info.geometry_resources_);
-    ss << "layout(binding = " << (max_slot + 1) << ", std140) uniform constants\n{\n";
+    ss << "layout(binding = " << resource_count << ", std140) uniform constants\n{\n";
     for (const ShaderCreateInfo::PushConst &uniform : info.push_constants_) {
       ss << "  " << to_string(uniform.type) << " " << uniform.name;
       if (uniform.array_size > 0) {
@@ -563,6 +834,11 @@ static std::string glsl_patch(const char *stage_define)
   /* Vulkan GLSL spells these differently than desktop GL. */
   ss << "#define gl_VertexID gl_VertexIndex\n";
   ss << "#define gpu_InstanceIndex (gl_InstanceIndex)\n";
+  /* WebGPU has no base-instance / gl_BaseInstanceARB; gl_InstanceIndex already
+   * includes firstInstance, so gpu_BaseInstance is 0 and gl_InstanceID maps to
+   * gl_InstanceIndex (widget/instanced shaders reference gl_InstanceID). */
+  ss << "#define gpu_BaseInstance 0\n";
+  ss << "#define gl_InstanceID gl_InstanceIndex\n";
   ss << stage_define;
 
   shader::GeneratedSourceList sources{
@@ -716,10 +992,12 @@ static void map_image_type(ImageType t, wgi::TexelClass &texel, wgi::TexDim &dim
   }
 }
 
-static wgi::ResourceDesc resource_to_desc(const ShaderCreateInfo::Resource &res, uint32_t stages)
+static wgi::ResourceDesc resource_to_desc(const ShaderCreateInfo::Resource &res,
+                                          uint32_t stages,
+                                          uint32_t binding)
 {
   wgi::ResourceDesc d;
-  d.binding = uint32_t(res.slot);
+  d.binding = binding;
   d.stages = stages;
   switch (res.bind_type) {
     case ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER:
@@ -764,8 +1042,10 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
   if (info == nullptr) {
     return false;
   }
-  WGPUContext *ctx = static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
-  if (ctx == nullptr) {
+  /* Shaders compile on the async worker thread, which has no thread-local active
+   * GPU context — reach the device backend-side (one Dawn device). */
+  wgpu::Device device = WGPUContext::backend_device();
+  if (device == nullptr) {
     return false;
   }
 
@@ -774,29 +1054,23 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
                               uint32_t(wgi::STAGE_COMPUTE) :
                               uint32_t(wgi::STAGE_VERTEX) | uint32_t(wgi::STAGE_FRAGMENT);
 
+  blender::Map<uint32_t, uint32_t> bindings;
+  const uint32_t resource_count = build_dense_bindings(*info, bindings);
   std::vector<wgi::ResourceDesc> resources;
   auto add = [&](const auto &list) {
     for (const ShaderCreateInfo::Resource &res : list) {
-      resources.push_back(resource_to_desc(res, stages));
+      resources.push_back(resource_to_desc(res, stages, dense_binding_of(bindings, res)));
     }
   };
   add(info->pass_resources_);
   add(info->batch_resources_);
   add(info->geometry_resources_);
-  /* Push-constant UBO (binding matches resources_declare). */
+  /* Push-constant UBO at the dense binding after the last resource (matches
+   * resources_declare). */
   if (!info->push_constants_.is_empty()) {
-    int max_slot = -1;
-    auto scan = [&](const auto &list) {
-      for (const ShaderCreateInfo::Resource &res : list) {
-        max_slot = std::max(max_slot, res.slot);
-      }
-    };
-    scan(info->pass_resources_);
-    scan(info->batch_resources_);
-    scan(info->geometry_resources_);
     wgi::ResourceDesc pc;
     pc.kind = wgi::ResourceKind::UniformBuffer;
-    pc.binding = uint32_t(max_slot + 1);
+    pc.binding = resource_count;
     pc.stages = stages;
     resources.push_back(pc);
   }
@@ -814,7 +1088,6 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
   }
   interface_map_ = result.interface;
 
-  wgpu::Device device = ctx->device_get();
   if (!result.vertex_wgsl.empty()) {
     vertex_module_ = make_module(device, result.vertex_wgsl);
     if (vertex_module_ == nullptr) {
@@ -833,17 +1106,105 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
       return false;
     }
   }
+
+  /* Build the name→location interface + push-constant std140 layout (needed for
+   * uniform_* and for lane B's bind-group assembly). */
+  build_interface(*info);
   return true;
 }
 
 void WGPUShader::warm_cache(int /*limit*/) {}
 
-/* Draw-time binding + uniform upload run through the pipeline / bind-group
- * assembly (lane B); no-ops here. */
+/* Draw-time pipeline binding runs through lane B's pipeline assembly; no-op here. */
 void WGPUShader::bind(const shader::SpecializationConstants * /*constants_state*/) {}
 void WGPUShader::unbind() {}
-void WGPUShader::uniform_float(int, int, int, const float *) {}
-void WGPUShader::uniform_int(int, int, int, const int *) {}
+
+/* -------------------------------------------------------------------------- */
+/** \name Push-constant UBO plumbing
+ * \{ */
+
+void WGPUShader::build_interface(const shader::ShaderCreateInfo &info)
+{
+  WGPUShaderInterface *iface = new WGPUShaderInterface();
+  iface->init(info);
+  this->interface = iface;
+
+  /* std140 layout of the push-constant block (offset per push-constant, keyed by
+   * the interface location 1024 + i). */
+  push_constants_.clear();
+  uint32_t offset = 0;
+  int32_t location = PUSH_CONSTANT_LOCATION_BASE;
+  for (const ShaderCreateInfo::PushConst &pc : info.push_constants_) {
+    uint32_t align, size;
+    std140_align_size(pc.type, pc.array_size, align, size);
+    offset = (offset + (align - 1)) & ~(align - 1);
+    push_constants_.push_back({location++, offset, size});
+    offset += size;
+  }
+  push_constants_size_ = (offset + 15u) & ~15u;
+  push_constants_data_.assign(push_constants_size_, 0);
+
+  /* UBO binding = the dense binding after the last resource (matches
+   * resources_declare / the ResourceDesc list). */
+  blender::Map<uint32_t, uint32_t> bindings;
+  push_constants_binding_ = build_dense_bindings(info, bindings);
+}
+
+void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)
+{
+  for (const PushConstantSlot &slot : push_constants_) {
+    if (slot.location != location) {
+      continue;
+    }
+    const uint32_t n = uint32_t(comp_len) * uint32_t(array_size) * 4u;
+    const uint32_t copy = std::min(n, slot.size);
+    if (slot.offset + copy <= push_constants_data_.size()) {
+      std::memcpy(push_constants_data_.data() + slot.offset, data, copy);
+      push_constants_dirty_ = true;
+    }
+    return;
+  }
+}
+
+void WGPUShader::uniform_float(int location, int comp_len, int array_size, const float *data)
+{
+  push_constant_set(location, comp_len, array_size, data);
+}
+void WGPUShader::uniform_int(int location, int comp_len, int array_size, const int *data)
+{
+  push_constant_set(location, comp_len, array_size, data);
+}
+
+void WGPUShader::push_constants_flush()
+{
+  if (push_constants_size_ == 0) {
+    return;
+  }
+  wgpu::Device device = WGPUContext::backend_device();
+  wgpu::Queue queue = WGPUContext::backend_queue();
+  if (device == nullptr) {
+    return;
+  }
+  if (!push_constants_buffer_.valid()) {
+    if (!push_constants_buffer_.create(device,
+                                       webgpu::BufferKind::Uniform,
+                                       webgpu::UsageType::Dynamic,
+                                       push_constants_size_,
+                                       nullptr,
+                                       false))
+    {
+      return;
+    }
+    push_constants_dirty_ = true;
+  }
+  if (push_constants_dirty_) {
+    push_constants_buffer_.update_sub(
+        device, queue, 0, push_constants_data_.data(), push_constants_size_);
+    push_constants_dirty_ = false;
+  }
+}
+
+/** \} */
 
 /** \} */
 

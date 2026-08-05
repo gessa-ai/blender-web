@@ -1,0 +1,82 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index a76ee2baa4f..26b119d3455 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -25,6 +25,7 @@
+ #include "gpu_shader_dependency_private.hh"
+ 
+ #include "BLI_map.hh"
++#include "BLI_memory_utils.hh"
+ #include "BLI_string_ref.hh"
+ #include "BLI_vector.hh"
+ 
+@@ -399,7 +400,31 @@ static void print_resource(std::ostream &os,
+          << info.buffer_typename(res.storagebuf.type_name) << " " << res.storagebuf.name << "; };";
+       break;
+   }
+-  os << "\n";
++}
++
++/* Defer a resource declaration into the create-info placeholder macro
++ * (`#define CREATE_INFO_RES_<freq>_<info> \ …`), exactly as the Vulkan backend does
++ * (vk_shader.cc:408). The shader-translation tool emits the matching placeholder
++ * (`#ifdef CREATE_INFO_RES_<freq>_<info> … #endif`) in the resolved source AFTER the
++ * (possibly `[[host_shared]]`) struct definitions and the `#define <Struct>_host_shared_
++ * <Struct>` aliases they carry, so a buffer whose element type is `<Struct>_host_shared_`
++ * resolves to the real struct at expansion time. Emitting the declaration inline in the
++ * resources block (which precedes the resolved `code`) instead references that alias
++ * before its `#define`, and shaderc rejects the still-suffixed identifier with a "syntax
++ * error, unexpected IDENTIFIER" — the bug this fixes. Consecutive resources sharing an
++ * `info_name` accumulate into one macro via `\`-continuation. */
++static void print_resource_deferred(std::ostream &os,
++                                    uint32_t binding,
++                                    const ShaderCreateInfo::Resource &res,
++                                    const ShaderCreateInfo &info,
++                                    const char *frequency,
++                                    StringRefNull &active_info_name)
++{
++  if (assign_if_different(active_info_name, res.info_name)) {
++    os << "\n#define CREATE_INFO_RES_" << frequency << "_" << res.info_name << " \\\n";
++  }
++  print_resource(os, binding, res, info);
++  os << " \\\n";
+ }
+ 
+ static inline int get_location_count(const Type &type)
+@@ -676,14 +701,30 @@ std::string WGPUShader::resources_declare(const shader::ShaderCreateInfo &info)
+   std::stringstream ss;
+   blender::Map<uint32_t, uint32_t> bindings;
+   const uint32_t resource_count = build_dense_bindings(info, bindings);
+-  for (const ShaderCreateInfo::Resource &res : info.pass_resources_) {
+-    print_resource(ss, dense_binding_of(bindings, res), res, info);
++  /* Resource declarations are deferred into the per-create-info placeholder macros so
++   * that `_host_shared_` struct-alias references resolve at expansion time (see
++   * print_resource_deferred). Group by frequency exactly like vk_shader.cc:816. */
++  {
++    StringRefNull active_info = "";
++    for (const ShaderCreateInfo::Resource &res : info.pass_resources_) {
++      print_resource_deferred(ss, dense_binding_of(bindings, res), res, info, "PASS", active_info);
++    }
++    ss << "\n";
+   }
+-  for (const ShaderCreateInfo::Resource &res : info.batch_resources_) {
+-    print_resource(ss, dense_binding_of(bindings, res), res, info);
++  {
++    StringRefNull active_info = "";
++    for (const ShaderCreateInfo::Resource &res : info.batch_resources_) {
++      print_resource_deferred(ss, dense_binding_of(bindings, res), res, info, "BATCH", active_info);
++    }
++    ss << "\n";
+   }
+-  for (const ShaderCreateInfo::Resource &res : info.geometry_resources_) {
+-    print_resource(ss, dense_binding_of(bindings, res), res, info);
++  {
++    StringRefNull active_info = "";
++    for (const ShaderCreateInfo::Resource &res : info.geometry_resources_) {
++      print_resource_deferred(
++          ss, dense_binding_of(bindings, res), res, info, "GEOMETRY", active_info);
++    }
++    ss << "\n";
+   }
+   /* Push constants → a UBO (WebGPU has no push constants). Placed at the dense
+    * binding after the last resource. */

@@ -17,6 +17,8 @@
 
 #include "gpu_capabilities_private.hh"
 
+#include "wgpu_framebuffer.hh"
+#include "wgpu_immediate.hh"
 #include "wgpu_state_manager.hh"
 
 /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
@@ -29,6 +31,10 @@
 #include <climits>
 
 namespace blender::gpu {
+
+wgpu::Device WGPUContext::s_device = nullptr;
+wgpu::Instance WGPUContext::s_instance = nullptr;
+wgpu::Queue WGPUContext::s_queue = nullptr;
 
 WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
 {
@@ -45,35 +51,67 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
   queue_ = wgpu_ghost->getQueue();
   adapter_name_ = wgpu_ghost->getAdapterName();
 
+  /* Publish the device/instance/queue backend-side so worker threads (async
+   * shader compilation) can reach them without the thread-local active context —
+   * GPU_context_active_get() is null on the compile worker. There is a single
+   * Dawn device (one GHOST_ContextWGPU), so a static is correct. */
+  s_device = device_;
+  s_instance = instance_;
+  s_queue = queue_;
+
   /* Fill the global capability table from the live device limits. Device-probed
    * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
    * floors — the M4 Pro / Dawn adapter reports much higher limits. */
   capabilities_init();
 
   /* Per-context state manager (lane B's WGPUStateManager). The base Context dtor
-   * owns its lifetime (Context::~Context deletes state_manager). Immediate mode
-   * (imm) is created by lane B alongside the render pipeline. */
+   * owns its lifetime (Context::~Context deletes state_manager). */
   state_manager = new WGPUStateManager();
+
+  /* Immediate-mode drawing context (lane B's WGPUImmediate). Every backend
+   * constructs `imm` in its ctor (mirrors vk_context.cc:43); without it the
+   * thread-local `imm` stays null and immBegin/immVertexFormat dereference a null
+   * pointer (immediate_* SEGV). Base Context::~Context deletes it (gpu_context.cc:101),
+   * but the dtor below deletes+nulls it early to mirror VKContext's lifecycle. */
+  imm = new WGPUImmediate();
+
+  /* Default offscreen frame-buffers (mirrors vk_context.cc:45-47). The bootstrap /
+   * GPU_offscreen path dereferences active_fb, so it must be non-null — without
+   * these the draw families crash in GPU_offscreen_create. Base Context owns them. */
+  back_left = new WGPUFrameBuffer("back_left");
+  front_left = new WGPUFrameBuffer("front_left");
+  active_fb = back_left;
 }
 
 WGPUContext::~WGPUContext()
 {
   free_resources();
+  /* Mirror VKContext::~VKContext():59-60 — delete `imm` here and null it so the
+   * base Context dtor's `delete imm` (gpu_context.cc:101) is a safe no-op. */
+  delete imm;
+  imm = nullptr;
+  /* Drop the backend-side device/instance/queue refs so the statics do not
+   * outlive GHOST's teardown and release a dangling handle at process exit. */
+  s_device = nullptr;
+  s_instance = nullptr;
+  s_queue = nullptr;
 }
 
 /* --- Activation --------------------------------------------------------- */
 /* Mirror VKContext::activate/deactivate but without the render-graph (WebGPU's
- * implicit model needs none) and without immActivate — the WGPUImmediate is a
- * lane-B class not yet constructed by this context. Once it lands, immActivate/
- * immDeactivate hook in here exactly as the Vulkan backend does. */
+ * implicit model needs none). immActivate/immDeactivate bind this context's `imm`
+ * as the thread-local immediate-mode target, exactly as the Vulkan backend does
+ * (vk_context.cc:141,147). */
 void WGPUContext::activate()
 {
   BLI_assert(is_active_ == false);
   is_active_ = true;
+  immActivate();
 }
 
 void WGPUContext::deactivate()
 {
+  immDeactivate();
   is_active_ = false;
 }
 
@@ -133,6 +171,7 @@ void WGPUContext::capabilities_init()
   /* Use the backend-agnostic frontend texture pool (texturepool_alloc returns
    * TexturePoolImpl), the same fallback the Vulkan backend selects. */
   GCaps.texture_pool_workaround = true;
+
 }
 
 /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */

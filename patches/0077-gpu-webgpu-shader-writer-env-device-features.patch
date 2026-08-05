@@ -1,0 +1,75 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_compiler.cc b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+@@ -15,6 +15,7 @@
+ #include "src/tint/api/common/binding_point.h"
+ #include "src/tint/lang/core/ir/module.h"
+ #include "src/tint/lang/spirv/reader/reader.h"
++#include "src/tint/lang/wgsl/enums.h"
+ #include "src/tint/lang/wgsl/program/program.h"
+ #include "src/tint/lang/wgsl/writer/writer.h"
+ 
+@@ -68,6 +69,26 @@
+     return false;
+   }
+   tint::wgsl::writer::Options writer_opts;
++  /* Align the WGSL writer's "current environment" with our real WebGPU target so
++   * Tint emits the language features Blender's shaders legitimately use instead of
++   * rejecting them at ProgramFromIR:
++   *   - clip_distances / dual_source_blending: two WebGPU extensions the backend
++   *     requests on the device (GHOST_ContextWGPU, adapter-guarded). The writer's
++   *     default allowed_features set is empty, so it otherwise rejects the `enable`
++   *     directive ("extension '...' is not allowed in the current environment").
++   *     Kept TARGETED (not AllowedFeatures::Everything) so any other extension
++   *     stays an honest failure rather than emitting WGSL a conformant device
++   *     would reject.
++   *   - allow_non_uniform_derivatives: several shaders call textureSample / fwidth
++   *     / dpdx / dpdy in non-uniform control flow; WebGPU permits this via a
++   *     diagnostic(off, derivative_uniformity) directive (core WGSL, no device
++   *     feature).
++   *   - disable_unreachable_code_warning: ProgramFromIR otherwise surfaces this
++   *     non-fatal warning as a hard failure. */
++  writer_opts.allowed_features.extensions.insert(tint::wgsl::Extension::kClipDistances);
++  writer_opts.allowed_features.extensions.insert(tint::wgsl::Extension::kDualSourceBlending);
++  writer_opts.allow_non_uniform_derivatives = true;
++  writer_opts.disable_unreachable_code_warning = true;
+   auto prog = tint::wgsl::writer::ProgramFromIR(ir.Get(), writer_opts);
+   if (prog != tint::Success) {
+     std::stringstream ss;
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -80,11 +80,16 @@
+         fflush(stderr);
+       });
+ 
+-  /* Opt into optional texture-format features the WebGPU backend relies on, when
+-   * the adapter exposes them (adapter-guarded so RequestDevice never fails on an
+-   * adapter that lacks them):
++  /* Opt into optional features the WebGPU backend relies on, when the adapter
++   * exposes them (adapter-guarded so RequestDevice never fails on an adapter that
++   * lacks them):
+    *   - Unorm16TextureFormats: R/RG/RGBA 16-bit unorm (Blender's *16 formats).
+-   *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable. */
++   *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable.
++   *   - ClipDistances: gl_ClipDistance user clip planes. Paired with the WGSL
++   *     writer's clip_distances allowed-feature (wgpu_shader_compiler.cc) so the
++   *     `enable clip_distances;` Tint emits is valid on this device.
++   *   - DualSourceBlending: indexed (location, index) blend outputs. Paired with
++   *     the writer's dual_source_blending allowed-feature. */
+   std::vector<wgpu::FeatureName> required_features;
+   if (adapter_.HasFeature(wgpu::FeatureName::Unorm16TextureFormats)) {
+     required_features.push_back(wgpu::FeatureName::Unorm16TextureFormats);
+@@ -92,6 +97,12 @@
+   if (adapter_.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable)) {
+     required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);
+   }
++  if (adapter_.HasFeature(wgpu::FeatureName::ClipDistances)) {
++    required_features.push_back(wgpu::FeatureName::ClipDistances);
++  }
++  if (adapter_.HasFeature(wgpu::FeatureName::DualSourceBlending)) {
++    required_features.push_back(wgpu::FeatureName::DualSourceBlending);
++  }
+   device_desc.requiredFeatureCount = required_features.size();
+   device_desc.requiredFeatures = required_features.data();
+   instance_.WaitAny(

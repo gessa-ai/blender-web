@@ -1,0 +1,29 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -914,7 +914,25 @@
+         break;
+     }
+     ss << ") out " << to_string(output.type) << " " << output.name << ";\n";
++  }
++
++  /* Subpass inputs (input attachments). WebGPU core has no subpass / input-attachment
++   * concept; the faithful translation reads the previous color attachment as a
++   * regular texture, which requires splitting the render pass and rebinding the
++   * attachment as a sampler (lane B's framebuffer / bind-group flow) — deferred.
++   * Declare each subpass input as a zero-initialised module-scope global so shaders
++   * that read one still COMPILE: without a declaration the reference is an undeclared
++   * identifier → null shader → GPU_shader_bind SEGV, which in a shared-process run
++   * crashes and poisons sibling tests. With this, framebuffer_subpass_input becomes an
++   * honest pixel FAIL (the read yields 0, not the previous attachment) instead of a
++   * crash. Same declare-to-compile pattern as gpu_ViewportIndex (M3.F6c) and
++   * gl_PointSize; faithful subpass emulation is M3.F7-class deferred work. Mirrors the
++   * STRUCTURE of vk_shader.cc:1040-1078 (the texelFetch-from-sampler else-path) minus
++   * the attachment binding WebGPU cannot yet wire here. */
++  for (const ShaderCreateInfo::SubpassIn &input : info.subpass_inputs_) {
++    ss << to_string(input.type) << " " << input.name << " = " << to_string(input.type) << "(0);\n";
+   }
++
+   ss << "\n";
+   return ss.str();
+ }

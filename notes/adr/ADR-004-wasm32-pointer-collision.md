@@ -52,6 +52,20 @@ breaks (JSPI×Memory64 interaction? emdawnwebgpu?). Decision lands on the probe'
 if the tax is acceptable and the toolchain is clean, wasm64 is the path (likely post-M4,
 pre-launch); else the interner gets designed as its own ADR with the coupling solved.
 
+## Decision 3 RESOLVED (appended 2026-08-05, probe evidence b75ef36): **wasm64**
+
+The Memory64 probe answered every dimension in wasm64's favor: emcc 6.0.5 builds our dep
+shapes clean; Chrome (Memory64 since 133 — inside our 137 floor) instantiates and runs
+correctly; the feared perf tax DOES NOT EXIST (BLI-flavored map churn ran ~14% FASTER on
+wasm64 under V8's trap/guard-page bounds checks; float loop equal); and `-sMEMORY64`
+links with the full flag set — WASM_BIGINT, growth, pthread+PROXY_TO_PTHREAD, dlmalloc,
+NODERAWFS, EXIT_RUNTIME, JSPI, and `--use-port=emdawnwebgpu`. wasm64 also retires the
+entire ILP32 class structurally (0002/0014 models become native-like; detector 0018 goes
+inert). **Scheduled: post-M4, pre-launch.** Named prerequisite: the node-based harness
+runners cannot instantiate wasm64 (V8 12.4 rejects 64-bit table limits) — bump the
+harness node (≥23-era V8) or move those gates in-browser first. The pointer-interner
+option is closed. Patch 0018 holds the line until the migration lands.
+
 ## Consequences
 
 - M2's promise can proceed on the honest bar with the reclassification named in the gate.

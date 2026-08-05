@@ -1,0 +1,25 @@
+diff --git a/source/blender/gpu/intern/gpu_shader.cc b/source/blender/gpu/intern/gpu_shader.cc
+index b99580a..e3c7dfa 100644
+--- a/source/blender/gpu/intern/gpu_shader.cc
++++ b/source/blender/gpu/intern/gpu_shader.cc
+@@ -52,9 +52,20 @@ void Shader::dump_source_to_disk(StringRef shader_name,
+   }
+   else if (pattern.startswith("*") && pattern.endswith("*")) {
+     std::string sub_str = pattern.substr(1, pattern.size() - 2);
++#ifdef __EMSCRIPTEN__
++    /* wasm32: size_t is 32-bit, so std::string::npos (0xFFFFFFFF) is not equal to the
++     * int64_t not_found (-1) that StringRefBase::find() returns (on 64-bit hosts they
++     * coincide bit-for-bit, which is why upstream compares against npos). Compare
++     * against the StringRef API's own signed sentinel so "not found" is detected on
++     * wasm32 — otherwise a non-matching name would fall through and get dumped. */
++    if (shader_name.find(sub_str) == StringRefBase::not_found) {
++      return;
++    }
++#else
+     if (shader_name.find(sub_str) == std::string::npos) {
+       return;
+     }
++#endif
+   }
+   else if (pattern.startswith("*")) {
+     std::string sub_str = pattern.substr(1);

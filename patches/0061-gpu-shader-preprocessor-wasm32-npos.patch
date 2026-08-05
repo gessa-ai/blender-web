@@ -1,0 +1,22 @@
+diff --git a/source/blender/gpu/intern/gpu_shader_preprocessor.cc b/source/blender/gpu/intern/gpu_shader_preprocessor.cc
+index e82426ef6d2..8fa119c63fb 100644
+--- a/source/blender/gpu/intern/gpu_shader_preprocessor.cc
++++ b/source/blender/gpu/intern/gpu_shader_preprocessor.cc
+@@ -1651,8 +1651,17 @@ struct Preprocessor {
+ 
+ std::string Shader::run_preprocessor(StringRef source, bool no_dead_code_elimination)
+ {
++#ifdef __EMSCRIPTEN__
++  /* wasm32: size_t is 32-bit, so std::string::npos (0xFFFFFFFF) is not equal to the
++   * int64_t not_found (-1) that StringRefBase::find() returns; compare against the
++   * StringRef API's own signed sentinel so "not found" is detected. See patch 0060. */
++  BLI_assert_msg(source.find("//") == StringRefBase::not_found &&
++                     source.find("/*") == StringRefBase::not_found,
++                 "Input source to the preprocessor should have no comments.");
++#else
+   BLI_assert_msg(source.find("//") == std::string::npos && source.find("/*") == std::string::npos,
+                  "Input source to the preprocessor should have no comments.");
++#endif
+ 
+   if (G.debug & G_DEBUG_GPU_SHADER_NO_PREPROCESSOR) {
+     return source;

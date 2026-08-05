@@ -1,0 +1,39 @@
+diff --git a/source/blender/gpu/intern/gpu_shader_dependency.cc b/source/blender/gpu/intern/gpu_shader_dependency.cc
+index ba4716f1763..0aca1fde764 100644
+--- a/source/blender/gpu/intern/gpu_shader_dependency.cc
++++ b/source/blender/gpu/intern/gpu_shader_dependency.cc
+@@ -195,9 +195,19 @@ struct GPUSource {
+       std::function<void(GPUSource &, GPUFunctionDictionary *, GPUPrintFormatMap *)> metadata_fn)
+       : fullpath(path), filename(file), source(datatoc)
+   {
++#ifdef __EMSCRIPTEN__
++    /* wasm32: size_t is 32-bit, so std::string::npos (0xFFFFFFFF) is not equal to the
++     * int64_t not_found (-1) that StringRefBase::find() returns (on 64-bit hosts they
++     * coincide bit-for-bit, which is why upstream compares against npos). Compare against
++     * the StringRef API's own signed sentinel so "not found" is detected on wasm32. */
++    BLI_assert_msg(source.find("//") == StringRefBase::not_found &&
++                       source.find("/*") == StringRefBase::not_found,
++                   "Input source should have no comments.");
++#else
+     BLI_assert_msg(source.find("//") == std::string::npos &&
+                        source.find("/*") == std::string::npos,
+                    "Input source should have no comments.");
++#endif
+     metadata_fn(*this, g_functions, g_formats);
+   };
+ 
+@@ -243,7 +253,14 @@ struct GPUSource {
+       shader::PrintfFormat::Block::ArgumentType type =
+           shader::PrintfFormat::Block::ArgumentType::NONE;
+       int64_t start = 0, end = 0, cursor = -1;
++#ifdef __EMSCRIPTEN__
++      /* wasm32: std::string::find_first_of returns the 32-bit npos (0xFFFFFFFF) when the
++       * character is absent; stored in this int64_t it is 4294967295, never -1, so the
++       * loop would never terminate. Compare against the width-correct npos value. */
++      while ((end = format.find_first_of('%', cursor + 1)) != int64_t(std::string::npos)) {
++#else
+       while ((end = format.find_first_of('%', cursor + 1)) != -1) {
++#endif
+         if (end - start > 0) {
+           /* Add the previous block without the newly found % character. */
+           fmt.format_blocks.append({type, format.substr(start, end - start)});

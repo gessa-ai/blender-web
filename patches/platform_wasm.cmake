@@ -626,6 +626,20 @@ if(WITH_PYTHON)
   if(NOT EXISTS "${_bw_py_lib}")
     message(FATAL_ERROR "blender-web: missing ${_bw_py_lib} (broken python harvest).")
   endif()
+  # NumPy 2.3.4 static archive (13 production PyInit_* registered as builtins in
+  # bpy_interface.cc under __EMSCRIPTEN__; scripts/deps/numpy.sh, notes/deps-numpy.md).
+  # Linked into the SAME python link (the only target that embeds CPython is `blender`).
+  # ORDER IS LOAD-BEARING: libnumpy must precede libpython3.13 on the link line — the
+  # numpy modules reference CPython C-API symbols (Py_*) resolved FROM libpython, and
+  # nothing in libpython references numpy, so the strict chain is
+  # bpy_interface.o -> libnumpy.a (PyInit_*) -> libpython3.13.a (Py_*). This is the exact
+  # order the standalone import-gate embed proved (notes/deps-numpy.md "Verification").
+  set(_bw_numpy_lib "${LIBDIR}/lib/libnumpy.a")
+  if(NOT EXISTS "${_bw_numpy_lib}")
+    message(FATAL_ERROR
+      "blender-web: WITH_PYTHON=ON but ${_bw_numpy_lib} is missing. Harvest numpy: "
+      "scripts/deps/numpy.sh (see notes/deps-numpy.md).")
+  endif()
   # Version (major.minor only, as FindPythonLibsUnix reports it).
   set(PYTHON_VERSION "3.13" CACHE STRING "Python Version (major and minor only)" FORCE)
   # Include dirs — Python.h and pyconfig.h are co-located in the harvest, so the
@@ -634,8 +648,11 @@ if(WITH_PYTHON)
   set(PYTHON_INCLUDE_CONFIG_DIR  "${_bw_py_inc}" CACHE PATH "" FORCE)
   set(PYTHON_INCLUDE_DIRS        "${_bw_py_inc}" CACHE STRING "" FORCE)
   # Static library — mono-wasm links libpython3.13.a directly into the executable.
+  # PYTHON_LIBRARY (singular) stays the interpreter archive alone (find-module semantics);
+  # PYTHON_LIBRARIES (the link list, consumed by dependency_targets.cmake:243-250) also
+  # carries libnumpy, numpy-first per the ordering note above.
   set(PYTHON_LIBRARY             "${_bw_py_lib}" CACHE FILEPATH "" FORCE)
-  set(PYTHON_LIBRARIES           "${_bw_py_lib}" CACHE STRING "" FORCE)
+  set(PYTHON_LIBRARIES           "${_bw_numpy_lib};${_bw_py_lib}" CACHE STRING "" FORCE)
   set(PYTHON_LIBPATH             "${LIBDIR}/lib" CACHE PATH "" FORCE)
   # No -export-dynamic: bpy's C modules are compiled INTO the mono-wasm module and
   # registered via PyImport builtins, not dlopen'd, so the Unix embedding link flag
@@ -650,6 +667,7 @@ if(WITH_PYTHON)
   endif()
   unset(_bw_py_inc)
   unset(_bw_py_lib)
+  unset(_bw_numpy_lib)
 endif()
 
 # -----------------------------------------------------------------------------

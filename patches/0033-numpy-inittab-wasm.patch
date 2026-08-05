@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/python/intern/bpy_interface.cc @ fbe6228777e7
+#
+# M2b — NumPy 2.3.4 static integration (patch 0033). The wasm build has no dynamic
+# loader (mono-wasm posture, GOAL/ADR-001), so numpy is one static archive
+# (lib/wasm/lib/libnumpy.a; scripts/deps/numpy.sh) linked into `blender` and its 13
+# production C-extensions are registered as CPython BUILTIN modules under their dotted
+# import names. `import numpy` eagerly imports _core/linalg/fft/random, so ALL 13
+# PyInit_* must be in the inittab (not just _multiarray_umath). CPython's is_builtin
+# matches PyImport_Inittab by exact name string and BuiltinImporter is on
+# sys.meta_path, so dotted keys resolve as submodules (notes/deps-numpy.md, the table).
+# #ifdef __EMSCRIPTEN__-guarded: native builds ship numpy as a wheel and never take
+# this path -> the preprocessor removes it verbatim, native is byte-identical.
+# The link (libnumpy before libpython) lives in patches/platform_wasm.cmake WITH_PYTHON.
+diff --git a/source/blender/python/intern/bpy_interface.cc b/source/blender/python/intern/bpy_interface.cc
+index f0cb9f88e79..1e1a47ea710 100644
+--- a/source/blender/python/intern/bpy_interface.cc
++++ b/source/blender/python/intern/bpy_interface.cc
+@@ -317,6 +317,32 @@ static PyObject *CCL_initPython()
+ PyObject *BPyInit_hydra();
+ #endif
+ 
++#ifdef __EMSCRIPTEN__
++/* NumPy 2.3.4 C-extensions statically linked into the wasm build (lib/wasm/lib/libnumpy.a).
++ * The web build has no dynamic loader (mono-wasm posture, GOAL/ADR-001), so numpy's 13
++ * production `PyInit_*` are registered as builtin modules under their dotted import names.
++ * CPython's `is_builtin` matches `PyImport_Inittab` by exact name string and `BuiltinImporter`
++ * is on `sys.meta_path`, so dotted keys resolve as submodules. `import numpy` eagerly imports
++ * `_core`, `linalg`, `fft`, `random`, so all 13 must be present (not just `_multiarray_umath`).
++ * Native builds ship numpy as a wheel and never take this path (guard removes it verbatim).
++ * See notes/deps-numpy.md (the inittab table) and scripts/deps/numpy.sh. */
++extern "C" {
++PyObject *PyInit__multiarray_umath();
++PyObject *PyInit__umath_linalg();
++PyObject *PyInit_lapack_lite();
++PyObject *PyInit__pocketfft_umath();
++PyObject *PyInit_mtrand();
++PyObject *PyInit__common();
++PyObject *PyInit_bit_generator();
++PyObject *PyInit__bounded_integers();
++PyObject *PyInit__generator();
++PyObject *PyInit__mt19937();
++PyObject *PyInit__philox();
++PyObject *PyInit__pcg64();
++PyObject *PyInit__sfc64();
++}
++#endif
++
+ static _inittab bpy_internal_modules[] = {
+     {"mathutils", PyInit_mathutils},
+ #if 0
+@@ -347,6 +373,24 @@ static _inittab bpy_internal_modules[] = {
+     {"idprop", BPyInit_idprop},
+ #ifdef WITH_HYDRA
+     {"_bpy_hydra", BPyInit_hydra},
++#endif
++#ifdef __EMSCRIPTEN__
++    /* NumPy 2.3.4 statically-linked C-extensions (see the declarations above). Dotted
++     * inittab keys resolve as builtin submodules; all 13 are registered because
++     * `import numpy` eagerly pulls _core/linalg/fft/random. */
++    {"numpy._core._multiarray_umath", PyInit__multiarray_umath},
++    {"numpy.linalg._umath_linalg", PyInit__umath_linalg},
++    {"numpy.linalg.lapack_lite", PyInit_lapack_lite},
++    {"numpy.fft._pocketfft_umath", PyInit__pocketfft_umath},
++    {"numpy.random.mtrand", PyInit_mtrand},
++    {"numpy.random._common", PyInit__common},
++    {"numpy.random.bit_generator", PyInit_bit_generator},
++    {"numpy.random._bounded_integers", PyInit__bounded_integers},
++    {"numpy.random._generator", PyInit__generator},
++    {"numpy.random._mt19937", PyInit__mt19937},
++    {"numpy.random._philox", PyInit__philox},
++    {"numpy.random._pcg64", PyInit__pcg64},
++    {"numpy.random._sfc64", PyInit__sfc64},
+ #endif
+     {nullptr, nullptr},
+ };

@@ -1,6 +1,6 @@
 CRASH buffer_texture
-CRASH compute_direct
-CRASH compute_indirect
+FAIL compute_direct
+FAIL compute_indirect
 PASS framebuffer_clear_color_single_attachment
 PASS framebuffer_clear_color_multiple_attachments
 PASS framebuffer_clear_multiple_color_multiple_attachments
@@ -54,8 +54,8 @@ PASS preprocess_parser
 PASS preprocess_expression_parser
 PASS shader_python_compute
 PASS shader_python_graphic
-CRASH shader_compute_2d
-CRASH shader_compute_1d
+FAIL shader_compute_2d
+FAIL shader_compute_1d
 CRASH shader_compute_vbo
 CRASH shader_compute_ibo
 CRASH shader_compute_ssbo

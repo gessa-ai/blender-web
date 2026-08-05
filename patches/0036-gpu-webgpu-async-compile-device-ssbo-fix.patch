@@ -1,0 +1,151 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index d30791e..d60d771 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -183,6 +183,22 @@ static void print_qualifier(std::ostream &os, const Qualifier &qualifiers)
+   }
+ }
+ 
++/* Storage-buffer qualifier: WGSL has no write-only storage address space (Tint
++ * rejects `var<storage>` without read/read_write). So a GLSL `writeonly` SSBO is
++ * promoted to read_write; only a genuinely read-only buffer keeps `readonly`. */
++static void print_storage_buffer_qualifier(std::ostream &os, const Qualifier &qualifiers)
++{
++  if (bool(qualifiers & Qualifier::no_restrict) == false) {
++    os << "restrict ";
++  }
++  const bool readable = bool(qualifiers & Qualifier::read);
++  const bool writable = bool(qualifiers & Qualifier::write);
++  if (readable && !writable) {
++    os << "readonly ";
++  }
++  /* write-only or read+write → emit no access qualifier (read_write in WGSL). */
++}
++
+ static void print_image_type(std::ostream &os,
+                              const ImageType &type,
+                              const ShaderCreateInfo::Resource::BindType bind_type)
+@@ -349,7 +365,7 @@ static void print_resource(std::ostream &os,
+          << "; };";
+       break;
+     case ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER:
+-      print_qualifier(os, res.storagebuf.qualifiers);
++      print_storage_buffer_qualifier(os, res.storagebuf.qualifiers);
+       os << "buffer _" << res.storagebuf.name.str_no_array() << " { "
+          << info.buffer_typename(res.storagebuf.type_name) << " " << res.storagebuf.name << "; };";
+       break;
+@@ -948,8 +964,10 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
+   if (info == nullptr) {
+     return false;
+   }
+-  WGPUContext *ctx = static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+-  if (ctx == nullptr) {
++  /* Shaders compile on the async worker thread, which has no thread-local active
++   * GPU context — reach the device backend-side (one Dawn device). */
++  wgpu::Device device = WGPUContext::backend_device();
++  if (device == nullptr) {
+     return false;
+   }
+ 
+@@ -998,7 +1016,6 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
+   }
+   interface_map_ = result.interface;
+ 
+-  wgpu::Device device = ctx->device_get();
+   if (!result.vertex_wgsl.empty()) {
+     vertex_module_ = make_module(device, result.vertex_wgsl);
+     if (vertex_module_ == nullptr) {
+@@ -1098,12 +1115,11 @@ void WGPUShader::push_constants_flush()
+   if (push_constants_size_ == 0) {
+     return;
+   }
+-  WGPUContext *ctx = static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+-  if (ctx == nullptr) {
++  wgpu::Device device = WGPUContext::backend_device();
++  wgpu::Queue queue = WGPUContext::backend_queue();
++  if (device == nullptr) {
+     return;
+   }
+-  wgpu::Device device = ctx->device_get();
+-  wgpu::Queue queue = ctx->queue_get();
+   if (!push_constants_buffer_.valid()) {
+     if (!push_constants_buffer_.create(device,
+                                        webgpu::BufferKind::Uniform,
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index c55cb66..73fdeb2 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -70,11 +70,31 @@ class WGPUContext : public Context {
+     return adapter_name_.c_str();
+   }
+ 
++  /* Backend-wide device/instance/queue, reachable from any thread (there is a
++   * single Dawn device). Used by the async shader-compile worker, which has no
++   * thread-local active GPU context. */
++  static wgpu::Device backend_device()
++  {
++    return s_device;
++  }
++  static wgpu::Instance backend_instance()
++  {
++    return s_instance;
++  }
++  static wgpu::Queue backend_queue()
++  {
++    return s_queue;
++  }
++
+  private:
+   /** Probe the live device limits into the global `GPUCapabilities` (GCaps).
+    * Device-probed, mirroring VKBackend::capabilities_init (vk_backend.cc:905). */
+   void capabilities_init();
+ 
++  static wgpu::Device s_device;
++  static wgpu::Instance s_instance;
++  static wgpu::Queue s_queue;
++
+   wgpu::Instance instance_ = nullptr;
+   wgpu::Adapter adapter_ = nullptr;
+   wgpu::Device device_ = nullptr;
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index f0fa91e..151fcad 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -30,6 +30,10 @@
+ 
+ namespace blender::gpu {
+ 
++wgpu::Device WGPUContext::s_device = nullptr;
++wgpu::Instance WGPUContext::s_instance = nullptr;
++wgpu::Queue WGPUContext::s_queue = nullptr;
++
+ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+ {
+   ghost_window_ = ghost_window;
+@@ -45,6 +49,14 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+   queue_ = wgpu_ghost->getQueue();
+   adapter_name_ = wgpu_ghost->getAdapterName();
+ 
++  /* Publish the device/instance/queue backend-side so worker threads (async
++   * shader compilation) can reach them without the thread-local active context —
++   * GPU_context_active_get() is null on the compile worker. There is a single
++   * Dawn device (one GHOST_ContextWGPU), so a static is correct. */
++  s_device = device_;
++  s_instance = instance_;
++  s_queue = queue_;
++
+   /* Fill the global capability table from the live device limits. Device-probed
+    * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
+    * floors — the M4 Pro / Dawn adapter reports much higher limits. */
+@@ -59,6 +71,11 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+ WGPUContext::~WGPUContext()
+ {
+   free_resources();
++  /* Drop the backend-side device/instance/queue refs so the statics do not
++   * outlive GHOST's teardown and release a dangling handle at process exit. */
++  s_device = nullptr;
++  s_instance = nullptr;
++  s_queue = nullptr;
+ }
+ 
+ /* --- Activation --------------------------------------------------------- */

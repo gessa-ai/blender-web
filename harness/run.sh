@@ -14,7 +14,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-SCOPES_REGISTERED="m0 m1"
+SCOPES_REGISTERED="m0 m1 m2b"
 EMSDK_ENV="tools/emsdk/emsdk_env.sh"
 TSV=""
 
@@ -233,6 +233,127 @@ PY
     else
       record corpus_parity 0 "live_startup_ok=$LIVE_OK static_9file_ok=$STATIC_OK — rerun bash $PREP/run_dumps_wasm.sh for detail"
     fi
+  fi
+}
+
+# ---------------------------------------------------------------- scope: m2b
+# Tier-(b): Blender's stock --background --factory-startup Python operator/bpy-API CORE suite
+# (75 rows of sandbox/tierb-prep/suites.tsv) run on the wasm build (build-wasm/bin/blender.js
+# under emsdk node) and matched to the native oracle. EXIT-CODE is the gate signal: wasm threaded
+# stdout drops lines at exit (H-4/H-5), exactly like the tier-(a) gtests, so counts come from the
+# process exit code (--python-exit-code 1 + --debug-exit-on-error make any failing assert nonzero),
+# never from scraped stdout. Full evidence + running scoreboard: notes/m2-tierb-prep.md §6/§6b.
+scope_m2b() {
+  local PREP=sandbox/tierb-prep
+  local NODE; NODE="$(ls -d tools/emsdk/node/*/bin/node 2>/dev/null | head -1)"
+
+  # --- config: bump these ONE-LINE flags as pending deps land (moves a named group to must-pass)
+  local ESSENTIALS_LANDED=1   # §6a asset-storage fix -> object_edit,bl_brush,bl_sculpt_brushes (+3)
+  local NUMPY_HARVESTED=1     # numpy in lib/wasm    -> the 8 sculpt/paint numpy suites          (+8)
+
+  # --- suite classification (everything NOT listed here defaults to MUST-PASS) -----------------
+  # DEFERRED (deterministic): expected to FAIL on the current build; each MUST have a matching
+  #   ledger/deferred.json id. A deterministic-deferred suite that PASSES => un-defer candidate
+  #   (flagged, never silently green).  suite -> deferred.json id:
+  local -A DEFERRED=(
+    [script_pyapi_mathutils]=float32-ulp-mathutils
+    [script_pyapi_bmesh]=float32-ulp-mathutils
+    [bl_constraints]=float32-ulp-mathutils
+    [bl_node_structure_type_inference]=wasm32-64bit-blend-collision
+    # feature compiled OFF per GOAL (OpenVDB / OpenSubdiv / Cycles engine / AVIF codec):
+    [bl_voxel_remesh]=feature-off-openvdb
+    [bl_voxel_remesh_compare]=feature-off-openvdb
+    [bl_multires]=feature-off-opensubdiv
+    [bl_sculpt_brushes]=feature-off-opensubdiv
+    [bl_node_link_drag]=feature-off-cycles-engine
+    [imbuf_py_api]=feature-off-avif
+  )
+  # FLAKY: deferred heisenbug — EITHER outcome is consistent (no un-defer flag on a pass); id req'd.
+  local -A FLAKY=( [bl_node_copy_operators]=node-ungroup-socket-flake )
+  # PENDING: promise-held; allowed-fail until its dep lands, then the flag above makes it must-pass.
+  local PENDING_ESSENTIALS="object_edit bl_brush"
+  local PENDING_NUMPY="script_pyapi_prop_array bl_sculpt_brush_curve_presets bl_sculpt_mask \
+bl_sculpt_face_set bl_sculpt_mesh_filter bl_sculpt_automasking bl_vertex_paint_brushes \
+bl_weight_paint_brushes"
+
+  # --- preflight artifacts (FAIL with rebuild recipe; a rebuild is a worker action, not a side effect)
+  if [ -z "$NODE" ]; then
+    record wasm_runtime 0 "no emsdk node under tools/emsdk/node/*/bin/node"; return
+  fi
+  if [ ! -f build-wasm/bin/blender.js ]; then
+    record wasm_runtime 0 "build-wasm/bin/blender.js missing; rebuild: flip WITH_PYTHON ON + \
+blender_web_node_binary(blender) + ninja -C build-wasm blender (see notes/m2-python-boot.md)"; return
+  fi
+  if [ ! -d lib/wasm/lib/python3.13 ]; then
+    record wasm_runtime 0 "lib/wasm python harvest missing; rebuild: bash scripts/deps/python.sh"; return
+  fi
+  record wasm_runtime 1 "$NODE ($("$NODE" --version 2>/dev/null)); blender.js + lib/wasm present"
+
+  # --- run the 75 CORE suites (EXIT-CODE per suite -> $PREP/results-wasm.tsv). ~150 s. -----------
+  # run_core_wasm.sh runs exactly the CORE set (it skips the 5 AMBER + 1 design-excluded) and
+  # composes the datafiles payload idempotently. If it is absent the scope cannot proceed.
+  if [ ! -x "$PREP/run_core_wasm.sh" ]; then
+    record m2b_manifest 0 "$PREP/run_core_wasm.sh missing (tier-b harness kit not present)"; return
+  fi
+  "$PREP/run_core_wasm.sh" >/dev/null 2>&1
+  local RES="$PREP/results-wasm.tsv"
+  local NROWS; NROWS="$(grep -cvE '^#' "$RES" 2>/dev/null || echo 0)"
+  if [ "$NROWS" != 75 ]; then
+    record m2b_manifest 0 "expected 75 CORE rows, got $NROWS (suites.tsv drift?) [$RES]"; return
+  fi
+  record m2b_manifest 1 "75 CORE rows executed [$RES]"
+
+  # --- classify each row by EXIT CODE (col 3). verdict col 2 is advisory; exit is the gate. -----
+  local mustpass_total=0 mustpass_green=0 mustfail=""     # must-pass set
+  local undefer=""                                        # deterministic-deferred that PASSED
+  local undoc=""                                          # deferred/flaky suite w/o deferred.json id
+  local pending_ready=""                                  # a not-yet-landed PENDING suite that PASSED
+  local DEF_IDS; DEF_IDS="$(python3 -c "import json;print(' '.join(e['id'] for e in json.load(open('ledger/deferred.json'))['deferred']))" 2>/dev/null)"
+  in_set() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
+
+  local name exit rest
+  while IFS=$'\t' read -r name _verdict exit rest; do
+    case "$name" in ''|\#*) continue;; esac
+    local passed=0; [ "$exit" = 0 ] && passed=1
+
+    if [ -n "${DEFERRED[$name]:-}" ]; then
+      in_set "${DEFERRED[$name]}" "$DEF_IDS" || undoc="$undoc $name(${DEFERRED[$name]})"
+      [ "$passed" = 1 ] && undefer="$undefer $name(${DEFERRED[$name]})"
+    elif [ -n "${FLAKY[$name]:-}" ]; then
+      in_set "${FLAKY[$name]}" "$DEF_IDS" || undoc="$undoc $name(${FLAKY[$name]})"
+      # either outcome consistent -> no gate effect
+    elif in_set "$name" "$PENDING_ESSENTIALS"; then
+      if [ "$ESSENTIALS_LANDED" = 1 ]; then
+        mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+      elif [ "$passed" = 1 ]; then pending_ready="$pending_ready $name(flip ESSENTIALS_LANDED=1)"; fi
+    elif in_set "$name" "$PENDING_NUMPY"; then
+      if [ "$NUMPY_HARVESTED" = 1 ]; then
+        mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+      elif [ "$passed" = 1 ]; then pending_ready="$pending_ready $name(flip NUMPY_HARVESTED=1)"; fi
+    else
+      # default: MUST-PASS (also auto-requires any new deterministic-green suite added to the manifest)
+      mustpass_total=$((mustpass_total+1)); [ "$passed" = 1 ] && mustpass_green=$((mustpass_green+1)) || mustfail="$mustfail $name"
+    fi
+  done < <(grep -vE '^#' "$RES")
+
+  # --- CHECK 1: core green — every must-pass suite exits 0 (fast-fail: names the reds) ----------
+  if [ "$mustpass_green" = "$mustpass_total" ] && [ "$mustpass_total" -ge 64 ]; then
+    record core_green 1 "$mustpass_green/$mustpass_total must-pass CORE suites exit 0 \
+(ESSENTIALS_LANDED=$ESSENTIALS_LANDED NUMPY_HARVESTED=$NUMPY_HARVESTED)"
+  else
+    record core_green 0 "must-pass RED $mustpass_green/$mustpass_total; failing:${mustfail:- none} \
+(min-expected 54; if a suite regressed, that is the gate)"
+  fi
+
+  # --- CHECK 2: deferral consistency vs ledger/deferred.json (honest, no silent green) ----------
+  local dc_detail="" dc_ok=1
+  [ -n "$undoc" ] && { dc_ok=0; dc_detail="$dc_detail undocumented-deferral:$undoc (add to deferred.json);"; }
+  [ -n "$undefer" ] && { dc_ok=0; dc_detail="$dc_detail UN-DEFER-candidate (deterministic-deferred now PASSES):$undefer;"; }
+  [ -n "$pending_ready" ] && { dc_ok=0; dc_detail="$dc_detail PENDING-now-green:$pending_ready;"; }
+  if [ "$dc_ok" = 1 ]; then
+    record deferral_consistency 1 "all deferred/flaky suites map to a deferred.json id and behave as classified"
+  else
+    record deferral_consistency 0 "${dc_detail# }"
   fi
 }
 

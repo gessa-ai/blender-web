@@ -1,0 +1,23 @@
+{
+  "scope": "m2b",
+  "pass": true,
+  "ts": "2026-08-05T03:27:24Z",
+  "checks": {
+    "wasm_runtime": {
+      "pass": true,
+      "detail": "tools/emsdk/node/22.16.0_64bit/bin/node (v22.16.0); blender.js + lib/wasm present"
+    },
+    "m2b_manifest": {
+      "pass": true,
+      "detail": "75 CORE rows executed [sandbox/tierb-prep/results-wasm.tsv]"
+    },
+    "core_green": {
+      "pass": true,
+      "detail": "64/64 must-pass CORE suites exit 0 (ESSENTIALS_LANDED=1 NUMPY_HARVESTED=1)"
+    },
+    "deferral_consistency": {
+      "pass": true,
+      "detail": "all deferred/flaky suites map to a deferred.json id and behave as classified"
+    }
+  }
+}

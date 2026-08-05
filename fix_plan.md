@@ -179,8 +179,11 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/
   libyaml-cpp/libexpat/libpystring/libminizip.
 - [ ] **M2.5 [python-wasm]** `import bpy` headless in node/worker (tier-(b) entry). **blocked-by M2.3, M2.4.**
-- [ ] **M2.6 [harness]** Stock `--background --factory-startup` operator/bpy suite subset passes vs
-  oracle → tier-(b) gate → **`<promise>M2_DEPS_PYTHON</promise>`**. **blocked-by M2.5.**
+- [x] **M2.6 [harness]** **TIER-(b) GATE GREEN — M2 COMPLETE** (2026-08-05): scope_m2b installed
+  (harness v1.4) → 4/4 GREEN: 75 CORE rows, **64/64 must-pass exit-0** (ESSENTIALS_LANDED=1,
+  NUMPY_HARVESTED=1), deferral_consistency enforced (10 raw-fails ALL registry-mapped: 3 ULP,
+  1 ADR-004, 6 feature-off). Full regress m0 6/6 + m1 5/5 + m2b 4/4; lock restored. numpy in
+  the binary (0033, gate 2.3.4/15); corpus 9/9 re-verified on the relinked binary.
   **PREP DONE (98d3c37, notes/m2-tierb-prep.md):** 43/43 oracle-green (38-CORE ≈595 cases,
   ~2m17s; 4 AMBER wasm-conditional; 1 excluded as parity-theater). m2b scope DRAFTED:
   exit-code-primary (sidesteps wasm stdout drops), binary-agnostic manifest (same args, swap

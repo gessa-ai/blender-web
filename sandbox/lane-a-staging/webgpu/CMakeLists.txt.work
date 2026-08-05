@@ -490,6 +490,8 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_shader.cc
     webgpu/wgpu_batch.cc
     webgpu/wgpu_texture.cc
+    webgpu/wgpu_state_manager.cc
+    webgpu/wgpu_framebuffer.cc
 
     webgpu/wgpu_backend.hh
     webgpu/wgpu_buffer.hh
@@ -508,6 +510,8 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_shader.hh
     webgpu/wgpu_batch.hh
     webgpu/wgpu_texture.hh
+    webgpu/wgpu_state_manager.hh
+    webgpu/wgpu_framebuffer.hh
   )
   list(APPEND INC
     webgpu
@@ -527,6 +531,11 @@ if(WITH_WEBGPU_BACKEND)
   )
   list(APPEND LIB
     ${DAWN_LIBRARIES}
+    # T7 shader chain: the Tint (SPIR-V reader / WGSL writer) archive set + shaderc.
+    # WGPUShader::finalize references the compiler module, so executables linking
+    # bf_gpu now pull these. Ordered set (from the proven sandbox link) + shaderc
+    # shared lib passed as a cache var at configure. See notes/gpu-laneA-integration.md.
+    ${WGPU_TINT_LIBS}
   )
 
   add_definitions(-DWITH_WEBGPU_BACKEND)

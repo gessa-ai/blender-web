@@ -22,6 +22,10 @@
 
 #include "gpu_shader_private.hh"
 
+#include "wgpu_shader_compiler.hh"
+
+#include <webgpu/webgpu_cpp.h>
+
 #include "MEM_guardedalloc.h"
 
 namespace blender::gpu {
@@ -52,10 +56,10 @@ class WGPUShader : public Shader {
   void uniform_float(int location, int comp_len, int array_size, const float *data) override;
   void uniform_int(int location, int comp_len, int array_size, const int *data) override;
 
-  /* Create-info → GLSL codegen. These emit the same GLSL as the Vulkan backend
-   * (the WGSL-target divergences — push-constant UBO fallback, combined-sampler
-   * split — are handled downstream by shaderc env + Tint, not here). Round-4
-   * stubs (empty) until the codegen port; see the .cc. */
+  /* Create-info → GLSL codegen. Emits GLSL 450 with dense set-0 `layout(binding=N)`
+   * resources + `layout(location=N)` interfaces (ported from the Vulkan backend;
+   * the WGSL-target divergences — combined-sampler split, push-constant UBO — are
+   * handled downstream by the shaderc env + Tint sampler_mappings). */
   std::string resources_declare(const shader::ShaderCreateInfo &info) const override;
   std::string vertex_interface_declare(const shader::ShaderCreateInfo &info) const override;
   std::string fragment_interface_declare(const shader::ShaderCreateInfo &info) const override;
@@ -63,7 +67,42 @@ class WGPUShader : public Shader {
   std::string geometry_layout_declare(const shader::ShaderCreateInfo &info) const override;
   std::string compute_layout_declare(const shader::ShaderCreateInfo &info) const override;
 
+  const wgpu::ShaderModule &vertex_module() const
+  {
+    return vertex_module_;
+  }
+  const wgpu::ShaderModule &fragment_module() const
+  {
+    return fragment_module_;
+  }
+  const wgpu::ShaderModule &compute_module() const
+  {
+    return compute_module_;
+  }
+  const webgpu::InterfaceMap &interface_map() const
+  {
+    return interface_map_;
+  }
+
  private:
+  /* Run the BSL preprocessor on a combined stage source (unless skip_preprocessor). */
+  std::string preprocess(const std::string &combined) const;
+
+  /* Combined per-stage GLSL captured from the base compiler's *_from_glsl calls
+   * (version patch + defines + resources + interface + user source), compiled in
+   * finalize(). Empty string = stage absent. */
+  std::string vertex_glsl_;
+  std::string fragment_glsl_;
+  std::string compute_glsl_;
+
+  /* Compiled WGSL modules (produced by finalize via the shaderc→Tint chain). */
+  wgpu::ShaderModule vertex_module_;
+  wgpu::ShaderModule fragment_module_;
+  wgpu::ShaderModule compute_module_;
+
+  /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
+  webgpu::InterfaceMap interface_map_;
+
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShader")
 };
 

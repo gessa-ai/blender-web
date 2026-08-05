@@ -12,6 +12,7 @@
 #include "wgpu_backend.hh"
 #include "wgpu_batch.hh"
 #include "wgpu_context.hh"
+#include "wgpu_framebuffer.hh"
 #include "wgpu_index_buffer.hh"
 #include "wgpu_shader.hh"
 #include "wgpu_storage_buffer.hh"
@@ -77,10 +78,10 @@ Fence *WGPUBackend::fence_alloc()
   BLI_assert_unreachable();
   return nullptr;
 }
-FrameBuffer *WGPUBackend::framebuffer_alloc(const char * /*name*/)
+FrameBuffer *WGPUBackend::framebuffer_alloc(const char *name)
 {
-  BLI_assert_unreachable();
-  return nullptr;
+  /* Lane B's WGPUFrameBuffer (patch 0030). */
+  return new WGPUFrameBuffer(name);
 }
 IndexBuf *WGPUBackend::indexbuf_alloc()
 {

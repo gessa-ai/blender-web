@@ -1,0 +1,38 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index cd4cb21..096fd35 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -237,17 +237,26 @@ void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
+   const size_t bpp = total / (size_t(fw) * fh);
+ 
+   const int x = area[0], y = area[1], w = area[2], h = area[3];
+-  if (x == 0 && y == 0 && w == fw && h == fh) {
+-    /* Full-frame: read straight into the destination (reuses WGPUTexture::read). */
+-    tex->read(0, format, r_data);
+-    return;
+-  }
+-  /* Sub-area: read the whole attachment, then crop. */
++
++  /* ADR-005 decision 3 (render-target readback row-flip). WebGPU stores the rendered
++   * texture top-down (row 0 = top); lane A's vertex-shader clip-space Y-flip (decision
++   * 1) additionally mirrors the geometry vertically. To return GL-convention bottom-up
++   * rows (matching the Vulkan/Metal reference the tests encode), reverse the source
++   * rows here. This is the RENDER-TARGET readback path only — WGPUTexture::read (pure
++   * upload->read, no render pass) stays symmetric and is NOT flipped, so the texture_*
++   * suite is untouched. `y` (area origin) is in GL bottom-up coordinates: after the
++   * whole attachment is flipped to bottom-up, cropping [y, y+h) is a direct copy. */
+   std::vector<uint8_t> tmp(total);
+   tex->read(0, format, tmp.data());
+   uint8_t *dst = static_cast<uint8_t *>(r_data);
+   for (int row = 0; row < h; row++) {
+-    const uint8_t *src = tmp.data() + (size_t(y + row) * fw + x) * bpp;
++    /* Bottom-up destination row `row` maps to WebGPU top-down source row
++     * (fh - 1 - (y + row)). */
++    const int src_row = fh - 1 - (y + row);
++    if (src_row < 0 || src_row >= fh) {
++      continue;
++    }
++    const uint8_t *src = tmp.data() + (size_t(src_row) * fw + x) * bpp;
+     std::memcpy(dst + size_t(row) * w * bpp, src, size_t(w) * bpp);
+   }
+ }

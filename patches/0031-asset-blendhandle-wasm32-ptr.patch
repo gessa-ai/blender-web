@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/blenloader/intern/readfile.cc @ fbe6228777e7
+#
+# M2b final divergence — blendhandle partial-read path (same 64->32 resolution family as
+# patch 0014, in the lightweight reader the full-readfile fix did not cover). Root cause:
+# blo_bhead_id_asset_data_address() reads the ID's `asset_data` field RAW as a 4-byte
+# AssetMetaData* on wasm32, taking the low 32 bits of the 8-byte file pointer UNSHIFTED.
+# The runtime data map is keyed by the 64->32 truncated address (old_ptr_from_uint64_ptr /
+# bhead->old, i.e. uint32_from_uint64_ptr's `>>3`), which is exactly how the full read path
+# lowers this field (cast_pointer_64_to_32). The unshifted low-32 never matches the >>3 key
+# -> BLO_read_struct(AssetMetaData) resolves to NULL -> FILE_TYPE_ASSET lost -> "No asset
+# found". Fix (single source of truth, no parallel model, no AssetMetaData special-case):
+# read the full 8-byte file pointer and apply the SAME uint32_from_uint64_ptr the reader
+# uses everywhere. #ifdef __EMSCRIPTEN__-guarded and only for 64-bit files
+# (!FD_FLAGS_FILE_POINTSIZE_IS_4); native + 32-bit-file path byte-identical.
+diff --git a/source/blender/blenloader/intern/readfile.cc b/source/blender/blenloader/intern/readfile.cc
+--- a/source/blender/blenloader/intern/readfile.cc
++++ b/source/blender/blenloader/intern/readfile.cc
+@@ -800,6 +800,25 @@
+ AssetMetaData *blo_bhead_id_asset_data_address(const FileData *fd, const BHead *bhead)
+ {
+   BLI_assert(blo_bhead_is_id_valid_type(bhead));
++#ifdef __EMSCRIPTEN__
++  /* blender-web (wasm32 reading a 64-bit .blend): the ID's `asset_data` field is an
++   * 8-byte file pointer, but the runtime data map is keyed by the 64->32 truncated
++   * address (bhead->old via old_ptr_from_uint64_ptr, i.e. uint32_from_uint64_ptr's
++   * `>>3`), which is exactly how the full read path lowers this same field
++   * (cast_pointer_64_to_32). Reading the raw pointer here as a 4-byte AssetMetaData*
++   * would take the LOW 32 bits UNSHIFTED, which never matches the >>3 data-map key ->
++   * BLO_read_struct(AssetMetaData) resolves to NULL -> the blendhandle asset scan loses
++   * FILE_TYPE_ASSET ("No asset found"). Read the full 8-byte file pointer and apply the
++   * SAME truncation the reader uses everywhere (single source of truth), so the resolved
++   * old-address matches the data-map key. Native builds are byte-identical (guarded), and
++   * the 32-bit-file case falls through to the original read. See
++   * notes/m2-asset-blendhandle-wasm32.md. */
++  if (fd->id_asset_data_offset >= 0 && (fd->flags & FD_FLAGS_FILE_POINTSIZE_IS_4) == 0) {
++    const uint64_t raw = *reinterpret_cast<const uint64_t *>(
++        POINTER_OFFSET(bhead, sizeof(*bhead) + fd->id_asset_data_offset));
++    return reinterpret_cast<AssetMetaData *>(uintptr_t(uint32_from_uint64_ptr(raw)));
++  }
++#endif
+   return (fd->id_asset_data_offset >= 0) ?
+              *reinterpret_cast<AssetMetaData **>(const_cast<BHead *>(
+                  POINTER_OFFSET(bhead, sizeof(*bhead) + fd->id_asset_data_offset))) :

@@ -23,8 +23,10 @@
 
 #include "GPU_capabilities.hh"
 #include "GPU_context.hh"
+#include "GPU_platform.hh"
 #include "GPU_worker.hh"
 #include "gpu_context_private.hh"
+#include "gpu_platform_private.hh"
 #include "gpu_shader_private.hh"
 #include "gpu_texture_pool_private.hh"
 
@@ -36,8 +38,41 @@
 
 namespace blender::gpu {
 
+void WGPUBackend::platform_init()
+{
+  /* Static platform identity, mirroring VKBackend::platform_init() (vk_backend.cc:411).
+   * WebGPU abstracts the concrete adapter, so use the ANY device/driver values; the OS
+   * follows the build host (Emscripten builds fall to the UNIX branch). */
+#ifdef _WIN32
+  const GPUOSType os = GPU_OS_WIN;
+#elif defined(__APPLE__)
+  const GPUOSType os = GPU_OS_MAC;
+#else
+  const GPUOSType os = GPU_OS_UNIX;
+#endif
+  GPG.init(GPU_DEVICE_ANY,
+           os,
+           GPU_DRIVER_ANY,
+           GPU_SUPPORT_LEVEL_SUPPORTED,
+           GPU_BACKEND_WEBGPU,
+           "",
+           "",
+           "",
+           GPU_ARCHITECTURE_IMR);
+}
+
+void WGPUBackend::platform_exit()
+{
+  GPG.clear();
+}
+
 void WGPUBackend::init_resources()
 {
+  /* Publish the platform identity before anything reads GPU_platform_* (the frontend
+   * asserts GPG.initialized). VKBackend does this from its constructor; init_resources
+   * (GPU_init) is early enough and is where the backend-owned resources come up. */
+  platform_init();
+
   /* The shader compiler is the backend-agnostic base ShaderCompiler; it drives the
    * async builtin warm-up GPU_init kicks off. Mirrors VKBackend::init_resources. */
   compiler_ = MEM_new<ShaderCompiler>(
@@ -48,6 +83,7 @@ void WGPUBackend::delete_resources()
 {
   MEM_delete(compiler_);
   compiler_ = nullptr;
+  platform_exit();
 }
 
 void WGPUBackend::render_step(bool /*force_resource_release*/) {}

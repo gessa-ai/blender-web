@@ -35,8 +35,17 @@ class WGPUBackend : public GPUBackend {
     return true;
   }
 
-  /* Lifecycle. init_resources constructs the shader compiler (the backend-agnostic
-   * base ShaderCompiler, exactly as VKBackend does); delete_resources tears it down. */
+  /* Publish this backend's platform identity into the global GPUPlatformGlobal (GPG).
+   * Blender's frontend asserts GPG.initialized before any GPU_platform_* accessor
+   * (gpu_platform.cc:129-179) — reached during shader-dependency resolution and WM
+   * init. Mirrors VKBackend::platform_init()/platform_exit(); called from
+   * init_resources()/delete_resources(). */
+  static void platform_init();
+  static void platform_exit();
+
+  /* Lifecycle. init_resources publishes the platform identity + constructs the shader
+   * compiler (the backend-agnostic base ShaderCompiler, exactly as VKBackend does);
+   * delete_resources tears it down. */
   void init_resources() override;
   void delete_resources() override;
   void render_begin() override {}

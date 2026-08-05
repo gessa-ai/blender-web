@@ -172,6 +172,14 @@ void WGPUContext::capabilities_init()
    * TexturePoolImpl), the same fallback the Vulkan backend selects. */
   GCaps.texture_pool_workaround = true;
 
+#ifdef __EMSCRIPTEN__
+  /* emdawnwebgpu WebGPU objects are per-thread JS handle-table entries — a wgpu::
+   * Device/Buffer/Texture created on one worker is not usable from another. Blender's
+   * existing "main context" workaround serialises all GPU resource creation onto the
+   * main context/thread, which is exactly the guarantee WebGPU needs in the browser.
+   * Off under native Dawn (a real cross-thread device), so this is Emscripten-only. */
+  GCaps.use_main_context_workaround = true;
+#endif
 }
 
 /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */

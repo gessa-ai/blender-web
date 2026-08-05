@@ -19,7 +19,7 @@ Pin: Blender 5.2 `fbe6228777e7`; emdawnwebgpu port (emcc 6.0.5 cache); Dawn/Tint
 | source changes needed | **0** (no `__EMSCRIPTEN__` guards, no patch 0034) |
 | only warnings | `-Wunused-template` ×12 from `blenlib/BLI_binary_search.hh` (pre-existing, backend-unrelated) |
 | header actually used | emdawnwebgpu port `.../ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu_cpp/include/webgpu/webgpu_cpp.h` (header-trace verified — NOT native Dawn) |
-| `libbf_gpu.a` (wasm) | 74 members incl. all 18 `wgpu_*.o`, 8.5 MB |
+| `libbf_gpu.a` (wasm) | **built by the real ninja build** — `build-wasm-gpu/lib/libbf_gpu.a`, `[76/76]` no errors, 74 members incl. all 18 `wgpu_*.cc.o`, 8.9 MB |
 
 The three emdawnwebgpu-vs-native-Dawn deltas the context class hit
 (`notes/ghost-web-wgpu-context.md` §"API deltas") were expected to recur across the
@@ -71,15 +71,17 @@ windowed GHOST/UI stack that `WITH_BLENDER_WEB_WINDOWED` does.
 
 ## How the compile was exercised (this round)
 
-The 18 TUs were compiled with build-wasm's EXACT `bf_gpu` flag set (its generated
-DNA/RNA include dirs included) plus the arm's additions:
-`--use-port=emdawnwebgpu  -DWITH_WEBGPU_BACKEND  -I<gpu/webgpu>  -I<intern/ghost/intern>
- -isystem<build-dawn/dawn>  -isystem<lib/wasm/shaderc/include>` — i.e. exactly the
-flags the `platform_wasm.cmake` arm produces. Objects archived into a copy of
-`build-wasm/lib/libbf_gpu.a` → `libbf_gpu.a` with the webgpu TUs in it (build tree:
-`build-deps/wgpu-iso/`). ccache is OFF in build-wasm, so isolation-compiling the 18
-new TUs (rather than a fresh full-tree rebuild of ~100 GPU TUs) is the resource-lean
-path; the arm is validated end-to-end by a dedicated `build-wasm-gpu` configure.
+Two-stage, both green:
+1. **Fast de-risk (isolation):** the 18 TUs compiled with build-wasm's EXACT `bf_gpu`
+   flag set (its generated DNA/RNA include dirs included) + the arm's additions
+   (`--use-port=emdawnwebgpu -DWITH_WEBGPU_BACKEND -I<gpu/webgpu> -I<intern/ghost/intern>
+   -isystem<build-dawn/dawn> -isystem<lib/wasm/shaderc/include>`) — 18/18 OK.
+2. **Honest artifact (real build):** a dedicated `build-wasm-gpu` tree configured with
+   `-DWITH_WEBGPU_BACKEND=ON` fired the arm (`-- blender-web: WebGPU backend ON …`),
+   its generated `bf_gpu` compile command carries exactly those flags, and
+   `ninja -C build-wasm-gpu bf_gpu` linked `lib/libbf_gpu.a` (`[76/76]`, no errors)
+   with all 18 `wgpu_*.cc.o` in it. `build-wasm` (the M2-owned, locked tree) is
+   untouched — separate build dir, no reconfigure of the shared tree.
 
 ## Not in scope this round (flagged, not done)
 

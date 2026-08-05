@@ -17,6 +17,8 @@
 
 #include "gpu_capabilities_private.hh"
 
+#include "wgpu_state_manager.hh"
+
 /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
  * intern/ghost/intern to this TU's include path. Production should instead route
  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
@@ -47,6 +49,11 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
    * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
    * floors — the M4 Pro / Dawn adapter reports much higher limits. */
   capabilities_init();
+
+  /* Per-context state manager (lane B's WGPUStateManager). The base Context dtor
+   * owns its lifetime (Context::~Context deletes state_manager). Immediate mode
+   * (imm) is created by lane B alongside the render pipeline. */
+  state_manager = new WGPUStateManager();
 }
 
 WGPUContext::~WGPUContext()

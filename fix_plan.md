@@ -309,3 +309,21 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   notes/gpu-wasm-render-harness.md; comment-strip blocker + pthread pool noted there).
 - Remaining shader-coverage tail after 0050 (492 fail): Tint env/capability buckets 100+93,
   gl_PointSize 54, textureSample 32, nan-f32 30 (=F3b), uniform-control-flow 25. Lane A queue.
+
+**ROUND 8 RESULT (lane B, 2026-08-05):** REAL-PATH BLEND GREEN — `GPUWebGPUTest.blend_*`
+**12/12 PASS** on the native Dawn/Metal backend (lane A F1 populate_builtins + F2 codegen
+`gl_Position.y=-gl_Position.y`@wgpu_shader.cc:787, together with the lane-B halves below).
+Evidence: `sandbox/gpu-render-harness/evidence/real_path_frames_blend.{png,txt}`.
+- **M3.F2 lane-B halves DONE:** patch 0044 (10498c0) pipeline front-face swap; patch 0045
+  (2acb81b) framebuffer render-target readback row-flip (texture_* gate held 64/64, path
+  untouched). Lane A's codegen flip also landed → F2 fully satisfied for blend.
+- **M3.F4 lane-B attachment view DONE:** patch 0046 (cc355c1) — single-layer attachment view;
+  the Dawn "layer count (256)… greater than 1" error is gone. Remainder is NOT lane-B code:
+  (a) immediate_* CRASH = `imm` never constructed — needs 3-line wiring in wgpu_context.cc
+  (LANE A): ctor `imm=new WGPUImmediate()` + activate/deactivate immActivate/immDeactivate
+  (WGPUImmediate class is complete). (b) framebuffer_multi_viewport CRASH root cause is now a
+  lane-A shader gap (`'gpu_ViewportIndex' : undeclared identifier`@wgpu_shader.cc:1108) +
+  fundamental multi-pass layer/viewport emulation (no viewport-array / no gl_Layer in WebGPU)
+  — driver decision. (c) push_constants (10 fail) = `WGPUBackend::compute_dispatch` empty stub
+  @wgpu_backend.cc:62 (LANE A) — compute pass unimplemented. Full detail +
+  characterizations in notes/gpu-laneB-integration.md "ROUND 8".

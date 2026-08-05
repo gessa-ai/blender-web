@@ -214,3 +214,56 @@ only on values — compute dispatch writes nothing, a separate compute concern).
   full-array view; a render attachment needs a single-layer 2D view (+ multi-viewport
   emulation, since WebGPU has no viewport-array). File wgpu_framebuffer.cc — lane B
   follow-up, substantial.
+
+
+## ROUND 8 (2026-08-05, lane B) — Y-orientation halves + F4 attachment view; REAL-PATH BLEND GREEN
+
+Lane A landed F1 (populate_builtins) + F2 codegen (wgpu_shader.cc:787
+`gl_Position.y = -gl_Position.y;`) during this round. Combined with the lane-B halves
+below, **GPUWebGPUTest.blend_* is 12/12 PASS on the REAL backend path** (not temp-wire).
+Evidence: sandbox/gpu-render-harness/evidence/real_path_frames_blend.{png,txt}.
+
+LANDED (mine), each patch reverse-applies clean:
+- **patch 0044** (10498c0) — wgpu_pipeline front-face swap (ADR-005 decision 2). frontFace
+  = negate(to_front_face(invert_facing)) CW<->CCW to compensate the clip-space Y-flip.
+- **patch 0045** (2acb81b) — wgpu_framebuffer::read render-target readback row-flip
+  (ADR-005 decision 3). src_row = fh-1-(y+row). RENDER-TARGET path only; WGPUTexture::read
+  untouched -> texture_* gate 64/64 held. Rationale: the Vulkan/Metal reference does the
+  clip-flip (vk_shader retargets Z only, but the tests encode y-up-correct rasterization)
+  and does NOT flip on readback (vk_framebuffer.cc:355 -> read_sub); WebGPU adds its clip-
+  flip over a top-left framebuffer, mirroring the stored texture, so a compensating readback
+  flip is required. Multi-row correctness unverified (no runnable multi-pixel fb-read test;
+  blend is 1x1, framebuffer_cube reads via GPU_texture_read not this path).
+- **patch 0046** (cc355c1) — wgpu_framebuffer attachment_view single-layer (M3.F4). Query
+  GetDepthOrArrayLayers(); whole-texture CreateView() only for 1-layer 2D; array/cube layer<0
+  clamped to baseArrayLayer=0/count=1/2D. VERIFIED: the "layer count (256)... greater than 1"
+  Dawn error is eliminated. framebuffer_cube unaffected (attaches via CUBEFACE, layer>=0).
+
+CHARACTERIZED (NOT landed — outside lane-B file ownership; lane A / driver items):
+- **immediate_one_plane/two_planes CRASH(139)** — ROOT CAUSE: `imm` (thread_local) is null
+  because WGPUContext never does `imm = new WGPUImmediate()` and activate() never calls
+  immActivate(). Both live in wgpu_context.cc (LANE A) — the file's own comment (lines 91-93)
+  says the wiring lands "once [WGPUImmediate] lands". WGPUImmediate IS landed and complete:
+  concrete class (base Immediate has exactly begin()/end() pure virtuals, both overridden),
+  full begin()/end() (transient VBO upload + load-pass + pipeline + push-constant bind + draw).
+  **LANE A REQUEST (3 lines in wgpu_context.cc):** ctor `imm = new WGPUImmediate();`;
+  activate() `immActivate();`; deactivate() `immDeactivate();` — exactly the vk_context.cc
+  pattern (:43,:141,:60). Backtrace: immVertexFormat() -> GPU_vertformat_clear(&imm->..)
+  EXC_BAD_ACCESS 0x20.
+- **framebuffer_multi_viewport CRASH(139)** — my attachment-view fix removed the Dawn
+  validation error, but the SEGV remains: the test shader fails to compile
+  ("'gpu_ViewportIndex' : undeclared identifier", wgpu_shader.cc:1108, LANE A codegen) ->
+  null shader -> GPU_shader_bind(null) SEGV. Even with the builtins declared, a faithful pass
+  needs MULTI-PASS layer+viewport emulation: WebGPU has NO viewport-array (one setViewport per
+  pass) and NO gl_Layer (no layered rendering from the vertex stage). The test drives 256
+  layers x 16 viewports = 4096 (layer,viewport) cells, each written by dedicated triangles via
+  gl_Layer/gl_ViewportIndex. Options: (a) loop 4096 single-layer/single-viewport passes routing
+  the matching triangles per cell — heavy, needs codegen to expose gpu_Layer/gpu_ViewportIndex
+  as per-draw uniforms; (b) defer as a WebGPU-limitation carve-out. Recommend a driver decision.
+- **push_constants* (10 FAILED) — task 5** — ROOT CAUSE: `WGPUBackend::compute_dispatch`
+  (wgpu_backend.cc:62, LANE A file) is an EMPTY STUB (`int /*x*/,...`). The compute shader that
+  writes the push-constant values into the SSBO never runs, so the readback stays zero and the
+  value assertions fail. Genuinely unimplemented (not broken-present). Needs the WebGPU compute
+  path: compute pipeline (from the compute module — lane A shader) + bind groups (SSBO + PC UBO)
+  + ComputePassEncoder.DispatchWorkgroups. This is the T8 compute piece; out of the task-4-gated
+  stretch scope and in lane A's backend file.

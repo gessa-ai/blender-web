@@ -35,9 +35,10 @@ class WGPUBackend : public GPUBackend {
     return true;
   }
 
-  /* Lifecycle — safe no-ops (no global caches to warm in the skeleton). */
-  void init_resources() override {}
-  void delete_resources() override {}
+  /* Lifecycle. init_resources constructs the shader compiler (the backend-agnostic
+   * base ShaderCompiler, exactly as VKBackend does); delete_resources tears it down. */
+  void init_resources() override;
+  void delete_resources() override;
   void render_begin() override {}
   void render_end() override {}
   void render_step(bool force_resource_release = false) override;

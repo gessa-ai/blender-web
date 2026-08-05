@@ -1,0 +1,439 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+new file mode 100644
+index 0000000..0e0a51d
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -0,0 +1,70 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_shader.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * `Shader` on the WebGPU backend. Round-4 scope is the GPU_init unblock: a real
++ * `shader_alloc` returning a `WGPUShader` so the base `ShaderCompiler`'s async
++ * builtin warm-up (GPU_init) has an object to drive. The create-info → GLSL
++ * codegen reuse + the shaderc→Tint→WGSL compile (wgpu_shader_compiler, already
++ * in-tree) + the WGSL `WGPUShaderModule`s + `ShaderInterface` build land next;
++ * until then `finalize()` reports failure gracefully (non-fatal on the async
++ * compile worker), which is enough for GPU_init to complete and for the buffer
++ * suite to run. Draw-time hooks (bind/uniform) are no-ops (lane B).
++ */
++
++#pragma once
++
++#include "gpu_shader_private.hh"
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUShader : public Shader {
++ public:
++  WGPUShader(const char *name);
++  ~WGPUShader() override;
++
++  void init(const shader::ShaderCreateInfo &info, bool is_codegen_only) override;
++  const shader::ShaderCreateInfo &patch_create_info(
++      const shader::ShaderCreateInfo &original_info) override;
++
++  void vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
++                               MutableSpan<StringRefNull> sources) override;
++  void geometry_shader_from_glsl(const shader::ShaderCreateInfo &info,
++                                 MutableSpan<StringRefNull> sources) override;
++  void fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
++                                 MutableSpan<StringRefNull> sources) override;
++  void compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
++                                MutableSpan<StringRefNull> sources) override;
++  bool finalize(const shader::ShaderCreateInfo *info = nullptr) override;
++  void warm_cache(int limit) override;
++
++  void bind(const shader::SpecializationConstants *constants_state) override;
++  void unbind() override;
++
++  void uniform_float(int location, int comp_len, int array_size, const float *data) override;
++  void uniform_int(int location, int comp_len, int array_size, const int *data) override;
++
++  /* Create-info → GLSL codegen. These emit the same GLSL as the Vulkan backend
++   * (the WGSL-target divergences — push-constant UBO fallback, combined-sampler
++   * split — are handled downstream by shaderc env + Tint, not here). Round-4
++   * stubs (empty) until the codegen port; see the .cc. */
++  std::string resources_declare(const shader::ShaderCreateInfo &info) const override;
++  std::string vertex_interface_declare(const shader::ShaderCreateInfo &info) const override;
++  std::string fragment_interface_declare(const shader::ShaderCreateInfo &info) const override;
++  std::string geometry_interface_declare(const shader::ShaderCreateInfo &info) const override;
++  std::string geometry_layout_declare(const shader::ShaderCreateInfo &info) const override;
++  std::string compute_layout_declare(const shader::ShaderCreateInfo &info) const override;
++
++ private:
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShader")
++};
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+new file mode 100644
+index 0000000..c390402
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -0,0 +1,107 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_shader.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_shader.hh"
++
++namespace blender::gpu {
++
++WGPUShader::WGPUShader(const char *name) : Shader(name) {}
++
++WGPUShader::~WGPUShader() {}
++
++void WGPUShader::init(const shader::ShaderCreateInfo & /*info*/, bool /*is_codegen_only*/) {}
++
++const shader::ShaderCreateInfo &WGPUShader::patch_create_info(
++    const shader::ShaderCreateInfo &original_info)
++{
++  /* No create-info patching yet. WebGPU has no geometry stage, so the Vulkan
++   * geometry-injection path (LAYER/VIEWPORT_INDEX/BARYCENTRIC emulation) has no
++   * WebGPU analog — flagged for the render milestones; return the info unchanged. */
++  return original_info;
++}
++
++/* The base ShaderCompiler::compile() assembles the full per-stage GLSL (defines +
++ * resources + interface + resolved source) and hands it here. Storing + compiling
++ * that GLSL (shaderc → Tint → WGSL module) is the next step; for now these are
++ * no-ops and finalize() reports failure so the async warm-up stays non-fatal. */
++void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++                                         MutableSpan<StringRefNull> /*sources*/)
++{
++}
++void WGPUShader::geometry_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++                                           MutableSpan<StringRefNull> /*sources*/)
++{
++}
++void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++                                           MutableSpan<StringRefNull> /*sources*/)
++{
++}
++void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++                                          MutableSpan<StringRefNull> /*sources*/)
++{
++}
++
++bool WGPUShader::finalize(const shader::ShaderCreateInfo * /*info*/)
++{
++  /* The shaderc→Tint→WGSL compile + WGPUShaderModule + ShaderInterface build is
++   * the next step (the compiler module is already in-tree). Reporting failure here
++   * is honest (no module was produced) and non-fatal: the base compiler treats a
++   * false return as a failed compile (deletes the shader), which the async builtin
++   * warm-up in GPU_init tolerates without aborting. */
++  return false;
++}
++
++void WGPUShader::warm_cache(int /*limit*/) {}
++
++/* Draw-time binding + uniform upload run through the pipeline / bind-group
++ * assembly (lane B); no-ops here. */
++void WGPUShader::bind(const shader::SpecializationConstants * /*constants_state*/) {}
++void WGPUShader::unbind() {}
++void WGPUShader::uniform_float(int /*location*/,
++                               int /*comp_len*/,
++                               int /*array_size*/,
++                               const float * /*data*/)
++{
++}
++void WGPUShader::uniform_int(int /*location*/,
++                             int /*comp_len*/,
++                             int /*array_size*/,
++                             const int * /*data*/)
++{
++}
++
++/* Create-info → GLSL codegen — stubs until the port (returns empty declarations). */
++std::string WGPUShader::resources_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++std::string WGPUShader::fragment_interface_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++std::string WGPUShader::geometry_interface_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++std::string WGPUShader::geometry_layout_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++std::string WGPUShader::compute_layout_declare(const shader::ShaderCreateInfo & /*info*/) const
++{
++  return "";
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.hh b/source/blender/gpu/webgpu/wgpu_batch.hh
+new file mode 100644
+index 0000000..5eb6867
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_batch.hh
+@@ -0,0 +1,40 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_batch.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * `Batch` on the WebGPU backend — bootstrap-minimal (round-4 SCOPED to lane A so
++ * GPU_init's `gpu_batch_presets_init` can allocate its preset batches). The base
++ * `Batch` already owns the vertex/index buffer storage (`verts[]`, `elem`) that
++ * the presets fill; this subclass only supplies the three draw virtuals, which
++ * are the DRAW PATH — owned by lane B. They assert until lane B lands the pipeline
++ * + draw encoding. No preset is drawn during GPU_init, so the asserts are unreached
++ * at bring-up.
++ */
++
++#pragma once
++
++#include "GPU_batch.hh"
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUBatch : public Batch {
++ public:
++  void draw(int vertex_first, int vertex_count, int instance_first, int instance_count) override;
++  void draw_indirect(StorageBuf *indirect_buf, intptr_t offset) override;
++  void multi_draw_indirect(StorageBuf *indirect_buf,
++                           int count,
++                           intptr_t offset,
++                           intptr_t stride) override;
++
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUBatch")
++};
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+new file mode 100644
+index 0000000..1a763c8
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -0,0 +1,42 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_batch.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_batch.hh"
++
++#include "BLI_assert.h"
++
++namespace blender::gpu {
++
++/* lane-B: draw path — pipeline lookup + bind groups + draw encoding (incl. the
++ * point-size expansion hook) land with lane B's render pipeline. No preset batch
++ * is drawn during GPU_init, so these are unreached at bring-up. */
++void WGPUBatch::draw(int /*vertex_first*/,
++                     int /*vertex_count*/,
++                     int /*instance_first*/,
++                     int /*instance_count*/)
++{
++  BLI_assert_unreachable(); /* lane-B: draw path */
++}
++
++void WGPUBatch::draw_indirect(StorageBuf * /*indirect_buf*/, intptr_t /*offset*/)
++{
++  BLI_assert_unreachable(); /* lane-B: draw path */
++}
++
++void WGPUBatch::multi_draw_indirect(StorageBuf * /*indirect_buf*/,
++                                    int /*count*/,
++                                    intptr_t /*offset*/,
++                                    intptr_t /*stride*/)
++{
++  BLI_assert_unreachable(); /* lane-B: draw path */
++}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.hh b/source/blender/gpu/webgpu/wgpu_backend.hh
+index fc71416..bf08cd7 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.hh
++++ b/source/blender/gpu/webgpu/wgpu_backend.hh
+@@ -35,9 +35,10 @@ class WGPUBackend : public GPUBackend {
+     return true;
+   }
+ 
+-  /* Lifecycle — safe no-ops (no global caches to warm in the skeleton). */
+-  void init_resources() override {}
+-  void delete_resources() override {}
++  /* Lifecycle. init_resources constructs the shader compiler (the backend-agnostic
++   * base ShaderCompiler, exactly as VKBackend does); delete_resources tears it down. */
++  void init_resources() override;
++  void delete_resources() override;
+   void render_begin() override {}
+   void render_end() override {}
+   void render_step(bool force_resource_release = false) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index bd6db34..840b34b 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -10,18 +10,40 @@
+  */
+ 
+ #include "wgpu_backend.hh"
++#include "wgpu_batch.hh"
+ #include "wgpu_context.hh"
+ #include "wgpu_index_buffer.hh"
++#include "wgpu_shader.hh"
+ #include "wgpu_storage_buffer.hh"
++#include "wgpu_texture.hh"
+ #include "wgpu_uniform_buffer.hh"
+ #include "wgpu_vertex_buffer.hh"
+ 
++#include "GPU_capabilities.hh"
++#include "GPU_worker.hh"
++#include "gpu_shader_private.hh"
+ #include "gpu_texture_pool_private.hh"
+ 
+ #include "BLI_assert.h"
+ 
++#include "MEM_guardedalloc.h"
++
+ namespace blender::gpu {
+ 
++void WGPUBackend::init_resources()
++{
++  /* The shader compiler is the backend-agnostic base ShaderCompiler; it drives the
++   * async builtin warm-up GPU_init kicks off. Mirrors VKBackend::init_resources. */
++  compiler_ = MEM_new<ShaderCompiler>(
++      __func__, GPU_max_parallel_compilations(), GPUWorker::ContextType::Main);
++}
++
++void WGPUBackend::delete_resources()
++{
++  MEM_delete(compiler_);
++  compiler_ = nullptr;
++}
++
+ void WGPUBackend::render_step(bool /*force_resource_release*/) {}
+ 
+ Context *WGPUBackend::context_alloc(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context)
+@@ -46,8 +68,9 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf * /*indirect_buf*/)
+ }
+ Batch *WGPUBackend::batch_alloc()
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  /* Bootstrap-minimal batch: base Batch owns vbo/ibo storage; the draw path is
++   * lane B (WGPUBatch's draw virtuals assert until then). */
++  return new WGPUBatch();
+ }
+ Fence *WGPUBackend::fence_alloc()
+ {
+@@ -73,15 +96,14 @@ QueryPool *WGPUBackend::querypool_alloc()
+   BLI_assert_unreachable();
+   return nullptr;
+ }
+-Shader *WGPUBackend::shader_alloc(const char * /*name*/)
++Shader *WGPUBackend::shader_alloc(const char *name)
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  return new WGPUShader(name);
+ }
+-Texture *WGPUBackend::texture_alloc(const char * /*name*/)
++Texture *WGPUBackend::texture_alloc(const char *name)
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  /* Lane B's WGPUTexture (patch 0016b) — the full gpu::Texture surface. */
++  return new webgpu::WGPUTexture(name);
+ }
+ TexturePool *WGPUBackend::texturepool_alloc()
+ {
+diff --git a/source/blender/gpu/tests/gpu_testing.hh b/source/blender/gpu/tests/gpu_testing.hh
+index 33d7ceb..6168a81 100644
+--- a/source/blender/gpu/tests/gpu_testing.hh
++++ b/source/blender/gpu/tests/gpu_testing.hh
+@@ -160,10 +160,32 @@ class GPUVulkanWorkaroundsTest : public GPUTest {
+ #  define GPU_VULKAN_TEST(test_name)
+ #endif
+ 
++#ifdef WITH_WEBGPU_BACKEND
++class GPUWebGPUTest : public GPUTest {
++ public:
++  static void SetUpTestSuite()
++  {
++    GPUTest::SetUpTestSuite(GHOST_kDrawingContextTypeWebGPU, GPU_BACKEND_WEBGPU, G_DEBUG_GPU);
++  }
++  static void TearDownTestSuite()
++  {
++    GPUTest::TearDownTestSuite();
++  }
++};
++#  define GPU_WEBGPU_TEST(test_name) \
++    TEST_F(GPUWebGPUTest, test_name) \
++    { \
++      test_##test_name(); \
++    }
++#else
++#  define GPU_WEBGPU_TEST(test_name)
++#endif
++
+ #define GPU_TEST(test_name) \
+   GPU_OPENGL_TEST(test_name) \
+   GPU_METAL_TEST(test_name) \
+-  GPU_VULKAN_TEST(test_name)
++  GPU_VULKAN_TEST(test_name) \
++  GPU_WEBGPU_TEST(test_name)
+ 
+ #define BLOCK_GPU_TEST_ON(device_type, os_type, driver_type, backend_type) \
+   if (!blender::tests::should_ignore_blocklist(device_type == GPU_DEVICE_ANY) && \
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index e4e70d0..3367ba8 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -487,6 +487,8 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_state_table.cc
+     webgpu/wgpu_shader_interface_map.cc
+     webgpu/wgpu_shader_compiler.cc
++    webgpu/wgpu_shader.cc
++    webgpu/wgpu_batch.cc
+     webgpu/wgpu_texture.cc
+ 
+     webgpu/wgpu_backend.hh
+@@ -503,6 +505,8 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_state_table.hh
+     webgpu/wgpu_shader_interface_map.hh
+     webgpu/wgpu_shader_compiler.hh
++    webgpu/wgpu_shader.hh
++    webgpu/wgpu_batch.hh
+     webgpu/wgpu_texture.hh
+   )
+   list(APPEND INC

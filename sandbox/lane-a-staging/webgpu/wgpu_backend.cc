@@ -10,17 +10,39 @@
  */
 
 #include "wgpu_backend.hh"
+#include "wgpu_batch.hh"
 #include "wgpu_context.hh"
 #include "wgpu_index_buffer.hh"
+#include "wgpu_shader.hh"
 #include "wgpu_storage_buffer.hh"
+#include "wgpu_texture.hh"
 #include "wgpu_uniform_buffer.hh"
 #include "wgpu_vertex_buffer.hh"
 
+#include "GPU_capabilities.hh"
+#include "GPU_worker.hh"
+#include "gpu_shader_private.hh"
 #include "gpu_texture_pool_private.hh"
 
 #include "BLI_assert.h"
 
+#include "MEM_guardedalloc.h"
+
 namespace blender::gpu {
+
+void WGPUBackend::init_resources()
+{
+  /* The shader compiler is the backend-agnostic base ShaderCompiler; it drives the
+   * async builtin warm-up GPU_init kicks off. Mirrors VKBackend::init_resources. */
+  compiler_ = MEM_new<ShaderCompiler>(
+      __func__, GPU_max_parallel_compilations(), GPUWorker::ContextType::Main);
+}
+
+void WGPUBackend::delete_resources()
+{
+  MEM_delete(compiler_);
+  compiler_ = nullptr;
+}
 
 void WGPUBackend::render_step(bool /*force_resource_release*/) {}
 
@@ -46,8 +68,9 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf * /*indirect_buf*/)
 }
 Batch *WGPUBackend::batch_alloc()
 {
-  BLI_assert_unreachable();
-  return nullptr;
+  /* Bootstrap-minimal batch: base Batch owns vbo/ibo storage; the draw path is
+   * lane B (WGPUBatch's draw virtuals assert until then). */
+  return new WGPUBatch();
 }
 Fence *WGPUBackend::fence_alloc()
 {
@@ -73,15 +96,14 @@ QueryPool *WGPUBackend::querypool_alloc()
   BLI_assert_unreachable();
   return nullptr;
 }
-Shader *WGPUBackend::shader_alloc(const char * /*name*/)
+Shader *WGPUBackend::shader_alloc(const char *name)
 {
-  BLI_assert_unreachable();
-  return nullptr;
+  return new WGPUShader(name);
 }
-Texture *WGPUBackend::texture_alloc(const char * /*name*/)
+Texture *WGPUBackend::texture_alloc(const char *name)
 {
-  BLI_assert_unreachable();
-  return nullptr;
+  /* Lane B's WGPUTexture (patch 0016b) — the full gpu::Texture surface. */
+  return new webgpu::WGPUTexture(name);
 }
 TexturePool *WGPUBackend::texturepool_alloc()
 {

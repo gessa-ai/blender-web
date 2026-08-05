@@ -487,6 +487,9 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_state_table.cc
     webgpu/wgpu_shader_interface_map.cc
     webgpu/wgpu_shader_compiler.cc
+    webgpu/wgpu_shader.cc
+    webgpu/wgpu_batch.cc
+    webgpu/wgpu_texture.cc
 
     webgpu/wgpu_backend.hh
     webgpu/wgpu_buffer.hh
@@ -502,6 +505,9 @@ if(WITH_WEBGPU_BACKEND)
     webgpu/wgpu_state_table.hh
     webgpu/wgpu_shader_interface_map.hh
     webgpu/wgpu_shader_compiler.hh
+    webgpu/wgpu_shader.hh
+    webgpu/wgpu_batch.hh
+    webgpu/wgpu_texture.hh
   )
   list(APPEND INC
     webgpu

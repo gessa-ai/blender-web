@@ -1,0 +1,128 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -490,6 +490,7 @@
+     webgpu/wgpu_shader.cc
+     webgpu/wgpu_batch.cc
+     webgpu/wgpu_texture.cc
++    webgpu/wgpu_state_manager.cc
+ 
+     webgpu/wgpu_backend.hh
+     webgpu/wgpu_buffer.hh
+@@ -508,6 +509,7 @@
+     webgpu/wgpu_shader.hh
+     webgpu/wgpu_batch.hh
+     webgpu/wgpu_texture.hh
++    webgpu/wgpu_state_manager.hh
+   )
+   list(APPEND INC
+     webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_state_manager.hh b/source/blender/gpu/webgpu/wgpu_state_manager.hh
+new file mode 100644
+index 00000000000..588b8fa1001
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_state_manager.hh
+@@ -0,0 +1,46 @@
++/* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_state_manager.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * WGPUStateManager — the WebGPU `StateManager` implementation. Every context needs
++ * one: the gpu frontend dereferences `Context::get()->state_manager` unconditionally
++ * (e.g. `GPU_memory_barrier` → `state_manager->issue_barrier`, gpu_state.cc:312), so
++ * a null `state_manager` crashes before any draw. This bootstrap version is a set of
++ * honest no-ops: WebGPU's implicit memory model needs no barrier, pipeline state is
++ * baked into the render-pipeline descriptor at creation (not applied globally), and
++ * resource bindings are resolved into a `wgpu::BindGroup` at draw-time assembly
++ * (wgpu_batch / wgpu_pipeline — the draw path, not yet landed). Real BindSpace
++ * tracking (mirroring VKStateManager) arrives with that path. */
++
++#pragma once
++
++#include "gpu_state_private.hh"
++
++namespace blender::gpu {
++
++class WGPUStateManager : public StateManager {
++ public:
++  WGPUStateManager() = default;
++  ~WGPUStateManager() override = default;
++
++  void apply_state() override;
++  void force_state() override;
++
++  void issue_barrier(GPUBarrier barrier_bits) override;
++
++  void texture_bind(Texture *tex, GPUSamplerState sampler, int unit) override;
++  void texture_unbind(Texture *tex) override;
++  void texture_unbind_all() override;
++
++  void image_bind(Texture *tex, int unit) override;
++  void image_unbind(Texture *tex) override;
++  void image_unbind_all() override;
++};
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_state_manager.cc b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+new file mode 100644
+index 00000000000..9b5f8f3a478
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+@@ -0,0 +1,51 @@
++/* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_state_manager.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Minimal WebGPU StateManager. See wgpu_state_manager.hh for the rationale behind
++ * the no-op bodies. Constructing one in the WGPUContext ctor
++ * (`state_manager = new WGPUStateManager()`) is what removes the null-deref in
++ * `GPU_memory_barrier` and unblocks the texture / framebuffer test families. */
++
++#include "wgpu_state_manager.hh"
++
++namespace blender::gpu {
++
++/* WebGPU has an implicit memory model: work submitted to the queue is ordered and
++ * hazards between passes / submits are synchronised automatically by the
++ * implementation. There is no `vkCmdPipelineBarrier` / `glMemoryBarrier` analog to
++ * issue, so the frontend's `GPU_memory_barrier` is a genuine no-op here. (This was
++ * the exact null-deref the missing state_manager caused — see gpu_state.cc:312 and
++ * notes/gpu-laneB-integration.md.) */
++void WGPUStateManager::issue_barrier(GPUBarrier /*barrier_bits*/) {}
++
++/* Pipeline state (blend / depth / stencil / cull / write-mask) is immutable in
++ * WebGPU: it is baked into the `wgpu::RenderPipeline` descriptor at pipeline
++ * creation (via wgpu_state_table → wgpu_pipeline), read from `this->state` /
++ * `this->mutable_state` at assembly time. There is no global "apply the tracked
++ * state to the device" step to perform, so these are no-ops. */
++void WGPUStateManager::apply_state() {}
++void WGPUStateManager::force_state() {}
++
++/* Texture / image bindings are resolved into a `wgpu::BindGroup` at draw-time
++ * pipeline assembly (wgpu_batch / wgpu_pipeline — the draw path, not yet landed),
++ * the same deferral lane A's buffer bind()/unbind() already use. No code path
++ * currently consumes a tracked binding, so recording it here would be dead state;
++ * these stay documented no-ops until the bind-group builder lands, at which point
++ * this class gains BindSpace tracking mirroring VKStateManager. A silent no-op is
++ * safe (nothing is corrupted); it is not an assert case because binding a texture
++ * with no active draw is a legitimate call ordering. */
++void WGPUStateManager::texture_bind(Texture * /*tex*/, GPUSamplerState /*sampler*/, int /*unit*/) {}
++void WGPUStateManager::texture_unbind(Texture * /*tex*/) {}
++void WGPUStateManager::texture_unbind_all() {}
++void WGPUStateManager::image_bind(Texture * /*tex*/, int /*unit*/) {}
++void WGPUStateManager::image_unbind(Texture * /*tex*/) {}
++void WGPUStateManager::image_unbind_all() {}
++
++}  // namespace blender::gpu

@@ -1,18 +1,18 @@
 diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
 --- a/source/blender/gpu/CMakeLists.txt
 +++ b/source/blender/gpu/CMakeLists.txt
-@@ -487,6 +487,7 @@
-     webgpu/wgpu_state_table.cc
-     webgpu/wgpu_shader_interface_map.cc
+@@ -489,6 +489,7 @@
      webgpu/wgpu_shader_compiler.cc
+     webgpu/wgpu_shader.cc
+     webgpu/wgpu_batch.cc
 +    webgpu/wgpu_texture.cc
  
      webgpu/wgpu_backend.hh
      webgpu/wgpu_buffer.hh
-@@ -502,6 +503,7 @@
-     webgpu/wgpu_state_table.hh
-     webgpu/wgpu_shader_interface_map.hh
+@@ -506,6 +507,7 @@
      webgpu/wgpu_shader_compiler.hh
+     webgpu/wgpu_shader.hh
+     webgpu/wgpu_batch.hh
 +    webgpu/wgpu_texture.hh
    )
    list(APPEND INC
@@ -128,10 +128,10 @@ index 00000000000..16d510888f2
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 00000000000..1e439bbeb62
+index 00000000000..88dad088c5f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,1157 @@
+@@ -0,0 +1,1170 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -666,17 +666,25 @@ index 00000000000..1e439bbeb62
 +
 +/** eGPUTextureUsage → wgpu::TextureUsage. CopyDst/CopySrc are always added so
 + * host upload (writeTexture / update_sub) and readback (read / copy_to) work; the
-+ * gpu module never flags those explicitly. */
-+static wgpu::TextureUsage to_wgpu_usage(eGPUTextureUsage usage, bool compressed)
++ * gpu module never flags those explicitly. `renderable`/`storable` gate the
++ * attachment/storage bits: Blender flags GPU_TEXTURE_USAGE_ATTACHMENT broadly, but
++ * WebGPU CreateTexture REJECTS RenderAttachment on a non-renderable format (e.g.
++ * every SNORM-8, RGB9E5, compressed) and StorageBinding on a non-storage format —
++ * so a texture that is only ever uploaded+read (as the format tests do) must not
++ * request bits its format can't support, or creation fails outright. */
++static wgpu::TextureUsage to_wgpu_usage(eGPUTextureUsage usage,
++                                        bool compressed,
++                                        bool renderable,
++                                        bool storable)
 +{
 +  wgpu::TextureUsage u = wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst;
 +  if (usage & GPU_TEXTURE_USAGE_SHADER_READ) {
 +    u |= wgpu::TextureUsage::TextureBinding;
 +  }
-+  if ((usage & GPU_TEXTURE_USAGE_SHADER_WRITE) && !compressed) {
++  if ((usage & GPU_TEXTURE_USAGE_SHADER_WRITE) && storable && !compressed) {
 +    u |= wgpu::TextureUsage::StorageBinding;
 +  }
-+  if ((usage & GPU_TEXTURE_USAGE_ATTACHMENT) && !compressed) {
++  if ((usage & GPU_TEXTURE_USAGE_ATTACHMENT) && renderable && !compressed) {
 +    u |= wgpu::TextureUsage::RenderAttachment;
 +  }
 +  return u;
@@ -725,6 +733,11 @@ index 00000000000..1e439bbeb62
 +  }
 +
 +  const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
++  /* Renderable = the format's spec cap, OR any depth/stencil format (needed for the
++   * render-pass depth clear). SNORM16 is emulated as a Uint texture, whose Uint
++   * target is not renderable. */
++  const bool renderable = fi.caps.renderable || (format_flag_ & GPU_FORMAT_DEPTH) != 0;
++  const bool storable = fi.caps.storage && !snorm16_emulated_;
 +
 +  /* Base (mip-0) size. Layers/faces map to depthOrArrayLayers; a 1D array becomes
 +   * a 2D texture whose height is the layer count. */
@@ -762,7 +775,7 @@ index 00000000000..1e439bbeb62
 +
 +  wgpu::TextureDescriptor desc = {};
 +  desc.label = name_.c_str();
-+  desc.usage = to_wgpu_usage(gpu_image_usage_flags_, compressed);
++  desc.usage = to_wgpu_usage(gpu_image_usage_flags_, compressed, renderable, storable);
 +  desc.dimension = to_wgpu_dimension(type_);
 +  desc.size = size;
 +  desc.format = wgpu_format_;

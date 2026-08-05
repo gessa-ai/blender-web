@@ -1,8 +1,8 @@
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
-index 1a763c8ef01..e5666c33db2 100644
+index 1a763c8ef01..d15b796c6c5 100644
 --- a/source/blender/gpu/webgpu/wgpu_batch.cc
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -7,28 +7,138 @@
+@@ -7,28 +7,152 @@
  
  /** \file
   * \ingroup gpu
@@ -109,14 +109,28 @@ index 1a763c8ef01..e5666c33db2 100644
 +    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
 +  }
 +
-+  /* TODO-LANE-A-UNIFORM: bind group for the shader's uniform/push-constant UBO(s)
-+   * and textures. Blocked on WGPUShader exposing its push-constant buffer getter
-+   * (lane A is implementing shadow+upload+getter). The moment its header lands,
-+   * wire here:
-+   *   wgpu::BindGroupLayout bgl = pipeline.GetBindGroupLayout(0);
-+   *   wgpu::BindGroupEntry e{.binding = N, .buffer = shader->push_constants_buffer()};
-+   *   pass.SetBindGroup(0, device.CreateBindGroup(&bg_desc));
-+   * Draws needing uniforms render with undefined bindings until then. */
++  /* Bind group 0: the shader's push-constant UBO (lane A's shadow+flush+getter).
++   * uniform_float/int fill the CPU shadow; flush uploads the dirty bytes, then the
++   * buffer binds at its reserved binding. Textures / extra UBOs (state_manager
++   * bindings) are added here once the texture bind path lands (follow-on). */
++  if (shader->has_push_constants()) {
++    shader->push_constants_flush();
++    const webgpu::Buffer &pc = shader->push_constants_buffer();
++    if (pc.valid()) {
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = shader->push_constants_binding();
++      entry.buffer = pc.handle();
++      entry.offset = 0;
++      entry.size = pc.size();
++
++      wgpu::BindGroupDescriptor bgd = {};
++      bgd.layout = pipeline.GetBindGroupLayout(0);
++      bgd.entryCount = 1;
++      bgd.entries = &entry;
++      wgpu::BindGroup bind_group = device.CreateBindGroup(&bgd);
++      pass.SetBindGroup(0, bind_group);
++    }
++  }
 +
 +  if (elem != nullptr) {
 +    WGPUIndexBuffer *wibo = unwrap(elem);
@@ -151,7 +165,7 @@ index 1a763c8ef01..e5666c33db2 100644
  }
  
  void WGPUBatch::multi_draw_indirect(StorageBuf * /*indirect_buf*/,
-@@ -36,7 +146,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf * /*indirect_buf*/,
+@@ -36,7 +160,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf * /*indirect_buf*/,
                                      intptr_t /*offset*/,
                                      intptr_t /*stride*/)
  {

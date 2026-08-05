@@ -1,0 +1,16 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index dcfc8ea..a76ee2b 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -793,6 +793,11 @@ static std::string glsl_patch(const char *stage_define)
+   /* Vulkan GLSL spells these differently than desktop GL. */
+   ss << "#define gl_VertexID gl_VertexIndex\n";
+   ss << "#define gpu_InstanceIndex (gl_InstanceIndex)\n";
++  /* WebGPU has no base-instance / gl_BaseInstanceARB; gl_InstanceIndex already
++   * includes firstInstance, so gpu_BaseInstance is 0 and gl_InstanceID maps to
++   * gl_InstanceIndex (widget/instanced shaders reference gl_InstanceID). */
++  ss << "#define gpu_BaseInstance 0\n";
++  ss << "#define gl_InstanceID gl_InstanceIndex\n";
+   ss << stage_define;
+ 
+   shader::GeneratedSourceList sources{

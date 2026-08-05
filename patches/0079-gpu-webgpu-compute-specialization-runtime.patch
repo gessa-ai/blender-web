@@ -1,0 +1,111 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -134,9 +134,22 @@
+   wgpu::ShaderModule fragment_module_;
+   wgpu::ShaderModule compute_module_;
+ 
+-  /* Compute pipeline built lazily from compute_module_ and cached for this shader's
+-   * lifetime (see compute_pipeline()). */
+-  wgpu::ComputePipeline compute_pipeline_;
++  /* Compute pipelines built lazily from compute_module_ and cached PER
++   * specialization-constant value set (see compute_pipeline()). WebGPU applies
++   * `override` constants at pipeline creation, so distinct spec-constant values need
++   * distinct pipeline variants; the key is the raw override bit patterns. Value sets
++   * per shader are few, so a linear-searched vector is enough (and sidesteps hashing
++   * a Vector key). */
++  struct ComputePipelineVariant {
++    std::vector<uint32_t> key;
++    wgpu::ComputePipeline pipeline;
++  };
++  std::vector<ComputePipelineVariant> compute_pipelines_;
++  /* Specialization constants captured by the most recent bind(); consumed by
++   * compute_pipeline() to select/create the matching variant. Null = defaults. The
++   * pointee is owned by the caller and stays valid across the bind()->dispatch call
++   * chain (GPU_compute_dispatch). */
++  const shader::SpecializationConstants *bound_constants_ = nullptr;
+ 
+   /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
+   webgpu::InterfaceMap interface_map_;
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -1233,26 +1233,71 @@
+ 
+ void WGPUShader::warm_cache(int /*limit*/) {}
+ 
+-/* Draw-time pipeline binding runs through lane B's pipeline assembly; no-op here. */
+-void WGPUShader::bind(const shader::SpecializationConstants * /*constants_state*/) {}
++/* Draw-time pipeline binding runs through lane B's pipeline assembly. Capture the
++ * specialization constants so compute_pipeline() can build the matching variant
++ * (WebGPU applies overrides at pipeline creation). */
++void WGPUShader::bind(const shader::SpecializationConstants *constants_state)
++{
++  bound_constants_ = constants_state;
++}
+ void WGPUShader::unbind() {}
+ 
+ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
+ {
+-  if (compute_pipeline_ != nullptr) {
+-    return compute_pipeline_;
+-  }
+   if (compute_module_ == nullptr) {
+     return nullptr;
+   }
++  /* Specialization key = the raw override bit patterns of the currently-bound
++   * constants (empty when the shader declares none). WebGPU applies `override`
++   * constants per pipeline, so each distinct value set needs its own variant. */
++  std::vector<uint32_t> key;
++  if (bound_constants_ != nullptr) {
++    for (const SpecializationConstant::Value &v : bound_constants_->values) {
++      key.push_back(v.u);
++    }
++  }
++  for (const ComputePipelineVariant &variant : compute_pipelines_) {
++    if (variant.key == key) {
++      return variant.pipeline;
++    }
++  }
++
++  /* Miss: build the variant. Each create-info specialization constant became a WGSL
++   * `override` whose id is its constant_id (Tint's SPIR-V reader sets it from the
++   * SpecId), so the ConstantEntry key is that id as a decimal string — Dawn matches
++   * @id-specified overrides by std::to_string(id) (ShaderModule.cpp:816). The value
++   * is a double; for a float spec constant the override is the uint bit pattern (see
++   * resources_declare), which is exactly Value::u, so only int_t reads the signed
++   * field. */
++  std::vector<wgpu::ConstantEntry> constants;
++  std::vector<std::string> key_strings;
++  if (bound_constants_ != nullptr) {
++    const int count = int(bound_constants_->values.size());
++    key_strings.reserve(count);
++    constants.reserve(count);
++    for (int i = 0; i < count; i++) {
++      key_strings.push_back(std::to_string(i));
++      const SpecializationConstant::Value &v = bound_constants_->values[i];
++      const bool is_int = (i < int(bound_constants_->types.size())) &&
++                          (bound_constants_->types[i] == Type::int_t);
++      wgpu::ConstantEntry entry = {};
++      entry.key = key_strings.back().c_str();
++      entry.value = is_int ? double(v.i) : double(v.u);
++      constants.push_back(entry);
++    }
++  }
++
+   wgpu::ComputePipelineDescriptor desc = {};
+   desc.layout = nullptr; /* auto layout — inferred from the compute WGSL (Tint output). */
+   desc.compute.module = compute_module_;
+   /* Tint names the compute entry point "main" (from the GLSL main); the standalone
+    * T7.pre proof created its compute pipeline with the same explicit entry point. */
+   desc.compute.entryPoint = "main";
+-  compute_pipeline_ = device.CreateComputePipeline(&desc);
+-  return compute_pipeline_;
++  desc.compute.constantCount = constants.size();
++  desc.compute.constants = constants.empty() ? nullptr : constants.data();
++  wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&desc);
++  compute_pipelines_.push_back({key, pipeline});
++  return pipeline;
+ }
+ 
+ /* -------------------------------------------------------------------------- */

@@ -1,0 +1,10 @@
+<!doctype html><meta charset=utf-8><title>m64 bench</title>
+<body><pre id=o>running...</pre><script type=module>
+const V = new URLSearchParams(location.search).get('v') || '32';
+const log=[];
+try {
+  await (await import(`./bench${V}.mjs`)).default({ print:s=>log.push(s), printErr:()=>{} });
+  document.getElementById('o').textContent='v'+V+' ptr'+(V==='64'?8:4)+'\n'+log.join('\n');
+  console.log('BENCH_RESULT v'+V+' '+log.join(' | '));
+} catch(e){ console.log('BENCH_FAIL v'+V+' '+e); document.getElementById('o').textContent='FAIL '+e; }
+</script>

@@ -1,0 +1,10 @@
+# Build artifacts + fetched dep source — reproducible from the sources + commands below.
+*.wasm
+*.mjs
+*.js
+*.log
+*.o
+*.a
+*.tar.gz
+fmt-*/
+probe_*

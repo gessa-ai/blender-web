@@ -28,7 +28,12 @@ mkdir -p "$OUT"
 # ESSENTIALS library path resolves EMPTY. Compose a datafiles dir = release/datafiles
 # symlinks + assets/ -> upstream/assets so the wasm payload matches a real install.
 # (Requires `git -C upstream lfs pull --include=assets/**`; assets are LFS.)
-DATAFILES="$HERE/_datafiles_wasm"
+# NOTE: the dir name MUST END in `datafiles` (matches a real install
+# `<ver>/datafiles/assets/...`): is_smooth_by_angle_modifier() dedups the essentials
+# geometry-nodes modifier via library->filepath.endswith("datafiles/assets/nodes/...")
+# (object_edit test_auto_smooth). A `_datafiles_wasm`-ending path fails that endswith ->
+# +1 modifier/call. Verdict: notes/m2-object-edit-autosmooth.md.
+DATAFILES="$HERE/datafiles"
 if [ ! -e "$DATAFILES/assets" ]; then
   rm -rf "$DATAFILES"; mkdir -p "$DATAFILES"
   for e in "$REPO"/upstream/release/datafiles/*; do ln -s "$e" "$DATAFILES/$(basename "$e")"; done

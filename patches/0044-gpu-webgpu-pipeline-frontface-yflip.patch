@@ -1,0 +1,19 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+index f687a2b..931c252 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -188,7 +188,13 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
+   /* Primitive. */
+   wgpu::PrimitiveState primitive = {};
+   primitive.topology = to_wgpu_topology(info.prim_type);
+-  primitive.frontFace = to_front_face(info.state.invert_facing);
++  /* ADR-005 decision 2 (winding compensation): lane A's vertex-shader clip-space
++   * Y-flip (decision 1) inverts effective triangle winding in framebuffer space, so
++   * swap the front-face (CW<->CCW) here to keep Blender's GL-convention facing. The
++   * base mapping (to_front_face: GL CCW default, invert_facing -> CW) is negated. */
++  const wgpu::FrontFace base_front = to_front_face(info.state.invert_facing);
++  primitive.frontFace = (base_front == wgpu::FrontFace::CCW) ? wgpu::FrontFace::CW :
++                                                               wgpu::FrontFace::CCW;
+   primitive.cullMode = to_cull_mode(GPUFaceCullTest(info.state.culling_test));
+ 
+   /* Depth / stencil (only when a depth attachment is bound). */

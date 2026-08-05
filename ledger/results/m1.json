@@ -1,7 +1,7 @@
 {
   "scope": "m1",
   "pass": true,
-  "ts": "2026-08-04T11:39:49Z",
+  "ts": "2026-08-05T15:37:32Z",
   "checks": {
     "node_runtime": {
       "pass": true,
@@ -9,7 +9,7 @@
     },
     "patches_series": {
       "pass": true,
-      "detail": "all patches clean-or-applied: 0001-platform-wasm.patch:applied 0002-makesdna-wasm32-align.patch:applied 0003-hosttools-node.patch:applied 0004-blenlib-wasm-libc-gaps.patch:applied 0005-blenlib-wasm32-sizeof-assert.patch:applied 0006-blenlib-bmesh-gtest-wasm.patch:applied 0007-hosttools-native-codegen-wasm.patch:applied 0008-blenkernel-wasm32.patch:applied 0009-editor-interface-python-off.patch:applied 0010-creator-blender-node-profile.patch:applied 0011-ghost-webgpu-context.patch:applied 0012-gpu-webgpu-backend.patch:in-development 0014-dna-reconstruct-wasm32-offsets.patch:applied 0015-gpu-webgpu-buffers.patch:applied 0120-asset-system-wasm.patch:applied"
+      "detail": "all patches clean-or-applied: 0001-platform-wasm.patch:applied 0002-makesdna-wasm32-align.patch:applied 0003-hosttools-node.patch:applied 0004-blenlib-wasm-libc-gaps.patch:applied 0005-blenlib-wasm32-sizeof-assert.patch:applied 0006-blenlib-bmesh-gtest-wasm.patch:applied 0007-hosttools-native-codegen-wasm.patch:applied 0008-blenkernel-wasm32.patch:applied 0009-editor-interface-python-off.patch:applied 0010-creator-blender-node-profile.patch:applied 0011-ghost-webgpu-context.patch:in-development 0012-gpu-webgpu-backend.patch:in-development 0014-dna-reconstruct-wasm32-offsets.patch:applied 0015-gpu-webgpu-buffers.patch:in-development 0016-gpu-webgpu-texture-format-conversion.patch:in-development 0016b-gpu-webgpu-texture.patch:in-development 0016c-gpu-webgpu-state-manager.patch:in-development 0017-gpu-webgpu-uniform-buffer.patch:in-development 0018-bhead-collision-detector.patch:applied 0019-gpu-webgpu-context-caps-buffers.patch:in-development 0021-gpu-webgpu-state-table.patch:applied 0022-gpu-webgpu-shader-batch-gpu-init.patch:in-development 0023-wm-webgpu-drawing-context.patch:clean 0024-icons-init-web.patch:applied 0025-ghost-factory-web.patch:applied 0026-wm-main-loop-web.patch:applied 0027-ghost-cmake-web.patch:applied 0028-gpu-webgpu-statemanager-device-features.patch:in-development 0029-gpu-webgpu-shader-wgsl-compile.patch:in-development 0030-gpu-webgpu-framebuffer.patch:in-development 0031-asset-blendhandle-wasm32-ptr.patch:applied 0032-gpu-webgpu-batch-draw.patch:applied 0033-numpy-inittab-wasm.patch:applied 0034-gpu-webgpu-push-constant-uniforms.patch:in-development 0035-gpu-webgpu-immediate.patch:applied 0036-gpu-webgpu-async-compile-device-ssbo-fix.patch:applied 0037-gpu-webgpu-context-web.patch:clean 0038-gpu-webgpu-shader-dense-bindings.patch:applied 0039-gpu-webgpu-default-framebuffers.patch:applied 0040-ghost-webgpu-uncaptured-error-log.patch:applied 0041-gpu-webgpu-gl-instanceid-alias.patch:applied 0042-gpu-webgpu-pipeline.patch:in-development 0120-asset-system-wasm.patch:applied"
     },
     "blenlib_gtests": {
       "pass": true,

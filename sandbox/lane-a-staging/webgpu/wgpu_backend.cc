@@ -21,13 +21,17 @@
 #include "wgpu_vertex_buffer.hh"
 
 #include "GPU_capabilities.hh"
+#include "GPU_context.hh"
 #include "GPU_worker.hh"
+#include "gpu_context_private.hh"
 #include "gpu_shader_private.hh"
 #include "gpu_texture_pool_private.hh"
 
 #include "BLI_assert.h"
 
 #include "MEM_guardedalloc.h"
+
+#include <vector>
 
 namespace blender::gpu {
 
@@ -58,15 +62,143 @@ Context *WGPUBackend::context_alloc(GHOST_IWindow *ghost_window, GHOST_IContext 
   return new WGPUContext(ghost_window, ghost_context);
 }
 
+/* --- Compute dispatch ----------------------------------------------------- */
+
+/** The active WebGPU context (holds the live Dawn device/queue + the SSBO
+ * bind-space). Same resolution the draw path uses (wgpu_batch.cc). */
+static WGPUContext *active_context()
+{
+  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+}
+
+/** Assemble group-0 for a compute pass from the bound shader's resources: the
+ * emulated push-constant UBO (WebGPU has no push constants) plus every StorageBuf
+ * bound via GPU_storagebuf_bind (tracked in the context's bind-space). The bind
+ * group's layout comes from the pipeline's auto layout so it matches the WGSL. */
+static bool build_compute_bind_group(WGPUContext *ctx,
+                                     WGPUShader *shader,
+                                     const wgpu::ComputePipeline &pipeline,
+                                     wgpu::BindGroup &r_bind_group)
+{
+  std::vector<wgpu::BindGroupEntry> entries;
+
+  if (shader->has_push_constants()) {
+    shader->push_constants_flush();
+    const webgpu::Buffer &pc = shader->push_constants_buffer();
+    if (pc.valid()) {
+      wgpu::BindGroupEntry entry = {};
+      entry.binding = shader->push_constants_binding();
+      entry.buffer = pc.handle();
+      entry.offset = 0;
+      entry.size = pc.size();
+      entries.push_back(entry);
+    }
+  }
+
+  for (const auto &item : ctx->bound_storage_buffers()) {
+    WGPUStorageBuffer *ssbo = item.second;
+    if (ssbo == nullptr) {
+      continue;
+    }
+    const webgpu::Buffer &buf = ssbo->buffer();
+    if (!buf.valid()) {
+      continue;
+    }
+    wgpu::BindGroupEntry entry = {};
+    entry.binding = uint32_t(item.first);
+    entry.buffer = buf.handle();
+    entry.offset = 0;
+    entry.size = buf.size();
+    entries.push_back(entry);
+  }
+
+  if (entries.empty()) {
+    return false;
+  }
+
+  wgpu::BindGroupDescriptor bgd = {};
+  bgd.layout = pipeline.GetBindGroupLayout(0);
+  bgd.entryCount = entries.size();
+  bgd.entries = entries.data();
+  r_bind_group = ctx->device_get().CreateBindGroup(&bgd);
+  return true;
+}
+
+void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
+{
+  WGPUContext *ctx = active_context();
+  if (ctx == nullptr) {
+    return;
+  }
+  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
+  /* A failed compile leaves a null module — cannot build a pipeline. */
+  if (shader == nullptr || shader->compute_module() == nullptr) {
+    return;
+  }
+
+  wgpu::Device device = ctx->device_get();
+  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
+  if (pipeline == nullptr) {
+    return;
+  }
+
+  wgpu::BindGroup bind_group;
+  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
+
+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+  pass.SetPipeline(pipeline);
+  if (have_bg) {
+    pass.SetBindGroup(0, bind_group);
+  }
+  pass.DispatchWorkgroups(
+      uint32_t(groups_x_len), uint32_t(groups_y_len), uint32_t(groups_z_len));
+  pass.End();
+  wgpu::CommandBuffer cb = enc.Finish();
+  ctx->queue_get().Submit(1, &cb);
+}
+
+void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+{
+  BLI_assert(indirect_buf != nullptr);
+  WGPUContext *ctx = active_context();
+  if (ctx == nullptr) {
+    return;
+  }
+  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
+  if (shader == nullptr || shader->compute_module() == nullptr) {
+    return;
+  }
+  /* The indirect buffer is a StorageBuf carrying the [x,y,z] group counts; its
+   * webgpu::Buffer is created with the Indirect usage bit (wgpu_storage_buffer). */
+  WGPUStorageBuffer *indirect = static_cast<WGPUStorageBuffer *>(indirect_buf);
+  const webgpu::Buffer &indirect_gpu = indirect->buffer();
+  if (!indirect_gpu.valid()) {
+    return;
+  }
+
+  wgpu::Device device = ctx->device_get();
+  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
+  if (pipeline == nullptr) {
+    return;
+  }
+
+  wgpu::BindGroup bind_group;
+  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
+
+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+  pass.SetPipeline(pipeline);
+  if (have_bg) {
+    pass.SetBindGroup(0, bind_group);
+  }
+  pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
+  pass.End();
+  wgpu::CommandBuffer cb = enc.Finish();
+  ctx->queue_get().Submit(1, &cb);
+}
+
 /* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */
-void WGPUBackend::compute_dispatch(int /*x*/, int /*y*/, int /*z*/)
-{
-  BLI_assert_unreachable();
-}
-void WGPUBackend::compute_dispatch_indirect(StorageBuf * /*indirect_buf*/)
-{
-  BLI_assert_unreachable();
-}
 Batch *WGPUBackend::batch_alloc()
 {
   /* Bootstrap-minimal batch: base Batch owns vbo/ibo storage; the draw path is

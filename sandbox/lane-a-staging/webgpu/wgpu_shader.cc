@@ -1168,6 +1168,24 @@ void WGPUShader::warm_cache(int /*limit*/) {}
 void WGPUShader::bind(const shader::SpecializationConstants * /*constants_state*/) {}
 void WGPUShader::unbind() {}
 
+wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
+{
+  if (compute_pipeline_ != nullptr) {
+    return compute_pipeline_;
+  }
+  if (compute_module_ == nullptr) {
+    return nullptr;
+  }
+  wgpu::ComputePipelineDescriptor desc = {};
+  desc.layout = nullptr; /* auto layout — inferred from the compute WGSL (Tint output). */
+  desc.compute.module = compute_module_;
+  /* Tint names the compute entry point "main" (from the GLSL main); the standalone
+   * T7.pre proof created its compute pipeline with the same explicit entry point. */
+  desc.compute.entryPoint = "main";
+  compute_pipeline_ = device.CreateComputePipeline(&desc);
+  return compute_pipeline_;
+}
+
 /* -------------------------------------------------------------------------- */
 /** \name Push-constant UBO plumbing
  * \{ */

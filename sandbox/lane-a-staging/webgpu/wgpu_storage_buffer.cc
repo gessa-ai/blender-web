@@ -46,6 +46,17 @@ bool WGPUStorageBuffer::ensure()
       ctx->device_get(), webgpu::BufferKind::Storage, usage, size_in_bytes_, nullptr, true);
 }
 
+WGPUStorageBuffer::~WGPUStorageBuffer()
+{
+  /* Drop any binding this buffer holds in the active context's bind-space, so a
+   * freed SSBO can never leave a dangling pointer (or a stale binding) for the next
+   * shader's compute_dispatch to pick up. */
+  WGPUContext *ctx = active_context();
+  if (ctx != nullptr) {
+    ctx->storage_buffer_unbind(this);
+  }
+}
+
 void WGPUStorageBuffer::update(const void *data)
 {
   if (data == nullptr || !ensure()) {
@@ -106,9 +117,28 @@ void WGPUStorageBuffer::read(void *data)
   }
 }
 
-/* Binding is resolved at bind-group / pipeline assembly (wgpu_bind_group, T7). */
-void WGPUStorageBuffer::bind(int /*slot*/) {}
-void WGPUStorageBuffer::unbind() {}
+/* Record the binding in the active context's storage-buffer bind-space; the actual
+ * wgpu::BindGroup is assembled at dispatch/draw time (WGPUBackend::compute_dispatch
+ * today; the draw path when it binds SSBOs). ensure() the device buffer here so it
+ * exists (valid handle) by the time the bind group is built — the compute tests
+ * create the SSBO DEVICE_ONLY with no initial upload, so nothing else would. */
+void WGPUStorageBuffer::bind(int slot)
+{
+  if (!ensure()) {
+    return;
+  }
+  WGPUContext *ctx = active_context();
+  if (ctx != nullptr) {
+    ctx->storage_buffer_bind(slot, this);
+  }
+}
+void WGPUStorageBuffer::unbind()
+{
+  WGPUContext *ctx = active_context();
+  if (ctx != nullptr) {
+    ctx->storage_buffer_unbind(this);
+  }
+}
 
 /* read() is synchronous (blocks on the instance), so the async flush is a no-op;
  * the Indirect usage bit is set at creation, so no explicit sync is needed. */

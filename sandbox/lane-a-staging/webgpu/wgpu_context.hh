@@ -20,11 +20,14 @@
 #include "gpu_context_private.hh"
 
 #include <string>
+#include <unordered_map>
 #include <webgpu/webgpu_cpp.h>
 
 #include "MEM_guardedalloc.h"
 
 namespace blender::gpu {
+
+class WGPUStorageBuffer;
 
 class WGPUContext : public Context {
  public:
@@ -70,10 +73,57 @@ class WGPUContext : public Context {
     return adapter_name_.c_str();
   }
 
+  /* --- Bound storage-buffer tracking ---------------------------------------
+   * WebGPU has no global binding state (bindings live in a per-draw/-dispatch
+   * BindGroup), so the backend tracks which StorageBuf is bound to which WGSL
+   * @binding slot here. Recorded by WGPUStorageBuffer::bind()/unbind(); consumed
+   * by WGPUBackend::compute_dispatch to assemble the group-0 bind group. Mirrors
+   * VKStateManager's storage-buffer bind-space. Keyed by binding slot; last bind
+   * to a slot wins (matches the frontend rebinding a slot per dispatch). */
+  void storage_buffer_bind(int slot, WGPUStorageBuffer *ssbo)
+  {
+    bound_storage_buffers_[slot] = ssbo;
+  }
+  void storage_buffer_unbind(WGPUStorageBuffer *ssbo)
+  {
+    for (auto it = bound_storage_buffers_.begin(); it != bound_storage_buffers_.end();) {
+      if (it->second == ssbo) {
+        it = bound_storage_buffers_.erase(it);
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+  const std::unordered_map<int, WGPUStorageBuffer *> &bound_storage_buffers() const
+  {
+    return bound_storage_buffers_;
+  }
+
+  /* Backend-wide device/instance/queue, reachable from any thread (there is a
+   * single Dawn device). Used by the async shader-compile worker, which has no
+   * thread-local active GPU context. */
+  static wgpu::Device backend_device()
+  {
+    return s_device;
+  }
+  static wgpu::Instance backend_instance()
+  {
+    return s_instance;
+  }
+  static wgpu::Queue backend_queue()
+  {
+    return s_queue;
+  }
+
  private:
   /** Probe the live device limits into the global `GPUCapabilities` (GCaps).
    * Device-probed, mirroring VKBackend::capabilities_init (vk_backend.cc:905). */
   void capabilities_init();
+
+  static wgpu::Device s_device;
+  static wgpu::Instance s_instance;
+  static wgpu::Queue s_queue;
 
   wgpu::Instance instance_ = nullptr;
   wgpu::Adapter adapter_ = nullptr;
@@ -82,6 +132,8 @@ class WGPUContext : public Context {
   std::string adapter_name_;
   /** Set between activate() and deactivate(); guards double-activation. */
   bool is_active_ = false;
+  /** Bound storage buffers keyed by WGSL @binding slot (see storage_buffer_bind). */
+  std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
 
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
 };

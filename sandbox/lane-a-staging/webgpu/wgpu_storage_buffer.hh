@@ -37,7 +37,7 @@ class WGPUStorageBuffer : public StorageBuf {
       : StorageBuf(size, name), usage_(usage)
   {
   }
-  ~WGPUStorageBuffer() override = default;
+  ~WGPUStorageBuffer() override;
 
   void update(const void *data) override;
   void bind(int slot) override;

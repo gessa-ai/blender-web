@@ -148,7 +148,7 @@
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",
-      "impact": "bl_multires",
+      "impact": "bl_multires suite; bl_sculpt_brushes (multires_reshape_util.cc:118 needs real subdiv \u2014 reclassified 2026-08-05, was essentials-genuine)",
       "revisit": "post-launch",
       "evidence": "notes/m2-tierb-prep.md"
     },

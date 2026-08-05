@@ -154,3 +154,63 @@ shader + the bootstrap wgpu_batch. Known expected-fails once it runs: depth-DATA
 upload (WebGPU forbids buffer→texture for Depth32Float depth aspect — needs a
 render/compute path; clear+read work) and BC-compressed upload (deferred). No gate
 PASS claimable yet — reported honestly. bf_gpu compiles green (21 s clean TU).
+
+## FRAMES RUN (B1, 2026-08-05) — THE DRAW PATH IS CORRECT; blend family renders
+
+Read the now-visible validation errors (patch 0040 callback). Findings:
+
+**blend_none has NO validation error.** With the callback live, blend_none's draw
+survives validation entirely — readback stays exactly at the clear colour (1,0,1,1),
+i.e. the fragment never covers the pixel. Not a vertex-format / attachment mismatch;
+a geometry problem. Proven by temp-wiring the draw path in wgpu_batch.cc (reverted):
+
+1. **ROOT CAUSE A — lane A: `WGPUShaderInterface` never calls populate_builtins().**
+   Probe: `interface->uniform_builtin(GPU_UNIFORM_MVP)` returns **0** (garbage), but
+   `uniform_get("ModelViewProjectionMatrix")->location` is **1024** (correct). The base
+   `ShaderInterface` ctor (gpu_shader_interface.cc:22) only fills `image_formats_`, NOT
+   `builtins_[]`. Vulkan/Metal/GL fill it via a populate_builtins() loop
+   (vk_shader_interface.cc:190-196). Lane A's WGPUShaderInterface (wgpu_shader.cc:648)
+   calls sort_inputs() and stops — `builtins_[]` stays uninitialised. So
+   `GPU_matrix_bind` uploads MVP to location 0 → matches no push-constant slot → MVP
+   stays zero → gl_Position=0 → degenerate → nothing drawn.
+   **LANE A FIX:** in `WGPUShaderInterface::init` after `sort_inputs()`, add the VK loop:
+   `for u in GPU_NUM_UNIFORMS: builtins_[u] = uniform_get(builtin_uniform_name(u)) ?`
+   `location : -1;` (and the GPU_NUM_UNIFORM_BLOCKS ubo_builtins_ loop). File
+   wgpu_shader.cc, class WGPUShaderInterface. Verified: uploading MVP by-name in a
+   temp-wire flips the whole blend family FAIL→run-to-pixel.
+
+2. **ROOT CAUSE B — Y orientation (cross-cutting; shader/codegen = lane A).** Even with
+   a *correct identity* MVP the 1×1 pixel is not covered: the [0,1]² preset quad's
+   corner lands exactly on the pixel centre (NDC origin). In y-up (OpenGL, which the
+   reference VK/Metal backends present) that corner is on a TOP+LEFT edge → covered;
+   my WebGPU renders y-DOWN so it is a BOTTOM+LEFT corner → excluded by the top-left
+   fill rule. DECISIVE test: uploading `diag(1,-1,1,1)` (negate only Y) makes
+   blend_none PASS; identity does not; full [0,1]→[-1,1] map also passes. So the
+   WebGPU backend must present Blender's y-up convention. WebGPU has no negative
+   viewport height → the flip belongs in vertex-shader clip output (`position.y =
+   -position.y`) in lane A's codegen/glsl_patch, PAIRED with a framebuffer readback
+   row-flip for WxH targets (wgpu_framebuffer/wgpu_texture read — partly lane B).
+   This also fixes upside-down real frames (M4). Needs a driver coord-convention ADR.
+
+**With A+B temp-wired, the ENTIRE blend family renders CORRECTLY** (12/12 PASS, pixels
+byte-match the expected blend results): none/alpha/alpha_premult/additive/
+additive_premult/multiply/subtract/invert/oit/background/min/max. PNG montage of the
+readbacks: `sandbox/gpu-render-harness/evidence/first_frames_blend.png` — the project's
+first rendered frames from the WebGPU backend. Temp-wire reverted; wgpu_batch.cc back
+to pristine (the draw path needed no change — it was already correct).
+
+**LANDED (mine): patch 0043 — buffer CopyDst usage.** `usage_flags` dropped CopyDst for
+GPU_USAGE_DEVICE_ONLY, but Vulkan gives every vertex/index/storage buffer
+TRANSFER_DST unconditionally (vk_*_buffer.cc). push_constants' DEVICE_ONLY SSBO hit
+"[Buffer] usage (CopySrc|Storage|Indirect) doesn't include CopyDst". Fix: CopyDst is
+now unconditional. Verified: that validation error is gone (push_constants now fails
+only on values — compute dispatch writes nothing, a separate compute concern).
+
+**Remaining draw-set blockers (characterised, not frames-critical):**
+- `immediate_one_plane`/`immediate_two_planes` CRASH(139): WGPUImmediate not wired /
+  not GPU_init-safe (lane B immediate — separate piece).
+- `framebuffer_multi_viewport` CRASH(139): real validation error "layer count (256) of
+  [TextureView] used as attachment is greater than 1" — my attachment_view builds a
+  full-array view; a render attachment needs a single-layer 2D view (+ multi-viewport
+  emulation, since WebGPU has no viewport-array). File wgpu_framebuffer.cc — lane B
+  follow-up, substantial.

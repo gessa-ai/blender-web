@@ -643,3 +643,48 @@ naming exactly the 5 feature-off suites (`imbuf_py_api bl_voxel_remesh bl_voxel_
 bl_multires bl_node_link_drag`) that need deferred.json entries — i.e. the gate is one honest
 edit (add the 4 feature-off ids) away from GREEN on the current build, and `core_green` already
 holds. `bash -n` clean; requires bash ≥ 4 (associative arrays) — the host `bash` is 5.2.
+
+## 7. m2b divergence dive — bug1 FIXED, bug2 root-caused (2026-08-04, integration)
+
+### BUG1 (libpng tEXt "invalid keyword") — FIXED (commit f7ec391), clears 3 suites
+NOT a libpng issue. OIIO 3.1.13.1's `ustring::TableRep` pokes libc++ `std::string`'s private
+`__long` fields for long strings, assuming a layout emscripten's libc++ does NOT match →
+`ustring::string()` returns EMPTY for strings >= the SSO threshold ("ResolutionUnit", 14ch, is
+long on wasm32) while `c_str()` is correct. OIIO's PNG writer `put_parameter` reads
+`name().string()`="" → fails to skip "ResolutionUnit" → emits a tEXt with an EMPTY keyword →
+libpng "tEXt: invalid keyword" → every PNG-with-metadata write aborts. Fix: exclude
+`__EMSCRIPTEN__` from that libc++ branch (as OIIO already does for aarch64), falling to the safe
+`str = strref` copy — `scripts/deps/openimageio.sh` sed on `ustring.cpp`. Verify: bare imbuf PNG
+write → 250 B (== native); `script_pyapi_idprop_datablock` PASS, `blendfile_relationships` PASS.
+`imbuf_py_api` residual 3 errors = AVIF codec not built (config-AMBER, libaom off per GOAL).
+NOTE: broad win — `ustring::string()` was silently wrong for ALL long interned strings on wasm.
+
+### BUG2 (essentials asset "No asset found") — ROOT-CAUSED, driver territory (DNA/readfile)
+Full trace (all confirmed by instrumentation, since reverted):
+1. Path resolution: FIXED by the runner's composed datafiles + `BLENDER_SYSTEM_RESOURCES=upstream`
+   (`BLENDER_SYSTEM_SCRIPTS` is NOT read by appdir for the main scripts; `get_path_system_ex`
+   honors `BLENDER_SYSTEM_RESOURCES`). Assets are REAL (not LFS stubs).
+2. The essentials library IS scanned; each `.blend` opens (`BLO_blendhandle_from_file` ok) and
+   `BLO_blendhandle_get_datablock_info` returns all assets (mesh_sculpt: datablock_len=64). The
+   "all" filelist reaches **raw=316** entries.
+3. BUT `filelist_files_ensure` → **filtered=0**. The `FLF_ASSETS_ONLY` filter
+   (`filelist_filter.cc:53`) drops every entry because they have `FILE_TYPE_BLENDERLIB` but NOT
+   `FILE_TYPE_ASSET` (typeflag=0x80000000).
+4. `FILE_TYPE_ASSET` is set (`filelist_readjob_common.cc:423-425`) only if
+   `datablock_info->asset_data != null`. It IS null.
+5. **ROOT:** in `blo_read_asset_data_block` (readfile.cc), `asset_meta_data` is non-null after
+   `blendhandle_load_id_data_and_validate` (the raw file-address from
+   `blo_bhead_id_asset_data_address`) but `BLO_read_struct(&reader, AssetMetaData, r_asset_data)`
+   (newdataadr / oldnewmap) resolves it to **NULL** — the AssetMetaData DATA-block pointer does
+   not resolve when reading a 64-bit `.blend` on wasm32 via the blendhandle partial-read path.
+   This is the **64→32 pointer-resolution family** (same class as the driver's patch 0014
+   master_collection fix), resurfacing for AssetMetaData in the lightweight blendhandle reader.
+   → **STOP (driver): DNA/readfile.** The full readfile (corpus 9/9) works; only this partial
+   blendhandle asset-metadata read path mis-resolves.
+6. SECONDARY poison: the asset indexer caches per-`.blend` `.index.json` in
+   `~/.cache/blender/asset-library-indices/`. The FIRST failed read wrote a 13-byte EMPTY index
+   (`entries:None`); every later run then loads that empty index and skips the `.blend` read
+   entirely. Clearing that dir lets the read proceed (to the still-null asset_data). Any real fix
+   must also invalidate/clear the poisoned indices.
+
+### BUG3 (NodeSocketUndefined) — NOT STARTED (time spent on bug2 dive).

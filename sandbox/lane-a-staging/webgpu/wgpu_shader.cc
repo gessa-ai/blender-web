@@ -803,6 +803,22 @@ std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo 
   ss << "  gl_Position.y = -gl_Position.y;\n";
   ss << "}\n";
   ss << "#define main main_function_\n";
+
+  /* WGSL/Tint dropped point-size support: a non-constant store to the SPIR-V
+   * PointSize builtin fails Tint's IR reader ("store to point_size is not a
+   * constant"), and WebGPU rasterises every point at 1px regardless. Redirect
+   * gl_PointSize to a throwaway module-scope float so point-drawing vertex shaders
+   * COMPILE (the size is discarded — faithful point sizing needs the point->quad
+   * emulation, deferred with the multi-viewport/point work). gl_PointSize is
+   * write-only in the vertex stage, so this loses only the point size; in shaders
+   * that never write it the sink is an unused global that Tint dead-code-eliminates.
+   * The #define + sink precede the (later) user source, so its writes are rewritten;
+   * declared here (after the wrapper) to keep this codegen block clear of the
+   * builtin-interface block above. Unconditional because ShaderCreateInfo exposes
+   * only the source FILENAME here (vertex_source_), not the body, so a usage gate is
+   * unreliable. Only the WebGPU codegen is touched — other backends are unchanged. */
+  ss << "float gpu_PointSize_sink = 1.0;\n";
+  ss << "#define gl_PointSize gpu_PointSize_sink\n";
   return ss.str();
 }
 

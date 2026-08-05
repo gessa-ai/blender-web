@@ -771,6 +771,22 @@ std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo 
   for (const StageInterfaceInfo *iface : info.vertex_out_interfaces_) {
     print_interface(ss, "out", *iface, location);
   }
+
+  /* WebGPU has no geometry stage, no writable gl_Layer / gl_ViewportIndex output
+   * builtin, and no viewport-array — so layered / multi-viewport routing cannot be
+   * expressed in the vertex stage here (faithful emulation is deferred: M3.F7).
+   * Declare gpu_Layer / gpu_ViewportIndex as plain module-scope ints so shaders that
+   * WRITE them still COMPILE; the stores are discarded (single-layer, single-viewport
+   * behaviour). Without this, gpu_ViewportIndex is undeclared → shaderc fails → null
+   * shader → GPU_shader_bind SEGV. Mirrors the builtin gate in vk_shader.cc:881-898
+   * (the non-geometry branch), minus the gl_Layer/gl_ViewportIndex aliasing WebGPU
+   * lacks. */
+  if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
+    ss << "int gpu_Layer = 0;\n";
+  }
+  if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
+    ss << "int gpu_ViewportIndex = 0;\n";
+  }
   ss << "\n";
 
   /* Retarget depth from -1..1 (GL convention the GLSL is written in) to 0..1
@@ -797,6 +813,17 @@ std::string WGPUShader::fragment_interface_declare(const shader::ShaderCreateInf
   int location = 0;
   for (const StageInterfaceInfo *iface : info.vertex_out_interfaces_) {
     print_interface(ss, "in", *iface, location);
+  }
+
+  /* Match the vertex stage: declare gpu_Layer / gpu_ViewportIndex so fragment shaders
+   * that READ them COMPILE. WebGPU exposes no gl_Layer / gl_ViewportIndex in the
+   * fragment stage, so these read 0 (single-layer / single-viewport). Faithful
+   * per-primitive routing is deferred (M3.F7). Mirrors vk_shader.cc:976-981. */
+  if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
+    ss << "int gpu_Layer = 0;\n";
+  }
+  if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
+    ss << "int gpu_ViewportIndex = 0;\n";
   }
 
   const bool use_gl_frag_depth = info.depth_write_ != DepthWrite::UNCHANGED &&

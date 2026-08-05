@@ -1,0 +1,28 @@
+diff --git a/source/blender/gpu/shaders/common/gpu_shader_utildefines_lib.glsl b/source/blender/gpu/shaders/common/gpu_shader_utildefines_lib.glsl
+index 613c2281080..7ffffd5ef14 100644
+--- a/source/blender/gpu/shaders/common/gpu_shader_utildefines_lib.glsl
++++ b/source/blender/gpu/shaders/common/gpu_shader_utildefines_lib.glsl
+@@ -17,7 +17,22 @@
+ #  define USHRT_MAX 0x0000FFFFu
+ #  define UINT_MAX 0xFFFFFFFFu
+ #endif
+-#define NAN_FLT uintBitsToFloat(0x7FC00000u)
++#ifdef GPU_WEBGPU
++/* glslang const-folds `uintBitsToFloat(<literal>)` into a NaN OpConstant, which Tint's
++ * WGSL writer cannot emit (WGSL forbids NaN/Inf literals) -> "value nan cannot be
++ * represented as f32". Routing the bit pattern through a mutable variable stops the
++ * front-end fold, so the SPIR-V carries a runtime OpBitcast that Tint lowers to a legal
++ * WGSL `bitcast<f32>()`. glslang prunes this helper from shaders that never reference
++ * NAN_FLT, so it is free there. Other backends keep the plain macro below unchanged. */
++float nan_flt_webgpu()
++{
++  uint nan_bits = 0x7FC00000u;
++  return uintBitsToFloat(nan_bits);
++}
++#  define NAN_FLT nan_flt_webgpu()
++#else
++#  define NAN_FLT uintBitsToFloat(0x7FC00000u)
++#endif
+ #define FLT_11_MAX uintBitsToFloat(0x477E0000)
+ #define FLT_10_MAX uintBitsToFloat(0x477C0000)
+ #define FLT_11_11_10_MAX float3(FLT_11_MAX, FLT_11_MAX, FLT_10_MAX)

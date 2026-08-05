@@ -345,10 +345,25 @@
       "notes": "M1.2: WITH_VULKAN_BACKEND forced OFF in platform_wasm.cmake; WebGPU backend replaces it. Not built."
     },
     "shaderc": {
-      "status": "skipped",
-      "shipped": false,
-      "note_license": "When re-introduced by gpu/webgpu in M3 (BSL->SPIR-V->WGSL), shaderc is Apache-2.0 (build-time host-side); track under `toolchain` at that point.",
-      "notes": "M1.2: dropped with Vulkan backend; BSL->SPIR-V->WGSL chain re-introduces it via gpu/webgpu in M3. Not built."
+      "version": "v2025.4",
+      "status": "ok",
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "gpl_compatible_note": "Apache-2.0 is incompatible with GPLv2 alone but compatible with GPLv3; Blender is GPL-2.0-OR-LATER so the combined work conveys under GPLv3 (same posture as tbb/OpenImageIO). Bundled glslang is BSD-3-Clause AND Apache-2.0 AND MIT, all GPL-compatible.",
+      "hash": "md5:02208e374e610808c4ca3b1e7627b82d",
+      "rationale": "GLSL->SPIR-V 1.3 front of the BROWSER shader chain (shaderc->Tint->WGSL). The in-tree wgpu_shader_compiler.cc links shaderc natively via Blender's shaderc dylib; the wasm build needs it as static archives. Runtime dep: the shader compiler runs in-browser to translate Blender's GLSL.",
+      "source": "versions.cmake:1322 SHADERC_VERSION v2025.4 (MD5 02208e374e610808c4ca3b1e7627b82d); built by scripts/deps/shaderc.sh; notes/deps-shader-chain.md",
+      "notes": "Cross-compiled to wasm (emcc 6.0.5, -pthread -fexceptions, static). Built with SHADERC_SKIP_TESTS/EXAMPLES/EXECUTABLES=ON against Dawn's SHARED SPIRV-Tools+SPIRV-Headers source (SHADERC_SPIRV_TOOLS_DIR/SPIRV_HEADERS_DIR) so the single SPIRV-Tools discipline holds (see tint entry). glslang is shaderc-only (Dawn glslang pin 8d6dd0e4), monolithic libglslang.a. Harvest lib/wasm/shaderc/{lib(4 archives, 9.2MB: libshaderc.a+libshaderc_util.a+libglslang.a+libSPIRV.a-stub),include/shaderc/*,shaderc-archives.txt}; deliberately harvests NO SPIRV-Tools (single copy ships in lib/wasm/tint). shaderc env MUST be vulkan_1_1/SPIR-V 1.3 (notes/gpu-dawn-probe.md 4a)."
+    },
+    "tint": {
+      "version": "Dawn chromium/7989 @ 36cf1fae0cd8a81a4fb4580751648b80b2e6255c",
+      "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "gpl_compatible_note": "Tint is part of Dawn (BSD-3-Clause). The harvested closure also carries SPIRV-Tools + abseil (both Apache-2.0, GPL-compatible via GPL-2.0-or-later->GPLv3, same as tbb/OIIO). All GPL-compatible.",
+      "rationale": "SPIR-V(1.3)->WGSL back of the BROWSER shader chain: Tint SPV reader + WGSL writer subset (ReadIR->ProgramFromIR->Generate). Browsers accept WGSL only; SPIR-V modules throw. Runtime dep compiled into blender.wasm. GOAL shader-chain decision (tint-compiles-to-wasm precedent).",
+      "source": "notes/gpu-dawn-probe.md 1 (Dawn chromium/7989 @ 36cf1fae, same checkout as the M3 native probe); built by scripts/deps/tint.sh; notes/deps-shader-chain.md",
+      "notes": "Cross-compiled to wasm (emcc 6.0.5, -pthread, static). Tint-only configure: TINT_BUILD_SPV_READER+WGSL_WRITER ON, all other writers/CMD/tests OFF; IR_VALIDATION_ASSERTS+IR_DUMPING OFF (internal debug self-check; overflowed the wasm stack, no effect on output). Dawn's third_party/CMakeLists.txt:119 `if(EMSCRIPTEN) return()` skips SPIRV-Tools under emscripten, so tint.sh uses a thin wrapper CMake that adds SPIRV-Headers+SPIRV-Tools BEFORE Dawn (non-invasive; shared checkout untouched). Harvest lib/wasm/tint/{lib(63 archives, 25MB: 50 libtint_*.a + the SINGLE libSPIRV-Tools{,-opt}.a shared with shaderc + 10 libabsl_*.a + libdawn_shared_utils.a),tint-archives.txt(ordered link list),include/README.txt(headers consumed from Dawn src)}. LINK SMOKE: shaderc+Tint in one wasm binary, GLSL vert->SPIR-V1.3->Tint->WGSL runs under node, WGSL BYTE-IDENTICAL to the native chain (sandbox/wgpu-shader-wasm-smoke). Needs -sSTACK_SIZE multi-MB (emscripten 64KB default overflows glslang/Tint recursion)."
     },
     "libdeflate": {
       "version": "1.18",

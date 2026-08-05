@@ -6,23 +6,23 @@ diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.t
      webgpu/wgpu_texture.cc
      webgpu/wgpu_state_manager.cc
 +    webgpu/wgpu_framebuffer.cc
+     webgpu/wgpu_pipeline.cc
  
      webgpu/wgpu_backend.hh
-     webgpu/wgpu_buffer.hh
-@@ -510,6 +511,7 @@
+@@ -511,6 +512,7 @@
      webgpu/wgpu_batch.hh
      webgpu/wgpu_texture.hh
      webgpu/wgpu_state_manager.hh
 +    webgpu/wgpu_framebuffer.hh
+     webgpu/wgpu_pipeline.hh
    )
    list(APPEND INC
-     webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 00000000000..62e43b73967
+index 00000000000..5603dd173c1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,93 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -46,6 +46,8 @@ index 00000000000..62e43b73967
 +#include "gpu_framebuffer_private.hh"
 +
 +#include "GPU_common_types.hh" /* GPULoadOp / GPUStoreOp */
++
++#include "webgpu/webgpu_cpp.h"
 +
 +#include "MEM_guardedalloc.h"
 +
@@ -82,6 +84,16 @@ index 00000000000..62e43b73967
 +               int dst_offset_x,
 +               int dst_offset_y) override;
 +
++  /* --- Draw-path helpers (wgpu_batch) --- */
++  /** The bound attachments' WebGPU formats, for render-pipeline target selection.
++   * `depth` is Undefined when there is no depth attachment. */
++  void target_formats(wgpu::TextureFormat colors[8],
++                      int &color_count,
++                      wgpu::TextureFormat &depth) const;
++  /** Open a render pass over the bound attachments with loadOp=Load / storeOp=Store
++   * (preserve existing contents; a draw appends). Caller owns the encoder. */
++  wgpu::RenderPassEncoder begin_load_pass(const wgpu::CommandEncoder &encoder) const;
++
 + protected:
 +  void subpass_transition_impl(const GPUAttachmentState depth_attachment_state,
 +                               Span<GPUAttachmentState> color_attachment_states) override;
@@ -106,10 +118,10 @@ index 00000000000..62e43b73967
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 00000000000..4e4732d978e
+index 00000000000..cd4cb21174f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,366 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -412,6 +424,58 @@ index 00000000000..4e4732d978e
 +  enc.CopyTextureToTexture(&s, &d, &size);
 +  wgpu::CommandBuffer cb = enc.Finish();
 +  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
++                                    int &color_count,
++                                    wgpu::TextureFormat &depth) const
++{
++  color_count = 0;
++  for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT && color_count < 8; slot++) {
++    Texture *tex = color_tex(slot);
++    if (tex != nullptr) {
++      colors[color_count++] = as_wgpu(tex)->wgpu_format();
++    }
++  }
++  Texture *dtex = depth_tex();
++  depth = (dtex != nullptr) ? as_wgpu(dtex)->wgpu_format() : wgpu::TextureFormat::Undefined;
++}
++
++wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder &encoder) const
++{
++  /* NOTE: the local attachment vectors + views only need to outlive BeginRenderPass
++   * (it captures ref-counted handles). */
++  std::vector<wgpu::RenderPassColorAttachment> color_atts;
++  for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
++    Texture *tex = color_tex(slot);
++    if (tex == nullptr) {
++      continue;
++    }
++    wgpu::RenderPassColorAttachment ca = {};
++    ca.view = attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot]);
++    ca.loadOp = wgpu::LoadOp::Load;
++    ca.storeOp = wgpu::StoreOp::Store;
++    color_atts.push_back(ca);
++  }
++
++  Texture *dtex = depth_tex();
++  wgpu::RenderPassDepthStencilAttachment dsa = {};
++  const bool has_depth = dtex != nullptr;
++  if (has_depth) {
++    dsa.view = attachment_view(depth_attachment());
++    dsa.depthLoadOp = wgpu::LoadOp::Load;
++    dsa.depthStoreOp = wgpu::StoreOp::Store;
++    if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
++      dsa.stencilLoadOp = wgpu::LoadOp::Load;
++      dsa.stencilStoreOp = wgpu::StoreOp::Store;
++    }
++  }
++
++  wgpu::RenderPassDescriptor rp = {};
++  rp.colorAttachmentCount = color_atts.size();
++  rp.colorAttachments = color_atts.empty() ? nullptr : color_atts.data();
++  rp.depthStencilAttachment = has_depth ? &dsa : nullptr;
++  return encoder.BeginRenderPass(&rp);
 +}
 +
 +void WGPUFrameBuffer::subpass_transition_impl(

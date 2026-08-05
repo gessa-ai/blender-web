@@ -1,0 +1,27 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 26b119d..98e9120 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -671,6 +671,22 @@ class WGPUShaderInterface : public ShaderInterface {
+ 
+     set_image_formats_from_info(info);
+     sort_inputs();
++
++    /* Populate the builtin-uniform lookup tables. The base ShaderInterface ctor only
++     * fills image_formats_ and leaves builtins_[]/builtin_blocks_[] uninitialised, so
++     * without this loop uniform_builtin(GPU_UNIFORM_MVP) returns garbage and
++     * GPU_matrix_bind uploads the MVP to the wrong location (leaving it zero → degenerate
++     * geometry). Mirrors vk_shader_interface.cc:190-203. */
++    for (int32_t u_int = 0; u_int < GPU_NUM_UNIFORMS; u_int++) {
++      GPUUniformBuiltin u = static_cast<GPUUniformBuiltin>(u_int);
++      const ShaderInput *uni = this->uniform_get(builtin_uniform_name(u));
++      builtins_[u] = (uni != nullptr) ? uni->location : -1;
++    }
++    for (int32_t u_int = 0; u_int < GPU_NUM_UNIFORM_BLOCKS; u_int++) {
++      GPUUniformBlockBuiltin u = static_cast<GPUUniformBlockBuiltin>(u_int);
++      const ShaderInput *block = this->ubo_get(builtin_uniform_block_name(u));
++      builtin_blocks_[u] = (block != nullptr) ? block->binding : -1;
++    }
+   }
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShaderInterface")

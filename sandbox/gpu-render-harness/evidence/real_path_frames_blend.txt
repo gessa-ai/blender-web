@@ -1,0 +1,18 @@
+Real-path WebGPU blend-family readbacks (GPUWebGPUTest.blend_*, 12/12 PASS).
+Each result RGBA is the read_back float4 the Dawn/Metal WebGPU backend returned,
+asserted byte-exact equal to expected via EXPECT_EQ. Target: SFLOAT_16_16_16_16.
+Montage cell (left->right): [dst=source_a chip | src=source_b chip] over result swatch.
+
+mode               dst(source_a)          src(source_b)          result(readback)      
+none               (1, 0, 1, 1)           (0, 1, 0, 0.5)         (0, 1, 0, 0.5)        
+alpha              (1, 0, 1, 1)           (0, 1, 0, 0.5)         (0.5, 0.5, 0.5, 1)    
+alpha_premult      (1, 0, 1, 1)           (0, 1, 0, 0.5)         (0.5, 1, 0.5, 1)      
+additive           (1, 0, 1, 1)           (0, 1, 0, 0.5)         (1, 0.5, 1, 1)        
+additive_premult   (1, 0, 1, 1)           (0, 1, 0, 0.5)         (1, 1, 1, 1.5)        
+multiply           (1, 0, 1, 1)           (0, 1, 0, 0.5)         (0, 0, 0, 0.5)        
+subtract           (1, 1, 1, 1)           (0, 1, 0, 0.5)         (1, 0, 1, 0.5)        
+invert             (1, 1, 1, 1)           (0, 1, 0, 0.5)         (0, 0, 0, 1)          
+oit                (1, 1, 1, 1)           (0, 1, 0, 0.5)         (1, 2, 1, 0.5)        
+background         (1, 1, 1, 1)           (0, 1, 0, 0.5)         (0.5, 0.5, 0.5, 0.5)  
+min                (1, 2, 3, 4)           (4, 3, 2, 1)           (1, 2, 2, 1)          
+max                (1, 2, 3, 4)           (4, 3, 2, 1)           (4, 3, 3, 4)          

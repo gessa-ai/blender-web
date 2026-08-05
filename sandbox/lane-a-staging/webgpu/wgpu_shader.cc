@@ -671,6 +671,22 @@ class WGPUShaderInterface : public ShaderInterface {
 
     set_image_formats_from_info(info);
     sort_inputs();
+
+    /* Populate the builtin-uniform lookup tables. The base ShaderInterface ctor only
+     * fills image_formats_ and leaves builtins_[]/builtin_blocks_[] uninitialised, so
+     * without this loop uniform_builtin(GPU_UNIFORM_MVP) returns garbage and
+     * GPU_matrix_bind uploads the MVP to the wrong location (leaving it zero → degenerate
+     * geometry). Mirrors vk_shader_interface.cc:190-203. */
+    for (int32_t u_int = 0; u_int < GPU_NUM_UNIFORMS; u_int++) {
+      GPUUniformBuiltin u = static_cast<GPUUniformBuiltin>(u_int);
+      const ShaderInput *uni = this->uniform_get(builtin_uniform_name(u));
+      builtins_[u] = (uni != nullptr) ? uni->location : -1;
+    }
+    for (int32_t u_int = 0; u_int < GPU_NUM_UNIFORM_BLOCKS; u_int++) {
+      GPUUniformBlockBuiltin u = static_cast<GPUUniformBlockBuiltin>(u_int);
+      const ShaderInput *block = this->ubo_get(builtin_uniform_block_name(u));
+      builtin_blocks_[u] = (block != nullptr) ? block->binding : -1;
+    }
   }
 
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShaderInterface")
@@ -763,6 +779,12 @@ std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo 
   ss << "void main() {\n";
   ss << "  main_function_();\n";
   ss << "  gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;\n";
+  /* Y-orientation flip (ADR-005 decision 1). Blender's gpu frontend and its oracles
+   * assume GL-style bottom-left-origin framebuffers; WebGPU rasterises top-left-origin
+   * with no negative-viewport-height escape hatch, so negate clip-space Y here, once,
+   * for every vertex stage the backend compiles. Winding compensation (front-face swap)
+   * and render-target readback row-flip are lane B's paired halves. */
+  ss << "  gl_Position.y = -gl_Position.y;\n";
   ss << "}\n";
   ss << "#define main main_function_\n";
   return ss.str();

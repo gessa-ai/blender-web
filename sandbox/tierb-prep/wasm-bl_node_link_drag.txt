@@ -1,17 +1,17 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.053  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-.00:07.655  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-E00:07.667  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-00:07.922  reports          | No bundle signature found
-00:07.928  reports          | No closure signature found
-00:09.117  reports          | No bundle signature found
-00:09.122  reports          | No closure signature found
-.00:10.691  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
-00:11.818  reports          | No bundle signature found
-00:11.863  reports          | No closure signature found
-00:19.657  reports          | No bundle signature found
-00:19.685  reports          | No closure signature found
+00:00.673  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+.00:04.280  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+E00:04.292  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:04.481  reports          | No bundle signature found
+00:04.485  reports          | No closure signature found
+00:05.271  reports          | No bundle signature found
+00:05.273  reports          | No closure signature found
+.00:06.180  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/link_drag_search.blend"
+00:06.884  reports          | No bundle signature found
+00:06.907  reports          | No closure signature found
+00:11.753  reports          | No bundle signature found
+00:11.769  reports          | No closure signature found
 .
 ======================================================================
 ERROR: test_cycles_shader_nodes (__main__.AbstractNodeCopyOperatorTest.test_cycles_shader_nodes)
@@ -23,7 +23,7 @@ Traceback (most recent call last):
 TypeError: bpy_struct: item.attr = val: enum "CYCLES" not found in ('BLENDER_EEVEE', 'BLENDER_WORKBENCH')
 
 ----------------------------------------------------------------------
-Ran 4 tests in 29.049s
+Ran 4 tests in 17.237s
 
 FAILED (errors=1)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

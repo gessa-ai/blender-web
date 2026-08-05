@@ -1,0 +1,34 @@
+Switching to fully guarded memory allocator.
+Blender <VER> LTS
+Traceback (most recent call last):
+  File "<REPO>/upstream/tests/python/bl_load_py_modules.py", line 216, in <module>
+    main()
+    ~~~~^^
+  File "<REPO>/upstream/tests/python/bl_load_py_modules.py", line 212, in main
+    load_modules()
+    ~~~~~~~~~~~~^^
+  File "<REPO>/upstream/tests/python/bl_load_py_modules.py", line 122, in load_modules
+    modules.append(__import__(mod))
+                   ~~~~~~~~~~^^^^^
+  File "<REPO>/upstream/scripts/addons_core/ui_translate/__init__.py", line 21, in <module>
+    from . import (
+    ...<4 lines>...
+    )
+  File "<REPO>/upstream/scripts/addons_core/ui_translate/update_repo.py", line 18, in <module>
+    from _bl_i18n_utils import utils as utils_i18n
+  File "<REPO>/upstream/scripts/modules/_bl_i18n_utils/utils.py", line 25, in <module>
+    from _bl_i18n_utils import (
+    ...<2 lines>...
+    )
+  File "<REPO>/upstream/scripts/modules/_bl_i18n_utils/utils_rtl.py", line 18, in <module>
+    import ctypes
+  File "<REPO>/lib/wasm/lib/python3.13/ctypes/__init__.py", line 10, in <module>
+    from _ctypes import Union, Structure, Array
+ModuleNotFoundError: No module named '_ctypes'
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
+Paths:
+	'<REPO>/upstream/scripts'
+
+Error: script failed, file: '<REPO>/upstream/tests/python/bl_load_py_modules.py', exiting.
+
+Blender quit

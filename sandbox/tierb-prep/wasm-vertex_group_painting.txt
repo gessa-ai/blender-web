@@ -1,10 +1,10 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.592  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
-.00:01.662  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
+00:00.698  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
+.00:00.741  blend            | Read blend: "<REPO>/upstream/tests/files/animation/vertex_groups.blend"
 .
 ----------------------------------------------------------------------
-Ran 2 tests in 0.144s
+Ran 2 tests in 0.092s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

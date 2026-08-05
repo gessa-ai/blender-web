@@ -1,9 +1,9 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-.......00:01.276  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
+.......00:00.797  blend            | Read blend: "<REPO>/upstream/tests/files/animation/symm_test.blend"
 .
 ----------------------------------------------------------------------
-Ran 8 tests in 0.337s
+Ran 8 tests in 0.206s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

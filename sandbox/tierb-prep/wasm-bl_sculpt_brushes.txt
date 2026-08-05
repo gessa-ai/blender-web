@@ -11,20 +11,16 @@ test_airbrush_brush_creates_valid_data (__main__.MeshBrushTests.test_airbrush_br
     bpy.utils.register_class(cls)
     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
 ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
-00:01.473  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
-00:01.475  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
-
-  test_airbrush_brush_creates_valid_data (__main__.MeshBrushTests.test_airbrush_brush_creates_valid_data) [BackendType.MESH] ... ERROR
+00:00.788  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
+00:00.789  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
+ok
 test_bend_boundary_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_bend_boundary_cloth_brush_creates_valid_data) ... skipped 'Asserts in blender'
 test_bend_twist_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_bend_twist_cloth_brush_creates_valid_data) ... warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.617  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
-00:01.619  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
-
-  test_bend_twist_cloth_brush_creates_valid_data (__main__.MeshBrushTests.test_bend_twist_cloth_brush_creates_valid_data) [BackendType.MESH] ... ERROR
+00:01.070  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
+00:01.070  object.modifier  | WARNING Object: "Suzanne", Modifier: "Subdivision", Disabled, built without OpenSubdiv
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Airbrush"
 Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
 module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py' reloading...
 register_class(...):
@@ -104,11 +100,15 @@ Info: Registering menu class: 'USERPREF_MT_extensions_item', bl_idname 'USERPREF
 register_class(...):
 Info: Registering menu class: 'USERPREF_MT_extensions_active_repo_extra', bl_idname 'USERPREF_MT_extensions_active_repo_extra' has been registered before, unregistering previous
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/brushes/essentials_brushes-mesh_sculpt.blend/Brush/Bend/Twist Cloth"
 Warning: addon-module bl_pkg found module but without '__addon_enabled__' field, possible name collision from file: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'
-module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py'warning: registered duplicate command "extension", this will be inaccessible
+module changed on disk: '<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py' reloading...
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync', bl_idname 'extensions.repo_sync' has been registered before, unregistering previous
+register_class(...):
+Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
+warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.766  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
+00:01.246  object.modifier  | WARNING Object: "Suzanne", Modifier: "Multires", Disabled, built without OpenSubdiv
 BLI_assert failed: source/blender/blenkernel/intern/multires_reshape_util.cc:118, context_init_common(), at 'reshape_context->subdiv != nullptr'
 Aborted()
 worker sent an error! undefined:undefined: Aborted(). Build with -sASSERTIONS for more info.
@@ -119,13 +119,13 @@ node:internal/event_target:1101
 RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
     at abort (<REPO>/build-wasm/bin/blender.js:1:6831)
     at __abort_js (<REPO>/build-wasm/bin/blender.js:1:118341)
-    at blender.wasm.abort (wasm://wasm/blender.wasm-187e7462:wasm-function[96298]:0xADDR)
-    at blender.wasm._BLI_assert_abort() (wasm://wasm/blender.wasm-187e7462:wasm-function[12837]:0xADDR)
-    at blender.wasm.blender::context_init_common(blender::MultiresReshapeContext*) (wasm://wasm/blender.wasm-187e7462:wasm-function[8361]:0xADDR)
-    at blender.wasm.blender::multires_reshape_context_create_from_modifier(blender::MultiresReshapeContext*, blender::Object*, blender::MultiresModifierData*, int) (wasm://wasm/blender.wasm-187e7462:wasm-function[8365]:0xADDR)
-    at invoke_iiiii (<REPO>/build-wasm/bin/blender.js:1:156310)
-    at blender.wasm.blender::multiresModifier_subdivide_to_level(blender::Object*, blender::MultiresModifierData*, int, blender::MultiresSubdivideModeType) (wasm://wasm/blender.wasm-187e7462:wasm-function[8350]:0xADDR)
-    at blender.wasm.blender::ed::object::multires_subdivide_exec(blender::bContext*, blender::wmOperator*) (wasm://wasm/blender.wasm-187e7462:wasm-function[65124]:0xADDR)
-    at blender.wasm.blender::wm_operator_invoke(blender::bContext*, blender::wmOperatorType*, blender::wmEvent const*, blender::PointerRNA*, blender::ReportList*, bool, bool) (wasm://wasm/blender.wasm-187e7462:wasm-function[21553]:0xADDR)
+    at blender.wasm.abort (wasm://wasm/blender.wasm-19fd7726:wasm-function[102843]:0xADDR)
+    at blender.wasm._BLI_assert_abort() (wasm://wasm/blender.wasm-19fd7726:wasm-function[12838]:0xADDR)
+    at blender.wasm.blender::context_init_common(blender::MultiresReshapeContext*) (wasm://wasm/blender.wasm-19fd7726:wasm-function[8363]:0xADDR)
+    at blender.wasm.blender::multires_reshape_context_create_from_modifier(blender::MultiresReshapeContext*, blender::Object*, blender::MultiresModifierData*, int) (wasm://wasm/blender.wasm-19fd7726:wasm-function[8367]:0xADDR)
+    at invoke_iiiii (<REPO>/build-wasm/bin/blender.js:1:160778)
+    at blender.wasm.blender::multiresModifier_subdivide_to_level(blender::Object*, blender::MultiresModifierData*, int, blender::MultiresSubdivideModeType) (wasm://wasm/blender.wasm-19fd7726:wasm-function[8352]:0xADDR)
+    at blender.wasm.blender::ed::object::multires_subdivide_exec(blender::bContext*, blender::wmOperator*) (wasm://wasm/blender.wasm-19fd7726:wasm-function[65126]:0xADDR)
+    at blender.wasm.blender::wm_operator_invoke(blender::bContext*, blender::wmOperatorType*, blender::wmEvent const*, blender::PointerRNA*, blender::ReportList*, bool, bool) (wasm://wasm/blender.wasm-19fd7726:wasm-function[21555]:0xADDR)
 
 Node.js v22.16.0

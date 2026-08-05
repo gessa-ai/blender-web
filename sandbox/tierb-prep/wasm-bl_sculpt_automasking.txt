@@ -1,11 +1,10 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/sculpt_paint/automask_test.py", line 16, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
+00:00.759  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/monkey_realized_island_id_and_face_set.blend"
+.00:00.878  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/monkey_realized_island_id_and_face_set.blend"
+.
+----------------------------------------------------------------------
+Ran 2 tests in 0.190s
+
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-
-Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/automask_test.py', exiting.
-
-Blender quit

@@ -1,10 +1,10 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.040  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/socket_usage_inference.blend"
-00:01.086  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
+00:00.664  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/socket_usage_inference.blend"
+00:00.691  object.modifier  | WARNING Object: "Cube", Modifier: "GeometryNodes", Node group must have a group output node
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.056s
+Ran 1 test in 0.036s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

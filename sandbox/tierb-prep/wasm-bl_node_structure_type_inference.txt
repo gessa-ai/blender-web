@@ -1,16 +1,16 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:01.239  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.249  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.259  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.268  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.276  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.283  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.291  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.299  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.306  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.312  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
-E00:01.319  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+00:00.679  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.686  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.692  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.698  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.704  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.709  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.714  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.720  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.725  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.730  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
+E00:00.736  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/structure_type_inference.blend"
 E
 ======================================================================
 ERROR: test_add_all_types (__main__.StructureTypeInferenceTest.test_add_all_types)
@@ -156,7 +156,7 @@ RuntimeError: Error: Loading "<REPO>/upstream/tests/files/node_group/structure_t
 
 
 ----------------------------------------------------------------------
-Ran 11 tests in 0.091s
+Ran 11 tests in 0.065s
 
 FAILED (errors=11)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

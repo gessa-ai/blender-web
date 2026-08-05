@@ -1,71 +1,31 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-00:00.650  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
-00:00.892  reports          | Merged 2 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 0 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.045  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.215  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.362  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.510  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.657  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.804  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:01.945  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.091  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.233  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.374  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.514  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.687  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.842  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:02.991  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:03.127  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:03.301  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-00:03.486  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
-.00:03.587  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
-.00:04.848  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
-.00:06.074  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
-.00:07.086  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
-M2BPROBE_PROXY idname='NodeSocketFloat' typeinfo=0xADDR find=0xADDR tid=0xADDR
+00:00.670  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+00:00.919  reports          | Merged 2 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 0 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.077  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.255  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.407  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.558  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 1 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.707  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:01.860  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.006  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.158  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.307  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.453  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.593  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.772  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:02.916  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.063  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.207  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 2 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.386  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+00:03.579  reports          | Merged 1 IDs from '' Main into '<REPO>/upstream/tests/files/node_group/node_copy_operators.blend' Main; 0 IDs and 1 Libraries already existed as part of the destination Main, and 0 IDs missing from destination Main, were freed together with the source Main
+.00:03.683  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:04.968  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:06.264  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
+.00:07.292  blend            | Read blend: "<REPO>/upstream/tests/files/node_group/node_copy_operators.blend"
 .
 ----------------------------------------------------------------------
-Ran 5 tests in 7.235s
+Ran 5 tests in 7.432s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

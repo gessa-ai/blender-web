@@ -1,11 +1,20 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/sculpt_paint/mesh_filter_test.py", line 13, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
+00:00.761  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.915  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:00.992  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.070  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.150  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.226  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.300  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.375  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.464  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.539  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.615  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.00:01.687  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/30k_monkey_mask_and_face_set.blend"
+.
+----------------------------------------------------------------------
+Ran 12 tests in 1.003s
+
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-
-Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/mesh_filter_test.py', exiting.
-
-Blender quit

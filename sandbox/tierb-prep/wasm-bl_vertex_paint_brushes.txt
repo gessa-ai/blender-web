@@ -1,11 +1,16 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/sculpt_paint/vertex_paint_brushes_test.py", line 12, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
+00:00.765  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:01.236  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:01.897  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:02.546  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:02.911  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:03.287  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:03.657  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.00:04.032  blend            | Read blend: "<REPO>/upstream/tests/files/mesh_paint/30k_monkey.blend"
+.
+----------------------------------------------------------------------
+Ran 8 tests in 3.929s
+
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-
-Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/vertex_paint_brushes_test.py', exiting.
-
-Blender quit

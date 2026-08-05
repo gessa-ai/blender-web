@@ -1,74 +1,74 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-.....00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].location[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+.....00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].location[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].location[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].location[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].location[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].location[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.516  anim.action      | WARNING FCurve pose.bones["bone"].scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.799  anim.action      | WARNING FCurve pose.bones["bone"].scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.521  anim.action      | WARNING FCurve pose.bones["bone"].scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.803  anim.action      | WARNING FCurve pose.bones["bone"].scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.521  anim.action      | WARNING FCurve pose.bones["bone"].scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.805  anim.action      | WARNING FCurve pose.bones["bone"].scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.521  anim.action      | WARNING FCurve pose.bones["bone"].scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.805  anim.action      | WARNING FCurve pose.bones["bone"].scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-.00:01.559  anim.action      | WARNING FCurve location[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+.00:00.824  anim.action      | WARNING FCurve location[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve location[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.824  anim.action      | WARNING FCurve location[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve location[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve location[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve location[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve location[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve location[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve location[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve location[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve location[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.560  anim.action      | WARNING FCurve scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.825  anim.action      | WARNING FCurve scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.565  anim.action      | WARNING FCurve scale[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.828  anim.action      | WARNING FCurve scale[0] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.565  anim.action      | WARNING FCurve scale[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.828  anim.action      | WARNING FCurve scale[1] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.565  anim.action      | WARNING FCurve scale[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.828  anim.action      | WARNING FCurve scale[2] for slot OBCube was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.566  anim.action      | WARNING FCurve scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.829  anim.action      | WARNING FCurve scale[0] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.566  anim.action      | WARNING FCurve scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.829  anim.action      | WARNING FCurve scale[1] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-00:01.566  anim.action      | WARNING FCurve scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
+00:00.829  anim.action      | WARNING FCurve scale[2] for slot OBanim_object was not created due to either the Only Insert Available setting or Replace keyframing mode.
                             | 
-............00:01.881  anim.action      | WARNING Could not insert key into FCurve pose.bones["bone"].location[1] for slot OBanim_object.
+............00:01.051  anim.action      | WARNING Could not insert key into FCurve pose.bones["bone"].location[1] for slot OBanim_object.
                             | 
-00:01.882  anim.action      | WARNING Could not insert key into FCurve pose.bones["bone"].location[2] for slot OBanim_object.
+00:01.052  anim.action      | WARNING Could not insert key into FCurve pose.bones["bone"].location[2] for slot OBanim_object.
                             | 
-.00:01.898  anim.action      | WARNING Could not insert key into FCurve location[1] for slot OBCube.
+.00:01.069  anim.action      | WARNING Could not insert key into FCurve location[1] for slot OBCube.
                             | 
-00:01.900  anim.action      | WARNING Could not insert key into FCurve location[2] for slot OBCube.
+00:01.069  anim.action      | WARNING Could not insert key into FCurve location[2] for slot OBCube.
                             | 
-00:01.900  anim.action      | WARNING Could not insert key into FCurve location[1] for slot OBanim_object.
+00:01.069  anim.action      | WARNING Could not insert key into FCurve location[1] for slot OBanim_object.
                             | 
-00:01.900  anim.action      | WARNING Could not insert key into FCurve location[2] for slot OBanim_object.
+00:01.069  anim.action      | WARNING Could not insert key into FCurve location[2] for slot OBanim_object.
                             | 
 ........
 ----------------------------------------------------------------------
-Ran 27 tests in 0.794s
+Ran 27 tests in 0.526s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

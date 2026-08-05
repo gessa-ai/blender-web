@@ -69,7 +69,7 @@ AssertionError: Items in the second set but not the first:
 (-13.369051933288574, -1.1585851907730103, -11.424071311950684)
 
 ----------------------------------------------------------------------
-Ran 12 tests in 0.056s
+Ran 12 tests in 0.035s
 
 FAILED (failures=2)
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

@@ -1,11 +1,27 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/sculpt_paint/mask_test.py", line 14, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
+00:00.757  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.00:00.882  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.00:00.944  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.Traceback (most recent call last):
+  File "<REPO>/upstream/scripts/modules/addon_utils.py", line 543, in enable
+    mod.register()
+    ~~~~~~~~~~~~^^
+  File "<REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py", line 909, in register
+    bl_extension_ops.register()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "<REPO>/upstream/scripts/addons_core/bl_pkg/bl_extension_ops.py", line 4108, in register
+    bpy.utils.register_class(cls)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
+.00:01.130  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
+.00:01.160  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_red_circle.blend"
+.00:01.188  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/plane_with_valley.blend"
+.00:01.235  blend            | Read blend: "<REPO>/upstream/tests/files/sculpting/partially_masked_sphere.blend"
+.
+----------------------------------------------------------------------
+Ran 8 tests in 0.539s
+
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-
-Error: script failed, file: '<REPO>/upstream/tests/python/sculpt_paint/mask_test.py', exiting.
-
-Blender quit
+Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

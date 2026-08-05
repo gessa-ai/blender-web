@@ -1,24 +1,24 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-.00:01.107  reports          | ERROR Cannot set slot without an assigned Action.
-.00:01.145  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
+.00:00.709  reports          | ERROR Cannot set slot without an assigned Action.
+.00:00.734  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "XX". Setting to "XXEvenCoolerSlot" instead.
                             | 
-00:01.146  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
+00:00.734  reports          | WARNING Attempted to set slot identifier to "MAEvenCoolerSlot", but the type prefix does not match the slot's 'target_id_type' "OB". Setting to "OBEvenCoolerSlot" instead.
                             | 
 ....WARNING: ignoring assignment to target_id_type of Slot 'OBLegacy Slot' in Action 'ACAction Without IDRoot'. A Slot's target_id_type can only be changed when currently 'UNSPECIFIED'.
 ......ERROR: one of the ID's for the groups to assign to is invalid (ptr=0xADDR, val=0)
 ERROR: F-Curve (datapath: 'location') doesn't belong to the same channel bag as channel group 'group1'
-.............00:01.425  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
-.00:01.452  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
-.00:01.575  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
-00:01.593  blend            | WARNING 1 local ObjectData are reported to be missing, this should never happen
-.00:01.596  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:01.615  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:01.635  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
-.00:01.655  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.............00:00.920  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:00.946  blend            | Read blend: "<REPO>/upstream/tests/files/animation/remap_action.blend"
+.00:01.036  blend            | Read blend: "<REPO>/sandbox/tierb-prep/_out/bl_animation_action/liboverride-action-slot.blend"
+00:01.049  blend            | WARNING 1 local ObjectData are reported to be missing, this should never happen
+.00:01.052  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.068  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.082  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
+.00:01.098  blend            | Read blend: "<REPO>/upstream/tests/files/animation/layered_action_versioning_42.blend"
 .
 ----------------------------------------------------------------------
-Ran 32 tests in 0.632s
+Ran 32 tests in 0.443s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

@@ -11,22 +11,22 @@ Traceback (most recent call last):
     bpy.utils.register_class(cls)
     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
 ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
-00:01.523  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
+00:00.772  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'Scene.use_nodes' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
-00:01.568  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.570  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.572  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
-00:01.581  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.582  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.582  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.583  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.585  bpy.rna          | WARNING current value '4' matches no enum in 'SpreadsheetColumn', '(null)', 'data_type'
-00:01.585  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.587  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.589  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
-00:01.595  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
-00:01.599  bpy.rna          | WARNING current value '3' matches no enum in 'SpaceImageEditor', '(null)', 'ui_mode'
+00:00.791  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.792  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.793  bpy.rna          | WARNING current value '0' matches no enum in 'View3DShading', '(null)', 'wireframe_color_type'
+00:00.797  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.798  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.798  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.799  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.800  bpy.rna          | WARNING current value '4' matches no enum in 'SpreadsheetColumn', '(null)', 'data_type'
+00:00.800  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.801  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.803  bpy.rna          | WARNING current value '6' matches no enum in 'SpaceDopeSheetEditor', '(null)', 'ui_mode'
+00:00.807  bpy.rna          | WARNING current value '0' matches no enum in 'SpaceNodeEditor', '(null)', 'texture_type'
+00:00.810  bpy.rna          | WARNING current value '3' matches no enum in 'SpaceImageEditor', '(null)', 'ui_mode'
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'PointLight.use_nodes' is expected to be removed in Blender 6.0
@@ -37,11 +37,11 @@ ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT
   p_data = getattr(struct, p.identifier)
 <REPO>/upstream/tests/python/bl_rna_accessors.py:66: DeprecationWarning: 'MaterialGPencilStyle.show_fill' is expected to be removed in Blender 6.0
   p_data = getattr(struct, p.identifier)
-00:01.623  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
-00:01.623  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.828  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
+00:00.829  bpy.rna          | WARNING current value '-1' matches no enum in 'ColorManagedInputColorspaceSettings', '(null)', 'name'
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.483s
+Ran 1 test in 0.161s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

@@ -13,7 +13,7 @@ Traceback (most recent call last):
 ValueError: register_class(...): already registered as a subclass 'EXTENSIONS_OT_repo_sync'
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.160s
+Ran 1 test in 0.102s
 
 OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py

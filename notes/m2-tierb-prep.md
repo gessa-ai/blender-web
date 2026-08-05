@@ -359,6 +359,47 @@ flagged as fix-next were the `.blend` bhead-collision and the libpng tEXt write 
 |---|---|---|---|
 | initial wasm fire | 52 | 52/63 (82.5%) | 11 |
 | **after tEXt/OIIO-ustring fix (f7ec391) + bhead ADR-004** | **55** | **55/61 (90.2%)** | **6** |
+| **M2 boundary: numpy 0033 + object_edit harness fix (this round)** | **65** | **64/64 must-pass (100%)** | **0** |
+
+**M2-boundary integration (numpy 0033 + object_edit harness fix).** Ran the full 75 CORE
+on the relinked numpy binary (`blender.wasm` 102 -> 109 MB). **65/75 PASS, ZERO
+regressions** (join of committed vs new verdicts: 10 FAIL->PASS flips, 0 PASS->FAIL). The
+10 flips: the 8 numpy-pending sculpt/paint suites + `object_edit` (harness datafiles-path
+fix) + `bl_brush` (0031, first captured green here). The 10 remaining FAIL are ALL
+deferred / config-AMBER, none genuine:
+- **float32-ULP (3, deferred `float32-ulp-mathutils`)** — `script_pyapi_mathutils`,
+  `script_pyapi_bmesh`, `bl_constraints`.
+- **ADR-004 wasm32 (1, deferred `wasm32-64bit-blend-collision`)** —
+  `bl_node_structure_type_inference`.
+- **feature compiled OFF (6, deferred)** — `bl_voxel_remesh` + `bl_voxel_remesh_compare`
+  (`feature-off-openvdb`), `bl_multires` (`feature-off-opensubdiv`), `bl_node_link_drag`
+  (`feature-off-cycles-engine`), `imbuf_py_api` (`feature-off-avif`), and **`bl_sculpt_brushes`**
+  — reclassified from PENDING_ESSENTIALS to **`feature-off-opensubdiv`** (multires_reshape
+  subdiv==null abort with OpenSubdiv OFF; 642efff), per the driver's "stays feature-off-AMBER,
+  do NOT count against" call.
+
+`bl_node_copy_operators` (sanctioned FLAKY `node-ungroup-socket-flake`) PASSED — consistent.
+Corpus 9/9 byte-exact + startup determinism PASS on the relinked binary (no readfile regression).
+
+**numpy verdicts (honest).** The **8 in-CORE numpy-pending suites** (`script_pyapi_prop_array`,
+`bl_sculpt_brush_curve_presets`, `bl_sculpt_mask`, `bl_sculpt_face_set`, `bl_sculpt_mesh_filter`,
+`bl_sculpt_automasking`, `bl_vertex_paint_brushes`, `bl_weight_paint_brushes`) are **all GREEN** —
+these are exactly what `NUMPY_HARVESTED=1` promotes. The **2 AMBER numpy suites**
+(`script_load_addons`, `script_load_modules`, NOT in the 75 CORE) are **NOT numpy-promotable**:
+numpy now imports fine, but they hit **additional** blockers — `ModuleNotFoundError: No module
+named '_ctypes'` (libffi/_ctypes absent from the wasm CPython harvest, same
+`optional-python-modules` family as sqlite3/hashlib) plus a `bl_pkg` extensions `register()`
+error (`already registered as a subclass 'EXTENSIONS_OT_repo_sync'`). They stay AMBER, re-blocked
+on `_ctypes` + bl_pkg, not numpy. `optional-python-modules` (ledger/deferred.json) should gain
+`_ctypes` + these two suites in its impact line (driver: numpy is no longer their blocker).
+
+**scope_m2b flag recommendations (driver to bake in):**
+- `NUMPY_HARVESTED=1` — all 8 PENDING_NUMPY green.
+- `ESSENTIALS_LANDED=1` — `object_edit` + `bl_brush` green. REQUIRES moving `bl_sculpt_brushes`
+  OUT of `PENDING_ESSENTIALS` INTO `DEFERRED[bl_sculpt_brushes]=feature-off-opensubdiv` (id
+  already exists), else `core_green` goes RED on it. Net `PENDING_ESSENTIALS="object_edit bl_brush"`.
+- floor: bump `core_green`'s `-ge 54` to **`-ge 64`** (must-pass total after both flips = 64/64 green).
+- `deferral_consistency` is satisfied: all 7 referenced ids exist in `ledger/deferred.json`.
 
 The OIIO-`ustring::string()`-empty-on-wasm fix (f7ec391) flipped **3** suites green:
 `script_pyapi_idprop_datablock`, `blendfile_relationships` (both libpng-tEXt PNG-write), and —

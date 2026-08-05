@@ -103,12 +103,12 @@ register_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_sync_all', bl_idname 'extensions.repo_sync_all' has been registered before, unregistering previous
 warning: registered duplicate command "extension", this will be inaccessible
 warning: registered duplicate command "asset_listing", this will be inaccessible
-00:01.481  blend            | Read blend: "<TMP>"
-00:01.544  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:01.705  blend            | Read blend: "<TMP>"
-00:01.795  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
-00:01.847  blend            | Read blend: "<TMP>"
-00:02.246  blend            | Read blend: "<TMP>"
+00:01.066  blend            | Read blend: "<TMP>"
+00:01.115  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:01.243  blend            | Read blend: "<TMP>"
+00:01.316  lib.override.resync | WARNING Provided scene 'Scene_lib' is not local, using instead local scene 'Scene', viewlayer 'ViewLayer' as container for the library override leftover collections and objects
+00:01.359  blend            | Read blend: "<TMP>"
+00:01.661  blend            | Read blend: "<TMP>"
 register_class(...):
 Info: Registering operator class: 'EXTENSIONS_OT_repo_refresh_all', bl_idname 'extensions.repo_refresh_all' has been registered before, unregistering previous
 register_class(...):

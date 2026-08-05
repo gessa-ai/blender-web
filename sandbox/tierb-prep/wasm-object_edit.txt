@@ -1,19 +1,8 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-E
-======================================================================
-ERROR: test_auto_smooth_detection (__main__.TestObjectEdit.test_auto_smooth_detection)
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/object_edit.py", line 24, in test_auto_smooth_detection
-    bpy.ops.object.shade_auto_smooth(use_auto_smooth=True)
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/nodes/geometry_nodes_essentials.blend/NodeTree/Smooth by Angle"
+Ran 1 test in 0.201s
 
-
-----------------------------------------------------------------------
-Ran 1 test in 0.063s
-
-FAILED (errors=1)
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-Error: No asset found at path "<REPO>/sandbox/tierb-prep/_datafiles_wasm/assets/nodes/geometry_nodes_essentials.blend/NodeTree/Smooth by Angle"

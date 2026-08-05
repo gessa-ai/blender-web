@@ -1,11 +1,12 @@
 Switching to fully guarded memory allocator.
 Blender <VER> LTS
-Traceback (most recent call last):
-  File "<REPO>/upstream/tests/python/bl_pyapi_prop_array.py", line 22, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
+.............................00:00.813  reports          | ERROR Array length mismatch (got 7, expected more)
+00:00.813  reports          | ERROR Array length mismatch (got 7, expected more)
+00:00.813  reports          | ERROR Array length mismatch (got 23, expected more)
+00:00.813  reports          | ERROR Array length mismatch (got 23, expected more)
+.............
+----------------------------------------------------------------------
+Ran 42 tests in 0.060s
+
+OK
 Exception in module register(): <REPO>/upstream/scripts/addons_core/bl_pkg/__init__.py
-
-Error: script failed, file: '<REPO>/upstream/tests/python/bl_pyapi_prop_array.py', exiting.
-
-Blender quit

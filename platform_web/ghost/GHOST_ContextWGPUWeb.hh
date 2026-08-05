@@ -37,13 +37,38 @@
 
 #include <webgpu/webgpu_cpp.h>
 
-class GHOST_ContextWGPUWeb {
+#include "GHOST_Context.hh"
+
+/* M4 T4: promoted to derive GHOST_Context so it can be returned from
+ * GHOST_WindowWeb::newDrawingContext() / GHOST_SystemWeb::createOffscreenContext()
+ * (which must return GHOST_Context*). The six GHOST_Context pure virtuals are
+ * implemented below. Async device acquisition (initAsync) is bridged to the
+ * SYNCHRONOUS initializeDrawingContext() contract by a one-time startup await:
+ * the GHOST-web system runs initAsync and gates the WM main-loop start on the
+ * ready-callback, so by the time createWindow -> newDrawingContext ->
+ * initializeDrawingContext runs, the device is already acquired. See
+ * notes/ghost-web-wgpu-context.md + notes/m4-integration.md. */
+class GHOST_ContextWGPUWeb : public GHOST_Context {
  public:
   /** Called once with success=true after device+surface are ready, or false on failure. */
   using ReadyCallback = std::function<void(bool success)>;
 
-  explicit GHOST_ContextWGPUWeb(const char *canvas_selector);
-  ~GHOST_ContextWGPUWeb();
+  GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params, const char *canvas_selector);
+  ~GHOST_ContextWGPUWeb() override;
+
+  /* --- GHOST_Context surface (6 pure virtuals) -------------------------------- */
+
+  /** Synchronous GHOST entry. Requires the device to be pre-acquired via a startup
+   * initAsync() await (see class note); returns success once ready. */
+  GHOST_TSuccess initializeDrawingContext() override;
+  GHOST_TSuccess releaseNativeHandles() override;
+  GHOST_TSuccess swapBufferAcquire() override;
+  /** No-op on the web: the browser auto-presents the configured canvas on
+   * event-loop yield (wgpu-context note delta #3). */
+  GHOST_TSuccess swapBufferRelease() override;
+  /** No-op: WebGPU's implicit device model has no "current context" to activate. */
+  GHOST_TSuccess activateDrawingContext() override;
+  GHOST_TSuccess releaseDrawingContext() override;
 
   /**
    * Acquire instance -> adapter -> device -> queue and the canvas surface, then

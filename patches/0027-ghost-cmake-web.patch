@@ -1,0 +1,53 @@
+diff --git a/intern/ghost/CMakeLists.txt b/intern/ghost/CMakeLists.txt
+index 8c3e57ee796..92d282e1f89 100644
+--- a/intern/ghost/CMakeLists.txt
++++ b/intern/ghost/CMakeLists.txt
+@@ -96,6 +96,48 @@ if(WITH_VULKAN_BACKEND)
+   add_definitions(-DWITH_VULKAN_BACKEND)
+ endif()
+ 
++if(WITH_WEBGPU_BACKEND)
++  list(APPEND SRC
++    intern/GHOST_ContextWGPU.cc
++
++    intern/GHOST_ContextWGPU.hh
++  )
++  list(APPEND INC_SYS
++    ${DAWN_INCLUDE_DIRS}
++  )
++  list(APPEND LIB
++    ${DAWN_LIBRARIES}
++  )
++
++  add_definitions(-DWITH_WEBGPU_BACKEND)
++endif()
++
++if(WITH_GHOST_WEB)
++  # blender-web (M4 T1): compile the browser GHOST back-end (platform_web/ghost) into
++  # the GHOST lib. platform_web/ lives at the port repo root (parent of the upstream
++  # tree passed as -S). Mirrors the WITH_WEBGPU_BACKEND block above; the emdawnwebgpu
++  # webgpu headers come from --use-port=emdawnwebgpu on the windowed build flags.
++  set(_bw_ghost_web ${CMAKE_SOURCE_DIR}/../platform_web/ghost)
++  list(APPEND SRC
++    ${_bw_ghost_web}/GHOST_SystemWeb.cc
++    ${_bw_ghost_web}/GHOST_WindowWeb.cc
++    ${_bw_ghost_web}/GHOST_EventBridgeWeb.cc
++    ${_bw_ghost_web}/GHOST_ContextWGPUWeb.cc
++
++    ${_bw_ghost_web}/GHOST_SystemWeb.hh
++    ${_bw_ghost_web}/GHOST_WindowWeb.hh
++    ${_bw_ghost_web}/GHOST_EventBridgeWeb.hh
++    ${_bw_ghost_web}/GHOST_KeyMapWeb.hh
++    ${_bw_ghost_web}/GHOST_ContextWGPUWeb.hh
++  )
++  # platform_web/ghost sources #include the GHOST base headers (GHOST_System.hh,
++  # GHOST_Context.hh, ...) which live in intern/ — add it (base sources reach
++  # their siblings via the same-dir quote-include rule; ours cannot).
++  list(APPEND INC ${_bw_ghost_web} intern)
++  add_definitions(-DWITH_GHOST_WEB)
++  unset(_bw_ghost_web)
++endif()
++
+ if(WITH_GHOST_DEBUG)
+   list(APPEND SRC
+     intern/GHOST_EventPrinter.cc

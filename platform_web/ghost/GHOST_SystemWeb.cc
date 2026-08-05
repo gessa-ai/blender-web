@@ -24,7 +24,12 @@
 #include "GHOST_WindowManager.hh"
 
 #ifdef WITH_WEBGPU_BACKEND
-#  include "GHOST_ContextWGPU.hh"
+/* M4 T4 selection seam (see GHOST_WindowWeb.cc). */
+#  ifdef __EMSCRIPTEN__
+#    include "GHOST_ContextWGPUWeb.hh"
+#  else
+#    include "GHOST_ContextWGPU.hh"
+#  endif
 #endif
 #include "GHOST_ContextNone.hh"
 
@@ -212,7 +217,12 @@ GHOST_IContext *GHOST_SystemWeb::createOffscreenContext(GHOST_GPUSettings gpu_se
 #ifdef WITH_WEBGPU_BACKEND
   const GHOST_ContextParams params = GHOST_CONTEXT_PARAMS_FROM_GPU_SETTINGS_OFFSCREEN(gpu_settings);
   if (gpu_settings.context_type == GHOST_kDrawingContextTypeWebGPU) {
+#  ifdef __EMSCRIPTEN__
+    /* Device pre-acquired by the startup await (notes/m4-integration.md). */
+    GHOST_Context *context = new GHOST_ContextWGPUWeb(params, canvas_selector_.c_str());
+#  else
     GHOST_Context *context = new GHOST_ContextWGPU(params);
+#  endif
     if (context->initializeDrawingContext()) {
       return context;
     }

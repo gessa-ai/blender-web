@@ -15,6 +15,7 @@
 #include "wgpu_framebuffer.hh"
 #include "wgpu_index_buffer.hh"
 #include "wgpu_shader.hh"
+#include "wgpu_state_manager.hh"
 #include "wgpu_storage_buffer.hh"
 #include "wgpu_texture.hh"
 #include "wgpu_uniform_buffer.hh"
@@ -110,6 +111,27 @@ static bool build_compute_bind_group(WGPUContext *ctx,
     entry.offset = 0;
     entry.size = buf.size();
     entries.push_back(entry);
+  }
+
+  /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
+   * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
+   * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */
+  WGPUStateManager *sm = static_cast<WGPUStateManager *>(ctx->state_manager);
+  if (sm != nullptr) {
+    for (const auto &item : sm->bound_images()) {
+      webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
+      if (tex == nullptr) {
+        continue;
+      }
+      wgpu::TextureView view = tex->image_view();
+      if (view == nullptr) {
+        continue;
+      }
+      wgpu::BindGroupEntry entry = {};
+      entry.binding = uint32_t(item.first);
+      entry.textureView = view;
+      entries.push_back(entry);
+    }
   }
 
   if (entries.empty()) {

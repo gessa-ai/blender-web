@@ -288,25 +288,31 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
 `sandbox/gpu-render-harness/evidence/first_frames_blend.png`. Landed: 0043 CopyDst (dd5a6fc),
 0050 host-shared deferral — static_shaders 289→481/973 (2d54f06). Real-path green routed:
 
-- [ ] **M3.F1 [gpu-backend laneA]** `WGPUShaderInterface` never calls `populate_builtins()` —
-  mirror vk_shader_interface.cc:190-196 (+ubo_builtins). B1-verified sufficient (with F2) for
-  blend 12/12. DISPATCHED round 9.
-- [ ] **M3.F2 [gpu-backend laneA+laneB]** Y-orientation per **ADR-005**: clip-output flip
-  (laneA codegen) + front-face swap (laneB pipeline) + render-target readback row-flip
-  (laneB; texture-only paths must NOT flip). DISPATCHED both lanes.
-- [ ] **M3.F3 [gpu-backend laneA]** Driver-approved shared-file exceptions: (a) missing
-  `GPU_BACKEND_WEBGPU` arm in `standard_defines` (gpu/intern/gpu_shader.cc:169-182, currently
-  asserts + defines nothing) → define `GPU_WEBGPU`; (b) `NAN_FLT` GPU_WEBGPU-guarded variant
-  in gpu_shader_utildefines_lib.glsl (glslang const-folds to NaN OpConstant → Tint rejects;
-  30 shaders). DISPATCHED round 9.
+- [x] **M3.F1 [gpu-backend laneA]** DONE r9 (6823756, patch 0051): populate_builtins +
+  builtin_blocks loops after sort_inputs(), per vk_shader_interface.cc:190-203.
+- [x] **M3.F2 [gpu-backend laneA+laneB]** DONE both halves (ADR-005): 0052 clip-Y flip (laneA,
+  6823756) + 0044 front-face swap + 0045 readback row-flip (laneB). **REAL-PATH BLEND 12/12 —
+  DRIVER-VERIFIED by independent gtest run 2026-08-05.** texture gate held 64/64.
+- [x] **M3.F3 [gpu-backend laneA]** DONE r9 (bf67491): 0053 GPU_WEBGPU standard_defines arm +
+  0054 NAN_FLT non-foldable guard. static_shaders **481→513/973**, nan bucket 32→0, no new
+  buckets. Driver spot-checked artifacts + reverse-applies.
 - [ ] **M3.F4 [gpu-backend laneB]** framebuffer_multi_viewport: attachment_view builds a
   256-layer view — needs single-layer 2D view (+ characterize multi-viewport emulation, no
   viewport-array in WebGPU); immediate_* CRASH(139) — WGPUImmediate not GPU_init-safe;
   push_constants fails on values only (compute dispatch writes nothing — compute path, may
   defer to T8 proper). DISPATCHED round 8.
-- [ ] **M3.F5 [driver]** The instant-green vehicle: once real-path blend is green, rebuild
-  `sandbox/gpu-render-harness` for FIRST IN-TAB PIXELS (closure list in
-  notes/gpu-wasm-render-harness.md; comment-strip blocker + pthread pool noted there).
+- [ ] **M3.F5 [driver → worker]** The instant-green vehicle: rebuild `sandbox/gpu-render-harness`
+  for FIRST IN-TAB PIXELS (closure list in notes/gpu-wasm-render-harness.md; comment-strip
+  blocker + pthread pool noted there). **DISPATCHED 2026-08-05 (blend green landed).**
+- [ ] **M3.F6 [gpu-backend laneA r10]** Draw-set completion: (a) imm wiring — 3 lines in
+  wgpu_context.cc (ctor imm=new WGPUImmediate(); activate/deactivate immActivate/Deactivate,
+  vk_context.cc:43/141/60 pattern) → immediate_*; (b) compute_dispatch real implementation
+  (wgpu_backend.cc:62 empty stub; T7.pre proved compute+SSBO+atomic pipeline on live Dawn) →
+  push_constants 10 tests; (c) gpu_ViewportIndex declared in codegen (wgpu_shader.cc:1108) so
+  multi_viewport compiles — CRASH→honest fail only. DISPATCHED round 10.
+- [ ] **M3.F7 [driver DECISION, deferred]** multi_viewport faithful pass needs layer/viewport
+  emulation (WebGPU: no viewport-array, no gl_Layer) — decide approach (multi-pass per
+  viewport vs instance+clip) AFTER F6 lands; one test, not gate-critical yet.
 - Remaining shader-coverage tail after 0050 (492 fail): Tint env/capability buckets 100+93,
   gl_PointSize 54, textureSample 32, nan-f32 30 (=F3b), uniform-control-flow 25. Lane A queue.
 

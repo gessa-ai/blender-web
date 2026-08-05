@@ -108,6 +108,36 @@ def edit_mode_toggle():
 
 
 # -----------------------------------------------------------------------------
+# 3b. Vertex/edge/face select modes (edit mode, keys 1/2/3).
+
+def edit_mode_select_modes():
+    e, t, window = ui.test_window()
+    e.cursor_position_set(*_v3d_center(window), move=True)
+    yield
+    obj = window.view_layer.objects.active
+    ts = window.scene.tool_settings
+
+    yield e.tab()                           # Into edit mode.
+    t.assertEqual(obj.mode, 'EDIT')
+
+    yield e.one()                           # Vertex select mode.
+    t.assertEqual(tuple(ts.mesh_select_mode), (True, False, False))
+    yield e.a()                             # Select all (vertex).
+
+    yield e.two()                           # Edge select mode.
+    t.assertEqual(tuple(ts.mesh_select_mode), (False, True, False))
+
+    yield e.three()                         # Face select mode.
+    t.assertEqual(tuple(ts.mesh_select_mode), (False, False, True))
+
+    yield e.one()                           # Back to vertex select mode.
+    t.assertEqual(tuple(ts.mesh_select_mode), (True, False, False))
+
+    yield e.tab()                           # Object mode (flush for the state dump).
+    t.assertEqual(obj.mode, 'OBJECT')
+
+
+# -----------------------------------------------------------------------------
 # 4. Mesh extrude (edit mode).
 
 def mesh_extrude_region():

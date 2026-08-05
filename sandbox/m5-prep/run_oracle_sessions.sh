@@ -32,6 +32,7 @@ SESSIONS=(
   m5_core.object_click_select
   m5_core.object_transform_grxsz
   m5_core.edit_mode_toggle
+  m5_core.edit_mode_select_modes
   m5_core.mesh_extrude_region
   m5_core.mesh_bevel
   m5_core.undo_depth

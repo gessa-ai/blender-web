@@ -1,0 +1,426 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -491,6 +491,7 @@
+     webgpu/wgpu_batch.cc
+     webgpu/wgpu_texture.cc
+     webgpu/wgpu_state_manager.cc
++    webgpu/wgpu_framebuffer.cc
+ 
+     webgpu/wgpu_backend.hh
+     webgpu/wgpu_buffer.hh
+@@ -510,6 +511,7 @@
+     webgpu/wgpu_batch.hh
+     webgpu/wgpu_texture.hh
+     webgpu/wgpu_state_manager.hh
++    webgpu/wgpu_framebuffer.hh
+   )
+   list(APPEND INC
+     webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+new file mode 100644
+index 00000000000..62e43b73967
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -0,0 +1,81 @@
++/* SPDX-FileCopyrightText: 2022 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_framebuffer.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * WGPUFrameBuffer — the WebGPU `gpu::FrameBuffer` implementation. WebGPU has no
++ * persistent framebuffer object: attachments are bound into a transient
++ * `wgpu::RenderPassDescriptor` at pass-begin. `bind()` just records this as the
++ * context's active framebuffer; `clear*()` builds a one-shot render pass with
++ * per-attachment loadOp=Clear / storeOp=Store (no draw) — the same mechanism the
++ * draw path (wgpu_batch) will reuse to open its render pass. Depth aspect handling
++ * comes from WGPUTexture. */
++
++#pragma once
++
++#include "gpu_framebuffer_private.hh"
++
++#include "GPU_common_types.hh" /* GPULoadOp / GPUStoreOp */
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUFrameBuffer : public FrameBuffer {
++ public:
++  WGPUFrameBuffer(const char *name);
++  ~WGPUFrameBuffer() override;
++
++  void bind(bool enabled_srgb) override;
++  bool check(char err_out[256]) override;
++
++  void clear(GPUFrameBufferBits buffers,
++             const double4 clear_color,
++             float clear_depth,
++             uint clear_stencil) override;
++  void clear_multi(Span<double4> clear_cols) override;
++  void clear_attachment(GPUAttachmentType type, const double4 clear_value) override;
++
++  void attachment_set_loadstore_op(GPUAttachmentType type, GPULoadStore ls) override;
++
++  void read(GPUFrameBufferBits planes,
++            eGPUDataFormat format,
++            const int area[4],
++            int channel_len,
++            int slot,
++            void *r_data) override;
++
++  void blit_to(GPUFrameBufferBits planes,
++               int src_slot,
++               FrameBuffer *dst,
++               int dst_slot,
++               int dst_offset_x,
++               int dst_offset_y) override;
++
++ protected:
++  void subpass_transition_impl(const GPUAttachmentState depth_attachment_state,
++                               Span<GPUAttachmentState> color_attachment_states) override;
++
++ private:
++  /** Per-attachment load/store op (explicit-loadstore binds); default = clear+store. */
++  GPULoadStore load_store_[GPU_FB_MAX_ATTACHMENT];
++
++  /** Recompute width_/height_ from the first bound attachment. */
++  void update_size();
++
++  /** Build + submit a one-shot clear render pass. `colors` is either one colour
++   * (broadcast to every colour attachment) or one per colour attachment slot. */
++  void submit_clear(GPUFrameBufferBits buffers,
++                    Span<double4> colors,
++                    float clear_depth,
++                    uint clear_stencil);
++
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUFrameBuffer")
++};
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+new file mode 100644
+index 00000000000..4e4732d978e
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -0,0 +1,314 @@
++/* SPDX-FileCopyrightText: 2022 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_framebuffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * WGPUFrameBuffer. See wgpu_framebuffer.hh. */
++
++#include "wgpu_framebuffer.hh"
++
++#include "wgpu_context.hh"
++#include "wgpu_texture.hh"
++
++#include "GPU_context.hh"
++#include "gpu_context_private.hh"
++
++#include "BLI_math_vector_types.hh"
++
++#include <algorithm>
++#include <cstring>
++#include <vector>
++
++namespace blender::gpu {
++
++static WGPUContext *active_context()
++{
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++static webgpu::WGPUTexture *as_wgpu(Texture *tex)
++{
++  return static_cast<webgpu::WGPUTexture *>(tex);
++}
++
++/** A render-attachment view for one Blender attachment (its mip / layer / cube
++ * face). Default view for the common mip-0, whole-texture 2D case. */
++static wgpu::TextureView attachment_view(const GPUAttachment &att)
++{
++  webgpu::WGPUTexture *wt = as_wgpu(att.tex);
++  if (att.mip <= 0 && att.layer < 0) {
++    return wt->texture().CreateView();
++  }
++  wgpu::TextureViewDescriptor vd = {};
++  vd.dimension = wgpu::TextureViewDimension::e2D;
++  vd.baseMipLevel = uint32_t(std::max(att.mip, 0));
++  vd.mipLevelCount = 1;
++  vd.baseArrayLayer = uint32_t(std::max(att.layer, 0));
++  vd.arrayLayerCount = 1;
++  return wt->texture().CreateView(&vd);
++}
++
++WGPUFrameBuffer::WGPUFrameBuffer(const char *name) : FrameBuffer(name)
++{
++  /* Default: clear + store (overridden by attachment_set_loadstore_op). */
++  for (int i = 0; i < GPU_FB_MAX_ATTACHMENT; i++) {
++    load_store_[i] = {GPU_LOADACTION_CLEAR, GPU_STOREACTION_STORE, {0.0, 0.0, 0.0, 0.0}};
++  }
++}
++
++WGPUFrameBuffer::~WGPUFrameBuffer() {}
++
++void WGPUFrameBuffer::update_size()
++{
++  for (int i = 0; i < GPU_FB_MAX_ATTACHMENT; i++) {
++    if (attachments_[i].tex != nullptr) {
++      width_ = attachments_[i].tex->width_get();
++      height_ = attachments_[i].tex->height_get();
++      return;
++    }
++  }
++}
++
++void WGPUFrameBuffer::bind(bool /*enabled_srgb*/)
++{
++  /* WebGPU has no persistent bound framebuffer; record this as the context's active
++   * one (the frontend reads Context::active_fb) and refresh derived state. The
++   * render pass itself is built per clear / per draw. */
++  Context *ctx = Context::get();
++  if (ctx != nullptr) {
++    ctx->active_fb = this;
++  }
++  if (dirty_attachments_) {
++    update_size();
++    dirty_attachments_ = false;
++  }
++  viewport_reset();
++  scissor_reset();
++}
++
++bool WGPUFrameBuffer::check(char /*err_out*/[256])
++{
++  /* Attachment size/format consistency is validated by WebGPU at render-pass
++   * creation; nothing to pre-flight here. */
++  return true;
++}
++
++void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
++                                   Span<double4> colors,
++                                   float clear_depth,
++                                   uint clear_stencil)
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  wgpu::Device device = ctx->device_get();
++
++  /* Colour attachments (contiguous from slot 0 — the config layout Blender uses). */
++  std::vector<wgpu::RenderPassColorAttachment> color_atts;
++  for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
++    Texture *tex = color_tex(slot);
++    if (tex == nullptr) {
++      continue;
++    }
++    const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++    wgpu::RenderPassColorAttachment ca = {};
++    ca.view = attachment_view(att);
++    ca.loadOp = (buffers & GPU_COLOR_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
++    ca.storeOp = wgpu::StoreOp::Store;
++    if (buffers & GPU_COLOR_BIT) {
++      const double4 &c = colors[(colors.size() == 1) ? 0 : std::min<int>(slot, colors.size() - 1)];
++      ca.clearValue = {c[0], c[1], c[2], c[3]};
++    }
++    color_atts.push_back(ca);
++  }
++
++  /* Depth / stencil attachment. */
++  Texture *dtex = depth_tex();
++  wgpu::RenderPassDepthStencilAttachment dsa = {};
++  const bool has_depth = dtex != nullptr;
++  if (has_depth) {
++    dsa.view = attachment_view(depth_attachment());
++    dsa.depthLoadOp = (buffers & GPU_DEPTH_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
++    dsa.depthStoreOp = wgpu::StoreOp::Store;
++    dsa.depthClearValue = clear_depth;
++    if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
++      dsa.stencilLoadOp = (buffers & GPU_STENCIL_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
++      dsa.stencilStoreOp = wgpu::StoreOp::Store;
++      dsa.stencilClearValue = clear_stencil;
++    }
++  }
++
++  wgpu::RenderPassDescriptor rp = {};
++  rp.colorAttachmentCount = color_atts.size();
++  rp.colorAttachments = color_atts.empty() ? nullptr : color_atts.data();
++  rp.depthStencilAttachment = has_depth ? &dsa : nullptr;
++
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUFrameBuffer::clear(GPUFrameBufferBits buffers,
++                            const double4 clear_color,
++                            float clear_depth,
++                            uint clear_stencil)
++{
++  double4 c = clear_color;
++  submit_clear(buffers, Span<double4>(&c, 1), clear_depth, clear_stencil);
++}
++
++void WGPUFrameBuffer::clear_multi(Span<double4> clear_cols)
++{
++  submit_clear(GPU_COLOR_BIT, clear_cols, 0.0f, 0u);
++}
++
++void WGPUFrameBuffer::clear_attachment(GPUAttachmentType type, const double4 clear_value)
++{
++  /* Clear a single attachment via a scoped render pass touching only it. */
++  if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
++    GPUFrameBufferBits bits = GPU_DEPTH_BIT;
++    if (type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
++      bits |= GPU_STENCIL_BIT;
++    }
++    submit_clear(bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]));
++    return;
++  }
++  /* Colour: reuse submit_clear, but only the requested slot should clear. Simplest
++   * correct approach — clear just that slot by binding it alone is not possible
++   * without disturbing others, so clear the whole colour set to their stored value
++   * is wrong; instead issue a colour clear with this slot's value broadcast is also
++   * wrong. Clear only the target slot via a dedicated pass with the others on Load. */
++  const int slot = type - GPU_FB_COLOR_ATTACHMENT0;
++  WGPUContext *ctx = active_context();
++  Texture *tex = color_tex(slot);
++  if (ctx == nullptr || tex == nullptr) {
++    return;
++  }
++  wgpu::Device device = ctx->device_get();
++  const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++  wgpu::RenderPassColorAttachment ca = {};
++  ca.view = attachment_view(att);
++  ca.loadOp = wgpu::LoadOp::Clear;
++  ca.storeOp = wgpu::StoreOp::Store;
++  ca.clearValue = {clear_value[0], clear_value[1], clear_value[2], clear_value[3]};
++
++  wgpu::RenderPassDescriptor rp = {};
++  rp.colorAttachmentCount = 1;
++  rp.colorAttachments = &ca;
++
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUFrameBuffer::attachment_set_loadstore_op(GPUAttachmentType type, GPULoadStore ls)
++{
++  if (type >= 0 && type < GPU_FB_MAX_ATTACHMENT) {
++    load_store_[type] = ls;
++  }
++}
++
++void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
++                           eGPUDataFormat format,
++                           const int area[4],
++                           int /*channel_len*/,
++                           int slot,
++                           void *r_data)
++{
++  Texture *tex = (planes & GPU_COLOR_BIT) ? color_tex(slot) : depth_tex();
++  if (tex == nullptr || r_data == nullptr) {
++    return;
++  }
++  int full[3] = {1, 1, 1};
++  tex->mip_size_get(0, full);
++  const int fw = std::max(full[0], 1);
++  const int fh = std::max(full[1], 1);
++  const size_t total = tex->read_size_get(0, format);
++  const size_t bpp = total / (size_t(fw) * fh);
++
++  const int x = area[0], y = area[1], w = area[2], h = area[3];
++  if (x == 0 && y == 0 && w == fw && h == fh) {
++    /* Full-frame: read straight into the destination (reuses WGPUTexture::read). */
++    tex->read(0, format, r_data);
++    return;
++  }
++  /* Sub-area: read the whole attachment, then crop. */
++  std::vector<uint8_t> tmp(total);
++  tex->read(0, format, tmp.data());
++  uint8_t *dst = static_cast<uint8_t *>(r_data);
++  for (int row = 0; row < h; row++) {
++    const uint8_t *src = tmp.data() + (size_t(y + row) * fw + x) * bpp;
++    std::memcpy(dst + size_t(row) * w * bpp, src, size_t(w) * bpp);
++  }
++}
++
++void WGPUFrameBuffer::blit_to(GPUFrameBufferBits planes,
++                              int src_slot,
++                              FrameBuffer *dst,
++                              int dst_slot,
++                              int dst_offset_x,
++                              int dst_offset_y)
++{
++  WGPUFrameBuffer *dst_fb = static_cast<WGPUFrameBuffer *>(dst);
++  Texture *stex = (planes & GPU_COLOR_BIT) ? color_tex(src_slot) : depth_tex();
++  Texture *dtex = (planes & GPU_COLOR_BIT) ? dst_fb->color_tex(dst_slot) : dst_fb->depth_tex();
++  if (stex == nullptr || dtex == nullptr) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  int ss[3] = {1, 1, 1};
++  int ds[3] = {1, 1, 1};
++  stex->mip_size_get(0, ss);
++  dtex->mip_size_get(0, ds);
++  const uint32_t w = uint32_t(std::min(std::max(ss[0], 1), std::max(ds[0] - dst_offset_x, 0)));
++  const uint32_t h = uint32_t(std::min(std::max(ss[1], 1), std::max(ds[1] - dst_offset_y, 0)));
++  if (w == 0 || h == 0) {
++    return;
++  }
++  const bool depth = (planes & (GPU_DEPTH_BIT | GPU_STENCIL_BIT)) != 0;
++  const wgpu::TextureAspect aspect = depth ? wgpu::TextureAspect::DepthOnly :
++                                             wgpu::TextureAspect::All;
++
++  wgpu::TexelCopyTextureInfo s = {};
++  s.texture = as_wgpu(stex)->texture();
++  s.mipLevel = 0;
++  s.origin = {0, 0, 0};
++  s.aspect = aspect;
++
++  wgpu::TexelCopyTextureInfo d = {};
++  d.texture = as_wgpu(dtex)->texture();
++  d.mipLevel = 0;
++  d.origin = {uint32_t(dst_offset_x), uint32_t(dst_offset_y), 0};
++  d.aspect = aspect;
++
++  wgpu::Extent3D size = {w, h, 1};
++  wgpu::Device device = ctx->device_get();
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyTextureToTexture(&s, &d, &size);
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUFrameBuffer::subpass_transition_impl(
++    const GPUAttachmentState /*depth_attachment_state*/,
++    Span<GPUAttachmentState> /*color_attachment_states*/)
++{
++  /* WebGPU has no Vulkan-style subpasses; each pass is standalone. Input-attachment
++   * feedback (subpass reads) is emulated via texture bindings at the draw path when
++   * needed. No transition to perform here. */
++}
++
++}  // namespace blender::gpu

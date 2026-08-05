@@ -301,9 +301,28 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   viewport-array in WebGPU); immediate_* CRASH(139) — WGPUImmediate not GPU_init-safe;
   push_constants fails on values only (compute dispatch writes nothing — compute path, may
   defer to T8 proper). DISPATCHED round 8.
-- [ ] **M3.F5 [driver → worker]** The instant-green vehicle: rebuild `sandbox/gpu-render-harness`
-  for FIRST IN-TAB PIXELS (closure list in notes/gpu-wasm-render-harness.md; comment-strip
-  blocker + pthread pool noted there). **DISPATCHED 2026-08-05 (blend green landed).**
+- [x] **M3.F5 [driver → worker]** RESULT (863e9b9+c588af3): **GPU_init COMPLETES + a real
+  Blender shader COMPILES (full shaderc→Tint chain) in a real WebGPU tab.** Correct pixels
+  gated on readback (F9-D). KEY FINDING: handoff's "comments not stripped" was a MISDIAGNOSIS —
+  real cause = wasm32 int-width npos bug (StringRefBase::find int64_t -1 vs 32-bit size_t npos
+  promotes ≠), patches 0060+0061 __EMSCRIPTEN__-guarded. **This also explains the dormant
+  "data-race hunt" signature** (comment-assert with run-to-run-varying file set = thread
+  arrival order picking which source hit the always-firing assert first) — data-race item
+  CLOSED unless it reproduces post-0060. Evidence: sandbox/gpu-render-harness/evidence/
+  intab_gpu_init_shader_finalize.txt.
+- [ ] **M3.F9 [gpu-backend r11-resumed]** Browser-run backend blockers (routed from F5, all
+  characterized with transcript evidence): (A) `WGPUBackend` never calls `platform_init` →
+  GPG.initialized assert (gpu_platform.cc:179) — fix in init_resources; (B) emdawnwebgpu
+  objects are per-thread JS-table — set `GCaps.use_main_context_workaround=true` under
+  `__EMSCRIPTEN__` (Blender's existing mechanism); (C) in-tab immBegin asserts prim_type
+  (gpu_immediate.cc:204) — investigate; (D) sync readback WaitAny cannot block browser main
+  thread → garbage pixels — EXPECTED TO VANISH in the real windowed binary (PROXY_TO_PTHREAD:
+  WM worker can Atomics.wait; device lives on WM worker) — verify at M4 boot, harness keeps
+  workaround. PLUS: npos-class sweep of gpu/intern (13 remaining npos comparisons,
+  wasm-compiled TUs only, same __EMSCRIPTEN__-guard pattern as 0060/0061).
+- [ ] **M3-hygiene [driver, boundary]** Audit rec (reports/audit-20260805.md, MINOR): write a
+  `patches/series` apply-order manifest (0016b-after-0019/0021 class is currently only in
+  progress.txt prose); reproducibility-from-patches depends on it.
 - [x] **M3.F6 [gpu-backend laneA r10]** DONE (0055-0058, b0c94ce/fd007d8/cc3f34c/7b9ea5a, all
   reverse-apply clean): imm wiring → immediate 2/2; compute_dispatch real (pipeline cached ON
   WGPUShader — pointer-keyed pool rejected as stale-address bug) → push_constants **10/10**;

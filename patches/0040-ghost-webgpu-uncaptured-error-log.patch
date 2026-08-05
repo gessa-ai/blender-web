@@ -1,0 +1,37 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+index 4858db8..b59120c 100644
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -12,6 +12,8 @@
+ #include "GHOST_ContextWGPU.hh"
+ 
+ #include <cstdint>
++#include <cstdio>
++#include <string>
+ #include <vector>
+ 
+ GHOST_ContextWGPU::GHOST_ContextWGPU(const GHOST_ContextParams &context_params)
+@@ -61,8 +63,22 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   }
+ 
+   wgpu::DeviceDescriptor device_desc = {};
++  /* Log the FULL uncaptured device-error message. This callback can only be set at
++   * device creation (not post-hoc), which is why validation errors were invisible:
++   * on this build PopErrorScope returns an empty message, so the uncaptured-error
++   * path is the only place the string is available. */
+   device_desc.SetUncapturedErrorCallback(
+-      [](const wgpu::Device &, wgpu::ErrorType, wgpu::StringView /*msg*/) {});
++      [](const wgpu::Device &, wgpu::ErrorType type, wgpu::StringView msg) {
++        const size_t len = (msg.length == WGPU_STRLEN) ?
++                               (msg.data ? std::char_traits<char>::length(msg.data) : 0) :
++                               msg.length;
++        fprintf(stderr,
++                "[WebGPU] uncaptured device error (type %d): %.*s\n",
++                int(type),
++                int(len),
++                msg.data ? msg.data : "");
++        fflush(stderr);
++      });
+ 
+   /* Opt into optional texture-format features the WebGPU backend relies on, when
+    * the adapter exposes them (adapter-guarded so RequestDevice never fails on an

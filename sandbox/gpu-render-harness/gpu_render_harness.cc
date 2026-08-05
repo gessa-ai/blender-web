@@ -34,10 +34,14 @@
 #include "GPU_framebuffer.hh"
 #include "GPU_immediate.hh"
 #include "GPU_init_exit.hh"
+#include "GPU_platform.hh"
 #include "GPU_shader_builtin.hh"
 #include "GPU_state.hh"
 #include "GPU_texture.hh"
 #include "GPU_vertex_format.hh"
+
+#include "gpu_capabilities_private.hh"
+#include "gpu_platform_private.hh"
 
 EM_JS(void, hreport, (const char *msg), {
   const s = UTF8ToString(msg);
@@ -71,13 +75,36 @@ static void render_with_gpu_module()
   gpu::FrameBuffer *fb = GPU_framebuffer_create("harness_fb");
   GPU_framebuffer_texture_attach(fb, tex, 0, 0);
   GPU_framebuffer_bind(fb);
-  GPU_framebuffer_clear_color(fb, double4(0.0, 0.0, 0.0, 1.0));
-  hreport("framebuffer bound + cleared");
+  GPU_framebuffer_clear_color(fb, double4(0.10, 0.45, 0.85, 1.0));
+  hreport("framebuffer bound + cleared to (0.10, 0.45, 0.85, 1.0)");
 
-  /* Immediate-mode triangle with a builtin shader. immBindBuiltinProgram triggers
-   * the real shader compile (GLSL create-info -> SPIR-V 1.3 -> Tint -> WGSL ->
-   * WGPUShader::finalize). If lane A's finalize path is green this renders; if not,
-   * reaching HERE in a browser tab already proves browser parity. */
+  /* FIRST IN-TAB PIXELS — read back the CLEARED framebuffer through the real WebGPU
+   * backend (render-pass clear -> texture->buffer copy -> map-read -> row-flip) and show
+   * it as a PNG. This is a genuine GPU-produced frame from the real Blender WebGPU
+   * backend running in a browser tab, independent of the immediate-mode draw below. */
+  GPU_finish();
+  {
+    uint8_t *px = (uint8_t *)GPU_texture_read(tex, GPU_DATA_UBYTE, 0);
+    if (px) {
+      const uint8_t *c = px + (size_t(H / 2) * W + (W / 2)) * 4; /* center RGBA */
+      char buf[160];
+      std::snprintf(buf, sizeof(buf),
+                    "FIRST PIXELS (clear readback) center RGBA=(%d,%d,%d,%d) — expect ~(26,115,217,255)",
+                    c[0], c[1], c[2], c[3]);
+      hreport(buf);
+      const bool ok = (c[2] > 180 && c[0] < 80 && c[3] > 200);
+      hreport(ok ? "RENDER PASS: cleared framebuffer read back correctly in-tab"
+                 : "RENDER note: clear colour unexpected");
+      hshow((uintptr_t)px, W, H);
+    }
+    else {
+      hreport("GPU_texture_read returned null (clear readback)");
+    }
+  }
+
+  /* Now attempt the immediate-mode triangle (exercises the just-compiled builtin shader
+   * through the draw path). The clear-readback PNG above is already captured, so if the
+   * WGPUImmediate path aborts, first pixels are unaffected. */
   GPUVertFormat *format = immVertexFormat();
   const uint pos = GPU_vertformat_attr_add_legacy(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
   hreport("binding GPU_SHADER_3D_UNIFORM_COLOR (-> shader finalize)");
@@ -94,19 +121,20 @@ static void render_with_gpu_module()
   hreport("DRAW OK — triangle submitted via imm");
 
   GPU_finish();
-
-  uint8_t *px = (uint8_t *)GPU_texture_read(tex, GPU_DATA_UBYTE, 0);
-  if (px) {
-    const uint8_t *c = px + (size_t(H / 2) * W + (W / 2)) * 4; /* center RGBA */
-    char buf[128];
-    std::snprintf(buf, sizeof(buf), "readback center RGBA=(%d,%d,%d,%d)", c[0], c[1], c[2], c[3]);
-    hreport(buf);
-    const bool ok = (c[0] > 180 && c[2] < 80 && c[3] > 200);
-    hreport(ok ? "RENDER PASS: center is the orange triangle" : "RENDER note: center not triangle colour");
-    hshow((uintptr_t)px, W, H);
-  }
-  else {
-    hreport("GPU_texture_read returned null");
+  {
+    uint8_t *px = (uint8_t *)GPU_texture_read(tex, GPU_DATA_UBYTE, 0);
+    if (px) {
+      const uint8_t *c = px + (size_t(H / 2) * W + (W / 2)) * 4; /* center RGBA */
+      char buf[160];
+      std::snprintf(buf, sizeof(buf), "TRIANGLE readback center RGBA=(%d,%d,%d,%d)", c[0], c[1], c[2], c[3]);
+      hreport(buf);
+      const bool ok = (c[0] > 180 && c[2] < 80 && c[3] > 200);
+      hreport(ok ? "RENDER PASS: center is the orange triangle" : "RENDER note: center not triangle colour");
+      hshow((uintptr_t)px, W, H);
+    }
+    else {
+      hreport("GPU_texture_read returned null (triangle readback)");
+    }
   }
 
   GPU_framebuffer_free(fb);
@@ -124,6 +152,36 @@ static void on_device_ready(bool ok)
   GPUContext *ctx = GPU_context_create(nullptr, g_ctx);
   GPU_context_active_set(ctx);
   hreport("GPU_context_create OK (WGPUContext borrowed the device)");
+
+  /* HARNESS WORKAROUND — cross-thread WebGPU-object gap (routed to lane A / ghost-web):
+   * emdawnwebgpu keeps its WebGPU objects (Device/Queue) in the MAIN thread's per-thread
+   * JS object table, so a ShaderCompiler worker thread cannot see the device —
+   * wgpuDeviceCreateShaderModule() aborts in getJsObject() on the worker. Setting the
+   * main-context-workaround capability makes ShaderCompiler create no worker and compile
+   * on the calling (main) thread, where the device is valid. Must be set before
+   * GPU_init(), which is where WGPUBackend::init_resources() builds the ShaderCompiler.
+   * The real backend needs a cross-thread device strategy (proxy-to-main or per-worker
+   * device) — flagged for lane A. */
+  blender::gpu::GCaps.use_main_context_workaround = true;
+
+  /* HARNESS WORKAROUND — WebGPU-backend gap (routed to lane A): unlike VKBackend, the
+   * WebGPU backend never calls platform_init(), so the GPUPlatformGlobal (GPG) stays
+   * uninitialised and GPU_type_matches() — called from standard_defines() during the
+   * shader compile — asserts GPG.initialized (gpu_platform.cc:179). Mirror what
+   * VKBackend::platform_init does, with WebGPU identity, so the compile can proceed.
+   * Must be set BEFORE GPU_init(): with the main-context workaround GPU_init warms up the
+   * builtin shaders synchronously (on this thread) and would otherwise hit the assert.
+   * The real fix belongs in WGPUBackend (webgpu/, lane A). */
+  blender::gpu::GPG.init(GPU_DEVICE_ANY,
+                         GPU_OS_ANY,
+                         GPU_DRIVER_ANY,
+                         GPU_SUPPORT_LEVEL_SUPPORTED,
+                         GPU_BACKEND_WEBGPU,
+                         "emdawnwebgpu",
+                         "WebGPU",
+                         "1.0",
+                         GPU_ARCHITECTURE_IMR);
+  hreport("GPG.init + main-context-workaround set (harness workarounds for WebGPU-backend gaps)");
 
   GPU_init();
   hreport("GPU_init OK");

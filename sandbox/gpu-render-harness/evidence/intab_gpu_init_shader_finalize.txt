@@ -1,0 +1,74 @@
+cycle-6 — browser GPU render harness: in-tab run transcript (M3.F5)
+====================================================================
+Date: 2026-08-05
+Server: python3 sandbox/gpu-render-harness/web/server.py 8130 (COOP/COEP/CORP)
+Browser: real WebGPU tab (Chrome 148 / Electron 42), driven via the in-app Browser pane.
+
+ENVIRONMENT (proves a real WebGPU browser tab, not Node):
+  navigator.gpu        = true
+  crossOriginIsolated  = true          (SharedArrayBuffer / pthreads enabled)
+  GPUAdapter present   = true
+  backend selected     = WEBGPU
+  userAgent            = Mozilla/5.0 ... Chrome/148.0.7778.280 Electron/42.7.0
+
+wasm: sandbox/gpu-render-harness/web/gpu_harness.wasm (~22 MB), links the REAL Blender
+WebGPU backend build-wasm-gpu/lib/libbf_gpu.a + shader archives + tint/shaderc wasm +
+emdawnwebgpu web context. Built by sandbox/gpu-render-harness/build.sh.
+
+IN-TAB REPORT SEQUENCE (globalThis.gpuResults, in order):
+  1  [gpu-harness] backend = WEBGPU; creating GHOST_ContextWGPUWeb on '#gpucanvas'
+  2  CONTEXT OK: emdawnwebgpu device acquired
+  3  GPU_context_create OK (WGPUContext borrowed the device)
+  4  GPG.init + main-context-workaround set (harness workarounds for WebGPU-backend gaps)
+  5  GPU_init OK                          <-- GPU_init COMPLETES in-tab (was blocked before)
+  6  GPU_texture_create_2d OK
+  7  framebuffer bound + cleared to (0.10, 0.45, 0.85, 1.0)
+  8  FIRST PIXELS (clear readback) center RGBA=(99,52,32,98) — expect ~(26,115,217,255)
+  9  RENDER note: clear colour unexpected
+  10 binding GPU_SHADER_3D_UNIFORM_COLOR (-> shader finalize)
+  11 SHADER FINALIZE OK — builtin program bound   <-- REAL shader compiled in-tab:
+        GLSL create-info -> SPIR-V 1.3 (shaderc) -> WGSL (Tint) -> wgpuDeviceCreateShaderModule
+
+WHAT LANDED (root-cause fixes, verified):
+  * The historical "shader-source comments not stripped" blocker was a MISDIAGNOSIS.
+    The wasm build already strips comments build-side (ADR-002 native host shader_tool;
+    all 904 *.tmp are comment-free). The real init blocker was a wasm32 integer-width
+    bug: StringRefBase::find() returns int64_t not_found = -1, but the GPUSource /
+    run_preprocessor asserts compared against std::string::npos (size_t; 0xFFFFFFFF on
+    wasm32, which promotes to int64_t 4294967295 != -1). The assert therefore fired on
+    the FIRST source regardless of content, and the printf-format loop's find_first_of()
+    result (32-bit npos) never matched -1 so it overran into "unsupported format".
+      -> patches/0060-gpu-shader-dependency-wasm32-npos.patch   (__EMSCRIPTEN__ guarded)
+      -> patches/0061-gpu-shader-preprocessor-wasm32-npos.patch (__EMSCRIPTEN__ guarded)
+    With these, gpu_shader_dependency_init() completes and the shader compiles in-tab.
+
+HARNESS-SIDE WORKAROUNDS FOR WEBGPU-BACKEND GAPS (sandbox-owned; real fixes routed to lane A):
+  * A. WGPUBackend never calls platform_init(), so GPU_type_matches() asserts
+       GPG.initialized (gpu_platform.cc:179). Harness sets blender::gpu::GPG.init(...)
+       mirroring VKBackend::platform_init, before GPU_init().
+  * B. emdawnwebgpu keeps WebGPU objects (Device/Queue) in the MAIN thread's per-thread
+       JS object table; a ShaderCompiler worker cannot see the device and
+       wgpuDeviceCreateShaderModule() aborts in getJsObject(). Harness sets
+       GCaps.use_main_context_workaround = true (compile on the main thread).
+
+REMAINING BLOCKERS TO CORRECT PIXELS (precisely characterized, routed to lane A):
+  * C. WGPUImmediate: immBegin() asserts imm->prim_type == GPU_PRIM_NONE
+       (gpu_immediate.cc:204) on the first immediate-mode primitive — the immediate draw
+       path (webgpu/wgpu_immediate.cc) is not usable yet. (Triangle draw blocked here.)
+  * D. Synchronous readback returns UNINITIALISED memory. WGPUTexture::read()
+       (webgpu/wgpu_texture.cc:1192) blocks on ctx->instance_get().WaitAny(future,
+       UINT64_MAX) to wait for the staging-buffer MapAsync. emdawnwebgpu does NOT support
+       synchronous WaitAny on the browser main thread (same delta as async device
+       acquisition, notes/gpu-wasm-compile.md #2), so the map never completes and the read
+       copies garbage. WGPUContext::finish() is also a no-op (wgpu_context.cc:181).
+       The readback PIPELINE runs and produces a PNG in-tab (evidence
+       intab_clear_readback_garbage.png, 256x256) but its content is uninitialised
+       (243 distinct random colours, alphas != 255) — NOT the cleared blue.
+       Needs an async-readback strategy: -sJSPI to let WaitAny suspend/resume on the main
+       thread, or perform the readback on a worker thread where Atomics.wait can block.
+       (ghost-web / main-loop lane, ADR-003.)
+
+BOTTOM LINE: GPU_init COMPLETES and a REAL Blender WebGPU shader COMPILES in a browser
+tab. Correct pixels are gated on blocker D (async readback) and, for the triangle, on
+blocker C (immediate mode). The clear-readback PNG proves the readback pipeline executes
+in-tab; its garbage content is exactly the WaitAny-can't-block symptom of blocker D.

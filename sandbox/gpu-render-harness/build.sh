@@ -16,13 +16,21 @@ OUT="$ROOT/build-deps/gpu-harness"
 mkdir -p "$OUT"
 source "$ROOT/tools/emsdk/emsdk_env.sh" >/dev/null 2>&1
 
-FLAGS=$(cat /private/tmp/claude-501/-Users-paws-blender-web/7643c491-d4e9-49ce-8c26-160dbff8f0f1/scratchpad/flags.txt)
+FLAGS=$(cat /private/tmp/claude-501/-Users-paws-blender-web/842d1baa-b07e-4763-8a60-5cf78d22669c/scratchpad/flags.txt)
 ADD="--use-port=emdawnwebgpu -DWITH_WEBGPU_BACKEND -I$ROOT/upstream/source/blender/gpu/intern -I$ROOT/upstream/source/blender/gpu/webgpu -I$ROOT/upstream/intern/ghost -I$ROOT/upstream/intern/ghost/intern -I$HARNESS -Iplatform_web/ghost -isystem $ROOT/build-dawn/dawn -isystem $ROOT/lib/wasm/shaderc/include"
 
 echo "== compile TUs =="
 eval em++ $FLAGS $ADD -c "$HARNESS/gpu_render_harness.cc" -o "$OUT/main.o" || exit 1
 eval em++ $FLAGS $ADD -c "$HARNESS/wgpu_context_web.cc"   -o "$OUT/wgpu_context_web.o" || exit 1
 eval em++ $FLAGS $ADD -c "$HARNESS/harness_stubs.cc"      -o "$OUT/stubs.o" || exit 1
+# The old "shader-source comments" blocker was a MISDIAGNOSIS: the wasm build's glsl_to_c
+# already runs the NATIVE host shader_tool (ADR-002, BLENDER_WEB_HOST_TOOLS_DIR), whose
+# remove_comments() strips every shader before datatoc (verified: all 904 *.tmp are
+# comment-free). The real blocker was a wasm32 width bug in gpu_shader_dependency.cc: the
+# GPUSource() "no comments" assert compared StringRef::find() (int64_t, not_found=-1)
+# against std::string::npos (32-bit 0xFFFFFFFF on wasm), firing spuriously on the FIRST
+# source. Fixed at root cause by patches/0060-gpu-shader-dependency-wasm32-npos.patch
+# (__EMSCRIPTEN__-guarded). We link the REAL gpu_shader_dependency.cc TU from libbf_gpu.a.
 eval em++ $FLAGS $ADD -c "$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc" -o "$OUT/ghost_ctx_web.o" || exit 1
 eval em++ $FLAGS $ADD -c "$ROOT/upstream/intern/ghost/intern/GHOST_Context.cc" -o "$OUT/ghost_ctx.o" || exit 1
 
@@ -38,6 +46,8 @@ em++ -std=c++20 -pthread -fexceptions -funsigned-char \
   --use-port=emdawnwebgpu \
   -sSTACK_SIZE=33554432 -sINITIAL_MEMORY=536870912 -sALLOW_MEMORY_GROWTH=1 \
   -sEXIT_RUNTIME=0 -sASSERTIONS=1 -sWASM_BIGINT \
+  -sPTHREAD_POOL_SIZE=32 -sPTHREAD_POOL_SIZE_STRICT=0 \
+  -sDEFAULT_PTHREAD_STACK_SIZE=33554432 \
   -sMODULARIZE=1 -sEXPORT_NAME=createGpuHarness -sEXPORTED_RUNTIME_METHODS=callMain \
   --profiling-funcs \
   "$OUT/main.o" "$OUT/wgpu_context_web.o" "$OUT/stubs.o" "$OUT/ghost_ctx_web.o" "$OUT/ghost_ctx.o" \

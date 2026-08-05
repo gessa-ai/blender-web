@@ -304,12 +304,21 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
 - [ ] **M3.F5 [driver → worker]** The instant-green vehicle: rebuild `sandbox/gpu-render-harness`
   for FIRST IN-TAB PIXELS (closure list in notes/gpu-wasm-render-harness.md; comment-strip
   blocker + pthread pool noted there). **DISPATCHED 2026-08-05 (blend green landed).**
-- [ ] **M3.F6 [gpu-backend laneA r10]** Draw-set completion: (a) imm wiring — 3 lines in
-  wgpu_context.cc (ctor imm=new WGPUImmediate(); activate/deactivate immActivate/Deactivate,
-  vk_context.cc:43/141/60 pattern) → immediate_*; (b) compute_dispatch real implementation
-  (wgpu_backend.cc:62 empty stub; T7.pre proved compute+SSBO+atomic pipeline on live Dawn) →
-  push_constants 10 tests; (c) gpu_ViewportIndex declared in codegen (wgpu_shader.cc:1108) so
-  multi_viewport compiles — CRASH→honest fail only. DISPATCHED round 10.
+- [x] **M3.F6 [gpu-backend laneA r10]** DONE (0055-0058, b0c94ce/fd007d8/cc3f34c/7b9ea5a, all
+  reverse-apply clean): imm wiring → immediate 2/2; compute_dispatch real (pipeline cached ON
+  WGPUShader — pointer-keyed pool rejected as stale-address bug) → push_constants **10/10**;
+  gpu_ViewportIndex/gpu_Layer codegen → multi_viewport CRASH→honest FAIL; stretch: gl_PointSize
+  redirect → static_shaders **519/973** (point_size bucket 54→0). Blend held 12/12.
+  **DRIVER-VERIFIED independent run: immediate 2/2 + push_constants 10/10.**
+- [ ] **M3.F8 [gpu-backend r11 — MERGED lane ownership, single worker]** Remaining gpu-suite
+  gaps (all characterized r10): (a) storage-IMAGE bind path — wgpu_state_manager.cc:47
+  image_bind no-op → compute_direct/compute_indirect FAIL; this is also the handoff's queued
+  "texture/sampler bind-group entries" item (uniform-only-draws gate has fallen) → textured
+  draw families; (b) specialization constants codegen ('float_in' undeclared,
+  gpu_compute_specialization_test:951); (c) framebuffer_subpass_input* CRASH (subpass-input
+  codegen gap — aborts shared-process runs, run per-family); (d) static_shaders tail buckets:
+  uniform-control-flow/fwidth 25 (also blocks multi_viewport widget shader), textureSample
+  ~32-62, extension/capability ~193, shaderc front-end 125. DISPATCHED round 11.
 - [ ] **M3.F7 [driver DECISION, deferred]** multi_viewport faithful pass needs layer/viewport
   emulation (WebGPU: no viewport-array, no gl_Layer) — decide approach (multi-pass per
   viewport vs instance+clip) AFTER F6 lands; one test, not gate-critical yet.

@@ -128,10 +128,10 @@ index 00000000000..16d510888f2
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 00000000000..88dad088c5f
+index 00000000000..74dc3eb4247
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,1170 @@
+@@ -0,0 +1,1212 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -212,6 +212,7 @@ index 00000000000..88dad088c5f
 +  F16,
 +  F32,
 +  PackedR11G11B10, /* whole 32-bit texel; 3 logical comps */
++  Packed32,        /* whole 32-bit texel copied verbatim (RGB10A2 UNORM/UINT) */
 +  Depth16,         /* unorm16 depth */
 +  Depth32F,        /* float32 depth */
 +  Depth32FS8,      /* float32 depth (+ separate stencil8) */
@@ -335,6 +336,11 @@ index 00000000000..88dad088c5f
 +    /* Packed / special. */
 +    case TextureFormat::UFLOAT_11_11_10:
 +      return Repr::PackedR11G11B10;
++    /* RGB10A2 (UNORM/UINT): WebGPU RGB10A2Unorm/Uint have the same packed bit
++     * layout as GPU_DATA_2_10_10_10_REV (R low 10 bits … A high 2) — verbatim copy. */
++    case TextureFormat::UNORM_10_10_10_2:
++    case TextureFormat::UINT_10_10_10_2:
++      return Repr::Packed32;
 +    case TextureFormat::UNORM_16_DEPTH:
 +      return Repr::Depth16;
 +    case TextureFormat::SFLOAT_32_DEPTH:
@@ -349,8 +355,8 @@ index 00000000000..88dad088c5f
 +    case TextureFormat::SNORM_DXT5:
 +      return Repr::Compressed;
 +    default:
-+      /* UNORM_10_10_10_2 / UINT_10_10_10_2 / UFLOAT_9_9_9_EXP_5: packed formats not
-+       * exercised by the enabled gate tests — stored/copied verbatim (Direct). */
++      /* UFLOAT_9_9_9_EXP_5 (RGB9E5): shared-exponent pack not implemented (its gate
++       * test is disabled); no CPU upload/read path. */
 +      return Repr::Unsupported;
 +  }
 +}
@@ -735,8 +741,10 @@ index 00000000000..88dad088c5f
 +  const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
 +  /* Renderable = the format's spec cap, OR any depth/stencil format (needed for the
 +   * render-pass depth clear). SNORM16 is emulated as a Uint texture, whose Uint
-+   * target is not renderable. */
-+  const bool renderable = fi.caps.renderable || (format_flag_ & GPU_FORMAT_DEPTH) != 0;
++   * target is not renderable. WebGPU forbids RenderAttachment on 1D textures
++   * (dimension=1D) — a 1D array is created as 2D so it stays eligible. */
++  const bool renderable = (fi.caps.renderable || (format_flag_ & GPU_FORMAT_DEPTH) != 0) &&
++                          type_ != GPU_TEXTURE_1D;
 +  const bool storable = fi.caps.storage && !snorm16_emulated_;
 +
 +  /* Base (mip-0) size. Layers/faces map to depthOrArrayLayers; a 1D array becomes
@@ -845,7 +853,7 @@ index 00000000000..88dad088c5f
 +/** Device bytes per (uncompressed) texel. */
 +static uint32_t device_texel_bytes(TextureFormat format, ConvClass conv, Repr repr)
 +{
-+  if (repr == Repr::PackedR11G11B10) {
++  if (repr == Repr::PackedR11G11B10 || repr == Repr::Packed32) {
 +    return 4;
 +  }
 +  return uint32_t(device_channels(format, conv)) * repr_comp_bytes(repr);
@@ -887,6 +895,14 @@ index 00000000000..88dad088c5f
 +                                host_read_float(s + 2 * hbytes, GPU_DATA_FLOAT));
 +      }
 +      std::memcpy(d, &packed, 4);
++    }
++    return;
++  }
++
++  /* RGB10A2 packed: GPU_DATA_2_10_10_10_REV matches the device layout verbatim. */
++  if (repr == Repr::Packed32) {
++    for (size_t p = 0; p < sample_count; p++) {
++      std::memcpy(dst + p * 4, src + p * 4, 4);
 +    }
 +    return;
 +  }
@@ -953,6 +969,14 @@ index 00000000000..88dad088c5f
 +    return;
 +  }
 +
++  /* RGB10A2 packed: verbatim to GPU_DATA_2_10_10_10_REV. */
++  if (repr == Repr::Packed32) {
++    for (size_t p = 0; p < sample_count; p++) {
++      std::memcpy(dst + p * 4, src + p * 4, 4);
++    }
++    return;
++  }
++
 +  const bool integer = repr_is_integer(repr);
 +  for (size_t p = 0; p < sample_count; p++) {
 +    const uint8_t *s = src + p * dstride;
@@ -980,7 +1004,7 @@ index 00000000000..88dad088c5f
 +                             int extent[3],
 +                             eGPUDataFormat format,
 +                             const void *data,
-+                             uint /*unpack_row_length*/)
++                             uint unpack_row_length)
 +{
 +  BLI_assert(!is_texture_view());
 +  if (texture_ == nullptr || data == nullptr) {
@@ -1004,7 +1028,25 @@ index 00000000000..88dad088c5f
 +  const uint32_t texel_bytes = device_texel_bytes(format_, conv_, repr);
 +
 +  std::vector<uint8_t> device_data(sample_count * texel_bytes);
-+  convert_host_to_device(device_data.data(), static_cast<const uint8_t *>(data), sample_count, format);
++  const uint8_t *src = static_cast<const uint8_t *>(data);
++  /* Non-zero unpack_row_length that differs from the sub-region width means the
++   * source rows are strided (the caller uploads a window of a larger image): gather
++   * `ex` texels per row from the wider source stride. Matches vk_texture.cc. */
++  if (unpack_row_length != 0u && int(unpack_row_length) != ex) {
++    const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);
++    const size_t src_row_stride = size_t(unpack_row_length) * host_texel;
++    const size_t dst_row_bytes = size_t(ex) * texel_bytes;
++    const int rows = ey * ez;
++    for (int row = 0; row < rows; row++) {
++      convert_host_to_device(device_data.data() + size_t(row) * dst_row_bytes,
++                             src + size_t(row) * src_row_stride,
++                             size_t(ex),
++                             format);
++    }
++  }
++  else {
++    convert_host_to_device(device_data.data(), src, sample_count, format);
++  }
 +
 +  WGPUContext *ctx = active_context();
 +  if (ctx == nullptr) {

@@ -1,8 +1,8 @@
 diff --git a/intern/ghost/CMakeLists.txt b/intern/ghost/CMakeLists.txt
-index 8c3e57ee796..0f1a4198286 100644
+index 8c3e57ee796..92d282e1f89 100644
 --- a/intern/ghost/CMakeLists.txt
 +++ b/intern/ghost/CMakeLists.txt
-@@ -96,6 +96,45 @@ if(WITH_VULKAN_BACKEND)
+@@ -96,6 +96,48 @@ if(WITH_VULKAN_BACKEND)
    add_definitions(-DWITH_VULKAN_BACKEND)
  endif()
  
@@ -40,7 +40,10 @@ index 8c3e57ee796..0f1a4198286 100644
 +    ${_bw_ghost_web}/GHOST_KeyMapWeb.hh
 +    ${_bw_ghost_web}/GHOST_ContextWGPUWeb.hh
 +  )
-+  list(APPEND INC ${_bw_ghost_web})
++  # platform_web/ghost sources #include the GHOST base headers (GHOST_System.hh,
++  # GHOST_Context.hh, ...) which live in intern/ — add it (base sources reach
++  # their siblings via the same-dir quote-include rule; ours cannot).
++  list(APPEND INC ${_bw_ghost_web} intern)
 +  add_definitions(-DWITH_GHOST_WEB)
 +  unset(_bw_ghost_web)
 +endif()

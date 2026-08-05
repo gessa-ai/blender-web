@@ -57,6 +57,14 @@ option(WITH_BLENDER_WEB_WINDOWED
 option(WITH_GHOST_WEB
   "blender-web: compile the browser GHOST back-end (platform_web/ghost)" OFF)
 
+# This file is loaded as a `-C` INITIAL CACHE, which CMake processes BEFORE `-D`
+# command-line options — so a `-DWITH_BLENDER_WEB_WINDOWED=ON` is not visible here.
+# Honor an environment knob (evaluated at -C time) as the reliable windowed switch:
+#   BLENDER_WEB_WINDOWED=1 cmake -S upstream -B build-wasm-windowed -C patches/blender_web.cmake ...
+if("$ENV{BLENDER_WEB_WINDOWED}")
+  set(WITH_BLENDER_WEB_WINDOWED ON CACHE BOOL "" FORCE)
+endif()
+
 if(WITH_BLENDER_WEB_WINDOWED)
   set(WITH_HEADLESS        OFF CACHE BOOL "" FORCE)  # run the windowed GHOST/UI/DRW path
   set(WITH_WEBGPU_BACKEND  ON  CACHE BOOL "" FORCE)  # the wasm GPU backend (M3)

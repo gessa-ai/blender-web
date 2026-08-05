@@ -12,8 +12,11 @@
 
 #include "GHOST_ContextWGPUWeb.hh"
 
+#include <cstdint>
 #include <cstdio>
 #include <utility>
+
+#include <emscripten/html5.h>
 
 GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
                                            const char *canvas_selector)
@@ -28,8 +31,71 @@ GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb() = default;
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
 {
-  /* The device is acquired asynchronously by initAsync(); the GHOST-web system awaits
-   * it once at startup before the WM loop, so by here it is ready. */
+  /* If a prior initAsync() already acquired the device (callback path, e.g. the
+   * standalone harness), we are done. */
+  if (ready_) {
+    return GHOST_kSuccess;
+  }
+
+  /* Windowed (GHOST) path: acquire the device SYNCHRONOUSLY via wgpu WaitAny. Under
+   * -sJSPI (the windowed browser link) WaitAny SUSPENDS — it yields to the browser
+   * event loop that resolves the future and then resumes — instead of blocking the
+   * main thread (which would deadlock). This is the one-time top-level startup await
+   * ADR-003 permits; it mirrors the native GHOST_ContextWGPU acquisition. */
+  wgpu::InstanceDescriptor idesc = {};
+  static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
+  idesc.requiredFeatureCount = 1;
+  idesc.requiredFeatures = &kTimedWaitAny;
+  instance_ = wgpu::CreateInstance(&idesc);
+  if (instance_ == nullptr) {
+    std::printf("WGPUWeb: CreateInstance failed\n");
+    return GHOST_kFailure;
+  }
+
+  wgpu::RequestAdapterOptions aopts = {};
+  aopts.powerPreference = wgpu::PowerPreference::HighPerformance;
+  instance_.WaitAny(
+      instance_.RequestAdapter(
+          &aopts,
+          wgpu::CallbackMode::WaitAnyOnly,
+          [this](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView /*msg*/) {
+            if (status == wgpu::RequestAdapterStatus::Success) {
+              adapter_ = std::move(a);
+            }
+          }),
+      UINT64_MAX);
+  if (adapter_ == nullptr) {
+    std::printf("WGPUWeb: RequestAdapter failed (sync)\n");
+    return GHOST_kFailure;
+  }
+
+  wgpu::DeviceDescriptor ddesc = {};
+  ddesc.SetUncapturedErrorCallback(
+      [](const wgpu::Device & /*d*/, wgpu::ErrorType type, wgpu::StringView msg) {
+        std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
+      });
+  instance_.WaitAny(
+      adapter_.RequestDevice(
+          &ddesc,
+          wgpu::CallbackMode::WaitAnyOnly,
+          [this](wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView /*msg*/) {
+            if (status == wgpu::RequestDeviceStatus::Success) {
+              device_ = std::move(d);
+            }
+          }),
+      UINT64_MAX);
+  if (device_ == nullptr) {
+    std::printf("WGPUWeb: RequestDevice failed (sync)\n");
+    return GHOST_kFailure;
+  }
+  queue_ = device_.GetQueue();
+
+  /* Canvas size from the DOM (the GHOST_WindowWeb already sized the canvas). */
+  int cw = 0, ch = 0;
+  emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
+  width_ = uint32_t(cw > 0 ? cw : 1);
+  height_ = uint32_t(ch > 0 ? ch : 1);
+  finishSetup(); /* creates + configures the surface, sets ready_ */
   return ready_ ? GHOST_kSuccess : GHOST_kFailure;
 }
 

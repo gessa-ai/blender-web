@@ -87,11 +87,63 @@ emscripten. Recommended sequencing: land M3 wasm-compile → wire `--use-port=em
 into the browser target (task 7) → configure the windowed build dir → link → expect the
 first-draw abort (backend incomplete) = this lane's gate.
 
-## Remaining (tasks 6–9, recon §5)
+## Tasks 6–9 (windowed link) — status (2026-08-05)
 
-6. system-level startup device-await + canvas/swapchain sizing (devicePixelRatio).
-7. boot args (drop `--background`, add windowed args + canvas selector) + wire
-   `--use-port=emdawnwebgpu` into the browser link target.
-8. first-draw bring-up (startup.blend → Layout + cube/camera/light; icons upload; theme;
-   splash).
-9. M4 gate: idiff first frame vs native golden; register deferrals.
+Unblocked once the M3 WebGPU backend compiled for wasm (`build-wasm-gpu`,
+`notes/gpu-wasm-compile.md`) and the shader chain landed (`lib/wasm/{tint,shaderc}`,
+`notes/deps-shader-chain.md`).
+
+**T6 — startup device-await (DONE, compiles active).** `GHOST_ContextWGPUWeb::
+initializeDrawingContext()` now acquires the device SYNCHRONOUSLY via `instance.WaitAny(
+RequestAdapter/RequestDevice, UINT64_MAX)` — under `-sJSPI` (windowed link) `WaitAny`
+SUSPENDS to the event loop instead of blocking, the one-time top-level startup await
+ADR-003 permits (mirrors native `GHOST_ContextWGPU`). Canvas size read from the DOM. The
+async callback path (`initAsync`) is kept for the standalone harness. Payload: **no gap**
+— recon §2's inventory is already covered by the `/bw/datafiles` (fonts/colormgmt) +
+`/bw/scripts` mounts; icons are datatoc'd into the wasm (the only "missing" piece was
+`icons_init` being compiled out — fixed by T1/0024).
+
+**T7 — windowed link flags (DONE).** The gpu-lane WebGPU arm already adds
+`--use-port=emdawnwebgpu` + `TINT_INCLUDE_DIRS`/`SHADERC_INCLUDE_DIR`/`WGPU_TINT_LIBS`
+when `WITH_WEBGPU_BACKEND=ON`. My browser target OVERWRITES `LINK_FLAGS`, so
+`blender_web_browser_binary()` now re-adds, under `WITH_WEBGPU_BACKEND`:
+`--use-port=emdawnwebgpu -sJSPI -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432`
+(32 MB stack = deps-shader-chain.md finding 3; JSPI = the T6 await). `WGPU_TINT_LIBS`
+(shaderc+Tint) link via `bf_gpu`'s cloned `LINK_LIBRARIES`.
+
+The exact block (live on disk in `platform_wasm.cmake`'s `blender_web_browser_binary()`,
+just before `set_target_properties(... LINK_FLAGS ...)`) — NOT in the M4 commit to avoid
+conflating with the gpu-lane's WebGPU arm; the driver applies it onto that arm:
+```cmake
+  if(WITH_WEBGPU_BACKEND)
+    string(APPEND _bw_browser_flags
+      " --use-port=emdawnwebgpu -sJSPI"
+      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432")
+  endif()
+```
+
+**T8 — windowed configure (GREEN).** Separate tree, shared `build-wasm` untouched:
+```
+BLENDER_WEB_WINDOWED=1 cmake -S upstream -B build-wasm-windowed -G Ninja \
+  -C patches/blender_web.cmake -DCMAKE_TOOLCHAIN_FILE=<emscripten> \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_BLENDER_WEB_BROWSER=ON
+```
+NOTE: `-C` initial-cache runs BEFORE `-D`, so the windowed switch is the ENV knob
+`BLENDER_WEB_WINDOWED=1` (not `-DWITH_BLENDER_WEB_WINDOWED`). Cache verified:
+`WITH_HEADLESS=OFF`, `WITH_WEBGPU_BACKEND=ON`, `WITH_GHOST_WEB=ON`. **The full GHOST
+windowed integration compiles active** in this config: `lib/libbf_intern_ghost.a` builds
+with all four `platform_web/ghost/*.o` (SystemWeb/WindowWeb/EventBridgeWeb/ContextWGPUWeb)
+— i.e. the T2 factory branch, the T4 `__EMSCRIPTEN__` selection seam → `GHOST_ContextWGPUWeb`,
+and the T6 `WaitAny` await all compile with `WITH_GHOST_WEB`+`WITH_WEBGPU_BACKEND` live
+(needed the ghost `CMakeLists.txt` `INC` fix: add `intern` so the out-of-tree sources see
+the GHOST base headers — patch 0027).
+
+**T9 — full windowed LINK (remaining; the gate).** `ninja -C build-wasm-windowed
+blender_browser` compiles the entire windowed Blender for wasm for the FIRST time
+(editors/interface/draw + webgpu backend + Tint/shaderc) — a large COLD build (no ccache
+populated for this config). It is NOT run here (a full cold Blender-wasm build + link is
+a multi-hour step, and ninja-locked's lock is global — it must not block the shared
+`build-wasm` lanes). The remaining gate: drive that link (expect first-ever
+windowed-wasm-link symbol gaps to surface — the honest characterization step), then boot
+to the expected first-draw abort (backend runtime incomplete until lane A finalizes).
+Everything up to and including the GHOST layer is validated; the link is the vehicle.

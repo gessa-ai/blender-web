@@ -356,9 +356,27 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   codegen gap — aborts shared-process runs, run per-family); (d) static_shaders tail buckets:
   uniform-control-flow/fwidth 25 (also blocks multi_viewport widget shader), textureSample
   ~32-62, extension/capability ~193, shaderc front-end 125. DISPATCHED round 11.
-- [ ] **M3.F7 [driver DECISION, deferred]** multi_viewport faithful pass needs layer/viewport
-  emulation (WebGPU: no viewport-array, no gl_Layer) — decide approach (multi-pass per
-  viewport vs instance+clip) AFTER F6 lands; one test, not gate-critical yet.
+- [x] **M3.F7 [driver DECISION → r13]** DECIDED 2026-08-05: multi-pass emulation — one render
+  pass per viewport rect (single-layer views exist, 0046), vertex's gpu_ViewportIndex carried
+  to fragment as flat varying, per-pass discard of non-matching primitives; GL-identical
+  readback. REJECTED: geometry duplication/instance+clip (restructures shaders); leaving it
+  deferred (it's in the gate suite). Revisit only if a hot runtime path (not tests) uses
+  viewport arrays. IMPLEMENTATION → r13.
+- [x] **M3.F8 r12 RESULT (0077-0080, driver-verified spot-runs):** static_shaders **698/973**
+  (+179: env/feature buckets 0077 +122, spec-constant codegen 0078 +56); specialization_
+  constants_compute PASS (0079 runtime re-specialization); subpass_input CRASH→honest FAIL
+  (0080). Nothing regressed (per-family sweep). Residual buckets characterized: SampledBuffer
+  93 (needs design), gl_PointCoord 50, shared-vars 61, textureSample 37, textureDimensions 13,
+  imageAtomic 6, vertex-rw-SSBO 2 (WebGPU-forbidden → deferral registry).
+- [ ] **M3.F10 [gpu-backend r13]** Residual buckets + compute residuals + F7 emulation:
+  gl_PointCoord declare-to-compile; CREATE_INFO_RES_SHARED_VARS mirror; textureSample/
+  textureDimensions/imageAtomic investigation; compute vbo/ibo-as-ssbo FAILs + texture_atomic
+  CRASH; multi-viewport per F7 decision; SampledBuffer = DESIGN-ONLY report for driver.
+  DISPATCHED (patches 0081-0090).
+- [ ] **M3-boundary [driver]** Deferral registry entries due (ledger/deferred.json, GOAL
+  format, named blockers): vertex-stage read_write SSBO (2 shaders + specialization_
+  constants_graphic — WebGPU forbids vertex RW storage); depth-aspect buffer→texture upload
+  (2 texture tests — WebGPU forbids; clear+read work). Register at M3 gate, not before.
 - Remaining shader-coverage tail after 0050 (492 fail): Tint env/capability buckets 100+93,
   gl_PointSize 54, textureSample 32, nan-f32 30 (=F3b), uniform-control-flow 25. Lane A queue.
 

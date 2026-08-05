@@ -57,7 +57,7 @@ shader-path stack finding), `EXIT_RUNTIME=0`, `MODULARIZE`.
 
 `wgpu_context.cc` borrowed the device via `static_cast<GHOST_ContextWGPU *>` (the
 NATIVE class) + `getAdapterName()`. In the browser the GHOST context is the SIBLING
-`GHOST_ContextWGPUWeb` (no `getAdapterName()`). `patches/0035-gpu-webgpu-context-web.patch`
+`GHOST_ContextWGPUWeb` (no `getAdapterName()`). `patches/0037-gpu-webgpu-context-web.patch`
 guards this under `__EMSCRIPTEN__` (bind the concrete type via a `WGPUGhostContext`
 alias; `adapter_name_ = "emdawnwebgpu"`). Forward-applies cleanly to the tree. The
 harness proved it works: `GPU_context_create OK` in a real tab. The webgpu backend

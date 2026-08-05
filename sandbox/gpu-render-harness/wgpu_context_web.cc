@@ -23,9 +23,9 @@
  * intern/ghost/intern to this TU's include path. Production should instead route
  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
  * the gpu module never sees a GHOST-private header — noted in the T4 findings. */
-/* HARNESS/patch-0035: the browser GHOST context is GHOST_ContextWGPUWeb, a sibling
+/* HARNESS/patch-0037: the browser GHOST context is GHOST_ContextWGPUWeb, a sibling
  * of native GHOST_ContextWGPU with the same instance/adapter/device/queue accessors.
- * Bind the concrete type per target. (Record: patches/0035-gpu-webgpu-context-web.patch.) */
+ * Bind the concrete type per target. (Record: patches/0037-gpu-webgpu-context-web.patch.) */
 #ifdef __EMSCRIPTEN__
 #  include "GHOST_ContextWGPUWeb.hh"
 using WGPUGhostContext = GHOST_ContextWGPUWeb;

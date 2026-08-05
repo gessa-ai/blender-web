@@ -307,6 +307,25 @@ function(blender_web_browser_binary src_target)
     " --preload-file ${_scripts}@/bw/scripts"
     " --preload-file ${_datafiles}@/bw/datafiles")
 
+  # ---- M4 windowed (WITH_WEBGPU_BACKEND) link additions ------------------------
+  # The base flags above OVERWRITE LINK_FLAGS, so the WebGPU arm's PLATFORM_LINKFLAGS
+  # (--use-port=emdawnwebgpu) are dropped for this target — re-add them here, plus:
+  #   * -sJSPI: the one-time startup device await. GHOST_ContextWGPUWeb::
+  #     initializeDrawingContext() acquires the device via wgpu WaitAny, which under
+  #     JSPI SUSPENDS (yields to the event loop) instead of blocking — ADR-003-legal
+  #     at this init boundary (notes/ghost-web-wgpu-context.md §wait-shape,
+  #     notes/m4-integration.md T4).
+  #   * -sSTACK_SIZE=32MB (+ DEFAULT_PTHREAD_STACK_SIZE): the runtime shader chain
+  #     (glslang/Tint recursion) blows emscripten's 64 KB default; deps-shader-chain.md
+  #     finding 3. Later -s wins, so this overrides the 8 MB above.
+  # WGPU_TINT_LIBS (shaderc+Tint archives) are linked via bf_gpu's LINK_LIBRARIES,
+  # cloned into this target — no extra flag needed here.
+  if(WITH_WEBGPU_BACKEND)
+    string(APPEND _bw_browser_flags
+      " --use-port=emdawnwebgpu -sJSPI"
+      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432")
+  endif()
+
   set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")
   message(STATUS
     "blender-web: browser target `blender_browser` enabled "
@@ -494,6 +513,12 @@ if(WITH_WEBGPU_BACKEND)
   set(DAWN_INCLUDE_DIRS   ""                          CACHE STRING "" FORCE)
   set(TINT_INCLUDE_DIRS   "${_bw_dawn}"               CACHE STRING "" FORCE)
   set(SHADERC_INCLUDE_DIR "${LIBDIR}/shaderc/include" CACHE PATH   "" FORCE)
+
+  # The browser GHOST context (GHOST_ContextWGPUWeb.hh) lives in platform_web/ghost.
+  # wgpu_context.cc includes it under __EMSCRIPTEN__ (patches/0035-gpu-webgpu-context-web.patch),
+  # so put that dir on the include path. Gated on WITH_WEBGPU_BACKEND -> inert in the
+  # shared headless build. (notes/gpu-wasm-render-harness.md §seam.)
+  include_directories("${_bw_repo}/platform_web/ghost")
 
   # LINK-time archive set (later step): shaderc bundle first, then tint (which
   # carries the single shared SPIRV-Tools). Read from the harvested ordered lists.

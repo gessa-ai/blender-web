@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Browser GPU render harness: the REAL Blender WebGPU backend (libbf_gpu.a) drives a
+GPU-module triangle offscreen in a tab, read back and displayed as a PNG <img>.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>blender-web GPU render harness</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 14px/1.5 -apple-system, system-ui, sans-serif; background:#14171c; color:#d6dce4; }
+    header { padding:12px 20px; background:#1b1f26; border-bottom:1px solid #2b313b; }
+    header h1 { margin:0; font-size:15px; }
+    main { display:flex; gap:20px; padding:16px 20px; flex-wrap:wrap; align-items:flex-start; }
+    .col { display:flex; flex-direction:column; gap:6px; }
+    .cap { font-size:12px; color:#8791a0; }
+    #gpucanvas { width:256px; height:256px; background:#0e1116; border:1px solid #2b313b; border-radius:4px; }
+    #readback-img { width:256px; height:256px; image-rendering:pixelated; background:#0e1116; border:1px solid #2b313b; border-radius:4px; }
+    #log { flex:1; min-width:340px; margin:0; padding:10px 12px; background:#0e1116; border:1px solid #2b313b; border-radius:6px;
+           font:12px/1.5 ui-monospace, Menlo, monospace; color:#cfd6df; white-space:pre-wrap; max-height:64vh; overflow:auto; }
+    #log .ok { color:#92e0a5; } #log .bad { color:#ff8f8f; } #log .sys { color:#7f8aa0; }
+  </style>
+</head>
+<body>
+  <header><h1>blender-web GPU render harness &mdash; real WebGPU backend, GPU-module triangle offscreen</h1></header>
+  <main>
+    <div class="col"><span class="cap">canvas (surface)</span><canvas id="gpucanvas" width="256" height="256"></canvas></div>
+    <div class="col"><span class="cap">GPU_texture_read &rarr; PNG</span><img id="readback-img" width="256" height="256" alt="readback" /></div>
+    <pre id="log"></pre>
+  </main>
+  <script src="/gpu_harness.js"></script>
+  <script src="/boot.js"></script>
+</body>
+</html>

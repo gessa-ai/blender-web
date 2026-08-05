@@ -1,0 +1,8 @@
+Real WebGPU tab (Claude Browser pane; navigator.gpu=true, crossOriginIsolated=true),
+http://127.0.0.1:8130/ serving the 22M gpu_harness.wasm with COOP/COEP. Report lines:
+  [gpu-harness] backend = WEBGPU; creating GHOST_ContextWGPUWeb on '#gpucanvas'
+  CONTEXT OK: emdawnwebgpu device acquired
+  GPU_context_create OK (WGPUContext borrowed the device)     <- seam patch 0035 proven
+Then GPU_init -> shader-dependency graph -> ABORT:
+  BLI_assert gpu_shader_dependency.cc:200 GPUSource() "Input source should have no comments."
+  (+ pthread pool-exhausted warnings during TBB/GPU_init threading)

@@ -208,7 +208,7 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   top-level async boundaries, never under active try / live jpeg setjmp) + mandatory M4
   Chrome≥137 topology smoke; Wasm-EH = declared fallback (proven viable, scheduled
   machine-day if triggered).
-- [ ] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
+- [x] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
 
 ---

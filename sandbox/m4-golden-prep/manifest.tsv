@@ -1,0 +1,9 @@
+# M4-golden-prep — staged native goldens for the M4 first-pixels gate.
+# Comparator: compare_m4.sh <candidate.png> <state> <actual_size>  (oiiotool --fail 0.016 --failpercent 1 --diff, exit-code-primary)
+# Native oracle: oracle/blender-5.2.0 (Blender 5.2.0 LTS, Cocoa+Metal) — same pin as the corpus/m5/m6 goldens.
+# determinism: two independent windowed runs; "byte" = byte-identical PNG (sha256 below), reproduced cross-session.
+# state	requested	actual	golden	fail_threshold	fail_percent	determinism	sha256
+splash	1280x720	1280x720	sandbox/m4-golden-prep/goldens/splash_1280x720.png	0.016	1	byte	b258e12ddb1686485aa65ba60eeba8eb52638436d663de1fd04465b29f473df1
+workspace	1280x720	1280x720	sandbox/m4-golden-prep/goldens/workspace_1280x720.png	0.016	1	byte	4e791b135e763501c1dfeaee8cb8872727703a3c8ce52351f9fa89310b09b009
+splash	1800x1169	1800x1001	sandbox/m4-golden-prep/goldens/splash_1800x1001.png	0.016	1	byte	0f62d114a4a7fafc450281cdef583752492cd03f7002137e85ed2e304b59dadc
+workspace	1800x1169	1800x1001	sandbox/m4-golden-prep/goldens/workspace_1800x1001.png	0.016	1	byte	515dda0d5b1f568120035884be1bdc80c92db3b47981ac51738285781abcb620

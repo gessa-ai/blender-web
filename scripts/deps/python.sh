@@ -213,8 +213,21 @@ fi
 # exact file, so the replace window is a single rename(2), not a byte copy.
 rm -rf "$PREFIX/include/python${PY_SHORT}"
 cp -R "$STAGE/usr/local/include/python${PY_SHORT}" "$PREFIX/include/python${PY_SHORT}"
-rm -rf "$PREFIX/lib/python${PY_SHORT}"
-cp -R "$STAGE/usr/local/lib/python${PY_SHORT}" "$PREFIX/lib/python${PY_SHORT}"
+# Refresh the stdlib but PRESERVE site-packages. Sibling dep scripts install pure
+# trees there (numpy -> lib/python3.13/site-packages/numpy, scripts/deps/numpy.sh);
+# the fresh CPython stdlib from $STAGE carries NONE, so a blind rm+cp of the whole
+# python3.13/ dir would wipe them and re-red the m2b numpy-importing sculpt/paint
+# suites. Move site-packages aside (same-FS rename), refresh, then restore it.
+STDLIB_DST="$PREFIX/lib/python${PY_SHORT}"
+SP_KEEP="$PREFIX/lib/.site-packages.keep.$$"
+rm -rf "$SP_KEEP"
+[ -d "$STDLIB_DST/site-packages" ] && mv "$STDLIB_DST/site-packages" "$SP_KEEP"
+rm -rf "$STDLIB_DST"
+cp -R "$STAGE/usr/local/lib/python${PY_SHORT}" "$STDLIB_DST"
+if [ -d "$SP_KEEP" ]; then
+  rm -rf "$STDLIB_DST/site-packages"          # drop the fresh stdlib's placeholder
+  mv "$SP_KEEP" "$STDLIB_DST/site-packages"   # restore preserved trees (numpy, ...)
+fi
 install_mp_shim
 
 LIB_TMP="$PREFIX/lib/.libpython${PY_SHORT}.a.tmp.$$"

@@ -478,6 +478,22 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   cmake evidence, NO code change (gpu/metal off-limits). (4) buffer_texture R32F + subdiv×4:
   BLACKLIST with justifications (R32F = post-launch format-generic work; subdiv = runtime
   OSD injection missing for all backends at this harness profile).
+## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
+
+- [x] **M6.pre-a Cycles-CPU compile probe (96e3a0f):** COMPILES CLEAN wasm32, zero source
+  changes, EMPTY dep shopping list (scalar KERNEL_ARCH auto-selected — SIMD flag checks fail
+  under emcc; Embree/OIDN/PGL gated off, BVH2 fallback). M1.3 revisit = CLOSED compile-clear.
+  Remaining M6-render: link + kernel execution under -pthread + parity (~4-8d est).
+  -Wpthreads-mem-growth flagged as runtime posture item. notes/m6-cycles-probe.md.
+- [x] **M6.pre-b oracle goldens staged (1fe4360+b279bd9):** 77 tests (workbench 20, EEVEE 30,
+  Cycles-CPU 27), oracle 72/77 on pin-accurate binary (self-reports fbe6228 — also resolves
+  the m5-prep release-vs-pin caveat); the 5 fails validated = adapter deltas, 2 verbatim in
+  upstream's own EEVEE BLOCKLIST (comparator proven faithful). Thresholds verbatim-cited,
+  determinism DET_ALL_PASS, blacklist mechanism proven + committed empty (M6 re-derives on
+  the pinned WebGPU adapter). EEVEE oracle = native macOS Metal headless (mirrors Blender
+  CI). Runner: sandbox/m6-prep/run_oracle_renders.sh (exit-code-primary, m2b pattern).
+  M6 wasm entry: Cycles-CPU first (no GPU needed), then workbench/EEVEE offscreen PNG path.
+
 - [ ] **M3-GATE [driver, at r16 exit]:** register 5 deferrals in ledger/deferred.json;
   write blacklist doc; harness m3 scope via the lock-lift reconcile procedure (census table
   = expected state); patches/series manifest (orders now recorded); full --regress;

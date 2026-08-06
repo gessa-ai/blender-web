@@ -1,0 +1,188 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 1e55873..26cf158 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -1413,12 +1413,150 @@ static void rewrite_integer_sampler_sampling(std::string &src)
+   rewrite_call("texture", false);
+ }
+ 
++/* WGSL has no 1D-array sampled texture, so Tint's SPIR-V reader degrades a Dim=1D /
++ * Arrayed image to texture_1d, dropping the array; textureSize/textureDimensions then
++ * returns a scalar u32 while the shader used the 2-component result → "textureDimensions:
++ * call result type 'vec2<u32>' does not match builtin return type 'u32'" (the UDIM
++ * imageTileData lookup in workbench, and the color-ramp valtorgb). A 1D-array is exactly
++ * a 2D texture whose height IS the layer count (identical texelFetch / textureSize
++ * signatures — both take ivec2), so emulate it as sampler2D: (1) rewrite the type token
++ * everywhere it is declared (resource decls + function params); (2) texelFetch / texture
++ * on integer coords is already identical, so nothing else is needed for the UDIM path;
++ * (3) filtered texture(NAME, vec2(u, layer)) samples ARRAY layer `layer` (never filtered
++ * across layers in GL) at position u — remap the layer to its row centre
++ * (layer+0.5)/height so bilinear filtering returns that row exactly (no cross-layer
++ * blend) while u keeps its intended linear filtering. The interface map's
++ * infer_view_dimension(e1DArray) is set to the matching WGSL e2D. */
++static void rewrite_1d_array_samplers(std::string &src)
++{
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  static const std::string kTok = "sampler1DArray";
++
++  /* Names of 1D-array samplers (any of sampler/isampler/usampler1DArray): the name
++   * follows the shared "sampler1DArray" suffix regardless of the i/u prefix. */
++  std::unordered_map<std::string, bool> names; /* set of names */
++  {
++    size_t pos = 0;
++    while ((pos = src.find(kTok, pos)) != std::string::npos) {
++      const size_t p = pos + kTok.size();
++      if (p < src.size() && !is_ident(src[p])) {
++        size_t q = p;
++        while (q < src.size() && std::isspace((unsigned char)src[q])) {
++          q++;
++        }
++        const size_t id0 = q;
++        while (q < src.size() && is_ident(src[q])) {
++          q++;
++        }
++        if (q > id0) {
++          names.emplace(src.substr(id0, q - id0), true);
++        }
++      }
++      pos = p;
++    }
++  }
++  if (names.empty()) {
++    return;
++  }
++
++  /* Remap the layer coordinate of any filtered texture(NAME, coord) on a 1D-array
++   * sampler (done BEFORE the type-token swap so textureSize still refers to the sampler
++   * by name; the sampler is still declared 1D-array here but 2D later — the layer count
++   * lands in the .y component either way). */
++  {
++    const std::string fn = "texture";
++    const size_t n = src.size();
++    std::string out;
++    out.reserve(n);
++    size_t i = 0;
++    while (i < n) {
++      const size_t hit = src.find(fn, i);
++      if (hit == std::string::npos) {
++        out.append(src, i, n - i);
++        break;
++      }
++      const bool word_ok = (hit == 0) || !is_ident(src[hit - 1]);
++      size_t p = hit + fn.size();
++      while (p < n && std::isspace((unsigned char)src[p])) {
++        p++;
++      }
++      if (!word_ok || p >= n || src[p] != '(') {
++        out.append(src, i, (hit + fn.size()) - i);
++        i = hit + fn.size();
++        continue;
++      }
++      const size_t open = p;
++      int depth = 1;
++      size_t q = open + 1;
++      size_t close = std::string::npos;
++      std::vector<size_t> commas;
++      while (q < n) {
++        const char c = src[q];
++        if (c == '(') {
++          depth++;
++        }
++        else if (c == ')') {
++          if (--depth == 0) {
++            close = q;
++            break;
++          }
++        }
++        else if (c == ',' && depth == 1) {
++          commas.push_back(q);
++        }
++        q++;
++      }
++      if (close == std::string::npos || commas.empty()) {
++        out.append(src, i, (open + 1) - i);
++        i = open + 1;
++        continue;
++      }
++      size_t a0 = open + 1;
++      while (a0 < commas[0] && std::isspace((unsigned char)src[a0])) {
++        a0++;
++      }
++      size_t a1 = commas[0];
++      while (a1 > a0 && std::isspace((unsigned char)src[a1 - 1])) {
++        a1--;
++      }
++      const std::string first = src.substr(a0, a1 - a0);
++      bool bare = !first.empty();
++      for (const char c : first) {
++        if (!is_ident(c)) {
++          bare = false;
++          break;
++        }
++      }
++      if (!bare || names.find(first) == names.end()) {
++        out.append(src, i, (open + 1) - i);
++        i = open + 1;
++        continue;
++      }
++      const size_t coord_end = commas.size() >= 2 ? commas[1] : close;
++      const std::string coord = src.substr(commas[0] + 1, coord_end - (commas[0] + 1));
++      out.append(src, i, hit - i);
++      out += "texture(" + first + ", vec2((" + coord + ").x, ((" + coord +
++             ").y + 0.5) / float(textureSize(" + first + ", 0).y)))";
++      i = close + 1;
++    }
++    src = std::move(out);
++  }
++
++  /* Swap every 1D-array type token for its 2D equivalent (one suffix replace covers the
++   * plain / i / u prefixes: isampler1DArray -> isampler2D, etc.). */
++  for (size_t pos = 0; (pos = src.find(kTok, pos)) != std::string::npos;) {
++    src.replace(pos, kTok.size(), "sampler2D");
++    pos += std::string("sampler2D").size();
++  }
++}
++
+ void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                          MutableSpan<StringRefNull> sources)
+ {
+   vertex_glsl_ = preprocess(combine_with_patch(glsl_patch("#define GPU_VERTEX_SHADER\n"), sources));
+   rewrite_texel_buffers(vertex_glsl_, info);
+   rewrite_integer_sampler_sampling(vertex_glsl_);
++  rewrite_1d_array_samplers(vertex_glsl_);
+ }
+ void WGPUShader::geometry_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
+                                            MutableSpan<StringRefNull> /*sources*/)
+@@ -1431,6 +1569,7 @@ void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
+       combine_with_patch(glsl_patch("#define GPU_FRAGMENT_SHADER\n"), sources));
+   rewrite_texel_buffers(fragment_glsl_, info);
+   rewrite_integer_sampler_sampling(fragment_glsl_);
++  rewrite_1d_array_samplers(fragment_glsl_);
+ }
+ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                           MutableSpan<StringRefNull> sources)
+@@ -1439,6 +1578,7 @@ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+       combine_with_patch(glsl_patch("#define GPU_COMPUTE_SHADER\n"), sources));
+   rewrite_texel_buffers(compute_glsl_, info);
+   rewrite_integer_sampler_sampling(compute_glsl_);
++  rewrite_1d_array_samplers(compute_glsl_);
+ }
+ 
+ /* Map a create-info sampler/image ImageType to the interface-map texel + dim. */
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+index ddaeb1d..6f07a44 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+@@ -64,8 +64,10 @@ wgpu::TextureViewDimension infer_view_dimension(TexDim dim)
+     case TexDim::e1D:
+       return wgpu::TextureViewDimension::e1D;
+     case TexDim::e1DArray:
+-      /* WGSL has no 1D-array sampled texture; callers should not hit this. */
+-      return wgpu::TextureViewDimension::e2DArray;
++      /* WGSL has no 1D-array sampled texture. The backend emulates a 1D-array as a 2D
++       * texture whose height is the layer count (wgpu_shader.cc rewrite_1d_array_samplers),
++       * so the bind-group layout must agree: a plain 2D view, not a 2D array. */
++      return wgpu::TextureViewDimension::e2D;
+     case TexDim::e2D:
+       return wgpu::TextureViewDimension::e2D;
+     case TexDim::e2DArray:

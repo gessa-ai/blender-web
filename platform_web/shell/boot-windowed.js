@@ -24,6 +24,26 @@ const ARGV = [
   "--factory-startup",
 ];
 
+// DEV-AFFORDANCE (M4.T20 capture rig, r23): optionally append a `--python-expr`
+// to the boot argv so the verification rig can drive Blender's own screenshot
+// path (bpy.ops.screen.screenshot via a bpy.app.timer) without a rebuild. The
+// creator FINAL arg pass runs the expr straight-line before WM_main (creator.cc:
+// 622), so a timer registered here fires INSIDE the main loop after first pixels
+// (surface configured) — the only place WM_window_pixels_read has content. NOT
+// shipped behaviour: only active when the rig sets `window.__BW_PYEXPR` (or the
+// `?pyexpr=` URL param) before pressing Boot. Empty by default = pristine argv.
+function bootPythonExpr() {
+  try {
+    if (typeof window.__BW_PYEXPR === "string" && window.__BW_PYEXPR.length) {
+      return window.__BW_PYEXPR;
+    }
+    const u = new URLSearchParams(location.search);
+    const p = u.get("pyexpr");
+    if (p) return p;
+  } catch (e) {}
+  return null;
+}
+
 // The GHOST-web layer targets this canvas via emscripten_*_canvas_element_size()
 // and the emdawnwebgpu EmscriptenSurfaceSourceCanvasHTMLSelector (default "#canvas"
 // in GHOST_ContextWGPUWeb / GHOST_WindowWeb).
@@ -104,8 +124,15 @@ async function boot() {
     (canvasEl ? canvasEl.width + "x" + canvasEl.height : "(MISSING!)"), "sys");
   t0 = performance.now();
 
+  const pyexpr = bootPythonExpr();
+  const bootArgv = pyexpr ? ARGV.concat(["--python-expr", pyexpr]) : ARGV.slice();
+  if (pyexpr) {
+    append("[shell] DEV capture hook: appending --python-expr (" +
+      pyexpr.length + " chars)", "sys");
+  }
+
   const config = {
-    arguments: ARGV,
+    arguments: bootArgv,
     // Emscripten binds the default GL/WebGPU canvas from Module.canvas; the
     // GHOST-web layer also drives it by the "#canvas" selector.
     canvas: canvasEl,
@@ -150,7 +177,11 @@ async function boot() {
   };
 
   try {
-    await createBlenderModule(config);
+    const mod = await createBlenderModule(config);
+    // Expose the runtime module so the verification rig can pull capture output
+    // out of WasmFS from the main thread (mod.FS.readFile proxies to the shared
+    // WasmFS the WM worker writes into — proven in notes/gpu-r22-cube-blocker.md).
+    window.__bwModule = mod;
     // In the windowed profile WM_main is an emscripten_set_main_loop that keeps
     // running — createBlenderModule resolves once the runtime is up, NOT on quit.
     append("[shell] module resolved; WM_main loop should now be pumping.", "sys");

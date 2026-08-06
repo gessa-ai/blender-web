@@ -390,3 +390,60 @@ recipe is the committed artifact and the tree rides into the gpu worker's next `
   `WASM_IMPORT_OK`. (For pure-python the host test is already authoritative since import
   resolution/bytecode are platform-independent; the wasm embed confirms it end-to-end.)
 - `harness/run.sh --scope m2b` stays **4/4** (core_green 64/64 — numpy preserved).
+
+## `requests` closure (the rest of downloader.py's third-party imports, one pass)
+
+Reading `_bpy_internal/http/downloader.py` **to the end**, the register/boot import chain's
+non-stdlib, non-Blender imports are exactly: `cattrs`/`cattrs.preconf.json` (done),
+`requests`/`requests.adapters` (:53-54), `urllib3.util.retry` (:55). `requests` transitively
+imports `urllib3`, `certifi`, `charset_normalizer`, `idna` at load. The only other non-stdlib
+name anywhere under `bl_pkg`+`_bpy_internal` is `setuptools`, and it appears **solely** in
+`bl_pkg/tests/modules/python_wheel_generate.py` (CLI wheel-gen, not the register path) — so it
+is deliberately excluded. `scripts/deps/wheels.sh` now installs the full pinned closure in one
+pass (all versions from `versions.cmake:443-458`, matching the native oracle):
+
+| pkg | ver | license | lays down |
+|---|---|---|---|
+| requests | 2.32.3 | Apache-2.0 | `requests/` |
+| urllib3 | 2.4.0 | MIT | `urllib3/` |
+| certifi | 2025.4.26 | MPL-2.0 | `certifi/` |
+| charset_normalizer | 3.4.1 | MIT | `charset_normalizer/` (pure `md.py`, not the mypyc `.so`) |
+| idna | 3.10 | BSD-3-Clause | `idna/` |
+
+All pure-python (zero `.so`, vs the oracle's shipped trees), all GPL-2.0-or-later compatible
+(Apache-2.0 via the -or-later→GPLv3 path; MPL-2.0/BSD-3/MIT directly). **Host** py3.13.13
+imports the whole chain + `requests.certs.where()` resolves to the harvested certifi.
+
+## THE NEXT WALL (not a wheel gap) — urllib3 auto-injects Pyodide on `sys.platform=='emscripten'`
+
+The **wasm** embed (which correctly reports `sys.platform=='emscripten'`, unlike the host's
+`darwin`) surfaced the real next blocker, so we do not pay another round to discover it:
+`urllib3/__init__.py:208-211` **unconditionally** runs
+```python
+if sys.platform == "emscripten":
+    from .contrib.emscripten import inject_into_urllib3
+    inject_into_urllib3()
+```
+and `contrib/emscripten/fetch.py:45-46` does `import js` + `from pyodide.ffi import (JsArray,
+JsException, JsProxy, to_js)`. Those are **Pyodide runtime modules**; our non-Pyodide browser
+CPython ships neither, so `import urllib3` (hence `import requests`) raises
+`ModuleNotFoundError: No module named 'js'` **at register** on the actual wasm build. There is
+no native precedent — desktop Blender's `sys.platform` is never `emscripten`, so the branch is
+dead there.
+
+**Proven to be the SOLE remaining wall:** with trivial throwaway `js` + `pyodide.ffi` stubs
+(scratchpad only, NOT committed) on `sys.path`, the **entire** downloader.py third-party chain
+(`cattrs`, `cattrs.preconf.json`, `requests`, `requests.adapters`, `urllib3.util.retry`,
+`urllib3`, `certifi`, `charset_normalizer`, `idna`) imports clean on the wasm interpreter and
+`requests.certs.where()` resolves to the harvested certifi → `WASM_IMPORT_OK`. (Full tree
+verified by mounting the harvested `lib/python3.13` — full stdlib + site-packages — via NODEFS,
+since the M2.0b probe embed's reduced `python313.zip` trims `http`.)
+
+**This is a networking-transport decision, flagged to the driver — NOT shipped here.** Options:
+(A) a minimal `js` + `pyodide.ffi` **import-shim** (python-shims precedent) that lets
+`inject_into_urllib3()` install cleanly so register completes, with actual HTTP deferred
+(honest degradation: raise-on-use until a real browser transport exists) — closes the M4
+first-pixels golden now; (B) a real emscripten fetch transport backing `js`/`pyodide.ffi`
+(a substantial platform_web feature, later milestone); (C) defer the extensions-download
+feature entirely in `ledger/deferred.json`. The wheel install itself is correct and
+byte-equivalent to native regardless of which option the driver picks.

@@ -578,6 +578,56 @@
       "source": "versions.cmake:446 TYPING_EXTENSIONS_VERSION 4.14.1; native via python_site_packages.cmake:55 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/typing_extensions.py.",
       "rationale": "cattrs' unconditional required dependency (cattrs METADATA: Requires-Dist typing-extensions>=4.12.2). Single-module pure-python (typing_extensions.py). PSF-2.0 is FSF-certified GPL-compatible — the same license family as CPython itself (already a wasm_built dep).",
       "notes": "Installed as lib/wasm/lib/python3.13/site-packages/typing_extensions.py + typing_extensions-4.14.1.dist-info by scripts/deps/wheels.sh. Byte-equivalent to native Blender 5.2.0's shipped copy; import-verified in host + wasm CPython 3.13.13 (see cattrs)."
+    },
+    "requests": {
+      "version": "2.32.3",
+      "status": "ok",
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "hash": "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6",
+      "source": "versions.cmake:458 REQUESTS_VERSION 2.32.3; native installs it via python_site_packages.cmake:47 (pip install --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh fetches the pinned py3-none-any wheel from PyPI (SHA-256 verified) into lib/wasm/lib/python3.13/site-packages/requests.",
+      "rationale": "bl_pkg register imports requests on the windowed browser boot: _bpy_internal/http/downloader.py:53-54 do `import requests` + `import requests.adapters`. The next third-party import after cattrs on the same downloader.py register path. Apache-2.0 is FSF-certified compatible with GPLv3, and Blender ships requests in its own GPL-2.0-or-later aggregate (the -or-later covers GPLv3), so it is GPL-compatible for our runtime. Pure-python (zero .so vs the oracle tree).",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/requests + requests-2.32.3.dist-info by scripts/deps/wheels.sh (idempotent, additive). Import-verified: host CPython 3.13.13 AND wasm CPython 3.13.13 node embed both `import requests, requests.adapters` from the harvested tree and requests.certs.where() resolves to the harvested certifi. License Apache-2.0 confirmed from the wheel METADATA. NOTE (separate blocker, NOT a wheel gap): downloader.py:55 also `import urllib3.util.retry`; `import urllib3` runs urllib3/__init__.py:208-211 `inject_into_urllib3()` UNCONDITIONALLY when sys.platform=='emscripten' (our browser CPython), which imports `js` + `pyodide.ffi` (Pyodide runtime modules our non-Pyodide build lacks) -> ModuleNotFoundError at register. Proven the sole remaining wall in the chain (with trivial js/pyodide.ffi stubs the FULL downloader.py third-party chain imports on the wasm interpreter). This is a networking-transport decision (Pyodide-style js bridge shim vs custom emscripten fetch), flagged to the driver — see notes/python-emcc605-probe.md M4.python-debt(cont.) and ledger/deferred.json is the likely home if the extensions-download transport is deferred."
+    },
+    "urllib3": {
+      "version": "2.4.0",
+      "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "hash": "sha256:4e16665048960a0900c702d4a66415956a584919c03361cac9f1df5c5dd7e813",
+      "source": "versions.cmake:453 URLLIB3_VERSION 2.4.0; native via python_site_packages.cmake:45 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/urllib3.",
+      "rationale": "requests' required runtime dependency AND a direct bl_pkg import (downloader.py:55 `import urllib3.util.retry`). Provides the HTTP connection pooling requests is built on. Pure-python (zero .so); MIT is GPL-2.0-or-later compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/urllib3 + urllib3-2.4.0.dist-info by scripts/deps/wheels.sh. License MIT confirmed from the wheel METADATA (License-Expression: MIT). CAVEAT: urllib3/__init__.py:208-211 unconditionally calls inject_into_urllib3() on sys.platform=='emscripten', importing js + pyodide.ffi (contrib/emscripten/fetch.py:45-46) — absent in our non-Pyodide CPython, so `import urllib3` raises ModuleNotFoundError('No module named js') at register on the actual wasm build (host doesn't hit it, sys.platform=='darwin'). Surfaced by the wasm node embed; it is the last blocker in the register import chain. Fix is a networking-transport decision (driver-flagged), not a wheel change; the wheel itself is correct + byte-equivalent to native."
+    },
+    "certifi": {
+      "version": "2025.4.26",
+      "status": "ok",
+      "license": "MPL-2.0",
+      "gpl_compatible": true,
+      "hash": "sha256:30350364dfe371162649852c63336a15c70c6510c2ad5015b21c2345311805f3",
+      "source": "versions.cmake:456 CERTIFI_VERSION 2025.4.26; native via python_site_packages.cmake:46 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/certifi.",
+      "rationale": "requests' required runtime dependency (Mozilla CA root bundle; requests.certs.where() returns certifi/cacert.pem). Imported transitively when `import requests` loads requests.certs. Pure-python + a cacert.pem data file. MPL-2.0 is FSF-certified GPL-compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/certifi + certifi-2025.4.26.dist-info by scripts/deps/wheels.sh. License MPL-2.0 confirmed from the wheel METADATA. Verified: requests.certs.where() resolves to the harvested certifi/cacert.pem in both the host and wasm embed. Byte-equivalent to native Blender 5.2.0."
+    },
+    "charset_normalizer": {
+      "version": "3.4.1",
+      "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "hash": "sha256:d98b1668f06378c6dbefec3b92299716b931cd4e6061f3c875a71ced1780ab85",
+      "source": "versions.cmake:451 CHARSET_NORMALIZER_VERSION 3.4.1; native via python_site_packages.cmake (pip --no-binary :all:, part of the requests closure). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/charset_normalizer.",
+      "rationale": "requests' required runtime dependency (charset detection; imported by requests at module load). The py3-none-any wheel is the PURE-PYTHON build (ships charset_normalizer/md.py, NOT the optional mypyc md.*.so speedup) — matches the oracle, which also ships no .so. Pure-python; MIT is GPL-2.0-or-later compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/charset_normalizer + charset_normalizer-3.4.1.dist-info by scripts/deps/wheels.sh. License MIT confirmed from the wheel METADATA. Import-verified host + wasm (see requests). Byte-equivalent to native Blender 5.2.0's shipped copy."
+    },
+    "idna": {
+      "version": "3.10",
+      "status": "ok",
+      "license": "BSD-3-Clause",
+      "gpl_compatible": true,
+      "hash": "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
+      "source": "versions.cmake:449 IDNA_VERSION 3.10; native via python_site_packages.cmake:43 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/idna.",
+      "rationale": "requests' required runtime dependency (internationalized domain name handling; imported transitively via requests.models). Pure-python; BSD-3-Clause is GPL-2.0-or-later compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/idna + idna-3.10.dist-info by scripts/deps/wheels.sh. License recorded BSD-3-Clause (the wheel METADATA carries no License: field, only Classifier 'License :: OSI Approved :: BSD License'; idna's project license is BSD-3-Clause). Import-verified host + wasm (see requests). Byte-equivalent to native Blender 5.2.0."
     }
   },
   "toolchain": {

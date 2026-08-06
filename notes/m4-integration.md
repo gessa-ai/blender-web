@@ -189,3 +189,71 @@ emdawnwebgpu RefCounted wasm32 atomic alignment). Once `WGPUContext` constructs,
 continues into `initializeDrawingContext()`'s worker-blocking `WaitAny` device await —
 whose empirical validation (coordinator's "does Atomics.wait block work on the WM worker")
 is the FOLLOWING unknown, not yet reached.
+
+## M4.T10 — the "unaligned atomic" crash was NOT an emdawnwebgpu port bug (2026-08-05)
+
+The T9 blocker #3 was dispatched as "emdawnwebgpu RefCounted wasm32 atomic alignment —
+fix the port." That diagnosis was WRONG. The crash
+(`wgpuInstanceAddRef → RefCounted::AddRef → std::atomic<uint64_t>::fetch_add → operation
+does not support unaligned accesses`) is real, but its cause is a **garbage/misaligned
+instance pointer**, not a misaligned atomic member. Empirically established (real Chrome,
+in-tab boot; trace `getInstance() instance_=0x11 (%8=1)`), not theory. The emdawnwebgpu
+port is used AS-IS (`--use-port=emdawnwebgpu`, Dawn v20260423.175430) — nothing vendored,
+`ledger/deps.json` unchanged; a standalone repro proved `wgpuCreateInstance`'s
+`WGPUInstanceImpl` is always 8-byte aligned under dlmalloc across every profile
+(main-thread / PROXY_TO_PTHREAD / asyncify / TimedWaitAny).
+
+**Why the in-tab render harness never hit it (the puzzle):** the harness links its OWN
+`sandbox/gpu-render-harness/wgpu_context_web.cc`, whose `#ifdef __EMSCRIPTEN__` seam casts
+the GHOST context to `GHOST_ContextWGPUWeb*` (the correct type) and drives device
+acquisition through `initAsync` (`CreateInstance(nullptr)`, no TimedWaitAny). Nothing to do
+with allocator or thread — it is the corrected cast + the no-TimedWaitAny path.
+
+**Two real bugs fixed (both prerequisites, neither sufficient alone):**
+
+1. **Wrong GHOST-context cast — `patches/0066-gpu-webgpu-windowed-ghost-context-cast.patch`
+   (upstream `source/blender/gpu/webgpu/wgpu_context.cc`).** The `WGPUContext` ctor cast
+   `ghost_context` to the NATIVE `GHOST_ContextWGPU*` and called `getInstance()`. In the
+   browser the object is `GHOST_ContextWGPUWeb`, whose layout differs (it stores
+   `std::string canvas_selector_` + `width_`/`height_` BEFORE the handles), so `getInstance()`
+   read the std::string's SSO bytes as the instance pointer → misaligned garbage. Fix = the
+   same `#ifdef` seam the harness already had, gated `#if defined(__EMSCRIPTEN__) &&
+   !defined(WITH_HEADLESS)`. NB: the guard is `!WITH_HEADLESS`, NOT `WITH_GHOST_WEB` —
+   `add_definitions(-DWITH_GHOST_WEB)` is scoped to `intern/ghost/` only and never reaches
+   `bf_gpu`'s compile (a first attempt with that guard silently compiled the native branch).
+   `WITH_HEADLESS` is ON for `build-wasm-gpu` (M3, native branch, byte-identical) and OFF for
+   `build-wasm-windowed` (web branch; `platform_web/ghost` is already on bf_gpu's include
+   path there) — so the change is provably a no-op for the gpu-lane build.
+
+2. **Window never initialized its drawing context — `platform_web/ghost/GHOST_WindowWeb.cc`.**
+   The `GHOST_WindowWeb` ctor DROPPED its `GHOST_TDrawingContextType type` param
+   (`/*type*/`) and never called `setDrawingContextType(type)`; `GHOST_SystemWeb::createWindow`
+   didn't either. So the base `GHOST_Window` kept its default `GHOST_ContextNone` (base ctor
+   `context_ = new GHOST_ContextNone`), and `GPU_context_create(win, nullptr) →
+   WGPUBackend::context_alloc → getDrawingContext()` handed the `WGPUContext` ctor that
+   `GHOST_ContextNone` — even the corrected cast then reads garbage from it (`instance_=0x11`).
+   Fix = call `setDrawingContextType(type)` in the web window ctor, mirroring
+   `GHOST_WindowSDL/Win32/X11/Wayland`. Confirmed live: `initializeDrawingContext()` now RUNS.
+
+**The remaining blocker — the DEVICE AWAIT (now made concrete, file:line):**
+With both fixes, boot advances INTO `GHOST_ContextWGPUWeb::initializeDrawingContext()`
+(trace `initializeDrawingContext ENTER`), which requests `wgpu::InstanceFeatureName::
+TimedWaitAny` (needed for its blocking `instance.WaitAny(…, UINT64_MAX)` device await,
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc:45-49`). Under the ADR-006 profile (NO `-sJSPI`,
+NO `-sASYNCIFY`) `emscripten_has_asyncify()==0`, so emdawnwebgpu's `WGPUInstanceImpl::Create`
+rejects TimedWaitAny and returns null (port `webgpu/src/webgpu.cpp:1643-1649`). Trace:
+`CreateInstance(&idesc TimedWaitAny) -> 0` → `WGPUWeb: CreateInstance failed` →
+`newDrawingContext` returns null → `setDrawingContextType` falls back to
+`GHOST_ContextNone` → the same downstream `AddRef` trap. The port additionally can't do a
+non-blocking `WaitAny(…, 0)` either (`abort("TODO: Implement asyncify-free WaitAny for
+timeout=0")`), and on the WM worker the async callback path can't complete because
+`initializeDrawingContext` runs straight-line during `WM_init`, before `WM_main`'s
+`emscripten_set_main_loop` pump exists — so NO emdawnwebgpu wait works synchronously on the
+worker without asyncify. This is an ARCHITECTURE decision (interacts with ADR-006), not a
+worker quick-fix. Option space for the driver: (a) main-thread device acquisition in the
+shell + `emscripten_webgpu_import_device` into the wasm (event loop pumps naturally on the
+browser main thread); (b) restructure the windowed boot so window/GPU-context creation is
+deferred until an async device-ready callback fires (event-loop-driven boot); (c) a new ADR
+re-introducing a scoped async mechanism with a ctor-suspend-free proof (reverses ADR-006).
+`GHOST_ContextWGPUWeb::initAsync` (the harness's AllowSpontaneous path) already exists as the
+building block for (a)/(b).

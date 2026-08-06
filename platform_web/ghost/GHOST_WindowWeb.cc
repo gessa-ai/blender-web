@@ -38,7 +38,7 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
                                  uint32_t height,
                                  GHOST_TWindowState state,
                                  const GHOST_IWindow * /*parent_window*/,
-                                 GHOST_TDrawingContextType /*type*/,
+                                 GHOST_TDrawingContextType type,
                                  const GHOST_ContextParams &context_params,
                                  const char *canvas_selector)
     : GHOST_Window(width, height, state, context_params, false),
@@ -46,8 +46,20 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
       title_(title ? title : ""),
       context_params_web_(context_params)
 {
-  /* Size the backing canvas to the requested client size. */
+  /* Size the backing canvas to the requested client size BEFORE creating the
+   * drawing context (initializeDrawingContext reads the canvas size for the surface). */
   emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), int(height));
+
+  /* Create + initialize the window's drawing context. Native GHOST window ctors
+   * (GHOST_WindowSDL/Win32/X11/Wayland) all call setDrawingContextType(type) here;
+   * GHOST_WindowWeb previously dropped the `type` param, so the base GHOST_Window kept
+   * its default GHOST_ContextNone and the WebGPU context (GHOST_ContextWGPUWeb) was
+   * never created. GPU_context_create(ghost_window, nullptr) → WGPUBackend::context_alloc
+   * → ghost_window->getDrawingContext() then handed the WGPUContext ctor that
+   * GHOST_ContextNone, whose uninitialized instance_ slot is garbage (misaligned) → the
+   * first wgpuInstanceAddRef trapped. setDrawingContextType() → newDrawingContext(type)
+   * → GHOST_ContextWGPUWeb::initializeDrawingContext(). */
+  setDrawingContextType(type);
 }
 
 void GHOST_WindowWeb::setTitle(const char *title)

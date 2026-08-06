@@ -1,0 +1,140 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# patches/series — canonical apply-order manifest for the port patch stack.
+# Created 2026-08-05 (audit rec: reports/audit-20260805.md, MINOR "no machine-readable
+# patch apply-order manifest — reproducibility-from-patches depends on unrecorded ordering").
+#
+# PURPOSE
+#   One patch filename per line, in the order they apply onto a clean pinned upstream
+#   checkout (Blender 5.2 LTS @ fbe6228777e7, see upstream/PIN). Order is LEXICAL by
+#   filename EXCEPT where a recorded fact forces a deviation; every deviation is called
+#   out below with its evidence source (file:line or commit hash). Comment lines (`#`)
+#   and blank lines are ignored by any consumer.
+#
+# CONTRACT (what the harness actually enforces vs what this file is for)
+#   The harness does NOT clean-pin replay. harness/run.sh:118-140 runs a per-patch
+#   TRI-STATE check against the LIVE upstream working tree: each patches/0*.patch must
+#   either apply clean (pristine), reverse-apply clean (already applied), or be
+#   "in-development" (its target files are being actively extended by an in-flight lane).
+#   A true conflict is a patch failing both ways while touching files nobody has modified.
+#   That check is order-independent, so this manifest is NOT required by the harness and
+#   its absence was NOT a contract violation. This file exists for the OTHER reproducibility
+#   path: replaying patches/ onto a fresh clean pin (`git apply` in listed order), needed by
+#   any milestone that rebuilds the port from patches rather than from the live tree.
+#
+# VERIFICATION CAVEAT
+#   The ordering here is reconstructed from recorded facts (progress.txt / fix_plan.md /
+#   notes), each cited at its deviation. Full clean-pin replay verification (fresh upstream
+#   clone, apply the whole series in order, diff against the live tree) is DISK-HEAVY
+#   (multi-GB checkout) and is DEFERRED to the M3-boundary reconcile. It was intentionally
+#   NOT performed when this manifest was written — no upstream clone, no apply/revert.
+#
+# DEVIATIONS FROM LEXICAL ORDER (2 patches relocated; 1 deviation region)
+#   * 0016b and 0016c are moved OUT of their lexical slot (which would be between 0016 and
+#     0017) to AFTER 0021. Reason: 0016b's source/blender/gpu/CMakeLists.txt hunk appends
+#     wgpu_texture.{cc,hh} to the SRC list and its hunk context depends on the lane-A
+#     shader-chain source lines (wgpu_shader_compiler.{cc,hh}) that patch 0019 adds — so
+#     0016b only applies once 0019/0021 are present, "despite the 0016b name."
+#       evidence: ledger/progress.txt:137 ("patch 0016b applies AFTER 0019/0021 despite
+#                 name — driver reconciles numbering");
+#                 notes/gpu-laneB-integration.md:143-144 ("effective apply-order is AFTER
+#                 0019/0021 despite the 0016b").
+#   * 0016c stacks on 0016b (both append to the same gpu/CMakeLists.txt SRC list; 0016c's
+#     entries follow 0016b's), so it applies immediately after 0016b — i.e. also after 0021.
+#       evidence: ledger/progress.txt:153 ("cumulative: 0016c on 0016b on lane-A tree").
+#
+# SAME-FILE STACKS (already satisfied by lexical order — recorded here so a replayer keeps
+# them in order and does not "tidy" the numbers; NOT counted as deviations)
+#   * 0081 < 0082 < 0083 share hunks in the same files; reverse-apply verified in order
+#     0083->0082->0081 (individual reverse of 0081 alone fails, benign).
+#       evidence: fix_plan.md:413-415; ledger/progress.txt:241.
+#   * wgpu_shader.cc stack: 0084 < 0086 < 0087 < 0088 < 0090 (each stacks on the prior).
+#       evidence: fix_plan.md:446; ledger/progress.txt:246-249, 255, 257.
+#   * wgpu_vertex_buffer.cc stack: 0085 < 0091.
+#       evidence: fix_plan.md:446; ledger/progress.txt:257.
+#
+# ---------------------------------------------------------------------------------------
+
+0001-platform-wasm.patch
+0002-makesdna-wasm32-align.patch
+0003-hosttools-node.patch
+0004-blenlib-wasm-libc-gaps.patch
+0005-blenlib-wasm32-sizeof-assert.patch
+0006-blenlib-bmesh-gtest-wasm.patch
+0007-hosttools-native-codegen-wasm.patch
+0008-blenkernel-wasm32.patch
+0009-editor-interface-python-off.patch
+0010-creator-blender-node-profile.patch
+0011-ghost-webgpu-context.patch
+0012-gpu-webgpu-backend.patch
+0014-dna-reconstruct-wasm32-offsets.patch
+0015-gpu-webgpu-buffers.patch
+0016-gpu-webgpu-texture-format-conversion.patch
+0017-gpu-webgpu-uniform-buffer.patch
+0018-bhead-collision-detector.patch
+0019-gpu-webgpu-context-caps-buffers.patch
+0021-gpu-webgpu-state-table.patch
+# --- deviation: 0016b/0016c relocated here, after 0021 (see header) ---
+0016b-gpu-webgpu-texture.patch
+0016c-gpu-webgpu-state-manager.patch
+# --- resume lexical order ---
+0022-gpu-webgpu-shader-batch-gpu-init.patch
+0023-wm-webgpu-drawing-context.patch
+0024-icons-init-web.patch
+0025-ghost-factory-web.patch
+0026-wm-main-loop-web.patch
+0027-ghost-cmake-web.patch
+0028-gpu-webgpu-statemanager-device-features.patch
+0029-gpu-webgpu-shader-wgsl-compile.patch
+0030-gpu-webgpu-framebuffer.patch
+0031-asset-blendhandle-wasm32-ptr.patch
+0032-gpu-webgpu-batch-draw.patch
+0033-numpy-inittab-wasm.patch
+0034-gpu-webgpu-push-constant-uniforms.patch
+0035-gpu-webgpu-immediate.patch
+0036-gpu-webgpu-async-compile-device-ssbo-fix.patch
+0037-gpu-webgpu-context-web.patch
+0038-gpu-webgpu-shader-dense-bindings.patch
+0039-gpu-webgpu-default-framebuffers.patch
+0040-ghost-webgpu-uncaptured-error-log.patch
+0041-gpu-webgpu-gl-instanceid-alias.patch
+0042-gpu-webgpu-pipeline.patch
+0043-gpu-webgpu-buffer-copydst-usage.patch
+0044-gpu-webgpu-pipeline-frontface-yflip.patch
+0045-gpu-webgpu-framebuffer-readback-yflip.patch
+0046-gpu-webgpu-framebuffer-attachment-single-layer.patch
+0050-gpu-webgpu-host-shared-resource-deferral.patch
+0051-gpu-webgpu-shader-interface-populate-builtins.patch
+0052-gpu-webgpu-vertex-clip-y-flip.patch
+0053-gpu-shader-standard-defines-webgpu-arm.patch
+0054-gpu-webgpu-nan-flt-guard.patch
+0055-gpu-webgpu-immediate-wiring.patch
+0056-gpu-webgpu-compute-dispatch.patch
+0057-gpu-webgpu-viewport-index-decl.patch
+0058-gpu-webgpu-point-size-redirect.patch
+0059-gpu-webgpu-storage-image-bind.patch
+0060-gpu-shader-dependency-wasm32-npos.patch
+0061-gpu-shader-preprocessor-wasm32-npos.patch
+0065-wm-webgpu-backend-define.patch
+0066-gpu-webgpu-windowed-ghost-context-cast.patch
+0075-gpu-webgpu-platform-init-main-context.patch
+0076-gpu-shader-dump-source-wasm32-npos.patch
+0077-gpu-webgpu-shader-writer-env-device-features.patch
+0078-gpu-webgpu-specialization-compilation-constants.patch
+0079-gpu-webgpu-compute-specialization-runtime.patch
+0080-gpu-webgpu-subpass-input-declare.patch
+# 0081<0082<0083 shared-hunk stack (fix_plan.md:413-415; progress.txt:241)
+0081-gpu-webgpu-point-coord-declare.patch
+0082-gpu-webgpu-compute-shared-variables.patch
+0083-gpu-webgpu-multi-viewport-emulation.patch
+# wgpu_shader.cc stack 0084<0086<0087<0088<0090; wgpu_vertex_buffer.cc stack 0085<0091
+0084-gpu-webgpu-sampledbuffer-storage-emulation.patch
+0085-gpu-webgpu-vbo-ibo-bind-as-ssbo.patch
+0086-gpu-webgpu-integer-sampler-textureload.patch
+0087-gpu-webgpu-1d-array-sampler-emulation.patch
+0088-gpu-webgpu-isnan-isinf-rewrite.patch
+0089-gpu-webgpu-switch-fallthrough-glsl.patch
+0090-gpu-webgpu-customdata-fnparam-inline.patch
+0091-gpu-webgpu-bind-as-texture.patch
+0120-asset-system-wasm.patch

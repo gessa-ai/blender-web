@@ -118,6 +118,20 @@ class WGPUShader : public Shader {
    * Call before a draw that binds the push-constant UBO. */
   void push_constants_flush();
 
+  /* ---- Multi-viewport / layered emulation surface (M3.F7) ------------------
+   * A VIEWPORT_INDEX shader carries gpu_Layer / gpu_ViewportIndex to the fragment as
+   * flat varyings and discards primitives whose routing target != the pass's
+   * (layer, viewport), which the backend supplies in a small std140 UBO at
+   * multi_viewport_binding(). wgpu_batch.cc drives one pass per (layer, viewport). */
+  bool has_multi_viewport() const
+  {
+    return has_multi_viewport_;
+  }
+  uint32_t multi_viewport_binding() const
+  {
+    return multi_viewport_binding_;
+  }
+
  private:
   /* Run the BSL preprocessor on a combined stage source (unless skip_preprocessor). */
   std::string preprocess(const std::string &combined) const;
@@ -134,9 +148,22 @@ class WGPUShader : public Shader {
   wgpu::ShaderModule fragment_module_;
   wgpu::ShaderModule compute_module_;
 
-  /* Compute pipeline built lazily from compute_module_ and cached for this shader's
-   * lifetime (see compute_pipeline()). */
-  wgpu::ComputePipeline compute_pipeline_;
+  /* Compute pipelines built lazily from compute_module_ and cached PER
+   * specialization-constant value set (see compute_pipeline()). WebGPU applies
+   * `override` constants at pipeline creation, so distinct spec-constant values need
+   * distinct pipeline variants; the key is the raw override bit patterns. Value sets
+   * per shader are few, so a linear-searched vector is enough (and sidesteps hashing
+   * a Vector key). */
+  struct ComputePipelineVariant {
+    std::vector<uint32_t> key;
+    wgpu::ComputePipeline pipeline;
+  };
+  std::vector<ComputePipelineVariant> compute_pipelines_;
+  /* Specialization constants captured by the most recent bind(); consumed by
+   * compute_pipeline() to select/create the matching variant. Null = defaults. The
+   * pointee is owned by the caller and stays valid across the bind()->dispatch call
+   * chain (GPU_compute_dispatch). */
+  const shader::SpecializationConstants *bound_constants_ = nullptr;
 
   /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
   webgpu::InterfaceMap interface_map_;
@@ -155,6 +182,11 @@ class WGPUShader : public Shader {
   uint32_t push_constants_size_ = 0;
   uint32_t push_constants_binding_ = 0;
   bool push_constants_dirty_ = false;
+
+  /* Multi-viewport emulation (M3.F7): whether this shader declares VIEWPORT_INDEX and the
+   * binding of its per-pass (layer, viewport) UBO. Set in build_interface(). */
+  bool has_multi_viewport_ = false;
+  uint32_t multi_viewport_binding_ = 0;
 
   /** Write `comp_len * array_size` scalars into the push-constant shadow at the
    * offset for `location`. Shared by uniform_float / uniform_int. */

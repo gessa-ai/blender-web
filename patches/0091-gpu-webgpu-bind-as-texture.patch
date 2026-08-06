@@ -1,0 +1,58 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index e66d57b1827..809b494b069 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -20,6 +20,7 @@
+ 
+ #include "BLI_utildefines.h"
+ 
++#include <cstdio>
+ #include <cstring>
+ #include <vector>
+ 
+@@ -170,10 +171,41 @@ void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+   }
+ }
+ 
+-/* Texel-buffer (buffer-texture) binding is resolved at draw/dispatch bind-group
+- * assembly from the source VertBuf (WGPUTexture::init_internal(VertBuf*)); nothing to
+- * do on the VertBuf object itself. */
+-void WGPUVertexBuffer::bind_as_texture(uint /*binding*/) {}
++/* Bind this vertex buffer as an emulated texel buffer (GPU_vertbuf_bind_as_texture — the
++ * runtime source of a `samplerBuffer`). The buffer-sampler emulation (wgpu_shader.cc
++ * is_buffer_sampler / print_resource) rewrites the samplerBuffer into a read-only std430
++ * storage buffer, so the runtime bind is identical to bind_as_ssbo (patch 0085): ensure
++ * the device buffer exists and register it in the context's SSBO bind-space at the WGSL
++ * @binding the frontend recorded (GPU_shader_get_sampler_binding), which the compute/-draw
++ * bind-group builder consumes.
++ *
++ * FORMAT GUARD (M3.F12 decision): the storage emulation reads a FloatBuffer texel as vec4
++ * (RGBA32F, 16-byte stride) and an Int/UintBuffer texel as a single 32-bit scalar (4-byte
++ * stride). A source VertBuf of any other texel stride (RG32F=8, RGB32F=12, ...) is read
++ * with the wrong stride; a strided R32F FloatBuffer (4-byte, e.g. gpu_buffer_texture_test)
++ * is likewise read as a 16-byte vec4. True component-count-generic access needs a
++ * per-pipeline override constant (the 0079 re-specialization mechanism) — deferred; see
++ * notes/gpu-gate-census.md (gpu_buffer_texture_test blacklist candidate). Warn on the
++ * clearly-unsupported strides so the mismatch is characterized, not silently garbage. */
++void WGPUVertexBuffer::bind_as_texture(uint binding)
++{
++  if (!buffer_.valid()) {
++    allocate();
++  }
++  if (!buffer_.valid()) {
++    return;
++  }
++  const uint stride = format.stride;
++  if (stride != 16 && stride != 4) {
++    fprintf(stderr,
++            "[WebGPU] buffer-texture texel stride %u is unsupported by the storage-buffer "
++            "emulation (only RGBA32F/16B and R32*/4B accepted); reads will be incorrect.\n",
++            stride);
++  }
++  if (WGPUContext *ctx = active_context()) {
++    ctx->buffer_ssbo_bind(int(binding), &buffer_);
++  }
++}
+ 
+ void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)
+ {

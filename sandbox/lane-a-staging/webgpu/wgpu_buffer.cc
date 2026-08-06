@@ -42,10 +42,15 @@ wgpu::BufferUsage usage_flags(BufferKind kind, UsageType usage, bool readable)
       u |= wgpu::BufferUsage::Storage | wgpu::BufferUsage::Indirect;
       break;
   }
-  /* DEVICE_ONLY does no host->device transfer (GPU_USAGE_DEVICE_ONLY): no CopyDst. */
-  if (usage != UsageType::DeviceOnly) {
-    u |= wgpu::BufferUsage::CopyDst;
-  }
+  /* CopyDst is unconditional: the Vulkan backend gives every vertex/index/storage
+   * buffer VK_BUFFER_USAGE_TRANSFER_DST_BIT regardless of GPU_USAGE_DEVICE_ONLY
+   * (vk_vertex_buffer.cc:211, vk_index_buffer.cc:115, vk_storage_buffer.cc:85). A
+   * DEVICE_ONLY buffer is still a valid copy/clear/writeBuffer destination (e.g. a
+   * device-only SSBO cleared or updated on the device) — dropping CopyDst for it made
+   * Dawn reject those writes ("usage ... doesn't include CopyDst"). Uniform buffers
+   * are always host-updated, so they need it too. */
+  u |= wgpu::BufferUsage::CopyDst;
+  (void)usage;
   if (readable) {
     u |= wgpu::BufferUsage::CopySrc;
   }

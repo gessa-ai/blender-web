@@ -149,6 +149,23 @@ static bool build_compute_bind_group(WGPUContext *ctx,
     entries.push_back(entry);
   }
 
+  /* VBO / IBO bound as an SSBO (GPU_vertbuf_bind_as_ssbo / GPU_indexbuf_bind_as_ssbo).
+   * Same group-0 buffer entry as a StorageBuf, keyed by the dense WGSL @binding the
+   * frontend recorded — the buffer already carries the Storage usage bit
+   * (wgpu_buffer.cc). */
+  for (const auto &item : ctx->bound_buffer_ssbos()) {
+    const webgpu::Buffer *buf = item.second;
+    if (buf == nullptr || !buf->valid()) {
+      continue;
+    }
+    wgpu::BindGroupEntry entry = {};
+    entry.binding = uint32_t(item.first);
+    entry.buffer = buf->handle();
+    entry.offset = 0;
+    entry.size = buf->size();
+    entries.push_back(entry);
+  }
+
   /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
    * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
    * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */

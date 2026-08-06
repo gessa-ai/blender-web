@@ -20,6 +20,7 @@
 
 #include "BLI_utildefines.h"
 
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -141,16 +142,70 @@ void WGPUVertexBuffer::resize_data()
 
 void WGPUVertexBuffer::release_data()
 {
+  /* Drop any binding this buffer holds in the active context's SSBO bind-space so a
+   * freed VBO can never leave a dangling pointer for the next dispatch/draw. */
+  if (WGPUContext *ctx = active_context()) {
+    ctx->buffer_ssbo_unbind(&buffer_);
+  }
   /* Drop the GPU buffer (RAII releases the wgpu::Buffer handle). */
   buffer_ = webgpu::Buffer();
   MEM_SAFE_DELETE(data_);
 }
 
-/* Binding paths are deferred to the state manager / bind-group assembly (lane B,
- * T7): a vertex buffer read as an SSBO or bound as a texel buffer is a draw-time
- * concern the buffer object does not resolve on its own. */
-void WGPUVertexBuffer::bind_as_ssbo(uint /*binding*/) {}
-void WGPUVertexBuffer::bind_as_texture(uint /*binding*/) {}
+/* Bind this vertex buffer as a read/write storage buffer at the given WGSL @binding
+ * (GPU_vertbuf_bind_as_ssbo — compute writes vertex data, e.g. the compute_vbo test /
+ * subdiv). Every VBO is allocated Vertex|Storage (wgpu_buffer.cc), so no reallocation
+ * is needed; the device buffer is ensured here (a DEVICE_ONLY VBO is never uploaded,
+ * so nothing else would create it before the dispatch reads/writes it) and recorded in
+ * the context's SSBO bind-space, which the compute/-draw bind-group builder consumes. */
+void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+{
+  if (!buffer_.valid()) {
+    allocate();
+  }
+  if (!buffer_.valid()) {
+    return;
+  }
+  if (WGPUContext *ctx = active_context()) {
+    ctx->buffer_ssbo_bind(int(binding), &buffer_);
+  }
+}
+
+/* Bind this vertex buffer as an emulated texel buffer (GPU_vertbuf_bind_as_texture — the
+ * runtime source of a `samplerBuffer`). The buffer-sampler emulation (wgpu_shader.cc
+ * is_buffer_sampler / print_resource) rewrites the samplerBuffer into a read-only std430
+ * storage buffer, so the runtime bind is identical to bind_as_ssbo (patch 0085): ensure
+ * the device buffer exists and register it in the context's SSBO bind-space at the WGSL
+ * @binding the frontend recorded (GPU_shader_get_sampler_binding), which the compute/-draw
+ * bind-group builder consumes.
+ *
+ * FORMAT GUARD (M3.F12 decision): the storage emulation reads a FloatBuffer texel as vec4
+ * (RGBA32F, 16-byte stride) and an Int/UintBuffer texel as a single 32-bit scalar (4-byte
+ * stride). A source VertBuf of any other texel stride (RG32F=8, RGB32F=12, ...) is read
+ * with the wrong stride; a strided R32F FloatBuffer (4-byte, e.g. gpu_buffer_texture_test)
+ * is likewise read as a 16-byte vec4. True component-count-generic access needs a
+ * per-pipeline override constant (the 0079 re-specialization mechanism) — deferred; see
+ * notes/gpu-gate-census.md (gpu_buffer_texture_test blacklist candidate). Warn on the
+ * clearly-unsupported strides so the mismatch is characterized, not silently garbage. */
+void WGPUVertexBuffer::bind_as_texture(uint binding)
+{
+  if (!buffer_.valid()) {
+    allocate();
+  }
+  if (!buffer_.valid()) {
+    return;
+  }
+  const uint stride = format.stride;
+  if (stride != 16 && stride != 4) {
+    fprintf(stderr,
+            "[WebGPU] buffer-texture texel stride %u is unsupported by the storage-buffer "
+            "emulation (only RGBA32F/16B and R32*/4B accepted); reads will be incorrect.\n",
+            stride);
+  }
+  if (WGPUContext *ctx = active_context()) {
+    ctx->buffer_ssbo_bind(int(binding), &buffer_);
+  }
+}
 
 void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)
 {

@@ -1,0 +1,329 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index c240487342d..6c1489ea247 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -1137,6 +1137,300 @@ std::string WGPUShader::preprocess(const std::string &combined) const
+   return Shader::run_preprocessor(combined, false);
+ }
+ 
++/* Inline single-`return` helper functions that take a texel buffer (samplerBuffer /
++ * isamplerBuffer / usamplerBuffer) by *function parameter*. WGSL forbids passing a
++ * buffer/handle as a function argument, and the buffer-sampler emulation (is_buffer_sampler
++ * / print_resource) turns the global texel buffer into a `readonly buffer`, so a
++ * `get_customdata_*(int, const samplerBuffer)` call no longer type-checks against its
++ * definition (glslang: "no matching overloaded function"). These helpers
++ * (draw_curves_lib / draw_pointcloud_lib / eevee_attributes_pointcloud_lib — the MEDIUM
++ * tail of notes/gpu-sampledbuffer-design.md) all have a single `return <expr>;` body, so
++ * every call is inlined by substituting its arguments into that expression and the now
++ * uncalled definitions are deleted. Buffer-typed parameters are substituted *bare* (the
++ * call always passes the global resource identifier) so the resulting `texelFetch(global,
++ * i)` is still recognised by rewrite_texel_buffers; other parameters are parenthesised.
++ * Nested helpers (attr_load_* -> get_customdata_*) resolve across inlining passes. Runs
++ * BEFORE rewrite_texel_buffers so the inlined texelFetch is then lowered to an indexed
++ * storage load. A shader with no texel-buffer type token is left untouched (early out). */
++static void inline_buffer_param_helpers(std::string &src)
++{
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  static const char *kBufTypes[] = {"samplerBuffer", "isamplerBuffer", "usamplerBuffer"};
++
++  bool any = false;
++  for (const char *t : kBufTypes) {
++    if (src.find(t) != std::string::npos) {
++      any = true;
++      break;
++    }
++  }
++  if (!any) {
++    return;
++  }
++
++  auto match_bracket = [&](size_t open, char oc, char cc) -> size_t {
++    int d = 1;
++    for (size_t q = open + 1; q < src.size(); ++q) {
++      const char c = src[q];
++      if (c == oc) {
++        d++;
++      }
++      else if (c == cc) {
++        if (--d == 0) {
++          return q;
++        }
++      }
++    }
++    return std::string::npos;
++  };
++  auto has_buf_word = [&](const std::string &s) -> bool {
++    for (const char *t : kBufTypes) {
++      const std::string tok = t;
++      size_t p = 0;
++      while ((p = s.find(tok, p)) != std::string::npos) {
++        const bool l = (p == 0) || !is_ident(s[p - 1]);
++        const size_t e = p + tok.size();
++        const bool r = (e >= s.size()) || !is_ident(s[e]);
++        if (l && r) {
++          return true;
++        }
++        p = e;
++      }
++    }
++    return false;
++  };
++  auto split_top = [&](const std::string &s) -> std::vector<std::string> {
++    std::vector<std::string> parts;
++    std::string cur;
++    int d = 0;
++    for (const char c : s) {
++      if (c == '(' || c == '[') {
++        d++;
++      }
++      else if (c == ')' || c == ']') {
++        d--;
++      }
++      if (c == ',' && d == 0) {
++        parts.push_back(cur);
++        cur.clear();
++      }
++      else {
++        cur += c;
++      }
++    }
++    parts.push_back(cur);
++    return parts;
++  };
++  auto trim = [](const std::string &a) -> std::string {
++    size_t s = 0, e = a.size();
++    while (s < e && std::isspace((unsigned char)a[s])) {
++      s++;
++    }
++    while (e > s && std::isspace((unsigned char)a[e - 1])) {
++      e--;
++    }
++    return a.substr(s, e - s);
++  };
++
++  struct Helper {
++    std::string ret_expr;
++    std::vector<std::string> params;
++    std::vector<bool> is_buf;
++  };
++  std::unordered_map<std::string, Helper> helpers;
++
++  /* PASS 1: collect + delete definitions. */
++  {
++    std::string out;
++    out.reserve(src.size());
++    size_t i = 0;
++    while (i < src.size()) {
++      const size_t op = src.find('(', i);
++      if (op == std::string::npos) {
++        out.append(src, i, src.size() - i);
++        break;
++      }
++      const size_t cp = match_bracket(op, '(', ')');
++      if (cp == std::string::npos) {
++        out.append(src, i, src.size() - i);
++        break;
++      }
++      const std::string params_str = src.substr(op + 1, cp - op - 1);
++      size_t after = cp + 1;
++      while (after < src.size() && std::isspace((unsigned char)src[after])) {
++        after++;
++      }
++      const bool is_def = has_buf_word(params_str) && after < src.size() && src[after] == '{';
++      if (!is_def) {
++        out.append(src, i, (op + 1) - i);
++        i = op + 1;
++        continue;
++      }
++      size_t ne = op;
++      while (ne > 0 && std::isspace((unsigned char)src[ne - 1])) {
++        ne--;
++      }
++      size_t ns = ne;
++      while (ns > 0 && is_ident(src[ns - 1])) {
++        ns--;
++      }
++      const std::string name = src.substr(ns, ne - ns);
++      size_t rte = ns;
++      while (rte > 0 && std::isspace((unsigned char)src[rte - 1])) {
++        rte--;
++      }
++      size_t rts = rte;
++      while (rts > 0 && is_ident(src[rts - 1])) {
++        rts--;
++      }
++      const size_t bo = after;
++      const size_t bc = match_bracket(bo, '{', '}');
++      if (name.empty() || bc == std::string::npos) {
++        out.append(src, i, (op + 1) - i);
++        i = op + 1;
++        continue;
++      }
++      const std::string body = src.substr(bo + 1, bc - bo - 1);
++      const size_t rp = body.find("return");
++      const size_t sc = body.rfind(';');
++      if (rp == std::string::npos || sc == std::string::npos || sc <= rp + 6) {
++        out.append(src, i, (op + 1) - i);
++        i = op + 1;
++        continue;
++      }
++      Helper h;
++      h.ret_expr = body.substr(rp + 6, sc - (rp + 6));
++      for (std::string &p : split_top(params_str)) {
++        const bool buf = has_buf_word(p);
++        size_t e = p.size();
++        while (e > 0 && !is_ident(p[e - 1])) {
++          e--;
++        }
++        size_t s = e;
++        while (s > 0 && is_ident(p[s - 1])) {
++          s--;
++        }
++        h.params.push_back(p.substr(s, e - s));
++        h.is_buf.push_back(buf);
++      }
++      helpers[name] = h;
++      out.append(src, i, rts - i);
++      i = bc + 1;
++    }
++    src = std::move(out);
++  }
++  if (helpers.empty()) {
++    return;
++  }
++
++  /* Inline calls, iterating so nested helper calls introduced by an outer inline resolve. */
++  for (int pass = 0; pass < 8; ++pass) {
++    bool changed = false;
++    std::string out;
++    out.reserve(src.size());
++    size_t p = 0;
++    while (p < src.size()) {
++      size_t best = std::string::npos;
++      std::string hit;
++      size_t q = p;
++      while (q < src.size()) {
++        if (is_ident(src[q]) && (q == 0 || !is_ident(src[q - 1]))) {
++          size_t e = q;
++          while (e < src.size() && is_ident(src[e])) {
++            e++;
++          }
++          const std::string id = src.substr(q, e - q);
++          if (helpers.count(id)) {
++            size_t r = e;
++            while (r < src.size() && std::isspace((unsigned char)src[r])) {
++              r++;
++            }
++            if (r < src.size() && src[r] == '(') {
++              best = q;
++              hit = id;
++              break;
++            }
++          }
++          q = e;
++        }
++        else {
++          q++;
++        }
++      }
++      if (best == std::string::npos) {
++        out.append(src, p, src.size() - p);
++        break;
++      }
++      size_t np = best + hit.size();
++      while (np < src.size() && std::isspace((unsigned char)src[np])) {
++        np++;
++      }
++      const size_t cp = match_bracket(np, '(', ')');
++      if (cp == std::string::npos) {
++        out.append(src, p, (best + hit.size()) - p);
++        p = best + hit.size();
++        continue;
++      }
++      const std::vector<std::string> args = split_top(src.substr(np + 1, cp - np - 1));
++      const Helper &h = helpers[hit];
++      if (args.size() != h.params.size()) {
++        out.append(src, p, (cp + 1) - p);
++        p = cp + 1;
++        continue;
++      }
++      const std::string &expr = h.ret_expr;
++      std::string se;
++      se.reserve(expr.size());
++      size_t z = 0;
++      while (z < expr.size()) {
++        if (is_ident(expr[z]) && (z == 0 || !is_ident(expr[z - 1]))) {
++          size_t e = z;
++          while (e < expr.size() && is_ident(expr[e])) {
++            e++;
++          }
++          const std::string id = expr.substr(z, e - z);
++          int idx = -1;
++          for (size_t k = 0; k < h.params.size(); ++k) {
++            if (h.params[k] == id) {
++              idx = int(k);
++              break;
++            }
++          }
++          if (idx >= 0) {
++            const std::string a = trim(args[idx]);
++            if (h.is_buf[idx]) {
++              se += a;
++            }
++            else {
++              se += '(';
++              se += a;
++              se += ')';
++            }
++          }
++          else {
++            se += id;
++          }
++          z = e;
++        }
++        else {
++          se += expr[z];
++          z++;
++        }
++      }
++      out.append(src, p, best - p);
++      out += '(';
++      out += se;
++      out += ')';
++      p = cp + 1;
++      changed = true;
++    }
++    src = std::move(out);
++    if (!changed) {
++      break;
++    }
++  }
++}
++
+ /* Rewrite `texelFetch(buf, i)` on an emulated texel buffer (is_buffer_sampler) into an
+  * indexed storage-buffer load, matching the `readonly buffer` print_resource declared.
+  * texelFetch on a buffer sampler takes exactly two args (sampler, int index) and yields
+@@ -1606,6 +1900,7 @@ void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                          MutableSpan<StringRefNull> sources)
+ {
+   vertex_glsl_ = preprocess(combine_with_patch(glsl_patch("#define GPU_VERTEX_SHADER\n"), sources));
++  inline_buffer_param_helpers(vertex_glsl_);
+   rewrite_texel_buffers(vertex_glsl_, info);
+   rewrite_integer_sampler_sampling(vertex_glsl_);
+   rewrite_1d_array_samplers(vertex_glsl_);
+@@ -1620,6 +1915,7 @@ void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
+ {
+   fragment_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_FRAGMENT_SHADER\n"), sources));
++  inline_buffer_param_helpers(fragment_glsl_);
+   rewrite_texel_buffers(fragment_glsl_, info);
+   rewrite_integer_sampler_sampling(fragment_glsl_);
+   rewrite_1d_array_samplers(fragment_glsl_);
+@@ -1630,6 +1926,7 @@ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+ {
+   compute_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_COMPUTE_SHADER\n"), sources));
++  inline_buffer_param_helpers(compute_glsl_);
+   rewrite_texel_buffers(compute_glsl_, info);
+   rewrite_integer_sampler_sampling(compute_glsl_);
+   rewrite_1d_array_samplers(compute_glsl_);

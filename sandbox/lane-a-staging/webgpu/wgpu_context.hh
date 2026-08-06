@@ -28,6 +28,9 @@
 namespace blender::gpu {
 
 class WGPUStorageBuffer;
+namespace webgpu {
+class Buffer;
+}
 
 class WGPUContext : public Context {
  public:
@@ -100,6 +103,33 @@ class WGPUContext : public Context {
     return bound_storage_buffers_;
   }
 
+  /* --- VBO / IBO bound as an SSBO ------------------------------------------
+   * A VertBuf or IndexBuf may be bound as a storage buffer (GPU_vertbuf_bind_as_ssbo
+   * / GPU_indexbuf_bind_as_ssbo — subdiv / compute readback paths). These are not
+   * WGPUStorageBuffer objects, so they need their own bind-space: the raw
+   * webgpu::Buffer they own is recorded here keyed by the WGSL @binding slot and
+   * added to the group-0 bind group alongside the StorageBufs. Keyed by slot, last
+   * bind wins; the owning VertBuf/IndexBuf unbinds itself on release. */
+  void buffer_ssbo_bind(int slot, const webgpu::Buffer *buffer)
+  {
+    bound_buffer_ssbos_[slot] = buffer;
+  }
+  void buffer_ssbo_unbind(const webgpu::Buffer *buffer)
+  {
+    for (auto it = bound_buffer_ssbos_.begin(); it != bound_buffer_ssbos_.end();) {
+      if (it->second == buffer) {
+        it = bound_buffer_ssbos_.erase(it);
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+  const std::unordered_map<int, const webgpu::Buffer *> &bound_buffer_ssbos() const
+  {
+    return bound_buffer_ssbos_;
+  }
+
   /* Backend-wide device/instance/queue, reachable from any thread (there is a
    * single Dawn device). Used by the async shader-compile worker, which has no
    * thread-local active GPU context. */
@@ -134,6 +164,8 @@ class WGPUContext : public Context {
   bool is_active_ = false;
   /** Bound storage buffers keyed by WGSL @binding slot (see storage_buffer_bind). */
   std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
+  /** VBO/IBO buffers bound as SSBOs keyed by WGSL @binding slot (see buffer_ssbo_bind). */
+  std::unordered_map<int, const webgpu::Buffer *> bound_buffer_ssbos_;
 
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
 };

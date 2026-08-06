@@ -28,7 +28,7 @@ namespace blender::gpu {
 
 class WGPUIndexBuffer : public IndexBuf {
  public:
-  ~WGPUIndexBuffer() override = default;
+  ~WGPUIndexBuffer() override;
 
   void upload_data() override;
   void bind_as_ssbo(uint binding) override;

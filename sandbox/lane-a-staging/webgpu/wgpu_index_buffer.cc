@@ -98,9 +98,38 @@ void WGPUIndexBuffer::read(uint32_t *data) const
   }
 }
 
-/* Binding a index buffer as an SSBO is a draw/compute-time concern resolved by
- * the state manager (lane B); the object itself does nothing here. */
-void WGPUIndexBuffer::bind_as_ssbo(uint /*binding*/) {}
+WGPUIndexBuffer::~WGPUIndexBuffer()
+{
+  /* Drop any SSBO binding this buffer holds so a freed IBO can never leave a
+   * dangling pointer for the next dispatch/draw (the buffer_ member is released by
+   * the base destructor after this). */
+  if (WGPUContext *ctx = active_context()) {
+    ctx->buffer_ssbo_unbind(&buffer_);
+  }
+}
+
+/* Bind this index buffer as a read/write storage buffer at the given WGSL @binding
+ * (GPU_indexbuf_bind_as_ssbo — a compute pass builds the index data, e.g. the
+ * compute_ibo test / subdiv). Index buffers are allocated Index|Storage
+ * (wgpu_buffer.cc); ensure the device buffer exists (a build-on-device IBO is created
+ * empty by upload_data) and record it in the context's SSBO bind-space for the
+ * bind-group builder. Subranges bind the parent's buffer. */
+void WGPUIndexBuffer::bind_as_ssbo(uint binding)
+{
+  if (is_subrange_) {
+    unwrap(src_)->bind_as_ssbo(binding);
+    return;
+  }
+  if (!buffer_.valid()) {
+    upload_data();
+  }
+  if (!buffer_.valid()) {
+    return;
+  }
+  if (WGPUContext *ctx = active_context()) {
+    ctx->buffer_ssbo_bind(int(binding), &buffer_);
+  }
+}
 
 void WGPUIndexBuffer::update_sub(uint /*start*/, uint /*len*/, const void * /*data*/)
 {

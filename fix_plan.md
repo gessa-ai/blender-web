@@ -365,7 +365,14 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   depthClearValue trap (0095 — native Dawn ignores it, emdawnwebgpu rejects). Census held
   148/158 byte-identical across 5 re-runs. Evidence:
   platform_web/shell/evidence/m4-first-ui-pixels-quicksetup-splash.png + transcript.
-- [ ] **M4.T14 [gpu-backend r17]** (a) Y-FLIP of the surface present (dominant imperfection —
+- [x] **M4.T14 r17 RESULT (f2291fc/8a67d9e/aa4653c, 0096+0097 clean, driver-verified incl.
+  the upright capture): WINDOW RENDERS UPRIGHT** (elegant fix: clip-Y sign as pipeline
+  override constant, flip_y=false only for the surface backbuffer — offscreen byte-identical,
+  hit-testing aligned). **static_shaders 956/973 — ALL remaining 17 = registered deferral
+  classes; the M3 gate has NO un-dispositioned item left.** Splash root-cause = LFS stubs
+  (156/157 binary datafiles are pointers — M0-hygiene debt; pull authorized → r18). Mirror
+  0-drift. Census held 148/158. New porting fact: shader_tool needs brace-balanced ifdef arms.
+- [x] ~~M4.T14-old~~ (a) Y-FLIP of the surface present (dominant imperfection —
   whole window mirrored; ADR-005 fixed offscreen, the present composite path needs its half;
   likely a flip in the backbuffer blit/present or viewport transform when rendering to the
   surface-adopted back_left); (b) uniformity-5 (M3.F13 decision 1 — still owed, static

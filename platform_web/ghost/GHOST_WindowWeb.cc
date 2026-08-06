@@ -25,10 +25,19 @@
 #  endif
 #endif
 
-/* Read window.devicePixelRatio without pulling in a JS library dependency. */
-EM_JS(double, ghost_web_device_pixel_ratio, (), { return window.devicePixelRatio || 1.0; });
+/* Read window.devicePixelRatio without pulling in a JS library dependency. Under
+ * -sPROXY_TO_PTHREAD this runs on the WM worker, which has NO `window`/`document`
+ * (they exist only on the browser main thread) — guard both, or a bare `window`
+ * reference throws ReferenceError and aborts the boot. DPR defaults to 1.0 on the
+ * worker (a later refinement can forward the real DPR from the main thread); the
+ * title update is a main-thread-only affordance, so it no-ops on the worker. */
+EM_JS(double, ghost_web_device_pixel_ratio, (), {
+  return (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1.0;
+});
 EM_JS(void, ghost_web_set_document_title, (const char *title), {
-  document.title = UTF8ToString(title);
+  if (typeof document !== "undefined") {
+    document.title = UTF8ToString(title);
+  }
 });
 
 GHOST_WindowWeb::GHOST_WindowWeb(const char *title,

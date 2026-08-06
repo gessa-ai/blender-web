@@ -16,7 +16,36 @@
 #include <cstdio>
 #include <utility>
 
+#include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+
+/* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
+/* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
+ * event-loop turn or asyncify) and cannot cross realms, so it is acquired
+ * ASYNCHRONOUSLY on THIS (WM/proxied-main) worker pre-main and stashed in
+ * Module.preinitializedWebGPUDevice by platform_web/shell/wgpu-preinit-worker.js.
+ * See the "M4.T11 — emdawnwebgpu port probe" section of notes/m4-integration.md. */
+EM_JS(int, ghost_web_has_preinit_device, (), {
+  return (typeof Module !== "undefined" && Module["preinitializedWebGPUDevice"]) ? 1 : 0;
+});
+
+/* Whether the canvas selector resolves on THIS thread. On the WM worker it only
+ * resolves once the canvas is transferred as an OffscreenCanvas (OFFSCREENCANVAS_
+ * SUPPORT + OFFSCREENCANVASES_TO_PTHREAD — not wired this round); on the browser main
+ * thread document.querySelector resolves it. Mirrors emdawnwebgpu's
+ * findCanvasEventTarget lookup without assuming the offscreen path is present. */
+EM_JS(int, ghost_web_canvas_resolvable, (const char *selector), {
+  var s = UTF8ToString(selector);
+  try {
+    if (typeof specialHTMLTargets !== "undefined" && specialHTMLTargets[s]) {
+      return 1;
+    }
+    if (typeof document !== "undefined" && document && document.querySelector(s)) {
+      return 1;
+    }
+  } catch (e) {}
+  return 0;
+});
 
 GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
                                            const char *canvas_selector)
@@ -37,66 +66,78 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
     return GHOST_kSuccess;
   }
 
-  /* Windowed (GHOST) path: acquire the device SYNCHRONOUSLY via wgpu WaitAny. Under
-   * -sJSPI (the windowed browser link) WaitAny SUSPENDS — it yields to the browser
-   * event loop that resolves the future and then resumes — instead of blocking the
-   * main thread (which would deadlock). This is the one-time top-level startup await
-   * ADR-003 permits; it mirrors the native GHOST_ContextWGPU acquisition. */
-  wgpu::InstanceDescriptor idesc = {};
-  static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-  idesc.requiredFeatureCount = 1;
-  idesc.requiredFeatures = &kTimedWaitAny;
-  instance_ = wgpu::CreateInstance(&idesc);
+  /* Windowed (GHOST) path under ADR-006/ADR-007. This runs straight-line on the
+   * PROXY_TO_PTHREAD WM worker during WM_init, before any event-loop pump exists. The
+   * emdawnwebgpu port cannot acquire a device synchronously here: a TimedWaitAny
+   * instance needs asyncify/JSPI (webgpu.cpp:1643 → CreateInstance returns null), and a
+   * blocking WaitAny would deadlock the worker (it cannot resolve its own promise while
+   * Atomics-blocked). So the device was acquired ASYNCHRONOUSLY on THIS worker pre-main
+   * (platform_web/shell/wgpu-preinit-worker.js) and stashed in
+   * Module.preinitializedWebGPUDevice; here we just import it synchronously. The device
+   * handle is per-thread (emdawnwebgpu jsObjects table) — importing on the WM worker is
+   * correct because this worker will own all GPU work (M4.T11 probe (i)/(iii)). */
+  if (!ghost_web_has_preinit_device()) {
+    std::printf("WGPUWeb: no pre-acquired device on the WM worker "
+                "(wgpu-preinit-worker.js did not run or acquisition failed)\n");
+    return GHOST_kFailure;
+  }
+
+  /* A featureless instance is valid without asyncify (unlike a TimedWaitAny one). */
+  instance_ = wgpu::CreateInstance(nullptr);
   if (instance_ == nullptr) {
     std::printf("WGPUWeb: CreateInstance failed\n");
     return GHOST_kFailure;
   }
 
-  wgpu::RequestAdapterOptions aopts = {};
-  aopts.powerPreference = wgpu::PowerPreference::HighPerformance;
-  instance_.WaitAny(
-      instance_.RequestAdapter(
-          &aopts,
-          wgpu::CallbackMode::WaitAnyOnly,
-          [this](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView /*msg*/) {
-            if (status == wgpu::RequestAdapterStatus::Success) {
-              adapter_ = std::move(a);
-            }
-          }),
-      UINT64_MAX);
-  if (adapter_ == nullptr) {
-    std::printf("WGPUWeb: RequestAdapter failed (sync)\n");
+  /* Import Module.preinitializedWebGPUDevice into THIS thread's object table. */
+  WGPUDevice raw_device = emscripten_webgpu_get_device();
+  if (raw_device == nullptr) {
+    std::printf("WGPUWeb: emscripten_webgpu_get_device returned null\n");
     return GHOST_kFailure;
   }
-
-  wgpu::DeviceDescriptor ddesc = {};
-  ddesc.SetUncapturedErrorCallback(
-      [](const wgpu::Device & /*d*/, wgpu::ErrorType type, wgpu::StringView msg) {
-        std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
-      });
-  instance_.WaitAny(
-      adapter_.RequestDevice(
-          &ddesc,
-          wgpu::CallbackMode::WaitAnyOnly,
-          [this](wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView /*msg*/) {
-            if (status == wgpu::RequestDeviceStatus::Success) {
-              device_ = std::move(d);
-            }
-          }),
-      UINT64_MAX);
-  if (device_ == nullptr) {
-    std::printf("WGPUWeb: RequestDevice failed (sync)\n");
-    return GHOST_kFailure;
-  }
+  device_ = wgpu::Device::Acquire(raw_device);
+  /* NB: the uncaptured-error callback can only be set via DeviceDescriptor at device
+   * creation; an imported device inherits the one set where it was created (none here),
+   * so Dawn logs uncaptured errors to the browser console instead. */
   queue_ = device_.GetQueue();
 
-  /* Canvas size from the DOM (the GHOST_WindowWeb already sized the canvas). */
+  /* Canvas size: emscripten_get_canvas_element_size only resolves on a worker once the
+   * canvas is transferred as an OffscreenCanvas (surface step below, not wired this
+   * round); fall back to a sane default so a later surface configure has extents. */
   int cw = 0, ch = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
-  width_ = uint32_t(cw > 0 ? cw : 1);
-  height_ = uint32_t(ch > 0 ? ch : 1);
-  finishSetup(); /* creates + configures the surface, sets ready_ */
-  return ready_ ? GHOST_kSuccess : GHOST_kFailure;
+  if (cw > 0) {
+    width_ = uint32_t(cw);
+  }
+  if (ch > 0) {
+    height_ = uint32_t(ch);
+  }
+  if (width_ == 0) {
+    width_ = 1280;
+  }
+  if (height_ == 0) {
+    height_ = 720;
+  }
+
+  /* Surface is BEST-EFFORT this round. A live device already satisfies
+   * GPU_context_create / GPU_init — WGPUContext reads instance/device/queue + device
+   * limits, never the surface (wgpu_context.cc). The WM worker has no DOM canvas until
+   * OffscreenCanvas is wired, and emdawnwebgpu's CreateSurface would ABORT (not return
+   * null) on an unresolvable selector (library_webgpu.js:1998-2002), so guard it. Skip
+   * → device stays live, ready_=true, and the boot advances past drawing-context
+   * creation into GPU_init + the main loop; the surface is the next characterized
+   * blocker (needs OFFSCREENCANVAS_SUPPORT + OFFSCREENCANVASES_TO_PTHREAD). */
+  if (ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
+    finishSetup(); /* creates + configures the surface, sets ready_ + on_ready_ */
+  }
+  else {
+    std::printf("WGPUWeb: surface deferred — canvas '%s' not resolvable on the WM worker "
+                "(no OffscreenCanvas yet); device is live, continuing\n",
+                canvas_selector_.c_str());
+  }
+
+  ready_ = true;
+  return GHOST_kSuccess;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()

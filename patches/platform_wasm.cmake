@@ -315,9 +315,9 @@ function(blender_web_browser_binary src_target)
   #     finding 3. Later -s wins, so this overrides the 8 MB above.
   # NO -sJSPI (M4 T9 empirical finding, notes/m4-integration.md T9): -sJSPI was added
   # for GHOST_ContextWGPUWeb::initializeDrawingContext()'s WaitAny device await, but
-  # (a) it is UNNEEDED — main() (and thus the await) runs on the PROXY_TO_PTHREAD WM
-  # worker, where WaitAny/Atomics.wait may BLOCK synchronously (a worker can block; the
-  # cross-thread device-ready future is signalled from the browser main thread), and
+  # (a) it is UNNEEDED — the device is acquired ASYNC on the PROXY_TO_PTHREAD WM worker
+  # BEFORE main() runs (see the --post-js below; M4.T11/ADR-007), so initializeDrawing-
+  # Context() imports it synchronously and never blocks, and
   # (b) it is HARMFUL — Emscripten wraps only `main`/the pthread entry with
   # WebAssembly.promising; `__wasm_call_ctors` runs raw on the MAIN thread in
   # initRuntime() BEFORE main, so any -sJSPI suspend reached from a C++ static ctor
@@ -325,10 +325,20 @@ function(blender_web_browser_binary src_target)
   # "trying to suspend without WebAssembly.promising" and aborts boot before the banner.
   # WGPU_TINT_LIBS (shaderc+Tint archives) are linked via bf_gpu's LINK_LIBRARIES,
   # cloned into this target — no extra flag needed here.
+  #
+  # --post-js wgpu-preinit-worker.js (M4.T11 / ADR-007): the emdawnwebgpu WebGPU device
+  # cannot be acquired synchronously without asyncify and cannot cross Worker realms
+  # (notes/m4-integration.md "M4.T11" probe), so it must be acquired ASYNC on the WM
+  # worker itself, pre-main. This post-js runs in every pthread worker and, for the
+  # proxied application-main thread only, awaits navigator.gpu.request{Adapter,Device}()
+  # and stashes the device in Module.preinitializedWebGPUDevice before dispatching the
+  # cmd:2 entry message. initializeDrawingContext() then pulls it via
+  # emscripten_webgpu_get_device().
   if(WITH_WEBGPU_BACKEND)
     string(APPEND _bw_browser_flags
       " --use-port=emdawnwebgpu"
-      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432")
+      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432"
+      " --post-js ${BLENDER_WEB_REPO_ROOT}/platform_web/shell/wgpu-preinit-worker.js")
   endif()
 
   set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")

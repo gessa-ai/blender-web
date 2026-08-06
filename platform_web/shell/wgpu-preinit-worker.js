@@ -1,0 +1,99 @@
+// SPDX-FileCopyrightText: 2026 blender-web contributors
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// M4.T11 (ADR-007) — worker-side pre-main WebGPU device acquisition.
+//
+// Baked into blender_browser.js as a --post-js, so it runs at the END of the module
+// body in BOTH the browser main thread and every pthread Web Worker. It only acts in a
+// pthread worker, and only for the PROXY_TO_PTHREAD "application main thread".
+//
+// Why here: under ADR-006 (no -sJSPI / no -sASYNCIFY) the emdawnwebgpu port cannot
+// acquire a WebGPU device synchronously (its blocking WaitAny needs asyncify and a
+// worker cannot resolve its own promise while Atomics-blocked — notes/m4-integration.md
+// "M4.T11" probe (ii)). And a GPUDevice cannot cross Worker realms (probe (i):
+// DataCloneError), so it MUST be acquired on the very worker that will use it. The one
+// window where that worker's event loop is free is BEFORE main() runs straight-line.
+// Emscripten runs the proxied main via the worker's cmd:2 message → invokeEntryPoint
+// (blender_browser.js). We intercept that message, await navigator.gpu.request{Adapter,
+// Device}() (probe (iii): a dedicated worker HAS navigator.gpu here), stash the device
+// in this worker's Module.preinitializedWebGPUDevice, and only THEN dispatch cmd:2 so
+// main() runs. GHOST_ContextWGPUWeb::initializeDrawingContext() then pulls it
+// synchronously via emscripten_webgpu_get_device().
+//
+// Interception mechanism: we OWN self.onmessage via an accessor. Emscripten registers
+// its handler (handleMessage) at self.onmessage in the module body (BEFORE this post-js)
+// and RE-assigns it in the cmd:1 handler (startWorker). Neither a self.onmessage wrapper
+// (clobbered by the reassignment) nor an addEventListener (fires AFTER the position-0
+// onmessage listener, so it cannot pre-empt main()) works. Instead we shadow the
+// onmessage accessor: every Emscripten assignment updates our stored `inner` handler,
+// while the ACTUAL registered listener stays our `wrapper`. wrapper is therefore the
+// sole handler and runs first; for the main thread it defers `inner` until the device is
+// ready, then invokes it exactly once.
+//
+// Discriminator: the PROXY_TO_PTHREAD application main thread runs _main_thread with a
+// NULL arg (crt1_proxy_main.c:52; empirically cmd:2 arg=0); worker/TBB threads carry a
+// non-null arg. Gate on cmd:2 with a falsy arg, once per worker.
+
+(function () {
+  if (typeof ENVIRONMENT_IS_PTHREAD === "undefined" || !ENVIRONMENT_IS_PTHREAD) {
+    return;
+  }
+  if (typeof self === "undefined" || typeof navigator === "undefined" || !navigator.gpu) {
+    return;
+  }
+
+  // On a DedicatedWorkerGlobalScope, `onmessage` is an OWN accessor on `self` (the
+  // [Global] interface special case), NOT on the prototype — so walk from self.
+  var target = self;
+  while (target && !Object.getOwnPropertyDescriptor(target, "onmessage")) {
+    target = Object.getPrototypeOf(target);
+  }
+  var nativeDesc = target && Object.getOwnPropertyDescriptor(target, "onmessage");
+  if (!nativeDesc || !nativeDesc.set || !nativeDesc.get) {
+    return; // unexpected environment — do not break message delivery
+  }
+
+  var log = function (m) {
+    try { if (typeof err === "function") { err(m); return; } } catch (e) {}
+    try { postMessage({ cmd: 9, handler: "printErr", args: [m] }); } catch (e) {}
+  };
+
+  var inner = nativeDesc.get.call(self); // Emscripten's current handler (handleMessage)
+  var done = false;
+
+  var wrapper = function (e) {
+    var d = e && e.data;
+    if (d && d.cmd === 2 && !d.arg && !done && typeof inner === "function") {
+      done = true;
+      var h = inner;
+      (async function () {
+        try {
+          var adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+          if (!adapter) {
+            throw new Error("navigator.gpu.requestAdapter() returned null");
+          }
+          var device = await adapter.requestDevice();
+          Module["preinitializedWebGPUDevice"] = device;
+          log("[bw] WM-worker WebGPU device pre-acquired (ADR-007)");
+        }
+        catch (ex) {
+          log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));
+        }
+        h.call(self, e); // run the pthread entry (invokeEntryPoint → main()) exactly once
+      })();
+      return;
+    }
+    if (typeof inner === "function") {
+      return inner.call(self, e);
+    }
+  };
+
+  // Register our wrapper as the real onmessage listener, then shadow the accessor so
+  // Emscripten's future `self.onmessage = handleMessage` only updates `inner`.
+  nativeDesc.set.call(self, wrapper);
+  Object.defineProperty(self, "onmessage", {
+    configurable: true,
+    get: function () { return inner; },
+    set: function (v) { inner = v; nativeDesc.set.call(self, wrapper); },
+  });
+})();

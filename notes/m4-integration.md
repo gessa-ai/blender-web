@@ -257,3 +257,178 @@ deferred until an async device-ready callback fires (event-loop-driven boot); (c
 re-introducing a scoped async mechanism with a ctor-suspend-free proof (reverses ADR-006).
 `GHOST_ContextWGPUWeb::initAsync` (the harness's AllowSpontaneous path) already exists as the
 building block for (a)/(b).
+
+## M4.T11 — emdawnwebgpu port probe (feeds ADR-007) — 2026-08-06
+
+Probed the PINNED port's actual mechanics (sources:
+`tools/emsdk/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/src/`
+`webgpu.cpp` + `library_webgpu.js`; Emscripten runtime in the built `blender_browser.js`)
+plus two EMPIRICAL browser tests in a real Chrome tab (crossOriginIsolated, WebGPU floor
+met). Findings are load-bearing; the driver turns them into ADR-007.
+
+### (i) Cross-thread device import — NO (device is bound to its acquiring thread)
+
+- emdawnwebgpu keeps ALL WebGPU JS objects in a **per-thread, module-level table**
+  `WebGPU.Internals.jsObjects = []` (`library_webgpu.js:119`). Under `-pthread` every
+  pthread is a separate Web Worker with its own JS realm and its own copy of this table.
+  A WGPU handle (`WGPUDevice` etc.) is just a pointer key INTO the owning thread's table;
+  the same pointer is meaningless on another thread. There is **no proxying** of WebGPU
+  calls to a single owner thread (grep: zero `proxy`/`MAIN_THREAD` in the port JS) — each
+  thread talks to its own `navigator.gpu`.
+- The port DOES expose import entry points: `emscripten_webgpu_import_device`,
+  `…_import_adapter`, … (`webgpu.h:2345` decl `emscripten_webgpu_get_device(void)`;
+  JS `importJsDevice` at `library_webgpu.js:180`, `emscripten_webgpu_get_device` reads
+  `Module['preinitializedWebGPUDevice']` at `:657`). BUT import takes a **JS GPUDevice
+  object that must already live in the CURRENT thread's realm** and inserts it into THAT
+  thread's table. It does not move an object across realms.
+- **EMPIRICAL (Chrome, this env):** a `GPUDevice` acquired on the browser main thread
+  **cannot be `postMessage`'d to a Worker** — `DataCloneError: GPUDevice object could not
+  be cloned` (structured clone) and `…does not have a transferable type` (transfer list).
+  So the classic "acquire on the main thread, `Module.preinitializedWebGPUDevice`, import
+  on the worker" pattern is **impossible for this port under PROXY_TO_PTHREAD** — the
+  device must be acquired ON the thread that will use it.
+
+### (ii) Where callbacks fire — the OWNING thread's event loop only
+
+- `RequestAdapter`/`RequestDevice`/`MapAsync` return JS promises created against the
+  calling thread's `navigator.gpu`. Their C-side completion runs when the JS promise
+  resolves on **that same thread's event loop**, via `emwgpuOnRequestDeviceCompleted` →
+  `EventManager::SetFutureReady` (`webgpu.cpp:675`). With `WGPUCallbackMode_AllowSpontaneous`
+  the C++ `Complete()` fires IMMEDIATELY inside `SetFutureReady` (`:693-701`) — no
+  ProcessEvents needed; with `AllowProcessEvents` it fires on the next
+  `instance.ProcessEvents()` call on the owning thread (`:510-547`); with `WaitAnyOnly`
+  only via `WaitAny`.
+- The `futures` table and the async `emwgpuWaitAny` JS impl are **`#if ASYNCIFY`-only**
+  (`library_webgpu.js:137-141, 690-719`). Under ADR-006 (no `-sJSPI`, no `-sASYNCIFY`)
+  `emscripten_has_asyncify()==0`, so: (a) a `TimedWaitAny`-featured `CreateInstance` is
+  REJECTED and returns null (`webgpu.cpp:1643-1649`) — this is exactly what
+  `initializeDrawingContext` hit; (b) `WaitAny(timeout>0)` asserts asyncify (`:562`); the
+  JS fallback `emwgpuWaitAny` is `abort('TODO: asyncify-free WaitAny for timeout=0')`
+  (`:716-718`); (c) `WaitAny(timeout=0)` merely POLLS `mIsReady` (`:612-645`) — which
+  never becomes true because the promise cannot resolve while the thread is not turning
+  its event loop.
+- **Consequence (the deadlock, now proven from the port):** a same-thread blocking wait
+  on a WebGPU future is structurally impossible without asyncify. `Atomics.wait` halts the
+  worker's microtask/event loop, so the worker cannot resolve its OWN promise. The device
+  future can only complete when the acquiring worker's event loop turns with no C++ frame
+  on the stack — i.e. **pre-main, or after `main()` yields to `emscripten_set_main_loop`.**
+
+### (iii) WebGPU inside the WM (proxied-main) worker — YES (this is the opening)
+
+- **EMPIRICAL (Chrome, this env):** a plain dedicated `Worker` (which is exactly what an
+  Emscripten pthread is) has `navigator.gpu`, and `requestAdapter()` → `requestDevice()`
+  succeed inside it; `navigator.gpu.getPreferredCanvasFormat()` = `bgra8unorm`. Page is
+  `crossOriginIsolated:true`. So the WM worker CAN own a device.
+- Therefore the viable path is **option-(a)/(iii): acquire the device ON the WM worker
+  itself, asynchronously, in the one window where that worker's event loop is free — BEFORE
+  `main()` runs straight-line.** Under `-sPROXY_TO_PTHREAD` the proxied main pthread runs
+  `_main_thread` (`crt1_proxy_main.c:27,52`, `arg==NULL`) via the worker's cmd==2 handler →
+  `invokeEntryPoint` (`blender_browser.js:22515`). Gating that cmd==2 on a completed
+  `await navigator.gpu.request{Adapter,Device}()` and stashing the result in the worker's
+  `Module['preinitializedWebGPUDevice']` makes the device already-present when
+  `initializeDrawingContext` calls `emscripten_webgpu_get_device()` SYNCHRONOUSLY. No
+  spin/race is possible because the await COMPLETES before `invokeEntryPoint` — a C++ spin
+  could never help (it can't turn the worker's JS event loop).
+
+### Surface / canvas — a SEPARATE downstream blocker (the WM worker has no DOM)
+
+- The device is enough for `GPU_context_create`/`GPU_init`: `WGPUContext`'s ctor uses only
+  instance/device/queue + `device_.GetLimits` (`wgpu_context.cc:43-79,107-170`); it never
+  reads the surface. The surface is used only by the swap path (main loop).
+- But `wgpuInstanceCreateSurface` resolves the canvas via `findCanvasEventTarget(selector)`
+  → `findEventTarget` = `specialHTMLTargets[t] || document?.querySelector(t)`
+  (`blender_browser.js:24351`). On a worker `document` is undefined and the current browser
+  link has **no `-sOFFSCREENCANVAS_SUPPORT`**, so `#canvas` cannot be resolved from the WM
+  worker → CreateSurface would fail there. Fix (later step): `-sOFFSCREENCANVAS_SUPPORT` +
+  `-sOFFSCREENCANVASES_TO_PTHREAD="#canvas"` — Emscripten's proxied-main already requests
+  the transfer (`crt1_proxy_main.c:48 settransferredcanvases(-1)`), which registers the
+  OffscreenCanvas in `specialHTMLTargets` on the WM worker so the selector resolves. This
+  round keeps surface creation NON-FATAL so the boot advances past context creation and the
+  surface path can be characterized independently.
+
+### (4) Render-loop-time blocking (readback MapAsync, shader-compile waits) — the port's answer
+
+- Same knot, same resolution: those are futures on the WM worker. Because the WM worker
+  runs `main()`/`WM_main` via `emscripten_set_main_loop` (patch 0026), the worker's event
+  loop DOES turn between ticks. So the port's mechanism is **`AllowProcessEvents` +
+  `instance.ProcessEvents()` pumped from the main loop, or `AllowSpontaneous` +
+  yield-to-loop**: kick the async op, RETURN to the loop, and consume the result on a later
+  tick when the callback has fired (`SetFutureReady`→`Complete`). A synchronous
+  `WaitAny`-blocks-the-worker readback is NOT available without asyncify (proven above:
+  `emwgpuWaitAny` aborts). Main-thread proxying is NOT offered by this port. So any Blender
+  code that expects a synchronous GPU readback (`GPU_texture_read` immediate return) must be
+  adapted on wasm to a poll-across-ticks (or deferred-result) shape — an F9-D / render-loop
+  concern, characterized here for the driver, not implemented this round.
+
+## M4.T11 RESULT — windowed boot advances to the WM_main loop + BPY startup (2026-08-06)
+
+Implemented the option-(a)/(iii) path and the windowed boot now advances FAR past the
+prior gate (device await), through GPU_init, into Python/BPY startup and the WM_main loop.
+Verified in a real Chrome tab (`:8123/windowed.html`, `--factory-startup`, no
+`--background`).
+
+**Implemented (all owned files; upstream/gpu/webgpu UNTOUCHED):**
+1. `platform_web/shell/wgpu-preinit-worker.js` (NEW, linked via `--post-js` in the browser
+   arm of `patches/platform_wasm.cmake`). Runs in every pthread worker; for the proxied
+   application-main thread (cmd:2 with `arg==0`) it OWNS `self.onmessage` via an accessor
+   takeover (the handler is an own property on `self`, not the prototype — the `[Global]`
+   special case; and Emscripten's cmd:1 `startWorker` re-assigns `self.onmessage`, so a
+   plain wrapper is clobbered and an `addEventListener` fires too late). It `await`s
+   `navigator.gpu.request{Adapter,Device}()` on the WM worker, stashes the device in that
+   worker's `Module.preinitializedWebGPUDevice`, and only then dispatches the entry so
+   `main()` runs with the device already present. No race/spin — the await completes before
+   `invokeEntryPoint`.
+2. `platform_web/ghost/GHOST_ContextWGPUWeb.cc::initializeDrawingContext()` — replaced the
+   TimedWaitAny+WaitAny acquisition (returns null under ADR-006) with: check
+   `Module.preinitializedWebGPUDevice`, `CreateInstance(nullptr)` (featureless = valid
+   without asyncify), `emscripten_webgpu_get_device()` → `wgpu::Device::Acquire`, `GetQueue`.
+   Surface creation is made NON-FATAL and guarded by `ghost_web_canvas_resolvable()` (the WM
+   worker has no DOM canvas yet, and emdawnwebgpu's `CreateSurface` would ABORT on an
+   unresolvable selector) — device stays live, `ready_=true`, boot continues.
+3. `platform_web/ghost/GHOST_WindowWeb.cc` — guarded the `ghost_web_device_pixel_ratio`
+   (`window.devicePixelRatio`) and `ghost_web_set_document_title` (`document.title`) EM_JS
+   for the worker (no `window`/`document` there → bare refs throw ReferenceError). DPR
+   defaults to 1.0; title update no-ops on the worker.
+
+**How far it gets (empirical, in-tab):**
+- `[bw] WM-worker WebGPU device pre-acquired (ADR-007)` → `initializeDrawingContext` imports
+  it → **`GPU_context_create` returns a live context with a real device** (the round's
+  gate). Real WebGPU work executes: render passes are encoded and `Queue.Submit`ted on the
+  device timeline (backend genuinely live).
+- **GPU_init completes windowed** (boot proceeds past it).
+- **Python/BPY startup runs**: `addon_utils`/`bl_pkg` addon registration + `bl_ui` scripts
+  execute (CLOG time reached ~15.5 s).
+- **GHOST window management is live**: the window sized/resized the `#canvas` to 1800×1169
+  via the (worker→main-thread proxied) `emscripten_set_canvas_element_size`.
+- **WM_main loop stage reached**: WM_init completed and `main()` does not exit (stable, no
+  abort, exit `—`, for 20 s+). Initial window draws are attempted each tick.
+
+**Remaining blockers (precise, characterized — none fatal to the boot this round):**
+1. **Surface / first pixels — the real next gate (OWNED, next round).** The WM worker has no
+   DOM canvas, so `wgpuInstanceCreateSurface`→`findCanvasEventTarget('#canvas')` can't
+   resolve (`document` undefined; no OffscreenCanvas), surface deferred. Every window draw
+   therefore hits Dawn `Render pass has no attachments` (the window framebuffer has no color
+   attachment) → `[Invalid CommandBuffer]` on `Queue.Submit`; the canvas stays blank. FIX:
+   add `-sOFFSCREENCANVAS_SUPPORT` + `-sOFFSCREENCANVASES_TO_PTHREAD="#canvas"` to the
+   browser arm (`patches/platform_wasm.cmake`) — Emscripten's proxied-main already requests
+   the transfer (`crt1_proxy_main.c:48 settransferredcanvases(-1)`), which registers the
+   OffscreenCanvas in `specialHTMLTargets` on the WM worker so the selector resolves — then
+   re-enable `finishSetup()` in `GHOST_ContextWGPUWeb::initializeDrawingContext`
+   (`ghost_web_canvas_resolvable()` will return true). Files: `patches/platform_wasm.cmake`,
+   `platform_web/ghost/GHOST_ContextWGPUWeb.cc`.
+2. **Python C-extensions missing (python-wasm lane, NON-fatal — caught):**
+   - `_multiprocessing` → `ModuleNotFoundError` at `multiprocessing/synchronize.py:17`
+     (reached from `bl_pkg/__init__.py:580 _remote_asset_library_restore_backups` →
+     `_bpy_internal/http/downloader.py:49`). `addon_utils.enable` catches it; `bl_pkg`
+     addon fails to register but boot continues.
+   - `_sha3` → hashlib `unsupported hash type sha3_512/shake_128/shake_256` at
+     `hashlib.py:123` (logged, non-fatal).
+3. **Splash image (imbuf lane, NON-fatal):** `IMB_load_image_from_memory: unknown
+   file-format (<splash screen>)` — the splash image decodes to nothing; splash won't
+   render, boot continues.
+4. **Liveness nuance (honest):** whether WM_main continuously ticks at idle vs. parks after
+   the initial draws is not distinguishable from the (Dawn-throttled) validation-warning
+   channel this round; no fatal error occurs and BPY-level startup completed, which meets
+   the ceiling. If a render-loop-time blocking readback (F9-D) is ever on the first-draw
+   path it would park the worker — resolve per the "(4)" render-loop answer above
+   (ProcessEvents-pump / poll-across-ticks), not a synchronous WaitAny.

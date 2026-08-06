@@ -91,7 +91,9 @@ void WGPUImmediate::end()
   /* Select the pipeline for (shader, immediate vertex format, state, targets, prim). */
   webgpu::PipelineInfo info;
   info.shader = shader;
-  info.vertex_format = &vertex_format;
+  info.vertex_formats[0] = &vertex_format;
+  info.vertex_lens[0] = int64_t(vertex_idx);
+  info.vertex_formats_len = 1;
   if (base_ctx->state_manager != nullptr) {
     info.state = base_ctx->state_manager->state;
     info.mutable_state = base_ctx->state_manager->mutable_state;
@@ -109,7 +111,25 @@ void WGPUImmediate::end()
   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
   pass.SetPipeline(pipeline);
-  pass.SetVertexBuffer(0, vbo.handle(), 0);
+  {
+    /* Immediate is a single interleaved buffer; the plan is one slot (all attributes) plus
+     * any dummy for a shader input the format omits. Bind each to its slot. */
+    const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+        info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+    for (uint32_t s = 0; s < vplan.size(); s++) {
+      const webgpu::VertexBinding &b = vplan[s];
+      wgpu::Buffer buf = nullptr;
+      if (b.is_dummy) {
+        buf = ctx->dummy_vertex_buffer();
+      }
+      else if (b.vbo_index == 0) {
+        buf = vbo.handle();
+      }
+      if (buf != nullptr) {
+        pass.SetVertexBuffer(s, buf, b.buffer_offset);
+      }
+    }
+  }
 
   /* Bind group 0: the push-constant UBO (uniform colour + matrices) plus any
    * declared resources (e.g. an immBindTexture'd image + sampler) via the shared

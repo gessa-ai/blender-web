@@ -294,6 +294,22 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
   return sampler;
 }
 
+/* --- Dummy vertex buffer (unbound-attribute constant) ---------------------- */
+
+wgpu::Buffer WGPUContext::dummy_vertex_buffer()
+{
+  if (dummy_vertex_buffer_ == nullptr) {
+    wgpu::BufferDescriptor bd = {};
+    /* Comfortable for the largest dummy stride (16 B) over a healthy instance count; an
+     * Instance-stepped dummy on a non-instanced draw only ever reads element 0. WebGPU
+     * zero-initialises buffer storage — exactly the constant an unbound attribute yields. */
+    bd.size = 65536;
+    bd.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+    dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
+  }
+  return dummy_vertex_buffer_;
+}
+
 /* --- Cross-format colour blit (render-pass fallback for blit_to) ----------- */
 
 bool WGPUContext::blit_color_render(

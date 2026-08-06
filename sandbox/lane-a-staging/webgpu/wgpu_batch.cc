@@ -66,14 +66,20 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
     return;
   }
 
-  /* Resolve the first vertex buffer (single interleaved layout for now) and ensure
-   * it is uploaded to the device. */
-  WGPUVertexBuffer *wvbo = nullptr;
+  /* Collect ALL vertex buffers (a Blender mesh/overlay batch spreads a shader's inputs
+   * across several verts[] slots) and upload each. Recorded by verts[] slot so the plan's
+   * vbo_index maps straight back for per-slot binding below. */
+  const GPUVertFormat *formats[GPU_BATCH_VBO_MAX_LEN] = {};
+  int64_t vlens[GPU_BATCH_VBO_MAX_LEN] = {};
+  WGPUVertexBuffer *wvbos[GPU_BATCH_VBO_MAX_LEN] = {};
+  int formats_len = 0;
   for (int i = 0; i < GPU_BATCH_VBO_MAX_LEN; i++) {
     if (verts[i] != nullptr) {
       verts[i]->upload();
-      wvbo = unwrap(verts[i]);
-      break;
+      wvbos[i] = unwrap(verts[i]);
+      formats[i] = &wvbos[i]->format;
+      vlens[i] = int64_t(wvbos[i]->vertex_len);
+      formats_len = i + 1;
     }
   }
 
@@ -81,7 +87,11 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
    * the bound framebuffer's target formats. */
   webgpu::PipelineInfo info;
   info.shader = shader;
-  info.vertex_format = (wvbo != nullptr) ? &wvbo->format : nullptr;
+  for (int i = 0; i < formats_len; i++) {
+    info.vertex_formats[i] = formats[i];
+    info.vertex_lens[i] = vlens[i];
+  }
+  info.vertex_formats_len = formats_len;
   if (base_ctx->state_manager != nullptr) {
     info.state = base_ctx->state_manager->state;
     info.mutable_state = base_ctx->state_manager->mutable_state;
@@ -94,6 +104,27 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
   if (pipeline == nullptr) {
     return;
   }
+
+  /* The identical plan the pipeline layout was built from, used to bind each slot's
+   * buffer (real VBO by index, or the shared dummy for a filled-in location). */
+  const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+  auto bind_vertex_buffers = [&](wgpu::RenderPassEncoder &rp) {
+    for (uint32_t s = 0; s < vplan.size(); s++) {
+      const webgpu::VertexBinding &b = vplan[s];
+      wgpu::Buffer buf = nullptr;
+      if (b.is_dummy) {
+        buf = ctx->dummy_vertex_buffer();
+      }
+      else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
+               wvbos[b.vbo_index]->buffer().valid()) {
+        buf = wvbos[b.vbo_index]->buffer().handle();
+      }
+      if (buf != nullptr) {
+        rp.SetVertexBuffer(s, buf, b.buffer_offset);
+      }
+    }
+  };
 
   /* Multi-viewport / layered emulation (M3.F7). WebGPU has no viewport array and no
    * vertex-stage gl_Layer / gl_ViewportIndex routing, so render one pass per (array
@@ -137,9 +168,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
             float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
         mv_pass.SetScissorRect(
             uint32_t(rect[0]), uint32_t(rect[1]), uint32_t(rect[2]), uint32_t(rect[3]));
-        if (wvbo != nullptr && wvbo->buffer().valid()) {
-          mv_pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
-        }
+        bind_vertex_buffers(mv_pass);
 
         std::vector<wgpu::BindGroupEntry> entries;
         wgpu::BindGroupEntry mv_entry = {};
@@ -191,10 +220,8 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
   pass.SetPipeline(pipeline);
 
-  /* Vertex buffers. */
-  if (wvbo != nullptr && wvbo->buffer().valid()) {
-    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
-  }
+  /* Vertex buffers (every slot the plan defines). */
+  bind_vertex_buffers(pass);
 
   /* Bind group 0: the push-constant UBO (lane A's shadow+flush+getter) plus every
    * declared resource — sampled textures + samplers, storage buffers, storage
@@ -284,18 +311,27 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
     return;
   }
 
-  WGPUVertexBuffer *wvbo = nullptr;
+  const GPUVertFormat *formats[GPU_BATCH_VBO_MAX_LEN] = {};
+  int64_t vlens[GPU_BATCH_VBO_MAX_LEN] = {};
+  WGPUVertexBuffer *wvbos[GPU_BATCH_VBO_MAX_LEN] = {};
+  int formats_len = 0;
   for (int i = 0; i < GPU_BATCH_VBO_MAX_LEN; i++) {
     if (verts[i] != nullptr) {
       verts[i]->upload();
-      wvbo = unwrap(verts[i]);
-      break;
+      wvbos[i] = unwrap(verts[i]);
+      formats[i] = &wvbos[i]->format;
+      vlens[i] = int64_t(wvbos[i]->vertex_len);
+      formats_len = i + 1;
     }
   }
 
   webgpu::PipelineInfo info;
   info.shader = shader;
-  info.vertex_format = (wvbo != nullptr) ? &wvbo->format : nullptr;
+  for (int i = 0; i < formats_len; i++) {
+    info.vertex_formats[i] = formats[i];
+    info.vertex_lens[i] = vlens[i];
+  }
+  info.vertex_formats_len = formats_len;
   if (base_ctx->state_manager != nullptr) {
     info.state = base_ctx->state_manager->state;
     info.mutable_state = base_ctx->state_manager->mutable_state;
@@ -309,13 +345,27 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
     return;
   }
 
+  const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+
   wgpu::Device device = ctx->device_get();
   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
   pass.SetPipeline(pipeline);
 
-  if (wvbo != nullptr && wvbo->buffer().valid()) {
-    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
+  for (uint32_t s = 0; s < vplan.size(); s++) {
+    const webgpu::VertexBinding &b = vplan[s];
+    wgpu::Buffer buf = nullptr;
+    if (b.is_dummy) {
+      buf = ctx->dummy_vertex_buffer();
+    }
+    else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
+             wvbos[b.vbo_index]->buffer().valid()) {
+      buf = wvbos[b.vbo_index]->buffer().handle();
+    }
+    if (buf != nullptr) {
+      pass.SetVertexBuffer(s, buf, b.buffer_offset);
+    }
   }
 
   {

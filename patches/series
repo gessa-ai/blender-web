@@ -212,4 +212,25 @@
 # backend.cc, wgpu_shader.hh, wgpu_shader_interface_map.cc — reverse-apply verified against
 # the live tree. Census held EXACTLY 148/158 GPUWebGPUTest + static_shaders 956/973.
 0103-gpu-webgpu-explicit-pipeline-layouts.patch
+# 0104 (M4.T18, round 21) multi-vertex-buffer draw path — THE M4 cube blocker. Blender
+# mesh/overlay batches spread a shader's vertex inputs across SEVERAL verts[] VBOs, but the
+# draw path bound only verts[0] (SetVertexBuffer slot 0) and built the pipeline VertexState
+# from that single format. Every @location the vertex module consumed that this one VBO did
+# not supply was absent from the VertexState, so Dawn rejected CreateRenderPipeline ("Vertex
+# attribute slot N ... not present in the VertexState") and the workbench-cube / overlay-grid
+# / outline pipelines were INVALID — those draws dropped (cube + grid wholesale absent in the
+# tab; the editor UI, whose region composite uses a procedural fullscreen triangle with no
+# vertex inputs, was unaffected — which is why r20 saw UI-but-no-viewport). Fix:
+# build_vertex_plan() resolves ALL bound VBOs against the shader interface (every attribute
+# name/alias), one WebGPU slot per source VBO (grouped interleaved; per-attribute for
+# deinterleaved) PLUS an Instance-stepped dummy slot over a shared zero buffer for each
+# shader-required @location no VBO provides (GL's disabled-array-reads-a-constant, since
+# WebGPU forbids Vulkan's arrayStride-0 trick). The identical plan is rebuilt at draw time so
+# slot indices agree; wgpu_batch (draw + multi_draw_indirect + multi-viewport) and
+# wgpu_immediate bind per plan. PipelineInfo carries vertex_formats[]/vertex_lens[]; the hash
+# keys every format's attr signatures + names. Census held EXACTLY 148/158 + static_shaders
+# 956/973 (a single-VBO batch produces one slot, byte-identical to before). Reverse-apply
+# verified against the live tree; lane-a mirror 0-drift (6 files). Touches wgpu_pipeline.{hh,
+# cc}, wgpu_batch.cc, wgpu_immediate.cc, wgpu_context.{hh,cc}.
+0104-gpu-webgpu-multi-vertex-buffer.patch
 0120-asset-system-wasm.patch

@@ -21,9 +21,11 @@
 
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 #include "webgpu/webgpu_cpp.h"
 
+#include "GPU_batch.hh" /* GPU_BATCH_VBO_MAX_LEN */
 #include "GPU_primitive.hh"
 #include "GPU_vertex_format.hh"
 
@@ -37,9 +39,31 @@ namespace webgpu {
 
 /** The state that selects a render pipeline (its cache key). Framebuffer target
  * formats + primitive + fixed-function state + the shader + the vertex signature. */
+/** One WebGPU vertex-buffer slot: a source (a batch VBO index, or the dummy buffer),
+ * its stride/step-mode, and the attributes it feeds. Blender batches spread a shader's
+ * vertex inputs across SEVERAL VBOs (verts[0..15]); a WebGPU pipeline's VertexState must
+ * carry a slot for every @location the vertex module consumes, so the plan groups the
+ * matched attributes per source buffer and fills the shader-required-but-absent locations
+ * with a zero-stepping dummy slot (GL's "disabled array reads a constant"). Both the
+ * pipeline layout (build_pipeline) and the per-draw SetVertexBuffer binding are derived
+ * from the SAME plan so slot indices agree. */
+struct VertexBinding {
+  int vbo_index = -1;   /* index into PipelineInfo.vertex_formats; -1 = dummy buffer. */
+  uint64_t buffer_offset = 0;
+  uint32_t array_stride = 0;
+  wgpu::VertexStepMode step_mode = wgpu::VertexStepMode::Vertex;
+  bool is_dummy = false;
+  std::vector<wgpu::VertexAttribute> attributes;
+};
+using VertexPlan = std::vector<VertexBinding>;
+
 struct PipelineInfo {
   WGPUShader *shader = nullptr;
-  const GPUVertFormat *vertex_format = nullptr; /* null = procedural (no vbo). */
+  /* Every bound vertex buffer, indexed by its batch verts[] slot (entries may be null);
+   * a single interleaved format lives at [0]. Empty set => procedural (no vbo). */
+  const GPUVertFormat *vertex_formats[GPU_BATCH_VBO_MAX_LEN] = {};
+  int64_t vertex_lens[GPU_BATCH_VBO_MAX_LEN] = {};
+  int vertex_formats_len = 0;
   GPUState state = {};
   GPUStateMutable mutable_state = {};
   wgpu::TextureFormat color_formats[8] = {};
@@ -67,6 +91,15 @@ wgpu::PrimitiveTopology to_wgpu_topology(GPUPrimType prim);
 wgpu::VertexFormat to_wgpu_vertex_format(GPUVertCompType comp_type,
                                          int comp_len,
                                          GPUVertFetchMode fetch);
+
+/** Resolve the shader's vertex inputs against the bound vertex buffers, producing one
+ * VertexBinding per WebGPU slot (matched attributes grouped by source VBO, plus a dummy
+ * slot for each shader-required location no VBO provides). Pure function of (shader
+ * interface, formats) — the buffer_offset uses vertex_lens only for deinterleaved VBOs. */
+VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
+                             const int64_t *vertex_lens,
+                             int formats_len,
+                             WGPUShader &shader);
 
 }  // namespace webgpu
 }  // namespace blender::gpu

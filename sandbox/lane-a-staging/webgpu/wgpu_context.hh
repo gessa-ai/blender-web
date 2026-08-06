@@ -175,6 +175,13 @@ class WGPUContext : public Context {
    * context lifetime so the handle outlives every BindGroup that references it). */
   wgpu::Sampler get_sampler(const GPUSamplerState &state);
 
+  /* A shared zero-filled vertex buffer bound to dummy VertexState slots — the WebGPU
+   * stand-in for the constant an unbound/disabled GL vertex attribute reads (WebGPU
+   * forbids Vulkan's arrayStride-0 trick). Instance-stepped in the plan, so a
+   * non-instanced draw reads element 0 (zeros) for every vertex. Lazily created,
+   * retained for the context lifetime. */
+  wgpu::Buffer dummy_vertex_buffer();
+
   /* Blit one colour texture into another through a fullscreen textured-quad render
    * pass. Used by WGPUFrameBuffer::blit_to when the source and destination formats
    * are NOT copy-compatible (Dawn rejects CopyTextureToTexture across formats — the
@@ -257,6 +264,9 @@ class WGPUContext : public Context {
   wgpu::Sampler blit_sampler_;
   /** Blit render pipeline cache keyed by destination wgpu::TextureFormat. */
   std::unordered_map<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
+
+  /** Shared zero buffer backing dummy vertex-attribute slots (see dummy_vertex_buffer). */
+  wgpu::Buffer dummy_vertex_buffer_;
 
   /** The GHOST drawing context (retained for sync_backbuffer's surface access);
    * mirrors VKContext::ghost_context_ (vk_context.cc:40). */

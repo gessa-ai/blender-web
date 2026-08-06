@@ -20,6 +20,8 @@
 
 #include "gpu_shader_interface.hh"
 
+#include "GPU_common_types.hh" /* shader::Type (dummy attribute format) */
+
 #include <cstring>
 #include <vector>
 
@@ -113,17 +115,37 @@ static uint64_t pipeline_hash(const PipelineInfo &info)
   hash_bytes(h, &info.depth_format, sizeof(info.depth_format));
   hash_bytes(h, &info.prim_type, sizeof(info.prim_type));
   hash_bytes(h, &info.flip_y, sizeof(info.flip_y));
-  if (info.vertex_format != nullptr) {
-    const GPUVertFormat *f = info.vertex_format;
+  /* The vertex plan (hence the pipeline VertexState) is a pure function of the shader
+   * (hashed above) and the bound formats — attribute comp signature, offset, name (the
+   * name drives which @location it matches) and the deinterleaved flag. vertex_len is a
+   * binding-time value only (deinterleaved buffer offset) and never affects the layout. */
+  hash_bytes(h, &info.vertex_formats_len, sizeof(info.vertex_formats_len));
+  for (int v = 0; v < info.vertex_formats_len; v++) {
+    const GPUVertFormat *f = info.vertex_formats[v];
+    uint8_t present = (f != nullptr) ? 1u : 0u;
+    hash_bytes(h, &present, 1);
+    if (f == nullptr) {
+      continue;
+    }
     uint32_t stride = f->stride;
     uint32_t attr_len = f->attr_len;
+    uint32_t deint = f->deinterleaved;
     hash_bytes(h, &stride, sizeof(stride));
     hash_bytes(h, &attr_len, sizeof(attr_len));
+    hash_bytes(h, &deint, sizeof(deint));
     for (uint i = 0; i < f->attr_len; i++) {
       const GPUVertAttr &a = f->attrs[i];
-      uint8_t sig[4] = {uint8_t(a.type.comp_type()), uint8_t(a.type.comp_len()),
-                        uint8_t(a.type.fetch_mode()), a.offset};
+      uint16_t off = uint16_t(a.offset);
+      uint8_t sig[3] = {uint8_t(a.type.comp_type()), uint8_t(a.type.comp_len()),
+                        uint8_t(a.type.fetch_mode())};
       hash_bytes(h, sig, sizeof(sig));
+      hash_bytes(h, &off, sizeof(off));
+      for (uint nidx = 0; nidx < a.name_len; nidx++) {
+        const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
+        if (nm != nullptr) {
+          hash_bytes(h, nm, std::strlen(nm));
+        }
+      }
     }
   }
   return h;
@@ -135,37 +157,28 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
 {
   WGPUShader *shader = info.shader;
 
-  /* Vertex buffer layout (single interleaved buffer). Attributes the shader does
-   * not read (attr_get == null) are skipped. */
-  std::vector<wgpu::VertexAttribute> attributes;
-  wgpu::VertexBufferLayout vbo_layout = {};
-  if (info.vertex_format != nullptr && info.vertex_format->attr_len > 0 &&
-      shader->interface != nullptr)
-  {
-    const GPUVertFormat *f = info.vertex_format;
-    for (uint i = 0; i < f->attr_len; i++) {
-      const GPUVertAttr &a = f->attrs[i];
-      const char *name = GPU_vertformat_attr_name_get(f, &a, 0);
-      const ShaderInput *input = shader->interface->attr_get(name);
-      if (input == nullptr || input->location < 0) {
-        continue;
-      }
-      wgpu::VertexAttribute va = {};
-      va.format = to_wgpu_vertex_format(a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
-      va.offset = a.offset;
-      va.shaderLocation = uint32_t(input->location);
-      attributes.push_back(va);
-    }
-    vbo_layout.arrayStride = f->stride;
-    vbo_layout.stepMode = wgpu::VertexStepMode::Vertex;
-    vbo_layout.attributeCount = attributes.size();
-    vbo_layout.attributes = attributes.data();
+  /* Vertex buffer layouts: one WebGPU slot per source VBO (all its matched attributes,
+   * interleaved) plus a dummy slot per shader-required-but-unbound location. The plan is
+   * a pure function of (shader interface, formats) and the identical plan is rebuilt at
+   * draw time to bind buffers to matching slots (wgpu_batch / wgpu_immediate). Holds the
+   * attribute vectors alive for CreateRenderPipeline below. */
+  const VertexPlan plan = build_vertex_plan(
+      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+  std::vector<wgpu::VertexBufferLayout> vbo_layouts;
+  vbo_layouts.reserve(plan.size());
+  for (const VertexBinding &b : plan) {
+    wgpu::VertexBufferLayout layout = {};
+    layout.arrayStride = b.array_stride;
+    layout.stepMode = b.step_mode;
+    layout.attributeCount = uint32_t(b.attributes.size());
+    layout.attributes = b.attributes.data();
+    vbo_layouts.push_back(layout);
   }
 
   wgpu::VertexState vertex = {};
   vertex.module = shader->vertex_module();
-  vertex.bufferCount = attributes.empty() ? 0 : 1;
-  vertex.buffers = attributes.empty() ? nullptr : &vbo_layout;
+  vertex.bufferCount = uint32_t(vbo_layouts.size());
+  vertex.buffers = vbo_layouts.empty() ? nullptr : vbo_layouts.data();
 
   /* Present-path Y-flip (M4.T14a): render the surface backbuffer upright by overriding
    * the vertex clip-space Y sign to +1.0f (constant_id 1000, uint bit pattern). Offscreen
@@ -248,6 +261,168 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
   desc.fragment = &fragment;
 
   return device.CreateRenderPipeline(&desc);
+}
+
+/** Map a shader vertex-input Type to a WebGPU vertex format (+ its byte size) for a dummy
+ * slot. Only the base kind (float/uint/sint) must match the WGSL input; missing components
+ * are filled (0,0,0,1) by WebGPU exactly as GL fills a disabled attribute. */
+static wgpu::VertexFormat dummy_vertex_format(uint8_t type_byte, uint32_t &r_size)
+{
+  using T = blender::gpu::shader::Type;
+  using VF = wgpu::VertexFormat;
+  switch (T(type_byte)) {
+    case T::float_t:              r_size = 4;  return VF::Float32;
+    case T::float2_t:             r_size = 8;  return VF::Float32x2;
+    case T::float3_t:
+    case T::float3_10_10_10_2_t:  r_size = 12; return VF::Float32x3;
+    case T::float4_t:
+    case T::float3x3_t:
+    case T::float4x4_t:           r_size = 16; return VF::Float32x4;
+    case T::uint_t:
+    case T::bool_t:
+    case T::uchar_t:
+    case T::ushort_t:             r_size = 4;  return VF::Uint32;
+    case T::uint2_t:
+    case T::uchar2_t:
+    case T::ushort2_t:            r_size = 8;  return VF::Uint32x2;
+    case T::uint3_t:
+    case T::uchar3_t:
+    case T::ushort3_t:            r_size = 12; return VF::Uint32x3;
+    case T::uint4_t:
+    case T::uchar4_t:
+    case T::ushort4_t:            r_size = 16; return VF::Uint32x4;
+    case T::int_t:
+    case T::char_t:
+    case T::short_t:              r_size = 4;  return VF::Sint32;
+    case T::int2_t:
+    case T::char2_t:
+    case T::short2_t:             r_size = 8;  return VF::Sint32x2;
+    case T::int3_t:
+    case T::char3_t:
+    case T::short3_t:             r_size = 12; return VF::Sint32x3;
+    case T::int4_t:
+    case T::char4_t:
+    case T::short4_t:             r_size = 16; return VF::Sint32x4;
+    default:                      r_size = 16; return VF::Float32x4;
+  }
+}
+
+VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
+                             const int64_t *vertex_lens,
+                             int formats_len,
+                             WGPUShader &shader)
+{
+  VertexPlan plan;
+  const ShaderInterface *itf = shader.interface;
+  if (itf == nullptr) {
+    return plan;
+  }
+  uint32_t occupied = 0; /* @location bitmask already fed by a real VBO. */
+
+  auto match_location = [&](const GPUVertFormat *f, const GPUVertAttr &a) -> int {
+    for (uint nidx = 0; nidx < a.name_len; nidx++) {
+      const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
+      const ShaderInput *in = itf->attr_get(nm);
+      if (in != nullptr && in->location >= 0) {
+        return in->location;
+      }
+    }
+    return -1;
+  };
+
+  for (int v = 0; v < formats_len; v++) {
+    const GPUVertFormat *f = formats[v];
+    if (f == nullptr || f->attr_len == 0) {
+      continue;
+    }
+    const int64_t vlen = (vertex_lens != nullptr) ? vertex_lens[v] : 0;
+
+    if (!f->deinterleaved) {
+      /* One interleaved slot for the whole VBO — its matched attributes at their real
+       * offsets, stride = format stride. Keeps a single-VBO batch byte-identical to the
+       * pre-multi-buffer path (one slot). */
+      VertexBinding b;
+      b.vbo_index = v;
+      b.buffer_offset = 0;
+      b.array_stride = f->stride;
+      b.step_mode = wgpu::VertexStepMode::Vertex;
+      for (uint i = 0; i < f->attr_len; i++) {
+        const GPUVertAttr &a = f->attrs[i];
+        const int loc = match_location(f, a);
+        if (loc < 0 || loc >= 32 || (occupied & (1u << loc)) != 0u) {
+          continue;
+        }
+        occupied |= (1u << loc);
+        wgpu::VertexAttribute va = {};
+        va.format = to_wgpu_vertex_format(
+            a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
+        va.offset = a.offset;
+        va.shaderLocation = uint32_t(loc);
+        b.attributes.push_back(va);
+      }
+      if (!b.attributes.empty()) {
+        plan.push_back(std::move(b));
+      }
+    }
+    else {
+      /* Deinterleaved: each attribute is its own tightly-packed block within the VBO,
+       * bound at a running byte offset (mirrors VKVertexAttributeObject). */
+      uint64_t buf_off = 0;
+      for (uint i = 0; i < f->attr_len; i++) {
+        const GPUVertAttr &a = f->attrs[i];
+        if (i > 0) {
+          buf_off += uint64_t(f->attrs[i - 1].type.size()) * uint64_t(vlen);
+        }
+        const int loc = match_location(f, a);
+        if (loc < 0 || loc >= 32 || (occupied & (1u << loc)) != 0u) {
+          continue;
+        }
+        occupied |= (1u << loc);
+        uint32_t stride = uint32_t(a.type.size());
+        stride = (stride + 3u) & ~3u; /* WebGPU: arrayStride multiple of 4. */
+        VertexBinding b;
+        b.vbo_index = v;
+        b.buffer_offset = buf_off;
+        b.array_stride = stride;
+        b.step_mode = wgpu::VertexStepMode::Vertex;
+        wgpu::VertexAttribute va = {};
+        va.format = to_wgpu_vertex_format(
+            a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
+        va.offset = 0;
+        va.shaderLocation = uint32_t(loc);
+        b.attributes.push_back(va);
+        plan.push_back(std::move(b));
+      }
+    }
+  }
+
+  /* Dummy-fill: any @location the vertex module consumes but no VBO provided. WebGPU
+   * forbids arrayStride 0 (Vulkan's constant-attribute trick), so use an Instance-stepped
+   * slot over the context's zero buffer — a non-instanced draw reads element 0 for every
+   * vertex, i.e. the constant 0 an unbound GL attribute yields. */
+  const uint32_t enabled = itf->enabled_attr_mask_;
+  for (int loc = 0; loc < 16; loc++) {
+    const uint32_t m = (1u << loc);
+    if ((enabled & m) == 0u || (occupied & m) != 0u) {
+      continue;
+    }
+    uint32_t sz = 16;
+    const wgpu::VertexFormat fmt = dummy_vertex_format(itf->attr_types_[loc], sz);
+    VertexBinding b;
+    b.vbo_index = -1;
+    b.is_dummy = true;
+    b.buffer_offset = 0;
+    b.array_stride = sz;
+    b.step_mode = wgpu::VertexStepMode::Instance;
+    wgpu::VertexAttribute va = {};
+    va.format = fmt;
+    va.offset = 0;
+    va.shaderLocation = uint32_t(loc);
+    b.attributes.push_back(va);
+    plan.push_back(std::move(b));
+  }
+
+  return plan;
 }
 
 wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Device &device, const PipelineInfo &info)

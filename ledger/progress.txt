@@ -303,3 +303,4 @@ clean fix is explicit pipeline layouts from the interface map (backend-controlle
 pruned-binding set) — next round. Live capture this session blocked by browser-pane canvas
 staying 1280x720 vs the 1800x1169-configured surface (pre-reset boot of same binary did
 composite 28%).
+driver 2026-08-06T16:40Z r19 VERIFIED (0412052/0f00678/91ab4c2; 0101-0102 clean; census held): class-2/3 dead, depth-aspect landed exposing the REAL residual (auto-layout Float vs UnfilterableFloat on depth reads), first-composite now deterministic (28% non-black at boot, zero events). r20 dispatched = explicit pipeline layouts from the interface map (T2-proven pattern) + surface-size determinism + the cube sequence.

@@ -55,9 +55,22 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
       title_(title ? title : ""),
       context_params_web_(context_params)
 {
-  /* Size the backing canvas to the requested client size BEFORE creating the
-   * drawing context (initializeDrawingContext reads the canvas size for the surface). */
-  emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), int(height));
+  /* In the browser the HTML <canvas> owns its own backing-store dimensions — a canvas has
+   * no OS window to derive a size from, so the shell sizes it deliberately and the M4
+   * first-pixels golden is captured at exactly that size. ADOPT the canvas's existing
+   * extent as the window client size (getClientBounds reads it back) instead of
+   * overwriting it with the WM's requested size, which is display-derived
+   * (emscripten_get_screen_size — e.g. 1800x1169 on this host) and would blow the capture
+   * past the golden's 1280x720. Only size the canvas from the requested extents as a
+   * fallback, when the shell left it unsized. The initial GHOST_kEventWindowSize +
+   * heartbeat expose (GHOST_SystemWeb) then reconcile Blender's layout to the canvas. */
+  {
+    int cw = 0, ch = 0;
+    emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
+    if (cw <= 0 || ch <= 0) {
+      emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), int(height));
+    }
+  }
 
   /* Create + initialize the window's drawing context. Native GHOST window ctors
    * (GHOST_WindowSDL/Win32/X11/Wayland) all call setDrawingContextType(type) here;

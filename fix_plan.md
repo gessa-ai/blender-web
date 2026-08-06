@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# fix_plan.md — active milestone: M1 CORE BOOTS + FREE ORACLE
+# fix_plan.md — active milestones: M3 WEBGPU BACKEND (gate-census done, boundary reconcile pending) + M4 FIRST PIXELS (UI renders in-tab, polish rounds)
 
 Driver-owned. Workers claim a task via `claimed_by:` on its line (atomic write) and
 report results; they never rewrite this file. Task grammar: one line, independently

@@ -1,0 +1,27 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -895,6 +895,23 @@
+     ss << "int gpu_ViewportIndex = 0;\n";
+   }
+ 
++  /* gl_PointCoord (fragment builtin). Tint's SPIR-V reader hard-rejects the PointCoord
++   * built-in ("unhandled SPIR-V BuiltIn: PointCoord") because WebGPU has no point
++   * sprites -- points always rasterise at 1px (see gl_PointSize, M3.F6c), so there is no
++   * in-point coordinate to hand back. Redirect gl_PointCoord to a zero-initialised
++   * module-scope vec2 via #define so the point shaders that read it (AA point outlines,
++   * keyframe shapes: gpu_shader_point_*_frag, overlay_edit_*_point) still COMPILE; the
++   * read yields (0,0) instead of the position within the point -- a faithful degradation
++   * (round points collapse to their centre) while point-sprite emulation (point->quad)
++   * stays deferred with the multi-viewport / point work. Same declare-to-compile pattern
++   * as gl_PointSize; gated on the POINT_COORD builtin bit exactly like
++   * mtl_shader_generate.cc:1327 (Blender guarantees the bit is set whenever a shader
++   * references gl_PointCoord -- other backends provide it the same way). */
++  if (flag_is_set(info.builtins_, BuiltinBits::POINT_COORD)) {
++    ss << "vec2 gpu_PointCoord_sink = vec2(0.0);\n";
++    ss << "#define gl_PointCoord gpu_PointCoord_sink\n";
++  }
++
+   const bool use_gl_frag_depth = info.depth_write_ != DepthWrite::UNCHANGED &&
+                                  info.fragment_source_.find("gl_FragDepth") != std::string::npos;
+   if (use_gl_frag_depth) {

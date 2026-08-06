@@ -153,4 +153,24 @@
 # compute shaders (page_mask, depth_of_field_resolve, shadow_tilemap_{init,finalize}).
 # static_shaders 951 -> 956. Independent file set; reverse-apply verified.
 0097-gpu-webgpu-uniformity-barrier-glsl.patch
+# 0098-0100 (M4.T15, round 18) VIEWPORT DRAW ROUND. Same-file stack for
+# wgpu_context.{cc,hh}: apply 0098 < 0099 (0099's guard hunks sit just after 0098's
+# blit helper). 0100 is an independent file (wgpu_uniform_buffer.cc). All three
+# reverse-apply verified against the live tree in reverse order (0100, 0099, 0098 ->
+# pristine). Native gpu gate held 148/158 + static_shaders 956/973.
+# 0098 cross-format region blit: WGPUContext::blit_color_render (fullscreen textured-quad
+# render pass) replaces the CopyTextureToTexture in WGPUFrameBuffer::blit_to when src/dst
+# formats differ (region RGBA8Unorm -> window BGRA8Unorm, the dominant black-viewport
+# blocker); uv.y samples bottom-up so the composited UI strips land upright.
+0098-gpu-webgpu-cross-format-region-blit.patch
+# 0099 null-buffer bind-group guard: WGPUContext::create_bind_group_checked drops entries
+# with no resource before CreateBindGroup, converting the fatal Tab->edit-mode
+# createBindGroup TypeError (null GPUBufferBinding halts the WM loop) into a recoverable
+# Dawn validation warning. Wired into the batch/immediate/compute bind-group builders.
+0099-gpu-webgpu-bindgroup-null-buffer-guard.patch
+# 0100 UBO minBindingSize pad: WGPUUniformBuffer::ensure pads allocations to the 16 KiB
+# Blender UBO cap so a short bind of a fixed-array UBO (the draw-manager view UBO
+# ViewMatrices view_buf[64], draw_view_infos.hh:83) satisfies WGSL's auto-layout
+# minBindingSize (16384) instead of dropping every 3D vertex draw.
+0100-gpu-webgpu-ubo-minbinding-pad.patch
 0120-asset-system-wasm.patch

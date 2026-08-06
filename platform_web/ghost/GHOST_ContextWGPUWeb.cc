@@ -312,8 +312,28 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   if (surface_ == nullptr || device_ == nullptr) {
     return;
   }
-  width_ = width;
-  height_ = height;
+
+  /* DETERMINISM: the WebGPU surface must match the canvas element's drawing-buffer
+   * extent EXACTLY. GetCurrentTexture returns a texture sized to the live canvas, so a
+   * surface configured to a stale/other size (the GHOST window's logical size, which the
+   * shell or browser pane can diverge the canvas from — the r19 1800x1169-surface vs
+   * 1280x720-canvas mismatch that blocked golden capture) mis-presents. Query the real
+   * canvas extent HERE and prefer it; the caller's width/height is only a fallback for
+   * when the canvas does not resolve (a worker without an OffscreenCanvas). */
+  int cw = 0, ch = 0;
+  emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
+  const uint32_t w = (cw > 0) ? uint32_t(cw) : width;
+  const uint32_t h = (ch > 0) ? uint32_t(ch) : height;
+  if (w == 0 || h == 0) {
+    return;
+  }
+  /* Idempotent: skip a redundant Configure when the extent is unchanged (repeated
+   * resize events commonly report the same size). */
+  if (configured_ && w == width_ && h == height_) {
+    return;
+  }
+  width_ = w;
+  height_ = h;
 
   wgpu::SurfaceConfiguration config = {};
   config.device = device_;
@@ -324,4 +344,5 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   config.presentMode = wgpu::PresentMode::Fifo;
   config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
   surface_.Configure(&config);
+  configured_ = true;
 }

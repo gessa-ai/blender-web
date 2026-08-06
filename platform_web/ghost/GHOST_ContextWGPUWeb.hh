@@ -117,6 +117,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   std::string canvas_selector_;
   uint32_t width_ = 0;
   uint32_t height_ = 0;
+  bool configured_ = false; /* surface_.Configure has run at width_ x height_ */
 
   wgpu::Instance instance_;
   wgpu::Adapter adapter_;

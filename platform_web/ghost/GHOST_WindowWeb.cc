@@ -100,6 +100,7 @@ GHOST_TSuccess GHOST_WindowWeb::setClientWidth(uint32_t width)
   int w = 0, h = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
   emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), h);
+  reconfigureSurface();
   return GHOST_kSuccess;
 }
 
@@ -108,13 +109,36 @@ GHOST_TSuccess GHOST_WindowWeb::setClientHeight(uint32_t height)
   int w = 0, h = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
   emscripten_set_canvas_element_size(canvas_selector_.c_str(), w, int(height));
+  reconfigureSurface();
   return GHOST_kSuccess;
 }
 
 GHOST_TSuccess GHOST_WindowWeb::setClientSize(uint32_t width, uint32_t height)
 {
   emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), int(height));
+  reconfigureSurface();
   return GHOST_kSuccess;
+}
+
+void GHOST_WindowWeb::reconfigureSurface()
+{
+#if defined(WITH_WEBGPU_BACKEND) && defined(__EMSCRIPTEN__)
+  /* Only the WebGPU context owns a surface; guard the type before the down-cast so a
+   * GHOST_ContextNone (no drawing context yet) is never mis-cast. */
+  if (getDrawingContextType() != GHOST_kDrawingContextTypeWebGPU) {
+    return;
+  }
+  GHOST_Context *ctx = getContext();
+  if (ctx == nullptr) {
+    return;
+  }
+  int w = 0, h = 0;
+  emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
+  /* configureSurface re-queries the canvas itself and is idempotent, so these extents
+   * are only a fallback; passing them keeps a sane value if the query races. */
+  static_cast<GHOST_ContextWGPUWeb *>(ctx)->configureSurface(uint32_t(w > 0 ? w : 0),
+                                                             uint32_t(h > 0 ? h : 0));
+#endif
 }
 
 void GHOST_WindowWeb::screenToClient(

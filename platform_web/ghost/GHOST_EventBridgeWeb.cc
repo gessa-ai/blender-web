@@ -114,7 +114,12 @@ void on_key(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenKeyboardEve
 
 void on_resize(GHOST_SystemWeb &sys, const EmscriptenUiEvent & /*e*/)
 {
-  GHOST_IWindow *win = sys.activeWindow();
+  GHOST_WindowWeb *win = sys.activeWindow();
+  /* Keep the WebGPU surface matched to the (possibly shell-resized) canvas before the
+   * WM sees the size event, so the very next composite presents at the live extent. */
+  if (win != nullptr) {
+    win->reconfigureSurface();
+  }
   sys.pushEvent(std::make_unique<GHOST_Event>(sys.getMilliSeconds(), GHOST_kEventWindowSize, win));
 }
 

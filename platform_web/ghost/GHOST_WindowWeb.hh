@@ -59,6 +59,12 @@ class GHOST_WindowWeb : public GHOST_Window {
   GHOST_TSuccess setClientHeight(uint32_t height) override;
   GHOST_TSuccess setClientSize(uint32_t width, uint32_t height) override;
 
+  /** Re-configure the WebGPU surface to the canvas's current drawing-buffer extent.
+   * Called after any canvas resize (setClient*, or a browser resize event) so the
+   * surface never diverges from the live canvas. No-op off the WebGPU/Emscripten path
+   * or before the drawing context exists. */
+  void reconfigureSurface();
+
   void screenToClient(int32_t inX, int32_t inY, int32_t &outX, int32_t &outY) const override;
   void clientToScreen(int32_t inX, int32_t inY, int32_t &outX, int32_t &outY) const override;
 

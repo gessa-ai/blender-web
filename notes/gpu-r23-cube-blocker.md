@@ -87,6 +87,18 @@ after the callback yields (Blender's on-demand-redraw cadence vs per-frame GetCu
 then submitting a destroyed texture. The UI composites on the frames that DO submit in time;
 the workbench-solid + overlay-grid viewport passes (the ones that would draw the cube) do not.
 
+**No-rebuild orbit/zoom probe (sharpens the diagnosis — NOT pure present-cadence).** In the
+visible rig, with the splash suppressed, I forced continuous interactive viewport redraws:
+middle-mouse ORBIT (Blender modal live — the header showed "Cancel / Axis Snap" and the nav
+gizmo rotated) + 8× wheel ZOOM. The viewport interior stayed **blank throughout active
+redraw** (evidence `m4-r23-viewport-orbit-blank.png`), while the overlay gizmos/nav/text DID
+update. So the workbench-solid + grid passes produce NO visible pixels even when redrawn every
+frame — this is a specific draw-or-composite failure of those passes, not merely drawn content
+being dropped by the present cadence (overlay composites fine). Next-round step 2
+(instrument the GPUViewport offscreen non-black %) is the way to split "offscreen is empty"
+(workbench/grid draw blocked behind 0108) from "offscreen has content, its blit-to-window
+Destroyed-textures" (present/composite blocked).
+
 ### Next-round cube recipe (for the driver)
 1. **Fix the present seam (the prize).** Ensure `GetCurrentTexture` is acquired AND every
    command buffer referencing back_left/front_left is submitted within the SAME rAF frame,

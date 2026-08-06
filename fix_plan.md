@@ -411,12 +411,30 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   Tint-supported; zero format conversion at launch formats), STAGED — SMALL core (~85) first,
   MEDIUM customdata tail after. REJECTED: 2D-texture repack (8192 limit + per-frame cost).
   Design: notes/gpu-sampledbuffer-design.md.
-- [ ] **M3.F11 [gpu-backend r14]** (a) SampledBuffer option-(a) SMALL core; (b) bind_as_ssbo
-  stubs (same family); (c) textureSample integer-sampler transform — in webgpu codegen if
-  possible, escalate if gpu/intern needed (workbench = launch tier, must not stay broken);
-  (d) textureDimensions dim-inference root-cause; (e) small buckets: switch-fallthrough 16,
-  IsNan/IsInf 9, fwidth-residual 5, shaderc-other 4, ProgramFromIR 3, undeclared 1.
-  DISPATCHED (patches 0084-0090).
+- [x] **M3.F11 r14 RESULT (0084-0088, driver-verified spot-runs incl. compute vbo/ibo PASS):**
+  static_shaders **909/973** (+125): SampledBuffer 93→0, int-sampler 37→0, textureDimensions
+  25→0 (1D-array→2D UDIM emulation), IsNan/IsInf 9→0; compute family **15/15**. Zero
+  regressions. STACK ORDER for manifest: 0084<0086<0087<0088 (wgpu_shader.cc). Remaining 64:
+  26 MEDIUM-tail (samplerBuffer as fn param — curves/pointcloud customdata), 16
+  switch-fallthrough (Tint reader rejects; fix = GLSL restructure, off-limits → escalated),
+  8 imageAtomic (DEFERRAL), 5 uniform-CF (eevee DoF/shadow), 4 subdiv dialect, 4 vertex-RW
+  (DEFERRAL), 1 Metal-census artifact (fullscreen_blit).
+- [x] **M3.F12-DECISIONS [driver]:** (1) switch-fallthrough: APPROVED narrow GPU_WEBGPU-guarded
+  GLSL restructure of the two families (2D_update_mipmaps 14 + eevee_light_culling 2) — same
+  exception class as 0054; shader_tool edits remain forbidden. (2) R32F buffer-texture:
+  APPROVED format-generic access via override constants (component count specialized at
+  pipeline time — the 0079 mechanism) IF in-bound; else land characterized-error guard and
+  list gpu_buffer_texture_test as an M3-gate blacklist candidate with justification.
+- [ ] **M3.F12 [gpu-backend r15 — THE GATE-CENSUS ROUND]** (a) MEDIUM tail 26: rewrite
+  samplerBuffer function-params at codegen (globalize/inline per call-site — WGSL forbids
+  buffer fn-params); (b) R32F per decision (2); (c) switch-fallthrough per decision (1);
+  (d) uniform-CF 5: investigate (0077 set allow_non_uniform_derivatives — these are
+  different quad/subgroup ops? characterize exactly); (e) subdiv 4 + census artifact 1:
+  root-cause inclusion, characterize; (f) **FULL-SUITE CENSUS: `--gtest_list_tests` the
+  entire GPUWebGPUTest suite, run EVERY family (incl. ones never run: state/matrix/
+  primitives/whatever exists), produce the complete pass/fail table = the actual
+  M3_GPU_BACKEND gate measurement + the deferral-registry candidate list.**
+  DISPATCHED (patches 0089-0095).
 - [ ] **M3-boundary [driver]** Deferral registry entries due (ledger/deferred.json, GOAL
   format, named blockers): vertex-stage read_write SSBO (2 shaders + specialization_
   constants_graphic — WebGPU forbids vertex RW storage); depth-aspect buffer→texture upload

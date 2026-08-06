@@ -137,4 +137,12 @@
 0089-gpu-webgpu-switch-fallthrough-glsl.patch
 0090-gpu-webgpu-customdata-fnparam-inline.patch
 0091-gpu-webgpu-bind-as-texture.patch
+# 0092-0095 (M4.T13 first-UI-pixels, round 16) share five files
+# (wgpu_context.{cc,hh}, wgpu_texture.{cc,hh}, wgpu_batch.cc); they are lexical AND a
+# same-file stack — apply/reverse strictly in the order 0092 < 0093 < 0094 < 0095
+# (verified: forward from pin == live tree, reverse restores pristine).
+0092-gpu-webgpu-draw-bind-group-completion.patch
+0093-gpu-webgpu-batch-draw-indirect.patch
+0094-gpu-webgpu-context-sync-backbuffer.patch
+0095-gpu-webgpu-framebuffer-finite-depth-clear.patch
 0120-asset-system-wasm.patch

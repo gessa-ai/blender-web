@@ -1,0 +1,186 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture.hh
+@@ -96,6 +96,16 @@
+     return source_buffer_ != nullptr;
+   }
+ 
++  /** Adopt an externally-owned wgpu::Texture (a surface's GetCurrentTexture()) as
++   * this gpu::Texture WITHOUT allocating a device texture, setting the base
++   * dimensions/format so framebuffer attachment + target_formats resolve. The handle
++   * is ref-held until re-adopted; the surface governs its per-frame validity, so
++   * re-adopt each frame (WGPUContext::sync_backbuffer). Web windowed back-buffer. */
++  void adopt_external(const wgpu::Texture &texture,
++                      wgpu::TextureFormat wgpu_format,
++                      int width,
++                      int height);
++
+  protected:
+   bool init_internal() override;
+   bool init_internal(VertBuf *vbo) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1017,6 +1017,36 @@
+   return tex.CreateView(&d);
+ }
+ 
++void WGPUTexture::adopt_external(const wgpu::Texture &texture,
++                                 wgpu::TextureFormat wgpu_format,
++                                 int width,
++                                 int height)
++{
++  /* Wrap an externally-owned device texture (the window surface's per-frame
++   * GetCurrentTexture()) as this gpu::Texture. No allocate(): the surface owns the
++   * device texture. Only the fields the framebuffer color path reads are set —
++   * texture_/wgpu_format_ (attachment view + pipeline target format) and w_/h_
++   * (update_size); format_/format_flag_ are set to a plain colour so the depth
++   * branch in begin_load_pass never misfires. */
++  texture_ = texture;
++  wgpu_format_ = wgpu_format;
++  conv_ = ConvClass::Direct;
++  source_ = nullptr;
++  source_buffer_ = nullptr;
++  snorm16_emulated_ = false;
++  is_texture_view_ = false;
++  w_ = std::max(width, 1);
++  h_ = std::max(height, 1);
++  d_ = 1;
++  type_ = GPU_TEXTURE_2D;
++  mipmaps_ = 1;
++  mip_min_ = 0;
++  mip_max_ = 0;
++  format_ = TextureFormat::UNORM_8_8_8_8;
++  format_flag_ = GPU_FORMAT_NORMALIZED_INTEGER;
++  gpu_image_usage_flags_ = GPU_TEXTURE_USAGE_ATTACHMENT;
++}
++
+ void WGPUTexture::clear(const double4 data)
+ {
+   if (texture_ == nullptr) {
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -174,6 +174,11 @@
+   /* A cached wgpu::Sampler for a GPUSamplerState (created lazily, retained for the
+    * context lifetime so the handle outlives every BindGroup that references it). */
+   wgpu::Sampler get_sampler(const GPUSamplerState &state);
++
++  /* Point back_left/front_left's colour attachment at the window surface's current
++   * texture (windowed web build only; no-op otherwise). Called from activate(),
++   * mirroring VKContext::sync_backbuffer (vk_context.cc:67). */
++  void sync_backbuffer();
+ 
+   /* Backend-wide device/instance/queue, reachable from any thread (there is a
+    * single Dawn device). Used by the async shader-compile worker, which has no
+@@ -216,6 +221,13 @@
+   /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
+   std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
+ 
++  /** The GHOST drawing context (retained for sync_backbuffer's surface access);
++   * mirrors VKContext::ghost_context_ (vk_context.cc:40). */
++  GHOST_IContext *ghost_context_ = nullptr;
++  /** Back-buffer wrapper around the window surface's current texture (web windowed);
++   * owned here, re-adopted each sync_backbuffer, freed in the dtor. */
++  Texture *surface_texture_ = nullptr;
++
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
+ };
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -25,6 +25,7 @@
+ #include "wgpu_texture.hh"
+ #include "wgpu_uniform_buffer.hh"
+ 
++#include "GPU_framebuffer.hh"
+ #include "GPU_texture.hh"
+ 
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+@@ -68,6 +69,7 @@
+ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+ {
+   ghost_window_ = ghost_window;
++  ghost_context_ = ghost_context;
+ 
+   /* The context was created by GHOST_SystemHeadless::createOffscreenContext for
+    * GHOST_kDrawingContextTypeWebGPU, so it is a GHOST_ContextWGPU. Borrow its
+@@ -120,6 +122,13 @@
+ 
+ WGPUContext::~WGPUContext()
+ {
++  /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
++   * back_left/front_left (which are still alive here), releasing the surface
++   * texture ref without destroying the surface's own texture. */
++  if (surface_texture_ != nullptr) {
++    delete surface_texture_;
++    surface_texture_ = nullptr;
++  }
+   free_resources();
+   /* Mirror VKContext::~VKContext():59-60 — delete `imm` here and null it so the
+    * base Context dtor's `delete imm` (gpu_context.cc:101) is a safe no-op. */
+@@ -141,6 +150,7 @@
+ {
+   BLI_assert(is_active_ == false);
+   is_active_ = true;
++  sync_backbuffer();
+   immActivate();
+ }
+ 
+@@ -455,6 +465,55 @@
+ 
+ }
+ 
++/* --- Window back-buffer sync (web windowed only) --------------------------- */
++
++void WGPUContext::sync_backbuffer()
++{
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Only the window context has a GHOST window + a configured surface; offscreen
++   * (GPU_offscreen) contexts and the M3 headless/native builds take no action. */
++  if (ghost_window_ == nullptr || ghost_context_ == nullptr) {
++    return;
++  }
++  WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context_);
++  wgpu::Surface surface = wgpu_ghost->getSurface();
++  if (surface == nullptr) {
++    return;
++  }
++  wgpu::SurfaceTexture st = {};
++  surface.GetCurrentTexture(&st);
++  if (st.texture == nullptr) {
++    return;
++  }
++  const int w = int(st.texture.GetWidth());
++  const int h = int(st.texture.GetHeight());
++  const wgpu::TextureFormat fmt = wgpu_ghost->getSurfaceFormat();
++
++  const bool first = (surface_texture_ == nullptr);
++  webgpu::WGPUTexture *back;
++  if (first) {
++    back = new webgpu::WGPUTexture("back_left_surface");
++    surface_texture_ = back;
++  }
++  else {
++    back = static_cast<webgpu::WGPUTexture *>(surface_texture_);
++  }
++  /* Re-adopt the surface's per-frame current texture (WebGPU hands back a fresh
++   * texture after each present); attach once, then just refresh the handle. */
++  back->adopt_external(st.texture, fmt, w, h);
++
++  if (first) {
++    if (back_left != nullptr) {
++      back_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0, GPU_ATTACHMENT_TEXTURE(surface_texture_));
++    }
++    if (front_left != nullptr) {
++      front_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0,
++                                 GPU_ATTACHMENT_TEXTURE(surface_texture_));
++    }
++  }
++#endif
++}
++
+ /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
+ void WGPUContext::begin_frame() {}
+ void WGPUContext::end_frame() {}

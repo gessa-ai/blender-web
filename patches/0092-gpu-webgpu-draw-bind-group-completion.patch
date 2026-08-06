@@ -1,0 +1,702 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture.hh
+@@ -87,6 +87,15 @@
+    * the draw bind-group builder (GPU_texture_bind path). */
+   wgpu::TextureView sampled_view();
+ 
++  /** True for a buffer texture (GPU_texture_create_from_vertbuf): it has NO device
++   * texture (source_buffer_ set, texture_ null). WGSL has no texel-buffer type, so
++   * such a bind is a read-only storage-buffer entry, not a texture+sampler — the
++   * draw/compute bind-group builders skip it in their sampled-texture loop. */
++  bool is_buffer_texture() const
++  {
++    return source_buffer_ != nullptr;
++  }
++
+  protected:
+   bool init_internal() override;
+   bool init_internal(VertBuf *vbo) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -995,19 +995,26 @@
+ 
+ wgpu::TextureView WGPUTexture::sampled_view()
+ {
+-  if (texture_ == nullptr) {
++  /* A gpu::Texture VIEW (GPU_texture_create_view) has no device texture of its own —
++   * it aliases source_'s, applying mip_offset_/layer_offset_. Resolve to the source so
++   * a bound view (UI icon/region composite textures are frequently views) still yields
++   * a sampled view instead of null (which would silently drop the texture bind-group
++   * entry and leave its sampler orphaned -> Dawn "entries did not match"). */
++  wgpu::Texture tex = (texture_ != nullptr) ? texture_ :
++                      (source_ != nullptr ? source_->texture_ : wgpu::Texture(nullptr));
++  if (tex == nullptr) {
+     return nullptr;
+   }
+-  /* Whole-texture sampled view (all mips + layers) at the native view dimension.
+-   * Cube textures (stored as 2D + 6 layers) get an explicit Cube view so WGSL
+-   * `texture_cube` sampling binds. */
++  /* Whole-texture sampled view (all mips + layers from the offset) at the native view
++   * dimension. Cube textures (stored as 2D + 6 layers) get an explicit Cube view so
++   * WGSL `texture_cube` sampling binds. */
+   wgpu::TextureViewDescriptor d = {};
+   d.format = wgpu_format_;
+   d.dimension = to_wgpu_view_dimension(type_);
+-  d.baseMipLevel = 0;
+-  d.baseArrayLayer = 0;
++  d.baseMipLevel = uint32_t(std::max(mip_offset_, 0));
++  d.baseArrayLayer = uint32_t(std::max(layer_offset_, 0));
+   d.aspect = wgpu::TextureAspect::All;
+-  return texture_.CreateView(&d);
++  return tex.CreateView(&d);
+ }
+ 
+ void WGPUTexture::clear(const double4 data)
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -21,13 +21,21 @@
+ 
+ #include <string>
+ #include <unordered_map>
++#include <vector>
+ #include <webgpu/webgpu_cpp.h>
+ 
+ #include "MEM_guardedalloc.h"
+ 
++namespace blender {
++struct GPUSamplerState;
++}
++
+ namespace blender::gpu {
+ 
++class Texture;
++class WGPUShader;
+ class WGPUStorageBuffer;
++class WGPUUniformBuffer;
+ namespace webgpu {
+ class Buffer;
+ }
+@@ -129,6 +137,43 @@
+   {
+     return bound_buffer_ssbos_;
+   }
++
++  /* --- Bound uniform-buffer tracking ---------------------------------------
++   * Separately-bound UBOs (GPU_uniformbuf_bind, distinct from the push-constant
++   * emulation UBO) recorded per dense WGSL @binding slot; consumed by
++   * append_resource_bind_entries. Mirrors the storage-buffer bind-space above. */
++  void uniform_buffer_bind(int slot, WGPUUniformBuffer *ubo)
++  {
++    bound_uniform_buffers_[slot] = ubo;
++  }
++  void uniform_buffer_unbind(WGPUUniformBuffer *ubo)
++  {
++    for (auto it = bound_uniform_buffers_.begin(); it != bound_uniform_buffers_.end();) {
++      if (it->second == ubo) {
++        it = bound_uniform_buffers_.erase(it);
++      }
++      else {
++        ++it;
++      }
++    }
++  }
++  const std::unordered_map<int, WGPUUniformBuffer *> &bound_uniform_buffers() const
++  {
++    return bound_uniform_buffers_;
++  }
++
++  /* Append group-0 bind-group entries for every resource the bound shader declares
++   * (filtered by its interface map so stale binds never leak in): bound UBOs,
++   * storage buffers, VBO/IBO-as-SSBO, storage images, and sampled textures + their
++   * samplers (texture half at N, sampler half at SAMPLER_BASE + N). The caller adds
++   * the push-constant UBO (+ multi-viewport UBO) itself. Shared by the draw,
++   * immediate and compute bind-group builders. */
++  void append_resource_bind_entries(WGPUShader *shader,
++                                     std::vector<wgpu::BindGroupEntry> &entries);
++
++  /* A cached wgpu::Sampler for a GPUSamplerState (created lazily, retained for the
++   * context lifetime so the handle outlives every BindGroup that references it). */
++  wgpu::Sampler get_sampler(const GPUSamplerState &state);
+ 
+   /* Backend-wide device/instance/queue, reachable from any thread (there is a
+    * single Dawn device). Used by the async shader-compile worker, which has no
+@@ -166,6 +211,10 @@
+   std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
+   /** VBO/IBO buffers bound as SSBOs keyed by WGSL @binding slot (see buffer_ssbo_bind). */
+   std::unordered_map<int, const webgpu::Buffer *> bound_buffer_ssbos_;
++  /** Separately-bound uniform buffers keyed by WGSL @binding slot. */
++  std::unordered_map<int, WGPUUniformBuffer *> bound_uniform_buffers_;
++  /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
++  std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -19,7 +19,13 @@
+ 
+ #include "wgpu_framebuffer.hh"
+ #include "wgpu_immediate.hh"
++#include "wgpu_shader.hh"
+ #include "wgpu_state_manager.hh"
++#include "wgpu_storage_buffer.hh"
++#include "wgpu_texture.hh"
++#include "wgpu_uniform_buffer.hh"
++
++#include "GPU_texture.hh"
+ 
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+  * intern/ghost/intern to this TU's include path. Production should instead route
+@@ -211,6 +217,244 @@
+ #endif
+ }
+ 
++/* --- Sampler cache --------------------------------------------------------- */
++
++static wgpu::AddressMode to_wgpu_address_mode(GPUSamplerExtendMode mode)
++{
++  switch (mode) {
++    case GPU_SAMPLER_EXTEND_MODE_REPEAT:
++      return wgpu::AddressMode::Repeat;
++    case GPU_SAMPLER_EXTEND_MODE_MIRRORED_REPEAT:
++      return wgpu::AddressMode::MirrorRepeat;
++    case GPU_SAMPLER_EXTEND_MODE_EXTEND:
++    case GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER:
++    default:
++      /* WebGPU has no border-colour address mode; clamp-to-edge is the closest. */
++      return wgpu::AddressMode::ClampToEdge;
++  }
++}
++
++wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
++{
++  const uint32_t key = state.as_uint();
++  auto it = sampler_cache_.find(key);
++  if (it != sampler_cache_.end()) {
++    return it->second;
++  }
++
++  /* Mirrors VKSampler::create (vk_sampler.cc). Defaults to point sampling; the
++   * PARAMETERS / CUSTOM branches widen to linear / mipmap / compare. */
++  wgpu::SamplerDescriptor d = {};
++  d.addressModeU = to_wgpu_address_mode(state.extend_x);
++  d.addressModeV = to_wgpu_address_mode(state.extend_yz);
++  d.addressModeW = to_wgpu_address_mode(state.extend_yz);
++  d.magFilter = wgpu::FilterMode::Nearest;
++  d.minFilter = wgpu::FilterMode::Nearest;
++  d.mipmapFilter = wgpu::MipmapFilterMode::Nearest;
++  d.lodMinClamp = 0.0f;
++  d.lodMaxClamp = 0.0f;
++  d.maxAnisotropy = 1;
++
++  if (state.type == GPU_SAMPLER_STATE_TYPE_CUSTOM) {
++    if (state.custom_type == GPU_SAMPLER_CUSTOM_ICON) {
++      d.magFilter = wgpu::FilterMode::Linear;
++      d.minFilter = wgpu::FilterMode::Linear;
++      d.mipmapFilter = wgpu::MipmapFilterMode::Nearest;
++      d.lodMaxClamp = 1.0f;
++    }
++    else { /* GPU_SAMPLER_CUSTOM_COMPARE */
++      d.magFilter = wgpu::FilterMode::Linear;
++      d.minFilter = wgpu::FilterMode::Linear;
++      d.compare = wgpu::CompareFunction::LessEqual;
++    }
++  }
++  else { /* PARAMETERS (INTERNAL is treated as parameters here). */
++    if (state.filtering & GPU_SAMPLER_FILTERING_LINEAR) {
++      d.magFilter = wgpu::FilterMode::Linear;
++      d.minFilter = wgpu::FilterMode::Linear;
++    }
++    if (state.filtering & GPU_SAMPLER_FILTERING_MIPMAP) {
++      d.mipmapFilter = wgpu::MipmapFilterMode::Linear;
++      d.lodMaxClamp = 1000.0f;
++    }
++  }
++
++  wgpu::Sampler sampler = device_.CreateSampler(&d);
++  sampler_cache_[key] = sampler;
++  return sampler;
++}
++
++/* --- Draw/dispatch bind-group resource assembly ---------------------------- */
++
++void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
++                                               std::vector<wgpu::BindGroupEntry> &entries)
++{
++  if (shader == nullptr) {
++    return;
++  }
++  const webgpu::InterfaceMap &imap = shader->interface_map();
++  /* Emit an entry only for a binding the shader's layout declares AND whose resource
++   * kind matches: a resource left bound by a previous draw (stale texture/SSBO/UBO)
++   * must not leak in, and a dense binding index reused across resource classes (e.g. a
++   * UBO at the same index another shader used for a texture) must not be filled with
++   * the wrong entry kind — both make CreateBindGroup reject the group. The kind is read
++   * from the interface-map layout entry by comparing each sub-struct's discriminant to
++   * a default entry (robust to WebGPU enum-naming: Undefined vs BindingNotUsed). */
++  static const wgpu::BindGroupLayoutEntry kDefault = {};
++  auto entry_of = [&](uint32_t binding) -> const wgpu::BindGroupLayoutEntry * {
++    for (const wgpu::BindGroupLayoutEntry &e : imap.entries) {
++      if (e.binding == binding) {
++        return &e;
++      }
++    }
++    return nullptr;
++  };
++  auto is_buffer_binding = [&](uint32_t b) {
++    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
++    return e != nullptr && e->buffer.type != kDefault.buffer.type;
++  };
++  auto is_texture_binding = [&](uint32_t b) {
++    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
++    return e != nullptr && e->texture.sampleType != kDefault.texture.sampleType;
++  };
++  auto is_sampler_binding = [&](uint32_t b) {
++    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
++    return e != nullptr && e->sampler.type != kDefault.sampler.type;
++  };
++  auto is_image_binding = [&](uint32_t b) {
++    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
++    return e != nullptr && e->storageTexture.access != kDefault.storageTexture.access;
++  };
++  /* The caller adds the push-constant emulation UBO itself; a resource left bound at
++   * that same dense binding by an earlier draw must not be re-added here (Dawn:
++   * "binding index N already used"). */
++  const bool has_pc = shader->has_push_constants();
++  const uint32_t pc_binding = has_pc ? shader->push_constants_binding() : 0xffffffffu;
++  auto is_pc = [&](uint32_t b) { return has_pc && b == pc_binding; };
++
++  /* Bound uniform buffers (distinct from the push-constant emulation UBO, which the
++   * caller adds explicitly). */
++  for (const auto &item : bound_uniform_buffers_) {
++    const uint32_t b = uint32_t(shader->remap_ubo_binding(item.first));
++    if (is_pc(b) || !is_buffer_binding(b)) {
++      continue;
++    }
++    WGPUUniformBuffer *ubo = item.second;
++    if (ubo == nullptr) {
++      continue;
++    }
++    const webgpu::Buffer &buf = ubo->buffer();
++    if (!buf.valid()) {
++      continue;
++    }
++    wgpu::BindGroupEntry e = {};
++    e.binding = b;
++    e.buffer = buf.handle();
++    e.offset = 0;
++    e.size = buf.size();
++    entries.push_back(e);
++  }
++
++  /* Storage buffers (GPU_storagebuf_bind). */
++  for (const auto &item : bound_storage_buffers_) {
++    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
++    if (is_pc(b) || !is_buffer_binding(b)) {
++      continue;
++    }
++    WGPUStorageBuffer *ssbo = item.second;
++    if (ssbo == nullptr) {
++      continue;
++    }
++    const webgpu::Buffer &buf = ssbo->buffer();
++    if (!buf.valid()) {
++      continue;
++    }
++    wgpu::BindGroupEntry e = {};
++    e.binding = b;
++    e.buffer = buf.handle();
++    e.offset = 0;
++    e.size = buf.size();
++    entries.push_back(e);
++  }
++
++  /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
++   * (both recorded in the buffer-SSBO bind-space). */
++  for (const auto &item : bound_buffer_ssbos_) {
++    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
++    if (is_pc(b) || !is_buffer_binding(b)) {
++      continue;
++    }
++    const webgpu::Buffer *buf = item.second;
++    if (buf == nullptr || !buf->valid()) {
++      continue;
++    }
++    wgpu::BindGroupEntry e = {};
++    e.binding = b;
++    e.buffer = buf->handle();
++    e.offset = 0;
++    e.size = buf->size();
++    entries.push_back(e);
++  }
++
++  WGPUStateManager *sm = static_cast<WGPUStateManager *>(state_manager);
++  if (sm == nullptr) {
++    return;
++  }
++
++  /* Storage images (GPU_texture_image_bind). */
++  for (const auto &item : sm->bound_images()) {
++    const uint32_t b = uint32_t(shader->remap_image_binding(item.first));
++    if (!is_image_binding(b)) {
++      continue;
++    }
++    webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
++    if (tex == nullptr) {
++      continue;
++    }
++    wgpu::TextureView view = tex->image_view();
++    if (view == nullptr) {
++      continue;
++    }
++    wgpu::BindGroupEntry e = {};
++    e.binding = b;
++    e.textureView = view;
++    entries.push_back(e);
++  }
++
++  /* Sampled textures + their samplers (GPU_texture_bind). One combined sampler at
++   * dense binding N splits into a texture half at N and a sampler half at
++   * SAMPLER_BASE + N (notes/gpu-binding-map-spec.md §4.1). Buffer textures are a
++   * storage-buffer entry, handled above — skip them here. */
++  const uint32_t sampler_base = imap.sampler_base;
++  for (const auto &item : sm->bound_textures()) {
++    const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
++    webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second.texture);
++    if (tex == nullptr || tex->is_buffer_texture()) {
++      continue;
++    }
++    if (is_texture_binding(n)) {
++      wgpu::TextureView view = tex->sampled_view();
++      if (view != nullptr) {
++        wgpu::BindGroupEntry e = {};
++        e.binding = n;
++        e.textureView = view;
++        entries.push_back(e);
++      }
++    }
++    const uint32_t sb = sampler_base + n;
++    if (is_sampler_binding(sb)) {
++      wgpu::Sampler sampler = get_sampler(item.second.sampler);
++      if (sampler != nullptr) {
++        wgpu::BindGroupEntry e = {};
++        e.binding = sb;
++        e.sampler = sampler;
++        entries.push_back(e);
++      }
++    }
++  }
++
++}
++
+ /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
+ void WGPUContext::begin_frame() {}
+ void WGPUContext::end_frame() {}
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -195,26 +195,30 @@
+     pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
+   }
+ 
+-  /* Bind group 0: the shader's push-constant UBO (lane A's shadow+flush+getter).
+-   * uniform_float/int fill the CPU shadow; flush uploads the dirty bytes, then the
+-   * buffer binds at its reserved binding. Textures / extra UBOs (state_manager
+-   * bindings) are added here once the texture bind path lands (follow-on). */
+-  if (shader->has_push_constants()) {
+-    shader->push_constants_flush();
+-    const webgpu::Buffer &pc = shader->push_constants_buffer();
+-    if (pc.valid()) {
+-      wgpu::BindGroupEntry entry = {};
+-      entry.binding = shader->push_constants_binding();
+-      entry.buffer = pc.handle();
+-      entry.offset = 0;
+-      entry.size = pc.size();
+-
++  /* Bind group 0: the push-constant UBO (lane A's shadow+flush+getter) plus every
++   * declared resource — sampled textures + samplers, storage buffers, storage
++   * images, bound UBOs — assembled by the context's shared builder. */
++  {
++    std::vector<wgpu::BindGroupEntry> entries;
++    if (shader->has_push_constants()) {
++      shader->push_constants_flush();
++      const webgpu::Buffer &pc = shader->push_constants_buffer();
++      if (pc.valid()) {
++        wgpu::BindGroupEntry entry = {};
++        entry.binding = shader->push_constants_binding();
++        entry.buffer = pc.handle();
++        entry.offset = 0;
++        entry.size = pc.size();
++        entries.push_back(entry);
++      }
++    }
++    ctx->append_resource_bind_entries(shader, entries);
++    if (!entries.empty()) {
+       wgpu::BindGroupDescriptor bgd = {};
+       bgd.layout = pipeline.GetBindGroupLayout(0);
+-      bgd.entryCount = 1;
+-      bgd.entries = &entry;
+-      wgpu::BindGroup bind_group = device.CreateBindGroup(&bgd);
+-      pass.SetBindGroup(0, bind_group);
++      bgd.entryCount = uint32_t(entries.size());
++      bgd.entries = entries.data();
++      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -132,60 +132,12 @@
+     }
+   }
+ 
+-  for (const auto &item : ctx->bound_storage_buffers()) {
+-    WGPUStorageBuffer *ssbo = item.second;
+-    if (ssbo == nullptr) {
+-      continue;
+-    }
+-    const webgpu::Buffer &buf = ssbo->buffer();
+-    if (!buf.valid()) {
+-      continue;
+-    }
+-    wgpu::BindGroupEntry entry = {};
+-    entry.binding = uint32_t(item.first);
+-    entry.buffer = buf.handle();
+-    entry.offset = 0;
+-    entry.size = buf.size();
+-    entries.push_back(entry);
+-  }
+-
+-  /* VBO / IBO bound as an SSBO (GPU_vertbuf_bind_as_ssbo / GPU_indexbuf_bind_as_ssbo).
+-   * Same group-0 buffer entry as a StorageBuf, keyed by the dense WGSL @binding the
+-   * frontend recorded — the buffer already carries the Storage usage bit
+-   * (wgpu_buffer.cc). */
+-  for (const auto &item : ctx->bound_buffer_ssbos()) {
+-    const webgpu::Buffer *buf = item.second;
+-    if (buf == nullptr || !buf->valid()) {
+-      continue;
+-    }
+-    wgpu::BindGroupEntry entry = {};
+-    entry.binding = uint32_t(item.first);
+-    entry.buffer = buf->handle();
+-    entry.offset = 0;
+-    entry.size = buf->size();
+-    entries.push_back(entry);
+-  }
+-
+-  /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
+-   * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
+-   * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */
+-  WGPUStateManager *sm = static_cast<WGPUStateManager *>(ctx->state_manager);
+-  if (sm != nullptr) {
+-    for (const auto &item : sm->bound_images()) {
+-      webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
+-      if (tex == nullptr) {
+-        continue;
+-      }
+-      wgpu::TextureView view = tex->image_view();
+-      if (view == nullptr) {
+-        continue;
+-      }
+-      wgpu::BindGroupEntry entry = {};
+-      entry.binding = uint32_t(item.first);
+-      entry.textureView = view;
+-      entries.push_back(entry);
+-    }
+-  }
++  /* Every remaining group-0 resource the shader declares — storage buffers,
++   * VBO/IBO-as-SSBO, storage images, and sampled textures + samplers — via the
++   * context's shared builder (filtered by the shader interface). Same assembler the
++   * draw path uses, so a compute shader that samples a texture (Dawn "binding index
++   * N not present") now binds correctly. */
++  ctx->append_resource_bind_entries(shader, entries);
+ 
+   if (entries.empty()) {
+     return false;
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -22,6 +22,8 @@
+ #include "gpu_context_private.hh"
+ #include "gpu_state_private.hh"
+ #include "gpu_vertex_format_private.hh"
++
++#include <vector>
+ 
+ namespace blender::gpu {
+ 
+@@ -108,21 +110,29 @@
+   pass.SetPipeline(pipeline);
+   pass.SetVertexBuffer(0, vbo.handle(), 0);
+ 
+-  /* Bind group 0: the shader's push-constant UBO (uniform colour + matrices). */
+-  if (shader->has_push_constants()) {
+-    shader->push_constants_flush();
+-    const webgpu::Buffer &pc = shader->push_constants_buffer();
+-    if (pc.valid()) {
+-      wgpu::BindGroupEntry entry = {};
+-      entry.binding = shader->push_constants_binding();
+-      entry.buffer = pc.handle();
+-      entry.offset = 0;
+-      entry.size = pc.size();
+-
++  /* Bind group 0: the push-constant UBO (uniform colour + matrices) plus any
++   * declared resources (e.g. an immBindTexture'd image + sampler) via the shared
++   * builder. */
++  {
++    std::vector<wgpu::BindGroupEntry> entries;
++    if (shader->has_push_constants()) {
++      shader->push_constants_flush();
++      const webgpu::Buffer &pc = shader->push_constants_buffer();
++      if (pc.valid()) {
++        wgpu::BindGroupEntry entry = {};
++        entry.binding = shader->push_constants_binding();
++        entry.buffer = pc.handle();
++        entry.offset = 0;
++        entry.size = pc.size();
++        entries.push_back(entry);
++      }
++    }
++    ctx->append_resource_bind_entries(shader, entries);
++    if (!entries.empty()) {
+       wgpu::BindGroupDescriptor bgd = {};
+       bgd.layout = pipeline.GetBindGroupLayout(0);
+-      bgd.entryCount = 1;
+-      bgd.entries = &entry;
++      bgd.entryCount = uint32_t(entries.size());
++      bgd.entries = entries.data();
+       pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+     }
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -66,10 +66,28 @@
+   buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, zeros.data(), n);
+ }
+ 
+-/* Binding is resolved at bind-group / pipeline assembly (wgpu_bind_group, T7),
+- * where the (group,binding) comes from the shader interface map. */
+-void WGPUUniformBuffer::bind(int /*slot*/) {}
++/* Record the binding in the active context's uniform-buffer bind-space; the actual
++ * wgpu::BindGroup is assembled at draw/dispatch time (append_resource_bind_entries).
++ * ensure() the device buffer here so the handle is valid by assembly time, mirroring
++ * WGPUStorageBuffer::bind(). `slot` is the dense WGSL @binding the frontend recorded
++ * (GPU_shader_get_ubo_binding). */
++void WGPUUniformBuffer::bind(int slot)
++{
++  if (!ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx != nullptr) {
++    ctx->uniform_buffer_bind(slot, this);
++  }
++}
+ void WGPUUniformBuffer::bind_as_ssbo(int /*slot*/) {}
+-void WGPUUniformBuffer::unbind() {}
++void WGPUUniformBuffer::unbind()
++{
++  WGPUContext *ctx = active_context();
++  if (ctx != nullptr) {
++    ctx->uniform_buffer_unbind(this);
++  }
++}
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -22,6 +22,8 @@
+ 
+ #include "gpu_shader_private.hh"
+ 
++#include "BLI_map.hh"
++
+ #include "wgpu_buffer.hh"
+ #include "wgpu_shader_compiler.hh"
+ 
+@@ -131,6 +133,18 @@
+   {
+     return multi_viewport_binding_;
+   }
++
++  /* Remap a frontend resource bind slot (the per-resource-type create-info slot
++   * Blender binds at) to the dense group-0 binding the generated WGSL declares. The
++   * WGPU backend flattens all resource classes into one bind group, so a texture at
++   * sampler-slot 0 and an SSBO at storage-slot 0 get distinct dense bindings (0 and,
++   * say, 1). `lookup_default` returns the slot unchanged when it already equals the
++   * dense binding, so a bind that already passes the dense value is unaffected.
++   * Consumed by WGPUContext::append_resource_bind_entries. */
++  int remap_ssbo_binding(int slot) const;
++  int remap_ubo_binding(int slot) const;
++  int remap_sampler_binding(int slot) const;
++  int remap_image_binding(int slot) const;
+ 
+  private:
+   /* Run the BSL preprocessor on a combined stage source (unless skip_preprocessor). */
+@@ -182,6 +196,9 @@
+   uint32_t push_constants_size_ = 0;
+   uint32_t push_constants_binding_ = 0;
+   bool push_constants_dirty_ = false;
++  /* (bind_type<<24 | create-info slot) -> dense group-0 binding (build_dense_bindings),
++   * kept for remap_*_binding. */
++  blender::Map<uint32_t, uint32_t> dense_bindings_;
+ 
+   /* Multi-viewport emulation (M3.F7): whether this shader declares VIEWPORT_INDEX and the
+    * binding of its per-pass (layer, viewport) UBO. Set in build_interface(). */
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2257,15 +2257,43 @@
+   push_constants_data_.assign(push_constants_size_, 0);
+ 
+   /* UBO binding = the dense binding after the last resource (matches
+-   * resources_declare / the ResourceDesc list). */
+-  blender::Map<uint32_t, uint32_t> bindings;
+-  push_constants_binding_ = build_dense_bindings(info, bindings);
++   * resources_declare / the ResourceDesc list). Keep the full (bind_type,slot)->dense
++   * map for remap_*_binding (frontend slot -> dense group-0 binding). */
++  dense_bindings_.clear();
++  push_constants_binding_ = build_dense_bindings(info, dense_bindings_);
+ 
+   /* Multi-viewport emulation pass-state UBO (M3.F7): binding just after the push-constant
+    * fallback, matching the resources_declare formula. */
+   has_multi_viewport_ = flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX);
+   multi_viewport_binding_ = push_constants_binding_ +
+                             (info.push_constants_.is_empty() ? 0u : 1u);
++}
++
++int WGPUShader::remap_ssbo_binding(int slot) const
++{
++  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER)
++                        << 24) |
++                       uint32_t(slot);
++  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
++}
++int WGPUShader::remap_ubo_binding(int slot) const
++{
++  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER)
++                        << 24) |
++                       uint32_t(slot);
++  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
++}
++int WGPUShader::remap_sampler_binding(int slot) const
++{
++  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::SAMPLER) << 24) |
++                       uint32_t(slot);
++  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
++}
++int WGPUShader::remap_image_binding(int slot) const
++{
++  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::IMAGE) << 24) |
++                       uint32_t(slot);
++  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+ }
+ 
+ void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)

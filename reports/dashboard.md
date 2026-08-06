@@ -12,10 +12,10 @@ _The human's only interface (GOAL.md Communication). Every count below is read f
 | Milestone | Status | Receipt |
 |---|---|---|
 | **M0** TOOLCHAIN + ORACLE | DONE | results/m0.json 6/6 @ 2026-08-06T11:40:14Z |
-| **M1** CORE BOOTS + FREE ORACLE | DONE | commit ba34e75 M1.12 wasm-side: corpus state-dump parity 9/9 byte-identical — closes M1_CORE_BOOTS; results/m1.json 5/5 @ 2026-08-06T11:40:22Z |
-| **M2** DEPS + PYTHON BOOTS | DONE | commit 7976b84 harness v1.4: m2b tier-(b) scope installed + re-lock — M2_DEPS_PYTHON gate green; results/m2b.json 4/4 @ 2026-08-06T11:42:43Z |
-| **M3** WEBGPU BACKEND (Dawn) | DONE | commit 52ec8a5 harness v1.5: m3 gate scope installed + first green run — M3_GPU_BACKEND receipts (driver reconcile) |
-| **M4** FIRST PIXELS IN A TAB | IN-PROGRESS | commit 536a8e6 M4 gpu round 16 (M4.T13 FIRST PIXELS): Blender's UI renders in a browser tab — promise tag not yet issued |
+| **M1** CORE BOOTS + FREE ORACLE | DONE | results/m1.json 5/5 @ 2026-08-06T11:40:22Z |
+| **M2** DEPS + PYTHON BOOTS | DONE | results/m2b.json 4/4 @ 2026-08-06T11:42:43Z |
+| **M3** WEBGPU BACKEND (Dawn) | DONE | promise <promise>M3_GPU_BACKEND</promise> recorded (51b3450 driver: audit-2 minors — evidence SPDX sidecars + M3_GPU_BACKEND promise tag recorded in … |
+| **M4** FIRST PIXELS IN A TAB | IN-PROGRESS | commit 536a8e6 M4 gpu round 16 (M4.T13 FIRST PIXELS): Blender's UI renders in a browser tab — no promise tag yet |
 | **M5** INTERACTIVE PARITY | pending | awaiting <promise>M5_INTERACTIVE</promise> |
 | **M6** RENDER PARITY | pending | awaiting <promise>M6_RENDER</promise> |
 | **M7** FILES + PIPELINE | pending | awaiting <promise>M7_FILES</promise> |
@@ -32,8 +32,8 @@ _The human's only interface (GOAL.md Communication). Every count below is read f
 | m1 › corpus state-dump parity | 9/9 | 0 (sha256==MANIFEST, tolerance 0) | `ledger/results/m1.json` | 2026-08-06T11:40:22Z |
 | m2b tier-(b) checks | 4/4 | 0 | `ledger/results/m2b.json` | 2026-08-06T11:42:43Z |
 | m2b › CORE must-pass suites | 64/64 | 0 | `ledger/results/m2b.json` | 2026-08-06T11:42:43Z |
-| gpu gate census (native Dawn) | 148/158 | 10 (8 FAIL / 2 CRASH, all characterized) | `notes/gpu-gate-census.md` | 2026-08-05T23:24:12-04:00 |
-| gpu static_shaders compile | 951/973 | 22 (deferrals/blacklist/census artifacts) | `notes/gpu-gate-census.md` | 2026-08-05T23:24:12-04:00 |
+| gpu gate census (native Dawn) | 148/158 | 10 (8 FAIL / 2 CRASH, all characterized) | `ledger/results/m3.json` | 2026-08-06T11:43:26Z |
+| gpu static_shaders compile | 956/973 | 17 (deferrals/blacklist/census artifacts) | `ledger/results/m3.json` | 2026-08-06T11:43:26Z |
 
 _Dependencies: 27 wasm_built archives harvested + reconciled (`ledger/deps.json`)._
 
@@ -70,8 +70,6 @@ _Dependencies: 27 wasm_built archives harvested + reconciled (`ledger/deps.json`
 ## (d) Recent activity — last 10 `ledger/progress.txt` lines (verbatim)
 
 ```text
-0412052 (ghost) + 0f00678 (gpu patches+series+lane-a mirror 0-drift). REMAINS for M4 cube
-golden: residual depth Float-vs-UnfilterableFloat sampleType mismatch under Dawn auto-layout
 drops overlay depth passes -> viewport interior still ~92% black (faint orange/grey only); the
 clean fix is explicit pipeline layouts from the interface map (backend-controlled sampleType +
 pruned-binding set) — next round. Live capture this session blocked by browser-pane canvas
@@ -80,12 +78,14 @@ composite 28%).
 driver 2026-08-06T16:40Z r19 VERIFIED (0412052/0f00678/91ab4c2; 0101-0102 clean; census held): class-2/3 dead, depth-aspect landed exposing the REAL residual (auto-layout Float vs UnfilterableFloat on depth reads), first-composite now deterministic (28% non-black at boot, zero events). r20 dispatched = explicit pipeline layouts from the interface map (T2-proven pattern) + surface-size determinism + the cube sequence.
 gpu-backend 2026-08-06 M4.T17 round 20 patch 0103 — explicit pipeline layouts from the interface map. Kills the r19 residual (viewport interior ~92% black): Blender's non-comparison depth reads (ImageType::Depth) codegen a PLAIN sampler2D (no GLSL sampler2DDepth) -> Tint texture_2d<f32>; Dawn auto-layout infers filterable Float, an unfilterable depth format is rejected there, overlay depth passes drop. Fix: infer_sample_type(Depth)->UnfilterableFloat (only Shadow stays real Depth); WGPUShader::build_explicit_layout builds one group-0 BGL+PipelineLayout from interface_map_.entries restricted to the @binding(N) that survive Tint pruning (WGSL-scanned, per-binding visibility from the scan) -> binding/visibility-identical to auto, differs ONLY in resource TYPE fields; mv pass-state UBO (0083) added as uniform, any other uncovered binding falls the shader back to auto (logged). wgpu_pipeline.cc + compute_pipeline set desc.layout; 5 draw/dispatch bind-group sites (batch x3, immediate, backend) take the explicit BGL. VERIFIED native Dawn: census held EXACTLY GPUWebGPUTest 148/158 + static_shaders 956/973, zero regressions (non-pass set identical to r19); temp counter confirmed engaged (14 explicit built across blend tests, 0 fallbacks). 0103 reverse-apply clean; lane-a mirror 0-drift (7 files). Commit d9e90f0.
 checkpoint 2026-08-06 reports/checkpoint-20260806.md WRITTEN (5th cadence report, GOAL.md "Budget and cadence"; SPDX CC0). Outcome-first, 119 lines, every number cited to a disk file; burn = tracked wrapper-side, unavailable in-repo (not invented). HEADLINE delta vs HANDOFF-20260805.md ("one draw-validation error from first frames"): M3 PROMISED (m3 gate scope 5/5 GREEN 52ec8a5, census 148/158 notes/gpu-gate-census.md, static_shaders 956/973); Blender UI upright+interactive in a Chrome tab (r16 536a8e6 / r17 f2291fc / r18 6605e98, evidence platform_web/shell/evidence/*.png); M4 cube = last code blocker (residual depth Float-vs-UnfilterableFloat) FIXED native-green this round (patch 0103 r20 d9e90f0, 148/158 + 956/973 held zero-regress) but in-tab cube composite + M4 golden idiff NOT yet driver-verified = verification-open not code-open. Milestone bar verbatim from dashboard.md (4 DONE/1 IN-PROGRESS/4 pending; noted dashboard static cell 951 is one regen behind 956). Receipts table (m0 6/6, m1 5/5 [blenlib 1655/1665, bmesh 1/1, corpus 9/9], m2b 4/4 [CORE 64/64], m3 5/5, census 148/158, static 956/973, 27 deps, 23 deferrals, first-pixels evidence paths). Risk register: M4 cube verification-open; M5-M8 prep banked (m5 sessions 8/8 eda1608, m6 goldens 72/77 1fe4360 + Cycles compile-clean 96e3a0f, m7 OPFS proven b9611cf, -O2/release-link probe in flight); two HUMAN decisions pending (public brand D-7 notes/decisions.md:106-119; wasm64 window ADR-004 resolved-to-wasm64 b75ef36, timing = human call). Projection: M4 days (verification only), M5-M8 weeks (not compressible). Infra note: >=3 kill/restart recoveries survived in-window (693a711, 81734fd, progress 11:07Z+21:40Z Aug-05) zero work lost; HANDOFF-20260805.md records ~8 prior. FILE OWNERSHIP honored: only reports/checkpoint-20260806.md + this append. Read-only on all sources.
+ghost-web 2026-08-06 M4 round 20 (surface-size determinism, direct platform_web commit f19a96c, no patch): configureSurface now QUERIES the canvas drawing-buffer extent (emscripten_get_canvas_element_size) at configure time and configures to THAT (caller size = fallback), idempotent via new configured_ guard — surface tracks the live canvas deterministically, killing the r19 1800x1169-surface vs 1280x720-canvas capture blocker. GHOST_WindowWeb::reconfigureSurface() (new) re-runs it after every canvas resize; called from setClientSize/Width/Height and from on_resize (browser resize) before the WM size event. build-wasm-windowed relinked clean (blender_browser 108s), 3 ghost TUs recompile no new warnings.
+driver 2026-08-06T18:20Z audit-2 VERIFIED (66dba1d, 0-crit/0-major/3-minor, counts independently re-run by auditor): MINOR-1 sidecars fixed this commit; MINOR-2 dashboard fix dispatched; MINOR-3 + UBO-pad-drop queued to next gpu round. Formal record: <promise>M3_GPU_BACKEND</promise> was issued 2026-08-06 with harness receipts (m3 5/5, commit 52ec8a5) — tag recorded here for repo derivability.
 ```
 
 ## (e) Provenance
 
 - gate: green
 - upstream: pinned OK @ fbe6228777e7 (blender-v5.2-release (Blender 5.2 LTS))
-- git HEAD: `dccd175` checkpoint 2026-08-06: 5th cadence report — M3 promised, UI in a tab, cube one verify fro…
-- Generated at: 2026-08-06T17:25:16Z
+- git HEAD: `51b3450` driver: audit-2 minors — evidence SPDX sidecars + M3_GPU_BACKEND promise tag recorded in …
+- Generated at: 2026-08-06T17:39:42Z
 

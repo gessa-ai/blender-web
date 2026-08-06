@@ -80,6 +80,7 @@ def git_date(path):
 m0 = read_json("ledger/results/m0.json")
 m1 = read_json("ledger/results/m1.json")
 m2b = read_json("ledger/results/m2b.json")
+m3 = read_json("ledger/results/m3.json")
 deferred_doc = read_json("ledger/deferred.json")
 deps = read_json("ledger/deps.json")
 census = read_text("notes/gpu-gate-census.md")
@@ -101,25 +102,44 @@ try:
 except Exception:
     pass
 
-# census numbers (parsed, never hardcoded)
+# GPU census + static_shaders numbers (parsed, never hardcoded). Source priority:
+# the harness-authoritative ledger/results/m3.json when present; the hand-maintained
+# notes/gpu-gate-census.md only as a fallback. gpu_src records which was used.
 c_total = c_pass = c_fail = c_crash = ss_pass = ss_total = None
-if census:
-    m = re.search(r"(\d+)\s+tests\b.{0,6}?(\d+)\s+PASS\s*/\s*(\d+)\s+FAIL\s*/\s*(\d+)\s+CRASH", census)
+gpu_src = None
+gpu_when = "unavailable"
+if isinstance(m3, dict) and "checks" in m3:
+    chk = m3["checks"]
+    m = re.search(r"(\d+)\s+PASS\s*/\s*(\d+)\s+FAIL\s*/\s*(\d+)\s+CRASH\s*\((\d+)\s+tests\)",
+                  chk.get("gpu_suite_census", {}).get("detail", "") or "")
     if m:
-        c_total, c_pass, c_fail, c_crash = (int(x) for x in m.groups())
-    m = re.search(r"(\d+)\s*/\s*(\d+)\s+shaders compile", census)
+        c_pass, c_fail, c_crash, c_total = (int(x) for x in m.groups())
+    m = re.search(r"(\d+)\s*/\s*(\d+)\s+compile",
+                  chk.get("static_shaders", {}).get("detail", "") or "")
     if m:
         ss_pass, ss_total = int(m.group(1)), int(m.group(2))
-census_when = git_date("notes/gpu-gate-census.md")
+    if c_pass is not None or ss_pass is not None:
+        gpu_src = "ledger/results/m3.json"
+        gpu_when = m3.get("ts", "unavailable")
+if gpu_src is None:  # fall back to the hand-maintained census note
+    if census:
+        m = re.search(r"(\d+)\s+tests\b.{0,6}?(\d+)\s+PASS\s*/\s*(\d+)\s+FAIL\s*/\s*(\d+)\s+CRASH", census)
+        if m:
+            c_total, c_pass, c_fail, c_crash = (int(x) for x in m.groups())
+        m = re.search(r"(\d+)\s*/\s*(\d+)\s+shaders compile", census)
+        if m:
+            ss_pass, ss_total = int(m.group(1)), int(m.group(2))
+    gpu_src = "notes/gpu-gate-census.md"
+    gpu_when = git_date("notes/gpu-gate-census.md")
 
 # ---------- (a) milestone bar ----------------------------------------------
 # Milestone definitions are fixed config (from GOAL.md); STATUS is derived live
-# from git promise commits, result-JSON pass flags, and census/progress markers.
+# from issued promise tags, result-JSON pass flags, and census/progress markers.
 MILESTONES = [
     ("M0", "TOOLCHAIN + ORACLE",        "M0_TOOLCHAIN",   m0,  None),
     ("M1", "CORE BOOTS + FREE ORACLE",  "M1_CORE_BOOTS",  m1,  None),
     ("M2", "DEPS + PYTHON BOOTS",       "M2_DEPS_PYTHON", m2b, None),
-    ("M3", "WEBGPU BACKEND (Dawn)",     "M3_GPU_BACKEND", None, "census"),
+    ("M3", "WEBGPU BACKEND (Dawn)",     "M3_GPU_BACKEND", m3,  "census"),
     ("M4", "FIRST PIXELS IN A TAB",     "M4_FIRST_PIXELS",None, "FIRST PIXELS"),
     ("M5", "INTERACTIVE PARITY",        "M5_INTERACTIVE", None, None),
     ("M6", "RENDER PARITY",             "M6_RENDER",      None, None),
@@ -127,8 +147,24 @@ MILESTONES = [
     ("M8", "LAUNCH GATE",               "M8_LAUNCH_GATE", None, None),
 ]
 
+RES_SRC = {"M0": "m0.json", "M1": "m1.json", "M2": "m2b.json", "M3": "m3.json"}
+
+def promise_issued(name):
+    """Detect the literal <promise>NAME</promise> tag — NOT a casual mention of the
+    bare tag name in prose or a commit subject. Searches BOTH git commit messages
+    and ledger/progress.txt (the tag may be recorded in either). Returns
+    (where, cite) or (None, None)."""
+    tag = f"<promise>{name}</promise>"
+    c = git("log", "--all", "--fixed-strings", "--grep", tag, "-1", "--format=%h %s")
+    if c:
+        return "git", c
+    if progress and tag in progress:
+        pc = git("log", "--all", "-S", tag, "-1", "--format=%h %s")  # commit that recorded it
+        return "progress", (pc or "ledger/progress.txt")
+    return None, None
+
 def milestone_row(mid, name, promise, results, marker):
-    commit = git("log", "--all", "-1", "--grep", promise, "--format=%h %s")
+    where, cite = promise_issued(promise)
     res_pass = res_frac = None
     if isinstance(results, dict):
         checks = results.get("checks", {})
@@ -136,30 +172,27 @@ def milestone_row(mid, name, promise, results, marker):
         tot = len(checks)
         res_frac = f"{npass}/{tot}"
         res_pass = bool(results.get("pass")) and npass == tot and tot > 0
-    # DONE if a promise commit exists OR the mapped result-JSON passed.
-    if commit or res_pass:
-        status = "DONE"
+    # DONE if the literal promise tag was issued OR the mapped result-JSON passed.
+    if where or res_pass:
         parts = []
-        if commit:
-            parts.append(f"commit {commit}")
+        if where == "git":
+            parts.append(f"promise <promise>{promise}</promise> @ commit {cite}")
+        elif where == "progress":
+            parts.append(f"promise <promise>{promise}</promise> recorded ({cite})")
         if res_frac is not None:
-            src = {"M0": "m0.json", "M1": "m1.json", "M2": "m2b.json"}.get(mid, "results")
-            parts.append(f"results/{src} {res_frac}"
+            parts.append(f"results/{RES_SRC.get(mid, 'results')} {res_frac}"
                          + (f" @ {results.get('ts')}" if results.get("ts") else ""))
-        receipt = "; ".join(parts) or "unavailable"
-        return status, receipt
-    # IN-PROGRESS if a live activity marker resolves.
+        return "DONE", "; ".join(parts) or "unavailable"
+    # IN-PROGRESS if a live activity marker resolves (partial work, no promise yet).
     if marker == "census" and c_pass is not None:
-        status = "IN-PROGRESS"
-        receipt = (f"notes/gpu-gate-census.md gate {c_pass}/{c_total}, "
-                   f"static_shaders {ss_pass}/{ss_total} — promise tag not yet issued")
-        return status, receipt
+        return "IN-PROGRESS", (f"{gpu_src} gate {c_pass}/{c_total}, "
+                               f"static_shaders {ss_pass}/{ss_total} — no promise tag yet")
     if marker and marker != "census":
         commit2 = git("log", "--all", "-1", "--grep", marker, "--format=%h %s")
         if commit2:
-            return "IN-PROGRESS", f"commit {commit2} — promise tag not yet issued"
+            return "IN-PROGRESS", f"commit {commit2} — no promise tag yet"
         if progress and marker in progress:
-            return "IN-PROGRESS", f"ledger/progress.txt: “{marker}” — promise tag not yet issued"
+            return "IN-PROGRESS", f"ledger/progress.txt: “{marker}” — no promise tag yet"
     return "pending", f"awaiting <promise>{promise}</promise>"
 
 mile_rows = [(mid, name, *milestone_row(mid, name, promise, results, marker))
@@ -207,21 +240,21 @@ if c2:
         suite_rows.append(("m2b › CORE must-pass suites", f"{gp}/{gt}", "0",
                            "ledger/results/m2b.json", m2b.get("ts", "unavailable")))
 
-# GPU census + static shaders (parsed from the note)
+# GPU census + static_shaders (source: m3.json when present, else the census note)
 if c_pass is not None:
     suite_rows.append(("gpu gate census (native Dawn)", f"{c_pass}/{c_total}",
                        f"{c_total-c_pass} ({c_fail} FAIL / {c_crash} CRASH, all characterized)",
-                       "notes/gpu-gate-census.md", census_when))
+                       gpu_src, gpu_when))
 else:
     suite_rows.append(("gpu gate census (native Dawn)", "unavailable", "unavailable",
-                       "notes/gpu-gate-census.md", census_when))
+                       gpu_src, gpu_when))
 if ss_pass is not None:
     suite_rows.append(("gpu static_shaders compile", f"{ss_pass}/{ss_total}",
                        f"{ss_total-ss_pass} (deferrals/blacklist/census artifacts)",
-                       "notes/gpu-gate-census.md", census_when))
+                       gpu_src, gpu_when))
 else:
     suite_rows.append(("gpu static_shaders compile", "unavailable", "unavailable",
-                       "notes/gpu-gate-census.md", census_when))
+                       gpu_src, gpu_when))
 
 # ---------- (c) deferral registry ------------------------------------------
 deferrals = []

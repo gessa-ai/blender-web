@@ -548,6 +548,36 @@
       "rationale": "NumPy C-extension + pure-python tree for the embedded CPython 3.13; launch-critical (M7.pre) and the sole blocker on 8 deferred tier-b suites (script_load_addons/modules + 6 sculpt/paint). BSD-3-Clause is GPL-2.0-or-later compatible.",
       "source": "versions.cmake:498 NUMPY_VERSION 2.3.4 (MD5 8717ed1828a8a390c454c6636e91c46a); built by scripts/deps/numpy.sh",
       "notes": "Static shape (a): 13 production C-ext modules cross-compiled with emcc 6.0.5 (JS-EH, -matomics -mbulk-memory) via numpy's vendored meson + emscripten cross file, allow-noblas + disable-optimization/threading, ZERO source patches (Pyodide also patches nothing since the meson migration). Combined -> lib/wasm/lib/libnumpy.a (dedup shared f2c lapack-lite); pure tree at lib/wasm/lib/python3.13/site-packages/numpy. Import gate GREEN in a standalone libpython embed under node (numpy.array([1,2,3]).sum()==6; harvested-artifact + site-packages auto-import re-verified). Driver follow-up: register the 13 PyInit_* in bpy_interface.cc inittab + link libnumpy.a into blender.js, then flip NUMPY_HARVESTED=1 (scope_m2b). 1 benign wasm sig warning (random_multinomial, LP32) \u2014 only affects np.random.multinomial(large n). See notes/deps-numpy.md."
+    },
+    "cattrs": {
+      "version": "25.1.1",
+      "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "hash": "sha256:1b40b2d3402af7be79a7e7e097a9b4cd16d4c06e6d526644b0b26a063a1cc064",
+      "source": "versions.cmake:444 CATTRS_VERSION 25.1.1; native installs it via build_files/build_environment/cmake/python_site_packages.cmake:35-58 (pip install --no-binary :all: into the bundled python's site-packages). Wasm mirror: scripts/deps/wheels.sh fetches the pinned py3-none-any wheel from PyPI (SHA-256 verified) and extracts it into lib/wasm/lib/python3.13/site-packages/.",
+      "rationale": "bl_pkg (the extensions system) register imports cattrs on the windowed browser boot: _bpy_internal/http/downloader.py:51-52 and _bpy_internal/assets/remote_library/json_parsing.py:16-17 do `import cattrs` + `import cattrs.preconf.json`. Absent, register raises ModuleNotFoundError('No module named cattrs') and Blender pops the asset-library recovery dialog (M4 first-pixels golden pollution) — the next import in downloader.py right after the multiprocessing.synchronize gap the mp shim already closed. Pure-python (zero compiled .so, verified against the oracle's shipped tree); MIT is GPL-2.0-or-later compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/{cattr,cattrs} + cattrs-25.1.1.dist-info. Runtime deps: attrs (>=24.3.0) and typing_extensions (>=4.12.2, unconditional) — both harvested below; exceptiongroup is required only for python_version < '3.11' so N/A on 3.13 (confirmed absent from the oracle site-packages). These are byte-equivalent to what native Blender 5.2.0 ships (--no-binary sdist build == py3-none-any wheel for a pure-python package; same versions as the oracle). Verified: host CPython 3.13.13 AND a wasm CPython 3.13.13 node embed (build-python-probe/build-jseh, harvested site-packages NODEFS-mounted) both import cattrs + cattrs.preconf.json and complete a make_converter().loads(dumps()) attrs round-trip, all resolving from the harvested tree. scripts/deps/wheels.sh is idempotent (2nd run ~0s) + additive: it touches only the 8 paths it owns and preserves site-packages/numpy + the stdlib _multiprocessing shim (the e3c8158 protections)."
+    },
+    "attrs": {
+      "version": "25.3.0",
+      "status": "ok",
+      "license": "MIT",
+      "gpl_compatible": true,
+      "hash": "sha256:427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3",
+      "source": "versions.cmake:443 ATTRS_VERSION 25.3.0; native via python_site_packages.cmake:52 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/{attr,attrs}.",
+      "rationale": "cattrs' required runtime dependency (cattrs METADATA: Requires-Dist attrs>=24.3.0); cattrs imports attr/attrs internally. Provides the attr/ (classic) + attrs/ (modern) namespaces. Pure-python (zero .so); MIT is GPL-2.0-or-later compatible.",
+      "notes": "Extracted into lib/wasm/lib/python3.13/site-packages/{attr,attrs} + attrs-25.3.0.dist-info. Byte-equivalent to native Blender 5.2.0's shipped attrs. Installed by scripts/deps/wheels.sh alongside cattrs; import-verified in host + wasm CPython 3.13.13 (see cattrs)."
+    },
+    "typing_extensions": {
+      "version": "4.14.1",
+      "status": "ok",
+      "license": "PSF-2.0",
+      "gpl_compatible": true,
+      "hash": "sha256:d1e1e3b58374dc93031d6eda2420a48ea44a36c2b4766a4fdeb3710755731d76",
+      "source": "versions.cmake:446 TYPING_EXTENSIONS_VERSION 4.14.1; native via python_site_packages.cmake:55 (pip --no-binary :all:). Wasm mirror: scripts/deps/wheels.sh (pinned py3-none-any wheel, SHA-256 verified) -> lib/wasm/lib/python3.13/site-packages/typing_extensions.py.",
+      "rationale": "cattrs' unconditional required dependency (cattrs METADATA: Requires-Dist typing-extensions>=4.12.2). Single-module pure-python (typing_extensions.py). PSF-2.0 is FSF-certified GPL-compatible — the same license family as CPython itself (already a wasm_built dep).",
+      "notes": "Installed as lib/wasm/lib/python3.13/site-packages/typing_extensions.py + typing_extensions-4.14.1.dist-info by scripts/deps/wheels.sh. Byte-equivalent to native Blender 5.2.0's shipped copy; import-verified in host + wasm CPython 3.13.13 (see cattrs)."
     }
   },
   "toolchain": {

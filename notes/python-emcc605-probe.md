@@ -345,3 +345,48 @@ syms 2850 → 2870; `Hacl_Hash_SHA3` syms = 36. `scripts/deps/python.sh` stays i
 and the harvest now ends in a single `rename(2)` **atomic swap** of the `.a` (a concurrent gpu
 relink of `build-wasm-windowed` reads the old file until that instant). `bl_pkg`/`upstream`
 untouched.
+
+---
+
+# M4.python-debt (cont.) — `cattrs` for bl_pkg register (2026-08-06)
+
+The **next** import after the mp shim on the same `bl_pkg` register boot path fails:
+`_bpy_internal/http/downloader.py:51-52` does `import cattrs` / `import cattrs.preconf.json`
+(and `_bpy_internal/assets/remote_library/json_parsing.py:16-17` the same), right after the
+line-49 `from multiprocessing.synchronize import Event` the shim fixed. Absent →
+`ModuleNotFoundError: No module named 'cattrs'` → register aborts → asset-library recovery
+dialog (M4 first-pixels golden pollution). Measured in the r20 windowed boot (gpu-backend
+progress entry: "cattrs ModuleNotFoundError aborting bl_pkg register").
+
+**Unlike the hash exts / `_multiprocessing`, this is NOT a libpython problem** — `cattrs` and
+its deps are **pure-python** (zero compiled `.so`, verified against the oracle's shipped
+`site-packages`), so nothing links into `libpython3.13.a`. They are just files on `sys.path`.
+
+**Native mechanism:** the superbuild `pip install --no-binary :all:` installs `attrs` +
+`cattrs` (+ the whole extras list) into the bundled python's `site-packages`
+(`build_files/build_environment/cmake/python_site_packages.cmake:35-58`; versions at
+`versions.cmake:443-446`). For a pure-python package the `--no-binary` sdist build and the
+`py3-none-any` wheel yield byte-equivalent modules.
+
+**Wasm mirror:** new `scripts/deps/wheels.sh` — fetches the SAME pinned versions' pure-python
+wheels from PyPI (version + **SHA-256** pinned & verified, like python.sh pins the tarball
+MD5) and extracts them additively into `lib/wasm/lib/python3.13/site-packages/`:
+- `attrs 25.3.0` (MIT) → `attr/` `attrs/`
+- `cattrs 25.1.1` (MIT) → `cattr/` `cattrs/`  (needs the two below)
+- `typing_extensions 4.14.1` (PSF-2.0) → `typing_extensions.py`  (cattrs unconditional dep)
+`exceptiongroup` is cattrs' `python_version < '3.11'`-only dep → **N/A on 3.13** (absent from
+the oracle too). The script is idempotent (2nd run ~0s) and **additive** — it swaps only the
+8 paths it owns via per-package `rename(2)`, preserving `site-packages/numpy` + the stdlib
+`_multiprocessing.py` shim (the e3c8158 protections). Payload is gitignored like `numpy/`; the
+recipe is the committed artifact and the tree rides into the gpu worker's next `.data` regen.
+
+**Verification (both pass):**
+- host CPython **3.13.13** with only the harvested tree prepended to `sys.path`: `import
+  cattrs, cattrs.preconf.json, attrs, attr, cattr, typing_extensions` + a
+  `make_converter().loads(dumps())` attrs round-trip, every module `__file__` under the
+  harvested tree.
+- **wasm** CPython 3.13.13 node embed (`build-python-probe/build-jseh/python.js`, harvested
+  `site-packages` **NODEFS-mounted** at `/sp`): same import chain + round-trip →
+  `WASM_IMPORT_OK`. (For pure-python the host test is already authoritative since import
+  resolution/bytecode are platform-independent; the wasm embed confirms it end-to-end.)
+- `harness/run.sh --scope m2b` stays **4/4** (core_green 64/64 — numpy preserved).

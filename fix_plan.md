@@ -333,14 +333,26 @@ backend selection, GPU_context_create). Two blockers fixed in-lane: **-sJSPI dro
 replace suspension) and patch 0065 (missing per-module WITH_WEBGPU_BACKEND define in
 windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, server :8123.
 
-- [ ] **M4.T10 [emdawnwebgpu-port worker]** THE windowed gate: emdawnwebgpu
-  `RefCounted::AddRef` → `std::atomic<uint64_t>::fetch_add` →
-  `RuntimeError: operation does not support unaligned accesses` (wasm32 i64 atomic RMW
-  needs 8-byte alignment; refcount lands misaligned) at first `wgpuInstanceAddRef` in
-  `WGPUContext` ctor. Root-cause the misalignment (why does the harness main-thread
-  profile NOT hit it?), minimal fix (vendored port / alignas), verify harness stays green
-  + windowed boot advances into the device await (the next unknown after this).
-  DISPATCHED.
+- [x] **M4.T10 RESULT (a1011f0, driver-verified 0066 clean):** dispatch premise WRONG — not a
+  port alignment bug. Real causes: (1) wgpu_context.cc cast ghost context to NATIVE
+  GHOST_ContextWGPU → read std::string SSO bytes as instance ptr (patch 0066,
+  `__EMSCRIPTEN__ && !WITH_HEADLESS` seam — NOT WITH_GHOST_WEB, that define never reaches
+  bf_gpu); (2) GHOST_WindowWeb ctor never called setDrawingContextType. Port AS-IS, nothing
+  vendored. Boot now RUNS initializeDrawingContext → next gate below.
+- [ ] **M4.T11 [ghost-web worker]** THE windowed gate now: device await under ADR-006.
+  Port facts (characterized): TimedWaitAny-featured CreateInstance returns NULL without
+  asyncify/JSPI (webgpu.cpp:1643); WaitAny(...,0) asyncify-free = abort(TODO); a blocked
+  worker cannot resolve its own JS promises (Atomics.wait stops that worker's event loop) —
+  so same-thread blocking waits on WebGPU JS objects are structurally impossible without
+  JSPI. **DRIVER DIRECTION: option-(a) family** — device acquired ASYNC where an unblocked
+  event loop exists (main thread pre-main in boot-windowed.js via Module, and/or async-mode
+  instance + ProcessEvents pumping), delivered to the WM worker's GHOST context before
+  initializeDrawingContext needs it; bounded (b)-hybrid acceptable (deferred context
+  finalize) if the port's cross-thread import demands it; (c) JSPI-reversal REJECTED
+  (ADR-006 stands). Worker probes the pinned port's ACTUAL capabilities (cross-thread
+  import? ProcessEvents callback delivery? WebGPU-in-worker table ownership?) and lands the
+  minimal boot path; findings feed ADR-007 (driver writes it from empirical results).
+  NOTE: same knot governs F9-D readbacks — report what the port offers there too.
 - [x] **M3.F6 [gpu-backend laneA r10]** DONE (0055-0058, b0c94ce/fd007d8/cc3f34c/7b9ea5a, all
   reverse-apply clean): imm wiring → immediate 2/2; compute_dispatch real (pipeline cached ON
   WGPUShader — pointer-keyed pool rejected as stale-address bug) → push_constants **10/10**;

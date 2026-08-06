@@ -1,0 +1,35 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -768,6 +768,31 @@
+   }
+   ss << "\n";
+ 
++  /* Compute shared variables. A GLSL `shared` global lowers through shaderc to a
++   * SPIR-V Workgroup-storage variable, which Tint reads into WGSL `var<workgroup>` --
++   * WGSL's workgroup address space is the faithful target, so once declared the
++   * translation chain carries it with no further work. Deferred into the per-create-info
++   * CREATE_INFO_RES_SHARED_VARS_<info> placeholder macro (the shader-translation tool
++   * emits the matching `#ifdef CREATE_INFO_RES_SHARED_VARS_<name>` in the resolved
++   * source: shader_tool/processor.cc:383) exactly like the resource-frequency blocks
++   * below, mirroring vk_shader.cc:803-811. The variable name carries its array dimensions
++   * (e.g. "block[gl_WorkGroupSize.x][gl_WorkGroupSize.y]"), so gl_WorkGroupSize must be in
++   * scope where the placeholder expands -- it is, because that placeholder follows the
++   * compute layout(local_size) declaration. Without this every `shared`-variable
++   * reference is an "undeclared identifier" at the shaderc front end (the compositor
++   * parallel-reduction, summed-area-table and EEVEE reduction / tilemap compute set). */
++  {
++    StringRefNull active_info = "";
++    for (const ShaderCreateInfo::SharedVariable &sv : info.shared_variables_) {
++      if (assign_if_different(active_info, sv.info_name)) {
++        ss << "\n#define CREATE_INFO_RES_SHARED_VARS_" << sv.info_name << " \\\n";
++      }
++      ss << "shared " << to_string(sv.type) << " " << sv.name << ";";
++      ss << " \\\n";
++    }
++    ss << "\n";
++  }
++
+   blender::Map<uint32_t, uint32_t> bindings;
+   const uint32_t resource_count = build_dense_bindings(info, bindings);
+   /* Resource declarations are deferred into the per-create-info placeholder macros so

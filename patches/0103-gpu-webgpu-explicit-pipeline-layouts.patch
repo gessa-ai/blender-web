@@ -1,0 +1,344 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 8fb36c9..b764dda 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -143,7 +143,10 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+     return false;
+   }
+ 
+-  r_bind_group = ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries);
++  const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                        shader->explicit_bind_group_layout() :
++                                        pipeline.GetBindGroupLayout(0);
++  r_bind_group = ctx->create_bind_group_checked(bgl, entries);
+   return true;
+ }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index a374aca..0844a96 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -156,8 +156,10 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+           pc.size = shader->push_constants_buffer().size();
+           entries.push_back(pc);
+         }
+-        mv_pass.SetBindGroup(0,
+-                             ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
++        const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
++                                                 shader->explicit_bind_group_layout() :
++                                                 pipeline.GetBindGroupLayout(0);
++        mv_pass.SetBindGroup(0, ctx->create_bind_group_checked(mv_bgl, entries));
+ 
+         if (elem != nullptr) {
+           WGPUIndexBuffer *wibo = unwrap(elem);
+@@ -213,7 +215,10 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
++      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                            shader->explicit_bind_group_layout() :
++                                            pipeline.GetBindGroupLayout(0);
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
+     }
+   }
+ 
+@@ -329,7 +334,10 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
++      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                            shader->explicit_bind_group_layout() :
++                                            pipeline.GetBindGroupLayout(0);
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index ecd8c1b..375fc86 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -130,7 +130,10 @@ void WGPUImmediate::end()
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
++      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                            shader->explicit_bind_group_layout() :
++                                            pipeline.GetBindGroupLayout(0);
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+index f23400d..905e540 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -237,7 +237,11 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
+   }
+ 
+   wgpu::RenderPipelineDescriptor desc = {};
+-  desc.layout = nullptr; /* auto layout — inferred from the WGSL modules (Tint output). */
++  /* Explicit group-0 layout when the shader has full interface-map coverage — its
++   * resource types (depth reads as UnfilterableFloat, sampler/comparison, view dim) are
++   * correct where Dawn's WGSL-inferred auto layout is not. Fall back to auto layout for
++   * a shader that logged incomplete coverage (never a silent per-binding mix). */
++  desc.layout = shader->has_explicit_layout() ? shader->explicit_pipeline_layout() : nullptr;
+   desc.vertex = vertex;
+   desc.primitive = primitive;
+   desc.depthStencil = has_depth ? &depth_stencil : nullptr;
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 4be6c0f..fac5104 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2169,6 +2169,12 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
+   /* Build the name→location interface + push-constant std140 layout (needed for
+    * uniform_* and for lane B's bind-group assembly). */
+   build_interface(*info);
++
++  /* Build the explicit group-0 layout from the interface map, pruned to the WGSL's
++   * surviving bindings (needs has_multi_viewport_ / multi_viewport_binding_ from
++   * build_interface). Failure here just leaves has_explicit_layout() false -> the
++   * draw/compute paths keep Dawn's auto layout. */
++  build_explicit_layout(device, result.vertex_wgsl, result.fragment_wgsl, result.compute_wgsl);
+   return true;
+ }
+ 
+@@ -2229,7 +2235,9 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
+   }
+ 
+   wgpu::ComputePipelineDescriptor desc = {};
+-  desc.layout = nullptr; /* auto layout — inferred from the compute WGSL (Tint output). */
++  /* Explicit group-0 layout (interface-map-derived, correct resource types) when the
++   * shader has full coverage; else Dawn's auto layout inferred from the compute WGSL. */
++  desc.layout = has_explicit_layout() ? explicit_pipeline_layout() : nullptr;
+   desc.compute.module = compute_module_;
+   /* Tint names the compute entry point "main" (from the GLSL main); the standalone
+    * T7.pre proof created its compute pipeline with the same explicit entry point. */
+@@ -2241,6 +2249,133 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
+   return pipeline;
+ }
+ 
++/* -------------------------------------------------------------------------- */
++/** \name Explicit pipeline layout
++ * \{ */
++
++/* Scan an emitted WGSL stage for its surviving `@binding(N)` (group 0 by the backend's
++ * single-set design), OR-ing `stage_bit` into r_survivors[N]. Tint prunes unused
++ * module-scope resources, so the union across the present stages is exactly the binding
++ * set Dawn's auto layout would expose — reused here as the explicit layout's binding set
++ * AND its per-binding visibility, so the explicit layout is binding-/visibility-identical
++ * to the auto layout and differs only in the resource TYPE fields (which is the point). */
++static void scan_wgsl_bindings(const std::string &wgsl,
++                               uint32_t stage_bit,
++                               blender::Map<uint32_t, uint32_t> &r_survivors)
++{
++  static const char kTok[] = "@binding(";
++  const size_t kLen = sizeof(kTok) - 1;
++  size_t pos = 0;
++  while ((pos = wgsl.find(kTok, pos)) != std::string::npos) {
++    size_t i = pos + kLen;
++    uint32_t value = 0;
++    bool any = false;
++    while (i < wgsl.size() && wgsl[i] >= '0' && wgsl[i] <= '9') {
++      value = value * 10u + uint32_t(wgsl[i] - '0');
++      any = true;
++      i++;
++    }
++    if (any) {
++      r_survivors.add_overwrite(value, r_survivors.lookup_default(value, 0u) | stage_bit);
++    }
++    pos = i;
++  }
++}
++
++void WGPUShader::build_explicit_layout(const wgpu::Device &device,
++                                       const std::string &vertex_wgsl,
++                                       const std::string &fragment_wgsl,
++                                       const std::string &compute_wgsl)
++{
++  explicit_layout_ok_ = false;
++  explicit_entries_.clear();
++  if (device == nullptr) {
++    return;
++  }
++
++  blender::Map<uint32_t, uint32_t> survivors;
++  scan_wgsl_bindings(vertex_wgsl, uint32_t(wgi::STAGE_VERTEX), survivors);
++  scan_wgsl_bindings(fragment_wgsl, uint32_t(wgi::STAGE_FRAGMENT), survivors);
++  scan_wgsl_bindings(compute_wgsl, uint32_t(wgi::STAGE_COMPUTE), survivors);
++
++  auto to_visibility = [](uint32_t mask) {
++    wgpu::ShaderStage v = wgpu::ShaderStage::None;
++    if (mask & uint32_t(wgi::STAGE_VERTEX)) {
++      v |= wgpu::ShaderStage::Vertex;
++    }
++    if (mask & uint32_t(wgi::STAGE_FRAGMENT)) {
++      v |= wgpu::ShaderStage::Fragment;
++    }
++    if (mask & uint32_t(wgi::STAGE_COMPUTE)) {
++      v |= wgpu::ShaderStage::Compute;
++    }
++    return v;
++  };
++
++  std::vector<wgpu::BindGroupLayoutEntry> entries;
++  entries.reserve(survivors.size());
++  for (auto item : survivors.items()) {
++    const uint32_t binding = item.key;
++    const wgpu::ShaderStage vis = to_visibility(item.value);
++
++    /* Prefer the interface-map entry (correct sampleType / sampler.type / view dim /
++     * buffer.type); override visibility with the WGSL-measured stage set. */
++    const wgpu::BindGroupLayoutEntry *src = nullptr;
++    for (const wgpu::BindGroupLayoutEntry &e : interface_map_.entries) {
++      if (e.binding == binding) {
++        src = &e;
++        break;
++      }
++    }
++    if (src != nullptr) {
++      wgpu::BindGroupLayoutEntry e = *src;
++      e.visibility = vis;
++      entries.push_back(e);
++      continue;
++    }
++    /* The one codegen-injected binding not in the interface map: the multi-viewport
++     * pass-state UBO (patch 0083), a plain uniform buffer. */
++    if (has_multi_viewport_ && binding == multi_viewport_binding_) {
++      wgpu::BindGroupLayoutEntry e = {};
++      e.binding = binding;
++      e.visibility = vis;
++      e.buffer.type = wgpu::BufferBindingType::Uniform;
++      entries.push_back(e);
++      continue;
++    }
++    /* Any other uncovered binding means the interface map does not describe this
++     * shader's real WGSL. Do NOT guess — fall back to Dawn's auto layout for the whole
++     * shader (loud, so an unexpected codegen-injected resource is caught, not masked). */
++    CLOG_WARN(&LOG,
++              "WGPUShader '%s': WGSL @binding(%u) not covered by interface map; auto layout",
++              name_get().c_str(),
++              binding);
++    return;
++  }
++
++  wgpu::BindGroupLayoutDescriptor bgld = {};
++  bgld.entryCount = entries.size();
++  bgld.entries = entries.empty() ? nullptr : entries.data();
++  wgpu::BindGroupLayout bgl = device.CreateBindGroupLayout(&bgld);
++  if (bgl == nullptr) {
++    return;
++  }
++  wgpu::PipelineLayoutDescriptor pld = {};
++  pld.bindGroupLayoutCount = 1;
++  pld.bindGroupLayouts = &bgl;
++  wgpu::PipelineLayout pl = device.CreatePipelineLayout(&pld);
++  if (pl == nullptr) {
++    return;
++  }
++
++  explicit_entries_ = std::move(entries);
++  explicit_bgl_ = bgl;
++  explicit_pipeline_layout_ = pl;
++  explicit_layout_ok_ = true;
++}
++
++/** \} */
++
+ /* -------------------------------------------------------------------------- */
+ /** \name Push-constant UBO plumbing
+  * \{ */
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+index b60cd19..0dbc37a 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -97,6 +97,30 @@ class WGPUShader : public Shader {
+     return interface_map_;
+   }
+ 
++  /* ---- Explicit pipeline layout (M4.T17) ----------------------------------
++   * Dawn's auto layout infers a WGSL resource's binding type purely from the WGSL
++   * (e.g. `texture_2d<f32>` -> filterable Float), which is WRONG for the depth
++   * textures Blender reads through a plain `sampler2D` (they are unfilterable) and
++   * cannot express the sampler/view-dimension distinctions the interface map knows.
++   * finalize() builds an EXPLICIT group-0 bind-group layout from the interface map,
++   * restricted to the bindings that actually survive Tint's pruning (scanned from the
++   * emitted WGSL) so the layout is binding-set- and visibility-identical to the auto
++   * layout, differing only where the auto layout is wrong. has_explicit_layout() is
++   * false (and the draw/compute paths fall back to the auto layout) if any surviving
++   * WGSL binding is not covered by the interface map — never a silent mix. */
++  bool has_explicit_layout() const
++  {
++    return explicit_layout_ok_;
++  }
++  const wgpu::BindGroupLayout &explicit_bind_group_layout() const
++  {
++    return explicit_bgl_;
++  }
++  const wgpu::PipelineLayout &explicit_pipeline_layout() const
++  {
++    return explicit_pipeline_layout_;
++  }
++
+   /* ---- Push-constant UBO surface (for lane B's bind-group assembly) --------
+    * WebGPU has no push constants; the create-info push-constant block is emulated
+    * as a std140 UBO whose binding is `push_constants_binding()`. uniform_float /
+@@ -182,6 +206,14 @@ class WGPUShader : public Shader {
+   /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
+   webgpu::InterfaceMap interface_map_;
+ 
++  /* Explicit group-0 layout built from interface_map_ post-compile, pruned to the
++   * WGSL-surviving binding set (see has_explicit_layout()). Created in finalize() on
++   * the async compile worker via the shared backend device; read at draw/dispatch. */
++  std::vector<wgpu::BindGroupLayoutEntry> explicit_entries_;
++  wgpu::BindGroupLayout explicit_bgl_;
++  wgpu::PipelineLayout explicit_pipeline_layout_;
++  bool explicit_layout_ok_ = false;
++
+   /* Push-constant emulation. `push_constants_` maps a uniform location (base
+    * 1024 + i, as the interface assigns) to its std140 byte offset + size; the CPU
+    * shadow is `push_constants_data_`, uploaded to `push_constants_buffer_`. */
+@@ -211,6 +243,14 @@ class WGPUShader : public Shader {
+   /** Build the interface + push-constant layout from the create-info. */
+   void build_interface(const shader::ShaderCreateInfo &info);
+ 
++  /** Build explicit_entries_ / explicit_bgl_ / explicit_pipeline_layout_ from
++   * interface_map_, restricted to the @group(0) @binding(N) that survive Tint's
++   * pruning across the emitted WGSL stages. Sets explicit_layout_ok_. */
++  void build_explicit_layout(const wgpu::Device &device,
++                             const std::string &vertex_wgsl,
++                             const std::string &fragment_wgsl,
++                             const std::string &compute_wgsl);
++
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShader")
+ };
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+index 6f07a44..5816884 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+@@ -29,9 +29,20 @@ wgpu::TextureSampleType infer_sample_type(TexelClass texel, bool filtering)
+     case TexelClass::Int:
+       return wgpu::TextureSampleType::Sint;
+     case TexelClass::Depth:
++      /* Blender declares a non-comparison depth read as `ImageType::Depth{n}`, but its
++       * GLSL codegen (print_image_type) emits a PLAIN `sampler{n}` for it — GLSL has no
++       * `sampler2DDepth` keyword — so Tint emits `texture_{n}<f32>`, NOT
++       * `texture_depth_{n}`. A depth-format texture bound to that `texture_2d<f32>` slot
++       * is UNFILTERABLE (depth formats are never filterable), so the sample type must be
++       * UnfilterableFloat; a `Float` (filterable) slot rejects the depth view — the exact
++       * residual that drops every overlay/workbench depth-read pass under Dawn auto-layout
++       * (which blindly infers filterable Float for texture_2d<f32>). Only `Shadow`
++       * (comparison, `sampler{n}Shadow` -> `texture_depth_{n}`) is a real depth sample
++       * type. */
++      return wgpu::TextureSampleType::UnfilterableFloat;
+     case TexelClass::Shadow:
+-      /* Tint emits texture_depth_2d for both; the sampler type distinguishes
+-       * plain fetch (NonFiltering/Filtering) from compare (Comparison). */
++      /* Tint emits texture_depth_{n} for the comparison sampler; the paired
++       * sampler_comparison distinguishes it (see infer_sampler_type). */
+       return wgpu::TextureSampleType::Depth;
+   }
+   return wgpu::TextureSampleType::Float;

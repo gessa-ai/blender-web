@@ -192,4 +192,24 @@
 # Float-vs-Depth sampleType mismatch under Dawn auto-layout is characterized in
 # notes/gpu-laneB-integration.md (needs explicit pipeline layouts, deferred).
 0102-gpu-webgpu-depth-sampled-view-aspect.patch
+# 0103 (M4.T17, round 20) explicit pipeline layouts from the interface map. Closes the
+# residual 0102 left: Dawn's auto layout infers filterable Float for every texture_2d<f32>,
+# but Blender's non-comparison depth reads (ImageType::Depth{n}) codegen a PLAIN sampler2D
+# (GLSL has no sampler2DDepth) -> Tint texture_2d<f32> over an UNFILTERABLE depth format ->
+# a Float slot rejects the view -> every overlay/workbench depth-read pass drops. Fix:
+# (a) infer_sample_type(Depth) -> UnfilterableFloat (only Shadow is a real depth sample
+# type); (b) WGPUShader::build_explicit_layout builds ONE group-0 BindGroupLayout +
+# PipelineLayout from interface_map_.entries, restricted to the @binding(N) that survive
+# Tint's pruning (scanned from the emitted WGSL, per-binding visibility from the same scan)
+# so the layout is binding-/visibility-identical to the auto layout and differs only in the
+# resource TYPE fields; the multi-viewport pass-state UBO (patch 0083, codegen-injected, not
+# in the map) is added as a uniform entry, any OTHER uncovered binding falls the whole shader
+# back to auto layout (logged, never a silent per-binding mix). wgpu_pipeline.cc (render) +
+# WGPUShader::compute_pipeline set desc.layout to the explicit layout; the 5 draw/dispatch
+# bind-group sites (batch x3, immediate, backend-compute) take the explicit BGL when present.
+# Same-file note: 0103 touches wgpu_shader.cc (0083/0086/0090/etc region-disjoint), wgpu_
+# batch.cc (0083/0093 disjoint), wgpu_pipeline.cc (0096 disjoint), wgpu_immediate.cc, wgpu_
+# backend.cc, wgpu_shader.hh, wgpu_shader_interface_map.cc — reverse-apply verified against
+# the live tree. Census held EXACTLY 148/158 GPUWebGPUTest + static_shaders 956/973.
+0103-gpu-webgpu-explicit-pipeline-layouts.patch
 0120-asset-system-wasm.patch

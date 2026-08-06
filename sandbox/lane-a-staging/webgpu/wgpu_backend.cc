@@ -143,7 +143,10 @@ static bool build_compute_bind_group(WGPUContext *ctx,
     return false;
   }
 
-  r_bind_group = ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries);
+  const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                        shader->explicit_bind_group_layout() :
+                                        pipeline.GetBindGroupLayout(0);
+  r_bind_group = ctx->create_bind_group_checked(bgl, entries);
   return true;
 }
 

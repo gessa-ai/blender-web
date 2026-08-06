@@ -237,7 +237,11 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
   }
 
   wgpu::RenderPipelineDescriptor desc = {};
-  desc.layout = nullptr; /* auto layout — inferred from the WGSL modules (Tint output). */
+  /* Explicit group-0 layout when the shader has full interface-map coverage — its
+   * resource types (depth reads as UnfilterableFloat, sampler/comparison, view dim) are
+   * correct where Dawn's WGSL-inferred auto layout is not. Fall back to auto layout for
+   * a shader that logged incomplete coverage (never a silent per-binding mix). */
+  desc.layout = shader->has_explicit_layout() ? shader->explicit_pipeline_layout() : nullptr;
   desc.vertex = vertex;
   desc.primitive = primitive;
   desc.depthStencil = has_depth ? &depth_stencil : nullptr;

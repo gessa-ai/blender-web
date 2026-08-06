@@ -22,6 +22,8 @@
 
 #include "gpu_shader_private.hh"
 
+#include "BLI_map.hh"
+
 #include "wgpu_buffer.hh"
 #include "wgpu_shader_compiler.hh"
 
@@ -95,6 +97,30 @@ class WGPUShader : public Shader {
     return interface_map_;
   }
 
+  /* ---- Explicit pipeline layout (M4.T17) ----------------------------------
+   * Dawn's auto layout infers a WGSL resource's binding type purely from the WGSL
+   * (e.g. `texture_2d<f32>` -> filterable Float), which is WRONG for the depth
+   * textures Blender reads through a plain `sampler2D` (they are unfilterable) and
+   * cannot express the sampler/view-dimension distinctions the interface map knows.
+   * finalize() builds an EXPLICIT group-0 bind-group layout from the interface map,
+   * restricted to the bindings that actually survive Tint's pruning (scanned from the
+   * emitted WGSL) so the layout is binding-set- and visibility-identical to the auto
+   * layout, differing only where the auto layout is wrong. has_explicit_layout() is
+   * false (and the draw/compute paths fall back to the auto layout) if any surviving
+   * WGSL binding is not covered by the interface map — never a silent mix. */
+  bool has_explicit_layout() const
+  {
+    return explicit_layout_ok_;
+  }
+  const wgpu::BindGroupLayout &explicit_bind_group_layout() const
+  {
+    return explicit_bgl_;
+  }
+  const wgpu::PipelineLayout &explicit_pipeline_layout() const
+  {
+    return explicit_pipeline_layout_;
+  }
+
   /* ---- Push-constant UBO surface (for lane B's bind-group assembly) --------
    * WebGPU has no push constants; the create-info push-constant block is emulated
    * as a std140 UBO whose binding is `push_constants_binding()`. uniform_float /
@@ -132,6 +158,18 @@ class WGPUShader : public Shader {
     return multi_viewport_binding_;
   }
 
+  /* Remap a frontend resource bind slot (the per-resource-type create-info slot
+   * Blender binds at) to the dense group-0 binding the generated WGSL declares. The
+   * WGPU backend flattens all resource classes into one bind group, so a texture at
+   * sampler-slot 0 and an SSBO at storage-slot 0 get distinct dense bindings (0 and,
+   * say, 1). `lookup_default` returns the slot unchanged when it already equals the
+   * dense binding, so a bind that already passes the dense value is unaffected.
+   * Consumed by WGPUContext::append_resource_bind_entries. */
+  int remap_ssbo_binding(int slot) const;
+  int remap_ubo_binding(int slot) const;
+  int remap_sampler_binding(int slot) const;
+  int remap_image_binding(int slot) const;
+
  private:
   /* Run the BSL preprocessor on a combined stage source (unless skip_preprocessor). */
   std::string preprocess(const std::string &combined) const;
@@ -168,6 +206,14 @@ class WGPUShader : public Shader {
   /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
   webgpu::InterfaceMap interface_map_;
 
+  /* Explicit group-0 layout built from interface_map_ post-compile, pruned to the
+   * WGSL-surviving binding set (see has_explicit_layout()). Created in finalize() on
+   * the async compile worker via the shared backend device; read at draw/dispatch. */
+  std::vector<wgpu::BindGroupLayoutEntry> explicit_entries_;
+  wgpu::BindGroupLayout explicit_bgl_;
+  wgpu::PipelineLayout explicit_pipeline_layout_;
+  bool explicit_layout_ok_ = false;
+
   /* Push-constant emulation. `push_constants_` maps a uniform location (base
    * 1024 + i, as the interface assigns) to its std140 byte offset + size; the CPU
    * shadow is `push_constants_data_`, uploaded to `push_constants_buffer_`. */
@@ -182,6 +228,9 @@ class WGPUShader : public Shader {
   uint32_t push_constants_size_ = 0;
   uint32_t push_constants_binding_ = 0;
   bool push_constants_dirty_ = false;
+  /* (bind_type<<24 | create-info slot) -> dense group-0 binding (build_dense_bindings),
+   * kept for remap_*_binding. */
+  blender::Map<uint32_t, uint32_t> dense_bindings_;
 
   /* Multi-viewport emulation (M3.F7): whether this shader declares VIEWPORT_INDEX and the
    * binding of its per-pass (layer, viewport) UBO. Set in build_interface(). */
@@ -193,6 +242,14 @@ class WGPUShader : public Shader {
   void push_constant_set(int location, int comp_len, int array_size, const void *data);
   /** Build the interface + push-constant layout from the create-info. */
   void build_interface(const shader::ShaderCreateInfo &info);
+
+  /** Build explicit_entries_ / explicit_bgl_ / explicit_pipeline_layout_ from
+   * interface_map_, restricted to the @group(0) @binding(N) that survive Tint's
+   * pruning across the emitted WGSL stages. Sets explicit_layout_ok_. */
+  void build_explicit_layout(const wgpu::Device &device,
+                             const std::string &vertex_wgsl,
+                             const std::string &fragment_wgsl,
+                             const std::string &compute_wgsl);
 
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUShader")
 };

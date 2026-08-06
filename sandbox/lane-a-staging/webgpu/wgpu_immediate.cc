@@ -130,7 +130,10 @@ void WGPUImmediate::end()
     }
     ctx->append_resource_bind_entries(shader, entries);
     if (!entries.empty()) {
-      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
+      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                            shader->explicit_bind_group_layout() :
+                                            pipeline.GetBindGroupLayout(0);
+      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
     }
   }
 

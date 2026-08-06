@@ -2169,6 +2169,12 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
   /* Build the name→location interface + push-constant std140 layout (needed for
    * uniform_* and for lane B's bind-group assembly). */
   build_interface(*info);
+
+  /* Build the explicit group-0 layout from the interface map, pruned to the WGSL's
+   * surviving bindings (needs has_multi_viewport_ / multi_viewport_binding_ from
+   * build_interface). Failure here just leaves has_explicit_layout() false -> the
+   * draw/compute paths keep Dawn's auto layout. */
+  build_explicit_layout(device, result.vertex_wgsl, result.fragment_wgsl, result.compute_wgsl);
   return true;
 }
 
@@ -2229,7 +2235,9 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
   }
 
   wgpu::ComputePipelineDescriptor desc = {};
-  desc.layout = nullptr; /* auto layout — inferred from the compute WGSL (Tint output). */
+  /* Explicit group-0 layout (interface-map-derived, correct resource types) when the
+   * shader has full coverage; else Dawn's auto layout inferred from the compute WGSL. */
+  desc.layout = has_explicit_layout() ? explicit_pipeline_layout() : nullptr;
   desc.compute.module = compute_module_;
   /* Tint names the compute entry point "main" (from the GLSL main); the standalone
    * T7.pre proof created its compute pipeline with the same explicit entry point. */
@@ -2240,6 +2248,133 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
   compute_pipelines_.push_back({key, pipeline});
   return pipeline;
 }
+
+/* -------------------------------------------------------------------------- */
+/** \name Explicit pipeline layout
+ * \{ */
+
+/* Scan an emitted WGSL stage for its surviving `@binding(N)` (group 0 by the backend's
+ * single-set design), OR-ing `stage_bit` into r_survivors[N]. Tint prunes unused
+ * module-scope resources, so the union across the present stages is exactly the binding
+ * set Dawn's auto layout would expose — reused here as the explicit layout's binding set
+ * AND its per-binding visibility, so the explicit layout is binding-/visibility-identical
+ * to the auto layout and differs only in the resource TYPE fields (which is the point). */
+static void scan_wgsl_bindings(const std::string &wgsl,
+                               uint32_t stage_bit,
+                               blender::Map<uint32_t, uint32_t> &r_survivors)
+{
+  static const char kTok[] = "@binding(";
+  const size_t kLen = sizeof(kTok) - 1;
+  size_t pos = 0;
+  while ((pos = wgsl.find(kTok, pos)) != std::string::npos) {
+    size_t i = pos + kLen;
+    uint32_t value = 0;
+    bool any = false;
+    while (i < wgsl.size() && wgsl[i] >= '0' && wgsl[i] <= '9') {
+      value = value * 10u + uint32_t(wgsl[i] - '0');
+      any = true;
+      i++;
+    }
+    if (any) {
+      r_survivors.add_overwrite(value, r_survivors.lookup_default(value, 0u) | stage_bit);
+    }
+    pos = i;
+  }
+}
+
+void WGPUShader::build_explicit_layout(const wgpu::Device &device,
+                                       const std::string &vertex_wgsl,
+                                       const std::string &fragment_wgsl,
+                                       const std::string &compute_wgsl)
+{
+  explicit_layout_ok_ = false;
+  explicit_entries_.clear();
+  if (device == nullptr) {
+    return;
+  }
+
+  blender::Map<uint32_t, uint32_t> survivors;
+  scan_wgsl_bindings(vertex_wgsl, uint32_t(wgi::STAGE_VERTEX), survivors);
+  scan_wgsl_bindings(fragment_wgsl, uint32_t(wgi::STAGE_FRAGMENT), survivors);
+  scan_wgsl_bindings(compute_wgsl, uint32_t(wgi::STAGE_COMPUTE), survivors);
+
+  auto to_visibility = [](uint32_t mask) {
+    wgpu::ShaderStage v = wgpu::ShaderStage::None;
+    if (mask & uint32_t(wgi::STAGE_VERTEX)) {
+      v |= wgpu::ShaderStage::Vertex;
+    }
+    if (mask & uint32_t(wgi::STAGE_FRAGMENT)) {
+      v |= wgpu::ShaderStage::Fragment;
+    }
+    if (mask & uint32_t(wgi::STAGE_COMPUTE)) {
+      v |= wgpu::ShaderStage::Compute;
+    }
+    return v;
+  };
+
+  std::vector<wgpu::BindGroupLayoutEntry> entries;
+  entries.reserve(survivors.size());
+  for (auto item : survivors.items()) {
+    const uint32_t binding = item.key;
+    const wgpu::ShaderStage vis = to_visibility(item.value);
+
+    /* Prefer the interface-map entry (correct sampleType / sampler.type / view dim /
+     * buffer.type); override visibility with the WGSL-measured stage set. */
+    const wgpu::BindGroupLayoutEntry *src = nullptr;
+    for (const wgpu::BindGroupLayoutEntry &e : interface_map_.entries) {
+      if (e.binding == binding) {
+        src = &e;
+        break;
+      }
+    }
+    if (src != nullptr) {
+      wgpu::BindGroupLayoutEntry e = *src;
+      e.visibility = vis;
+      entries.push_back(e);
+      continue;
+    }
+    /* The one codegen-injected binding not in the interface map: the multi-viewport
+     * pass-state UBO (patch 0083), a plain uniform buffer. */
+    if (has_multi_viewport_ && binding == multi_viewport_binding_) {
+      wgpu::BindGroupLayoutEntry e = {};
+      e.binding = binding;
+      e.visibility = vis;
+      e.buffer.type = wgpu::BufferBindingType::Uniform;
+      entries.push_back(e);
+      continue;
+    }
+    /* Any other uncovered binding means the interface map does not describe this
+     * shader's real WGSL. Do NOT guess — fall back to Dawn's auto layout for the whole
+     * shader (loud, so an unexpected codegen-injected resource is caught, not masked). */
+    CLOG_WARN(&LOG,
+              "WGPUShader '%s': WGSL @binding(%u) not covered by interface map; auto layout",
+              name_get().c_str(),
+              binding);
+    return;
+  }
+
+  wgpu::BindGroupLayoutDescriptor bgld = {};
+  bgld.entryCount = entries.size();
+  bgld.entries = entries.empty() ? nullptr : entries.data();
+  wgpu::BindGroupLayout bgl = device.CreateBindGroupLayout(&bgld);
+  if (bgl == nullptr) {
+    return;
+  }
+  wgpu::PipelineLayoutDescriptor pld = {};
+  pld.bindGroupLayoutCount = 1;
+  pld.bindGroupLayouts = &bgl;
+  wgpu::PipelineLayout pl = device.CreatePipelineLayout(&pld);
+  if (pl == nullptr) {
+    return;
+  }
+
+  explicit_entries_ = std::move(entries);
+  explicit_bgl_ = bgl;
+  explicit_pipeline_layout_ = pl;
+  explicit_layout_ok_ = true;
+}
+
+/** \} */
 
 /* -------------------------------------------------------------------------- */
 /** \name Push-constant UBO plumbing

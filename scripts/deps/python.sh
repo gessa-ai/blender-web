@@ -51,8 +51,25 @@ TARBALL="$CACHE/Python-${PY_VERSION}.tar.xz"
 LIB_MARKER="$PREFIX/lib/libpython${PY_SHORT}.a"
 HDR_MARKER="$PREFIX/include/python${PY_SHORT}/Python.h"
 STD_MARKER="$PREFIX/lib/python${PY_SHORT}/abc.py"
-if [ -f "$LIB_MARKER" ] && [ -f "$HDR_MARKER" ] && [ -f "$STD_MARKER" ]; then
-  echo "python ${PY_VERSION}: already installed — skip"; exit 0
+
+# Single-process _multiprocessing shim (see the header block): install our
+# thread-backed stand-in into the harvested stdlib. Idempotent + cheap (one
+# file copy), so it is refreshed even on the no-op early-exit below.
+SHIM_SRC="$ROOT/scripts/deps/python-shims/_multiprocessing.py"
+SHIM_DST="$PREFIX/lib/python${PY_SHORT}/_multiprocessing.py"
+install_mp_shim() {
+  [ -f "$SHIM_SRC" ] || { echo "python: missing mp shim $SHIM_SRC"; exit 1; }
+  install -m644 "$SHIM_SRC" "$SHIM_DST"
+}
+
+# Idempotent by default (2nd run 0s). PYTHON_FORCE_REBUILD=1 forces a rebuild
+# when the recipe changes (e.g. module set) WITHOUT first deleting the live .a —
+# a concurrent gpu relink keeps reading the old artifact until the atomic swap
+# at the very end replaces it in one rename(2).
+if [ -z "${PYTHON_FORCE_REBUILD:-}" ] \
+   && [ -f "$LIB_MARKER" ] && [ -f "$HDR_MARKER" ] && [ -f "$STD_MARKER" ]; then
+  install_mp_shim
+  echo "python ${PY_VERSION}: already installed — skip (mp shim ensured; PYTHON_FORCE_REBUILD=1 to rebuild)"; exit 0
 fi
 
 # shellcheck disable=SC1091
@@ -96,18 +113,41 @@ cd "$XBUILD"
 #                               does not). No stdlib import fatals without them.
 #   _decimal                 -> needs bundled libmpdec; the `decimal` module falls
 #                               back to the pure-python `_pydecimal` automatically.
-#   _md5 _sha1 _sha3 _blake2 -> need CPython's bundled Hacl* archives that DON'T
-#                               build as a standalone .a (only SHA2 does); `hashlib`
-#                               still imports, these algorithms just unavailable.
-#   _sha2 is KEPT (re-enabled): it builds libHacl_Hash_SHA2.a which the harvest
-#     merges cleanly, and it provides hashlib.sha256 — required by Blender and by
-#     the M1.12 state_dump.py parity dumper (which sha256-hashes mesh data).
 #   pyexpat _elementtree     -> need CPython's bundled expat, which would duplicate
 #                               lib/wasm's libexpat.a (linked for OCIO). XML parsing
 #                               is not on the bpy boot path.
+# HASH MODULES — all Hacl-based, all KEPT (M4.python-debt correction of M2.3):
+#   _sha2 _sha3 _md5 _sha1 _blake2 are ENABLED (none passed py_cv_module_*=n/a).
+#   The M2.3 note "the Hacl archives DON'T build as a standalone .a (only SHA2
+#   does), so disable _md5/_sha1/_sha3/_blake2" was BACKWARDS: only _sha2 LINKS
+#   a *prebuilt* archive (Modules/_hacl/libHacl_Hash_SHA2.a, see
+#   Modules/Setup.stdlib.in:84); _md5/_sha1/_sha3 compile their Hacl source
+#   (_hacl/Hacl_Hash_*.c, lines 82/83/85) DIRECTLY into the module object, and
+#   _blake2 compiles its own _blake2/*_impl.c (line 86) — NONE needs a standalone
+#   .a, and none has an external dep. All are pure-scalar C on wasm32 (SHA3/MD5/
+#   SHA1 carry no SIMD/int128; _blake2 falls back to its reference rounds because
+#   configure detects no HAVE_SSE2/__SSSE3__ under emcc). Their objects land in
+#   libpython3.13.a directly. Enabling them clears hashlib's boot-time
+#   "code for hash md5/sha1/blake2/sha3/shake was not found" error and gives
+#   hashlib.sha3_512 (M4.python-debt). SELF-CONTAINED preserved.
+# _multiprocessing — NOT built (genuinely unbuildable, not merely disabled).
+#   Its semaphore.c uses POSIX *named* semaphores (sem_open/sem_close/sem_unlink/
+#   sem_getvalue/sem_timedwait); emscripten exposes those only in its -pthread
+#   libc, and our browser-target libpython is single-threaded (no
+#   __EMSCRIPTEN_PTHREADS__), so those symbols are UNDEFINED at link — configure
+#   correctly resolves ac_cv_func_sem_unlink=no and drops the module. bl_pkg's
+#   register imports multiprocessing.synchronize, which does
+#   `from _multiprocessing import SemLock, sem_unlink`; absent, that raises and
+#   Blender pops the asset-library dialog on boot (M4-golden pollution). Pyodide
+#   ships no _multiprocessing and its ecosystem patches the consumer, but bl_pkg
+#   is pinned/read-only. So we install a thread-backed pure-python shim
+#   (scripts/deps/python-shims/_multiprocessing.py) into the harvested stdlib —
+#   the honest single-process degradation (a one-process "multiprocessing"
+#   semaphore IS a threading semaphore), not a raise-on-use stub. See the harvest
+#   step below.
 # Result: a SELF-CONTAINED libpython whose only external symbols are zlib's, resolved
-# by lib/wasm's libz.a already on the Blender link. Re-enable any of these later by
-# harvesting/porting its dep (M2.6+), guarded by that milestone's needs.
+# by lib/wasm's libz.a already on the Blender link. Re-enable any of the dep-bearing
+# exts later by harvesting/porting its dep (M2.6+), guarded by that milestone's needs.
 # -DPY_CALL_TRAMPOLINE (M2.5): vanilla 3.13.13 SHIPS Python/emscripten_trampoline.c
 # but its build system never defines PY_CALL_TRAMPOLINE, so the file compiles to an
 # EMPTY object and CPython's C-method calls go through a DIRECT wasm call_indirect
@@ -131,8 +171,6 @@ LDFLAGS="-fexceptions" \
     --disable-shared --disable-ipv6 \
     py_cv_module__sqlite3=n/a py_cv_module__bz2=n/a \
     py_cv_module__decimal=n/a \
-    py_cv_module__md5=n/a py_cv_module__sha1=n/a \
-    py_cv_module__sha3=n/a py_cv_module__blake2=n/a \
     py_cv_module_pyexpat=n/a py_cv_module__elementtree=n/a
 
 # --- 3. build libpython + generated files, then harvest via install targets -----
@@ -169,18 +207,30 @@ else
   echo "python: no companion archives found — using libpython${PY_SHORT}.a as-is"
   cp "$XBUILD/libpython${PY_SHORT}.a" "$COMBINED"
 fi
-install -m644 "$COMBINED" "$PREFIX/lib/libpython${PY_SHORT}.a"
+# Headers + stdlib first (a concurrent Blender RELINK consumes only the .a, not
+# these), then install the mp shim into the stdlib, and swap the .a LAST and
+# ATOMICALLY — a gpu worker may be relinking build-wasm-windowed against this
+# exact file, so the replace window is a single rename(2), not a byte copy.
 rm -rf "$PREFIX/include/python${PY_SHORT}"
 cp -R "$STAGE/usr/local/include/python${PY_SHORT}" "$PREFIX/include/python${PY_SHORT}"
 rm -rf "$PREFIX/lib/python${PY_SHORT}"
 cp -R "$STAGE/usr/local/lib/python${PY_SHORT}" "$PREFIX/lib/python${PY_SHORT}"
+install_mp_shim
+
+LIB_TMP="$PREFIX/lib/.libpython${PY_SHORT}.a.tmp.$$"
+cp "$COMBINED" "$LIB_TMP"; chmod 644 "$LIB_TMP"
+mv -f "$LIB_TMP" "$PREFIX/lib/libpython${PY_SHORT}.a"   # atomic on the same FS
 
 # --- verify harvested triple ----------------------------------------------------
 [ -f "$LIB_MARKER" ] || { echo "python: harvest missing $LIB_MARKER"; exit 1; }
 [ -f "$HDR_MARKER" ] || { echo "python: harvest missing $HDR_MARKER"; exit 1; }
 [ -f "$STD_MARKER" ] || { echo "python: harvest missing $STD_MARKER"; exit 1; }
+[ -f "$SHIM_DST" ]   || { echo "python: harvest missing mp shim $SHIM_DST"; exit 1; }
 TSYMS="$(emnm "$LIB_MARKER" 2>/dev/null | grep -c ' T ')"
-echo "python: libpython${PY_SHORT}.a defined-text symbols = $TSYMS (probe baseline 2850)"
+SHA3SYMS="$(emnm "$LIB_MARKER" 2>/dev/null | grep -c 'Hacl_Hash_SHA3')"
+echo "python: libpython${PY_SHORT}.a defined-text symbols = $TSYMS (M2.2 baseline 2850, +hash exts now)"
+echo "python: Hacl_Hash_SHA3 symbols in libpython = $SHA3SYMS (expect > 0)"
+[ "$SHA3SYMS" -gt 0 ] || { echo "python: _sha3 not linked into libpython"; exit 1; }
 
 rm -rf "$SCRATCH"
 echo "python ${PY_VERSION}: installed (JS-EH) -> $LIB_MARKER + include/python${PY_SHORT}/ + lib/python${PY_SHORT}/"

@@ -275,3 +275,73 @@ real suspend topology (no `SuspendError` under the shipped config). Keep **Wasm-
 declared fallback** (F1/F3/F4 prove it removes the constraint entirely: invoke_*=0, all suspend
 shapes pass) to switch to iff the suspend surface cannot be confined — that decision is a
 size/perf/dep-rebuild tradeoff, now cleanly separable from JSPI feasibility.
+
+---
+
+# M4.python-debt — `_sha3` + `_multiprocessing` for the windowed boot (2026-08-06)
+
+The windowed browser boot (M4.T11+) surfaced two caught-but-noisy Python gaps that the
+M2.3 "optional C-exts off" debt now had real consumers for:
+- `ERROR:root:code for hash md5/sha1/blake2/sha3/shake was not found` — hashlib logs this at
+  import for every builtin hash module that is absent.
+- `ModuleNotFoundError: No module named '_multiprocessing'` during **bl_pkg register**
+  (addons_core/bl_pkg → `_bpy_internal/http/downloader.py:49`
+  `from multiprocessing.synchronize import Event`, whose module top does
+  `from _multiprocessing import SemLock, sem_unlink`). Caught by `addon_utils.enable`, but the
+  failed register makes Blender pop the **asset-library recovery dialog** on boot → pollutes
+  the M4 first-pixels golden.
+
+## `_sha3` (+ `_md5`/`_sha1`/`_blake2`) — the M2.3 rationale was backwards, now RE-ENABLED
+M2.3 disabled these four with "need CPython's bundled Hacl archives that DON'T build as a
+standalone `.a` (only SHA2 does)". Reading `Modules/Setup.stdlib.in` (3.13.13) shows the
+opposite: **only `_sha2` links a *prebuilt* archive** (`Modules/_hacl/libHacl_Hash_SHA2.a`,
+line 84); `_md5`/`_sha1`/`_sha3` compile their Hacl source (`_hacl/Hacl_Hash_*.c`, lines
+82/83/85) **directly into the module object**, and `_blake2` compiles its own
+`_blake2/*_impl.c` (line 86). None needs a standalone `.a`; none has an external dep.
+`Hacl_Hash_SHA3.c` is pure scalar C (no `libintvector`/SIMD/`__int128`); `_blake2` falls back
+to its reference rounds because emcc defines no `HAVE_SSE2`/`__SSSE3__`. Fix = **drop the four
+`py_cv_module__{md5,sha1,sha3,blake2}=n/a`** in `scripts/deps/python.sh`; their objects land
+in `libpython3.13.a` directly. Rebuild BUILD OK 149s. Only cosmetic warning: `htobe16` macro
+redefined (Hacl `lowstar_endianness.h` vs emscripten `endian.h`).
+
+## `_multiprocessing` — GENUINELY unbuildable single-threaded, so a stdlib shim
+`Modules/_multiprocessing/semaphore.c` implements `SemLock` on POSIX **named** semaphores.
+Empirical probe (emcc `-fexceptions -matomics -mbulk-memory`, no `-pthread`): `sem_open`,
+`sem_close`, `sem_unlink`, `sem_getvalue`, `sem_timedwait` are **undefined at link** (only
+`sem_init`/`sem_wait`/`sem_post`/`sem_destroy` resolve) — emscripten ships the named-semaphore
+symbols only in its `-pthread` libc, and our browser libpython is single-threaded
+(`--with-emscripten-target=browser`, no `__EMSCRIPTEN_PTHREADS__`, ADR-001). So configure
+correctly resolves `ac_cv_func_sem_unlink=no` → `_multiprocessing … n/a`. It cannot be built
+in our config; forcing `-pthread` into libpython is off-posture and processes don't exist in a
+tab regardless.
+
+Precedent: **Pyodide ships no `_multiprocessing`** and its ecosystem answer is "patch the
+*consumer* to make the import optional". Our consumer is **pinned/read-only bl_pkg**, so
+instead we install a **thread-backed pure-python shim**
+(`scripts/deps/python-shims/_multiprocessing.py`) into the harvested stdlib — the honest
+single-process degradation (a one-process "multiprocessing" semaphore IS a threading
+semaphore; cf. `multiprocessing.dummy`), NOT a raise-on-use stub. It implements the
+`SemLock`/`sem_unlink` interface `synchronize.py` needs (kind/value/maxvalue/name ctor;
+acquire/release/`__enter__`/`__exit__`/`_get_value`/`_count`/`_is_mine`/`_is_zero`/`_after_fork`/
+`_rebuild`; `SEM_VALUE_MAX`). `name=None` (a thread-backed sem has no OS name) makes
+`synchronize.py` skip the `resource_tracker`/`_posixshmem` path — the one other absent C
+extension it would otherwise reach. Verified drop-in against a real 3.13.13
+`multiprocessing.synchronize` (Lock/RLock-recursive/Semaphore/Event, non-block + timeout
+paths). `connection.py`'s `_multiprocessing` import is `try/except`-guarded (re-raises only on
+win32) so it was never the blocker.
+
+## Verification (authoritative, wasm runtime)
+A node embed linked against the **harvested** `lib/wasm/lib/libpython3.13.a` + `libz.a` with the
+harvested stdlib+shim preloaded (MEMFS; `NODERAWFS` hit an unrelated emsdk-node `fstat64`
+quirk) prints `ALL_OK`:
+- `hashlib.sha3_512`/`shake_128`/`md5`/`sha1`/`blake2b`/`sha256` — digests **byte-identical to
+  native** `python3.13.13`.
+- `import multiprocessing.synchronize` OK (`SEM_VALUE_MAX=2147483647`); `ctx.Lock()`
+  acquire/release → `<Lock(owner=MainProcess)>`; `ctx.Event().set()` → `True`.
+
+Size: `libpython3.13.a` 39,085,186 → 40,174,574 B (**+1,089,388 B**, +1.04 MB); defined-`T`
+syms 2850 → 2870; `Hacl_Hash_SHA3` syms = 36. `scripts/deps/python.sh` stays idempotent
+(2nd run 0.01s); added `PYTHON_FORCE_REBUILD=1` to rebuild without deleting the live artifact,
+and the harvest now ends in a single `rename(2)` **atomic swap** of the `.a` (a concurrent gpu
+relink of `build-wasm-windowed` reads the old file until that instant). `bl_pkg`/`upstream`
+untouched.

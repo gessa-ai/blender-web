@@ -993,7 +993,7 @@ wgpu::TextureView WGPUTexture::image_view()
   return texture_.CreateView(&d);
 }
 
-wgpu::TextureView WGPUTexture::sampled_view()
+wgpu::TextureView WGPUTexture::sampled_view(wgpu::TextureViewDimension override_dim)
 {
   /* A gpu::Texture VIEW (GPU_texture_create_view) has no device texture of its own —
    * it aliases source_'s, applying mip_offset_/layer_offset_. Resolve to the source so
@@ -1010,9 +1010,25 @@ wgpu::TextureView WGPUTexture::sampled_view()
    * WGSL `texture_cube` sampling binds. */
   wgpu::TextureViewDescriptor d = {};
   d.format = wgpu_format_;
-  d.dimension = to_wgpu_view_dimension(type_);
+  /* View dimension: the caller may force the dimension the shader's binding declares
+   * (interface map) instead of the texture's native type. DRW fills an unbound sampler
+   * slot with a 1x1 g_dummy_texture_array (GPU_TEXTURE_2D_ARRAY) even where the shader
+   * samples a plain texture_2d, and WebGPU rejects an e2DArray view against an e2D binding
+   * (the M4 viewport-composite blocker: OCIO_Display / 2D-image-rect draws dropped). */
+  const wgpu::TextureViewDimension dim = (override_dim != wgpu::TextureViewDimension::Undefined) ?
+                                             override_dim :
+                                             to_wgpu_view_dimension(type_);
+  d.dimension = dim;
   d.baseMipLevel = uint32_t(std::max(mip_offset_, 0));
   d.baseArrayLayer = uint32_t(std::max(layer_offset_, 0));
+  /* A non-array (single-plane) view must expose EXACTLY one layer — the UNDEFINED default
+   * takes all remaining layers, which Dawn rejects for e2D/e1D/e3D on a multi-layer source
+   * (the array dummy). A genuine array/cube view keeps the default (all layers). */
+  if (dim == wgpu::TextureViewDimension::e2D || dim == wgpu::TextureViewDimension::e1D ||
+      dim == wgpu::TextureViewDimension::e3D)
+  {
+    d.arrayLayerCount = 1;
+  }
   d.aspect = wgpu::TextureAspect::All;
   /* Depth (and depth-stencil) textures cannot be SAMPLED through an All-aspect view:
    * WebGPU requires a single-aspect view, and a combined Depth32FloatStencil8 bound to

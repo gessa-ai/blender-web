@@ -233,4 +233,21 @@
 # verified against the live tree; lane-a mirror 0-drift (6 files). Touches wgpu_pipeline.{hh,
 # cc}, wgpu_batch.cc, wgpu_immediate.cc, wgpu_context.{hh,cc}.
 0104-gpu-webgpu-multi-vertex-buffer.patch
+# 0105 (M4.T18, round 21) sampled-view dimension reconciliation — the M4 viewport-composite
+# blocker after 0104. With the pipelines valid (0104) and draws submitting cleanly, the 3D
+# viewport still did not composite: the viewport->window composite draws (OCIO_Display,
+# 2D-image-rect) hit "TextureViewDimension::e2DArray ... doesn't match the expected e2D" at
+# CreateBindGroup -> invalid command buffer -> the composite dropped. Root cause: DRW fills an
+# unbound sampler slot with a 1x1 g_dummy_texture_array (GPU_TEXTURE_2D_ARRAY) even where the
+# shader samples a plain texture_2d; WGPUTexture::sampled_view() built the view at the
+# texture's NATIVE dimension (e2DArray) which Dawn rejects against the shader's e2D binding.
+# Fix: append_resource_bind_entries passes the binding's declared viewDimension (interface
+# map, infer_view_dimension) to sampled_view(), which builds the view at THAT dimension and
+# forces arrayLayerCount=1 for a single-plane (e2D/e1D/e3D) view over a multi-layer source.
+# A matched dimension is unchanged, so the census is untouched (held EXACTLY 148/158 +
+# 956/973 native Dawn). VERIFIED in-tab: the viewport now composites overlay content (the
+# selection outline renders on screen); reverse-apply clean; lane-a mirror 0-drift (3 files).
+# Same-file note: 0105 touches wgpu_texture.cc (0102 depth-aspect region-disjoint, kept),
+# wgpu_texture.hh, wgpu_context.cc (0104 disjoint).
+0105-gpu-webgpu-sampled-view-dimension.patch
 0120-asset-system-wasm.patch

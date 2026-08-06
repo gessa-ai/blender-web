@@ -626,7 +626,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
       continue;
     }
     if (is_texture_binding(n)) {
-      wgpu::TextureView view = tex->sampled_view();
+      /* Bind the view at the dimension the shader declares (not the texture's native
+       * type) so a DRW array-dummy on a texture_2d slot does not mismatch the layout. */
+      const wgpu::BindGroupLayoutEntry *le = entry_of(n);
+      wgpu::TextureView view = tex->sampled_view(
+          le != nullptr ? le->texture.viewDimension : wgpu::TextureViewDimension::Undefined);
       if (view != nullptr) {
         wgpu::BindGroupEntry e = {};
         e.binding = n;

@@ -85,7 +85,8 @@ class WGPUTexture : public Texture {
   /** A view suitable for a WGSL sampled-texture binding (`texture_*<f32>` etc.):
    * the whole texture (all mips/layers) at its native view dimension. Consumed by
    * the draw bind-group builder (GPU_texture_bind path). */
-  wgpu::TextureView sampled_view();
+  wgpu::TextureView sampled_view(
+      wgpu::TextureViewDimension override_dim = wgpu::TextureViewDimension::Undefined);
 
   /** True for a buffer texture (GPU_texture_create_from_vertbuf): it has NO device
    * texture (source_buffer_ set, texture_ null). WGSL has no texel-buffer type, so

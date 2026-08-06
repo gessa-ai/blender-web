@@ -339,7 +339,22 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   `__EMSCRIPTEN__ && !WITH_HEADLESS` seam — NOT WITH_GHOST_WEB, that define never reaches
   bf_gpu); (2) GHOST_WindowWeb ctor never called setDrawingContextType. Port AS-IS, nothing
   vendored. Boot now RUNS initializeDrawingContext → next gate below.
-- [ ] **M4.T11 [ghost-web worker]** THE windowed gate now: device await under ADR-006.
+- [x] **M4.T11 RESULT (d4708b9, driver-verified): WINDOWED BOOT REACHES WM_main + BPY STARTUP
+  IN A TAB** — device pre-acquired on the WM worker (probe: no cross-thread objects, workers
+  HAVE navigator.gpu → **ADR-007** written from findings), GPU_context_create live,
+  GPU_init completes windowed, real render passes submitted, bl_ui registers, stable main
+  loop 20s+. Remaining: T12 surface/pixels (below); python-wasm: _multiprocessing + _sha3
+  missing (non-fatal, caught — M2.3 "optional C-exts" debt now has real consumers, queue
+  python-wasm task); imbuf: splash "unknown file-format" (non-fatal — check which reader
+  is off in blender_web config).
+- [ ] **M4.T12 [ghost-web worker]** FIRST WINDOW PIXELS: WM worker has no DOM canvas →
+  surface creation can't resolve `#canvas` → "Render pass has no attachments"/invalid
+  CommandBuffer per draw. Fix per T11: `-sOFFSCREENCANVAS_SUPPORT` +
+  `-sOFFSCREENCANVASES_TO_PTHREAD='#canvas'` (proxied-main already requests transfer,
+  crt1_proxy_main.c:48) + re-enable finishSetup() in GHOST_ContextWGPUWeb.cc. Then: visible
+  UI in the tab; screenshot + compare against the M4 gate golden (splash + default cube,
+  idiff threshold, pinned adapter). DISPATCHED.
+- [ ] ~~M4.T11-old~~ (superseded by result above) — device await under ADR-006.
   Port facts (characterized): TimedWaitAny-featured CreateInstance returns NULL without
   asyncify/JSPI (webgpu.cpp:1643); WaitAny(...,0) asyncify-free = abort(TODO); a blocked
   worker cannot resolve its own JS promises (Atomics.wait stops that worker's event loop) —

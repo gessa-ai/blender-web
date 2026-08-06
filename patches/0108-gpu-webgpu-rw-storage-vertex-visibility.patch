@@ -1,0 +1,40 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+@@ -210,12 +210,32 @@
+         map.entries.push_back(
+             make_buffer_entry(r.binding, vis, wgpu::BufferBindingType::Uniform));
+         break;
+-      case ResourceKind::StorageBuffer:
+-        map.entries.push_back(make_buffer_entry(
+-            r.binding, vis,
++      case ResourceKind::StorageBuffer: {
++        const wgpu::BufferBindingType btype =
+             r.storage_readonly ? wgpu::BufferBindingType::ReadOnlyStorage
+-                               : wgpu::BufferBindingType::Storage));
++                               : wgpu::BufferBindingType::Storage;
++        /* WebGPU forbids a read-write storage buffer from being visible to the
++         * vertex stage (only read-only-storage is allowed there); a WGSL vertex
++         * entry point can never write to a storage buffer. Blender over-declares
++         * every draw-shader resource with a single Vertex|Fragment `stages` mask
++         * (wgpu_shader.cc: `stages` applied to all resources), so a fragment-only
++         * read-write SSBO would otherwise carry Vertex visibility and make the
++         * whole BindGroupLayout invalid ("Read-write storage buffer binding is
++         * used with a visibility that contains ShaderStage::Vertex"), collapsing
++         * every workbench/overlay draw pipeline that shares the group. Strip
++         * Vertex from RW-storage visibility: a fragment-only buffer is simply not
++         * referenced by the vertex module (no validation loss); a buffer genuinely
++         * read in the vertex stage is read-only-storage and untouched here. A
++         * shader that truly needs an RW SSBO in the vertex stage is inexpressible
++         * on WebGPU regardless and would then fail with a precise "not visible to
++         * vertex" error instead of this blanket cascade. */
++        wgpu::ShaderStage svis = vis;
++        if (btype == wgpu::BufferBindingType::Storage) {
++          svis = vis & (wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute);
++        }
++        map.entries.push_back(make_buffer_entry(r.binding, svis, btype));
+         break;
++      }
+       case ResourceKind::StorageImage:
+         map.entries.push_back(make_storage_image_entry(r.binding, vis, r));
+         break;

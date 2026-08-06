@@ -1,0 +1,47 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 3b4b7b1..dfdaec6 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -430,25 +430,30 @@ wgpu::BindGroup WGPUContext::create_bind_group_checked(
+ {
+   std::vector<wgpu::BindGroupEntry> valid;
+   valid.reserve(entries.size());
+-  bool seen[64] = {false};
++  /* Duplicate-binding guard over the FULL binding range. The frontend can report two
++   * resources for the same dense @binding on a workbench/overlay shader (a remap
++   * coincidence between resource classes); Dawn then rejects the whole group with
++   * "binding index N already used by a previous entry", dropping the draw. Keep the first
++   * entry for each binding (the kind-specific guards in append_resource_bind_entries
++   * already ensure it matches the layout kind) so the group stays valid and the pass
++   * renders. NB: the sampler half of a combined texture lives at sampler_base (256) + n
++   * and storage-image bindings sit higher still, so a fixed 64-entry window silently
++   * missed them — the collision that dropped the workbench-solid + grid composite was at
++   * binding 257 (a sampler). Track EVERY binding, not just the low dense range. */
++  std::vector<uint32_t> seen_bindings;
++  seen_bindings.reserve(entries.size());
+   for (const wgpu::BindGroupEntry &e : entries) {
+     /* An entry with no resource set is the null GPUBufferBinding that throws an
+      * uncaught TypeError in createBindGroup and halts the render loop — drop it. */
+     if (e.buffer == nullptr && e.textureView == nullptr && e.sampler == nullptr) {
+       continue;
+     }
+-    /* Duplicate-binding guard. The frontend can report two resources for the same dense
+-     * @binding on a workbench/overlay shader (a remap coincidence between resource
+-     * classes); Dawn then rejects the whole group with "binding index N already used by
+-     * a previous entry", dropping the draw. Keep the first entry for each binding (the
+-     * kind-specific guards in append_resource_bind_entries already ensure it matches the
+-     * layout kind) so the group stays valid and the pass renders. */
+-    if (e.binding < 64) {
+-      if (seen[e.binding]) {
+-        continue;
+-      }
+-      seen[e.binding] = true;
++    if (std::find(seen_bindings.begin(), seen_bindings.end(), e.binding) !=
++        seen_bindings.end())
++    {
++      continue;
+     }
++    seen_bindings.push_back(e.binding);
+     valid.push_back(e);
+   }
+   wgpu::BindGroupDescriptor bgd = {};

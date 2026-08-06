@@ -32,6 +32,8 @@
 
 #include "BLI_assert.h"
 
+#include "BKE_global.hh"
+
 #include "MEM_guardedalloc.h"
 
 #include <vector>
@@ -77,6 +79,20 @@ void WGPUBackend::init_resources()
    * async builtin warm-up GPU_init kicks off. Mirrors VKBackend::init_resources. */
   compiler_ = MEM_new<ShaderCompiler>(
       __func__, GPU_max_parallel_compilations(), GPUWorker::ContextType::Main);
+
+#ifdef __EMSCRIPTEN__
+  /* Suppress the spurious GPU-backend-fallback alert in the browser build. WebGPU is the
+   * ONLY backend (WITH_OPENGL/VULKAN/METAL all OFF) and WGPUBackend::is_supported()
+   * returns true, so there is no real fallback — yet the generic "Failed to load using
+   * Vulkan, using OpenGL instead" dialog (wm_test_gpu_backend_fallback, wm_window.cc)
+   * still fires because G_FLAG_GPU_BACKEND_FALLBACK is raised during backend detection
+   * before the imported device is live. Left showing, that modal composites over the very
+   * first frame and pollutes the M4 splash capture. Mark the one-time dialog QUIET here
+   * (backend init runs during GPU_init, well before WM_main's event loop reaches the
+   * fallback test). __EMSCRIPTEN__-guarded so the native gpu suite is byte-for-byte
+   * unaffected. */
+  G.f |= G_FLAG_GPU_BACKEND_FALLBACK_QUIET;
+#endif
 }
 
 void WGPUBackend::delete_resources()

@@ -250,4 +250,32 @@
 # Same-file note: 0105 touches wgpu_texture.cc (0102 depth-aspect region-disjoint, kept),
 # wgpu_texture.hh, wgpu_context.cc (0104 disjoint).
 0105-gpu-webgpu-sampled-view-dimension.patch
+# 0106 (M4.T19, round 22) bind-group duplicate-binding guard over the FULL binding range —
+# the residual workbench-solid + grid composite blocker after 0104/0105. r21 landed the
+# overlay outline but the workbench-solid pass still dropped: live (uncapturederror listener)
+# Dawn rejected it with "In entries[8], binding index 257 already used by a previous entry"
+# -> Invalid BindGroup -> Invalid CommandBuffer. Root cause: create_bind_group_checked's
+# keep-first duplicate guard (added 0101) used a fixed `bool seen[64]` window, so it only
+# de-duplicated the LOW dense bindings. A combined texture's sampler half lands at
+# sampler_base (kSamplerBindingBaseFixed = 256) + n and storage images sit higher still, so a
+# colliding sampler at binding 257 escaped the guard and Dawn rejected the whole group. Fix:
+# track EVERY emitted binding (small std::vector, keep-first) instead of only < 64. The
+# kind-specific guards in append_resource_bind_entries already ensure the kept entry matches
+# the layout kind, so this only removes true duplicates Dawn would reject anyway. Native Dawn
+# census unchanged (the sampler-base collision is a DRW workbench scenario the GPUWebGPUTest
+# unit suite does not exercise; held 148/158 + 956/973). Same-file: touches wgpu_context.cc
+# (0101/0104/0105 all in disjoint hunks, kept).
+0106-gpu-webgpu-bindgroup-dedup-all-bindings.patch
+# 0107 (M4.T19, round 22) suppress the spurious GPU-backend-fallback dialog in the browser
+# build. WebGPU is the ONLY backend (WITH_OPENGL/VULKAN/METAL OFF) and
+# WGPUBackend::is_supported() returns true, so there is genuinely no fallback — yet the
+# generic "Failed to load using Vulkan, using OpenGL instead" modal (wm_test_gpu_backend_
+# fallback, wm_window.cc) still fires because G_FLAG_GPU_BACKEND_FALLBACK is raised during
+# backend detection before the imported device is live (the flag is never reset). Left
+# showing, that one-time alert composites over the very first frame and pollutes the M4 splash
+# capture. Fix: WGPUBackend::init_resources() (runs during GPU_init, before WM_main reaches
+# the fallback test) marks the dialog QUIET (G_FLAG_GPU_BACKEND_FALLBACK_QUIET). Entirely
+# __EMSCRIPTEN__-guarded, so the native gpu suite is byte-for-byte unaffected (census held
+# 148/158 + 956/973). Same-file: touches wgpu_backend.cc (adds a BKE_global.hh include).
+0107-gpu-webgpu-suppress-fallback-dialog-web.patch
 0120-asset-system-wasm.patch

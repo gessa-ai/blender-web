@@ -347,13 +347,26 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   missing (non-fatal, caught — M2.3 "optional C-exts" debt now has real consumers, queue
   python-wasm task); imbuf: splash "unknown file-format" (non-fatal — check which reader
   is off in blender_web config).
-- [ ] **M4.T12 [ghost-web worker]** FIRST WINDOW PIXELS: WM worker has no DOM canvas →
-  surface creation can't resolve `#canvas` → "Render pass has no attachments"/invalid
-  CommandBuffer per draw. Fix per T11: `-sOFFSCREENCANVAS_SUPPORT` +
-  `-sOFFSCREENCANVASES_TO_PTHREAD='#canvas'` (proxied-main already requests transfer,
-  crt1_proxy_main.c:48) + re-enable finishSetup() in GHOST_ContextWGPUWeb.cc. Then: visible
-  UI in the tab; screenshot + compare against the M4 gate golden (splash + default cube,
-  idiff threshold, pinned adapter). DISPATCHED.
+- [x] **M4.T12 RESULT (d135063, driver-verified): FIRST WINDOW PIXELS — the GHOST WebGPU
+  surface PAINTS THE TAB** (teal proof frame composited end-to-end: OffscreenCanvas transfer
+  → worker surface → Configure 1800×1169 BGRA8 → GetCurrentTexture → submit → visible).
+  Four root causes fixed in owned files (canvas-table check, cursor-EM_ASM guard, all-features
+  device request, link flags). GHOST side COMPLETE for the pixels gate (getSurface() exposed).
+  Teal clear = removable scaffolding once Blender's frame composites. Evidence:
+  platform_web/shell/evidence/boot-transcript-0{1,2}-*.txt. Boot aborts at Blender's first
+  UI draw on the backend triplet below (~4-5s boot-to-abort; loop health unmeasurable until
+  then).
+- [ ] **M4.T13 [gpu-backend r16 — THE M4 PIXELS TRIPLET, blocked-by r15 completion (same
+  files)]** (1) `WGPUBatch::draw_indirect` stub (wgpu_batch.cc:249) → BLI_assert abort at
+  Blender's first UI batch — implement (WebGPU has native indirect draw; buffer already
+  bindable per 0085 family). (2) UI bind-group assembly incomplete: Dawn "entries (1) !=
+  expected (4)" for widget layout {texture@0, storage@1, uniform@2, sampler@256} + compute
+  "binding index 2/11 not present" — complete draw-time bind-group assembly for
+  texture+sampler+storage entries (0059/0085 machinery extends). (3) `sync_backbuffer`
+  missing: mirror vk_context.cc:67 — set back_left colour attachment from
+  GHOST_ContextWGPUWeb::getSurface() each activate() (~40-60 LOC wgpu_context.{cc,hh} +
+  store ghost_context_). Then re-run windowed boot → BLENDER UI PIXELS → screenshot vs M4
+  golden (idiff, pinned adapter).
 - [ ] ~~M4.T11-old~~ (superseded by result above) — device await under ADR-006.
   Port facts (characterized): TimedWaitAny-featured CreateInstance returns NULL without
   asyncify/JSPI (webgpu.cpp:1643); WaitAny(...,0) asyncify-free = abort(TODO); a blocked

@@ -368,11 +368,28 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   (0080). Nothing regressed (per-family sweep). Residual buckets characterized: SampledBuffer
   93 (needs design), gl_PointCoord 50, shared-vars 61, textureSample 37, textureDimensions 13,
   imageAtomic 6, vertex-rw-SSBO 2 (WebGPU-forbidden → deferral registry).
-- [ ] **M3.F10 [gpu-backend r13]** Residual buckets + compute residuals + F7 emulation:
-  gl_PointCoord declare-to-compile; CREATE_INFO_RES_SHARED_VARS mirror; textureSample/
-  textureDimensions/imageAtomic investigation; compute vbo/ibo-as-ssbo FAILs + texture_atomic
-  CRASH; multi-viewport per F7 decision; SampledBuffer = DESIGN-ONLY report for driver.
-  DISPATCHED (patches 0081-0090).
+- [x] **M3.F10 r13 RESULT (0081-0083, driver-verified):** **multi_viewport PASSES faithfully**
+  (F7 emulation implemented; driver re-ran it PASS 483ms). static_shaders **786/973** (+87:
+  gl_PointCoord 50→0, shared-vars ~59 cleared). VERIFICATION NOTE: 0081-0083 stack on shared
+  hunks — reverse-apply verified IN ORDER 0083→0082→0081, tree byte-identical on re-apply
+  (individual-reverse of 0081 alone fails, benign; RECORD IN series MANIFEST: 0081<0082<0083).
+  Characterized: textureSample-nomatch 37 = integer-sampler filtered `texture()` (workbench
+  composite — LAUNCH tier, needs texture→textureLoad transform); textureDimensions 13 =
+  map_image dim-inference bug; imageAtomic 6 = WGSL has NO storage-texture atomics → DEFERRAL;
+  vbo/ibo bind_as_ssbo = empty stub (wgpu_vertex_buffer.cc:152), same buffer-binding family
+  as SampledBuffer.
+- [x] **M3.F11-DECISION [driver]** SampledBuffer (93 shaders, curves 44/pointcloud 41/gpencil
+  7 — NONE on mesh first-pixels path): **ACCEPT option (a)** storage-buffer-backed fetch
+  (samplerBuffer→readonly std430 + texelFetch→index; VertBufs already Vertex|Storage;
+  Tint-supported; zero format conversion at launch formats), STAGED — SMALL core (~85) first,
+  MEDIUM customdata tail after. REJECTED: 2D-texture repack (8192 limit + per-frame cost).
+  Design: notes/gpu-sampledbuffer-design.md.
+- [ ] **M3.F11 [gpu-backend r14]** (a) SampledBuffer option-(a) SMALL core; (b) bind_as_ssbo
+  stubs (same family); (c) textureSample integer-sampler transform — in webgpu codegen if
+  possible, escalate if gpu/intern needed (workbench = launch tier, must not stay broken);
+  (d) textureDimensions dim-inference root-cause; (e) small buckets: switch-fallthrough 16,
+  IsNan/IsInf 9, fwidth-residual 5, shaderc-other 4, ProgramFromIR 3, undeclared 1.
+  DISPATCHED (patches 0084-0090).
 - [ ] **M3-boundary [driver]** Deferral registry entries due (ledger/deferred.json, GOAL
   format, named blockers): vertex-stage read_write SSBO (2 shaders + specialization_
   constants_graphic — WebGPU forbids vertex RW storage); depth-aspect buffer→texture upload

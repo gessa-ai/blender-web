@@ -175,6 +175,29 @@ class WGPUContext : public Context {
    * context lifetime so the handle outlives every BindGroup that references it). */
   wgpu::Sampler get_sampler(const GPUSamplerState &state);
 
+  /* Blit one colour texture into another through a fullscreen textured-quad render
+   * pass. Used by WGPUFrameBuffer::blit_to when the source and destination formats
+   * are NOT copy-compatible (Dawn rejects CopyTextureToTexture across formats — the
+   * dominant M4 viewport blocker: region RGBA8Unorm strips copied to the BGRA8Unorm
+   * window surface). Reproduces the copy's texel mapping exactly (src texel (i,j) ->
+   * dst texel (dst_x + i, dst_y + j), no flip), so it is a drop-in replacement for
+   * the rejected copy. Returns false if the pipeline/views could not be built. */
+  bool blit_color_render(Texture *src,
+                         Texture *dst,
+                         uint32_t w,
+                         uint32_t h,
+                         uint32_t dst_x,
+                         uint32_t dst_y);
+
+  /* Create a group-0 BindGroup from `entries`, dropping any entry whose resource
+   * handle is null before handing it to Dawn. A null GPUBufferBinding throws an
+   * uncaught TypeError at the emdawnwebgpu JS marshaling boundary that halts the WM
+   * render loop (the M4 Tab -> edit-mode crash); an incomplete group only draws a
+   * recoverable Dawn validation warning. Never let a null resource reach
+   * CreateBindGroup. Shared by every draw/immediate/compute bind-group builder. */
+  wgpu::BindGroup create_bind_group_checked(const wgpu::BindGroupLayout &layout,
+                                            const std::vector<wgpu::BindGroupEntry> &entries);
+
   /* Point back_left/front_left's colour attachment at the window surface's current
    * texture (windowed web build only; no-op otherwise). Called from activate(),
    * mirroring VKContext::sync_backbuffer (vk_context.cc:67). */
@@ -226,6 +249,14 @@ class WGPUContext : public Context {
   std::unordered_map<int, WGPUUniformBuffer *> bound_uniform_buffers_;
   /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
   std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
+
+  /* --- Cross-format colour blit (blit_color_render) ------------------------- */
+  /** Shared fullscreen-triangle blit shader module (built once, lazily). */
+  wgpu::ShaderModule blit_module_;
+  /** Nearest/clamp sampler for the blit (exact texel copy). */
+  wgpu::Sampler blit_sampler_;
+  /** Blit render pipeline cache keyed by destination wgpu::TextureFormat. */
+  std::unordered_map<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
 
   /** The GHOST drawing context (retained for sync_backbuffer's surface access);
    * mirrors VKContext::ghost_context_ (vk_context.cc:40). */

@@ -156,11 +156,8 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
           pc.size = shader->push_constants_buffer().size();
           entries.push_back(pc);
         }
-        wgpu::BindGroupDescriptor bgd = {};
-        bgd.layout = pipeline.GetBindGroupLayout(0);
-        bgd.entryCount = uint32_t(entries.size());
-        bgd.entries = entries.data();
-        mv_pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+        mv_pass.SetBindGroup(0,
+                             ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
 
         if (elem != nullptr) {
           WGPUIndexBuffer *wibo = unwrap(elem);
@@ -216,11 +213,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
     }
     ctx->append_resource_bind_entries(shader, entries);
     if (!entries.empty()) {
-      wgpu::BindGroupDescriptor bgd = {};
-      bgd.layout = pipeline.GetBindGroupLayout(0);
-      bgd.entryCount = uint32_t(entries.size());
-      bgd.entries = entries.data();
-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
     }
   }
 
@@ -336,11 +329,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
     }
     ctx->append_resource_bind_entries(shader, entries);
     if (!entries.empty()) {
-      wgpu::BindGroupDescriptor bgd = {};
-      bgd.layout = pipeline.GetBindGroupLayout(0);
-      bgd.entryCount = uint32_t(entries.size());
-      bgd.entries = entries.data();
-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
     }
   }
 

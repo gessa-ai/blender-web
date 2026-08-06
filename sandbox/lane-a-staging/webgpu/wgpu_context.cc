@@ -294,6 +294,141 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
   return sampler;
 }
 
+/* --- Cross-format colour blit (render-pass fallback for blit_to) ----------- */
+
+bool WGPUContext::blit_color_render(
+    Texture *src, Texture *dst, uint32_t w, uint32_t h, uint32_t dst_x, uint32_t dst_y)
+{
+  if (src == nullptr || dst == nullptr || w == 0 || h == 0) {
+    return false;
+  }
+  webgpu::WGPUTexture *wsrc = static_cast<webgpu::WGPUTexture *>(src);
+  webgpu::WGPUTexture *wdst = static_cast<webgpu::WGPUTexture *>(dst);
+  wgpu::TextureView src_view = wsrc->sampled_view();
+  if (src_view == nullptr || wdst->texture() == nullptr) {
+    return false;
+  }
+  const wgpu::TextureFormat dst_format = wdst->wgpu_format();
+
+  /* Lazy: the shared fullscreen-triangle blit module. The region offscreen textures
+   * this composites onto the window surface are stored bottom-up (the ADR-005 offscreen
+   * clip-flip convention), while the window backbuffer is presented upright (M4.T14a), so
+   * the blit samples with uv.y = y (NOT the straight-copy 1 - y): verified in-tab, the
+   * straight copy renders the topbar/N-panel/properties strips upside-down, this sign
+   * lands them upright to match the directly-drawn 3D viewport. */
+  if (blit_module_ == nullptr) {
+    static const char *kBlitWGSL =
+        "struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f, };\n"
+        "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
+        "  var o : VOut;\n"
+        "  let x = f32((vid << 1u) & 2u);\n"
+        "  let y = f32(vid & 2u);\n"
+        "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
+        "  o.uv = vec2f(x, y);\n"
+        "  return o;\n"
+        "}\n"
+        "@group(0) @binding(0) var src_tex : texture_2d<f32>;\n"
+        "@group(0) @binding(1) var src_smp : sampler;\n"
+        "@fragment fn fs_main(i : VOut) -> @location(0) vec4f {\n"
+        "  return textureSampleLevel(src_tex, src_smp, i.uv, 0.0);\n"
+        "}\n";
+    wgpu::ShaderSourceWGSL wgsl;
+    wgsl.code = kBlitWGSL;
+    wgpu::ShaderModuleDescriptor md;
+    md.nextInChain = &wgsl;
+    blit_module_ = device_.CreateShaderModule(&md);
+  }
+  if (blit_sampler_ == nullptr) {
+    wgpu::SamplerDescriptor sd = {};
+    sd.magFilter = wgpu::FilterMode::Nearest;
+    sd.minFilter = wgpu::FilterMode::Nearest;
+    sd.addressModeU = wgpu::AddressMode::ClampToEdge;
+    sd.addressModeV = wgpu::AddressMode::ClampToEdge;
+    blit_sampler_ = device_.CreateSampler(&sd);
+  }
+
+  /* Pipeline cached per destination format (auto layout — the module declares exactly
+   * one sampled texture + one sampler in group 0). */
+  const uint32_t fmt_key = uint32_t(dst_format);
+  wgpu::RenderPipeline pipeline;
+  auto found = blit_pipelines_.find(fmt_key);
+  if (found != blit_pipelines_.end()) {
+    pipeline = found->second;
+  }
+  else {
+    wgpu::ColorTargetState target = {};
+    target.format = dst_format;
+    target.writeMask = wgpu::ColorWriteMask::All;
+    wgpu::FragmentState fragment = {};
+    fragment.module = blit_module_;
+    fragment.entryPoint = "fs_main";
+    fragment.targetCount = 1;
+    fragment.targets = &target;
+    wgpu::RenderPipelineDescriptor pd = {};
+    pd.layout = nullptr;
+    pd.vertex.module = blit_module_;
+    pd.vertex.entryPoint = "vs_main";
+    pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+    pd.fragment = &fragment;
+    pipeline = device_.CreateRenderPipeline(&pd);
+    blit_pipelines_[fmt_key] = pipeline;
+  }
+  if (pipeline == nullptr) {
+    return false;
+  }
+
+  wgpu::BindGroupEntry entries[2] = {};
+  entries[0].binding = 0;
+  entries[0].textureView = src_view;
+  entries[1].binding = 1;
+  entries[1].sampler = blit_sampler_;
+  wgpu::BindGroupDescriptor bgd = {};
+  bgd.layout = pipeline.GetBindGroupLayout(0);
+  bgd.entryCount = 2;
+  bgd.entries = entries;
+  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);
+
+  wgpu::RenderPassColorAttachment ca = {};
+  ca.view = wdst->texture().CreateView();
+  ca.loadOp = wgpu::LoadOp::Load;
+  ca.storeOp = wgpu::StoreOp::Store;
+  wgpu::RenderPassDescriptor rp = {};
+  rp.colorAttachmentCount = 1;
+  rp.colorAttachments = &ca;
+
+  wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
+  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+  pass.SetPipeline(pipeline);
+  pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
+  pass.SetScissorRect(dst_x, dst_y, w, h);
+  pass.SetBindGroup(0, bind_group);
+  pass.Draw(3, 1, 0, 0);
+  pass.End();
+  wgpu::CommandBuffer cb = enc.Finish();
+  queue_.Submit(1, &cb);
+  return true;
+}
+
+wgpu::BindGroup WGPUContext::create_bind_group_checked(
+    const wgpu::BindGroupLayout &layout, const std::vector<wgpu::BindGroupEntry> &entries)
+{
+  std::vector<wgpu::BindGroupEntry> valid;
+  valid.reserve(entries.size());
+  for (const wgpu::BindGroupEntry &e : entries) {
+    /* An entry with no resource set is the null GPUBufferBinding that throws an
+     * uncaught TypeError in createBindGroup and halts the render loop — drop it. */
+    if (e.buffer == nullptr && e.textureView == nullptr && e.sampler == nullptr) {
+      continue;
+    }
+    valid.push_back(e);
+  }
+  wgpu::BindGroupDescriptor bgd = {};
+  bgd.layout = layout;
+  bgd.entryCount = uint32_t(valid.size());
+  bgd.entries = valid.data();
+  return device_.CreateBindGroup(&bgd);
+}
+
 /* --- Draw/dispatch bind-group resource assembly ---------------------------- */
 
 void WGPUContext::append_resource_bind_entries(WGPUShader *shader,

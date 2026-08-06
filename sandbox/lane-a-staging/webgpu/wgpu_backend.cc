@@ -132,70 +132,18 @@ static bool build_compute_bind_group(WGPUContext *ctx,
     }
   }
 
-  for (const auto &item : ctx->bound_storage_buffers()) {
-    WGPUStorageBuffer *ssbo = item.second;
-    if (ssbo == nullptr) {
-      continue;
-    }
-    const webgpu::Buffer &buf = ssbo->buffer();
-    if (!buf.valid()) {
-      continue;
-    }
-    wgpu::BindGroupEntry entry = {};
-    entry.binding = uint32_t(item.first);
-    entry.buffer = buf.handle();
-    entry.offset = 0;
-    entry.size = buf.size();
-    entries.push_back(entry);
-  }
-
-  /* VBO / IBO bound as an SSBO (GPU_vertbuf_bind_as_ssbo / GPU_indexbuf_bind_as_ssbo).
-   * Same group-0 buffer entry as a StorageBuf, keyed by the dense WGSL @binding the
-   * frontend recorded — the buffer already carries the Storage usage bit
-   * (wgpu_buffer.cc). */
-  for (const auto &item : ctx->bound_buffer_ssbos()) {
-    const webgpu::Buffer *buf = item.second;
-    if (buf == nullptr || !buf->valid()) {
-      continue;
-    }
-    wgpu::BindGroupEntry entry = {};
-    entry.binding = uint32_t(item.first);
-    entry.buffer = buf->handle();
-    entry.offset = 0;
-    entry.size = buf->size();
-    entries.push_back(entry);
-  }
-
-  /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
-   * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
-   * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */
-  WGPUStateManager *sm = static_cast<WGPUStateManager *>(ctx->state_manager);
-  if (sm != nullptr) {
-    for (const auto &item : sm->bound_images()) {
-      webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
-      if (tex == nullptr) {
-        continue;
-      }
-      wgpu::TextureView view = tex->image_view();
-      if (view == nullptr) {
-        continue;
-      }
-      wgpu::BindGroupEntry entry = {};
-      entry.binding = uint32_t(item.first);
-      entry.textureView = view;
-      entries.push_back(entry);
-    }
-  }
+  /* Every remaining group-0 resource the shader declares — storage buffers,
+   * VBO/IBO-as-SSBO, storage images, and sampled textures + samplers — via the
+   * context's shared builder (filtered by the shader interface). Same assembler the
+   * draw path uses, so a compute shader that samples a texture (Dawn "binding index
+   * N not present") now binds correctly. */
+  ctx->append_resource_bind_entries(shader, entries);
 
   if (entries.empty()) {
     return false;
   }
 
-  wgpu::BindGroupDescriptor bgd = {};
-  bgd.layout = pipeline.GetBindGroupLayout(0);
-  bgd.entryCount = entries.size();
-  bgd.entries = entries.data();
-  r_bind_group = ctx->device_get().CreateBindGroup(&bgd);
+  r_bind_group = ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries);
   return true;
 }
 

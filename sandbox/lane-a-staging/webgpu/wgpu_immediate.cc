@@ -130,11 +130,7 @@ void WGPUImmediate::end()
     }
     ctx->append_resource_bind_entries(shader, entries);
     if (!entries.empty()) {
-      wgpu::BindGroupDescriptor bgd = {};
-      bgd.layout = pipeline.GetBindGroupLayout(0);
-      bgd.entryCount = uint32_t(entries.size());
-      bgd.entries = entries.data();
-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
+      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
     }
   }
 

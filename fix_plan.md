@@ -497,11 +497,26 @@ silently (no abort propagation). Also: first-composite-needs-an-input-event (gho
 spurious "using OpenGL instead" dialog despite live device; cattrs missing (python);
 splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 
-- [ ] **M4.T15 [gpu-backend r18 — VIEWPORT DRAW ROUND, dispatch on r17 exit (same files)]**
-  Fix classes 1-5 (routed file:line in the recon transcript) + the Tab createBindGroup
-  null-buffer crash + triage the spurious GPU-fallback dialog. Success = default cube +
-  grid visible in the tab → then the M4 golden comparison. P2 ghost-web (first-composite
-  event) + P3 python (cattrs) / imbuf (splash) follow separately.
+- [~] **M4.T15 [gpu-backend r18 — VIEWPORT DRAW ROUND] PARTIAL — UI composites upright, cube+grid still dark.**
+  Patches 0098-0100 (census HELD 148/158 + static_shaders 956/973): 0098 class-1 cross-format
+  region blit (render-pass fallback in WGPUFrameBuffer::blit_to; the dominant black cause) +
+  correct Y-orientation; 0099 Tab createBindGroup null-buffer crash FIXED (create_bind_group_checked
+  guard — WM loop no longer halts on Tab); 0100 class-5 UBO minBindingSize pad (draw-manager
+  view_buf[64] short-bind — was dropping EVERY 3D vertex draw). LFS splash.png + 155 datafiles
+  materialized + datatoc regen. RESULT: full Blender UI renders upright in a Chrome tab (24%
+  non-black; panels/outliner/properties readable). remap-skip attempt REVERTED (regressed 4
+  compute tests; frontend passes dense binding, not create-info slot). Evidence:
+  platform_web/shell/evidence/m4-ui-upright-r18-viewport-dark.png.
+  - [ ] **M4.T16 remaining cube+grid blockers (next gpu round):** (a) class-2 UBO-bound-to-Storage-slot
+    + class-3 binding collision on specific workbench/overlay shaders (non-universal); (b) NEW
+    depth-stencil aspect: Depth32FloatStencil8 all-aspects TextureView bound to a Float sampled
+    slot → wgpu_texture.cc sampled_view must force DepthOnly aspect (in-lane); (c) class-4 remap
+    GAP (Tint prunes a declared+bound resource) characterized, non-fatal; (d) topbar strip
+    dst_offset_y placement (blitted region at window bottom). Then the M4 cube+grid golden.
+  - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
+    _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
+    G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.
+  - P2 ghost-web (first-composite needs an input event, blocker #6) + P3 python (cattrs) follow separately.
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

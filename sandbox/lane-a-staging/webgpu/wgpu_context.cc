@@ -414,11 +414,24 @@ wgpu::BindGroup WGPUContext::create_bind_group_checked(
 {
   std::vector<wgpu::BindGroupEntry> valid;
   valid.reserve(entries.size());
+  bool seen[64] = {false};
   for (const wgpu::BindGroupEntry &e : entries) {
     /* An entry with no resource set is the null GPUBufferBinding that throws an
      * uncaught TypeError in createBindGroup and halts the render loop — drop it. */
     if (e.buffer == nullptr && e.textureView == nullptr && e.sampler == nullptr) {
       continue;
+    }
+    /* Duplicate-binding guard. The frontend can report two resources for the same dense
+     * @binding on a workbench/overlay shader (a remap coincidence between resource
+     * classes); Dawn then rejects the whole group with "binding index N already used by
+     * a previous entry", dropping the draw. Keep the first entry for each binding (the
+     * kind-specific guards in append_resource_bind_entries already ensure it matches the
+     * layout kind) so the group stays valid and the pass renders. */
+    if (e.binding < 64) {
+      if (seen[e.binding]) {
+        continue;
+      }
+      seen[e.binding] = true;
     }
     valid.push_back(e);
   }
@@ -458,6 +471,25 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     const wgpu::BindGroupLayoutEntry *e = entry_of(b);
     return e != nullptr && e->buffer.type != kDefault.buffer.type;
   };
+  /* Buffer-KIND-specific guards. A dense binding is either a Uniform slot or a
+   * Storage/ReadOnlyStorage slot -- never both -- so a UBO must never be placed on a
+   * storage binding (Dawn: "Binding usage (Uniform) doesn't match expected usage
+   * (Storage)") and a storage buffer must never land on a uniform binding. When two
+   * resource classes remap onto the same dense index (the frontend reports colliding
+   * bindings for a workbench/overlay shader), only the class matching the layout
+   * entry's buffer.type is emitted -- this alone resolves both the UBO-on-Storage
+   * usage error (console class 2) and the "binding index N already used" collision
+   * (console class 3). */
+  auto is_uniform_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && e->buffer.type == wgpu::BufferBindingType::Uniform;
+  };
+  auto is_storage_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && (e->buffer.type == wgpu::BufferBindingType::Storage ||
+                            e->buffer.type == wgpu::BufferBindingType::ReadOnlyStorage);
+  };
+  (void)is_buffer_binding;
   auto is_texture_binding = [&](uint32_t b) {
     const wgpu::BindGroupLayoutEntry *e = entry_of(b);
     return e != nullptr && e->texture.sampleType != kDefault.texture.sampleType;
@@ -481,7 +513,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
    * caller adds explicitly). */
   for (const auto &item : bound_uniform_buffers_) {
     const uint32_t b = uint32_t(shader->remap_ubo_binding(item.first));
-    if (is_pc(b) || !is_buffer_binding(b)) {
+    if (is_pc(b) || !is_uniform_binding(b)) {
       continue;
     }
     WGPUUniformBuffer *ubo = item.second;
@@ -503,7 +535,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
   /* Storage buffers (GPU_storagebuf_bind). */
   for (const auto &item : bound_storage_buffers_) {
     const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
-    if (is_pc(b) || !is_buffer_binding(b)) {
+    if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
     WGPUStorageBuffer *ssbo = item.second;
@@ -526,7 +558,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
    * (both recorded in the buffer-SSBO bind-space). */
   for (const auto &item : bound_buffer_ssbos_) {
     const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
-    if (is_pc(b) || !is_buffer_binding(b)) {
+    if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
     const webgpu::Buffer *buf = item.second;

@@ -173,4 +173,23 @@
 # ViewMatrices view_buf[64], draw_view_infos.hh:83) satisfies WGSL's auto-layout
 # minBindingSize (16384) instead of dropping every 3D vertex draw.
 0100-gpu-webgpu-ubo-minbinding-pad.patch
+# 0101-0102 (M4.T16, round 19) CUBE ROUND — finish the black-viewport blockers.
+# Same-file stack for wgpu_context.cc: apply 0098 < 0099 < 0101 (0101 extends both
+# append_resource_bind_entries and create_bind_group_checked, the latter just after
+# 0099's null-buffer guard). 0102 is an independent file (wgpu_texture.cc). Both
+# reverse-apply verified against the live tree.
+# 0101 bind-group kind-guard + dedup: append_resource_bind_entries gains buffer-KIND
+# guards (is_uniform_binding / is_storage_binding) so a UBO can never be placed on a
+# Storage/ReadOnlyStorage slot and vice-versa — kills console class 2 (UBO-on-Storage
+# usage mismatch). create_bind_group_checked gains a keep-first dedup by @binding so a
+# workbench/overlay shader whose frontend reports two resources for one dense binding no
+# longer yields an "In entries[N], binding index K already used" invalid group (class 3).
+0101-gpu-webgpu-bindgroup-kind-guard-dedup.patch
+# 0102 depth-only sampled view: WGPUTexture::sampled_view forces TextureAspect::DepthOnly
+# for GPU_FORMAT_DEPTH textures (and the aspect-specific view format for combined
+# Depth32FloatStencil8 / Depth24PlusStencil8) — a combined-aspect depth-stencil view
+# cannot be bound to a sampled slot. Removes the all-aspect view rejection; a residual
+# Float-vs-Depth sampleType mismatch under Dawn auto-layout is characterized in
+# notes/gpu-laneB-integration.md (needs explicit pipeline layouts, deferred).
+0102-gpu-webgpu-depth-sampled-view-aspect.patch
 0120-asset-system-wasm.patch

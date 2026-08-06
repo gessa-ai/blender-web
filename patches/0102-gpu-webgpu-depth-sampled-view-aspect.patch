@@ -1,0 +1,25 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1014,6 +1014,21 @@ wgpu::TextureView WGPUTexture::sampled_view()
+   d.baseMipLevel = uint32_t(std::max(mip_offset_, 0));
+   d.baseArrayLayer = uint32_t(std::max(layer_offset_, 0));
+   d.aspect = wgpu::TextureAspect::All;
++  /* Depth (and depth-stencil) textures cannot be SAMPLED through an All-aspect view:
++   * WebGPU requires a single-aspect view, and a combined Depth32FloatStencil8 bound to
++   * a Float/UnfilterableFloat sampled slot (overlay/workbench depth reads) is rejected
++   * unless the depth aspect is isolated. Force DepthOnly; for a combined depth-stencil
++   * format the view format must also be the aspect-specific (depth-only) format, since a
++   * single-aspect view may not carry the combined format. */
++  if (format_flag_ & GPU_FORMAT_DEPTH) {
++    d.aspect = wgpu::TextureAspect::DepthOnly;
++    if (wgpu_format_ == wgpu::TextureFormat::Depth32FloatStencil8) {
++      d.format = wgpu::TextureFormat::Depth32Float;
++    }
++    else if (wgpu_format_ == wgpu::TextureFormat::Depth24PlusStencil8) {
++      d.format = wgpu::TextureFormat::Depth24Plus;
++    }
++  }
+   return tex.CreateView(&d);
+ }
+ 

@@ -478,6 +478,24 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   cmake evidence, NO code change (gpu/metal off-limits). (4) buffer_texture R32F + subdiv×4:
   BLACKLIST with justifications (R32F = post-launch format-generic work; subdiv = runtime
   OSD injection missing for all backends at this harness profile).
+### M4 viewport recon (dfbac20, driver-verified): THE M4-GATE BLOCKER MAP
+
+UI chrome + splash render; **3D viewport interior = BLACK** (no cube/grid/gizmos). Five Dawn
+classes drop viewport command buffers at Submit: (1) DOMINANT surface-blit format mismatch —
+region RGBA8Unorm vs surface BGRA8Unorm, CopyTextureToTexture needs identical formats;
+(2) UBO bound where SSBO expected (missing Storage usage); (3) dense-remap binding COLLISION;
+(4) dense-remap GAP (binding 3 absent); (5) vertex UBO 352B vs minBindingSize 16384.
+CRASH SIGNATURE: Tab → createBindGroup 'buffer' undefined (js:19731) → render loop halts
+silently (no abort propagation). Also: first-composite-needs-an-input-event (ghost-web);
+spurious "using OpenGL instead" dialog despite live device; cattrs missing (python);
+splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
+
+- [ ] **M4.T15 [gpu-backend r18 — VIEWPORT DRAW ROUND, dispatch on r17 exit (same files)]**
+  Fix classes 1-5 (routed file:line in the recon transcript) + the Tab createBindGroup
+  null-buffer crash + triage the spurious GPU-fallback dialog. Success = default cube +
+  grid visible in the tab → then the M4 golden comparison. P2 ghost-web (first-composite
+  event) + P3 python (cattrs) / imbuf (splash) follow separately.
+
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 
 - [x] **M6.pre-a Cycles-CPU compile probe (96e3a0f):** COMPILES CLEAN wasm32, zero source

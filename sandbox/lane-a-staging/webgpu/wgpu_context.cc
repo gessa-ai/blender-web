@@ -19,7 +19,14 @@
 
 #include "wgpu_framebuffer.hh"
 #include "wgpu_immediate.hh"
+#include "wgpu_shader.hh"
 #include "wgpu_state_manager.hh"
+#include "wgpu_storage_buffer.hh"
+#include "wgpu_texture.hh"
+#include "wgpu_uniform_buffer.hh"
+
+#include "GPU_framebuffer.hh"
+#include "GPU_texture.hh"
 
 /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
  * intern/ghost/intern to this TU's include path. Production should instead route
@@ -62,6 +69,7 @@ wgpu::Queue WGPUContext::s_queue = nullptr;
 WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
 {
   ghost_window_ = ghost_window;
+  ghost_context_ = ghost_context;
 
   /* The context was created by GHOST_SystemHeadless::createOffscreenContext for
    * GHOST_kDrawingContextTypeWebGPU, so it is a GHOST_ContextWGPU. Borrow its
@@ -114,6 +122,13 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
 
 WGPUContext::~WGPUContext()
 {
+  /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
+   * back_left/front_left (which are still alive here), releasing the surface
+   * texture ref without destroying the surface's own texture. */
+  if (surface_texture_ != nullptr) {
+    delete surface_texture_;
+    surface_texture_ = nullptr;
+  }
   free_resources();
   /* Mirror VKContext::~VKContext():59-60 — delete `imm` here and null it so the
    * base Context dtor's `delete imm` (gpu_context.cc:101) is a safe no-op. */
@@ -135,6 +150,7 @@ void WGPUContext::activate()
 {
   BLI_assert(is_active_ == false);
   is_active_ = true;
+  sync_backbuffer();
   immActivate();
 }
 
@@ -209,6 +225,301 @@ void WGPUContext::capabilities_init()
    * Off under native Dawn (a real cross-thread device), so this is Emscripten-only. */
   GCaps.use_main_context_workaround = true;
 #endif
+}
+
+/* --- Sampler cache --------------------------------------------------------- */
+
+static wgpu::AddressMode to_wgpu_address_mode(GPUSamplerExtendMode mode)
+{
+  switch (mode) {
+    case GPU_SAMPLER_EXTEND_MODE_REPEAT:
+      return wgpu::AddressMode::Repeat;
+    case GPU_SAMPLER_EXTEND_MODE_MIRRORED_REPEAT:
+      return wgpu::AddressMode::MirrorRepeat;
+    case GPU_SAMPLER_EXTEND_MODE_EXTEND:
+    case GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER:
+    default:
+      /* WebGPU has no border-colour address mode; clamp-to-edge is the closest. */
+      return wgpu::AddressMode::ClampToEdge;
+  }
+}
+
+wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
+{
+  const uint32_t key = state.as_uint();
+  auto it = sampler_cache_.find(key);
+  if (it != sampler_cache_.end()) {
+    return it->second;
+  }
+
+  /* Mirrors VKSampler::create (vk_sampler.cc). Defaults to point sampling; the
+   * PARAMETERS / CUSTOM branches widen to linear / mipmap / compare. */
+  wgpu::SamplerDescriptor d = {};
+  d.addressModeU = to_wgpu_address_mode(state.extend_x);
+  d.addressModeV = to_wgpu_address_mode(state.extend_yz);
+  d.addressModeW = to_wgpu_address_mode(state.extend_yz);
+  d.magFilter = wgpu::FilterMode::Nearest;
+  d.minFilter = wgpu::FilterMode::Nearest;
+  d.mipmapFilter = wgpu::MipmapFilterMode::Nearest;
+  d.lodMinClamp = 0.0f;
+  d.lodMaxClamp = 0.0f;
+  d.maxAnisotropy = 1;
+
+  if (state.type == GPU_SAMPLER_STATE_TYPE_CUSTOM) {
+    if (state.custom_type == GPU_SAMPLER_CUSTOM_ICON) {
+      d.magFilter = wgpu::FilterMode::Linear;
+      d.minFilter = wgpu::FilterMode::Linear;
+      d.mipmapFilter = wgpu::MipmapFilterMode::Nearest;
+      d.lodMaxClamp = 1.0f;
+    }
+    else { /* GPU_SAMPLER_CUSTOM_COMPARE */
+      d.magFilter = wgpu::FilterMode::Linear;
+      d.minFilter = wgpu::FilterMode::Linear;
+      d.compare = wgpu::CompareFunction::LessEqual;
+    }
+  }
+  else { /* PARAMETERS (INTERNAL is treated as parameters here). */
+    if (state.filtering & GPU_SAMPLER_FILTERING_LINEAR) {
+      d.magFilter = wgpu::FilterMode::Linear;
+      d.minFilter = wgpu::FilterMode::Linear;
+    }
+    if (state.filtering & GPU_SAMPLER_FILTERING_MIPMAP) {
+      d.mipmapFilter = wgpu::MipmapFilterMode::Linear;
+      d.lodMaxClamp = 1000.0f;
+    }
+  }
+
+  wgpu::Sampler sampler = device_.CreateSampler(&d);
+  sampler_cache_[key] = sampler;
+  return sampler;
+}
+
+/* --- Draw/dispatch bind-group resource assembly ---------------------------- */
+
+void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+                                               std::vector<wgpu::BindGroupEntry> &entries)
+{
+  if (shader == nullptr) {
+    return;
+  }
+  const webgpu::InterfaceMap &imap = shader->interface_map();
+  /* Emit an entry only for a binding the shader's layout declares AND whose resource
+   * kind matches: a resource left bound by a previous draw (stale texture/SSBO/UBO)
+   * must not leak in, and a dense binding index reused across resource classes (e.g. a
+   * UBO at the same index another shader used for a texture) must not be filled with
+   * the wrong entry kind — both make CreateBindGroup reject the group. The kind is read
+   * from the interface-map layout entry by comparing each sub-struct's discriminant to
+   * a default entry (robust to WebGPU enum-naming: Undefined vs BindingNotUsed). */
+  static const wgpu::BindGroupLayoutEntry kDefault = {};
+  auto entry_of = [&](uint32_t binding) -> const wgpu::BindGroupLayoutEntry * {
+    for (const wgpu::BindGroupLayoutEntry &e : imap.entries) {
+      if (e.binding == binding) {
+        return &e;
+      }
+    }
+    return nullptr;
+  };
+  auto is_buffer_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && e->buffer.type != kDefault.buffer.type;
+  };
+  auto is_texture_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && e->texture.sampleType != kDefault.texture.sampleType;
+  };
+  auto is_sampler_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && e->sampler.type != kDefault.sampler.type;
+  };
+  auto is_image_binding = [&](uint32_t b) {
+    const wgpu::BindGroupLayoutEntry *e = entry_of(b);
+    return e != nullptr && e->storageTexture.access != kDefault.storageTexture.access;
+  };
+  /* The caller adds the push-constant emulation UBO itself; a resource left bound at
+   * that same dense binding by an earlier draw must not be re-added here (Dawn:
+   * "binding index N already used"). */
+  const bool has_pc = shader->has_push_constants();
+  const uint32_t pc_binding = has_pc ? shader->push_constants_binding() : 0xffffffffu;
+  auto is_pc = [&](uint32_t b) { return has_pc && b == pc_binding; };
+
+  /* Bound uniform buffers (distinct from the push-constant emulation UBO, which the
+   * caller adds explicitly). */
+  for (const auto &item : bound_uniform_buffers_) {
+    const uint32_t b = uint32_t(shader->remap_ubo_binding(item.first));
+    if (is_pc(b) || !is_buffer_binding(b)) {
+      continue;
+    }
+    WGPUUniformBuffer *ubo = item.second;
+    if (ubo == nullptr) {
+      continue;
+    }
+    const webgpu::Buffer &buf = ubo->buffer();
+    if (!buf.valid()) {
+      continue;
+    }
+    wgpu::BindGroupEntry e = {};
+    e.binding = b;
+    e.buffer = buf.handle();
+    e.offset = 0;
+    e.size = buf.size();
+    entries.push_back(e);
+  }
+
+  /* Storage buffers (GPU_storagebuf_bind). */
+  for (const auto &item : bound_storage_buffers_) {
+    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    if (is_pc(b) || !is_buffer_binding(b)) {
+      continue;
+    }
+    WGPUStorageBuffer *ssbo = item.second;
+    if (ssbo == nullptr) {
+      continue;
+    }
+    const webgpu::Buffer &buf = ssbo->buffer();
+    if (!buf.valid()) {
+      continue;
+    }
+    wgpu::BindGroupEntry e = {};
+    e.binding = b;
+    e.buffer = buf.handle();
+    e.offset = 0;
+    e.size = buf.size();
+    entries.push_back(e);
+  }
+
+  /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
+   * (both recorded in the buffer-SSBO bind-space). */
+  for (const auto &item : bound_buffer_ssbos_) {
+    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    if (is_pc(b) || !is_buffer_binding(b)) {
+      continue;
+    }
+    const webgpu::Buffer *buf = item.second;
+    if (buf == nullptr || !buf->valid()) {
+      continue;
+    }
+    wgpu::BindGroupEntry e = {};
+    e.binding = b;
+    e.buffer = buf->handle();
+    e.offset = 0;
+    e.size = buf->size();
+    entries.push_back(e);
+  }
+
+  WGPUStateManager *sm = static_cast<WGPUStateManager *>(state_manager);
+  if (sm == nullptr) {
+    return;
+  }
+
+  /* Storage images (GPU_texture_image_bind). */
+  for (const auto &item : sm->bound_images()) {
+    const uint32_t b = uint32_t(shader->remap_image_binding(item.first));
+    if (!is_image_binding(b)) {
+      continue;
+    }
+    webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
+    if (tex == nullptr) {
+      continue;
+    }
+    wgpu::TextureView view = tex->image_view();
+    if (view == nullptr) {
+      continue;
+    }
+    wgpu::BindGroupEntry e = {};
+    e.binding = b;
+    e.textureView = view;
+    entries.push_back(e);
+  }
+
+  /* Sampled textures + their samplers (GPU_texture_bind). One combined sampler at
+   * dense binding N splits into a texture half at N and a sampler half at
+   * SAMPLER_BASE + N (notes/gpu-binding-map-spec.md §4.1). Buffer textures are a
+   * storage-buffer entry, handled above — skip them here. */
+  const uint32_t sampler_base = imap.sampler_base;
+  for (const auto &item : sm->bound_textures()) {
+    const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
+    webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second.texture);
+    if (tex == nullptr || tex->is_buffer_texture()) {
+      continue;
+    }
+    if (is_texture_binding(n)) {
+      wgpu::TextureView view = tex->sampled_view();
+      if (view != nullptr) {
+        wgpu::BindGroupEntry e = {};
+        e.binding = n;
+        e.textureView = view;
+        entries.push_back(e);
+      }
+    }
+    const uint32_t sb = sampler_base + n;
+    if (is_sampler_binding(sb)) {
+      wgpu::Sampler sampler = get_sampler(item.second.sampler);
+      if (sampler != nullptr) {
+        wgpu::BindGroupEntry e = {};
+        e.binding = sb;
+        e.sampler = sampler;
+        entries.push_back(e);
+      }
+    }
+  }
+
+}
+
+/* --- Window back-buffer sync (web windowed only) --------------------------- */
+
+void WGPUContext::sync_backbuffer()
+{
+#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
+  /* Only the window context has a GHOST window + a configured surface; offscreen
+   * (GPU_offscreen) contexts and the M3 headless/native builds take no action. */
+  if (ghost_window_ == nullptr || ghost_context_ == nullptr) {
+    return;
+  }
+  WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context_);
+  wgpu::Surface surface = wgpu_ghost->getSurface();
+  if (surface == nullptr) {
+    return;
+  }
+  wgpu::SurfaceTexture st = {};
+  surface.GetCurrentTexture(&st);
+  if (st.texture == nullptr) {
+    return;
+  }
+  const int w = int(st.texture.GetWidth());
+  const int h = int(st.texture.GetHeight());
+  const wgpu::TextureFormat fmt = wgpu_ghost->getSurfaceFormat();
+
+  const bool first = (surface_texture_ == nullptr);
+  webgpu::WGPUTexture *back;
+  if (first) {
+    back = new webgpu::WGPUTexture("back_left_surface");
+    surface_texture_ = back;
+  }
+  else {
+    back = static_cast<webgpu::WGPUTexture *>(surface_texture_);
+  }
+  /* Re-adopt the surface's per-frame current texture (WebGPU hands back a fresh
+   * texture after each present); attach once, then just refresh the handle. */
+  back->adopt_external(st.texture, fmt, w, h);
+
+  if (first) {
+    if (back_left != nullptr) {
+      back_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0, GPU_ATTACHMENT_TEXTURE(surface_texture_));
+    }
+    if (front_left != nullptr) {
+      front_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0,
+                                 GPU_ATTACHMENT_TEXTURE(surface_texture_));
+    }
+  }
+#endif
+}
+
+bool WGPUContext::is_window_backbuffer(const FrameBuffer *fb) const
+{
+  /* back_left/front_left get the surface's current texture in sync_backbuffer (web
+   * windowed only). No surface -> no window backbuffer, so the native/headless gpu
+   * build always reports false and keeps the ADR-005 offscreen convention untouched. */
+  return surface_texture_ != nullptr && (fb == back_left || fb == front_left);
 }
 
 /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */

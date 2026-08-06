@@ -21,13 +21,21 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <webgpu/webgpu_cpp.h>
 
 #include "MEM_guardedalloc.h"
 
+namespace blender {
+struct GPUSamplerState;
+}
+
 namespace blender::gpu {
 
+class Texture;
+class WGPUShader;
 class WGPUStorageBuffer;
+class WGPUUniformBuffer;
 namespace webgpu {
 class Buffer;
 }
@@ -130,6 +138,54 @@ class WGPUContext : public Context {
     return bound_buffer_ssbos_;
   }
 
+  /* --- Bound uniform-buffer tracking ---------------------------------------
+   * Separately-bound UBOs (GPU_uniformbuf_bind, distinct from the push-constant
+   * emulation UBO) recorded per dense WGSL @binding slot; consumed by
+   * append_resource_bind_entries. Mirrors the storage-buffer bind-space above. */
+  void uniform_buffer_bind(int slot, WGPUUniformBuffer *ubo)
+  {
+    bound_uniform_buffers_[slot] = ubo;
+  }
+  void uniform_buffer_unbind(WGPUUniformBuffer *ubo)
+  {
+    for (auto it = bound_uniform_buffers_.begin(); it != bound_uniform_buffers_.end();) {
+      if (it->second == ubo) {
+        it = bound_uniform_buffers_.erase(it);
+      }
+      else {
+        ++it;
+      }
+    }
+  }
+  const std::unordered_map<int, WGPUUniformBuffer *> &bound_uniform_buffers() const
+  {
+    return bound_uniform_buffers_;
+  }
+
+  /* Append group-0 bind-group entries for every resource the bound shader declares
+   * (filtered by its interface map so stale binds never leak in): bound UBOs,
+   * storage buffers, VBO/IBO-as-SSBO, storage images, and sampled textures + their
+   * samplers (texture half at N, sampler half at SAMPLER_BASE + N). The caller adds
+   * the push-constant UBO (+ multi-viewport UBO) itself. Shared by the draw,
+   * immediate and compute bind-group builders. */
+  void append_resource_bind_entries(WGPUShader *shader,
+                                     std::vector<wgpu::BindGroupEntry> &entries);
+
+  /* A cached wgpu::Sampler for a GPUSamplerState (created lazily, retained for the
+   * context lifetime so the handle outlives every BindGroup that references it). */
+  wgpu::Sampler get_sampler(const GPUSamplerState &state);
+
+  /* Point back_left/front_left's colour attachment at the window surface's current
+   * texture (windowed web build only; no-op otherwise). Called from activate(),
+   * mirroring VKContext::sync_backbuffer (vk_context.cc:67). */
+  void sync_backbuffer();
+
+  /* True when `fb` is the window's surface-backed default backbuffer (back_left/
+   * front_left with a live surface texture). The present-path Y-flip (M4.T14a) renders
+   * these upright; every other (offscreen) target keeps the ADR-005 clip-flip. Always
+   * false in the headless/native gpu build (no surface). */
+  bool is_window_backbuffer(const FrameBuffer *fb) const;
+
   /* Backend-wide device/instance/queue, reachable from any thread (there is a
    * single Dawn device). Used by the async shader-compile worker, which has no
    * thread-local active GPU context. */
@@ -166,6 +222,17 @@ class WGPUContext : public Context {
   std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
   /** VBO/IBO buffers bound as SSBOs keyed by WGSL @binding slot (see buffer_ssbo_bind). */
   std::unordered_map<int, const webgpu::Buffer *> bound_buffer_ssbos_;
+  /** Separately-bound uniform buffers keyed by WGSL @binding slot. */
+  std::unordered_map<int, WGPUUniformBuffer *> bound_uniform_buffers_;
+  /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
+  std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
+
+  /** The GHOST drawing context (retained for sync_backbuffer's surface access);
+   * mirrors VKContext::ghost_context_ (vk_context.cc:40). */
+  GHOST_IContext *ghost_context_ = nullptr;
+  /** Back-buffer wrapper around the window surface's current texture (web windowed);
+   * owned here, re-adopted each sync_backbuffer, freed in the dtor. */
+  Texture *surface_texture_ = nullptr;
 
   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
 };

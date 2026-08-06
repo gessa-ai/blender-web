@@ -940,16 +940,26 @@ std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo 
 
   /* Retarget depth from -1..1 (GL convention the GLSL is written in) to 0..1
    * (WebGPU/Vulkan clip space). The user main() is renamed via #define. */
+  /* Y-orientation flip (ADR-005 decision 1) as a pipeline-overridable sign (M4.T14a).
+   * WebGPU has +Y-up NDC and no negative-viewport-height escape hatch. OFFSCREEN targets
+   * negate clip-space Y (default sign -1.0f, paired with the front-face swap + readback
+   * row-flip) to match the GL convention the oracle tests encode. The WINDOW surface is
+   * composited directly by the browser (no readback), and +Y-up NDC already displays
+   * upright, so a negated window appears upside-down. The backend overrides the sign to
+   * +1.0f for the surface-backed backbuffer only (wgpu_pipeline.cc, keyed by
+   * PipelineInfo::flip_y) -- window passes render upright while every offscreen pipeline
+   * keeps the -1.0f default byte-for-byte (the override is simply not set). Declared as
+   * the uint bit pattern + a uintBitsToFloat alias, mirroring the float spec-constant
+   * encoding in resources_declare (uintBitsToFloat is illegal in a global const
+   * initializer). constant_id 1000 is reserved, above any create-info specialization
+   * constant (which number from 0). */
+  ss << "layout(constant_id = 1000) const uint gpu_clip_y_sign_uint = 0xBF800000u;\n";
+  ss << "#define gpu_clip_y_sign uintBitsToFloat(gpu_clip_y_sign_uint)\n";
   ss << "void main_function_();\n";
   ss << "void main() {\n";
   ss << "  main_function_();\n";
   ss << "  gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;\n";
-  /* Y-orientation flip (ADR-005 decision 1). Blender's gpu frontend and its oracles
-   * assume GL-style bottom-left-origin framebuffers; WebGPU rasterises top-left-origin
-   * with no negative-viewport-height escape hatch, so negate clip-space Y here, once,
-   * for every vertex stage the backend compiles. Winding compensation (front-face swap)
-   * and render-target readback row-flip are lane B's paired halves. */
-  ss << "  gl_Position.y = -gl_Position.y;\n";
+  ss << "  gl_Position.y = gl_Position.y * gpu_clip_y_sign;\n";
   ss << "}\n";
   ss << "#define main main_function_\n";
 
@@ -2257,15 +2267,43 @@ void WGPUShader::build_interface(const shader::ShaderCreateInfo &info)
   push_constants_data_.assign(push_constants_size_, 0);
 
   /* UBO binding = the dense binding after the last resource (matches
-   * resources_declare / the ResourceDesc list). */
-  blender::Map<uint32_t, uint32_t> bindings;
-  push_constants_binding_ = build_dense_bindings(info, bindings);
+   * resources_declare / the ResourceDesc list). Keep the full (bind_type,slot)->dense
+   * map for remap_*_binding (frontend slot -> dense group-0 binding). */
+  dense_bindings_.clear();
+  push_constants_binding_ = build_dense_bindings(info, dense_bindings_);
 
   /* Multi-viewport emulation pass-state UBO (M3.F7): binding just after the push-constant
    * fallback, matching the resources_declare formula. */
   has_multi_viewport_ = flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX);
   multi_viewport_binding_ = push_constants_binding_ +
                             (info.push_constants_.is_empty() ? 0u : 1u);
+}
+
+int WGPUShader::remap_ssbo_binding(int slot) const
+{
+  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER)
+                        << 24) |
+                       uint32_t(slot);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+}
+int WGPUShader::remap_ubo_binding(int slot) const
+{
+  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER)
+                        << 24) |
+                       uint32_t(slot);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+}
+int WGPUShader::remap_sampler_binding(int slot) const
+{
+  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::SAMPLER) << 24) |
+                       uint32_t(slot);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+}
+int WGPUShader::remap_image_binding(int slot) const
+{
+  const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::IMAGE) << 24) |
+                       uint32_t(slot);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
 }
 
 void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)

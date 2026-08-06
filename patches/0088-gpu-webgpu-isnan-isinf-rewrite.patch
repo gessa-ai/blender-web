@@ -1,0 +1,87 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 26cf158..c240487 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -1550,6 +1550,58 @@ static void rewrite_1d_array_samplers(std::string &src)
+   }
+ }
+ 
++/* Tint's SPIR-V reader rejects OpIsNan / OpIsInf ("NaNs/Infinities cannot be represented
++ * in WGSL"), so glslang's isnan()/isinf() builtins (EEVEE film / DoF / motion-blur /
++ * volume, launch tier) break. Replace them with arithmetic equivalents that compile to
++ * ordinary comparisons (no OpIsNan/OpIsInf) and survive to WGSL: isnan(x) == (x != x)
++ * (a NaN is the only value unequal to itself — the operand is a runtime value so glslang
++ * cannot fold it), isinf(x) == (abs(x) > FLT_MAX). Injected as type-overloaded helpers so
++ * the scalar and vector (bvecN via notEqual/greaterThan) forms both resolve; only shaders
++ * that reference isnan/isinf get them. Same non-foldable spirit as the NAN_FLT guard
++ * (patch 0054). */
++static void rewrite_isnan_isinf(std::string &src)
++{
++  if (src.find("isnan(") == std::string::npos && src.find("isinf(") == std::string::npos) {
++    return;
++  }
++  static const char *kHelpers =
++      "\nbool wgpu_isnan(float x) { return x != x; }\n"
++      "bvec2 wgpu_isnan(vec2 v) { return notEqual(v, v); }\n"
++      "bvec3 wgpu_isnan(vec3 v) { return notEqual(v, v); }\n"
++      "bvec4 wgpu_isnan(vec4 v) { return notEqual(v, v); }\n"
++      "bool wgpu_isinf(float x) { return abs(x) > 3.402823466e38; }\n"
++      "bvec2 wgpu_isinf(vec2 v) { return greaterThan(abs(v), vec2(3.402823466e38)); }\n"
++      "bvec3 wgpu_isinf(vec3 v) { return greaterThan(abs(v), vec3(3.402823466e38)); }\n"
++      "bvec4 wgpu_isinf(vec4 v) { return greaterThan(abs(v), vec4(3.402823466e38)); }\n";
++
++  /* Insert the helpers just after the `#version` line (must precede first use, and
++   * `#version` must stay the very first token). */
++  size_t ins = src.find("#version");
++  if (ins != std::string::npos) {
++    const size_t nl = src.find('\n', ins);
++    ins = (nl == std::string::npos) ? src.size() : nl + 1;
++  }
++  else {
++    ins = 0;
++  }
++  src.insert(ins, kHelpers);
++
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  for (const char *fn : {"isnan(", "isinf("}) {
++    const std::string needle = fn;
++    const std::string repl = std::string("wgpu_") + fn;
++    size_t pos = ins + std::strlen(kHelpers); /* skip the helper block we just inserted */
++    while ((pos = src.find(needle, pos)) != std::string::npos) {
++      if (pos > 0 && is_ident(src[pos - 1])) {
++        pos += needle.size(); /* part of a longer identifier (e.g. wgpu_isnan) */
++        continue;
++      }
++      src.replace(pos, needle.size(), repl);
++      pos += repl.size();
++    }
++  }
++}
++
+ void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                          MutableSpan<StringRefNull> sources)
+ {
+@@ -1557,6 +1609,7 @@ void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+   rewrite_texel_buffers(vertex_glsl_, info);
+   rewrite_integer_sampler_sampling(vertex_glsl_);
+   rewrite_1d_array_samplers(vertex_glsl_);
++  rewrite_isnan_isinf(vertex_glsl_);
+ }
+ void WGPUShader::geometry_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
+                                            MutableSpan<StringRefNull> /*sources*/)
+@@ -1570,6 +1623,7 @@ void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
+   rewrite_texel_buffers(fragment_glsl_, info);
+   rewrite_integer_sampler_sampling(fragment_glsl_);
+   rewrite_1d_array_samplers(fragment_glsl_);
++  rewrite_isnan_isinf(fragment_glsl_);
+ }
+ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                           MutableSpan<StringRefNull> sources)
+@@ -1579,6 +1633,7 @@ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+   rewrite_texel_buffers(compute_glsl_, info);
+   rewrite_integer_sampler_sampling(compute_glsl_);
+   rewrite_1d_array_samplers(compute_glsl_);
++  rewrite_isnan_isinf(compute_glsl_);
+ }
+ 
+ /* Map a create-info sampler/image ImageType to the interface-map texel + dim. */

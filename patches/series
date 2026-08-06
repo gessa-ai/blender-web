@@ -145,4 +145,12 @@
 0093-gpu-webgpu-batch-draw-indirect.patch
 0094-gpu-webgpu-context-sync-backbuffer.patch
 0095-gpu-webgpu-framebuffer-finite-depth-clear.patch
+# 0096 (M4.T14a, round 17) present-path Y-flip: overridable clip-space Y sign +
+# window-only front-face; 7 webgpu files, no same-file stack with 0092-0095 (disjoint
+# hunks). Reverse-apply verified against the live tree.
+0096-gpu-webgpu-present-path-y-flip.patch
+# 0097 (M3.F13, round 17) uniformity-5 barrier restructure: GPU_WEBGPU-guarded, 4 eevee
+# compute shaders (page_mask, depth_of_field_resolve, shadow_tilemap_{init,finalize}).
+# static_shaders 951 -> 956. Independent file set; reverse-apply verified.
+0097-gpu-webgpu-uniformity-barrier-glsl.patch
 0120-asset-system-wasm.patch

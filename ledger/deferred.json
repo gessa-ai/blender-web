@@ -167,6 +167,56 @@
       "impact": "imbuf_py_api AVIF writes",
       "revisit": "M7",
       "evidence": "notes/m2-tierb-prep.md"
+    },
+    {
+      "id": "storage-texture-atomics",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "post-launch - WGSL has no storage-texture atomic path; revisit if WGSL/Dawn gains image atomics or an SSBO-atomic emulation of the affected passes is scoped",
+      "blocker": "WGSL has no storage-texture atomics: imageAtomic* maps to SPIR-V OpImageTexelPointer, which Tint's SPIR-V reader rejects ('tint ReadIR: unhandled SPIR-V OpImageTexelPointer'). No Dawn FeatureName enables image atomics at this pin.",
+      "impact": "8 static shaders using imageAtomic fail to compile (part of static_shaders 951/973) and the shader_texture_atomic test crashes (signal 11 - compile fails -> null module -> bind/dispatch segfault, honest).",
+      "workaround": "Where the algorithm allows, re-express the image atomic as a storage-buffer (SSBO) atomic over an equivalent linear layout; not a general drop-in, so deferred until a shipping shader needs it.",
+      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #1 (imageAtomic 8) / CRASH #9 (shader_texture_atomic)"
+    },
+    {
+      "id": "vertex-stage-rw-storage",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "post-launch - restructure the affected passes to move read_write storage writes into a compute prepass (vertex stage reads read-only storage only)",
+      "blocker": "WebGPU forbids var<storage, read_write> in the vertex pipeline stage; Tint rejects it: 'var storage/read_write cannot be used by vertex pipeline stage'.",
+      "impact": "4 static shaders fail to compile (draw_curves_test, draw_debug_draw_display, eevee_shadow_tag_update, gpu_graphic_specialization_test; part of static_shaders 951/973) and the specialization_constants_graphic test crashes (signal 11).",
+      "workaround": "Split the pass: perform the read_write storage writes in a separate compute pass, leaving the vertex stage with read-only storage.",
+      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #1 (vertex-stage read_write SSBO 4) / CRASH #10 (specialization_constants_graphic)"
+    },
+    {
+      "id": "depth-aspect-buffer-upload",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "when a buffer->depth upload workflow is in scope - emulate via a fullscreen depth-write render pass instead of a buffer copy",
+      "blocker": "WebGPU forbids writing the depth aspect of a texture via a buffer->texture copy (buffer->depth-aspect copies are invalid). The clear + read-back paths work.",
+      "impact": "2 texture_roundtrip tests fail (GPU_DEPTH32F_STENCIL8, GPU_DEPTH_COMPONENT32F; 'max_used_bias 0.875 > 0'). Depth textures can be cleared and read back; only the buffer-copy upload path is unsupported.",
+      "workaround": "Write depth via a render pass (fragment depth output) rather than a buffer->texture copy.",
+      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #6/#7 (texture_roundtrip depth-aspect upload)"
+    },
+    {
+      "id": "gpu-comp-i10-vertex-format",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "later fix - unpack I10 in the vertex shader from a Uint source, or CPU pre-expand to a supported signed format, when packed-normal attributes reach the shipping viewport",
+      "blocker": "WebGPU has no signed snorm10-10-10-2 vertex format; wgpu_pipeline.cc:86 maps GPU_COMP_I10 (signed 2_10_10_10_REV, used for packed mesh normals) to VF::Unorm10_10_10_2, so the unsigned read drops the sign.",
+      "impact": "vertex_buffer_fetch_mode GPU_COMP_I10 INT_TO_FLOAT_UNIT fails: got (160,256,255,0), want (321,-511,511,0). Affects packed mesh-normal vertex attributes.",
+      "workaround": "Unpack signed 2_10_10_10 in the vertex shader from a Uint10_10_10_2/Uint32 source, or pre-expand on CPU to Snorm16x4.",
+      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #8 (vertex_buffer_fetch_mode GPU_COMP_I10); wgpu_pipeline.cc:86"
+    },
+    {
+      "id": "subpass-input-attachment",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "M6 entry - REVISIT on EEVEE render evidence per fix_plan.md M3.F13-DECISIONS decision 2; 2-pass emulation designed in notes/gpu-laneB-integration.md",
+      "blocker": "WebGPU has no subpass inputs / input-attachment equivalent.",
+      "impact": "framebuffer_subpass_input x2 fail (honest FAIL, characterized round 10).",
+      "workaround": "2-pass emulation designed (notes/gpu-laneB-integration.md): resolve the subpass read as a sampled texture between render passes.",
+      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #4/#5 (framebuffer_subpass_input); notes/gpu-laneB-integration.md (2-pass subpass emulation)"
     }
   ]
 }

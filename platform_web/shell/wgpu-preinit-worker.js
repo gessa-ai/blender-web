@@ -89,6 +89,26 @@
             }
           } catch (e) {}
           var device = await adapter.requestDevice({ requiredFeatures: requiredFeatures });
+          // VISIBILITY (M4.T18, r21): route the WM-worker device's uncaptured
+          // validation/OOM errors to the PAGE console. This worker owns all GPU work, but
+          // its console.error is NOT proxied to the tab — only log() (Emscripten err() ->
+          // printErr) is. Dawn's uncaptured errors during viewport draw are otherwise
+          // invisible from the main thread (notes/gpu-r20-cube-blocker.md hyp. 2). The
+          // imported C++ wgpu::Device cannot set this post-creation (DeviceDescriptor-only),
+          // so attach the browser-native listener on the raw GPUDevice here, at creation.
+          try {
+            device.addEventListener("uncapturederror", function (ev) {
+              var er = ev && ev.error;
+              var nm = (er && er.constructor && er.constructor.name) ? er.constructor.name
+                                                                     : "GPUError";
+              log("[bw][GPU-ERROR] " + nm + ": " + (er && er.message ? er.message : er));
+            });
+            device.lost.then(function (info) {
+              log("[bw][GPU-LOST] reason=" + (info && info.reason) + " " +
+                  (info && info.message ? info.message : ""));
+            });
+          }
+          catch (e) {}
           Module["preinitializedWebGPUDevice"] = device;
           log("[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=" +
               requiredFeatures.length);

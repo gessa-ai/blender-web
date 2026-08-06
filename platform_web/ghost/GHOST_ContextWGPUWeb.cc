@@ -338,7 +338,12 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   wgpu::SurfaceConfiguration config = {};
   config.device = device_;
   config.format = surface_format_;
-  config.usage = wgpu::TextureUsage::RenderAttachment;
+  /* RenderAttachment is what the compositor draws into; CopySrc additionally lets the
+   * frame be read back — OffscreenCanvas.convertToBlob() (the worker-side M4 capture path,
+   * platform_web/shell/wgpu-preinit-worker.js) otherwise fails with "Readback of the source
+   * image has failed" because a RenderAttachment-only canvas texture cannot be copied out.
+   * Both usages are universally supported for a browser canvas surface. */
+  config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
   config.width = width_;
   config.height = height_;
   config.presentMode = wgpu::PresentMode::Fifo;

@@ -130,6 +130,31 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * GHOST events immediately. We cannot block the browser main thread, so
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
+
+  /* Boot-settle redraw burst. Blender redraws on demand, but at boot the tab stays BLACK
+   * until the first real input: the initial GHOST_kEventWindowSize only forces a redraw
+   * when the size actually CHANGES (wm_window_update_size_position), which it does not once
+   * the window already matches the canvas — so WM_main has no pending redraw and never
+   * composites unprompted. A plain GHOST_kEventWindowUpdate (NC_WINDOW only) proved too
+   * weak to kick the first frame. GHOST_kEventWindowActivate is the window's focus-repaint
+   * path: its wm_window.cc handler sets winactive, wm_window_make_drawable, addmousemove=1
+   * and injects a MOUSEMOVE — the same broad re-tag a real pointer entering the window
+   * does, which is what actually composited the first frame in testing. Burst it a few
+   * times a second across the first ~3 s (boot has async settle — device import, surface
+   * configure, script register) so one lands after the window is fully drawable, then STOP:
+   * the OffscreenCanvas retains the last composited frame indefinitely, so no ongoing
+   * heartbeat is needed to HOLD the image (verified: stable with zero input). Bounding the
+   * burst avoids injecting perpetual MOUSEMOVEs that would fight real interaction.
+   * (M4 first-pixels; a proper invalidate-driven present is a later optimization —
+   * notes/gpu-r22-*.md.) */
+  if (window_ != nullptr && redraw_heartbeat_ < 180u) {
+    if ((redraw_heartbeat_ % 12u) == 0u) {
+      pushEvent(
+          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowActivate, window_));
+    }
+    redraw_heartbeat_++;
+  }
+
   return (em != nullptr) && (em->getNumEvents() > 0);
 }
 

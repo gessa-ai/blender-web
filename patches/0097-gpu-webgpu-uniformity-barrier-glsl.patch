@@ -1,0 +1,410 @@
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_depth_of_field_resolve.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_depth_of_field_resolve.bsl.hh
+index f39995613ef..9c9eb33fe73 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_depth_of_field_resolve.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_depth_of_field_resolve.bsl.hh
+@@ -132,6 +132,22 @@ void comp_main([[resource_table]] Resources &srt,
+   float2 uv_halfres = (frag_coord * 0.5f) / float2(textureSize(srt.color_bg_tx, 0));
+ 
+   float slight_focus_max_coc = 0.0f;
++#ifdef GPU_WEBGPU
++  /* Barrier uniformity (Tint): slight_focus_coc_tile_get() contains workgroup barriers.
++   * `prediction.do_slight_focus` is workgroup-uniform in practice (the #else path would
++   * deadlock otherwise, since barriers require the whole workgroup) but Tint cannot prove
++   * it, so it rejects the barrier inside the conditional call. Call unconditionally (all
++   * invocations reach the barriers -> uniform control flow) and consume the result only
++   * when do_slight_focus, which is behaviour-identical to the #else path. */
++  float slight_focus_tile_coc = srt.slight_focus_coc_tile_get(frag_coord, local_index);
++  if (prediction.do_slight_focus) {
++    slight_focus_max_coc = slight_focus_tile_coc;
++    prediction.do_slight_focus = slight_focus_max_coc >= 0.5f;
++    if (prediction.do_slight_focus) {
++      prediction.do_focus = false;
++    }
++  }
++#else
+   if (prediction.do_slight_focus) {
+     slight_focus_max_coc = srt.slight_focus_coc_tile_get(frag_coord, local_index);
+     prediction.do_slight_focus = slight_focus_max_coc >= 0.5f;
+@@ -139,6 +155,7 @@ void comp_main([[resource_table]] Resources &srt,
+       prediction.do_focus = false;
+     }
+   }
++#endif
+ 
+   if (prediction.do_focus) {
+     float depth = reverse_z::read(textureLod(srt.depth_tx, uv, 0.0f).r);
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_shadow_page_mask.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_shadow_page_mask.bsl.hh
+index 99d34a5ef00..23de0667b62 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_shadow_page_mask.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_shadow_page_mask.bsl.hh
+@@ -56,6 +56,189 @@ void mask([[resource_table]] PageMask &srt,
+   ShadowTileMapData tilemap = tilemaps.tilemaps_buf[tilemap_index];
+ 
+   /* NOTE: Barriers are ok since this branch is taken by all threads. */
++#ifdef GPU_WEBGPU
++  /* Barrier uniformity (Tint): the guard derives from a storage-loaded projection_type,
++   * which Tint cannot prove workgroup-uniform, so every barrier inside this branch is
++   * rejected. The whole workgroup shares `tilemap_index` (= global_id.z, local z-size 1)
++   * so all invocations agree on the branch; run the body unconditionally (barriers now in
++   * uniform control flow) and gate the three global writes by `is_cubeface`. For a
++   * non-cube-face workgroup the `tiles_local` (LDS) churn is computed but never flushed to
++   * global memory, so behaviour matches the #else path which skips the body entirely. Both
++   * arms are duplicated in full because shader_tool parses both as one token stream. */
++  const bool is_cubeface = (tilemap.projection_type == SHADOW_PROJECTION_CUBEFACE);
++  {
++    /* Check if any page is allocated in this tilemap. Force base page if that's the case to avoid
++     * artifact during shadow tracing. */
++    if (local_tile_index == 0u) {
++      srt.force_base_page = 0u;
++    }
++    barrier();
++
++    /* Load all data to LDS. Allows us to do some modification on the flag bits and only flush to
++     * main memory the usage bit. */
++    for (int lod = 0; lod <= SHADOW_TILEMAP_LOD; lod++) {
++      if (thread_mask(tile_co, lod)) {
++        int tile_offset = shadow_tile_offset(uint2(tile_co), tilemap.tiles_index, lod);
++        ShadowTileDataPacked tile_data = srt.tiles_buf[tile_offset];
++
++        if ((tile_data & SHADOW_IS_USED) == 0) {
++          /* Do not consider this tile as going to be rendered if it is not used.
++           * Simplify checks later. This is a local modification. */
++          tile_data &= ~SHADOW_DO_UPDATE;
++        }
++        else {
++          /* Tag base level to be used. */
++          srt.force_base_page = 1u;
++        }
++        /* Clear these flags as they could contain any values. */
++        tile_data &= ~(SHADOW_TILE_AMENDED | SHADOW_TILE_MASKED);
++
++        int tile_lds = shadow_tile_offset_lds(tile_co, lod);
++        srt.tiles_local[tile_lds] = tile_data;
++      }
++    }
++
++#if 1 /* Can be disabled for debugging. */
++    /* For each level collect the number of used (or masked) tile that are covering the tile from
++     * the level underneath. If this adds up to 4 the underneath tile is flag unused as its data
++     * is not needed for rendering.
++     *
++     * This is because 2 receivers can tag "used" the same area of the shadow-map but with
++     * different LODs. */
++    for (int lod = 1; lod <= SHADOW_TILEMAP_LOD; lod++) {
++      barrier();
++      if (thread_mask(tile_co, lod)) {
++        int2 tile_co_prev_lod = tile_co * 2;
++        int prev_lod = lod - 1;
++
++        int tile_0 = shadow_tile_offset_lds(tile_co_prev_lod + int2(0, 0), prev_lod);
++        int tile_1 = shadow_tile_offset_lds(tile_co_prev_lod + int2(1, 0), prev_lod);
++        int tile_2 = shadow_tile_offset_lds(tile_co_prev_lod + int2(0, 1), prev_lod);
++        int tile_3 = shadow_tile_offset_lds(tile_co_prev_lod + int2(1, 1), prev_lod);
++        /* Is masked if all tiles from the previous level were tagged as used. */
++        bool is_masked = ((srt.tiles_local[tile_0] & srt.tiles_local[tile_1] &
++                           srt.tiles_local[tile_2] & srt.tiles_local[tile_3]) &
++                          SHADOW_IS_USED) != 0;
++
++        int tile_offset = shadow_tile_offset_lds(tile_co, lod);
++        if (is_masked) {
++          /* Consider this tile occluding lower levels. Use SHADOW_IS_USED flag for that. */
++          srt.tiles_local[tile_offset] |= SHADOW_IS_USED;
++          /* Do not consider this tile when checking which tilemap level to render in next loop. */
++          srt.tiles_local[tile_offset] &= ~SHADOW_DO_UPDATE;
++          /* Tag as modified so that we can amend it inside the `tiles_buf`. */
++          srt.tiles_local[tile_offset] |= SHADOW_TILE_AMENDED;
++          /* Visibility value to write back. */
++          srt.tiles_local[tile_offset] |= SHADOW_TILE_MASKED;
++        }
++      }
++    }
++#endif
++
++#if 1 /* Can be disabled for debugging. */
++    /* Count the number of LOD level to render for this tilemap and to clamp it to a maximum number
++     * of view per tilemap.
++     * This avoid flooding the 64 view limit per redraw with ~3-4 LOD levels per tilemaps leaving
++     * some lights unshadowed.
++     * The clamped LOD levels' tiles need to be merged to the highest LOD allowed. */
++
++    /* Construct bitmask of LODs that contain tiles to render (i.e: that will request a view). */
++    if (local_tile_index == 0u) {
++      srt.levels_rendered = 0u;
++    }
++    barrier();
++    for (int lod = 0; lod <= SHADOW_TILEMAP_LOD; lod++) {
++      /* TODO(fclem): Could maybe speedup using WaveAllBitOr. */
++      if (thread_mask(tile_co, lod)) {
++        int tile_offset = shadow_tile_offset_lds(tile_co, lod);
++        if ((srt.tiles_local[tile_offset] & SHADOW_DO_UPDATE) != 0) {
++          atomicOr(srt.levels_rendered, 1u << lod);
++        }
++      }
++    }
++    barrier();
++
++    /* If there is more LODs to update than the load balancing heuristic allows. */
++    if (bitCount(srt.levels_rendered) > srt.max_view_per_tilemap) {
++      /* Find the cutoff LOD that contain tiles to render. */
++      int max_lod = findMSB(srt.levels_rendered);
++      /* Allow more than one level. */
++      for (int i = 1; i < srt.max_view_per_tilemap; i++) {
++        max_lod = findMSB(srt.levels_rendered & ~(~0u << max_lod));
++      }
++      /* NOTE: Concurrent writing of the same value to the same data. */
++      if (is_cubeface) {
++        tilemaps.tilemaps_buf[tilemap_index].effective_lod_min = max_lod;
++      }
++      /* Collapse all bits to highest level. */
++      for (int lod = 0; lod < max_lod; lod++) {
++        if (thread_mask(tile_co, lod)) {
++          int tile_offset = shadow_tile_offset_lds(tile_co, lod);
++          if ((srt.tiles_local[tile_offset] & SHADOW_DO_UPDATE) != 0) {
++            /* This tile is now masked and not considered for rendering. */
++            srt.tiles_local[tile_offset] |= SHADOW_TILE_MASKED | SHADOW_TILE_AMENDED;
++            /* Note that we can have multiple thread writing to this tile. */
++            int tile_bottom_offset = shadow_tile_offset_lds(tile_co >> (max_lod - lod), max_lod);
++            /* Tag the associated tile in max_lod to be used as it contains the shadow-map area
++             * covered by this collapsed tile. */
++            atomicOr(srt.tiles_local[tile_bottom_offset], uint(SHADOW_TILE_AMENDED));
++            /* This tile could have been masked by the masking phase.
++             * Make sure the flag is unset. */
++            atomicAnd(srt.tiles_local[tile_bottom_offset], ~uint(SHADOW_TILE_MASKED));
++          }
++        }
++      }
++    }
++    else {
++      /* NOTE: Concurrent writing of the same value to the same data. */
++      if (is_cubeface) {
++        tilemaps.tilemaps_buf[tilemap_index].effective_lod_min = 0;
++      }
++    }
++#else
++    /* NOTE: Concurrent writing of the same value to the same data. */
++    tilemaps.tilemaps_buf[tilemap_index].effective_lod_min = 0;
++#endif
++
++    barrier();
++
++#if 1 /* Can be disabled for debugging. */
++    if (local_tile_index == 0u) {
++      /* WATCH: To be kept in sync with `max_view_per_tilemap()` function. */
++      bool is_render = srt.max_view_per_tilemap == SHADOW_TILEMAP_LOD;
++      /* Tag base page to be rendered if any other tile is needed by this shadow.
++       * Fixes issue with shadow map ray tracing sampling invalid tiles.
++       * Only do this in for final render or if all the main levels were already rendered.
++       * This last heuristic avoids very low quality shadows during viewport animation, transform
++       * or jittered shadows. */
++      if ((srt.force_base_page != 0u) && ((srt.levels_rendered == 0u) || is_render)) {
++        int tile_offset = shadow_tile_offset_lds(int2(0), SHADOW_TILEMAP_LOD);
++        /* Tag as modified so that we can amend it inside the `tiles_buf`. */
++        srt.tiles_local[tile_offset] |= SHADOW_TILE_AMENDED;
++        /* Visibility value to write back. */
++        srt.tiles_local[tile_offset] &= ~SHADOW_TILE_MASKED;
++      }
++    }
++#endif
++
++    /* Flush back visibility bits to the tile SSBO. */
++    for (int lod = 0; lod <= SHADOW_TILEMAP_LOD; lod++) {
++      if (is_cubeface && thread_mask(tile_co, lod)) {
++        int tile_lds = shadow_tile_offset_lds(tile_co, lod);
++        if ((srt.tiles_local[tile_lds] & SHADOW_TILE_AMENDED) != 0) {
++          int tile_offset = shadow_tile_offset(uint2(tile_co), tilemap.tiles_index, lod);
++          /* Note that we only flush the visibility so that cached pages can be reused. */
++          if ((srt.tiles_local[tile_lds] & SHADOW_TILE_MASKED) != 0) {
++            srt.tiles_buf[tile_offset] &= ~SHADOW_IS_USED;
++          }
++          else {
++            srt.tiles_buf[tile_offset] |= SHADOW_IS_USED;
++          }
++        }
++      }
++    }
++  }
++#else
+   if (tilemap.projection_type == SHADOW_PROJECTION_CUBEFACE) {
+     /* Check if any page is allocated in this tilemap. Force base page if that's the case to avoid
+      * artifact during shadow tracing. */
+@@ -224,6 +407,7 @@ void mask([[resource_table]] PageMask &srt,
+       }
+     }
+   }
++#endif
+ }
+ 
+ PipelineCompute page_mask(mask);
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_finalize.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_finalize.bsl.hh
+index b9e97399931..b4a9d9dedc1 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_finalize.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_finalize.bsl.hh
+@@ -68,6 +68,111 @@ void tilemap_finalize_main([[resource_table]] TilemapFinalize &srt,
+ 
+   srt.lod_rendered = 0u;
+ 
++#ifdef GPU_WEBGPU
++  /* Barrier uniformity (Tint): `lod_max` derives from a storage-loaded projection_type
++   * (not provably workgroup-uniform), so the two barriers inside this loop are rejected
++   * when its trip count depends on it. Iterate the constant maximum so the barriers sit in
++   * a constant-bounded (uniform) loop; the only global side effects (view allocation) are
++   * gated by `lod <= lod_max`. Per-iteration shared `rect_*` is reset at the top of every
++   * iteration, so extra passes leave no residue. Both arms are duplicated in full (a
++   * header-only swap would straddle the closing brace, and shader_tool parses both arms). */
++  for (int lod = SHADOW_TILEMAP_LOD; lod >= 0; lod--) {
++    int2 tile_co_lod = tile_co >> lod;
++    int tile_index = shadow_tile_offset(uint2(tile_co_lod), tilemap_data.tiles_index, lod);
++
++    /* Compute update area. */
++    if (local_index == 0u) {
++      srt.rect_min_x = SHADOW_TILEMAP_RES;
++      srt.rect_min_y = SHADOW_TILEMAP_RES;
++      srt.rect_max_x = 0;
++      srt.rect_max_y = 0;
++    }
++
++    barrier();
++
++    ShadowTileData tile = shadow_tile_unpack(srt.tiles_buf[tile_index]);
++    bool lod_valid_thread = all(equal(tile_co, tile_co_lod << lod));
++    bool do_page_render = tile.is_used && tile.do_update && lod_valid_thread;
++    if (do_page_render) {
++      atomicMin(srt.rect_min_x, tile_co_lod.x);
++      atomicMin(srt.rect_min_y, tile_co_lod.y);
++      atomicMax(srt.rect_max_x, tile_co_lod.x + 1);
++      atomicMax(srt.rect_max_y, tile_co_lod.y + 1);
++    }
++
++    barrier();
++
++    int2 rect_min = int2(srt.rect_min_x, srt.rect_min_y);
++    int2 rect_max = int2(srt.rect_max_x, srt.rect_max_y);
++
++    int viewport_index = viewport_select(rect_max - rect_min);
++    int2 viewport_size = shadow_viewport_size_get(uint(viewport_index));
++
++    /* Issue one view if there is an update in the LOD. */
++    /* `lod <= lod_max` gates the only global writes; barriers stay in the const loop. */
++    if (local_index == 0u && lod <= lod_max) {
++      bool lod_has_update = rect_min.x < rect_max.x;
++      if (lod_has_update) {
++        int view_index = atomicAdd(srt.statistics_buf.view_needed_count, 1);
++        if (view_index < SHADOW_VIEW_MAX) {
++          srt.lod_rendered |= 1u << lod;
++
++          /* Setup the view. */
++          srt.view_infos_buf[view_index].viewmat = tilemap_data.viewmat;
++          srt.view_infos_buf[view_index].viewinv = inverse(tilemap_data.viewmat);
++
++          float lod_res = float(SHADOW_TILEMAP_RES >> lod);
++
++          /* TODO(fclem): These should be the culling planes. */
++          // float2 cull_region_start = (float2(rect_min) / lod_res) * 2.0f - 1.0f;
++          // float2 cull_region_end = (float2(rect_max) / lod_res) * 2.0f - 1.0f;
++          float2 view_start = (float2(rect_min) / lod_res) * 2.0f - 1.0f;
++          float2 view_end = (float2(rect_min + viewport_size) / lod_res) * 2.0f - 1.0f;
++
++          int clip_index = tilemap_data.clip_data_index;
++          float clip_far = srt.tilemaps_clip_buf[clip_index].clip_far_stored;
++          float clip_near = srt.tilemaps_clip_buf[clip_index].clip_near_stored;
++
++          view_start = view_start * tilemap_data.half_size + tilemap_data.center_offset;
++          view_end = view_end * tilemap_data.half_size + tilemap_data.center_offset;
++
++          float4x4 winmat;
++          if (tilemap_data.projection_type != SHADOW_PROJECTION_CUBEFACE) {
++            winmat = projection_orthographic(
++                view_start.x, view_end.x, view_start.y, view_end.y, clip_near, clip_far);
++          }
++          else {
++            winmat = projection_perspective(
++                view_start.x, view_end.x, view_start.y, view_end.y, clip_near, clip_far);
++          }
++
++          srt.view_infos_buf[view_index].winmat = winmat;
++          srt.view_infos_buf[view_index].wininv = inverse(winmat);
++
++          srt.render_view_buf[view_index].viewport_index = uint(viewport_index);
++          srt.render_view_buf[view_index].is_directional = !is_cubemap;
++          srt.render_view_buf[view_index].clip_near = clip_near;
++          /* Clipping setup. */
++          if (is_point_light(tilemap_data.light_type)) {
++            /* Clip as a sphere around the clip_near cube. */
++            srt.render_view_buf[view_index].clip_distance_inv = M_SQRT1_3 / tilemap_data.clip_near;
++          }
++          else {
++            /* Disable local clipping. */
++            srt.render_view_buf[view_index].clip_distance_inv = 0.0f;
++          }
++          /* For building the render map. */
++          srt.render_view_buf[view_index].tilemap_tiles_index = tilemap_data.tiles_index;
++          srt.render_view_buf[view_index].tilemap_lod = lod;
++          srt.render_view_buf[view_index].rect_min = rect_min;
++          /* For shadow linking. */
++          srt.render_view_buf[view_index].shadow_set_membership =
++              tilemap_data.shadow_set_membership;
++        }
++      }
++    }
++  }
++#else
+   for (int lod = lod_max; lod >= 0; lod--) {
+     int2 tile_co_lod = tile_co >> lod;
+     int tile_index = shadow_tile_offset(uint2(tile_co_lod), tilemap_data.tiles_index, lod);
+@@ -163,6 +268,7 @@ void tilemap_finalize_main([[resource_table]] TilemapFinalize &srt,
+       }
+     }
+   }
++#endif
+ 
+   /* Broadcast result of `lod_rendered`. */
+   barrier();
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_init.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_init.bsl.hh
+index 0101fa9b3ea..6fb9b0c4136 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_init.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tilemap_init.bsl.hh
+@@ -103,6 +103,36 @@ void tilemap_init_main([[resource_table]] TilemapInit &srt,
+ 
+   int lod_max = (tilemap.projection_type == SHADOW_PROJECTION_CUBEFACE) ? SHADOW_TILEMAP_LOD : 0;
+   uint lod_size = uint(SHADOW_TILEMAP_RES);
++#ifdef GPU_WEBGPU
++  /* Barrier uniformity (Tint): `lod_max` derives from a storage-loaded projection_type,
++   * which Tint cannot prove workgroup-uniform, so a barrier inside a loop whose trip count
++   * depends on it is rejected ("workgroupBarrier must only be called from uniform control
++   * flow"). Iterate the constant maximum and gate the per-lod work by `lod <= lod_max`; the
++   * barrier then sits in a constant-bounded (uniform) loop. Behaviour-identical to the #else
++   * loop: for lod > lod_max `thread_active` is false, so no tile is loaded or stored. Both
++   * arms are duplicated in full because shader_tool parses both (a header-only swap would
++   * straddle the closing brace and unbalance the token stream). */
++  for (int lod = 0; lod <= SHADOW_TILEMAP_LOD; lod++, lod_size >>= 1u) {
++    bool thread_active = (lod <= lod_max) && all(lessThan(tile_co, int2(int(lod_size))));
++    ShadowTileDataPacked tile = 0;
++    int tile_load = shadow_tile_offset(uint2(tile_wrapped), tilemap.tiles_index, lod);
++    if (thread_active) {
++      tile = init_tile_data(srt.tiles_buf[tile_load], do_update);
++    }
++
++    /* Uniform control flow for barrier. Needed to avoid race condition on shifted loads. */
++    barrier();
++
++    if (thread_active) {
++      int tile_store = shadow_tile_offset(uint2(tile_co), tilemap.tiles_index, lod);
++      if ((tile_load != tile_store) && flag_test(tile, SHADOW_IS_CACHED)) {
++        /* Inlining of shadow_page_cache_update_tile_ref to avoid buffer dependencies. */
++        srt.pages_cached_buf[shadow_tile_unpack(tile).cache_index].y = uint(tile_store);
++      }
++      srt.tiles_buf[tile_store] = tile;
++    }
++  }
++#else
+   for (int lod = 0; lod <= lod_max; lod++, lod_size >>= 1u) {
+     bool thread_active = all(lessThan(tile_co, int2(int(lod_size))));
+     ShadowTileDataPacked tile = 0;
+@@ -123,6 +153,7 @@ void tilemap_init_main([[resource_table]] TilemapInit &srt,
+       srt.tiles_buf[tile_store] = tile;
+     }
+   }
++#endif
+ }
+ 
+ PipelineCompute tilemap_init(tilemap_init_main);

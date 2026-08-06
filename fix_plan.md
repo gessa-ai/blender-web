@@ -373,10 +373,14 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   is off in blender_web config — "IMB_load_image_from_memory: unknown file-format"); (d)
   lane-a-staging mirror sync (r16 flagged, driver-sanctioned as part of this round).
   DISPATCHED (patches 0096-0099).
-- [ ] **M4.python-debt [python-wasm worker]** _multiprocessing + _sha3 C-exts missing →
-  bl_pkg register fails → asset-library dialog on boot (M4-golden-relevant, not just debt).
-  Rebuild libpython with both, harvest to lib/wasm, coordination note w/ r17 relinks.
-  DISPATCHED. (1) `WGPUBatch::draw_indirect` stub (wgpu_batch.cc:249) → BLI_assert abort at
+- [x] **M4.python-debt RESULT (c1f6477, driver-verified):** _sha3+md5+sha1+blake2 ENABLED
+  (M2.3 rationale was factually backwards — only _sha2 needs the prebuilt Hacl .a; digests
+  byte-identical to native 3.13.13). _multiprocessing GENUINELY unbuildable (named
+  semaphores absent in non-pthread emscripten libc; configure receipts) → documented
+  thread-backed SemLock shim (scripts/deps/python-shims/, Pyodide-precedented);
+  multiprocessing.synchronize imports → no asset dialog. libpython +1.04MB, atomic-swap
+  harvest. NOTE for r17/windowed verify: the shim lives in the preloaded stdlib — the
+  windowed .data must regenerate on relink for the dialog to disappear. (1) `WGPUBatch::draw_indirect` stub (wgpu_batch.cc:249) → BLI_assert abort at
   Blender's first UI batch — implement (WebGPU has native indirect draw; buffer already
   bindable per 0085 family). (2) UI bind-group assembly incomplete: Dawn "entries (1) !=
   expected (4)" for widget layout {texture@0, storage@1, uniform@2, sampler@256} + compute

@@ -356,8 +356,27 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   platform_web/shell/evidence/boot-transcript-0{1,2}-*.txt. Boot aborts at Blender's first
   UI draw on the backend triplet below (~4-5s boot-to-abort; loop health unmeasurable until
   then).
-- [ ] **M4.T13 [gpu-backend r16 — THE M4 PIXELS TRIPLET, blocked-by r15 completion (same
-  files)]** (1) `WGPUBatch::draw_indirect` stub (wgpu_batch.cc:249) → BLI_assert abort at
+- [x] **M4.T13 r16 RESULT (536a8e6, 0092-0095, driver-verified incl. the PNG itself):
+  BLENDER'S UI RENDERS IN A REAL CHROME TAB** — Quick Setup splash text + Layout workspace
+  + header menus + toolbar icons + widgets, interactive (mouse/click/Esc), stable WM_main,
+  ZERO Dawn validation errors, JS heap ~121MB. Root causes: draw_indirect implemented (0093);
+  bind-group assembly completed incl. the load-bearing per-type→dense binding remap (0092);
+  sync_backbuffer wraps surface GetCurrentTexture as back_left (0094); web-only NaN
+  depthClearValue trap (0095 — native Dawn ignores it, emdawnwebgpu rejects). Census held
+  148/158 byte-identical across 5 re-runs. Evidence:
+  platform_web/shell/evidence/m4-first-ui-pixels-quicksetup-splash.png + transcript.
+- [ ] **M4.T14 [gpu-backend r17]** (a) Y-FLIP of the surface present (dominant imperfection —
+  whole window mirrored; ADR-005 fixed offscreen, the present composite path needs its half;
+  likely a flip in the backbuffer blit/present or viewport transform when rendering to the
+  surface-adopted back_left); (b) uniformity-5 (M3.F13 decision 1 — still owed, static
+  951→~956; the LAST M3-gate code item); (c) stretch: imbuf splash root-cause (which reader
+  is off in blender_web config — "IMB_load_image_from_memory: unknown file-format"); (d)
+  lane-a-staging mirror sync (r16 flagged, driver-sanctioned as part of this round).
+  DISPATCHED (patches 0096-0099).
+- [ ] **M4.python-debt [python-wasm worker]** _multiprocessing + _sha3 C-exts missing →
+  bl_pkg register fails → asset-library dialog on boot (M4-golden-relevant, not just debt).
+  Rebuild libpython with both, harvest to lib/wasm, coordination note w/ r17 relinks.
+  DISPATCHED. (1) `WGPUBatch::draw_indirect` stub (wgpu_batch.cc:249) → BLI_assert abort at
   Blender's first UI batch — implement (WebGPU has native indirect draw; buffer already
   bindable per 0085 family). (2) UI bind-group assembly incomplete: Dawn "entries (1) !=
   expected (4)" for widget layout {texture@0, storage@1, uniform@2, sampler@256} + compute

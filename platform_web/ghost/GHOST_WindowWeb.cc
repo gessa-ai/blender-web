@@ -164,8 +164,18 @@ uint16_t GHOST_WindowWeb::getDPIHint()
 
 GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
 {
-  EM_ASM({ if (Module['canvas']) { Module['canvas'].style.cursor = $0 ? 'auto' : 'none'; } },
-         visible ? 1 : 0);
+  /* On the WM worker `Module['canvas']` is the transferred OffscreenCanvas (M4.T12),
+   * which has NO `.style` — guard it, or setting `.style.cursor` throws
+   * "Cannot set properties of undefined (setting 'cursor')". Cursor styling is a
+   * main-thread DOM affordance (an OffscreenCanvas cannot show a CSS cursor), so this
+   * simply no-ops on the worker. */
+  EM_ASM(
+      {
+        if (Module['canvas'] && Module['canvas'].style) {
+          Module['canvas'].style.cursor = $0 ? 'auto' : 'none';
+        }
+      },
+      visible ? 1 : 0);
   return GHOST_kSuccess;
 }
 

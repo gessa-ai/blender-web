@@ -29,14 +29,21 @@ EM_JS(int, ghost_web_has_preinit_device, (), {
   return (typeof Module !== "undefined" && Module["preinitializedWebGPUDevice"]) ? 1 : 0;
 });
 
-/* Whether the canvas selector resolves on THIS thread. On the WM worker it only
- * resolves once the canvas is transferred as an OffscreenCanvas (OFFSCREENCANVAS_
- * SUPPORT + OFFSCREENCANVASES_TO_PTHREAD — not wired this round); on the browser main
- * thread document.querySelector resolves it. Mirrors emdawnwebgpu's
- * findCanvasEventTarget lookup without assuming the offscreen path is present. */
+/* Whether the canvas selector resolves on THIS thread, mirroring emdawnwebgpu's
+ * findCanvasEventTarget lookup ORDER exactly (built JS: findCanvasEventTarget). On the
+ * WM worker the DOM `#canvas` is transferred as an OffscreenCanvas (OFFSCREENCANVAS_
+ * SUPPORT + OFFSCREENCANVASES_TO_PTHREAD, M4.T12) and lands in GL.offscreenCanvases
+ * keyed by the BARE element id (selector minus a leading '#') — NOT in
+ * specialHTMLTargets — which is why the earlier specialHTMLTargets/document-only check
+ * missed it and left the surface deferred. Check GL.offscreenCanvases first, then the
+ * browser-main-thread paths. */
 EM_JS(int, ghost_web_canvas_resolvable, (const char *selector), {
   var s = UTF8ToString(selector);
   try {
+    if (typeof GL !== "undefined" && GL.offscreenCanvases &&
+        GL.offscreenCanvases[s.replace(/^#/, "")]) {
+      return 1;
+    }
     if (typeof specialHTMLTargets !== "undefined" && specialHTMLTargets[s]) {
       return 1;
     }
@@ -256,6 +263,43 @@ void GHOST_ContextWGPUWeb::finishSetup()
    * more general query — noted as a follow-up in the design doc.) */
   surface_format_ = wgpu::TextureFormat::BGRA8Unorm;
   configureSurface(width_, height_);
+
+  /* M4.T12 surface-proof: clear the freshly-configured surface to a recognizable
+   * colour and let the browser auto-present it, proving the whole OffscreenCanvas ->
+   * device -> surface -> configure -> present path is live end-to-end IN THE TAB. This
+   * is the GHOST surface layer ONLY: Blender's window compositor renders into its own
+   * default frame-buffer (Context::back_left), which the WebGPU backend does not yet
+   * point at this surface (there is no WGPUContext::sync_backbuffer equivalent — the
+   * Vulkan backend sets back_left's colour attachment from the swap image in
+   * vk_context.cc:67). Until that backend seam lands, every window draw hits Dawn
+   * "Render pass has no attachments" and the canvas shows THIS clear, not the UI. A
+   * distinct teal so it is unmistakably the surface proof, not a Blender theme colour. */
+  {
+    wgpu::SurfaceTexture st = {};
+    surface_.GetCurrentTexture(&st);
+    if (st.texture != nullptr) {
+      wgpu::RenderPassColorAttachment ca = {};
+      ca.view = st.texture.CreateView();
+      ca.loadOp = wgpu::LoadOp::Clear;
+      ca.storeOp = wgpu::StoreOp::Store;
+      ca.clearValue = {0.05, 0.35, 0.42, 1.0};
+      wgpu::RenderPassDescriptor rp = {};
+      rp.colorAttachmentCount = 1;
+      rp.colorAttachments = &ca;
+      wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
+      wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+      pass.End();
+      wgpu::CommandBuffer cb = enc.Finish();
+      queue_.Submit(1, &cb);
+      std::printf("WGPUWeb: surface-proof cleared '%s' (%ux%u) — GHOST surface path live "
+                  "end-to-end (UI pending backend sync_backbuffer)\n",
+                  canvas_selector_.c_str(), width_, height_);
+    }
+    else {
+      std::printf("WGPUWeb: surface-proof GetCurrentTexture returned null (status=%d)\n",
+                  int(st.status));
+    }
+  }
 
   ready_ = true;
   if (on_ready_) {

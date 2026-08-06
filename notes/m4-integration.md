@@ -432,3 +432,81 @@ Verified in a real Chrome tab (`:8123/windowed.html`, `--factory-startup`, no
    the ceiling. If a render-loop-time blocking readback (F9-D) is ever on the first-draw
    path it would park the worker — resolve per the "(4)" render-loop answer above
    (ProcessEvents-pump / poll-across-ticks), not a synchronous WaitAny.
+
+## M4.T12 — first window pixels: the GHOST WebGPU surface paints the tab (2026-08-06)
+
+Executed the T11-prescribed surface fix and the boot now paints real pixels to `#canvas`
+in a real Chrome tab (the surface-proof teal composites) and advances into Blender's FIRST
+real UI draw. Verified live at `:8123/windowed.html`, `--factory-startup`, no `--background`.
+Evidence: `platform_web/shell/evidence/boot-transcript-02-surface-pixels-drawindirect-wall.txt`.
+
+**Implemented (owned files only; upstream/source/blender/gpu/webgpu UNTOUCHED):**
+1. `patches/platform_wasm.cmake` browser WITH_WEBGPU_BACKEND arm: added
+   `-sOFFSCREENCANVAS_SUPPORT -sOFFSCREENCANVASES_TO_PTHREAD='#canvas'`. PROXY_TO_PTHREAD's
+   crt1 already requests the transfer (`crt1_proxy_main.c:48 settransferredcanvases(-1)`), so
+   the DOM `#canvas` is now handed to the WM worker as an OffscreenCanvas at thread create.
+2. `platform_web/ghost/GHOST_ContextWGPUWeb.cc`: (a) fixed `ghost_web_canvas_resolvable` to
+   mirror emdawnwebgpu's `findCanvasEventTarget` EXACTLY — a transferred canvas lands in
+   `GL.offscreenCanvases[<id without '#'>]`, NOT `specialHTMLTargets`, so the old check
+   wrongly deferred the surface even though the transfer had SUCCEEDED. With the fix
+   `finishSetup()` runs: CreateSurface('#canvas') + Configure(1800x1169, BGRA8Unorm) +
+   GetCurrentTexture all succeed on the WM worker. (b) added a surface-proof clear (teal) in
+   `finishSetup` that submits to the current surface texture — the browser composites it, so
+   the surface path is proven END-TO-END IN PIXELS (not just logs). [Diagnostic scaffolding;
+   remove at the M4 gate once Blender's UI composites — harmless meanwhile since Blender's
+   first frame overwrites it once the backend wires back_left.]
+3. `platform_web/ghost/GHOST_WindowWeb.cc`: guarded the cursor `EM_ASM`
+   (`Module['canvas'].style.cursor`) with a `.style` check — an OffscreenCanvas has no
+   `.style`, so once the canvas was transferred the cursor-set threw
+   "Cannot set properties of undefined (setting 'cursor')". Latent bug exposed by the transfer.
+4. `platform_web/shell/wgpu-preinit-worker.js`: request the device with ALL adapter-advertised
+   features (`requiredFeatures = [...adapter.features]`). The device was previously acquired
+   with NO features, so Blender's window depth buffer (`depth32float-stencil8` /
+   SFLOAT_32_DEPTH_UINT_8) threw `createTexture ... requires the 'depth32float-stencil8'
+   feature`. Widens native `GHOST_ContextWGPU.cc:93-107`'s adapter-guarded subset (in the
+   browser only the adapter's own features can be requested, so all-of-them is always valid).
+
+**How far it gets now (empirical, in-tab), vs T11:** T11 = device live, surface DEFERRED, no
+rendering (a "stable" loop whose draws all failed on "no attachments"). T12 = OffscreenCanvas
+transferred -> surface live (teal composited to the canvas) -> device with 22 features ->
+GPU_init completes -> Python/BPY startup -> into Blender's FIRST real UI draw. So the whole
+GHOST/shell surface+device path is proven; the render path is now exercised for real.
+
+**Remaining blockers — ALL in upstream/source/blender/gpu/webgpu/ (gpu r14's owned area, NOT
+this lane; characterized, not edited):**
+1. **`WGPUBatch::draw_indirect` is an unimplemented stub** — `BLI_assert failed:
+   source/blender/gpu/webgpu/wgpu_batch.cc:249, draw_indirect(), 'WGPUBatch::draw_indirect not
+   implemented yet'` -> `Aborted()`. The FATAL wall for Blender's UI: the first UI draw batch
+   uses an indirect draw and aborts. (The surface-proof teal had already been submitted, so it
+   composites despite the abort — that's why pixels are visible.)
+2. **UI bind-group assembly is incomplete** — Dawn: `Number of entries (1) did not match the
+   expected number of entries (4)` for the UI widget layout `{texture@0, storage@1, uniform@2,
+   sampler@256}` (and compute layouts: `binding index 2/11 not present`). The backend records
+   only a subset of a real UI shader's bindings -> invalid BindGroup -> invalid CommandBuffer.
+   Same bind-space family r14 has been extending for the gpu-suite, now on the REAL UI shaders.
+3. **`back_left` has no colour attachment** — the WebGPU backend has no `sync_backbuffer`.
+   Vulkan sets `back_left`'s colour attachment from the swap image every activate
+   (`vk_context.cc:67 sync_backbuffer` -> `GPU_texture_create_2d` -> `attachment_set`);
+   `WGPUContext` never does, so window draws build render passes with zero attachments -> Dawn
+   "Render pass has no attachments". The GHOST side is READY: `GHOST_ContextWGPUWeb::getSurface()`
+   exposes the configured surface; a WebGPU `sync_backbuffer` would call
+   `getSurface().GetCurrentTexture()` each activate, wrap it as a GPUTexture, and
+   `back_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0, ...)`. `WGPUContext` would also need to
+   STORE `ghost_context_` (it currently only reads handles in the ctor) — mirror `vk_context.cc:40`.
+   ~40-60 LOC in wgpu_context.{cc,hh} + a call in `WGPUContext::activate()`.
+
+**Sequencing for the M4 pixels gate:** r14 lands (1) draw_indirect + (2) UI bind-group assembly
++ (3) `WGPUContext::sync_backbuffer` (surface->back_left). Then the first UI frame renders into
+the surface and composites — Blender's Layout workspace + default cube appears. No further
+GHOST/shell change is required (surface, device, canvas transfer are all live).
+
+**Main-loop health (honest):** NOT measurable this round — the boot aborts at
+wgpu_batch.cc:249 during WM_init's first UI draw (splash timestamp 00:04.3, abort immediately
+after), before a stable idle loop. So tick rate / GHOST input-event flow / 60 s memory growth
+are gated on the backend draw path (blockers 1-2). The shell's reported wall (170 s) is just the
+accumulated automation wait before onAbort's finish() ran; the boot-to-abort is ~4-5 s.
+
+**Also seen (non-fatal, pre-existing debt, unchanged by this lane):** python-wasm C-exts
+(`_multiprocessing`, `_sha3`/`_hashlib` md5/sha1/blake2/sha3/shake) missing — bl_pkg register
+fails, caught by addon_utils.enable; splash `IMB_load_image_from_memory: unknown file-format`;
+OIIO `physical_memory` assert-print. All identical to the headless/T11 boot.

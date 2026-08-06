@@ -72,9 +72,26 @@
           if (!adapter) {
             throw new Error("navigator.gpu.requestAdapter() returned null");
           }
-          var device = await adapter.requestDevice();
+          // Enable every feature the adapter advertises. Blender's WebGPU backend
+          // feature-gates on what the DEVICE actually exposes (wgpu_texture_format.cc
+          // FeatureGate::*), so an imported device with no features cannot create e.g.
+          // a `depth32float-stencil8` depth buffer (SFLOAT_32_DEPTH_UINT_8) — the window
+          // depth attachment GPU_init builds — and throws
+          // "requires the 'depth32float-stencil8' feature to be enabled". Requesting the
+          // full supported set (the native GHOST_ContextWGPU adapter-guards a subset;
+          // in the browser only the adapter's own features can be requested, so all of
+          // them is always valid) matches the device Blender expects. Mirrors
+          // GHOST_ContextWGPU.cc:93-107's adapter-guarded RequestDevice, widened.
+          var requiredFeatures = [];
+          try {
+            if (adapter.features && typeof adapter.features.forEach === "function") {
+              adapter.features.forEach(function (f) { requiredFeatures.push(f); });
+            }
+          } catch (e) {}
+          var device = await adapter.requestDevice({ requiredFeatures: requiredFeatures });
           Module["preinitializedWebGPUDevice"] = device;
-          log("[bw] WM-worker WebGPU device pre-acquired (ADR-007)");
+          log("[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=" +
+              requiredFeatures.length);
         }
         catch (ex) {
           log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));

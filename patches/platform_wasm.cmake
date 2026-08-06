@@ -338,6 +338,17 @@ function(blender_web_browser_binary src_target)
     string(APPEND _bw_browser_flags
       " --use-port=emdawnwebgpu"
       " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432"
+      # M4.T12 first-window pixels: transfer the DOM `#canvas` to the proxied-main
+      # (WM) worker as an OffscreenCanvas so emdawnwebgpu's CreateSurface ->
+      # findCanvasEventTarget('#canvas') resolves THERE (the worker has no `document`;
+      # without the transfer the selector is unresolvable and the surface is deferred,
+      # leaving the window framebuffer attachmentless -> Dawn "Render pass has no
+      # attachments"). PROXY_TO_PTHREAD's crt1 already requests the transfer
+      # (crt1_proxy_main.c:48 settransferredcanvases(-1)); these two flags provide the
+      # OffscreenCanvas support + name the canvas to hand over. See
+      # notes/m4-integration.md "M4.T11" surface section + ADR-007. Single-quote the
+      # selector so ninja's `sh -c` does not treat `#canvas` as a comment.
+      " -sOFFSCREENCANVAS_SUPPORT -sOFFSCREENCANVASES_TO_PTHREAD='#canvas'"
       " --post-js ${BLENDER_WEB_REPO_ROOT}/platform_web/shell/wgpu-preinit-worker.js")
   endif()
 

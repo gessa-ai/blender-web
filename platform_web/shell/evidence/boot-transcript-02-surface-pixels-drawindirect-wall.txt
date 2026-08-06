@@ -1,0 +1,52 @@
+M4.T12 windowed boot transcript — build #3 (DEFINITIVE this session). Real Chrome tab,
+http://localhost:8123/windowed.html, argv `--factory-startup` (no --background).
+Captured 2026-08-06. Binary: build-wasm-windowed/bin/blender_browser.{js,wasm,data}.
+
+=============================================================================
+OUTCOME: FIRST WINDOW PIXELS from the GHOST WebGPU surface layer are VISIBLE in the
+tab (the surface-proof teal fills #canvas — screenshot evidence-02-surface-teal.png
+description below). The full surface path is proven end-to-end IN PIXELS:
+  OffscreenCanvas transfer to the WM worker -> imported device (22 adapter features)
+  -> CreateSurface(#canvas) -> Configure(1800x1169, BGRA8Unorm) -> GetCurrentTexture
+  -> clear -> Queue.Submit -> browser composite -> visible teal canvas.
+Blender's OWN UI compositor does NOT paint yet: the first real UI draw aborts at an
+UNIMPLEMENTED WebGPU-backend batch stub (wgpu_batch.cc:249 draw_indirect), and the UI
+widget bind groups are assembled incompletely by the backend. Both are in
+upstream/source/blender/gpu/webgpu/** (gpu r14's owned area) — NOT this lane's files.
+=============================================================================
+
+--- ordered stdout/console (real Chrome) ---
+[shell] instantiating blender_browser (WINDOWED: no --background)…
+[shell] argv: blender --factory-startup
+[shell] canvas: #canvas 1280x720
+[shell] ENV BLENDER_SYSTEM_RESOURCES=/bw  ...PYTHON=/bw/python  ...SCRIPTS=/bw/scripts  ...DATAFILES=/bw/datafiles
+.../OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0' failed.   [non-fatal, headless-parity]
+[shell] runtime initialized; entering main() (WM_init → WM_main)…
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22          <== device features fix (all adapter features)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+Unable to find the Python binary, the multiprocessing module may not be functional!  [python-wasm debt, non-fatal]
+ERROR:root:code for hash md5/sha1/blake2b/blake2s/sha3_*/shake_* was not found ...       [_hashlib/_sha3 C-ext debt, non-fatal]
+ModuleNotFoundError: No module named '_multiprocessing'  (bl_pkg register via addon_utils.enable)   [python-wasm debt, non-fatal — caught]
+00:04.300  image.read | ERROR IMB_load_image_from_memory: unknown file-format (<splash screen>)   [imbuf debt, non-fatal]
+
+  -- Dawn validation warnings during the FIRST real UI draw (backend bind-group assembly gap, NOT this lane) --
+  Number of entries (1) did not match the expected number of entries (4) for [BindGroupLayoutInternal].
+    Expected: {texture@0 UnfilterableFloat 2D} {buffer@1 ReadOnlyStorage vert minSize 48} {buffer@2 Uniform vert|frag minSize 80} {sampler@256 Filtering frag}
+    -> [Invalid BindGroup] -> RenderPassEncoder.SetBindGroup(0, Invalid) -> [Invalid CommandBuffer] Queue.Submit   (repeats)
+  In entries[1], binding index 2 not present in the bind group layout (Compute) ...   (repeats)
+  In entries[3], binding index 11 not present in the bind group layout (Compute) ...
+
+  -- FATAL abort: unimplemented backend batch stub (gpu r14 area, NOT this lane) --
+BLI_assert failed: source/blender/gpu/webgpu/wgpu_batch.cc:249, draw_indirect(), at '0'
+  WGPUBatch::draw_indirect not implemented yet
+[shell] onAbort:
+Aborted()
+worker sent an error! blender_browser.js: Uncaught RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
+
+--- screenshot (evidence-02-surface-teal, described; canvas is OffscreenCanvas-transferred so not toDataURL-readable) ---
+Shell header "blender-web — M4 windowed boot"; state pill = "aborted"; data = "loaded";
+the #canvas region is UNIFORM TEAL rgb(0.05,0.35,0.42) filling the full canvas box —
+the surface-proof clear composited by the browser. This is the GHOST surface layer's
+first painted pixels in a real tab (NOT Blender's UI, which is backend-blocked above).

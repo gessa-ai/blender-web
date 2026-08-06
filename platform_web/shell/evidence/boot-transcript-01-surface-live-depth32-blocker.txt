@@ -1,0 +1,29 @@
+M4.T12 windowed boot transcript — build #2 (OffscreenCanvas flags + resolvable fix +
+cursor guard + surface-proof clear). Real Chrome tab, http://localhost:8123/windowed.html,
+argv `--factory-startup` (no --background). Captured 2026-08-06.
+
+OUTCOME OF THIS BUILD: the GHOST WebGPU SURFACE PATH IS LIVE END-TO-END on the WM worker
+(OffscreenCanvas transfer -> device -> CreateSurface -> configure -> GetCurrentTexture ->
+clear -> submit all succeed; the surface-proof line prints). The cursor crash is gone.
+A NEW distinct blocker then aborts BEFORE the main loop yields (so no frame composites):
+the imported device was requested with NO features, and Blender's window depth buffer needs
+`depth32float-stencil8` -> createTexture throws. Fixed in build #3 (request all adapter
+features in wgpu-preinit-worker.js).
+
+--- console/page transcript ---
+[shell] instantiating blender_browser (WINDOWED: no --background)…
+[shell] argv: blender --factory-startup
+[shell] canvas: #canvas 1280x720
+[shell] ENV BLENDER_SYSTEM_RESOURCES=/bw  BLENDER_SYSTEM_PYTHON=/bw/python  BLENDER_SYSTEM_SCRIPTS=/bw/scripts  BLENDER_SYSTEM_DATAFILES=/bw/datafiles
+.../OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.   [non-fatal, headless-parity]
+[shell] runtime initialized; entering main() (WM_init → WM_main)…
+[shell] module resolved; WM_main loop should now be pumping.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+Unable to find the Python binary, the multiprocessing module may not be functional!   [python-wasm debt, non-fatal]
+ERROR:root:code for hash md5/sha1/blake2/sha3/shake was not found ...   [_hashlib/_sha3 C-ext debt, non-fatal]
+Traceback ... ModuleNotFoundError: No module named '_multiprocessing'  (bl_pkg register)   [python-wasm debt, non-fatal — addon_utils.enable catches it]
+00:04.426  image.read | ERROR IMB_load_image_from_memory: unknown file-format (<splash screen>)   [imbuf debt, non-fatal]
+worker sent an error! blender_browser.js: Uncaught TypeError: Failed to execute 'createTexture' on 'GPUDevice': Use of the 'depth32float-stencil8' texture format requires the 'depth32float-stencil8' feature to be enabled on [Device].   <== FATAL blocker for this build; fixed in build #3

@@ -438,7 +438,27 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   APPROVED format-generic access via override constants (component count specialized at
   pipeline time — the 0079 mechanism) IF in-bound; else land characterized-error guard and
   list gpu_buffer_texture_test as an M3-gate blacklist candidate with justification.
-- [ ] **M3.F12 [gpu-backend r15 — THE GATE-CENSUS ROUND]** (a) MEDIUM tail 26: rewrite
+- [x] **M3.F12 r15 RESULT (2a3f697, 0089-0091, driver-verified): THE GATE MEASUREMENT —
+  full GPUWebGPUTest suite 158 tests: 148 PASS / 8 FAIL / 2 CRASH, every non-pass
+  characterized, zero undiagnosed defects.** static_shaders **951/973** (customdata 26→0
+  via helper inlining 0090; fallthrough 16→0 via approved GLSL variant 0089; bind_as_texture
+  wired 0091). Census + registries: notes/gpu-gate-census.md. Mirror drift reconciled to 0.
+  Stack orders recorded (0084<0086<0087<0088<0090; 0085<0091).
+- [x] **M3.F13-DECISIONS [driver, 2026-08-06]:** (1) uniformity-5 (barrier under
+  invocation-id-dependent CF; Tint conservative analysis, no disable lever): APPROVED
+  GPU_WEBGPU-guarded GLSL restructure (hoist barrier / workgroupUniformLoad), same exception
+  class as 0089 — eevee shadow/DoF are M6 launch tier, deferral would bite later.
+  (2) subpass_input×2: DEFER at M3 gate (named blocker: WebGPU has no subpass inputs;
+  2-pass emulation designed notes/gpu-laneB) — REVISIT flagged at M6 entry on EEVEE render
+  evidence. (3) fullscreen_blit + shader_sampler_argument_buffer_binding: census artifacts
+  (Metal-only, CMakeLists.txt:457 WITH_METAL_BACKEND) — excluded from the WebGPU gate with
+  cmake evidence, NO code change (gpu/metal off-limits). (4) buffer_texture R32F + subdiv×4:
+  BLACKLIST with justifications (R32F = post-launch format-generic work; subdiv = runtime
+  OSD injection missing for all backends at this harness profile).
+- [ ] **M3-GATE [driver, at r16 exit]:** register 5 deferrals in ledger/deferred.json;
+  write blacklist doc; harness m3 scope via the lock-lift reconcile procedure (census table
+  = expected state); patches/series manifest (orders now recorded); full --regress;
+  **`<promise>M3_GPU_BACKEND</promise>` with receipts.** blocked-by r16 (uniformity-5). (a) MEDIUM tail 26: rewrite
   samplerBuffer function-params at codegen (globalize/inline per call-site — WGSL forbids
   buffer fn-params); (b) R32F per decision (2); (c) switch-fallthrough per decision (1);
   (d) uniform-CF 5: investigate (0077 set allow_non_uniform_derivatives — these are

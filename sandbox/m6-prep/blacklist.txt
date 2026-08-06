@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# M6 per-test blacklist (justified skips), mirroring native Blender's OWN
+# BLOCKLIST discipline (see eevee_render_tests.py BLOCKLIST / workbench_render_tests.py
+# BLOCKLIST_* / cycles_render_tests.py BLOCKLIST_*). EMPTY for now — the staged
+# subset is a clean pass on the oracle; entries land only with a written reason.
+#
+# Format: one entry per line, "engine  regex  # reason".
+#   engine  = workbench | eevee | cycles | *   (* = all engines)
+#   regex   = Python re.match against the test's blend basename (e.g. "image_log\.blend")
+#   reason  = required justification (what platform/adapter delta, upstream issue #, etc.)
+# run_oracle_renders.sh reads this file and reports blacklisted tests as SKIP (not FAIL),
+# exactly as render_report.blend_list drops native BLOCKLIST matches.
+#
+# (no entries)

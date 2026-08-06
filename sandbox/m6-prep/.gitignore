@@ -1,0 +1,5 @@
+# Oracle's own fresh renders + run scratch are regenerable — not committed.
+# The committed deliverable is goldens/ (references) + manifest.tsv + the runner.
+oracle_renders/
+results/
+*.log

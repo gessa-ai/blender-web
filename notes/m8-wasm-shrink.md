@@ -46,17 +46,27 @@ abort in 120 s.
 |---|---|---|---|---|---|---|
 | **baseline** `-O2 -g0` (recorded) | 38.2 s | 120,114,157 (114.5 MiB) | 29,191,721 | **20,127,950 (19.19 MiB / 20.13 MB)** | — | OK |
 | **(1) `-Os`** | 345 s | 116,766,049 (111.4 MiB) | 29,142,666 | **20,298,315 (19.36 MiB / 20.30 MB)** | **+0.85 % (worse)** | OK |
+| **(2) `-Oz`** | 153 s | 110,989,228 (105.8 MiB) | 28,835,751 | **20,231,371 (19.29 MiB / 20.23 MB)** | **+0.51 % (worse)** | OK |
 
-`(js glue: baseline 763,473 raw / 85,611 br; -Os 893,812 raw / 97,402 br — js grew from
-current --post-js drift, not the flag; js is ~0.1 MB of the wire, negligible vs the wasm.)`
+`(js glue: baseline 763,473 raw / 85,611 br; -Os 893,812 / 97,402; -Oz 893,094 / 97,102 —
+js grew from current --post-js drift, not the flag; js is ~0.1 MB of the wire, negligible
+vs the wasm.)`
 
-### Reading
+### Reading — binaryen size passes do NOT shrink the wire
 
-- **`-Os` gives NO wire win.** Raw wasm drops 2.8 % (−3.35 MB) but **brotli wire size rises
-  0.85 %** (+170 KB). Binaryen's size passes cut raw instruction count with codegen patterns
-  (outlining, local reuse) that brotli was already exploiting, so the compressed size that
-  the CDN actually ships does not improve — it regresses marginally. gzip is flat (−0.17 %).
-- **Cost is brutal:** 345 s vs 38.2 s (≈9×), dominated by the binaryen `-Os` pass over a
-  114 MB module. Nine times the link time for a wire-size regression.
+- **`-Os` and `-Oz` both give NO wire win — they make brotli slightly *worse*.** Raw wasm
+  drops meaningfully (−2.8 % / −7.6 %) and gzip drops a little (−0.2 % / −1.2 %), but the
+  metric that ships — **brotli — rises 0.85 % / 0.51 %.** Binaryen's size passes cut raw
+  instruction count with codegen patterns (function outlining/merging, local reuse) that a
+  q11 brotli window was already deduplicating; trading those for fewer-but-less-compressible
+  bytes nets zero-to-negative on the wire. The −7.6 % raw of `-Oz` collapses to +0.5 % on
+  brotli — a clean demonstration that **raw size is the wrong proxy here.**
+- **Cost is brutal:** 345 s / 153 s vs 38.2 s baseline — up to ≈9× the link time for a wire
+  regression.
+- Caveat (honest): these are link-only overrides — objects stay `-O2`. A full recompile at
+  `-Oz` (compile-level) would additionally bias LLVM codegen toward size, which *could* move
+  the wire more than the binaryen pass alone. But the direction here (raw ↓ big, brotli ↑) is
+  the opposite of encouraging, and the compile-level lever is the same expensive-recompile
+  class as LTO (below) — quantified in the verdict.
 
-_(rows for -Oz / --closure 1 / -flto appended as measured)_
+_(rows for --closure 1 / -flto appended as measured)_

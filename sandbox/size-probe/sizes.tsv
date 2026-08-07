@@ -11,3 +11,5 @@ dev	js	1240344	161162	n/a
 # link-edge wall (.ninja_log): opt 38.2 s, dev 103.8 s. opt full cold ninja build 657 s.
 opt-Os	wasm	116766049	29142666	20298315
 opt-Os	js	893812	127900	97402
+opt-Oz	wasm	110989228	28835751	20231371
+opt-Oz	js	893094	127684	97102

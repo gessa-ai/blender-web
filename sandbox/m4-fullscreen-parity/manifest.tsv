@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+# M4-fullscreen-parity - staged native full-window goldens.
+# Comparator: compare_fullscreen.sh <candidate.png> <state> <actual_size>  (oiiotool --fail 0.016 --failpercent 1 --diff, exit-code-primary)
+# Native oracle: oracle/blender-5.2.0 (Blender 5.2.0 LTS, Cocoa+Metal) - same pin as the corpus/m4/m5/m6 goldens.
+# determinism: two independent windowed runs; "byte" = byte-identical PNG (sha256 below), else threshold-identical(0.016/1).
+state	requested	actual	golden	fail_threshold	fail_percent	determinism	sha256
+workspace	1600x900	1600x900	sandbox/m4-fullscreen-parity/goldens/workspace_1600x900.png	0.016	1	byte-identical	ab62e3f0c406acb503bb9d21ab8fcbb454b1d16e9baa85118a225336e166e697

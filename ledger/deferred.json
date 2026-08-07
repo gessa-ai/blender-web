@@ -227,6 +227,16 @@
       "impact": "Python-level HTTP is non-functional on the wasm build: bl_pkg online repo sync / extension download (_bpy_internal/http/downloader.py) and any requests/urllib3 use raise on use (AttributeError/NotImplementedError naming this id). Import and bl_pkg register are CLEAN via raise-on-use import-shims (scripts/deps/python-shims/js.py + pyodide/, installed by scripts/deps/wheels.sh), so boot and the M4 first-pixels golden are unaffected. Offline/bundled extensions unaffected.",
       "workaround": "import-shims satisfy urllib3's import-time environment probes (hasattr sniffs -> all report unavailable, no worker spawned, streaming fetcher None, has_jspi False via its ImportError path); urllib3's own no-streaming fallback warning surfaces through a log-only js.console; first actual bridge touch (js.XMLHttpRequest) raises naming this deferral",
       "evidence": "notes/python-emcc605-probe.md (THE NEXT WALL + shim verification WASM_SHIM_IMPORT_OK)"
+    },
+    {
+      "id": "gpu-sync-readback-windowed",
+      "status": "deferred",
+      "milestone": "M5",
+      "revisit": "tier-(c)/M5-M6 capture paths and any GPU_texture_read/GPU_storagebuf_read caller in the windowed profile: implement tick-pumped kick-then-consume readback per ADR-007 (submit copy, return to the WM loop, MapAsync resolves on a later tick) or a dedicated capture path",
+      "blocker": "emdawnwebgpu blocking waits (WaitAny with timeout) require asyncify/JSPI (dropped per ADR-006); MapAsync completion is delivered via the WM worker's JS event loop, which cannot turn while wasm spins inside a synchronous read - webgpu::Buffer::read's WaitAny returns immediately unfulfilled",
+      "impact": "synchronous GPU readback returns all-zero buffers in the windowed browser profile: bpy.ops.screen.screenshot and bpy.ops.render.opengl write constant-zero PNGs while the same content provably composites on-canvas (r25 measurement); a wasm table-OOB crash after back-to-back in-app snapshot ops is a related open defect. Native and headless-node profiles unaffected (real WaitAny).",
+      "workaround": "verification captures use CDP page.screenshot (compositor-level, faithful) via the visible Playwright rig; in-app capture routes deferred",
+      "evidence": "notes/gpu-r25-shim-boot-restored-viewport-isolated.md sections 2-3; ADR-007"
     }
   ]
 }

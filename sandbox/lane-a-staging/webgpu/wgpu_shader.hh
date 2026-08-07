@@ -167,6 +167,10 @@ class WGPUShader : public Shader {
    * Consumed by WGPUContext::append_resource_bind_entries. */
   int remap_ssbo_binding(int slot) const;
   int remap_ubo_binding(int slot) const;
+  /** True when `slot` is a create-info slot in the dense map (flavor (a) —
+   * needs remapping); false for name-resolved/already-dense binds (flavor (b),
+   * identity). The builder gives mapped binds precedence over identity ones. */
+  bool slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType type, int slot) const;
   int remap_sampler_binding(int slot) const;
   int remap_image_binding(int slot) const;
 

@@ -521,7 +521,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     in-app snapshot ops (loop halts — M5 hazard, unfixed); full engine shader set (104) compiles
     CLEAN inline-on-demand (workerless ShaderCompiler under use_main_context_workaround). Shell
     gained a rig-only `?args=` argv hook. notes/gpu-r25-shim-boot-restored-viewport-isolated.md.
-  - [ ] **M4.T23 r26 [gpu-backend, THE gate blocker]: engine output never reaches the canvas.**
+  - [x] **M4.T23 r26/r27 RESOLVED (2e74628): bind-collision root cause** — two-pass mapped-first
+    bind assembly + loadstore honor + sampler/BGL-visibility strips + index start/base; grid,
+    axes, camera, light, selection outline render; first zero-validation-error boot. Patches
+    0110/0112/0113; census held twice. notes/gpu-r26-bind-collision-root-cause.md.
+  - [ ] **M4.T24 r28 [FIVE CONCURRENT LANES, dispatched 2026-08-08]** — user-reported from live
+    use + the r28 queue: (a) workbench solid pass empty (objects selectable but invisible) +
+    outline vertex crumple + nav-gizmo ball missing [lane r28a: gpu-backend, port 8123];
+    (b) INTERACTION regression: context menus/toolbar render without backgrounds, File/Edit
+    topbar text invisible-but-clickable, panels black under playback — suspect 0110 loadstore
+    consume semantics vs wm region redraws [lane r28b: wgpu_framebuffer, opt tree, port 8124];
+    (c) live window resize letterboxes/blurs (worker-owned OffscreenCanvas backing cannot grow
+    post-boot) + DPR>=2 UI scale [lane ghost-web, port 8128]; (d) full-screen 1:1 parity
+    harness vs the installed native 5.2 oracle (honest comparator, repo-committed side-by-side)
+    [lane m4-fullscreen-parity, port 8129]; (e) third adversarial audit (aec2568..HEAD)
+    [lane audit]. Gate promise = after (a)+(b) land, measured via ?gate= + the (d) harness.
+  - [ ] **M4.T23 r26 SUPERSEDED-TEXT (kept for history): engine output never reaches the canvas.**
     Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
     validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:
     (a) DrawEngine::draw() submission + per-pass drawcall counts to stderr; (b) magenta

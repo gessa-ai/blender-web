@@ -1,0 +1,11 @@
+profile	artifact	raw_bytes	gzip9_bytes	brotli11_bytes
+opt	wasm	120114157	29191721	20127950
+opt	data	106203547	41248276	29602051
+opt	js	763473	111948	85611
+dev	wasm	926818197	294114926	n/a
+dev	data	132121409	54418840	n/a
+dev	js	1240344	161162	n/a
+# opt = build-wasm-windowed-opt (Release, -O2 -g0, closure OFF, LTO OFF; aec2568-era source)
+# dev = build-wasm-windowed     (RelWithDebInfo, -O2 -g -DNDEBUG; r18-era source, current)
+# brotli skipped for dev (922 MB debug artifact, not shippable; gzip suffices for reference)
+# link-edge wall (.ninja_log): opt 38.2 s, dev 103.8 s. opt full cold ninja build 657 s.

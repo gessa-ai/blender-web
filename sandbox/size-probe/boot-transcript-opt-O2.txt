@@ -1,0 +1,55 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+M8 size-probe — RELEASE-PROFILE (-O2 -g0) windowed boot transcript
+Binary: build-wasm-windowed-opt/bin/blender_browser.{wasm 120,114,157 / js 763,473 / data 106,203,547}
+Source revision: aec2568-era (predates patches 0098+; see note).
+How: real Chrome (Claude Browser pane), served localhost:8124/windowed.html via
+     BLENDER_WEB_BIN=build-wasm-windowed-opt/bin scripts/serve-web.sh 8124,
+     argv `blender --factory-startup` (NO --background), canvas #canvas,
+     crossOriginIsolated: true, navigator.gpu present (adapter+device, 22 features).
+
+=== Boot markers (wall-clock, relative to Boot-button click t0) ===
+  2.46 s   first Blender stdout  (OIIO physical_memory assert-print — non-fatal, headless-parity)  -> main()/WM_init underway
+  2.63 s   [bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22           -> GPU backend live
+  5.75 s   WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end
+  8.64 s   Python/BPY startup ("Unable to find the Python binary, the multiprocessing module...")
+  9.95 s   00:07.173  image.read | ERROR IMB_load_image_from_memory: unknown file-format (<splash screen>)  [known imbuf gap]
+ 81.36 s   (one further benign "worker sent an error" forward; no abort)
+State: main loop (WM_main), exit: —, STABLE for 174 s+ (no abort, no crash).
+JS heap: 109.3 MB @26 s -> 109.4 MB @174 s (flat; no leak signature over ~150 s).
+
+=== Correctness observations ===
+- GPU_init COMPLETES at -O2: device (22 features) + surface (1800x1169 BGRA8) configured,
+  surface-proof clear composited (GPU path proven end-to-end).
+- NO shaderc / Tint / WGSL shader-compile errors; NO "operation does not support unaligned
+  accesses"; NO BLI_assert / draw_indirect abort; NO Dawn "Render pass has no attachments".
+- Canvas shows NO Blender UI (black) — boot log says "UI pending backend sync_backbuffer":
+  this source revision predates the full UI-composite backend path. NOT an -O2 regression
+  (this binary built from the aec2568-era tree; the dev binary is r18-era, patches 0098+).
+- Pre-existing, non--O2 debts observed (identical family to headless/dev): OIIO physical_memory
+  stub; splash imbuf unknown-format; Python `cattrs` ModuleNotFoundError (bl_pkg register
+  fails, caught by addon_utils.enable) — a python-wasm payload gap in this revision.
+
+=== Raw console/DOM log ===
+[shell] instantiating blender_browser (WINDOWED: no --background)…
+[shell] argv: blender --factory-startup
+[shell] canvas: #canvas 1280x720
+[shell] ENV BLENDER_SYSTEM_RESOURCES=/bw  BLENDER_SYSTEM_PYTHON=/bw/python  BLENDER_SYSTEM_SCRIPTS=/bw/scripts  BLENDER_SYSTEM_DATAFILES=/bw/datafiles
+OpenImageIO .../src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[shell] runtime initialized; entering main() (WM_init → WM_main)…
+[shell] module resolved; WM_main loop should now be pumping.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
+WGPUWeb: surface-proof cleared '#canvas' (1800x1169) — GHOST surface path live end-to-end (UI pending backend sync_backbuffer)
+Unable to find the Python binary, the multiprocessing module may not be functional!
+Traceback (most recent call last):
+  File "/bw/scripts/modules/addon_utils.py", line 543, in enable
+    mod.register()
+  File "/bw/scripts/addons_core/bl_pkg/__init__.py", line 986, in register
+    _remote_asset_library_restore_backups()
+  File "/bw/scripts/addons_core/bl_pkg/__init__.py", line 580, in _remote_asset_library_restore_backups
+    from _bpy_internal.assets.remote_library import listing_downloader
+  File "/bw/scripts/modules/_bpy_internal/http/downloader.py", line 51, in <module>
+    import cattrs
+ModuleNotFoundError: No module named 'cattrs'
+00:07.173  image.read       | ERROR IMB_load_image_from_memory: unknown file-format (<splash screen>)

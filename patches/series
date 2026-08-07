@@ -342,3 +342,13 @@
 # as baseVertex) in WGPUBatch::draw; multi_draw_indirect binds the subrange
 # offset likewise (GPU-generated args carry batch-local firstIndex/baseVertex).
 0113-gpu-webgpu-index-start-base.patch
+# 0114: WGPUBatch::draw and multi_draw_indirect upload the index buffer before
+# binding it (elem->upload_data()), mirroring vk_batch.cc:34/97 and
+# mtl_batch.mm:253. The frontend defers the IBO upload to "first use" and,
+# unlike Vulkan/Metal, nothing in the WebGPU draw path forced it -- so an indexed
+# batch reached the encoder with an invalid buffer: draw() skipped DrawIndexed
+# (the nav-gizmo/instanced-widget balls never appeared) and multi_draw_indirect()
+# fell back to a NON-indexed DrawIndirect that read vertices in raw order (the
+# r28 crumpled cube outline + empty workbench solid geometry). Unguarded:
+# semantically correct for native Dawn too. Census GREEN (148/158 + static 956/973).
+0114-gpu-webgpu-batch-index-upload-before-draw.patch

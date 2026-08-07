@@ -82,6 +82,17 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
       formats_len = i + 1;
     }
   }
+  /* Ensure the index buffer is on the GPU before it is bound (mirrors
+   * vk_batch.cc:34 and mtl_batch.mm:253). The frontend transfers index data to the
+   * IndexBuf and defers the upload to "first use"; unlike Vulkan/Metal, nothing in
+   * the WebGPU draw path forced that upload, so an indexed batch could reach the
+   * encoder with an un-uploaded (invalid) buffer -- draw() then skipped DrawIndexed
+   * entirely and multi_draw_indirect() fell back to a NON-indexed DrawIndirect that
+   * read vertices in raw order (the r28 crumpled-mesh / missing-solid / missing
+   * nav-gizmo family). upload_data() is a no-op once the buffer is valid. */
+  if (elem != nullptr) {
+    elem->upload_data();
+  }
 
   /* Assemble the pipeline key from the shader, geometry, fixed-function state, and
    * the bound framebuffer's target formats. */
@@ -331,6 +342,12 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
       vlens[i] = int64_t(wvbos[i]->vertex_len);
       formats_len = i + 1;
     }
+  }
+  /* Ensure the index buffer is on the GPU before it is bound (see draw() above;
+   * mirrors vk_batch.cc:97). Without this a GPU-generated indirect batch fell back
+   * to a non-indexed DrawIndirect and drew vertices in raw order. */
+  if (elem != nullptr) {
+    elem->upload_data();
   }
 
   webgpu::PipelineInfo info;

@@ -23,6 +23,13 @@ oiiotool <native> <wasm> --fail 0.016 --failpercent 1 --diff   ->  EXIT 0 (PASS)
 RGB-only (alpha-normalized) diff: PASS
 ```
 
+**Parity robustness (2nd data point):** re-ran at **128x128 @ 64 spp** (4x res,
+4x samples — the m6-prep golden size, more path-tracer float-contraction
+accumulation). Still `EXIT 0`: Mean error `2.3337e-06`, `0 pixels over 0.016`,
+max error again a single `1/255` LSB. wasm render ~1.6 s at 2 threads. Parity
+does not degrade with scale at this scene.
+Evidence: `wasm_out2/cube_.png` vs `native_ref2/cube_.png`.
+
 Thresholds are Cycles' verbatim upstream defaults (`0.016 / 1`,
 `cycles_render_tests.py main`, transcribed in `sandbox/m6-prep/suite_plan.tsv`).
 Comparison is **wasm-vs-native-oracle** on the identical scene+settings+script

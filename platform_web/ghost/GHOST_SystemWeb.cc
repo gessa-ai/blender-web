@@ -12,10 +12,14 @@
 
 #include "GHOST_SystemWeb.hh"
 
+#include <atomic>
+#include <cstdio>
+
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
 #include "GHOST_EventBridgeWeb.hh"
+#include "GHOST_WebDisplayState.hh"
 #include "GHOST_WindowWeb.hh"
 
 #include "GHOST_Buttons.hh"
@@ -87,6 +91,70 @@ bool cb_contextmenu(int /*t*/, const EmscriptenMouseEvent * /*e*/, void * /*ud*/
 }  // namespace
 
 /* -------------------------------------------------------------------------- */
+/* Shell -> WM-worker display-state handshake (GHOST_WebDisplayState.hh).
+ *
+ * All state lives in shared wasm linear memory (SharedArrayBuffer under -pthread) so the
+ * shell's `bw_shell_set_display` call on the MAIN thread and the WM worker's consumers
+ * (ghost_web::device_pixel_ratio / poll_pending_backing) see the same values. The atomics
+ * are constant-initialized (no dynamic ctor), so `bw_shell_set_display` is safe to call
+ * from preRun (before __wasm_call_ctors) as the shell does to seed the DPR pre-window. */
+namespace {
+
+std::atomic<int32_t> g_target_backing_w{0};
+std::atomic<int32_t> g_target_backing_h{0};
+std::atomic<uint32_t> g_backing_generation{0};
+/* devicePixelRatio * 1000, so the DPR travels as an integer atomic. Default 1000 = 1.0. */
+std::atomic<int64_t> g_device_pixel_ratio_milli{1000};
+
+}  // namespace
+
+/* Called from the browser MAIN thread by the shell (boot-windowed.js) on boot and on every
+ * window resize / DPR change. EMSCRIPTEN_KEEPALIVE forces it into the module exports as
+ * `Module._bw_shell_set_display` without touching the (unowned) link flags; it performs only
+ * atomic stores, so running it on the main thread and consuming on the WM worker is race-free
+ * and realm-independent. `backing_w`/`backing_h` are PHYSICAL pixels (cssPx * dpr). */
+extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_set_display(int32_t backing_w,
+                                                          int32_t backing_h,
+                                                          double dpr)
+{
+  if (dpr > 0.0) {
+    g_device_pixel_ratio_milli.store(int64_t(dpr * 1000.0 + 0.5), std::memory_order_relaxed);
+  }
+  if (backing_w > 0 && backing_h > 0) {
+    g_target_backing_w.store(backing_w, std::memory_order_relaxed);
+    g_target_backing_h.store(backing_h, std::memory_order_relaxed);
+    /* Release-bump the generation LAST so a consumer that sees the new generation is
+     * guaranteed to also see the paired width/height. */
+    g_backing_generation.fetch_add(1u, std::memory_order_release);
+  }
+}
+
+namespace ghost_web {
+
+double device_pixel_ratio()
+{
+  const int64_t milli = g_device_pixel_ratio_milli.load(std::memory_order_relaxed);
+  return (milli > 0) ? double(milli) / 1000.0 : 1.0;
+}
+
+bool poll_pending_backing(int32_t &w, int32_t &h)
+{
+  /* Single-consumer (the WM worker's processEvents tick); a function-static high-water
+   * mark is sufficient and needs no lock. */
+  static uint32_t seen_generation = 0;
+  const uint32_t gen = g_backing_generation.load(std::memory_order_acquire);
+  if (gen == seen_generation) {
+    return false;
+  }
+  seen_generation = gen;
+  w = g_target_backing_w.load(std::memory_order_relaxed);
+  h = g_target_backing_h.load(std::memory_order_relaxed);
+  return (w > 0 && h > 0);
+}
+
+}  // namespace ghost_web
+
+/* -------------------------------------------------------------------------- */
 
 GHOST_SystemWeb::GHOST_SystemWeb(const char *canvas_selector)
     : canvas_selector_(canvas_selector ? canvas_selector : "#canvas")
@@ -130,6 +198,44 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * GHOST events immediately. We cannot block the browser main thread, so
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
+
+  /* Live backing-store resize (bug #1: black bars / blur on window resize).
+   * After boot the `#canvas` is an OffscreenCanvas owned by THIS worker, so only this
+   * worker may resize its backing store. The shell (main thread) computes the new physical
+   * extent (cssPx * devicePixelRatio) and posts it via bw_shell_set_display; we apply it
+   * here (the natural per-tick poll point) by resizing the canvas element (legal on the
+   * owning worker), reconfiguring the WebGPU surface + persistent back-buffer to match, and
+   * delivering a GHOST_kEventWindowSize so the WM relayouts (and recomputes UI scale, since
+   * wm_window.cc GHOST_kEventWindowSize -> WM_window_dpi_set_userdef). Blender then renders
+   * at the true pixel size: no CSS stretch (blur), no letterbox (black bars). */
+  if (window_ != nullptr) {
+    int32_t nw = 0, nh = 0;
+    if (ghost_web::poll_pending_backing(nw, nh)) {
+      int cw = 0, ch = 0;
+      emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
+      if (cw != nw || ch != nh) {
+        emscripten_set_canvas_element_size(canvas_selector_.c_str(), nw, nh);
+      }
+      /* Reconfigure even when the backing extent is unchanged: a DPR-only change still
+       * needs the WM to recompute pixelsize via the size event below. reconfigureSurface
+       * is idempotent for an unchanged extent. */
+      window_->reconfigureSurface();
+      pushEvent(std::make_unique<GHOST_Event>(
+          getMilliSeconds(), GHOST_kEventWindowSize, window_));
+
+      /* Bounded diagnostic (worker printf reaches the tab console): confirms the live
+       * resize path applied the shell-posted extent to the OffscreenCanvas backing store
+       * this worker owns. Capped so a resize-drag cannot flood. */
+      static int resize_log_count = 0;
+      if (resize_log_count < 24) {
+        int aw = 0, ah = 0;
+        emscripten_get_canvas_element_size(canvas_selector_.c_str(), &aw, &ah);
+        std::printf("WGPUWeb-resize: backing -> %dx%d (canvas readback %dx%d, dpr %.3f)\n",
+                    nw, nh, aw, ah, ghost_web::device_pixel_ratio());
+        resize_log_count++;
+      }
+    }
+  }
 
   /* Boot-settle redraw burst. Blender redraws on demand, but at boot the tab stays BLACK
    * until the first real input: the initial GHOST_kEventWindowSize only forces a redraw

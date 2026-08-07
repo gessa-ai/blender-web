@@ -76,7 +76,13 @@ class GHOST_WindowWeb : public GHOST_Window {
   }
   GHOST_TSuccess invalidate() override;
 
-  /** devicePixelRatio-aware DPI so the Python UI scales like a native HiDPI window. */
+  /** Backing scale factor (== devicePixelRatio, forwarded from the browser main thread).
+   * Drives Blender's HiDPI UI scale and logical<->physical coordinate conversion, mirroring
+   * the macOS Cocoa backend. Returns 1.0 until the shell posts a DPR. */
+  float getNativePixelSize() override;
+
+  /** Constant 96 (macOS/base semantics); the display scale is reported via
+   * getNativePixelSize(), which WM_window_dpi_set_userdef multiplies in. */
   uint16_t getDPIHint() override;
 
   /* NOTE: setPath() is left to GHOST_Window's default (no-op). */

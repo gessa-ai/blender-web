@@ -283,46 +283,43 @@ function applyInitialSizing() {
   return b;
 }
 
-// After boot, the backing store lives on the WM worker's OffscreenCanvas. Resize
-// it by proxying emscripten_set_canvas_element_size to the owning thread (the
-// module's setCanvasElementSizeMainThread path). Best-effort: if the export is
-// not reachable we fall back to CSS stretch until the next reload and note it.
-let backingResizeSupported = null; // null=unknown, true/false once probed
-function resizeBackingStore(w, h) {
-  const mod = window.__bwModule;
+// After boot the backing store lives on the WM worker's OffscreenCanvas, so ONLY that
+// worker may resize it (emscripten_set_canvas_element_size is legal on the canvas-owning
+// thread). The main thread cannot proxy that call - the build exports neither `ccall` nor
+// `_emscripten_set_canvas_element_size` (EXPORTED_RUNTIME_METHODS=ENV,FS,callMain). Instead
+// GHOST exposes `bw_shell_set_display(backingW, backingH, dpr)` (EMSCRIPTEN_KEEPALIVE, so it
+// lands in the module exports without touching the link flags): it stores the target extent
+// + DPR into shared wasm memory, and the WM worker applies them in its per-tick poll
+// (GHOST_SystemWeb::processEvents -> set canvas size + reconfigure surface + WindowSize
+// event). This carries BOTH fixes: live resize (bug #1) AND the real DPR for UI scale
+// (bug #2). Returns true if the export was reachable.
+let displayPushSupported = null; // null=unknown, true/false once probed
+let lastPushedW = 0, lastPushedH = 0, lastPushedDpr = 0;
+function pushDisplayToWorker(mod, w, h, dpr) {
+  mod = mod || window.__bwModule;
   if (!mod) return false;
-  // ccall marshals the selector string to a C pointer for us.
-  if (typeof mod.ccall === "function" &&
-      typeof mod._emscripten_set_canvas_element_size === "function") {
-    try {
-      mod.ccall("emscripten_set_canvas_element_size", "number",
-        ["string", "number", "number"], [CANVAS_SELECTOR, w, h]);
-      backingResizeSupported = true;
-      return true;
-    } catch (e) {}
+  if (typeof mod._bw_shell_set_display !== "function") {
+    if (displayPushSupported === null) {
+      displayPushSupported = false;
+      append("[shell] bw_shell_set_display export unavailable - resize/DPR degrade to " +
+        "boot-time backing (see notes/m4-ghost-resize-dpr.md)", "sys");
+    }
+    return false;
   }
-  // Raw export + manual string marshalling as a fallback.
-  if (typeof mod._emscripten_set_canvas_element_size === "function" &&
-      typeof mod.stringToNewUTF8 === "function" && typeof mod._free === "function") {
-    try {
-      const p = mod.stringToNewUTF8(CANVAS_SELECTOR);
-      mod._emscripten_set_canvas_element_size(p, w, h);
-      mod._free(p);
-      backingResizeSupported = true;
-      return true;
-    } catch (e) {}
+  try {
+    mod._bw_shell_set_display(w | 0, h | 0, dpr);
+    displayPushSupported = true;
+    lastPushedW = w; lastPushedH = h; lastPushedDpr = dpr;
+    return true;
+  } catch (e) {
+    append("[shell] bw_shell_set_display threw: " + (e && e.message ? e.message : e), "err");
+    return false;
   }
-  if (backingResizeSupported === null) {
-    backingResizeSupported = false;
-    append("[shell] backing-store resize export unavailable - CSS-stretch " +
-      "until reload (see notes/m4-shell-native.md follow-up)", "sys");
-  }
-  return false;
 }
 
-// Window resize handler (capture phase so we run BEFORE GHOST's own bubble-phase
-// resize callback proxies to the worker - the OffscreenCanvas is already the new
-// size when GHOST reconfigures the surface). No-op in gate mode.
+// Window resize handler. Compute the new PHYSICAL backing extent (innerW/H * DPR, DPR read
+// fresh each time so moving the window between displays of different density is handled) and
+// post it to the WM worker. rAF-coalesced. No-op in gate mode (fixed size, DPR 1).
 let resizeRaf = 0;
 function onWindowResize() {
   if (GATE || !booted) return;
@@ -332,8 +329,8 @@ function onWindowResize() {
     const dpr = window.devicePixelRatio || 1;
     const w = Math.max(1, Math.round(window.innerWidth * dpr));
     const h = Math.max(1, Math.round(window.innerHeight * dpr));
-    if (w === canvasEl.width && h === canvasEl.height) return;
-    resizeBackingStore(w, h);
+    if (w === lastPushedW && h === lastPushedH && dpr === lastPushedDpr) return;
+    pushDisplayToWorker(null, w, h, dpr);
   });
 }
 
@@ -475,6 +472,17 @@ async function boot() {
         Object.assign(env, ENV_VARS);
         append("[shell] ENV " +
           Object.entries(ENV_VARS).map(([k, v]) => k + "=" + v).join("  "), "sys");
+        // Seed the real devicePixelRatio + initial backing extent BEFORE main() runs on the
+        // WM worker (preRun executes on the main thread ahead of the proxied main), so the
+        // very first getDPIHint / getClientBounds / WindowSize during WM_init already sees
+        // the true DPR - the UI boots at native scale, not tiny-then-corrected. The atomics
+        // are constant-initialized, so this is safe even before __wasm_call_ctors. Gate mode
+        // keeps DPR 1 (default), so no seed is needed there.
+        if (!GATE) {
+          const b = computeBacking();
+          pushDisplayToWorker(mod, b.w, b.h, b.dpr);
+          append("[shell] DPR seed " + b.dpr + " backing " + b.w + "x" + b.h, "sys");
+        }
       },
     ],
     setStatus: onStatus,
@@ -507,10 +515,27 @@ async function boot() {
     // Now that the OffscreenCanvas is owned by the worker, wire live resize
     // (no-op in gate mode) and arm the first-pixels settle fallback.
     if (!GATE) {
+      // Safety re-push now that exports are certainly attached (in case the preRun seed
+      // raced module setup). Any push bumps the shared generation, so the worker's poll
+      // re-applies DPR + backing and emits a fresh WindowSize -> WM_window_dpi_set_userdef,
+      // self-healing the UI scale even if the pre-window seed was missed.
+      {
+        const b = computeBacking();
+        pushDisplayToWorker(mod, b.w, b.h, b.dpr);
+      }
       window.addEventListener("resize", onWindowResize, true);
       try {
         const ro = new ResizeObserver(onWindowResize);
         ro.observe(document.documentElement);
+      } catch (_) {}
+      // devicePixelRatio can change WITHOUT a resize event (e.g. dragging the window to a
+      // display of different density, or an OS zoom change). Re-evaluate on the matching
+      // media query so UI scale + backing track it.
+      try {
+        const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+        if (mq && typeof mq.addEventListener === "function") {
+          mq.addEventListener("change", onWindowResize);
+        }
       } catch (_) {}
       // Fallback: if presentBackbuffer is never seen (format drift), dismiss the
       // loader a short settle after WM_main so the black boot screen can't stick.

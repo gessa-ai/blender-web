@@ -12,8 +12,12 @@
 
 #include "GHOST_WindowWeb.hh"
 
+#include <cmath>
+
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+
+#include "GHOST_WebDisplayState.hh"
 
 #ifdef WITH_WEBGPU_BACKEND
 /* M4 T4 selection seam: emdawnwebgpu (browser) vs native Dawn are different link
@@ -25,15 +29,13 @@
 #  endif
 #endif
 
-/* Read window.devicePixelRatio without pulling in a JS library dependency. Under
- * -sPROXY_TO_PTHREAD this runs on the WM worker, which has NO `window`/`document`
- * (they exist only on the browser main thread) — guard both, or a bare `window`
- * reference throws ReferenceError and aborts the boot. DPR defaults to 1.0 on the
- * worker (a later refinement can forward the real DPR from the main thread); the
- * title update is a main-thread-only affordance, so it no-ops on the worker. */
-EM_JS(double, ghost_web_device_pixel_ratio, (), {
-  return (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1.0;
-});
+/* devicePixelRatio source. Under -sPROXY_TO_PTHREAD this window lives on the WM worker,
+ * which has NO `window`/`document` (they exist only on the browser main thread), so a bare
+ * `window.devicePixelRatio` probe there returns 1.0, which made Blender's UI draw at half
+ * physical size on a HiDPI display. The real DPR is now forwarded from the main thread by
+ * the shell (bw_shell_set_display) and read via ghost_web::device_pixel_ratio(); see
+ * GHOST_WebDisplayState.hh. The title update is a main-thread-only affordance and no-ops on
+ * the worker (which has no `document`). */
 EM_JS(void, ghost_web_set_document_title, (const char *title), {
   if (typeof document !== "undefined") {
     document.title = UTF8ToString(title);
@@ -97,8 +99,21 @@ std::string GHOST_WindowWeb::getTitle() const
 
 void GHOST_WindowWeb::getClientBounds(GHOST_Rect &bounds) const
 {
+  /* Report LOGICAL (CSS-point) client bounds, mirroring the macOS Cocoa backend where
+   * getClientBounds returns NSView points and getNativePixelSize() carries the backing
+   * scale. The canvas element size is the PHYSICAL backing store (cssPx * devicePixelRatio,
+   * set by the shell / by the resize poll), so divide it back down by the DPR. Blender then
+   * lays the UI out in logical units and multiplies by getNativePixelSize()==DPR to reach
+   * the physical framebuffer (wm_subwindow.cc wmWindowViewport_ex uses
+   * WM_window_native_pixel_size = sizex * nativePixelSize). At DPR 1 this is the identity, so
+   * the golden/gate path (DPR forced 1) is unchanged. */
   int w = 0, h = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
+  const double dpr = ghost_web::device_pixel_ratio();
+  if (dpr > 0.0 && dpr != 1.0) {
+    w = int(std::lround(double(w) / dpr));
+    h = int(std::lround(double(h) / dpr));
+  }
   bounds = GHOST_Rect(0, 0, w, h);
 }
 
@@ -108,11 +123,22 @@ void GHOST_WindowWeb::getWindowBounds(GHOST_Rect &bounds) const
   getClientBounds(bounds);
 }
 
+/* setClient* take LOGICAL sizes (Blender's window units), matching getClientBounds; scale
+ * to the PHYSICAL backing store the same way getClientBounds scales back down, so a round
+ * trip is stable. (Blender does not resize its own browser window in M4, so these are
+ * defensive: kept consistent with the DPR model rather than left as a physical/logical
+ * mismatch.) */
+static int ghost_web_logical_to_backing(uint32_t logical)
+{
+  const double dpr = ghost_web::device_pixel_ratio();
+  return (dpr > 0.0 && dpr != 1.0) ? int(std::lround(double(logical) * dpr)) : int(logical);
+}
+
 GHOST_TSuccess GHOST_WindowWeb::setClientWidth(uint32_t width)
 {
   int w = 0, h = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
-  emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), h);
+  emscripten_set_canvas_element_size(canvas_selector_.c_str(), ghost_web_logical_to_backing(width), h);
   reconfigureSurface();
   return GHOST_kSuccess;
 }
@@ -121,14 +147,16 @@ GHOST_TSuccess GHOST_WindowWeb::setClientHeight(uint32_t height)
 {
   int w = 0, h = 0;
   emscripten_get_canvas_element_size(canvas_selector_.c_str(), &w, &h);
-  emscripten_set_canvas_element_size(canvas_selector_.c_str(), w, int(height));
+  emscripten_set_canvas_element_size(canvas_selector_.c_str(), w, ghost_web_logical_to_backing(height));
   reconfigureSurface();
   return GHOST_kSuccess;
 }
 
 GHOST_TSuccess GHOST_WindowWeb::setClientSize(uint32_t width, uint32_t height)
 {
-  emscripten_set_canvas_element_size(canvas_selector_.c_str(), int(width), int(height));
+  emscripten_set_canvas_element_size(canvas_selector_.c_str(),
+                                     ghost_web_logical_to_backing(width),
+                                     ghost_web_logical_to_backing(height));
   reconfigureSurface();
   return GHOST_kSuccess;
 }
@@ -192,11 +220,25 @@ GHOST_TSuccess GHOST_WindowWeb::invalidate()
   return GHOST_kSuccess;
 }
 
+float GHOST_WindowWeb::getNativePixelSize()
+{
+  /* Backing scale factor, mirroring GHOST_WindowCocoa::setNativePixelSize() (drawableSize /
+   * clientBounds == devicePixelRatio). This is the ONE knob that drives Blender's HiDPI UI
+   * scale on non-macOS builds: wm_window.cc WM_window_dpi_set_userdef does
+   * `auto_dpi *= getNativePixelSize()` (unconditional), so at DPR 2 U.pixelsize becomes 2 and
+   * the whole interface renders at native size. It also converts logical<->physical for the
+   * viewport and cursor (WM_window_native_pixel_size, wm_cursor_position_*). */
+  const double dpr = ghost_web::device_pixel_ratio();
+  return float(dpr > 0.0 ? dpr : 1.0);
+}
+
 uint16_t GHOST_WindowWeb::getDPIHint()
 {
-  const double dpr = ghost_web_device_pixel_ratio();
-  const int dpi = int(96.0 * (dpr > 0.0 ? dpr : 1.0) + 0.5);
-  return uint16_t(dpi);
+  /* Constant 96, mirroring the desktop bases (GHOST_Window::getDPIHint) and macOS Cocoa
+   * (which does NOT override it): the display SCALE is reported through getNativePixelSize()
+   * instead, and WM_window_dpi_set_userdef multiplies the two. Returning 96*DPR here would
+   * DOUBLE-count against getNativePixelSize()==DPR and blow the UI up ~DPR x too large. */
+  return uint16_t(96);
 }
 
 GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)

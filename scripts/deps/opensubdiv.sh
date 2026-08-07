@@ -7,8 +7,8 @@
 # upstream/build_files/build_environment/cmake/versions.cmake (OPENSUBDIV_VERSION
 # v3_7_0, MD5 470d53c4d4335a601c33a052ce7c33b4). Options mirror the Blender
 # superbuild's cmake/opensubdiv.cmake, adapted for the browser target: every GPU
-# backend (OpenGL/Metal/CUDA/OpenCL/DX) is disabled — there is no GPU API under
-# Emscripten — leaving Far/Sdc/Vtr/Bfr + the CPU (incl. TBB) evaluators. TBB comes
+# backend (OpenGL/Metal/CUDA/OpenCL/DX) is disabled (there is no GPU API under
+# Emscripten), leaving Far/Sdc/Vtr/Bfr + the CPU (incl. TBB) evaluators. TBB comes
 # from the shared prefix (scripts/deps/tbb.sh) via TBB_DIR.
 #
 # GOTCHA (consumer contract): Blender's build_files/cmake/Modules/FindOpenSubdiv.cmake
@@ -92,7 +92,7 @@ EOF
 }
 
 if [ "$FORCE" = 0 ] && [ -f "$PREFIX/lib/libosdCPU.a" ] && [ -f "$PREFIX/lib/libosdGPU.a" ]; then
-  echo "opensubdiv: already installed ($PREFIX/lib/libosdCPU.a) — skip (--force to rebuild)"
+  echo "opensubdiv: already installed ($PREFIX/lib/libosdCPU.a); skip (--force to rebuild)"
   [ "$DOTEST" = 1 ] && run_test
   exit 0
 fi
@@ -100,7 +100,7 @@ fi
 # --- disk guard (need headroom for the source + object tree) ---
 FREE_G="$(df -g / | awk 'NR==2{print $4}')"
 if [ "${FREE_G:-0}" -lt 8 ]; then
-  echo "opensubdiv: ABORT — only ${FREE_G} GiB free on / (need >= 8 GiB)" >&2
+  echo "opensubdiv: ABORT: only ${FREE_G} GiB free on / (need >= 8 GiB)" >&2
   exit 1
 fi
 

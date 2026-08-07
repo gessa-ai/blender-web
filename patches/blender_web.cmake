@@ -153,7 +153,7 @@ set(WITH_OPENSUBDIV         ON  CACHE BOOL "" FORCE)  # CPU-only OSD in lib/wasm
 # build_files/cmake/platform/dependency_targets.cmake:178-179 consume directly to
 # wire bf::dependencies::optional::opensubdiv (used by BOTH intern/opensubdiv and
 # intern/cycles/subd). CPU-only harvest from scripts/deps/opensubdiv.sh at
-# lib/wasm; both osdCPU (real) and osdGPU (empty — see the script) are listed to
+# lib/wasm; both osdCPU (real) and osdGPU (empty, see the script) are listed to
 # honor FindOpenSubdiv's two-component contract. This -C file lives in patches/, so
 # lib/wasm is patches/../lib/wasm.
 get_filename_component(_bw_libwasm "${CMAKE_CURRENT_LIST_DIR}/../lib/wasm" ABSOLUTE)

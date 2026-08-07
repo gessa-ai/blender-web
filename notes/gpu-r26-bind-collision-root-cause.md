@@ -87,3 +87,17 @@ family); (b) workbench SOLID cube pass still absent; (c) grid still absent;
   confirm 148/158 + static 956/973 before landing).
 - Then the r27 residual hunt (deformed vertices / solid pass / grid) and the gate
   re-measure via ?gate=1280x720.
+
+## r27a addendum (clean fixes-only rebuild, diagnostics reverted)
+
+Geometry identical to r26r (camera + light + deformed cube outline) on the clean
+build — the two fixes stand alone. AND the collisions' removal made the REAL
+residual errors loud (error channel now actually reporting): per kick-driven boot,
+**767× "Number of entries (3) did not match the expected number (4)" on a
+BindGroupLayout** (a shader's declared resource the frontend never routes a bind
+for — previously masked by a stale bind accidentally filling the hole; its draws
+now drop with 775× invalid-BindGroup/CommandBuffer cascades — prime suspect family
+for the missing solid pass/grid) and **8× "Filtering sampler is incompatible with
+non-filtering sampler binding"** (explicit-BGL sampler-type mismatch). r27's first
+instrumented boot should log, at create_bind_group_checked mismatch time, the
+shader name + which interface-map bindings lack entries.

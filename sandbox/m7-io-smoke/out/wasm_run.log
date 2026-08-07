@@ -1,0 +1,29 @@
+/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+Blender 5.2.0 LTS
+Add-on not loaded: "cycles", cause: No module named 'cycles'
+CTYPES_SHIM True
+SRC_MESH Cube verts=8 edges=12 polys=6 loops=24
+OBJ_EXPORT_FAIL AttributeError('Calling operator "bpy.ops.wm.obj_export" error, could not be found')
+GLTF_ADDON_ENABLED True
+GLTF_COMPRESSION_UNAVAILABLE draco=False meshopt=False (wasm)
+08:13:41 | INFO: Starting glTF 2.0 export
+08:13:41 | INFO: Extracting primitive: Cube
+Aborted(Assertion failed: PyGILState_Check(), at: ../numpy-2.3.4/numpy/_core/src/multiarray/alloc.c,130,_npy_alloc_cache)
+worker sent an error! undefined:undefined: Aborted(Assertion failed: PyGILState_Check(), at: ../numpy-2.3.4/numpy/_core/src/multiarray/alloc.c,130,_npy_alloc_cache). Build with -sASSERTIONS for more info.
+node:internal/event_target:1101
+  process.nextTick(() => { throw err; });
+                           ^
+
+RuntimeError: Aborted(Assertion failed: PyGILState_Check(), at: ../numpy-2.3.4/numpy/_core/src/multiarray/alloc.c,130,_npy_alloc_cache). Build with -sASSERTIONS for more info.
+    at abort (/Users/paws/blender-web/build-wasm-cycles/bin/blender.js:1:6831)
+    at ___assert_fail (/Users/paws/blender-web/build-wasm-cycles/bin/blender.js:1:15638)
+    at blender.wasm.npy_alloc_cache_dim (wasm://wasm/blender.wasm-1b263cd2:wasm-function[91230]:0x3df64ba)
+    at blender.wasm.PyArray_NewFromDescr_int (wasm://wasm/blender.wasm-1b263cd2:wasm-function[89640]:0x3d2f38d)
+    at blender.wasm.PyArray_NewFromDescr (wasm://wasm/blender.wasm-1b263cd2:wasm-function[89642]:0x3d2fcc8)
+    at invoke_iiiiiiiii (/Users/paws/blender-web/build-wasm-cycles/bin/blender.js:1:172306)
+    at blender.wasm._object* unique<unsigned long>(tagPyArrayObject*) (wasm://wasm/blender.wasm-1b263cd2:wasm-function[95028]:0x417d9ee)
+    at blender.wasm.std::__2::__function::__func<blender::ActKeyColumn* (*)(void*), blender::ActKeyColumn* (void*)>::operator()(void*&&) (wasm://wasm/blender.wasm-1b263cd2:wasm-function[62236]:0x2956124)
+    at invoke_iii (/Users/paws/blender-web/build-wasm-cycles/bin/blender.js:1:161912)
+    at blender.wasm.array__unique_hash (wasm://wasm/blender.wasm-1b263cd2:wasm-function[95035]:0x417ef4d)
+
+Node.js v22.16.0

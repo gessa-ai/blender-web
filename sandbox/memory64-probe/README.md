@@ -1,3 +1,7 @@
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+-->
 # Memory64 probe (ADR-004 Decision 3)
 
 Reproduces the wasm32-vs-wasm64 evidence in `notes/m64-probe.md`.
@@ -12,3 +16,7 @@ Build (wasm64 = add `-sMEMORY64=1`):
        fmt-12.1.0/src/format.cc -o fmttest64.js                          # fmt dep
 Run bench: serve dir, open bench.html?v=32 / ?v=64 in Chrome >=133; read console BENCH_RESULT.
 node 22.x CANNOT run wasm64 (V8 12.4 rejects 64-bit table limits).
+
+Note: the vendored `fmt-12.1.0/` tree is fetched at reproduce time (untracked). Before
+re-materializing it, run `reuse download MIT` — the MIT license text is not kept committed
+while the tree is absent, since `reuse lint` fails on unused license texts (see REUSE.toml).

@@ -447,3 +447,37 @@ first-pixels golden now; (B) a real emscripten fetch transport backing `js`/`pyo
 (a substantial platform_web feature, later milestone); (C) defer the extensions-download
 feature entirely in `ledger/deferred.json`. The wheel install itself is correct and
 byte-equivalent to native regardless of which option the driver picks.
+
+## THE NEXT WALL — RESOLVED: option (A), js + pyodide.ffi import-shims (driver decision)
+
+Decision (driver, 2026-08-07): **(A)** — minimal raise-on-use import-shims; (B) real fetch
+transport is a later platform_web feature; (C) would still need (A)'s shim for register to
+survive the import. Recorded honestly in `ledger/deferred.json id=emscripten-network-transport`.
+
+Shims: `scripts/deps/python-shims/js.py` + `scripts/deps/python-shims/pyodide/{__init__,ffi}.py`,
+installed into site-packages by `scripts/deps/wheels.sh` (same additive/atomic + idempotent
+discipline; markers extended). Design points, each verified on the wasm node embed
+(`build-jseh`, full harvested tree NODEFS-mounted, NO scratch stubs):
+
+- `js` is an empty namespace with a raise-on-use `__getattr__` naming the deferral id.
+  urllib3's import-time probes (fetch.py:411-441) are pure hasattr() sniffs → all report
+  "unavailable" → `_fetcher = None`, no worker spawned. Verified: `inject_into_urllib3()`
+  RAN (`urllib3.connection.HTTPConnection is EmscriptenHTTPConnection`).
+- ONE real attribute: log-only `js.console` (stderr). CPython rewrites a from-import
+  `__getattr__` failure into a bare "cannot import name 'console'" (fetch.py:496), which
+  would swallow the deferral message on the warning path — so that single name is served.
+- `pyodide.ffi` defines EXACTLY fetch.py:46-51's names (JsProxy, JsArray, JsException(Exception),
+  raise-on-use to_js). `run_sync`/`can_run_sync` DELIBERATELY absent → `has_jspi()` takes its
+  ImportError branch → False (the truth; defining them would route into send_jspi_request).
+- Raise-on-use proven end-to-end: `requests.get(...)` on the wasm interpreter surfaces
+  urllib3's own no-streaming warning via js.console, then raises
+  `AttributeError: ... 'XMLHttpRequest' ... deferred: ledger/deferred.json
+  id=emscripten-network-transport` → `WASM_SHIM_IMPORT_OK` (full downloader.py:51-55 chain +
+  inject-engaged + fetcher-None + has_jspi-False + certifi.where() + mp-shim/numpy intact).
+
+Regression guards: `harness/run.sh --scope m2b` **4/4 GREEN** (core_green 64/64) from the main
+checkout post-install (a worktree-CWD run is RED-by-environment: the tier-b kit resolves
+`tools/`, `build-wasm/`, datafiles relative to CWD — "couldn't find 'scripts/modules'" — not a
+payload failure). `reuse lint` GREEN — including three pre-existing strays fixed in passing
+(r20 evidence png sidecar, m64 README inline SPDX, unused LICENSES/MIT.txt for the
+fetch-at-reproduce-time fmt tree — see REUSE.toml note).

@@ -47,6 +47,15 @@
 # cattrs' `exceptiongroup` requirement is `python_version < '3.11'` only, so it is NOT
 # needed on 3.13 (confirmed absent from the oracle's shipped site-packages).
 #
+# SHIMS (web-only, no native counterpart): urllib3's sys.platform=='emscripten' branch
+# (urllib3/__init__.py:208-211) unconditionally imports the Pyodide runtime modules `js` +
+# `pyodide.ffi` (contrib/emscripten/fetch.py:45-46), which our non-Pyodide CPython lacks —
+# so on the actual wasm build `import requests` still dies at register. This script therefore
+# also installs the raise-on-use import-shims scripts/deps/python-shims/{js.py,pyodide/} into
+# site-packages (same additive/atomic discipline). Import succeeds, networking does NOT —
+# an honest deferral: ledger/deferred.json id=emscripten-network-transport; full analysis in
+# notes/python-emcc605-probe.md "THE NEXT WALL".
+#
 # ADDITIVE / CONCURRENCY: this only creates the package paths it owns (listed in OWNED
 # below); it never touches site-packages/numpy or the stdlib _multiprocessing shim (the
 # e3c8158 preservation the harvest depends on). Each package is staged then swapped into
@@ -86,13 +95,16 @@ MARKERS=(
   "$SITE/urllib3/__init__.py"
   "$SITE/certifi/__init__.py"
   "$SITE/requests/__init__.py"
+  "$SITE/js.py"
+  "$SITE/pyodide/__init__.py"
+  "$SITE/pyodide/ffi.py"
 )
 
 all_present() { for m in "${MARKERS[@]}"; do [ -e "$m" ] || return 1; done; return 0; }
 
 # Idempotent (2nd run ~0s). WHEELS_FORCE_REINSTALL=1 re-extracts even if present.
 if [ -z "${WHEELS_FORCE_REINSTALL:-}" ] && all_present; then
-  echo "wheels: cattrs+attrs+typing_extensions+requests(+urllib3,certifi,charset_normalizer,idna) already installed — skip (WHEELS_FORCE_REINSTALL=1 to force)"
+  echo "wheels: cattrs+attrs+typing_extensions+requests(+urllib3,certifi,charset_normalizer,idna) + js/pyodide.ffi shims already installed — skip (WHEELS_FORCE_REINSTALL=1 to force)"
   exit 0
 fi
 
@@ -150,6 +162,17 @@ for g in "${OWNED_GLOBS[@]}"; do
   done
 done
 
+# --- python-shims: js + pyodide.ffi import-shims (Pyodide-runtime namespace) -----
+# Source of truth is scripts/deps/python-shims/ next to this script (works from a
+# worktree before merge); the pyodide package is staged then swapped with one
+# rename(2), same concurrency discipline as the wheels above.
+SHIM_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/python-shims"
+install -m644 "$SHIM_DIR/js.py" "$SITE/js.py"
+rm -rf "$STAGE/pyodide"; mkdir -p "$STAGE/pyodide"
+install -m644 "$SHIM_DIR/pyodide/__init__.py" "$SHIM_DIR/pyodide/ffi.py" "$STAGE/pyodide/"
+rm -rf "$SITE/pyodide"; mv "$STAGE/pyodide" "$SITE/pyodide"
+echo "wheels: installed js + pyodide.ffi import-shims (raise-on-use; networking deferred)"
+
 # --- verify harvested trees -----------------------------------------------------
 for m in "${MARKERS[@]}"; do
   [ -e "$m" ] || { echo "wheels: install missing $m"; exit 1; }
@@ -159,4 +182,4 @@ done
 [ -e "$PREFIX/lib/python${PY_SHORT}/_multiprocessing.py" ] || { echo "wheels: WARNING stdlib _multiprocessing shim is absent (unexpected)"; }
 
 rm -rf "$SCRATCH"
-echo "wheels: installed attrs 25.3.0 + cattrs 25.1.1 + typing_extensions 4.14.1 + idna 3.10 + charset_normalizer 3.4.1 + urllib3 2.4.0 + certifi 2025.4.26 + requests 2.32.3 -> $SITE"
+echo "wheels: installed attrs 25.3.0 + cattrs 25.1.1 + typing_extensions 4.14.1 + idna 3.10 + charset_normalizer 3.4.1 + urllib3 2.4.0 + certifi 2025.4.26 + requests 2.32.3 + js/pyodide.ffi shims -> $SITE"

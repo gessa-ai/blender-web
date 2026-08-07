@@ -217,6 +217,16 @@
       "impact": "framebuffer_subpass_input x2 fail (honest FAIL, characterized round 10).",
       "workaround": "2-pass emulation designed (notes/gpu-laneB-integration.md): resolve the subpass read as a sampled texture between render passes.",
       "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #4/#5 (framebuffer_subpass_input); notes/gpu-laneB-integration.md (2-pass subpass emulation)"
+    },
+    {
+      "id": "emscripten-network-transport",
+      "status": "deferred",
+      "milestone": "M4",
+      "revisit": "extensions-online / networked features work (M7-adjacent): implement a real browser fetch transport backing the js + pyodide.ffi namespace (option B, notes/python-emcc605-probe.md THE NEXT WALL), or a native urllib3 emscripten transport",
+      "blocker": "urllib3 2.4.0 hard-codes a Pyodide runtime on sys.platform=='emscripten' (urllib3/__init__.py:208-211 unconditionally runs inject_into_urllib3(); contrib/emscripten/fetch.py:45-46 imports js + pyodide.ffi, modules only the Pyodide RUNTIME provides). Our non-Pyodide browser CPython has no JavaScript bridge, so no Python-level HTTP transport exists.",
+      "impact": "Python-level HTTP is non-functional on the wasm build: bl_pkg online repo sync / extension download (_bpy_internal/http/downloader.py) and any requests/urllib3 use raise on use (AttributeError/NotImplementedError naming this id). Import and bl_pkg register are CLEAN via raise-on-use import-shims (scripts/deps/python-shims/js.py + pyodide/, installed by scripts/deps/wheels.sh), so boot and the M4 first-pixels golden are unaffected. Offline/bundled extensions unaffected.",
+      "workaround": "import-shims satisfy urllib3's import-time environment probes (hasattr sniffs -> all report unavailable, no worker spawned, streaming fetcher None, has_jspi False via its ImportError path); urllib3's own no-streaming fallback warning surfaces through a log-only js.console; first actual bridge touch (js.XMLHttpRequest) raises naming this deferral",
+      "evidence": "notes/python-emcc605-probe.md (THE NEXT WALL + shim verification WASM_SHIM_IMPORT_OK)"
     }
   ]
 }

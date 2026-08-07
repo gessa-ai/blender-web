@@ -533,7 +533,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
   /* Bound uniform buffers (distinct from the push-constant emulation UBO, which the
    * caller adds explicitly). */
   for (const auto &item : bound_uniform_buffers_) {
-    const uint32_t b = uint32_t(shader->remap_ubo_binding(item.first));
+    const int b_i = shader->remap_ubo_binding(item.first);
+    if (b_i < 0) {
+      continue; /* Slot not declared by this shader (stale context bind). */
+    }
+    const uint32_t b = uint32_t(b_i);
     if (is_pc(b) || !is_uniform_binding(b)) {
       continue;
     }
@@ -555,7 +559,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
 
   /* Storage buffers (GPU_storagebuf_bind). */
   for (const auto &item : bound_storage_buffers_) {
-    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    const int b_i = shader->remap_ssbo_binding(item.first);
+    if (b_i < 0) {
+      continue; /* Slot not declared by this shader (stale context bind). */
+    }
+    const uint32_t b = uint32_t(b_i);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -578,7 +586,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
   /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
    * (both recorded in the buffer-SSBO bind-space). */
   for (const auto &item : bound_buffer_ssbos_) {
-    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    const int b_i = shader->remap_ssbo_binding(item.first);
+    if (b_i < 0) {
+      continue; /* Slot not declared by this shader (stale context bind). */
+    }
+    const uint32_t b = uint32_t(b_i);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -601,7 +613,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
 
   /* Storage images (GPU_texture_image_bind). */
   for (const auto &item : sm->bound_images()) {
-    const uint32_t b = uint32_t(shader->remap_image_binding(item.first));
+    const int b_i = shader->remap_image_binding(item.first);
+    if (b_i < 0) {
+      continue; /* Slot not declared by this shader (stale context bind). */
+    }
+    const uint32_t b = uint32_t(b_i);
     if (!is_image_binding(b)) {
       continue;
     }
@@ -625,7 +641,11 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
    * storage-buffer entry, handled above — skip them here. */
   const uint32_t sampler_base = imap.sampler_base;
   for (const auto &item : sm->bound_textures()) {
-    const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
+    const int n_i = shader->remap_sampler_binding(item.first);
+    if (n_i < 0) {
+      continue; /* Slot not declared by this shader (stale context bind). */
+    }
+    const uint32_t n = uint32_t(n_i);
     webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second.texture);
     if (tex == nullptr || tex->is_buffer_texture()) {
       continue;

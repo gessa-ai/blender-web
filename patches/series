@@ -316,3 +316,17 @@
 # driver's framebuffer fix.)
 0111-opensubdiv-gpu-eval-guard-desktop-gl-includes.patch
 0120-asset-system-wasm.patch
+# 0110: WGPUFrameBuffer honors the frontend's recorded per-attachment load-store
+# actions in begin_load_pass with ONE-SHOT consume (first pass after
+# bind_loadstore clears with the recorded value, later passes load); ctor
+# defaults CLEAR->LOAD so untouched fbs keep WebGPU zero-init semantics without
+# erasing once-drawn region buffers. Unguarded: semantically correct for native
+# Dawn too; census re-ran GREEN (148/158 + static 956/973, 2026-08-07T20:13Z).
+0110-gpu-webgpu-framebuffer-loadstore-honor.patch
+# 0112: remap_*_binding returns -1 for frontend slots the shader's create-info
+# does not declare (was: identity pass-through), and every bind-group builder
+# loop skips negatives. Stale context-wide binds masqueraded as valid dense
+# bindings and COLLIDED with legitimate resources on the same @binding (dupes
+# swallowed by the checked create's error scope) — the r18-r26 silent blank-
+# 3D-viewport root cause. Census GREEN same run as 0110.
+0112-gpu-webgpu-bind-remap-absent-slots.patch

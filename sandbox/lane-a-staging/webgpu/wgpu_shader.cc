@@ -2414,31 +2414,43 @@ void WGPUShader::build_interface(const shader::ShaderCreateInfo &info)
                             (info.push_constants_.is_empty() ? 0u : 1u);
 }
 
+/* Frontend slot -> this shader's dense group-0 binding. Returns -1 when THIS
+ * shader's create-info does not declare the slot: the context bind-spaces are
+ * context-wide and accumulate stale binds from previous shaders, so an identity
+ * pass-through default let a stale slot masquerade as a valid dense binding and
+ * COLLIDE with a legitimate resource on the same @binding (duplicate-binding
+ * createBindGroup errors were then swallowed by the checked create's error
+ * scope, and the shader read the wrong buffer: the r25/r26 silent blank-3D-
+ * viewport root cause). Callers must skip negative returns. */
 int WGPUShader::remap_ssbo_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER)
                         << 24) |
                        uint32_t(slot);
-  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
+  return dense == 0xffffffffu ? -1 : int(dense);
 }
 int WGPUShader::remap_ubo_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER)
                         << 24) |
                        uint32_t(slot);
-  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
+  return dense == 0xffffffffu ? -1 : int(dense);
 }
 int WGPUShader::remap_sampler_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::SAMPLER) << 24) |
                        uint32_t(slot);
-  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
+  return dense == 0xffffffffu ? -1 : int(dense);
 }
 int WGPUShader::remap_image_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::IMAGE) << 24) |
                        uint32_t(slot);
-  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
+  return dense == 0xffffffffu ? -1 : int(dense);
 }
 
 void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)

@@ -1,0 +1,92 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -67,9 +67,13 @@
+ 
+ WGPUFrameBuffer::WGPUFrameBuffer(const char *name) : FrameBuffer(name)
+ {
+-  /* Default: clear + store (overridden by attachment_set_loadstore_op). */
++  /* Default: LOAD + store. WebGPU lazily zero-initializes attachments, so LOAD on
++   * an untouched fb reads zeros — identical to a zero-clear but WITHOUT erasing
++   * content when begin_load_pass honors these actions (a CLEAR default wiped
++   * region buffers that draw once and are then only composited, e.g. the status
++   * bar). Passes that need clears record them via attachment_set_loadstore_op. */
+   for (int i = 0; i < GPU_FB_MAX_ATTACHMENT; i++) {
+-    load_store_[i] = {GPU_LOADACTION_CLEAR, GPU_STOREACTION_STORE, {0.0, 0.0, 0.0, 0.0}};
++    load_store_[i] = {GPU_LOADACTION_LOAD, GPU_STOREACTION_STORE, {0.0, 0.0, 0.0, 0.0}};
+   }
+ }
+ 
+@@ -385,7 +389,19 @@
+     }
+     wgpu::RenderPassColorAttachment ca = {};
+     ca.view = attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot], force_layer);
+-    ca.loadOp = wgpu::LoadOp::Load;
++    /* Honor the frontend's recorded load-action (GPU_framebuffer_bind_loadstore ->
++     * attachment_set_loadstore_op), consumed ONE-SHOT: the first pass after the
++     * bind performs the clear, later passes on the same binding LOAD (Blender's
++     * bind_loadstore contract under the pass-per-draw model). */
++    GPULoadStore &ls = load_store_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++    if (ls.load_action == GPU_LOADACTION_CLEAR) {
++      ca.loadOp = wgpu::LoadOp::Clear;
++      ca.clearValue = {ls.clear_value[0], ls.clear_value[1], ls.clear_value[2], ls.clear_value[3]};
++      ls.load_action = GPU_LOADACTION_LOAD;
++    }
++    else {
++      ca.loadOp = wgpu::LoadOp::Load;
++    }
+     ca.storeOp = wgpu::StoreOp::Store;
+     color_atts.push_back(ca);
+   }
+@@ -395,17 +411,31 @@
+   const bool has_depth = dtex != nullptr;
+   if (has_depth) {
+     dsa.view = attachment_view(depth_attachment(), force_layer);
+-    dsa.depthLoadOp = wgpu::LoadOp::Load;
++    /* Same one-shot consume for the depth attachment's recorded load-action.
++     * load_store_ is indexed by GPUAttachmentType — resolve the same slot
++     * depth_attachment() picked. */
++    const GPUAttachmentType depth_type = (attachments_[GPU_FB_DEPTH_ATTACHMENT].tex != nullptr) ?
++                                             GPU_FB_DEPTH_ATTACHMENT :
++                                             GPU_FB_DEPTH_STENCIL_ATTACHMENT;
++    GPULoadStore &dls = load_store_[depth_type];
++    const bool depth_clears = (dls.load_action == GPU_LOADACTION_CLEAR);
++    dsa.depthLoadOp = depth_clears ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
+     /* Even with loadOp=Load the value is required to be finite: emdawnwebgpu's JS
+      * binding reads depthClearValue when marshalling the descriptor and rejects the
+      * default WGPU_DEPTH_CLEAR_VALUE_UNDEFINED (NaN) — a browser-only trap native Dawn
+-     * doesn't hit (it ignores the value on Load). Set a finite far value. */
+-    dsa.depthClearValue = 1.0f;
++     * doesn't hit (it ignores the value on Load). Clamp to a finite far value. */
++    dsa.depthClearValue = (depth_clears && std::isfinite(dls.clear_value[0])) ?
++                              dls.clear_value[0] :
++                              1.0f;
+     if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
+-      dsa.stencilLoadOp = wgpu::LoadOp::Load;
++      dsa.stencilLoadOp = depth_clears ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+       dsa.stencilStoreOp = wgpu::StoreOp::Store;
++      dsa.stencilClearValue = 0u;
+     }
++    if (depth_clears) {
++      dls.load_action = GPU_LOADACTION_LOAD;
++    }
+   }
+ 
+   wgpu::RenderPassDescriptor rp = {};
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -95,7 +95,11 @@
+ 
+  private:
+   /** Per-attachment load/store op (explicit-loadstore binds); default = clear+store. */
+-  GPULoadStore load_store_[GPU_FB_MAX_ATTACHMENT];
++  /* Mutable: begin_load_pass() (const) consumes one-shot CLEAR load-actions —
++   * the first render pass after attachment_set_loadstore_op performs the clear,
++   * subsequent passes on the same binding LOAD (Blender's bind_loadstore contract
++   * under the pass-per-draw model). */
++  mutable GPULoadStore load_store_[GPU_FB_MAX_ATTACHMENT];
+ 
+   /** Recompute width_/height_ from the first bound attachment. */
+   void update_size();

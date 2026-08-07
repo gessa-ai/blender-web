@@ -19,6 +19,16 @@
 # longdouble, cross detection, f2py signatures) that used to need Pyodide patches are absorbed
 # upstream. The whole cross build is meson OPTIONS + an emscripten CROSS FILE, no edits.
 #
+# RELEASE MODE - assertions OFF, -DNDEBUG (added 2026-08-07; notes/m7-numpy-release.md).
+# The first build used meson's DEFAULT buildtype (=debug), so C `assert()` stayed compiled IN.
+# numpy/_core/src/multiarray/alloc.c:130 `assert(PyGILState_Check())` then FALSE-fires under
+# blender's -sPROXY_TO_PTHREAD profile (main is proxied to a worker; PyGILState_Check is
+# unreliable there) and ABORTS on the FIRST array allocation - a bare `np.zeros(5)` dies
+# identically, and it took the glTF export down (notes/m7-io-smoke.md). Fix = pass
+# `-Db_ndebug=true` to `meson setup` so -DNDEBUG reaches every TU and the assert compiles to
+# nothing. This removes debug assertions ONLY; it changes no numpy behavior and the pure-python
+# tree is byte-identical to the debug build (the fix lives entirely in libnumpy.a / the .wasm).
+#
 # HARVEST layout (consistent with lib/wasm + how the pure-python stdlib is harvested):
 #   lib/wasm/lib/libnumpy.a                                   <- driver links this into blender
 #   lib/wasm/lib/python3.13/site-packages/numpy/ ...          <- pure-python tree (site auto-adds)
@@ -38,8 +48,10 @@ PY_SHORT="3.13"
 SITE="$PREFIX/lib/python${PY_SHORT}/site-packages"
 LIB_MARKER="$PREFIX/lib/libnumpy.a"
 TREE_MARKER="$SITE/numpy/__init__.py"
-if [ -f "$LIB_MARKER" ] && [ -f "$TREE_MARKER" ]; then
-  echo "numpy ${NP_VERSION}: already installed — skip"; exit 0
+# Idempotent: a completed harvest short-circuits. NUMPY_FORCE_REBUILD=1 forces a full rebuild
+# (e.g. the debug->release/-DNDEBUG reharvest) even when the markers already exist.
+if [ -z "${NUMPY_FORCE_REBUILD:-}" ] && [ -f "$LIB_MARKER" ] && [ -f "$TREE_MARKER" ]; then
+  echo "numpy ${NP_VERSION}: already installed - skip (NUMPY_FORCE_REBUILD=1 to force)"; exit 0
 fi
 
 # Native build-python (host): drives meson/cython/generators, must be CPython 3.13 to match
@@ -148,8 +160,13 @@ export PATH="$VENV/bin:$PATH"
 export PYTHONPATH="$XENV"
 export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__emscripten_wasm32-emscripten
 rm -rf "$BUILD"
+# -Db_ndebug=true => meson adds -DNDEBUG to every compile, compiling out all C `assert()`s
+# (root-cause fix for the alloc.c:130 PyGILState_Check abort under -sPROXY_TO_PTHREAD; see the
+# RELEASE MODE note at the head of this file). It is unconditional (independent of buildtype),
+# so it does not depend on the meson default buildtype staying 'debug'.
 "$VENV/bin/python" "$VMESON" setup "$BUILD" "$SRC" \
   --cross-file "$CROSS" \
+  -Db_ndebug=true \
   -Dallow-noblas=true \
   -Ddisable-optimization=true -Ddisable-threading=true \
   -Ddisable-highway=true -Ddisable-svml=true -Ddisable-intel-sort=true \
@@ -191,12 +208,37 @@ for g in numpy/__init__.py numpy/__config__.py numpy/random/__init__.py; do
   cp "$BUILD/$g" "$SCRATCH/site/$g"
 done
 
-# --- 6. harvest to lib/wasm -----------------------------------------------------------------
+# --- 6. harvest to lib/wasm (ATOMIC: stage then rename, matching wheels.sh discipline) -------
+# Other lanes read lib/wasm during their links and .data repackaging; NEVER leave it
+# half-swapped. Each artifact is fully staged as a sibling, then moved into place with
+# rename(2) so a concurrent reader only ever sees the OLD complete artifact or the NEW complete
+# artifact - never a partial write.
+#   libnumpy.a          : temp copy + `mv -f` over the marker (atomic replace on the same fs).
+#   site-packages/numpy : staged sibling tree + two fast renames (rename-old-out, rename-new-in)
+#                         - smaller absent-window than rm -rf + mv, and never a partial tree.
 mkdir -p "$PREFIX/lib" "$SITE"
-install -m644 "$ARCHIVE" "$LIB_MARKER"
-rm -rf "$SITE/numpy"; cp -R "$SCRATCH/site/numpy" "$SITE/numpy"
+
+LIB_TMP="$PREFIX/lib/.libnumpy.a.incoming.$$"
+rm -f "$LIB_TMP"
+cp "$ARCHIVE" "$LIB_TMP"; chmod 644 "$LIB_TMP"
+mv -f "$LIB_TMP" "$LIB_MARKER"
+
+TREE_TMP="$SITE/.numpy.incoming.$$"
+TREE_OLD="$SITE/.numpy.outgoing.$$"
+rm -rf "$TREE_TMP" "$TREE_OLD"
+cp -R "$SCRATCH/site/numpy" "$TREE_TMP"
+[ -e "$SITE/numpy" ] && mv "$SITE/numpy" "$TREE_OLD"
+mv "$TREE_TMP" "$SITE/numpy"
+rm -rf "$TREE_OLD"
 
 [ -f "$LIB_MARKER" ]  || { echo "numpy: harvest missing $LIB_MARKER"; exit 1; }
 [ -f "$TREE_MARKER" ] || { echo "numpy: harvest missing $TREE_MARKER"; exit 1; }
 NSYMS="$(emnm "$LIB_MARKER" 2>/dev/null | grep -c ' T PyInit_' || true)"
-echo "numpy ${NP_VERSION}: installed (static, JS-EH) -> libnumpy.a ($(du -h "$LIB_MARKER" | awk '{print $1}'), ${NSYMS} PyInit_*) + site-packages/numpy/"
+# Self-check the NDEBUG fix took effect: the `assert(PyGILState_Check())` expression string
+# (the exact abort site, alloc.c:130) is emitted ONLY by a compiled-in assert, so it must be
+# GONE from the archive (release = 0; debug had 3). A generic alloc.c __FILE__ reference can
+# survive from non-assert code, so key on the assert expression, not the filename. Warn only.
+if { llvm-strings "$LIB_MARKER" 2>/dev/null || strings "$LIB_MARKER"; } | grep -q 'PyGILState_Check'; then
+  echo "numpy: WARNING PyGILState_Check assert strings still present in libnumpy.a - -DNDEBUG did NOT apply"
+fi
+echo "numpy ${NP_VERSION}: installed (static, JS-EH, NDEBUG/release) -> libnumpy.a ($(du -h "$LIB_MARKER" | awk '{print $1}'), ${NSYMS} PyInit_*) + site-packages/numpy/"

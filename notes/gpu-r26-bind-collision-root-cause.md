@@ -101,3 +101,45 @@ for the missing solid pass/grid) and **8× "Filtering sampler is incompatible wi
 non-filtering sampler binding"** (explicit-BGL sampler-type mismatch). r27's first
 instrumented boot should log, at create_bind_group_checked mismatch time, the
 shader name + which interface-map bindings lack entries.
+
+## r27 close (driver) — GRID + AXES LIVE, ZERO validation errors, four fixes landed
+
+Round chronology after the r27a addendum:
+- **Two-pass bind assembly** (supersedes the plain -1 remap, which broke flavor-(b)
+  name-resolved binds — the grid's view UBO went missing, the "3 vs 4 entries"
+  class): mapped create-info slots append first; identity fallbacks only fill
+  unclaimed bindings. Result: the bind-group entry-count class went to ZERO and
+  **the grid + axis lines render**.
+- **NonFiltering sampler strip** at the sampler-half assembly (8x "Filtering
+  sampler is incompatible" gone).
+- **Explicit-BGL RW-storage visibility re-strip** after the WGSL-visibility
+  override (Tint retains unused RW SSBO declarations in vertex WGSL; 36x
+  "Read-write storage buffer ... ShaderStage::Vertex" gone).
+- **IndexBuf index_start_/index_base_** honored in both draw paths (bind-time
+  byte offset + baseVertex, mirroring mtl_batch.mm:510-512).
+
+**State: the first fully validation-clean windowed boot in project history** —
+zero GPU errors across 70+ s of kick-driven redraws; grid, axes, camera wire,
+light gizmo, cube selection outline all composite (evidence
+m4-r27-grid-axes-zero-errors-1280x720.png; byte-stable across boots). Patches
+0110/0112/0113 reverse-apply clean; census GREEN with all fixes
+(148/158 + static 956/973); lane-a mirror synced.
+
+## r28 queue (the two residual content defects, both silent-and-valid)
+
+1. **Workbench solid pass empty** (no shaded cube): prepass draws submit validly
+   into Opaque.Gbuffer yet contribute nothing the resolve keeps. Culling
+   exonerated (CullMode::None discriminator — no change); depth exonerated
+   earlier. Remaining suspects: the GPU-generated DrawCommand args for the
+   opaque group (instance_len 0? — the outline group's args WORK, so compare
+   group descriptors), or the prepass fragment path (gbuffer writes/discard).
+2. **Cube outline vertices displaced** (stable crumple): pos VBO proven perfect;
+   index_start/base fixes did not change the shape (both 0 for this batch?).
+   Suspects: DrawCommand vertex_first/base for the outline group, or the
+   res_id->matrix chain for THIS batch (camera/light/grid matrices are right,
+   so per-batch not global), or the expand_prim_type vertex-pulling path if the
+   outline uses procedural line expansion (check group.desc.expand_prim_type).
+Both are now debuggable against a LIVE error channel and a validation-clean
+baseline; the readback gap (F9-D) remains the blocker for content dumps — the
+r28 shortcut is CPU-side DrawGroup/DrawPrototype fingerprints at push_constant/
+upload time (the buffers are CPU-written) to compare outline-vs-opaque groups.

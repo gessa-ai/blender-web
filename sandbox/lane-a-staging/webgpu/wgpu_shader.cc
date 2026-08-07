@@ -2330,6 +2330,15 @@ void WGPUShader::build_explicit_layout(const wgpu::Device &device,
     if (src != nullptr) {
       wgpu::BindGroupLayoutEntry e = *src;
       e.visibility = vis;
+      /* Re-apply the interface map's RW-storage rule AFTER the WGSL-visibility
+       * override: Tint can retain a read-write SSBO's module-scope declaration in
+       * the vertex WGSL even when no vertex code touches it, so the scanned stage
+       * set carries Vertex — and WebGPU rejects any RW-storage entry visible to
+       * Vertex, collapsing the whole layout (the workbench-prepass killer). Same
+       * rationale as the strip in wgpu_shader_interface_map.cc. */
+      if (e.buffer.type == wgpu::BufferBindingType::Storage) {
+        e.visibility = e.visibility & (wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute);
+      }
       entries.push_back(e);
       continue;
     }
@@ -2414,43 +2423,48 @@ void WGPUShader::build_interface(const shader::ShaderCreateInfo &info)
                             (info.push_constants_.is_empty() ? 0u : 1u);
 }
 
-/* Frontend slot -> this shader's dense group-0 binding. Returns -1 when THIS
- * shader's create-info does not declare the slot: the context bind-spaces are
- * context-wide and accumulate stale binds from previous shaders, so an identity
- * pass-through default let a stale slot masquerade as a valid dense binding and
- * COLLIDE with a legitimate resource on the same @binding (duplicate-binding
- * createBindGroup errors were then swallowed by the checked create's error
- * scope, and the shader read the wrong buffer: the r25/r26 silent blank-3D-
- * viewport root cause). Callers must skip negative returns. */
+/* Frontend slot -> this shader's dense group-0 binding. Two frontend bind
+ * flavors reach these: (a) fixed create-info slots (DRW-style) that need the
+ * dense_bindings_ translation, and (b) name-resolved binds where the frontend
+ * already queried the interface and passes the DENSE binding itself — those
+ * miss the map and take the identity fallback. Identity alone let STALE
+ * context-wide binds collide with mapped resources on one @binding (the
+ * r18-r26 silent blank-viewport root cause), so the bind-group builder now
+ * assembles MAPPED slots first and identity-fallback slots only into bindings
+ * nothing mapped has claimed (slot_is_mapped_* below + the two-pass loops in
+ * append_resource_bind_entries). */
 int WGPUShader::remap_ssbo_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER)
                         << 24) |
                        uint32_t(slot);
-  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
-  return dense == 0xffffffffu ? -1 : int(dense);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
 }
 int WGPUShader::remap_ubo_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER)
                         << 24) |
                        uint32_t(slot);
-  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
-  return dense == 0xffffffffu ? -1 : int(dense);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
 }
 int WGPUShader::remap_sampler_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::SAMPLER) << 24) |
                        uint32_t(slot);
-  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
-  return dense == 0xffffffffu ? -1 : int(dense);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
 }
 int WGPUShader::remap_image_binding(int slot) const
 {
   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::IMAGE) << 24) |
                        uint32_t(slot);
-  const uint32_t dense = dense_bindings_.lookup_default(key, 0xffffffffu);
-  return dense == 0xffffffffu ? -1 : int(dense);
+  return int(dense_bindings_.lookup_default(key, uint32_t(slot)));
+}
+
+bool WGPUShader::slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType type,
+                                int slot) const
+{
+  const uint32_t key = (uint32_t(type) << 24) | uint32_t(slot);
+  return dense_bindings_.contains(key);
 }
 
 void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)

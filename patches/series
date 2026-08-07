@@ -323,10 +323,22 @@
 # erasing once-drawn region buffers. Unguarded: semantically correct for native
 # Dawn too; census re-ran GREEN (148/158 + static 956/973, 2026-08-07T20:13Z).
 0110-gpu-webgpu-framebuffer-loadstore-honor.patch
-# 0112: remap_*_binding returns -1 for frontend slots the shader's create-info
-# does not declare (was: identity pass-through), and every bind-group builder
-# loop skips negatives. Stale context-wide binds masqueraded as valid dense
-# bindings and COLLIDED with legitimate resources on the same @binding (dupes
-# swallowed by the checked create's error scope) — the r18-r26 silent blank-
-# 3D-viewport root cause. Census GREEN same run as 0110.
-0112-gpu-webgpu-bind-remap-absent-slots.patch
+# 0112: bind-group assembly correctness pack (the r18-r26 silent blank-viewport
+# root-cause family). (a) Two-pass assembly with MAPPED-slot precedence: binds
+# from create-info slots (flavor a) are appended first; identity/name-resolved
+# binds (flavor b) only fill bindings nothing mapped claimed — stale context
+# binds could otherwise collide with legitimate resources on one @binding
+# (dupes swallowed by the checked create's error scope). Adds
+# WGPUShader::slot_is_mapped. (b) NonFiltering sampler bindings get their
+# filter bits stripped (Dawn rejects a filtering sampler there — dropped the
+# whole workbench pass). (c) build_explicit_layout re-applies the RW-storage
+# Vertex-visibility strip AFTER the WGSL-visibility override (Tint retains
+# unused RW SSBO declarations in vertex WGSL; the raw scan re-introduced
+# Vertex and collapsed the layout). Census GREEN with all of these
+# (148/158 + static 956/973).
+0112-gpu-webgpu-bind-assembly-precedence.patch
+# 0113: indexed draws honor IndexBuf::index_start_ (subrange window, applied as
+# a bind-time byte offset mirroring Metal) and index_base_ (squeezed-u16 base,
+# as baseVertex) in WGPUBatch::draw; multi_draw_indirect binds the subrange
+# offset likewise (GPU-generated args carry batch-local firstIndex/baseVertex).
+0113-gpu-webgpu-index-start-base.patch

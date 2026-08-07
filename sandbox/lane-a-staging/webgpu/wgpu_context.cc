@@ -11,6 +11,8 @@
 
 #include "wgpu_context.hh"
 
+#include <set>
+
 #include "BLI_assert.h"
 #include "BLI_threads.h"
 #include "BLI_utildefines.h"
@@ -530,14 +532,26 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
   const uint32_t pc_binding = has_pc ? shader->push_constants_binding() : 0xffffffffu;
   auto is_pc = [&](uint32_t b) { return has_pc && b == pc_binding; };
 
+  /* Two-pass assembly: pass 0 appends binds from MAPPED create-info slots (flavor
+   * (a)); pass 1 appends identity-fallback binds (flavor (b), name-resolved /
+   * already-dense) only into bindings pass 0 did not claim. Stale context binds are
+   * fallback-flavored by construction, so a mapped resource can never be displaced
+   * by one (the r18-r26 bind-collision class), while legitimate name-resolved binds
+   * (e.g. the overlay grid's view UBO) keep working. */
+  std::set<uint32_t> claimed;
+  for (int pass = 0; pass < 2; pass++) {
   /* Bound uniform buffers (distinct from the push-constant emulation UBO, which the
    * caller adds explicitly). */
   for (const auto &item : bound_uniform_buffers_) {
-    const int b_i = shader->remap_ubo_binding(item.first);
-    if (b_i < 0) {
-      continue; /* Slot not declared by this shader (stale context bind). */
+    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER, item.first);
+    if (mapped != (pass == 0)) {
+      continue; /* wrong pass for this bind flavor */
     }
-    const uint32_t b = uint32_t(b_i);
+    const uint32_t b = uint32_t(shader->remap_ubo_binding(item.first));
+    if (pass == 1 && claimed.count(b)) {
+      continue; /* a mapped bind already claimed this binding */
+    }
+    claimed.insert(b);
     if (is_pc(b) || !is_uniform_binding(b)) {
       continue;
     }
@@ -559,11 +573,15 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
 
   /* Storage buffers (GPU_storagebuf_bind). */
   for (const auto &item : bound_storage_buffers_) {
-    const int b_i = shader->remap_ssbo_binding(item.first);
-    if (b_i < 0) {
-      continue; /* Slot not declared by this shader (stale context bind). */
+    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
+    if (mapped != (pass == 0)) {
+      continue; /* wrong pass for this bind flavor */
     }
-    const uint32_t b = uint32_t(b_i);
+    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    if (pass == 1 && claimed.count(b)) {
+      continue; /* a mapped bind already claimed this binding */
+    }
+    claimed.insert(b);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -586,11 +604,15 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
   /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
    * (both recorded in the buffer-SSBO bind-space). */
   for (const auto &item : bound_buffer_ssbos_) {
-    const int b_i = shader->remap_ssbo_binding(item.first);
-    if (b_i < 0) {
-      continue; /* Slot not declared by this shader (stale context bind). */
+    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
+    if (mapped != (pass == 0)) {
+      continue; /* wrong pass for this bind flavor */
     }
-    const uint32_t b = uint32_t(b_i);
+    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+    if (pass == 1 && claimed.count(b)) {
+      continue; /* a mapped bind already claimed this binding */
+    }
+    claimed.insert(b);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -613,11 +635,15 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
 
   /* Storage images (GPU_texture_image_bind). */
   for (const auto &item : sm->bound_images()) {
-    const int b_i = shader->remap_image_binding(item.first);
-    if (b_i < 0) {
-      continue; /* Slot not declared by this shader (stale context bind). */
+    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::IMAGE, item.first);
+    if (mapped != (pass == 0)) {
+      continue; /* wrong pass for this bind flavor */
     }
-    const uint32_t b = uint32_t(b_i);
+    const uint32_t b = uint32_t(shader->remap_image_binding(item.first));
+    if (pass == 1 && claimed.count(b)) {
+      continue; /* a mapped bind already claimed this binding */
+    }
+    claimed.insert(b);
     if (!is_image_binding(b)) {
       continue;
     }
@@ -641,11 +667,15 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
    * storage-buffer entry, handled above — skip them here. */
   const uint32_t sampler_base = imap.sampler_base;
   for (const auto &item : sm->bound_textures()) {
-    const int n_i = shader->remap_sampler_binding(item.first);
-    if (n_i < 0) {
-      continue; /* Slot not declared by this shader (stale context bind). */
+    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::SAMPLER, item.first);
+    if (mapped != (pass == 0)) {
+      continue; /* wrong pass for this bind flavor */
     }
-    const uint32_t n = uint32_t(n_i);
+    const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
+    if (pass == 1 && claimed.count(n)) {
+      continue; /* a mapped bind already claimed this binding */
+    }
+    claimed.insert(n);
     webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second.texture);
     if (tex == nullptr || tex->is_buffer_texture()) {
       continue;
@@ -665,7 +695,19 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     }
     const uint32_t sb = sampler_base + n;
     if (is_sampler_binding(sb)) {
-      wgpu::Sampler sampler = get_sampler(item.second.sampler);
+      /* Match the sampler to the layout's declared binding type: an unfilterable
+       * texture (depth read through a plain sampler2D, or an integer texture)
+       * makes the interface map declare the sampler half NonFiltering, and Dawn
+       * rejects a filtering sampler on it ("Filtering sampler is incompatible
+       * with non-filtering sampler binding") — the whole pass then drops. Strip
+       * the filter bits from the requested state for those bindings (nearest
+       * sampling is the only valid read anyway). */
+      GPUSamplerState sampler_state = item.second.sampler;
+      const wgpu::BindGroupLayoutEntry *sle = entry_of(sb);
+      if (sle != nullptr && sle->sampler.type == wgpu::SamplerBindingType::NonFiltering) {
+        sampler_state.filtering = GPU_SAMPLER_FILTERING_DEFAULT;
+      }
+      wgpu::Sampler sampler = get_sampler(sampler_state);
       if (sampler != nullptr) {
         wgpu::BindGroupEntry e = {};
         e.binding = sb;
@@ -673,6 +715,8 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
         entries.push_back(e);
       }
     }
+  }
+
   }
 
 }

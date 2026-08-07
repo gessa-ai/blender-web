@@ -1,0 +1,22 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+M8 staged-loading probe — receipts (headed bundled-Chromium, :8125/windowed.html,
+opt binary build-wasm-windowed-opt/bin/blender_browser.*). Rig: sandbox/staged-probe/rig_staged.js
+
+ENV {"coi":true,"gpu":true,"vis":"visible","canvas":"1280x720"}
+BOOTED_MODULE true            (boot reached WM_main; WebGPU device 23 features; surface configured 1280x720)
+MOUNT {"bytes":308,"fetchMs":2.88,"w":"ok"}   (synthetic module fetched over the wire post-boot, written into live WASMFS via exported FS API)
+LAZY_LOAD_RESULT OK STAGE1_LAZY_OK_44424edfbc32 file=/bw/python/lib/python3.13/bw_stage1_probe.py
+   ^ a module ABSENT from blender_browser.data, imported by the RUNNING interpreter (bpy.app.timer in WM_main). Marker UUID unique to the synthetic file.
+THROTTLE_4G_stage0 {"bytes":4496828,"ms":3074,"mbps":1.46}   (real 4.5MB stage0.data.br under CDP 4G emulation set to 1.5 MB/s — throttle validated)
+
+Notes: main-thread FS.writeFile propagates to the PROXY_TO_PTHREAD WM worker's shared
+WASMFS (sentinel seen by worker). FS.mkdir under /bw failed ("FS error") in a first
+attempt; writing into the pre-existing on-sys.path dir /bw/python/lib/python3.13 works.
+The opt binary exports only FS (not the file_packager loadPackage helpers), so the
+prototype mounts via the FS API; production would export FS_createPreloadedFile+
+addRunDependency+removeRunDependency and use the file_packager loader (validated below).
+
+file_packager (emcc 6.0.5) multi-package: produced stage1_probe.{data,js} (loadPackage
+pattern) OK — sandbox/staged-probe/web/stage1_probe.js.

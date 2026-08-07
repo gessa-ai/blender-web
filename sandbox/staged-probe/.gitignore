@@ -1,0 +1,15 @@
+# Large regenerable data slices (rebuild via extract_artifacts.py + brotli)
+web/stage0.data
+web/stage1.data
+web/stage0.data.br
+web/stage1.data.br
+# file_packager output (regenerable) + copied shell (cp from platform_web/shell)
+web/stage1_probe.data
+web/stage1_probe.js
+web/windowed.html
+web/index.html
+web/boot-windowed.js
+web/bin/
+# server log + regenerable probe tree
+server.log
+stage1_tree/

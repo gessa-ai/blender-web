@@ -1,0 +1,17 @@
+== python code strategy comparison (whole python subtree) ==
+python .py sources only                          630f  raw   10.77 MiB br   1.83 MiB (30s)
+python pyc all 3 opt levels                     1890f  raw   32.63 MiB
+python pyc opt-0 only                            630f  raw   11.08 MiB br   3.04 MiB (66s)
+
+== cumulative STAGE-0 (data only) ==
+S1 drop __pycache__ (keep .py)                  2583f  raw   59.84 MiB br  23.22 MiB (203s)
+S2  + defer dead stdlib                         2328f  raw   54.14 MiB
+S3  + defer non-boot addons_core                2030f  raw   49.87 MiB
+S4  + defer intl/CJK fonts                      2008f  raw   35.68 MiB
+S5  + defer CM display LUTs                     1995f  raw   19.29 MiB
+S6  + drop pip wheel  == STAGE-0                1995f  raw   19.29 MiB br   3.96 MiB (34s)
+
+== STAGE-1 remainder ==
+STAGE-1 (all not in S6)                         2800f  raw   81.39 MiB br  24.60 MiB (137s)
+
+DONE

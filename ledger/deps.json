@@ -233,7 +233,6 @@
     "openvdb": "unported",
     "nanovdb": "unported",
     "mod_fluid": "no-port",
-    "opensubdiv": "unported",
     "openimagedenoise": "unported",
     "codec_ffmpeg": "unported",
     "llvm": "no-jit",
@@ -257,6 +256,18 @@
     "image_codecs": "unported"
   },
   "wasm_built": {
+    "opensubdiv": {
+      "version": "3.7.0",
+      "status": "ok",
+      "license": "Apache-2.0",
+      "license_note": "Pixar's \"OpenSubdiv License\" is Apache-2.0 with a modified attribution appendix; upstream versions.cmake tags it SPDX TOST-1.0. Treated as Apache-2.0 for GPL-compatibility analysis (the appendix only alters copyright-notice reproduction, not the grant). LICENSES text ships in the source tree.",
+      "gpl_compatible": true,
+      "gpl_compatible_note": "Apache-2.0 is incompatible with GPLv2 alone but compatible with GPLv3. Blender is GPL-2.0-OR-LATER, so the combined work is conveyed under GPLv3 terms — the same or-later path used for oneTBB/OIIO. No red flag.",
+      "rationale": "Subdivision-surface evaluation. Unblocks WITH_OPENSUBDIV (launch-tier: the Subdivision Surface modifier and Cycles subdiv). Was the SOLE delta on 22 of 27 Cycles-CPU small-scene tests (notes/m6-cycles-suite.md): with OpenSubdiv OFF, Blender silently disables every Subsurf/Multires modifier at render time.",
+      "source": "versions.cmake:232 OPENSUBDIV_VERSION v3_7_0 (MD5 470d53c4d4335a601c33a052ce7c33b4); built by scripts/deps/opensubdiv.sh; notes/m6-opensubdiv-rebuild.md",
+      "notes": "CPU-only: Far/Sdc/Vtr/Bfr + CPU (incl. TBB) evaluators; every GPU backend (OpenGL/Metal/CUDA/OpenCL/DX) OFF — no GPU API under Emscripten. libosdCPU.a is real (49 objects); libosdGPU.a is a VALID EMPTY archive: a CPU-only OpenSubdiv build emits no GPU object code (opensubdiv/osd/CMakeLists.txt:404 + opensubdiv/CMakeLists.txt:136 both false), and Blender's build_files/cmake/Modules/FindOpenSubdiv.cmake resolves TWO components (osdCPU AND osdGPU) whose paths are link-injected by dependency_targets.cmake:179 — the empty archive satisfies the two-component find while nothing at runtime references osdGPU symbols (intern/opensubdiv's GPU-subdiv path is driven by bf::gpu, not OpenSubdiv's osdGPU). TBB from lib/wasm via TBB_DIR; -pthread -fexceptions. Compiled clean under emcc 6.0.5 — NO upstream patch. Far cube-refine smoke passes on wasm+node (Catmull-Clark level-1 verts=26). Harvest: lib/wasm/lib/libosd{CPU,GPU}.a + lib/wasm/include/opensubdiv. scripts/deps/opensubdiv.sh",
+      "runtime_linked": true
+    },
     "imath": {
       "version": "3.2.2",
       "status": "ok",

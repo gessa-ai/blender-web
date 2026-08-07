@@ -1,74 +1,49 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// M4 windowed browser boot shell — boot-windowed.js. Boots the browser-linked
-// `blender_browser` wasm module in the WINDOWED profile (WITH_HEADLESS=OFF,
-// WITH_GHOST_WEB + WITH_WEBGPU_BACKEND): drops `--background`, so creator.cc takes
-// the `else` arm (WM_init_splash_on_startup + WM_main) and drives the GHOST-web
-// window + WebGPU context onto a real <canvas>. Mirrors stdout/stderr to the
-// on-page <pre> AND devtools console for boot characterization.
+// M4 windowed browser boot shell - boot-windowed.js, NATIVE-APP posture.
 //
-// Contrast with the headless boot.js (proven BPY_OK path). Design refs:
-// notes/m4-windowed-boot-recon.md, notes/m4-integration.md.
+// Boots the browser-linked `blender_browser` wasm module in the WINDOWED profile
+// (WITH_HEADLESS=OFF, WITH_GHOST_WEB + WITH_WEBGPU_BACKEND): drops `--background`,
+// so creator.cc takes the `else` arm (WM_init_splash_on_startup + WM_main) and
+// drives the GHOST-web window + WebGPU context onto a real <canvas>.
+//
+// What changed for the native feel (see notes/m4-shell-native.md for sources):
+//   1. Auto-boot on load - no Boot button, no visible status pills / log panel.
+//   2. Full-window canvas at a devicePixelRatio-correct backing store; window
+//      resize keeps it sharp (GHOST reconfigures the WebGPU surface on resize).
+//   3. A centred loading indicator that vanishes when first pixels composite.
+//   4. Native input hardening: no HTML context menu (right-clicks reach Blender),
+//      no page scroll / selection / pinch-zoom, focus-gated key capture.
+//
+// PRESERVED verification/gate contract (the M4 rig depends on ALL of these):
+//   (a) `?pyexpr=` and `?args=` URL dev hooks behave exactly as before.
+//   (b) `window.__bwModule` is exposed after module init.
+//   (c) `?gate=WxH` renders the canvas at EXACTLY that CSS+backing size (DPR
+//       forced to 1), centred on black, no loading UI - for the golden capture.
+//   (d) A DOM-visible "main loop (WM_main)" state marker is still emitted (the
+//       hidden #state element) so existing waitForFunction rigs still match.
 
 "use strict";
 
 // ===========================================================================
-// CONFIG — edit argv / mounts here (the ONE place)
+// CONFIG - edit argv / mounts here (the ONE place)
 // ===========================================================================
 
-// Windowed argv: NO `--background` (that is the whole point — take the windowed
+// Windowed argv: NO `--background` (that is the whole point - take the windowed
 // arm of creator.cc:643). `--factory-startup` loads the factory startup.blend
-// (Layout workspace, default cube/camera/light) — the M4 first-pixels target.
+// (Layout workspace, default cube/camera/light) - the M4 first-pixels target.
 const ARGV = [
   "--factory-startup",
 ];
 
-// DEV-AFFORDANCE (M4.T20 capture rig, r23): optionally append a `--python-expr`
-// to the boot argv so the verification rig can drive Blender's own screenshot
-// path (bpy.ops.screen.screenshot via a bpy.app.timer) without a rebuild. The
-// creator FINAL arg pass runs the expr straight-line before WM_main (creator.cc:
-// 622), so a timer registered here fires INSIDE the main loop after first pixels
-// (surface configured) — the only place WM_window_pixels_read has content. NOT
-// shipped behaviour: only active when the rig sets `window.__BW_PYEXPR` (or the
-// `?pyexpr=` URL param) before pressing Boot. Empty by default = pristine argv.
-function bootPythonExpr() {
-  try {
-    if (typeof window.__BW_PYEXPR === "string" && window.__BW_PYEXPR.length) {
-      return window.__BW_PYEXPR;
-    }
-    const u = new URLSearchParams(location.search);
-    const p = u.get("pyexpr");
-    if (p) return p;
-  } catch (e) {}
-  return null;
-}
-
-// DEV rig hook (same contract as `?pyexpr=` above): `?args=` appends raw
-// whitespace-separated argv entries BEFORE the pyexpr — for boots that need
-// Blender's own diagnostics (`--debug-gpu`, `--log "gpu.*" --log-level 4`, ...)
-// without a rebuild. NOT shipped behaviour: empty by default = pristine argv.
-// Quoting: `%20` separates args; there is deliberately NO shell-style quote
-// handling — a CLOG filter like `--log gpu.*` is two entries.
-function bootExtraArgs() {
-  try {
-    if (Array.isArray(window.__BW_ARGS) && window.__BW_ARGS.length) {
-      return window.__BW_ARGS.slice();
-    }
-    const u = new URLSearchParams(location.search);
-    const a = u.get("args");
-    if (a) return a.split(/\s+/).filter(Boolean);
-  } catch (e) {}
-  return [];
-}
-
 // The GHOST-web layer targets this canvas via emscripten_*_canvas_element_size()
-// and the emdawnwebgpu EmscriptenSurfaceSourceCanvasHTMLSelector (default "#canvas"
-// in GHOST_ContextWGPUWeb / GHOST_WindowWeb).
+// and the emdawnwebgpu EmscriptenSurfaceSourceCanvasHTMLSelector (default
+// "#canvas" in GHOST_ContextWGPUWeb / GHOST_WindowWeb).
 const CANVAS_SELECTOR = "#canvas";
 
 // WasmFS mount points populated by the --preload-file packages baked into the
-// binary. Identical to the headless boot — the windowed payload inventory is a
+// binary. Identical to the headless boot - the windowed payload inventory is a
 // superset that is already fully covered (recon §2).
 const ENV_VARS = {
   BLENDER_SYSTEM_RESOURCES: "/bw",
@@ -81,9 +56,75 @@ const ENV_VARS = {
 const BIN_PREFIX = "/bin/";
 
 // ===========================================================================
-// Shell plumbing (no need to edit below)
+// DEV HOOKS - PRESERVED contract (a): `?pyexpr=` and `?args=`
 // ===========================================================================
 
+// `?pyexpr=` (or window.__BW_PYEXPR): append a `--python-expr` to the boot argv
+// so the verification rig can drive Blender's own screenshot path
+// (bpy.ops.screen.screenshot via a bpy.app.timer) without a rebuild. The creator
+// FINAL arg pass runs the expr straight-line before WM_main (creator.cc:622), so
+// a timer registered here fires INSIDE the main loop after first pixels. NOT
+// shipped behaviour: empty by default = pristine argv.
+function bootPythonExpr() {
+  try {
+    if (typeof window.__BW_PYEXPR === "string" && window.__BW_PYEXPR.length) {
+      return window.__BW_PYEXPR;
+    }
+    const u = new URLSearchParams(location.search);
+    const p = u.get("pyexpr");
+    if (p) return p;
+  } catch (e) {}
+  return null;
+}
+
+// `?args=` (or window.__BW_ARGS): append raw whitespace-separated argv entries
+// BEFORE the pyexpr - for boots that need Blender's own diagnostics
+// (`--debug-gpu`, `--log "gpu.*" --log-level 4`, ...) without a rebuild. NOT
+// shipped behaviour: empty by default. Quoting: `%20` separates args; there is
+// deliberately NO shell-style quote handling - `--log gpu.*` is two entries.
+function bootExtraArgs() {
+  try {
+    if (Array.isArray(window.__BW_ARGS) && window.__BW_ARGS.length) {
+      return window.__BW_ARGS.slice();
+    }
+    const u = new URLSearchParams(location.search);
+    const a = u.get("args");
+    if (a) return a.split(/\s+/).filter(Boolean);
+  } catch (e) {}
+  return [];
+}
+
+// PRESERVED contract (c): `?gate=WxH` (e.g. ?gate=1280x720) - DPR-independent
+// exact-size capture mode. DPR is forced to 1 for the backing store so the
+// golden comparator captures the canvas at exactly WxH regardless of the test
+// browser's deviceScaleFactor. Returns {w,h} or null.
+function gateMode() {
+  try {
+    const u = new URLSearchParams(location.search);
+    let g = u.get("gate");
+    if (!g && typeof window.__BW_GATE === "string") g = window.__BW_GATE;
+    if (!g) return null;
+    const m = /^(\d+)x(\d+)$/i.exec(g.trim());
+    if (!m) return null;
+    const w = parseInt(m[1], 10);
+    const h = parseInt(m[2], 10);
+    if (w > 0 && h > 0) return { w, h };
+  } catch (e) {}
+  return null;
+}
+
+const GATE = gateMode();
+
+// ===========================================================================
+// DOM handles (hidden diagnostics preserve the boot-windowed.js + rig contract)
+// ===========================================================================
+
+const canvasEl = document.querySelector(CANVAS_SELECTOR);
+const loaderEl = document.getElementById("loader");
+const fillEl = document.getElementById("bw-fill");
+const pctEl = document.getElementById("bw-pct");
+
+// Hidden diagnostics - may be absent in stripped rigs, so every access is guarded.
 const logEl = document.getElementById("log");
 const stateEl = document.getElementById("state");
 const exitEl = document.getElementById("exit");
@@ -91,26 +132,32 @@ const wallEl = document.getElementById("wall");
 const dlEl = document.getElementById("dl");
 const runBtn = document.getElementById("run");
 const argvEl = document.getElementById("argv");
-const canvasEl = document.querySelector(CANVAS_SELECTOR);
 
-argvEl.textContent = "argv: blender " + ARGV.join(" ");
+if (argvEl) argvEl.textContent = "argv: blender " + ARGV.join(" ");
 
 let t0 = 0;
 let finished = false;
+let booted = false;
+let firstPixels = false;
+
+// ---------------------------------------------------------------------------
+// Diagnostics plumbing - writes to the HIDDEN elements only. The state marker
+// text is contract (d): keep "main loop (WM_main)" byte-identical.
+// ---------------------------------------------------------------------------
 
 function setState(name, label) {
-  stateEl.className = "pill state-" + name;
-  stateEl.innerHTML = "<b>state:</b> " + label;
+  if (!stateEl) return;
+  stateEl.className = "state-" + name;
+  stateEl.setAttribute("data-state", name);
+  stateEl.textContent = "state: " + label;
 }
 
 function append(text, cls) {
-  const atBottom =
-    logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+  if (!logEl) return;
   const span = document.createElement("span");
   if (cls) span.className = cls;
   span.textContent = text + "\n";
   logEl.appendChild(span);
-  if (atBottom) logEl.scrollTop = logEl.scrollHeight;
 }
 
 function elapsed() {
@@ -120,26 +167,278 @@ function elapsed() {
 function finish(name, label, code) {
   if (finished) return;
   finished = true;
-  wallEl.textContent = elapsed();
-  exitEl.textContent = code === undefined ? "—" : String(code);
+  if (wallEl) wallEl.textContent = elapsed();
+  if (exitEl) exitEl.textContent = code === undefined ? "-" : String(code);
   setState(name, label);
-  runBtn.disabled = false;
-  runBtn.textContent = "Re-boot (reload)";
-  runBtn.onclick = () => location.reload();
+  // A hard failure should surface, not sit behind a spinner forever.
+  if (name === "aborted") {
+    if (pctEl) pctEl.textContent = "boot failed - see console";
+    if (fillEl) fillEl.classList.remove("bw-indeterminate");
+  }
 }
 
+// ---------------------------------------------------------------------------
+// Loading UI - progress via Emscripten setStatus, dismissed on first pixels.
+// ---------------------------------------------------------------------------
+
+function setProgress(fraction) {
+  if (!fillEl) return;
+  fillEl.classList.remove("bw-indeterminate");
+  const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+  fillEl.style.width = pct + "%";
+  if (pctEl) pctEl.textContent = pct + "%";
+}
+
+function setIndeterminate(label) {
+  if (fillEl) {
+    fillEl.style.width = "";
+    fillEl.classList.add("bw-indeterminate");
+  }
+  if (pctEl && label) pctEl.textContent = label;
+}
+
+// Emscripten's default setStatus emits strings like "Downloading data... (x/y)".
+function onStatus(s) {
+  if (dlEl && s) dlEl.textContent = s;
+  if (!s) return;
+  const m = /\((\d+)\/(\d+)\)/.exec(s);
+  if (m) {
+    const cur = parseInt(m[1], 10);
+    const tot = parseInt(m[2], 10);
+    if (tot > 0) {
+      setProgress(cur / tot);
+      return;
+    }
+  }
+  // Non-numeric status ("Preparing...", "Running...") - stay indeterminate.
+  if (fillEl && !fillEl.classList.contains("bw-indeterminate") &&
+      (fillEl.style.width === "" || fillEl.style.width === "0%")) {
+    setIndeterminate("loading");
+  }
+}
+
+let loaderGoneTimer = 0;
+function hideLoader() {
+  if (!loaderEl || loaderEl.classList.contains("bw-hidden")) return;
+  loaderEl.classList.add("bw-hidden");
+  // Drop it from the box tree after the fade so it can never eat input.
+  loaderGoneTimer = setTimeout(() => loaderEl.classList.add("bw-gone"), 600);
+}
+
+// First pixels = the canvas has composited. GHOST prints "presentBackbuffer
+// frame 0" (C printf) at the first present; that is the single reliable draw
+// signal (notes/gpu-r24-present-seam.md). We also arm a settle fallback off the
+// WM_main marker in case the print format shifts.
+function noteFirstPixels(reason) {
+  if (firstPixels) return;
+  firstPixels = true;
+  append("[shell] first pixels (" + reason + ") - dismissing loader", "sys");
+  hideLoader();
+}
+
+function scanForPixels(line) {
+  if (firstPixels || typeof line !== "string") return;
+  if (line.indexOf("presentBackbuffer") !== -1) {
+    noteFirstPixels("presentBackbuffer");
+  }
+}
+
+// ===========================================================================
+// Canvas sizing - full-window @ devicePixelRatio, or exact gate size.
+// ===========================================================================
+
+// Set the drawing-buffer (backing store). In the normal path this is
+// cssPx * devicePixelRatio so the image is sharp on HiDPI; in gate mode it is
+// exactly WxH with DPR forced to 1. GHOST reads this extent via
+// emscripten_get_canvas_element_size and adopts it as the window client size
+// (GHOST_WindowWeb ctor) / configures the WebGPU surface to match.
+function computeBacking() {
+  if (GATE) {
+    return { w: GATE.w, h: GATE.h, css: { w: GATE.w, h: GATE.h }, dpr: 1 };
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(1, window.innerWidth);
+  const cssH = Math.max(1, window.innerHeight);
+  return {
+    w: Math.max(1, Math.round(cssW * dpr)),
+    h: Math.max(1, Math.round(cssH * dpr)),
+    css: { w: cssW, h: cssH },
+    dpr,
+  };
+}
+
+// Apply sizing to the DOM canvas BEFORE the module boots (before the canvas is
+// transferred to the WM worker as an OffscreenCanvas - after transfer the
+// main-thread element can no longer be resized directly). This is what makes the
+// very first frame sharp and full-window.
+function applyInitialSizing() {
+  const b = computeBacking();
+  canvasEl.width = b.w;
+  canvasEl.height = b.h;
+  if (GATE) {
+    document.body.classList.add("bw-gate");
+    canvasEl.style.width = b.css.w + "px";
+    canvasEl.style.height = b.css.h + "px";
+  }
+  return b;
+}
+
+// After boot, the backing store lives on the WM worker's OffscreenCanvas. Resize
+// it by proxying emscripten_set_canvas_element_size to the owning thread (the
+// module's setCanvasElementSizeMainThread path). Best-effort: if the export is
+// not reachable we fall back to CSS stretch until the next reload and note it.
+let backingResizeSupported = null; // null=unknown, true/false once probed
+function resizeBackingStore(w, h) {
+  const mod = window.__bwModule;
+  if (!mod) return false;
+  // ccall marshals the selector string to a C pointer for us.
+  if (typeof mod.ccall === "function" &&
+      typeof mod._emscripten_set_canvas_element_size === "function") {
+    try {
+      mod.ccall("emscripten_set_canvas_element_size", "number",
+        ["string", "number", "number"], [CANVAS_SELECTOR, w, h]);
+      backingResizeSupported = true;
+      return true;
+    } catch (e) {}
+  }
+  // Raw export + manual string marshalling as a fallback.
+  if (typeof mod._emscripten_set_canvas_element_size === "function" &&
+      typeof mod.stringToNewUTF8 === "function" && typeof mod._free === "function") {
+    try {
+      const p = mod.stringToNewUTF8(CANVAS_SELECTOR);
+      mod._emscripten_set_canvas_element_size(p, w, h);
+      mod._free(p);
+      backingResizeSupported = true;
+      return true;
+    } catch (e) {}
+  }
+  if (backingResizeSupported === null) {
+    backingResizeSupported = false;
+    append("[shell] backing-store resize export unavailable - CSS-stretch " +
+      "until reload (see notes/m4-shell-native.md follow-up)", "sys");
+  }
+  return false;
+}
+
+// Window resize handler (capture phase so we run BEFORE GHOST's own bubble-phase
+// resize callback proxies to the worker - the OffscreenCanvas is already the new
+// size when GHOST reconfigures the surface). No-op in gate mode.
+let resizeRaf = 0;
+function onWindowResize() {
+  if (GATE || !booted) return;
+  if (resizeRaf) return;
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = 0;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(window.innerWidth * dpr));
+    const h = Math.max(1, Math.round(window.innerHeight * dpr));
+    if (w === canvasEl.width && h === canvasEl.height) return;
+    resizeBackingStore(w, h);
+  });
+}
+
+// ===========================================================================
+// Native input hardening (applied immediately, independent of the module).
+// Sources are catalogued in notes/m4-shell-native.md.
+// ===========================================================================
+
+// Keys the browser would steal from a canvas app. We preventDefault ONLY when
+// the canvas owns focus, and NEVER stopPropagation - Emscripten/GHOST's own
+// listeners still receive the key, so Blender gets it; we only suppress the
+// BROWSER default (scroll, quick-find, Save dialog, focus traversal).
+const SCROLL_KEYS = new Set([
+  " ", "Spacebar", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+  "PageUp", "PageDown", "Home", "End",
+]);
+function isDevReserved(e) {
+  // Never intercept devtools / reload during development.
+  if (e.key === "F12") return true;
+  const meta = e.metaKey || e.ctrlKey;
+  const k = (e.key || "").toLowerCase();
+  if (meta && k === "r") return true;                 // reload / hard reload
+  if (meta && e.altKey && (k === "i" || k === "j")) return true;    // devtools (mac)
+  if (meta && e.shiftKey && (k === "i" || k === "j" || k === "c")) return true; // devtools
+  return false;
+}
+function canvasHasFocus() {
+  return document.activeElement === canvasEl ||
+         document.pointerLockElement === canvasEl;
+}
+function onKeyDown(e) {
+  if (isDevReserved(e)) return;
+  if (!canvasHasFocus()) return; // gate the aggressive capture behind focus
+  const meta = e.metaKey || e.ctrlKey;
+  const isFnKey = /^F([1-9]|1[01])$/.test(e.key); // F1..F11 (F12 handled above)
+  const isSave = meta && (e.key === "s" || e.key === "S");
+  const isQuickFind = e.key === "'" || e.key === "/"; // Firefox quick-find keys
+  const isTab = e.key === "Tab";
+  const isBackspace = e.key === "Backspace";
+  if (isFnKey || isSave || isQuickFind || isTab || isBackspace ||
+      SCROLL_KEYS.has(e.key)) {
+    e.preventDefault(); // NOT stopPropagation - Blender still receives it
+  }
+}
+
+function installNativeHardening() {
+  // (1) No HTML context menu anywhere - right-clicks still generate the
+  // mousedown/up (button 2) that GHOST reads, so Blender opens its OWN menu.
+  window.addEventListener("contextmenu", (e) => e.preventDefault(), false);
+
+  // (2) Focus-gated key capture (see onKeyDown). Capture phase.
+  window.addEventListener("keydown", onKeyDown, true);
+
+  // (3) Pinch-zoom: trackpad pinch arrives as wheel+ctrlKey; block the browser
+  // page-zoom. Normal wheel is left for GHOST (viewport zoom). passive:false so
+  // preventDefault is honoured.
+  window.addEventListener("wheel", (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  }, { passive: false });
+
+  // (4) Safari gesture events (pinch/rotate) - suppress page zoom.
+  ["gesturestart", "gesturechange", "gestureend"].forEach((t) => {
+    window.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+  });
+
+  // (5) Belt-and-braces: kill iOS double-tap zoom (paired with touch-action:none
+  // + user-scalable=no). Two taps < 300ms apart -> preventDefault the second.
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // (6) Pointer capture on press so a drag that leaves the window keeps
+  // delivering move/up to the canvas. Also (re)focus the canvas so the key
+  // capture above engages. Guarded - never throws the boot.
+  canvasEl.addEventListener("pointerdown", (e) => {
+    try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+    if (document.activeElement !== canvasEl) {
+      try { canvasEl.focus({ preventScroll: true }); } catch (_) { try { canvasEl.focus(); } catch (__) {} }
+    }
+  }, true);
+
+  // (7) Take initial focus so keyboard input goes to Blender from the first
+  // frame (autofocus is unreliable when a script steals focus during boot).
+  try { canvasEl.focus({ preventScroll: true }); } catch (_) {}
+}
+
+// ===========================================================================
+// Boot - auto-runs on load; idempotent so a rig clicking #run is a no-op.
+// ===========================================================================
+
 async function boot() {
-  runBtn.disabled = true;
+  if (booted) return;
+  booted = true;
   finished = false;
-  logEl.textContent = "";
-  exitEl.textContent = "—";
-  wallEl.textContent = "—";
-  dlEl.textContent = "fetching…";
+  if (logEl) logEl.textContent = "";
   setState("loading", "loading module");
+  setIndeterminate("loading");
   append("[shell] instantiating blender_browser (WINDOWED: no --background)…", "sys");
   append("[shell] argv: blender " + ARGV.join(" "), "sys");
   append("[shell] canvas: " + CANVAS_SELECTOR + " " +
-    (canvasEl ? canvasEl.width + "x" + canvasEl.height : "(MISSING!)"), "sys");
+    (canvasEl ? canvasEl.width + "x" + canvasEl.height : "(MISSING!)") +
+    (GATE ? " (GATE " + GATE.w + "x" + GATE.h + ", DPR forced 1)" : ""), "sys");
   t0 = performance.now();
 
   const pyexpr = bootPythonExpr();
@@ -163,30 +462,25 @@ async function boot() {
     print: (line) => {
       console.log(line);
       append(line);
+      scanForPixels(line);
     },
     printErr: (line) => {
       console.error(line);
       append(line, "err");
+      scanForPixels(line);
     },
     preRun: [
       (mod) => {
         const env = mod.ENV || (mod.ENV = {});
         Object.assign(env, ENV_VARS);
-        append(
-          "[shell] ENV " +
-            Object.entries(ENV_VARS)
-              .map(([k, v]) => k + "=" + v)
-              .join("  "),
-          "sys"
-        );
+        append("[shell] ENV " +
+          Object.entries(ENV_VARS).map(([k, v]) => k + "=" + v).join("  "), "sys");
       },
     ],
-    setStatus: (s) => {
-      if (s) dlEl.textContent = s;
-    },
+    setStatus: onStatus,
     onRuntimeInitialized: () => {
-      dlEl.textContent = "loaded";
-      setState("running", "running main() — windowed");
+      if (dlEl) dlEl.textContent = "loaded";
+      setState("running", "running main() - windowed");
       append("[shell] runtime initialized; entering main() (WM_init → WM_main)…", "sys");
     },
     onAbort: (what) => {
@@ -201,21 +495,34 @@ async function boot() {
 
   try {
     const mod = await createBlenderModule(config);
-    // Expose the runtime module so the verification rig can pull capture output
-    // out of WasmFS from the main thread (mod.FS.readFile proxies to the shared
-    // WasmFS the WM worker writes into — proven in notes/gpu-r22-cube-blocker.md).
+    // PRESERVED contract (b): expose the runtime module so the verification rig
+    // can pull capture output out of WasmFS from the main thread.
     window.__bwModule = mod;
     // In the windowed profile WM_main is an emscripten_set_main_loop that keeps
-    // running — createBlenderModule resolves once the runtime is up, NOT on quit.
+    // running - createBlenderModule resolves once the runtime is up, NOT on quit.
     append("[shell] module resolved; WM_main loop should now be pumping.", "sys");
+    // PRESERVED contract (d): the DOM-visible "main loop (WM_main)" marker.
     setState("running", "main loop (WM_main)");
+
+    // Now that the OffscreenCanvas is owned by the worker, wire live resize
+    // (no-op in gate mode) and arm the first-pixels settle fallback.
+    if (!GATE) {
+      window.addEventListener("resize", onWindowResize, true);
+      try {
+        const ro = new ResizeObserver(onWindowResize);
+        ro.observe(document.documentElement);
+      } catch (_) {}
+      // Fallback: if presentBackbuffer is never seen (format drift), dismiss the
+      // loader a short settle after WM_main so the black boot screen can't stick.
+      setTimeout(() => noteFirstPixels("WM_main settle"), 2500);
+    } else {
+      // Gate mode: never show loading UI once booted.
+      if (loaderEl) { loaderEl.classList.add("bw-hidden", "bw-gone"); }
+    }
   } catch (e) {
     if (e && typeof e.status === "number") {
-      finish(
-        e.status === 0 ? "exited" : "aborted",
-        "exited (" + e.status + ")",
-        e.status
-      );
+      finish(e.status === 0 ? "exited" : "aborted",
+        "exited (" + e.status + ")", e.status);
     } else {
       append("[shell] instantiation error: " + (e && e.message ? e.message : e), "err");
       finish("aborted", "instantiation error", undefined);
@@ -223,4 +530,18 @@ async function boot() {
   }
 }
 
-runBtn.onclick = boot;
+// ---------------------------------------------------------------------------
+// Wire-up: harden input, size the canvas, then auto-boot.
+// ---------------------------------------------------------------------------
+
+// Gate mode hides the loading UI from the very first paint.
+if (GATE && loaderEl) loaderEl.classList.add("bw-gone");
+
+installNativeHardening();
+applyInitialSizing();
+
+// PRESERVED: a rig that clicks #run still works - boot() is idempotent.
+if (runBtn) runBtn.onclick = boot;
+
+// Auto-boot immediately (DOM is already parsed - scripts are at end of <body>).
+boot();

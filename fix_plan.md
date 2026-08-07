@@ -513,6 +513,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     slot → wgpu_texture.cc sampled_view must force DepthOnly aspect (in-lane); (c) class-4 remap
     GAP (Tint prunes a declared+bound resource) characterized, non-fatal; (d) topbar strip
     dst_offset_y placement (blitted region at window bottom). Then the M4 cube+grid golden.
+  - [x] **M4.T22 r25 [driver, 2026-08-07]: urllib3-shim merge + gate re-measure — boot-payload
+    regression CLOSED, gate 100%→33.4%.** 7c1cda2 cherry-picked (06feea1), shim verified in the
+    .data payload, clean boots: NO ModuleNotFoundError, zero Dawn errors, full UI stable; comparator
+    FAIL 33.4% = the viewport interior only. NEW measured: sync GPU readback = all-zero in the
+    windowed profile (F9-D consequence, r23 "blank" fully explained); wasm table-OOB crash after
+    in-app snapshot ops (loop halts — M5 hazard, unfixed); full engine shader set (104) compiles
+    CLEAN inline-on-demand (workerless ShaderCompiler under use_main_context_workaround). Shell
+    gained a rig-only `?args=` argv hook. notes/gpu-r25-shim-boot-restored-viewport-isolated.md.
+  - [ ] **M4.T23 r26 [gpu-backend, THE gate blocker]: engine output never reaches the canvas.**
+    Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
+    validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:
+    (a) DrawEngine::draw() submission + per-pass drawcall counts to stderr; (b) magenta
+    force-clear of the GPUViewport color texture pre-engine-draw (magenta on canvas ⇒ composite
+    OK/render empty; none ⇒ composite/wrap broken); (c) log the texture ID the region composite
+    samples vs the viewport's. Latent (non-gate): full-graph ninja fails at the makesdna TESTS
+    genrule (missing emulator prefix + no +x on makesdna.js) — fix when the wasm gtest lane runs.
   - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
     _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
     G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.

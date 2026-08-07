@@ -44,6 +44,24 @@ function bootPythonExpr() {
   return null;
 }
 
+// DEV rig hook (same contract as `?pyexpr=` above): `?args=` appends raw
+// whitespace-separated argv entries BEFORE the pyexpr — for boots that need
+// Blender's own diagnostics (`--debug-gpu`, `--log "gpu.*" --log-level 4`, ...)
+// without a rebuild. NOT shipped behaviour: empty by default = pristine argv.
+// Quoting: `%20` separates args; there is deliberately NO shell-style quote
+// handling — a CLOG filter like `--log gpu.*` is two entries.
+function bootExtraArgs() {
+  try {
+    if (Array.isArray(window.__BW_ARGS) && window.__BW_ARGS.length) {
+      return window.__BW_ARGS.slice();
+    }
+    const u = new URLSearchParams(location.search);
+    const a = u.get("args");
+    if (a) return a.split(/\s+/).filter(Boolean);
+  } catch (e) {}
+  return [];
+}
+
 // The GHOST-web layer targets this canvas via emscripten_*_canvas_element_size()
 // and the emdawnwebgpu EmscriptenSurfaceSourceCanvasHTMLSelector (default "#canvas"
 // in GHOST_ContextWGPUWeb / GHOST_WindowWeb).
@@ -125,7 +143,12 @@ async function boot() {
   t0 = performance.now();
 
   const pyexpr = bootPythonExpr();
-  const bootArgv = pyexpr ? ARGV.concat(["--python-expr", pyexpr]) : ARGV.slice();
+  const extraArgs = bootExtraArgs();
+  let bootArgv = ARGV.concat(extraArgs);
+  if (pyexpr) bootArgv = bootArgv.concat(["--python-expr", pyexpr]);
+  if (extraArgs.length) {
+    append("[shell] DEV args hook: appending " + JSON.stringify(extraArgs), "sys");
+  }
   if (pyexpr) {
     append("[shell] DEV capture hook: appending --python-expr (" +
       pyexpr.length + " chars)", "sys");

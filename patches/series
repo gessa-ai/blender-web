@@ -292,4 +292,19 @@
 # read-only-storage and untouched. Maps to the census `vertex-stage-rw-storage` deferral
 # class. Single-file: wgpu_shader_interface_map.cc.
 0108-gpu-webgpu-rw-storage-vertex-visibility.patch
+# 0109 (M4.T21, round 24) the PRESENT SEAM — WGPUContext::sync_backbuffer now adopts the GHOST
+# context's PERSISTENT offscreen back-buffer as back_left/front_left instead of the surface's
+# per-frame GetCurrentTexture(). The transient surface texture is destroyed by the browser on
+# event-loop yield, so any draw/composite command buffer that outlived the rAF tick submitted a
+# destroyed texture ("Destroyed texture … WebgpuSwapChainTexture used in a submit", 725x/boot in
+# r23). With back_left backed by a texture that has NO per-frame lifetime, that whole error
+# family is eliminated by construction (verified: 0/boot in the visible rig). GHOST
+# (platform_web/ghost, not patched — owned files) blits the offscreen onto the real surface as
+# the LAST op of each frame in GHOST_WindowWeb::swapBufferRelease -> GHOST_ContextWGPUWeb::
+# presentBackbuffer (render-pass blit; CopyTextureToTexture rejected because emdawnwebgpu does
+# not accept a CopyDst canvas surface). Single-file (guarded __EMSCRIPTEN__ && !WITH_HEADLESS,
+# so the native gpu census is byte-identical): wgpu_context.cc. NB: in-tab workspace COMPOSITE
+# verification is blocked by a separate boot/main-loop regression (even r23's exact GPU code
+# renders black at HEAD) — see notes/gpu-r24-present-seam.md.
+0109-gpu-webgpu-context-persistent-offscreen-backbuffer.patch
 0120-asset-system-wasm.patch

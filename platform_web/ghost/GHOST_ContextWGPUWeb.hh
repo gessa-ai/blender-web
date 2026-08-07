@@ -108,11 +108,30 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   {
     return surface_format_;
   }
+  /* The PERSISTENT offscreen back-buffer the WebGPU backend renders into every frame
+   * (M4.T21). Unlike the surface's per-frame GetCurrentTexture() — which the browser
+   * destroys on event-loop yield, so any command buffer that outlives the rAF tick
+   * submits a "Destroyed texture … WebgpuSwapChainTexture" — this texture has NO
+   * per-frame lifetime: the backend adopts it once into back_left/front_left and every
+   * viewport/overlay/UI pass accumulates here with zero surface references. It is
+   * blitted to the real surface as the LAST op of each frame in swapBufferRelease().
+   * Null until configureSurface() has run. */
+  wgpu::Texture getBackbufferTexture() const
+  {
+    return backbuffer_;
+  }
 
  private:
   void requestAdapter();
   void requestDevice();
   void finishSetup();
+  /* (Re)create the persistent offscreen back-buffer to match width_ x height_. */
+  void ensureBackbuffer();
+  /* Lazily build the fullscreen-triangle present pipeline (once). */
+  void ensurePresentPipeline();
+  /* Present: render-pass blit the offscreen back-buffer onto the surface's current texture
+   * and submit, within the caller's rAF tick (swapBufferRelease). */
+  void presentBackbuffer();
 
   std::string canvas_selector_;
   uint32_t width_ = 0;
@@ -125,6 +144,18 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::Queue queue_;
   wgpu::Surface surface_;
   wgpu::TextureFormat surface_format_ = wgpu::TextureFormat::BGRA8Unorm;
+  /* Persistent offscreen back-buffer (see getBackbufferTexture). Recreated on resize. */
+  wgpu::Texture backbuffer_;
+  uint32_t backbuffer_w_ = 0;
+  uint32_t backbuffer_h_ = 0;
+
+  /* Present blit: a fullscreen-triangle render pass that textureLoad()s the offscreen
+   * back-buffer 1:1 into the surface's RenderAttachment. Uses only RenderAttachment (dst)
+   * + TextureBinding (src) — both universally supported for a browser canvas — so it does
+   * NOT depend on the surface accepting a CopyDst (which emdawnwebgpu rejects, leaving the
+   * canvas stuck on its last render-pass content). Built lazily, once. */
+  wgpu::RenderPipeline present_pipeline_;
+  wgpu::BindGroupLayout present_bgl_;
 
   ReadyCallback on_ready_;
   bool ready_ = false;

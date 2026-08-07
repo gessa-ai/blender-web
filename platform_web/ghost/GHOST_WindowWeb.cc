@@ -218,8 +218,17 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
 
 GHOST_TSuccess GHOST_WindowWeb::swapBufferRelease()
 {
-  /* WebGPU presents implicitly via the canvas context; a real swap lands with the
-   * GHOST_ContextWGPU integration. No GPU context in the standalone event harness. */
+  /* Delegate the end-of-frame present to the WebGPU drawing context (M4.T21):
+   * GHOST_ContextWGPUWeb::swapBufferRelease() -> presentBackbuffer() blits the persistent
+   * offscreen back-buffer onto the surface's current texture and submits, in-tick. Before
+   * this delegation the override was a stub returning kFailure, so wm_draw's
+   * wm_window_swap_buffer_release never reached the present path and the canvas stayed on
+   * GHOST's one-time surface-proof clear. The standalone event harness has no GPU context
+   * (getContext() == nullptr) and keeps the old failure behaviour. */
+  GHOST_Context *context = getContext();
+  if (context != nullptr) {
+    return context->swapBufferRelease();
+  }
   return GHOST_kFailure;
 }
 

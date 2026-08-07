@@ -159,7 +159,14 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
 {
-  /* Browser auto-presents the configured canvas on event-loop yield — no Present(). */
+  /* End-of-frame present (M4.T21): the backend renders every pass into the PERSISTENT
+   * offscreen back-buffer; here — the last op of the frame, still inside the WM's rAF
+   * tick (wm_draw.cc:1692 wm_window_swap_buffer_release) — we blit it onto the surface's
+   * current texture and submit once. The browser then auto-presents that texture on
+   * event-loop yield. Because acquire+copy+submit all happen in-tick and nothing else
+   * ever references the surface, the per-frame "Destroyed texture … WebgpuSwapChainTexture
+   * used in a submit" family (725x/boot pre-M4.T21) cannot occur. */
+  presentBackbuffer();
   return GHOST_kSuccess;
 }
 
@@ -264,42 +271,13 @@ void GHOST_ContextWGPUWeb::finishSetup()
   surface_format_ = wgpu::TextureFormat::BGRA8Unorm;
   configureSurface(width_, height_);
 
-  /* M4.T12 surface-proof: clear the freshly-configured surface to a recognizable
-   * colour and let the browser auto-present it, proving the whole OffscreenCanvas ->
-   * device -> surface -> configure -> present path is live end-to-end IN THE TAB. This
-   * is the GHOST surface layer ONLY: Blender's window compositor renders into its own
-   * default frame-buffer (Context::back_left), which the WebGPU backend does not yet
-   * point at this surface (there is no WGPUContext::sync_backbuffer equivalent — the
-   * Vulkan backend sets back_left's colour attachment from the swap image in
-   * vk_context.cc:67). Until that backend seam lands, every window draw hits Dawn
-   * "Render pass has no attachments" and the canvas shows THIS clear, not the UI. A
-   * distinct teal so it is unmistakably the surface proof, not a Blender theme colour. */
-  {
-    wgpu::SurfaceTexture st = {};
-    surface_.GetCurrentTexture(&st);
-    if (st.texture != nullptr) {
-      wgpu::RenderPassColorAttachment ca = {};
-      ca.view = st.texture.CreateView();
-      ca.loadOp = wgpu::LoadOp::Clear;
-      ca.storeOp = wgpu::StoreOp::Store;
-      ca.clearValue = {0.05, 0.35, 0.42, 1.0};
-      wgpu::RenderPassDescriptor rp = {};
-      rp.colorAttachmentCount = 1;
-      rp.colorAttachments = &ca;
-      wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
-      wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
-      pass.End();
-      wgpu::CommandBuffer cb = enc.Finish();
-      queue_.Submit(1, &cb);
-      std::printf("WGPUWeb: surface-proof cleared '%s' (%ux%u) — GHOST surface path live "
-                  "end-to-end (UI pending backend sync_backbuffer)\n",
-                  canvas_selector_.c_str(), width_, height_);
-    }
-    else {
-      std::printf("WGPUWeb: surface-proof GetCurrentTexture returned null (status=%d)\n",
-                  int(st.status));
-    }
-  }
+  /* NB (M4.T21): the M4.T12 "surface-proof" teal clear that used to live here was removed.
+   * Now that the backend renders into the persistent offscreen back-buffer and
+   * swapBufferRelease -> presentBackbuffer blits it onto the surface every frame, an
+   * unconditional teal clear at setup would stomp the first presented frame(s) whenever
+   * finishSetup re-runs (it can fire more than once during boot), leaving the canvas teal
+   * instead of the Blender UI. The whole OffscreenCanvas -> device -> surface path is now
+   * proven by the live UI compositing, not by a debug clear. */
 
   ready_ = true;
   if (on_ready_) {
@@ -342,7 +320,10 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
    * frame be read back — OffscreenCanvas.convertToBlob() (the worker-side M4 capture path,
    * platform_web/shell/wgpu-preinit-worker.js) otherwise fails with "Readback of the source
    * image has failed" because a RenderAttachment-only canvas texture cannot be copied out.
-   * Both usages are universally supported for a browser canvas surface. */
+   * The per-frame present (presentBackbuffer) is a RENDER PASS into the surface, NOT a
+   * CopyTextureToTexture, so CopyDst is deliberately NOT requested: emdawnwebgpu rejects a
+   * CopyDst canvas surface (the copy silently fails validation and the canvas stays stuck on
+   * its last render-pass content). Both requested usages are universally supported. */
   config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
   config.width = width_;
   config.height = height_;
@@ -350,4 +331,151 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
   surface_.Configure(&config);
   configured_ = true;
+
+  /* Match the persistent offscreen back-buffer to the new surface extent. */
+  ensureBackbuffer();
+}
+
+/* --- Persistent offscreen back-buffer + present (M4.T21) --------------------- */
+
+void GHOST_ContextWGPUWeb::ensureBackbuffer()
+{
+  if (device_ == nullptr || width_ == 0 || height_ == 0) {
+    return;
+  }
+  if (backbuffer_ != nullptr && backbuffer_w_ == width_ && backbuffer_h_ == height_) {
+    return; /* already the right size */
+  }
+  wgpu::TextureDescriptor td = {};
+  td.label = "wgpu_web_backbuffer";
+  td.dimension = wgpu::TextureDimension::e2D;
+  td.size = {width_, height_, 1};
+  td.format = surface_format_; /* BGRA8Unorm — same format the surface presents */
+  td.mipLevelCount = 1;
+  td.sampleCount = 1;
+  /* RenderAttachment: the backend draws/composites here. TextureBinding: the present blit
+   * textureLoad()s it into the surface (presentBackbuffer). CopySrc: the in-app
+   * WM_window_pixels_read path can read it back (it now reads a LIVE persistent texture
+   * instead of the destroyed transient surface). */
+  td.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding |
+             wgpu::TextureUsage::CopySrc;
+  backbuffer_ = device_.CreateTexture(&td);
+  backbuffer_w_ = width_;
+  backbuffer_h_ = height_;
+}
+
+void GHOST_ContextWGPUWeb::ensurePresentPipeline()
+{
+  if (present_pipeline_ != nullptr) {
+    return;
+  }
+  /* Fullscreen-triangle blit. The fragment shader textureLoad()s the offscreen at the
+   * render target's integer pixel coordinate (@builtin(position)), so surface(x,y) =
+   * backbuffer(x,y) EXACTLY: a 1:1 upright copy with no UV/clip flip to reason about and
+   * no sampler needed. BGRA8Unorm textureLoad returns the un-swizzled RGBA vec4 and the
+   * BGRA8Unorm target re-swizzles on store, so the colour round-trips correctly. */
+  const char *wgsl =
+      "@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {\n"
+      "  var p = array<vec2<f32>, 3>(vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0),\n"
+      "                              vec2<f32>(-1.0, 3.0));\n"
+      "  return vec4<f32>(p[i], 0.0, 1.0);\n"
+      "}\n"
+      "@group(0) @binding(0) var src: texture_2d<f32>;\n"
+      "@fragment fn fs(@builtin(position) c: vec4<f32>) -> @location(0) vec4<f32> {\n"
+      "  return textureLoad(src, vec2<i32>(i32(c.x), i32(c.y)), 0);\n"
+      "}\n";
+  wgpu::ShaderSourceWGSL wgsl_src = {};
+  wgsl_src.code = wgsl;
+  wgpu::ShaderModuleDescriptor sm_desc = {};
+  sm_desc.nextInChain = &wgsl_src;
+  wgpu::ShaderModule module = device_.CreateShaderModule(&sm_desc);
+
+  wgpu::BindGroupLayoutEntry bgl_entry = {};
+  bgl_entry.binding = 0;
+  bgl_entry.visibility = wgpu::ShaderStage::Fragment;
+  bgl_entry.texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+  bgl_entry.texture.viewDimension = wgpu::TextureViewDimension::e2D;
+  wgpu::BindGroupLayoutDescriptor bgl_desc = {};
+  bgl_desc.entryCount = 1;
+  bgl_desc.entries = &bgl_entry;
+  present_bgl_ = device_.CreateBindGroupLayout(&bgl_desc);
+
+  wgpu::PipelineLayoutDescriptor pl_desc = {};
+  pl_desc.bindGroupLayoutCount = 1;
+  pl_desc.bindGroupLayouts = &present_bgl_;
+  wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pl_desc);
+
+  wgpu::ColorTargetState color_target = {};
+  color_target.format = surface_format_;
+  wgpu::FragmentState frag = {};
+  frag.module = module;
+  frag.entryPoint = "fs";
+  frag.targetCount = 1;
+  frag.targets = &color_target;
+
+  wgpu::RenderPipelineDescriptor rp_desc = {};
+  rp_desc.layout = pl;
+  rp_desc.vertex.module = module;
+  rp_desc.vertex.entryPoint = "vs";
+  rp_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+  rp_desc.fragment = &frag;
+  present_pipeline_ = device_.CreateRenderPipeline(&rp_desc);
+}
+
+void GHOST_ContextWGPUWeb::presentBackbuffer()
+{
+  if (surface_ == nullptr || device_ == nullptr || backbuffer_ == nullptr) {
+    return;
+  }
+  wgpu::SurfaceTexture st = {};
+  surface_.GetCurrentTexture(&st);
+  if (st.texture == nullptr) {
+    return;
+  }
+  ensurePresentPipeline();
+  if (present_pipeline_ == nullptr) {
+    return;
+  }
+
+  /* Bounded "present path live" marker (first 2 frames only): confirms swapBufferRelease
+   * reaches the present and the surface texture is live. Capped so 120 fps cannot flood. */
+  static int present_log_count = 0;
+  if (present_log_count < 2) {
+    std::printf("WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas (offscreen blit)\n",
+                present_log_count,
+                st.texture.GetWidth(),
+                st.texture.GetHeight());
+    present_log_count++;
+  }
+
+  wgpu::TextureView src_view = backbuffer_.CreateView();
+  wgpu::BindGroupEntry bg_entry = {};
+  bg_entry.binding = 0;
+  bg_entry.textureView = src_view;
+  wgpu::BindGroupDescriptor bg_desc = {};
+  bg_desc.layout = present_bgl_;
+  bg_desc.entryCount = 1;
+  bg_desc.entries = &bg_entry;
+  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bg_desc);
+
+  wgpu::RenderPassColorAttachment ca = {};
+  ca.view = st.texture.CreateView();
+  ca.loadOp = wgpu::LoadOp::Clear;
+  ca.storeOp = wgpu::StoreOp::Store;
+  ca.clearValue = {0.0, 0.0, 0.0, 1.0};
+  wgpu::RenderPassDescriptor rp = {};
+  rp.colorAttachmentCount = 1;
+  rp.colorAttachments = &ca;
+
+  wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
+  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+  pass.SetPipeline(present_pipeline_);
+  pass.SetBindGroup(0, bind_group);
+  pass.Draw(3);
+  pass.End();
+  wgpu::CommandBuffer cb = enc.Finish();
+  queue_.Submit(1, &cb);
+  /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
+   * render pass, one submit, all in-tick, so nothing references the surface after it is
+   * destroyed. */
 }

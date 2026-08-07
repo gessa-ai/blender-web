@@ -55,9 +55,16 @@ Side-by-side (native | web | inferno diff-heatmap):
   (the 4 console lines were a favicon 404, a non-fatal OIIO `physical_memory`
   sysutil stub assertion, an informational WM-worker device-acquire line, and a
   `multiprocessing` warning - none touch the render).
-- NOTE: a concurrent lane began relinking the binary during this session (wasm 0
-  bytes mid-link at 17:50); a same-rig 1280x720 confirmation capture was blocked by
-  that relink. Re-run the one-liner below to measure whatever build is current.
+- CROSS-CHECK (size-independence, independent golden): a clean same-rig 1280x720
+  capture (`artifacts/web_1280x720.png`, against a later rebuild wasm@17:59) diffs
+  82.1% over the PRE-EXISTING `m4-golden-prep` workspace_1280x720 golden
+  (`bash sandbox/m4-golden-prep/compare_m4.sh artifacts/web_1280x720.png workspace
+  1280x720` -> FAIL, max 0.906). Same chrome inversion + outline-only cube at a
+  different size and against a golden a different lane cut: the deltas are
+  size-independent and the harness reproduces. The binary is rebuilt every ~30 min
+  by other lanes (it relinked again 21 s after this capture), so the 1600x900
+  numbers above are pinned to wasm@17:25 / HEAD 8f446a6; re-run the one-liner below
+  to measure whatever build is current.
 
 ## Per-region characterization
 

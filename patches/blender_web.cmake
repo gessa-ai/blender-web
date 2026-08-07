@@ -146,7 +146,25 @@ set(WITH_MOD_REMESH         OFF CACHE BOOL "" FORCE)
 set(WITH_UV_SLIM            OFF CACHE BOOL "" FORCE)
 set(WITH_QUADRIFLOW         OFF CACHE BOOL "" FORCE)
 set(WITH_MANIFOLD           OFF CACHE BOOL "" FORCE)
-set(WITH_OPENSUBDIV         OFF CACHE BOOL "" FORCE)
+set(WITH_OPENSUBDIV         ON  CACHE BOOL "" FORCE)  # CPU-only OSD in lib/wasm (scripts/deps/opensubdiv.sh); Subsurf/Multires + Cycles subdiv
+# OpenSubdiv discovery. platform_wasm.cmake REPLACES platform_unix.cmake, so
+# platform_unix:488-493's `find_package(OpenSubdiv)` never runs; with the dep now
+# ON we seed, from this -C initial cache, the two variables that
+# build_files/cmake/platform/dependency_targets.cmake:178-179 consume directly to
+# wire bf::dependencies::optional::opensubdiv (used by BOTH intern/opensubdiv and
+# intern/cycles/subd). CPU-only harvest from scripts/deps/opensubdiv.sh at
+# lib/wasm; both osdCPU (real) and osdGPU (empty — see the script) are listed to
+# honor FindOpenSubdiv's two-component contract. This -C file lives in patches/, so
+# lib/wasm is patches/../lib/wasm.
+get_filename_component(_bw_libwasm "${CMAKE_CURRENT_LIST_DIR}/../lib/wasm" ABSOLUTE)
+if(EXISTS "${_bw_libwasm}/lib/libosdCPU.a")
+  set(OPENSUBDIV_INCLUDE_DIRS "${_bw_libwasm}/include" CACHE PATH   "" FORCE)
+  set(OPENSUBDIV_LIBRARIES
+      "${_bw_libwasm}/lib/libosdCPU.a;${_bw_libwasm}/lib/libosdGPU.a"
+      CACHE STRING "" FORCE)
+  set(OPENSUBDIV_FOUND ON CACHE BOOL "" FORCE)
+endif()
+unset(_bw_libwasm)
 set(WITH_OPENIMAGEDENOISE   OFF CACHE BOOL "" FORCE)
 
 # ---- Other native / heavyweight dependencies (unported) --------------------
@@ -172,10 +190,14 @@ set(WITH_IMAGE_CINEON       OFF CACHE BOOL "" FORCE)
 set(WITH_IMAGE_OPENJPEG     OFF CACHE BOOL "" FORCE)
 set(WITH_IMAGE_WEBP         OFF CACHE BOOL "" FORCE)
 
-# ---- File IO not in the initial launch tier --------------------------------
-set(WITH_IO_WAVEFRONT_OBJ   OFF CACHE BOOL "" FORCE)
-set(WITH_IO_PLY             OFF CACHE BOOL "" FORCE)
-set(WITH_IO_STL             OFF CACHE BOOL "" FORCE)
+# ---- File IO: native C++ exporters (launch-tier "OBJ/USD IO") --------------
+# OBJ/PLY/STL are pure-C++ mesh IO (no native-only deps) and part of the launch
+# tier; turned ON now that the M7 io-smoke proved they were merely compiled out.
+# FBX (needs libfbx), grease-pencil IO, and USD stay OFF (USD is a heavyweight
+# unported dep; GOAL launch-tier OBJ half only).
+set(WITH_IO_WAVEFRONT_OBJ   ON  CACHE BOOL "" FORCE)
+set(WITH_IO_PLY             ON  CACHE BOOL "" FORCE)
+set(WITH_IO_STL             ON  CACHE BOOL "" FORCE)
 set(WITH_IO_FBX             OFF CACHE BOOL "" FORCE)
 set(WITH_IO_GREASE_PENCIL   OFF CACHE BOOL "" FORCE)
 

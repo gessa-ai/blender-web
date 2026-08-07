@@ -307,4 +307,12 @@
 # verification is blocked by a separate boot/main-loop regression (even r23's exact GPU code
 # renders black at HEAD) — see notes/gpu-r24-present-seam.md.
 0109-gpu-webgpu-context-persistent-offscreen-backbuffer.patch
+# 0111 (M6) guard three VESTIGIAL desktop-GL includes (opensubdiv/osd/glPatchTable.h,
+# glVertexBuffer.h, epoxy/gl.h) in the OpenSubdiv GPU evaluator so it compiles under
+# Emscripten against the CPU-only lib/wasm OpenSubdiv (no GL/epoxy). Blender 5.2's
+# evaluator is templated purely on gpu:: types and references no GL symbol, so the
+# includes are dead leftovers. #if !defined(__EMSCRIPTEN__): native byte-identical.
+# Two files: eval_output_gpu.h, gpu_compute_evaluator.cc. (0110 reserved for the
+# driver's framebuffer fix.)
+0111-opensubdiv-gpu-eval-guard-desktop-gl-includes.patch
 0120-asset-system-wasm.patch

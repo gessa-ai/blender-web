@@ -47,6 +47,7 @@ abort in 120 s.
 | **baseline** `-O2 -g0` (recorded) | 38.2 s | 120,114,157 (114.5 MiB) | 29,191,721 | **20,127,950 (19.19 MiB / 20.13 MB)** | — | OK |
 | **(1) `-Os`** | 345 s | 116,766,049 (111.4 MiB) | 29,142,666 | **20,298,315 (19.36 MiB / 20.30 MB)** | **+0.85 % (worse)** | OK |
 | **(2) `-Oz`** | 153 s | 110,989,228 (105.8 MiB) | 28,835,751 | **20,231,371 (19.29 MiB / 20.23 MB)** | **+0.51 % (worse)** | OK |
+| **(3) `--closure 1`** (js) | 53 s | 119,758,992 (114.2 MiB) | 29,122,973 | **20,062,514 (19.13 MiB / 20.06 MB)** | −0.33 % (DCE side-effect) | OK |
 
 `(js glue: baseline 763,473 raw / 85,611 br; -Os 893,812 / 97,402; -Oz 893,094 / 97,102 —
 js grew from current --post-js drift, not the flag; js is ~0.1 MB of the wire, negligible
@@ -69,4 +70,13 @@ vs the wasm.)`
   the opposite of encouraging, and the compile-level lever is the same expensive-recompile
   class as LTO (below) — quantified in the verdict.
 
-_(rows for --closure 1 / -flto appended as measured)_
+### Reading — `--closure 1` targets the JS glue, which is not the problem
+
+- Closure minifies the **JS glue only**: js **97,102 → 88,081 br** (−9.3 %, ≈ −9 KB) vs the
+  current-source no-closure js. It also incidentally trims the wasm by **0.33 %** (≈ −65 KB
+  br) — removing JS-referenced exports lets `wasm-opt` DCE a little more.
+- **Total closure win ≈ 74 KB brotli.** The JS glue is ~0.09 MB against a 20 MB wasm; the bar
+  is missed by ~9,600 KB. Closure moves ~0.8 % of the gap. It is free (53 s, boots clean, no
+  `--post-js` breakage) and worth keeping as hygiene, but it is **not a lever on the bar.**
+
+_(row for -flto appended as measured)_

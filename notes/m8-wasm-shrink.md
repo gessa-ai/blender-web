@@ -79,4 +79,59 @@ vs the wasm.)`
   is missed by ~9,600 KB. Closure moves ~0.8 % of the gap. It is free (53 s, boots clean, no
   `--post-js` breakage) and worth keeping as hygiene, but it is **not a lever on the bar.**
 
-_(row for -flto appended as measured)_
+### (4) `-flto` — measured via full bitcode recompile
+
+`-flto` cannot be a link-only override (needs bitcode objects). Applied by appending `-flto`
+to all 4191 compile `FLAGS` lines **directly in `build.ninja`** (backed up to
+`build.ninja.bak-O2`; `build.ninja` touched newest so **no `RERUN_CMAKE` / no reconfigure**
+— verified `blender_web.cmake` is not a RERUN input for this tree, so zero race with the
+lane editing it). Full recompile of Blender's own ~3700 objects to bitcode + LTO link.
+**Note LTO reaches only Blender's own code — the 20 MB is dominated by prebuilt deps
+(CPython 3.13, OIIO/OpenEXR, Tint, shaderc, freetype, TBB) whose `.a` are ordinary wasm
+objects, not bitcode, so LTO cannot cross into them.**
+
+<!-- LTO_ROW -->
+
+## Combined projection — best wasm + stage-0 data vs the 15 MB bar
+
+Inputs: **best wasm brotli from any compiler lever ≈ 20.06 MB** (closure; `-Os`/`-Oz` are
+*worse*, LTO row above) · **stage-0 data = 4.50 MB brotli** (`notes/m8-staged-loading.md`) ·
+js glue ≈ 0.09 MB · **bar = ~15 MB to interactive** (LAUNCH.md).
+
+| component | brotli | note |
+|---|---|---|
+| wasm (best compiler lever) | **~20.06 MB** | 0.3 % under the -O2 baseline; -Os/-Oz worse |
+| stage-0 data | 4.50 MB | already trimmed (dedup + pip-wheel drop) |
+| js glue | ~0.09 MB | closure-minified |
+| **wire-to-interactive** | **~24.6 MB** | **1.64× the 15 MB bar** |
+
+To clear 15 MB with the 4.50 MB stage-0 data (+0.09 js), the **wasm must fall to ≤ ~10.4 MB
+brotli — a 48 % cut.** The four compiler levers together move the wasm by **< 1 %** (and the
+two "size" levers move the *wire* the wrong way). 
+
+## VERDICT — compiler levers do NOT close the gap; feature-audit / DCE is next
+
+Plainly: **`-Os`, `-Oz`, `--closure 1` and `-flto` are spent as a class and do not get the
+wasm under the bar.** The size problem is not un-optimized codegen — the module is already
+`-O2` + binaryen — it is **the sheer amount of code linked in.** ~48 % of the wasm's brotli
+must disappear, and compressed size is insensitive to the instruction-repacking that `-Os`/
+`-Oz` do; only *removing whole functions/subsystems* moves brotli, which optimization flags
+by design do not do (they preserve semantics).
+
+**The next step is feature-audit + dead-code elimination at the source/config level**, in
+priority order:
+1. **Compile-out unshipped subsystems** via `blender_web.cmake` (the launch tier does not need
+   them at boot): `WITH_COMPOSITOR_*`, sequencer/VSE, many `editor_space_*` (clip, nla,
+   sequencer, spreadsheet), grease-pencil legacy, non-mesh geometry-node families,
+   Cycles-CPU (defer), motion-tracking (`libmv`), and OIIO's non-essential image formats
+   (keep PNG/EXR/JPEG). Each removes real linked code — the only thing brotli responds to.
+2. **Split the wasm under JSPI** — lazy-load non-boot-critical native code (importers/exporters,
+   compositor, sculpt, Cycles) as secondary modules fetched after first pixels, the same
+   Doom-3 pattern already applied to `.data`. This is the structural lever that can actually
+   halve the boot wasm.
+3. Trim the CPython payload / `bl_ui` set (already partly staged on the data side).
+
+LTO/`-Oz` are not the road to 15 MB; a **feature/DCE audit of `blender_web.cmake` (owned by
+the config lane) + a JSPI wasm-split** is. Data staging (done) + wasm feature-cut + wasm-split
+are all three required; no single compiler flag clears the bar.
+

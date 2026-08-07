@@ -17,9 +17,12 @@ bytes, and drives Blender through its own APIs.
 
 1. **Storage seam = OPFS (M7's project store).** Local persistence is OPFS
    (measured 0.5–1 GB/s, persistence proven). Account sync = platform JS mirroring
-   OPFS dirs ↔ account storage. Blender's own autosave timers write `.blend` into
-   the OPFS user dir — the platform watches + uploads. Recent files: Blender's own
-   recent-files list lives in the OPFS config dir; mirror or supersede platform-side.
+   OPFS dirs ↔ account storage. **CORRECTED per notes/m7-store-design.md:** autosave
+   (`<pid>_autosave.blend`) and `quit.blend` land in `BKE_tempdir_base()` = TMPDIR
+   (`/projects/.recovery` in the proven store layout), NOT the config dir — the
+   platform watches THAT dir for autosave/recovery. Recent files:
+   `config/recent-files.txt` (one path per line, wm_files.cc format) under the OPFS
+   config dir; mirror or supersede platform-side.
 2. **"Open with" = a URL.** The app is a URL; deep-link `?open=<model-id>`: shell
    fetches bytes → writes to OPFS/WasmFS → invokes the open operator. Round-trips
    through the same seam.

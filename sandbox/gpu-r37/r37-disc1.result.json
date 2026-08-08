@@ -1,0 +1,209 @@
+{
+  "dones": [
+    "BW_READBACK_DONE seq=0 label=prepass_depth file=/tmp/bw_readback_0.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=1 label=prepass_material file=/tmp/bw_readback_1.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok",
+    "BW_READBACK_DONE seq=2 label=prepass_normal file=/tmp/bw_readback_2.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=3 label=prepass_objectid file=/tmp/bw_readback_3.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok",
+    "BW_READBACK_DONE seq=4 label=prepass_depth file=/tmp/bw_readback_4.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=5 label=prepass_material file=/tmp/bw_readback_5.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok",
+    "BW_READBACK_DONE seq=6 label=prepass_normal file=/tmp/bw_readback_6.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=7 label=prepass_objectid file=/tmp/bw_readback_7.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok",
+    "BW_READBACK_DONE seq=8 label=prepass_depth file=/tmp/bw_readback_8.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=9 label=prepass_material file=/tmp/bw_readback_9.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok",
+    "BW_READBACK_DONE seq=10 label=prepass_normal file=/tmp/bw_readback_10.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok",
+    "BW_READBACK_DONE seq=11 label=prepass_objectid file=/tmp/bw_readback_11.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok",
+    "BW_READBACK_DONE seq=12 label=viewport_color file=/tmp/bw_readback_12.bin w=1600 h=900 fmt=27 texel=4 pitch=6400 bytes=5760000 status=ok"
+  ],
+  "info": {
+    "view_matrix": [
+      [
+        0.40403029322624207,
+        0.9147456288337708,
+        -1.2411510397214442e-7,
+        0.05046229436993599
+      ],
+      [
+        -0.40777426958084106,
+        0.18010829389095306,
+        0.8951430916786194,
+        -0.0007478409679606557
+      ],
+      [
+        0.8188282251358032,
+        -0.36166489124298096,
+        0.4457789361476898,
+        -18.38804817199707
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ],
+    "is_perspective": true,
+    "light": "STUDIO",
+    "studio_light_name": "Default",
+    "use_specular": true,
+    "show_cavity": false,
+    "show_shadows": false,
+    "use_world_space_lighting": false,
+    "color_type": "MATERIAL",
+    "single_color": [
+      0.800000011920929,
+      0.800000011920929,
+      0.800000011920929
+    ],
+    "solid_lights": [
+      {
+        "use": true,
+        "dir": [
+          -0.35254600644111633,
+          0.17093099653720856,
+          -0.9200509786605835
+        ],
+        "diff": [
+          0.03310300037264824,
+          0.03310300037264824,
+          0.03310300037264824
+        ],
+        "spec": [
+          0.26676100492477417,
+          0.26676100492477417,
+          0.26676100492477417
+        ],
+        "smooth": 0.5266199707984924
+      },
+      {
+        "use": true,
+        "dir": [
+          -0.40816301107406616,
+          0.34693899750709534,
+          0.844415009021759
+        ],
+        "diff": [
+          0.5210829973220825,
+          0.5382260084152222,
+          0.5382260084152222
+        ],
+        "spec": [
+          0.5990300178527832,
+          0.5990300178527832,
+          0.5990300178527832
+        ],
+        "smooth": 0
+      },
+      {
+        "use": true,
+        "dir": [
+          0.5217390060424805,
+          0.8260869979858398,
+          0.21299900114536285
+        ],
+        "diff": [
+          0.03840300068259239,
+          0.03435700014233589,
+          0.04952999949455261
+        ],
+        "spec": [
+          0.10610199719667435,
+          0.12598100304603577,
+          0.15852299332618713
+        ],
+        "smooth": 0.47826099395751953
+      },
+      {
+        "use": true,
+        "dir": [
+          0.6245189905166626,
+          -0.5620669722557068,
+          -0.5422689914703369
+        ],
+        "diff": [
+          0.0908380001783371,
+          0.08207999914884567,
+          0.07225500047206879
+        ],
+        "spec": [
+          0.10653500258922577,
+          0.08477099984884262,
+          0.0660799965262413
+        ],
+        "smooth": 0.20000000298023224
+      }
+    ],
+    "ambient": null,
+    "scene_view_transform": "AgX",
+    "display_device": "sRGB"
+  },
+  "analyses": {
+    "w": 1311,
+    "h": 787,
+    "cubeCount": 3994,
+    "faceCount": 3,
+    "faces": [
+      {
+        "count": 2141,
+        "n_view": [
+          0.4024,
+          -0.408,
+          0.8195
+        ],
+        "base_color": [
+          0.8,
+          0.8,
+          0.8
+        ],
+        "sample_px": [
+          632,
+          318
+        ]
+      },
+      {
+        "count": 1037,
+        "n_view": [
+          -0.0008,
+          0.8951,
+          0.4459
+        ],
+        "base_color": [
+          0.8,
+          0.8,
+          0.8
+        ],
+        "sample_px": [
+          630,
+          410
+        ]
+      },
+      {
+        "count": 814,
+        "n_view": [
+          0.9149,
+          0.1799,
+          -0.3615
+        ],
+        "base_color": [
+          0.8,
+          0.8,
+          0.8
+        ],
+        "sample_px": [
+          630,
+          320
+        ]
+      }
+    ],
+    "norFmt": 21,
+    "norTexel": 4,
+    "objFmt": 7,
+    "haveFiles": [
+      "prepass_depth",
+      "prepass_material",
+      "prepass_normal",
+      "prepass_objectid",
+      "viewport_color"
+    ]
+  },
+  "gpuErrors": []
+}

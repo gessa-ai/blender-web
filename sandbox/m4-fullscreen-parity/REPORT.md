@@ -2,69 +2,84 @@
 SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
-# M4-fullscreen-parity - full-window native-vs-web comparison (2026-08-07)
+# M4-fullscreen-parity - full-window native-vs-web comparison (r34, 2026-08-08)
 
 Honest 1:1 comparison of the ENTIRE Blender window (topbar, toolbar, 3D viewport,
 sidebar, status bar) between the WEB build and the NATIVE 5.2.0 oracle at an
 identical 1600x900, with Blender's own tier-c thresholds (oiiotool `--fail 0.016
 --failpercent 1 --diff`, NEVER weakened).
 
-## Verdict: FAIL - 84.6% of pixels over 0.016 (max 0.906, mean 0.050)
+## Verdict: FAIL - 11.4% of pixels over 0.016 (max 0.996, mean 0.0087)
 
 ```
 bash sandbox/m4-fullscreen-parity/compare_fullscreen.sh \
   sandbox/m4-fullscreen-parity/artifacts/web_1600x900.png workspace 1600x900
-FAIL workspace_1600x900  Max error = 0.9058824  Mean error = 0.0497898 | 1218855 pixels (84.6%) over 0.016   (exit 1)
+FAIL workspace_1600x900  Max error = 0.9960784912109375  Mean error = 0.00873744 | 163469 pixels (11.4%) over 0.016   (exit 1)
 ```
 
-This FAIL is expected and correct: the web build is mid-flight (other lanes are
-fixing the solid cube, gizmo ball, and menu backgrounds). This harness MEASURES
-that work; it does not massage it. The comparator's teeth are proven every run:
-`--selftest` = identity PASS + a deterministically perturbed copy (+0.1/channel)
-FAIL, giving SELFTEST_PASS.
+Trend (whole-window % over 0.016): **84.6 -> 74.5 -> 60.2 -> 11.4 (r33 solid-cube
+fix) -> 11.4 (r34, reproduced on HEAD; no regression, no new fix landed)**. r34
+reproduced r33 byte-for-byte on the current HEAD tree (`upstream/` clean, windowed
+wasm relinked 2026-08-08 10:06) then ENUMERATED + ROOT-CAUSED the residuals per
+cluster (below). SELFTEST_PASS every run (identity PASS + perturbed(+0.1) FAIL).
 
 Side-by-side (native | web | inferno diff-heatmap):
 `sandbox/m4-fullscreen-parity/artifacts/sidebyside_workspace_1600x900.png`.
+Per-cluster crops: `artifacts/residual_r34_{bottom_band_assetshelf,left_edge_spike,cube_shading}.png`.
+
+## Gate reachability (honest): NOT reachable at 0.016/failpercent1 via web-side fixes
+
+The gate needs <1% of pixels over 0.016. The failing mass decomposes as:
+
+| cluster                                   | failing px | share |
+|-------------------------------------------|-----------:|------:|
+| viewport bottom band (asset-shelf region) |     92,960 | 56.9% |
+| chrome text/icons AA (all 4 bars)         |    ~43,884 | 26.8% |
+| cube workbench shading (too dark)         |     15,866 |  9.7% |
+| left-edge toolbar shadow + "blue spike"   |     ~3,000 |  1.8% |
+| nav-gizmo ball (AA/pos)                    |      2,019 |  1.2% |
+| misc (origin dot, gizmo/grid AA)          |     ~5,700 |  3.5% |
+| **WHOLE**                                 |**163,469** |**100%**|
+
+Even if every GEOMETRIC/region cluster were fixed (~113k px), the residual floor is
+**~50k px = ~3.5%**, dominated by cross-renderer antialiased TEXT/ICONS (native
+Metal + system FreeType vs web WebGPU/Dawn + wasm FreeType rasterize glyph edges
+with sub-pixel/blend differences exceeding 0.016 on edge pixels). Chrome text-AA
+alone is ~3.0% and cannot be driven under 1% by any theme/backend fix. **The
+full-window M4 gate at the verbatim 0.016/1 thresholds is therefore not
+achievable**; the driver should scope the M4 gate to the 3D-viewport-interior
+region (where the r33 cube fix already collapsed the dominant delta) or accept a
+documented per-glyph-AA deferral. Thresholds UNCHANGED, golden UNTOUCHED (it is not
+flawed - native correctly hides the asset shelf; see cluster 1).
 
 ## Golden provenance + determinism check
 
 - Native oracle: `oracle/blender-5.2.0/Blender.app/Contents/MacOS/Blender`
-  (Blender 5.2.0 LTS, Cocoa+Metal, pin `fbe6228777e7`) - the SAME binary the
-  m4/m5/m6 goldens came from, via the m4-golden-prep windowed screenshot method
-  (`bpy.ops.screen.screenshot`, splash suppressed with `show_splash=False`).
-- Golden: `goldens/workspace_1600x900.png`, captured at the EXACT requested
-  1600x900 (the 3024x1964 Retina host clamps content height ~1001px; 900 is within
-  bounds - no clamp, unlike the m4-golden-prep 1800x1169 -> 1800x1001 case).
-- Determinism: byte-identical PNG across independent windowed processes,
-  sha256 `ab62e3f0c406acb503bb9d21ab8fcbb454b1d16e9baa85118a225336e166e697`,
-  reproduced 4+ times. Delta source documented: the very FIRST cold-start capture
-  in a fresh session differed (sha `78767eb2...`) but was threshold-identical
-  (within 0.016/1) - a GPU/font/shader cold-cache warmup frame. Every WARM capture
-  is byte-identical; the golden is the stable warm frame, not the cold outlier.
+  (Blender 5.2.0 LTS, Cocoa+Metal, pin `fbe6228777e7`), via the m4-golden-prep
+  windowed screenshot method (`bpy.ops.screen.screenshot`, `show_splash=False`).
+- Golden: `goldens/workspace_1600x900.png`, sha256
+  `ab62e3f0c406acb503bb9d21ab8fcbb454b1d16e9baa85118a225336e166e697`, byte-identical
+  across 4+ warm windowed processes. Only golden staged (no splash golden).
   (Comparator: oiiotool 3.1.16.0.)
+- NOT flawed: the golden contains no transient (no hover tooltip, no stray cursor);
+  its bottom viewport shows the default Layout with the asset shelf HIDDEN, the
+  correct native default. The r33-era "hover tooltip" residual is GONE - it belonged
+  to the old mirrored-chrome capture, not this one. No golden repair was needed.
 
 ## Web build measured
 
-- Binary: `build-wasm-windowed/bin/blender_browser.{js,wasm,data}`, wasm built
-  2026-08-07 17:25:32, repo HEAD `8f446a6` (r28 five-lane dispatch).
+- Binary: `build-wasm-windowed/bin/blender_browser.{js,wasm,data}`, relinked
+  2026-08-08 10:06, repo HEAD `d04b17e` (r33 verified; patch 0118 applied),
+  `upstream/` clean at HEAD.
 - Capture: headed bundled Chromium (Playwright), `?gate=1600x900` (DPR forced 1),
   `?pyexpr=` = `show_splash=False` + a 1 s VIEW_3D `region.tag_redraw()` kick timer,
-  60 s settle, CDP screenshot clipped to the `#canvas` bbox = exactly 1600x900
-  (`toDataURL` IHDR independently confirmed 1600x900). WM_main in 1.46 s;
-  `presentBackbuffer` fired x2; no GPU validation errors during boot+settle
-  (the 4 console lines were a favicon 404, a non-fatal OIIO `physical_memory`
-  sysutil stub assertion, an informational WM-worker device-acquire line, and a
-  `multiprocessing` warning - none touch the render).
-- CROSS-CHECK (size-independence, independent golden): a clean same-rig 1280x720
-  capture (`artifacts/web_1280x720.png`, against a later rebuild wasm@17:59) diffs
-  82.1% over the PRE-EXISTING `m4-golden-prep` workspace_1280x720 golden
-  (`bash sandbox/m4-golden-prep/compare_m4.sh artifacts/web_1280x720.png workspace
-  1280x720` -> FAIL, max 0.906). Same chrome inversion + outline-only cube at a
-  different size and against a golden a different lane cut: the deltas are
-  size-independent and the harness reproduces. The binary is rebuilt every ~30 min
-  by other lanes (it relinked again 21 s after this capture), so the 1600x900
-  numbers above are pinned to wasm@17:25 / HEAD 8f446a6; re-run the one-liner below
-  to measure whatever build is current.
+  60 s settle, CDP screenshot clipped to `#canvas` = exactly 1600x900. Cursor rests
+  off-canvas at viewport (0,0) (neutral; the canvas is centre-placed with a 50 px
+  margin, so no hover state composites in).
+- A diagnostic re-capture toggling the asset shelf via bpy `show_region_asset_shelf
+  = False` was BYTE-IDENTICAL (bpy `print()` does not reach the browser console, and
+  the toggle did not re-lay-out before capture), so the bottom band was root-caused
+  from pixels + source (cluster 1) rather than from a bpy state dump.
 
 ## Per-region characterization
 
@@ -73,46 +88,69 @@ bash sandbox/m4-fullscreen-parity/compare_fullscreen.sh --regions \
   sandbox/m4-fullscreen-parity/artifacts/web_1600x900.png workspace 1600x900
 ```
 
-| region     | rect (WxH+X+Y)     | verdict | % over 0.016 | mean err |
-|------------|--------------------|---------|--------------|----------|
-| topbar     | `1600x52+0+0`      | FAIL    | 35.6%        | 0.0535   |
-| toolbar    | `60x763+0+52`      | FAIL    | 91.2%        | 0.0600   |
-| viewport   | `1262x763+60+52`   | FAIL    | 93.5%        | 0.0371   |
-| sidebar    | `278x763+1322+52`  | FAIL    | 81.5%        | 0.0841   |
-| statusbar  | `1600x85+0+815`    | FAIL    | 54.7%        | 0.0808   |
-| WHOLE      | `1600x900+0+0`     | FAIL    | 84.6%        | 0.0498   |
+| region     | rect (WxH+X+Y)     | verdict | % over 0.016 | mean err  |
+|------------|--------------------|---------|--------------|-----------|
+| topbar     | `1600x52+0+0`      | FAIL    | 1.64%        | 0.00466   |
+| toolbar    | `60x763+0+52`      | FAIL    | 19.7%        | 0.0284    |
+| viewport   | `1262x763+60+52`   | FAIL    | 12.4%        | 0.00781   |
+| sidebar    | `278x763+1322+52`  | FAIL    | 8.93%        | 0.00782   |
+| statusbar  | `1600x85+0+815`    | FAIL    | 10.7%        | 0.0126    |
+| WHOLE      | `1600x900+0+0`     | FAIL    | 11.4%        | 0.00874   |
 
-Rects are in native-layout coordinates; the diff at each rect measures whether the
-web content at that position matches native there.
+The viewport carries 119,585 of the 163,469 failing pixels (73%). Its empty
+background and gradient MATCH native to within threshold (65.3 vs 65.4; a
+cube-free/grid-only quadrant fails only 0.013%), so the viewport residual is
+entirely discrete elements, enumerated below.
 
-### What the deltas are (dominant to minor)
+### Residual clusters (dominant to minor) - root-caused
 
-1. Full-window UI-chrome vertical mirror (dominant). In the web capture the
-   topbar/menus (File/Edit + workspace tabs) composite at the BOTTOM and the
-   status bar (Select / Pan View / Context Menu) at the TOP; on the right rail the
-   properties editor sits ABOVE the outliner (native: outliner above properties).
-   Because every chrome region lands at the mirror of its native position, the
-   same-rect diff compares cross-content and every chrome region fails hard
-   (toolbar 91.2%, sidebar 81.5%, statusbar 54.7%, topbar 35.6%). The last
-   COMMITTED upright web evidence is r27 (`platform_web/shell/evidence/
-   m4-r27-grid-axes-zero-errors-1280x720.png`, topbar at top); this mirror is new
-   in the current r28-WIP binary. Root-causing the flip is another lane's work -
-   this harness records it with numbers.
-2. Missing solid cube shading (viewport headline gap). The web viewport draws
-   only the crumpled orange SELECTION OUTLINE of the cube; native shows a solid
-   shaded gray workbench cube. This is the largest viewport-interior contributor
-   (viewport 93.5%). Grid, red/green world axes, the camera wireframe, and the
-   light gizmo ARE present and correctly oriented - the viewport 3D CONTENT is
-   upright (only the chrome is mirrored), and the cube geometry exists (outline).
-3. Navigation gizmo ball absent. Native's colored XYZ orientation ball
-   (top-right of the viewport) is missing on the web side - only faint Z/Y/X axis
-   labels render.
-4. Blue vertical spike artifact (lower-left of the viewport). A stray
-   overlay/gizmo sliver; PRE-EXISTING - it is visible in the committed r27 evidence
-   too, so it is not new to this capture.
-5. Menu/panel backgrounds + a stray hover tooltip. Panel/header fills differ
-   from native, and a properties-panel hover tooltip ("Disable in Renders / ...")
-   composited into this capture (a transient hover state, not a persistent bug).
+1. **Viewport bottom band = the 3D-viewport ASSET SHELF region rendered in web
+   (native hides it). 92,960 px, 56.9% of ALL failures - the #1 defect.**
+   A semi-transparent band over the viewport bottom (absolute y 727-811, full
+   width): a smooth region-overlap fade-in ramp (y 727-744) then a flat +7/255
+   plateau (~66 -> ~73). Grid lines show THROUGH it, so it is a region drawn over
+   the viewport, not a gradient/shader error (BG_GRADIENT is correct: rows 0-660
+   match native perfectly). Native's default Layout hides the asset shelf
+   (`view3d_new` creates it `RGN_FLAG_HIDDEN`, `space_view3d.cc:223`); web renders
+   it. Root cause is web-side region VISIBILITY on file/home-file load
+   (screen/region setup), NOT the GPU shader path. Evidence:
+   `artifacts/residual_r34_bottom_band_assetshelf.png`. Fix owner: editors/screen +
+   file-load region-ensure (not this GPU lane).
+
+2. **Cube workbench solid-shading is too dark. ~15,866 px (viewport-interior
+   headline).** Every cube face is 25-45% darker than native (native top/left/front
+   ~109/136/126; web ~83/76/84) and the brightest face flips (native: left; web:
+   front/top) - a studio-LIGHT direction/intensity delta, not a uniform gamma. The
+   OVERLAY-drawn elements (background, grid, world axes, camera + light gizmos) all
+   MATCH native, so this is isolated to the WORKBENCH solid-shading output, NOT
+   color management/view-transform and NOT theme. The r33 stencil fix made the cube
+   SOLID; its LIGHTING is the remaining delta. Evidence:
+   `artifacts/residual_r34_cube_shading.png`. Fix owner: gpu/webgpu workbench
+   studio-light UBO / matcap sampling (patches flow).
+
+3. **Left viewport edge: toolbar region-overlap shadow + the pre-existing "blue
+   spike". ~3,000 px.** The toolbar (left overlapping region) casts a dark edge fade
+   into the viewport that native lacks (x 62-72 drops to ~28-37 vs native ~65; faint
+   blue tint at the x=60 seam) - same overlapping-region class as cluster 1. Riding
+   on it is a bright (~93/255) thin vertical gizmo-like bar with a central bulge at
+   x~95, y~150-360 (the "blue spike"); its exact draw call still needs BW_DIAG on the
+   overlay/gizmo pass. Evidence: `artifacts/residual_r34_left_edge_spike.png`.
+   Sidebar-right and topbar-bottom edges are CLEAN (+1/255), so the overlap artifact
+   is specific to the two visible overlapping regions of the 3D viewport
+   (toolbar-left, asset-shelf-bottom).
+
+4. **Navigation gizmo ball. 2,019 px.** Now RENDERS (colored X/Y/Z + hollow
+   -X/-Y/-Z balls, correct layout); residual is sub-pixel AA/position/colour only.
+   (The stale report's "gizmo ball absent" item is FIXED - dropped.)
+
+5. **Chrome text + icons (topbar/toolbar/sidebar/statusbar). ~43,884 px, 26.8%.**
+   Region FILLS are near-perfect (+1/255, within threshold: sidebar/topbar/statusbar
+   backgrounds all exactly +1); the failures are cross-renderer antialiased TEXT and
+   ICON edges - irreducible at 0.016 (see gate note). One real widget defect rides
+   here: the timeline current-frame highlight (the blue "1" box) is MISSING in web.
+   (The stale "chrome vertical mirror" and "menu-background inversion / solid-cube
+   absent" items are FIXED - chrome is upright, fills match, the cube is solid;
+   dropped.)
 
 ## Re-run (any lane, one command each)
 
@@ -130,5 +168,7 @@ bash sandbox/m4-fullscreen-parity/compare_fullscreen.sh --selftest
 bash sandbox/m4-fullscreen-parity/capture_fullscreen_golden.sh
 ```
 
-The M4 gate turns GREEN when this comparison passes at 0.016/1 with the chrome
-upright, the solid cube shaded, and the gizmo ball present. Today: FAIL, 84.6%.
+The M4 gate turns GREEN when this passes at 0.016/1 with the chrome upright, the
+solid cube shaded, and the gizmo ball present - the last two are DONE. Today: FAIL
+11.4%, dominated by the web-only asset-shelf bottom band (56.9%) and an irreducible
+cross-renderer text-AA floor (~3%). See the gate-reachability note above.

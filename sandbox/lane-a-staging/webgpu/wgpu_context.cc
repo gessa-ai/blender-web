@@ -551,7 +551,12 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (pass == 1 && claimed.count(b)) {
       continue; /* a mapped bind already claimed this binding */
     }
-    claimed.insert(b);
+    /* Claim a binding ONLY when an entry of the matching kind is actually emitted
+     * (below). Claiming before the kind check let a stale WRONG-kind bind (e.g. a
+     * leftover UBO/SSBO/image at a frontend slot that, for THIS shader, is a texture
+     * binding) reserve the binding and then bail on the kind check -- blocking the
+     * real resource (the workbench resolve's gbuffer textures at dense 0/1/2 were
+     * dropped this way). */
     if (is_pc(b) || !is_uniform_binding(b)) {
       continue;
     }
@@ -563,6 +568,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (!buf.valid()) {
       continue;
     }
+    claimed.insert(b);
     wgpu::BindGroupEntry e = {};
     e.binding = b;
     e.buffer = buf.handle();
@@ -581,7 +587,6 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (pass == 1 && claimed.count(b)) {
       continue; /* a mapped bind already claimed this binding */
     }
-    claimed.insert(b);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -593,6 +598,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (!buf.valid()) {
       continue;
     }
+    claimed.insert(b); /* claim only when emitting a matching-kind entry (see UBO loop) */
     wgpu::BindGroupEntry e = {};
     e.binding = b;
     e.buffer = buf.handle();
@@ -612,7 +618,6 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (pass == 1 && claimed.count(b)) {
       continue; /* a mapped bind already claimed this binding */
     }
-    claimed.insert(b);
     if (is_pc(b) || !is_storage_binding(b)) {
       continue;
     }
@@ -620,6 +625,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (buf == nullptr || !buf->valid()) {
       continue;
     }
+    claimed.insert(b); /* claim only when emitting a matching-kind entry (see UBO loop) */
     wgpu::BindGroupEntry e = {};
     e.binding = b;
     e.buffer = buf->handle();
@@ -643,7 +649,6 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (pass == 1 && claimed.count(b)) {
       continue; /* a mapped bind already claimed this binding */
     }
-    claimed.insert(b);
     if (!is_image_binding(b)) {
       continue;
     }
@@ -655,6 +660,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
     if (view == nullptr) {
       continue;
     }
+    claimed.insert(b); /* claim only when emitting a matching-kind entry (see UBO loop) */
     wgpu::BindGroupEntry e = {};
     e.binding = b;
     e.textureView = view;
@@ -672,10 +678,24 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
       continue; /* wrong pass for this bind flavor */
     }
     const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
+    /* build_interface assigns every sampler its DENSE binding as the frontend location
+     * (build_interface: in->location = dense_binding), so the frontend binds a shader's
+     * samplers at their dense binding, NOT their create-info slot. A create-info->dense
+     * remap (item.first != n) is therefore NEVER this shader's current bind for that
+     * binding -- it is a STALE texture left in the context-wide bind-space by an earlier
+     * draw whose dense binding happened to equal this shader's create-info slot. When a
+     * live texture is also bound at frontend slot n (the identity / name-resolved bind
+     * that IS the current one -- e.g. the workbench resolve's gbuffer depth/normal/
+     * material at dense 0/1/2 vs stale textures at create-info slots 3/4/5), the stale
+     * mapped bind must not displace it. Skip it and let the identity bind win. */
+    if (pass == 0 && uint32_t(item.first) != n && is_texture_binding(n) &&
+        sm->bound_textures().find(int(n)) != sm->bound_textures().end())
+    {
+      continue;
+    }
     if (pass == 1 && claimed.count(n)) {
       continue; /* a mapped bind already claimed this binding */
     }
-    claimed.insert(n);
     webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second.texture);
     if (tex == nullptr || tex->is_buffer_texture()) {
       continue;
@@ -687,6 +707,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
       wgpu::TextureView view = tex->sampled_view(
           le != nullptr ? le->texture.viewDimension : wgpu::TextureViewDimension::Undefined);
       if (view != nullptr) {
+        claimed.insert(n); /* claim only when a texture is actually bound (see UBO loop) */
         wgpu::BindGroupEntry e = {};
         e.binding = n;
         e.textureView = view;

@@ -361,3 +361,20 @@
 # by the r28b lane pre-interruption, verified + cut by the driver. Gated on
 # is_window_backbuffer: offscreen blits (the native gpu gate) untouched.
 0115-gpu-webgpu-window-blit-origin-flip.patch
+# 0116: deferred-composite bind-group assembly claims a group-0 binding ONLY when an
+# entry of the matching kind is actually emitted (append_resource_bind_entries). The
+# two-pass assembler inserted into `claimed` BEFORE the resource-kind check, so a stale
+# WRONG-kind bind lingering in the context-wide bind-space at a frontend slot that -- for
+# THIS shader -- is a texture binding (dense 0/1/2) reserved that binding and then bailed
+# on the kind check, dropping the shader's real texture. Plus a sampler dense-slot guard:
+# build_interface assigns each sampler its DENSE binding as the frontend location, so a
+# create-info-slot->dense remap (item.first != n) is never the current bind and must not
+# displace a live identity bind at the dense slot. Symptom: the workbench deferred resolve
+# read STALE fmt-22 textures for depth_tx/normal_tx/material_tx instead of the gbuffer
+# (gbuffer depth/normal/material bound at dense 0/1/2; stale textures at create-info 3/4/5
+# + stale buffer/image binds at 0/1/2). Verified in-tab: all three gbuffer textures now
+# bind correctly. Pure runtime bind change (no shader/codegen touched). NB: necessary but
+# NOT sufficient for the visible workbench solid -- the opaque-group prepass still writes
+# no cube depth into the shared gbuffer depth (separate DRW GPU-driven-draw defect,
+# notes/gpu-r28-solid-composite.md).
+0116-gpu-webgpu-deferred-bind-claim-on-emit.patch

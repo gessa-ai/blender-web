@@ -103,3 +103,11 @@ order and stop at the first clean state; (b) convert the WITH_WEBGPU SRC list to
 touch — currently frozen); (c) designate ONE patch per round as the sole owner of
 the SRC-list edit (path-ownership per `notes/path-ownership.md`). Recommend (b)
 long-term, (c) for now. No code correctness impact.
+
+## H-6 (env, 2026-08-08): run.sh requires bash >= 4
+harness/run.sh uses associative arrays (line ~436 EXPECT_NONPASS); macOS /bin/bash 3.2
+fails with "static_shaders: unbound variable" (arithmetic-parse of the array literal
+under set -u). Not a harness defect - an environment requirement: invoke via
+/opt/homebrew/bin/bash (5.x) or ensure PATH resolves a modern bash. Shell snapshots
+after process restarts can silently drop the homebrew PATH (observed: two invocation
+environments in one day). Harness-lock respected: documented here, no run.sh edit.

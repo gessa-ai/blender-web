@@ -1,0 +1,1426 @@
+Failed to load resource: the server responded with a status of 404 (File not found)
+/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 23.4 ms
+WGPUWeb: presentBackbuffer frame 0 — surface 1600x900 -> canvas (offscreen blit)
+Unable to find the Python binary, the multiprocessing module may not be functional!
+BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+BW_DIAG boot-arm prepass=4
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+BW_READBACK_KICK seq=0 label=prepass_depth w=1311 h=787 fmt=49 texel=4
+BW_READBACK_KICK seq=1 label=prepass_material w=1311 h=787 fmt=40 texel=8
+BW_READBACK_KICK seq=2 label=prepass_normal w=1311 h=787 fmt=21 texel=4
+BW_READBACK_KICK seq=3 label=prepass_objectid w=1311 h=787 fmt=7 texel=2
+[bw-r43bind] shader='workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado' DUMP emitted=8 explicit=1 explayout=8 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=258 kind=SAMP
+[bw-r43bind]   LAYOUT b=3 kind=UBO
+[bw-r43bind]   LAYOUT b=4 kind=UBO
+[bw-r43bind]   LAYOUT b=1 kind=TEX
+[bw-r43bind]   LAYOUT b=2 kind=TEX
+[bw-r43bind]   LAYOUT b=257 kind=SAMP
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=TEX
+[bw-r43bind]   IMAP b=257 kind=SAMP
+[bw-r43bind]   IMAP b=2 kind=TEX
+[bw-r43bind]   IMAP b=258 kind=SAMP
+[bw-r43bind]   IMAP b=3 kind=UBO
+[bw-r43bind]   IMAP b=4 kind=UBO
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   EMIT   b=1 res=tex
+[bw-r43bind]   EMIT   b=257 res=samp
+[bw-r43bind]   EMIT   b=2 res=tex
+[bw-r43bind]   EMIT   b=258 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=4 mapped=1
+[bw-r43bind]   BND UBO slot=11 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=2 mapped=1 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=1 mapped=1 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=0 mapped=1 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='workbench_effect_outline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=1
+[bw-r43bind]   BND UBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=1 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_groundline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_point' DUMP emitted=5 explicit=1 explayout=5 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   LAYOUT b=3 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=4 kind=SSBO_RO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   IMAP b=3 kind=SSBO_RO
+[bw-r43bind]   IMAP b=4 kind=SSBO_RO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=4 mapped=1
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+WGPUWeb: presentBackbuffer frame 1 — surface 1600x900 -> canvas (offscreen blit)
+BW_READBACK_DONE seq=0 label=prepass_depth file=/tmp/bw_readback_0.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=1 label=prepass_material file=/tmp/bw_readback_1.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok
+BW_READBACK_DONE seq=2 label=prepass_normal file=/tmp/bw_readback_2.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=3 label=prepass_objectid file=/tmp/bw_readback_3.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+BW_READBACK_KICK seq=4 label=prepass_depth w=1311 h=787 fmt=49 texel=4
+BW_READBACK_KICK seq=5 label=prepass_material w=1311 h=787 fmt=40 texel=8
+BW_READBACK_KICK seq=6 label=prepass_normal w=1311 h=787 fmt=21 texel=4
+BW_READBACK_KICK seq=7 label=prepass_objectid w=1311 h=787 fmt=7 texel=2
+[bw-r43bind] shader='workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado' DUMP emitted=8 explicit=1 explayout=8 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=258 kind=SAMP
+[bw-r43bind]   LAYOUT b=3 kind=UBO
+[bw-r43bind]   LAYOUT b=4 kind=UBO
+[bw-r43bind]   LAYOUT b=1 kind=TEX
+[bw-r43bind]   LAYOUT b=2 kind=TEX
+[bw-r43bind]   LAYOUT b=257 kind=SAMP
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=TEX
+[bw-r43bind]   IMAP b=257 kind=SAMP
+[bw-r43bind]   IMAP b=2 kind=TEX
+[bw-r43bind]   IMAP b=258 kind=SAMP
+[bw-r43bind]   IMAP b=3 kind=UBO
+[bw-r43bind]   IMAP b=4 kind=UBO
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   EMIT   b=1 res=tex
+[bw-r43bind]   EMIT   b=257 res=samp
+[bw-r43bind]   EMIT   b=2 res=tex
+[bw-r43bind]   EMIT   b=258 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=4 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=2 mapped=1 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=1 mapped=1 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=0 mapped=1 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='workbench_effect_outline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=1 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_groundline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_point' DUMP emitted=5 explicit=1 explayout=5 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   LAYOUT b=3 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=4 kind=SSBO_RO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   IMAP b=3 kind=SSBO_RO
+[bw-r43bind]   IMAP b=4 kind=SSBO_RO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=4 mapped=1
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+BW_READBACK_KICK seq=8 label=prepass_depth w=1311 h=787 fmt=49 texel=4
+BW_READBACK_KICK seq=9 label=prepass_material w=1311 h=787 fmt=40 texel=8
+BW_READBACK_KICK seq=10 label=prepass_normal w=1311 h=787 fmt=21 texel=4
+BW_READBACK_KICK seq=11 label=prepass_objectid w=1311 h=787 fmt=7 texel=2
+[bw-r43bind] shader='workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado' DUMP emitted=8 explicit=1 explayout=8 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=258 kind=SAMP
+[bw-r43bind]   LAYOUT b=3 kind=UBO
+[bw-r43bind]   LAYOUT b=4 kind=UBO
+[bw-r43bind]   LAYOUT b=1 kind=TEX
+[bw-r43bind]   LAYOUT b=2 kind=TEX
+[bw-r43bind]   LAYOUT b=257 kind=SAMP
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=TEX
+[bw-r43bind]   IMAP b=257 kind=SAMP
+[bw-r43bind]   IMAP b=2 kind=TEX
+[bw-r43bind]   IMAP b=258 kind=SAMP
+[bw-r43bind]   IMAP b=3 kind=UBO
+[bw-r43bind]   IMAP b=4 kind=UBO
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   EMIT   b=1 res=tex
+[bw-r43bind]   EMIT   b=257 res=samp
+[bw-r43bind]   EMIT   b=2 res=tex
+[bw-r43bind]   EMIT   b=258 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=4 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=2 mapped=1 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=1 mapped=1 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=0 mapped=1 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='workbench_effect_outline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=1 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_groundline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+[bw-r43bind] shader='overlay_extra_point' DUMP emitted=5 explicit=1 explayout=5 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   LAYOUT b=3 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=4 kind=SSBO_RO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   IMAP b=3 kind=SSBO_RO
+[bw-r43bind]   IMAP b=4 kind=SSBO_RO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=4 mapped=1
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+BW_READBACK_DONE seq=4 label=prepass_depth file=/tmp/bw_readback_4.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=5 label=prepass_material file=/tmp/bw_readback_5.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok
+BW_READBACK_DONE seq=6 label=prepass_normal file=/tmp/bw_readback_6.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=7 label=prepass_objectid file=/tmp/bw_readback_7.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok
+BW_READBACK_DONE seq=8 label=prepass_depth file=/tmp/bw_readback_8.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=9 label=prepass_material file=/tmp/bw_readback_9.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok
+BW_READBACK_DONE seq=10 label=prepass_normal file=/tmp/bw_readback_10.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=11 label=prepass_objectid file=/tmp/bw_readback_11.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+BW_READBACK_KICK seq=12 label=prepass_depth w=1311 h=787 fmt=49 texel=4
+BW_READBACK_KICK seq=13 label=prepass_material w=1311 h=787 fmt=40 texel=8
+BW_READBACK_KICK seq=14 label=prepass_normal w=1311 h=787 fmt=21 texel=4
+BW_READBACK_KICK seq=15 label=prepass_objectid w=1311 h=787 fmt=7 texel=2
+[bw-r43bind] shader='workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado' DUMP emitted=8 explicit=1 explayout=8 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=258 kind=SAMP
+[bw-r43bind]   LAYOUT b=3 kind=UBO
+[bw-r43bind]   LAYOUT b=4 kind=UBO
+[bw-r43bind]   LAYOUT b=1 kind=TEX
+[bw-r43bind]   LAYOUT b=2 kind=TEX
+[bw-r43bind]   LAYOUT b=257 kind=SAMP
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=TEX
+[bw-r43bind]   IMAP b=257 kind=SAMP
+[bw-r43bind]   IMAP b=2 kind=TEX
+[bw-r43bind]   IMAP b=258 kind=SAMP
+[bw-r43bind]   IMAP b=3 kind=UBO
+[bw-r43bind]   IMAP b=4 kind=UBO
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   EMIT   b=3 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   EMIT   b=1 res=tex
+[bw-r43bind]   EMIT   b=257 res=samp
+[bw-r43bind]   EMIT   b=2 res=tex
+[bw-r43bind]   EMIT   b=258 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=4 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=3 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=2 mapped=1 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=1 mapped=1 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=0 mapped=1 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='workbench_effect_outline' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=1 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=40
+[bw-r43bind] shader='overlay_extra' DUMP emitted=3 explicit=1 explayout=3 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=0 kind=SSBO_RO
+[bw-r43bind]   LAYOUT b=1 kind=UBO
+[bw-r43bind]   LAYOUT b=2 kind=UBO
+[bw-r43bind]   IMAP b=0 kind=SSBO_RO
+[bw-r43bind]   IMAP b=1 kind=UBO
+[bw-r43bind]   IMAP b=2 kind=UBO
+[bw-r43bind]   EMIT   b=2 res=buf
+[bw-r43bind]   EMIT   b=1 res=buf
+[bw-r43bind]   EMIT   b=0 res=buf
+[bw-r43bind]   BND UBO slot=7 ->b=2 mapped=1
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=1 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=1
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=7
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=5 ->b=5 mapped=0 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=4 mapped=0 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=3 mapped=0 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=2 mapped=0 type=2 fmt=49
+BW_READBACK_DONE seq=12 label=prepass_depth file=/tmp/bw_readback_12.bin w=1311 h=787 fmt=49 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=13 label=prepass_material file=/tmp/bw_readback_13.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok
+BW_READBACK_DONE seq=14 label=prepass_normal file=/tmp/bw_readback_14.bin w=1311 h=787 fmt=21 texel=4 pitch=5244 bytes=4127028 status=ok
+BW_READBACK_DONE seq=15 label=prepass_objectid file=/tmp/bw_readback_15.bin w=1311 h=787 fmt=7 texel=2 pitch=2622 bytes=2063514 status=ok
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+<string>:22: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/bw_diag_cmd' mode='w' encoding='utf-8'>
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[bw-r44] scheduled: readback viewport_color
+BW_READBACK_KICK seq=16 label=viewport_color w=1600 h=900 fmt=27 texel=4
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+BW_READBACK_DONE seq=16 label=viewport_color file=/tmp/bw_readback_16.bin w=1600 h=900 fmt=27 texel=4 pitch=6400 bytes=5760000 status=ok
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)
+[BW_DIAG_WORLD] use_specular=1 ambient=(0.0000,0.0000,0.0000)
+[BW_DIAG_WORLD] light0 dir=(-0.353,0.171,-0.920) spec=(0.267,0.267,0.267) diffwrap=(0.033,0.033,0.033|0.527)
+[BW_DIAG_WORLD] light1 dir=(-0.408,0.347,0.844) spec=(0.599,0.599,0.599) diffwrap=(0.521,0.538,0.538|0.000)
+[BW_DIAG_WORLD] light2 dir=(0.522,0.826,0.213) spec=(0.106,0.126,0.159) diffwrap=(0.038,0.034,0.050|0.478)
+[BW_DIAG_WORLD] light3 dir=(0.625,-0.562,-0.542) spec=(0.107,0.085,0.066) diffwrap=(0.091,0.082,0.072|0.200)

@@ -1,0 +1,110 @@
+{
+  "have": [
+    "prepass_depth",
+    "prepass_material",
+    "prepass_normal",
+    "prepass_objectid",
+    "viewport_color"
+  ],
+  "hdrs": {
+    "prepass_depth": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 49,
+      "texel": 4,
+      "pitch": 5244
+    },
+    "prepass_material": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 40,
+      "texel": 8,
+      "pitch": 10488
+    },
+    "prepass_normal": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 21,
+      "texel": 4,
+      "pitch": 5244
+    },
+    "prepass_objectid": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 7,
+      "texel": 2,
+      "pitch": 2622
+    },
+    "viewport_color": {
+      "w": 1600,
+      "h": 900,
+      "fmt": 27,
+      "texel": 4,
+      "pitch": 6400
+    }
+  },
+  "faces": [
+    {
+      "count": 8600,
+      "n_view": [
+        0.4024,
+        -0.408,
+        0.8195
+      ],
+      "centroid": [
+        678,
+        373
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "count": 4153,
+      "n_view": [
+        -0.0008,
+        0.8951,
+        0.4459
+      ],
+      "centroid": [
+        658,
+        437
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "count": 3241,
+      "n_view": [
+        -0.9148,
+        -0.1805,
+        0.3613
+      ],
+      "centroid": [
+        613,
+        384
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "cube": 15994,
+  "w": 1311,
+  "h": 787,
+  "viewport_top2pct_linear": 0.3767,
+  "viewport_hdr": {
+    "w": 1600,
+    "h": 900,
+    "fmt": 27,
+    "texel": 4,
+    "pitch": 6400
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "have": [
+    "prepass_depth",
+    "prepass_material",
+    "prepass_normal",
+    "prepass_objectid",
+    "viewport_color"
+  ],
+  "hdrs": {
+    "prepass_depth": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 49,
+      "texel": 4,
+      "pitch": 5244
+    },
+    "prepass_material": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 40,
+      "texel": 8,
+      "pitch": 10488
+    },
+    "prepass_normal": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 21,
+      "texel": 4,
+      "pitch": 5244
+    },
+    "prepass_objectid": {
+      "w": 1311,
+      "h": 787,
+      "fmt": 7,
+      "texel": 2,
+      "pitch": 2622
+    },
+    "viewport_color": {
+      "w": 1600,
+      "h": 900,
+      "fmt": 27,
+      "texel": 4,
+      "pitch": 6400
+    }
+  },
+  "faces": [
+    {
+      "count": 8600,
+      "n_view": [
+        0.4024,
+        -0.408,
+        0.8195
+      ],
+      "centroid": [
+        678,
+        373
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ],
+      "base_color": [
+        0.7998,
+        0.7998,
+        0.7998
+      ],
+      "mat_alpha": 21,
+      "roughness": 0.6774,
+      "metallic": 0,
+      "viewport_ident": {
+        "disp": [
+          145.4,
+          144,
+          142
+        ],
+        "lin": [
+          0.2849,
+          0.2789,
+          0.2705
+        ]
+      },
+      "viewport_yflip": {
+        "disp": [
+          63,
+          63,
+          63
+        ],
+        "lin": [
+          0.0497,
+          0.0497,
+          0.0497
+        ]
+      }
+    },
+    {
+      "count": 4153,
+      "n_view": [
+        -0.0008,
+        0.8951,
+        0.4459
+      ],
+      "centroid": [
+        658,
+        437
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ],
+      "base_color": [
+        0.7998,
+        0.7998,
+        0.7998
+      ],
+      "mat_alpha": 21,
+      "roughness": 0.6774,
+      "metallic": 0,
+      "viewport_ident": {
+        "disp": [
+          113,
+          113,
+          112
+        ],
+        "lin": [
+          0.1651,
+          0.1651,
+          0.162
+        ]
+      },
+      "viewport_yflip": {
+        "disp": [
+          113,
+          113,
+          112
+        ],
+        "lin": [
+          0.1651,
+          0.1651,
+          0.162
+        ]
+      }
+    },
+    {
+      "count": 3241,
+      "n_view": [
+        -0.9148,
+        -0.1805,
+        0.3613
+      ],
+      "centroid": [
+        613,
+        384
+      ],
+      "resolve_linear": [
+        0,
+        0,
+        0
+      ],
+      "base_color": [
+        0.7998,
+        0.7998,
+        0.7998
+      ],
+      "mat_alpha": 21,
+      "roughness": 0.6774,
+      "metallic": 0,
+      "viewport_ident": {
+        "disp": [
+          136.6,
+          136,
+          134.2
+        ],
+        "lin": [
+          0.2486,
+          0.2462,
+          0.2392
+        ]
+      },
+      "viewport_yflip": {
+        "disp": [
+          66.2,
+          66.2,
+          66.2
+        ],
+        "lin": [
+          0.0548,
+          0.0548,
+          0.0548
+        ]
+      }
+    }
+  ],
+  "cube": 15994,
+  "w": 1311,
+  "h": 787,
+  "viewport_gray_peaks": [
+    {
+      "disp": 63,
+      "n": 769544,
+      "lin": 0.0497
+    },
+    {
+      "disp": 61,
+      "n": 99274,
+      "lin": 0.0467
+    },
+    {
+      "disp": 48,
+      "n": 71469,
+      "lin": 0.0296
+    },
+    {
+      "disp": 24,
+      "n": 53558,
+      "lin": 0.0091
+    },
+    {
+      "disp": 29,
+      "n": 51203,
+      "lin": 0.0123
+    },
+    {
+      "disp": 40,
+      "n": 40392,
+      "lin": 0.0212
+    },
+    {
+      "disp": 84,
+      "n": 24414,
+      "lin": 0.0887
+    },
+    {
+      "disp": 64,
+      "n": 22441,
+      "lin": 0.0513
+    }
+  ],
+  "viewport_hdr": {
+    "w": 1600,
+    "h": 900,
+    "fmt": 27,
+    "texel": 4,
+    "pitch": 6400
+  }
+}

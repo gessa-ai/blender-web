@@ -1,0 +1,38 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2473,7 +2473,33 @@
+     if (slot.location != location) {
+       continue;
+     }
+-    const uint32_t n = uint32_t(comp_len) * uint32_t(array_size) * 4u;
++    /* The frontend hands us the array TIGHTLY packed (`comp_len * 4` bytes per element),
++     * but the shader block is std140 (`slot.size` reserved by std140_align_size), where an
++     * array element's stride is rounded UP to 16 bytes. So a `float[9]` / `int[]` / vec2[] /
++     * vec3[] array is 16-strided in the block while the source is 4/8/12-strided. Copying the
++     * source as one contiguous blob lands element i at byte i*src_stride instead of the block's
++     * i*16, so only element 0 is read correctly and the rest are shuffled/zeroed (the workbench
++     * TAA `samplesWeights[9]` bug: 6 of 9 neighbourhood weights read as 0, the accumulation is
++     * still normalised by the full weight sum -> a value-dependent darkening of every
++     * TAA-resolved pixel). Mirror Vulkan's std140 push-constant buffer (VKPushConstants::Layout,
++     * vk_push_constants) by writing each element at its std140 stride. Scalars, single vectors
++     * and vec4/mat4 arrays (stride == src) fall through to the fast contiguous copy. */
++    const uint32_t src_stride = uint32_t(comp_len) * 4u;
++    /* std140 array-element stride: the element size rounded up to 16 (matches
++     * std140_align_size). vec4/mat4 arrays already satisfy this (stride == src). */
++    const uint32_t dst_stride = (src_stride + 15u) & ~15u;
++    if (array_size > 1 && dst_stride != src_stride) {
++      const uint8_t *src = static_cast<const uint8_t *>(data);
++      for (int e = 0; e < array_size; e++) {
++        const uint32_t dst_off = slot.offset + uint32_t(e) * dst_stride;
++        if (dst_off + src_stride <= push_constants_data_.size()) {
++          std::memcpy(push_constants_data_.data() + dst_off, src + uint32_t(e) * src_stride, src_stride);
++        }
++      }
++      push_constants_dirty_ = true;
++      return;
++    }
++    const uint32_t n = src_stride * uint32_t(std::max(array_size, 1));
+     const uint32_t copy = std::min(n, slot.size);
+     if (slot.offset + copy <= push_constants_data_.size()) {
+       std::memcpy(push_constants_data_.data() + slot.offset, data, copy);

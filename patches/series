@@ -456,3 +456,23 @@
 # the lower-left blue spike (r37 DEFECT C); whole-window parity 11.0%->2.19%. See
 # notes/gpu-r39-window-direct.md.
 0121-gpu-webgpu-window-direct-viewport-scissor.patch
+# 0123: push-constant ARRAY std140 element stride (M4 r44, the workbench-resolve darkening).
+# WGPUShader::push_constant_set copied a push-constant array as one TIGHTLY packed blob
+# (comp_len*array_size*4 bytes), but the shader block is std140 where an array element's
+# stride is rounded UP to 16 (std140_align_size reserves slot.size accordingly, and Tint
+# emits array<tint_padded_array_element,N> at stride 16). So a float[]/int[]/vec2[]/vec3[]
+# push-constant array had element i land at byte i*src_stride instead of i*16 -> only
+# element 0 correct, the rest shuffled/zeroed. This silently corrupted the workbench TAA
+# accumulation weights (PUSH_CONSTANT_ARRAY float samplesWeights[9]): the 3x3 blackman-harris
+# neighbourhood read as [w0,w4,w8,0,0,0,0,0,0], so the center tap (largest weight) fell on
+# the wrong neighbour and 6 of 9 weights were 0, while the SMAA resolve still normalised by
+# the full weight sum -> a value-dependent darkening (log2 accumulation space) of EVERY
+# TAA-resolved viewport pixel. The interactive Solid cube rendered ~0.37-0.48x too dark; the
+# resolve shader + world UBO + gbuffer were all proven correct (r37/r38/r44). Fix: write each
+# array element at its std140 stride ((comp_len*4 + 15) & ~15), mirroring Vulkan's std140
+# push-constant buffer (VKPushConstants::Layout); vec4/mat4 arrays (stride==src) and scalars
+# keep the fast contiguous copy. Verified: cube face web/gold LINEAR ratios 0.372/0.383/0.484
+# -> 1.015/1.014/1.050; parity viewport region 2.10%->0.48% (PASS), whole-window 2.19%->1.1%;
+# census held 149 PASS / 7 FAIL / 2 CRASH + static_shaders 956/973. See
+# notes/gpu-r44-workbench-resolve.md.
+0123-gpu-webgpu-push-constant-array-std140-stride.patch

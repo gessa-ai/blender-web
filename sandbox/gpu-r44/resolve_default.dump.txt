@@ -1,0 +1,3394 @@
+NAME=workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado===
+---FRAG_GLSL---
+#version 450
+
+
+
+
+
+
+ 
+
+
+
+
+
+#pragma no_processing
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct string_t {
+  uint hash;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const bool use_cavity = false;
+const bool use_curvature = false;
+const bool use_shadow = false;
+const int lighting_mode = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+layout(location = 0) out vec4 workbench_resolve_FragOut_color;
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+struct                 DrawGroup {
+
+  uint next;
+
+  uint start;
+
+  uint len;
+
+  uint front_facing_len;
+
+  int vertex_len;
+  int vertex_first;
+
+  int base_index;
+
+  uint total_counter;
+
+  uint front_facing_counter;
+  uint back_facing_counter;
+
+
+
+
+  uint _cpu_reserved_1;
+  uint _cpu_reserved_2;
+
+  uint _cpu_reserved_3;
+  uint _cpu_reserved_4;
+  uint _cpu_reserved_5;
+  uint _cpu_reserved_6;
+
+};
+
+                                         
+
+
+
+
+
+
+struct                 DrawPrototype {
+
+  uint group_id;
+
+  uint res_id;
+
+  uint custom_id;
+
+  uint instance_len;
+};
+
+                                             
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct                 FrustumCorners {
+  vec4 corners[8];
+};
+
+                                              
+
+
+
+
+struct                 FrustumPlanes {
+
+  vec4 planes[6];
+};
+
+                                             
+
+
+
+
+struct                 ViewCullingData {
+
+         FrustumCorners frustum_corners;
+         FrustumPlanes frustum_planes;
+  vec4 bound_sphere;
+};
+
+                                               
+
+
+
+
+struct                 ViewMatrices {
+  mat4x4 viewmat;
+  mat4x4 viewinv;
+  mat4x4 winmat;
+  mat4x4 wininv;
+
+
+
+
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                            
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+
+
+
+struct                 ObjectMatrices {
+  mat4x4 model;
+  mat4x4 model_inverse;
+
+
+
+
+
+
+
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                              
+
+  
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+const uint OBJECT_SELECTED = (1u << 0u);
+const uint OBJECT_FROM_DUPLI = (1u << 1u);
+const uint OBJECT_FROM_SET = (1u << 2u);
+const uint OBJECT_ACTIVE = (1u << 3u);
+const uint OBJECT_NEGATIVE_SCALE = (1u << 4u);
+const uint OBJECT_HOLDOUT = (1u << 5u);
+
+const uint OBJECT_ACTIVE_EDIT_MODE = (1u << 6u);
+
+const uint OBJECT_NO_INFO = ~OBJECT_HOLDOUT;
+
+
+
+
+
+
+
+
+
+
+
+
+struct                 ObjectInfos {
+
+  vec3 orco_add;
+  uint object_attrs_offset;
+  vec3 orco_mul;
+  uint object_attrs_len;
+
+  vec4 ob_color;
+  uint index;
+
+  uint light_and_shadow_set_membership;
+  float random;
+       uint flag;
+  float shadow_terminator_normal_offset;
+  float shadow_terminator_geometry_offset;
+  float _pad1;
+  float _pad2;
+
+};
+
+                                           
+
+
+
+
+
+
+       
+
+
+
+
+
+
+
+struct                 ObjectBounds {
+
+  vec4 bounding_corners[4];
+
+  vec4 bounding_sphere;
+
+
+
+};
+
+                                            
+
+
+
+
+
+
+       
+
+
+
+
+
+
+
+struct                 VolumeInfos {
+
+  mat4x4 grids_xform[16];
+
+  vec4 color_mul;
+  float density_scale;
+  float temperature_mul;
+  float temperature_bias;
+  float _pad;
+};
+
+                                           
+
+
+
+
+struct                 CurvesInfos {
+
+  uvec4 is_point_attribute[15];
+
+  uint vertex_per_segment;
+
+  uint half_cylinder_face_count;
+  uint _pad0;
+  uint _pad1;
+};
+
+                                           
+
+#pragma pack(push, 4)
+
+
+
+struct                 ObjectAttribute {
+
+  float data_x;
+  float data_y;
+  float data_z;
+  float data_w;
+  uint hash_code;
+
+};
+
+                                               
+
+#pragma pack(pop)
+
+
+
+
+
+
+struct                 LayerAttribute {
+  vec4 data;
+  uint hash_code;
+  uint buffer_length;
+  uint _pad1;
+  uint _pad2;
+
+};
+
+                                              
+
+
+
+
+struct                 DrawCommandArray {
+  uint vertex_len;
+  uint instance_len;
+  uint vertex_first;
+  uint instance_first;
+
+  uint _pad0;
+  uint _pad1;
+  uint _pad2;
+  uint _pad3;
+};
+
+                                                
+
+
+
+
+struct                 DrawCommandIndexed {
+  uint vertex_len;
+  uint instance_len;
+  uint vertex_first;
+  uint base_index;
+
+  uint instance_first;
+  uint _pad0;
+  uint _pad1;
+  uint _pad2;
+};
+
+                                                  
+
+
+
+
+
+struct                 DrawCommand_union0 {
+  vec4 data0;
+  vec4 data1;
+
+};
+
+                                                  
+
+
+
+
+
+struct                 DrawCommand {
+         DrawCommand_union0 union0;
+
+};
+
+
+
+
+
+
+
+
+
+                                           
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct                 DispatchCommand {
+  uint num_groups_x;
+  uint num_groups_y;
+  uint num_groups_z;
+  uint _pad0;
+};
+
+                                               
+
+
+
+
+struct                 DRWDebugVertPair {
+
+  uint pos1_x;
+  uint pos1_y;
+  uint pos1_z;
+
+  uint vert_color;
+
+  uint pos2_x;
+  uint pos2_y;
+  uint pos2_z;
+
+  uint lifetime;
+};
+
+                                                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct                 DRWDebugDrawBuffer {
+         DrawCommand command;
+         DRWDebugVertPair verts[(2 * 1024) - 1];
+};
+
+                                                  
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+layout(binding = 3, std140) uniform _view_buf { ViewMatrices view_buf[64]; }; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+ViewMatrices drw_view()
+{
+
+
+
+  return view_buf[0];
+
+
+
+
+
+
+}
+
+bool drw_view_is_perspective()
+{
+  return drw_view().winmat[3][3] == 0.0f;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vec3 drw_view_incident_vector(vec3 vP)
+{
+  return drw_view_is_perspective() ? normalize(-vP) : vec3(0.0f, 0.0f, 1.0f);
+}
+
+vec3 drw_screen_to_ndc(vec3 ss_P)
+{
+  return ss_P * 2.0f - 1.0f;
+}
+vec2 drw_screen_to_ndc(vec2 ss_P)
+{
+  return ss_P * 2.0f - 1.0f;
+}
+float drw_screen_to_ndc(float ss_P)
+{
+  return ss_P * 2.0f - 1.0f;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vec3 drw_perspective_divide(vec4 hs_P)
+{
+  return hs_P.xyz / hs_P.w;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vec3 drw_point_ndc_to_view(vec3 ssP)
+{
+  return drw_perspective_divide(drw_view().wininv * vec4(ssP, 1.0f));
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vec3 drw_point_screen_to_view(vec3 ssP)
+{
+  return drw_point_ndc_to_view(drw_screen_to_ndc(ssP));
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+struct                 SolidLightData {
+  vec4 direction;
+  vec4 specular_color;
+  vec4 diffuse_color_wrap;
+};
+
+                                              
+
+
+
+
+struct                 WorldData {
+  vec2 viewport_size;
+  vec2 viewport_size_inv;
+  vec4 object_outline_color;
+  vec4 shadow_direction_vs;
+  float shadow_focus;
+  float shadow_shift;
+  float shadow_mul;
+  float shadow_add;
+
+         SolidLightData lights[4];
+  vec4 ambient_color;
+
+  int cavity_sample_start;
+  int cavity_sample_end;
+  float cavity_sample_count_inv;
+  float cavity_jitter_scale;
+
+  float cavity_valley_factor;
+  float cavity_ridge_factor;
+  float cavity_attenuation;
+  float cavity_distance;
+
+  float curvature_ridge;
+  float curvature_valley;
+  float ui_scale;
+  float _pad0;
+
+  int matcap_orientation;
+  bool use_specular;
+  float xray_alpha;
+  int _pad1;
+
+  vec4 background_color;
+};
+
+                                         
+
+
+
+
+struct                 ExtrudedFrustum {
+
+  vec4 corners[16];
+  vec4 planes[12];
+  int corners_count;
+  int planes_count;
+  int _pad0;
+  int _pad1;
+};
+
+                                               
+
+
+
+
+struct                 ShadowPassData {
+  vec4 far_plane;
+  vec3 light_direction_ws;
+  int _padding;
+};
+
+                                              
+
+
+ 
+
+
+
+
+
+
+
+layout(binding = 4, std140) uniform _world_data { WorldData world_data; }; 
+
+
+
+
+
+
+
+
+
+
+
+struct workbench_World {
+
+int _pad;};
+
+
+workbench_World workbench_World_ctor_();
+workbench_World workbench_World_new_();
+
+
+                               workbench_World workbench_World_ctor_() {workbench_World r;r._pad=0;return r;}
+
+       workbench_World workbench_World_new_()
+{
+  workbench_World result;
+  result._pad = 0;
+  return result;
+
+}
+
+vec3 workbench_normal_decode(vec4 enc)
+{
+  vec2 fenc = enc.xy * 4.0f - 2.0f;
+  float f = dot(fenc, fenc);
+  float g = sqrt(1.0f - f / 4.0f);
+  vec3 n;
+  n.xy = fenc * g;
+  n.z = 1 - f / 2;
+  return n;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void workbench_float_pair_decode(float data, inout float v1, inout float v2)
+{
+
+  const int v1_mask = 0x1F;
+  const int v2_mask = 0x7;
+  int idata = int(data);
+  v1 = float(idata & v1_mask) * (1.0f / float(v1_mask));
+  v2 = float(idata >> int((8u - 3u))) * (1.0f / float(v2_mask));
+}
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct workbench_Cavity {
+
+int _pad;};
+
+
+workbench_Cavity workbench_Cavity_ctor_();
+
+
+
+                                workbench_Cavity workbench_Cavity_ctor_() {workbench_Cavity r;r._pad=0;return r;}
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+vec4 workbench_fast_rcp(vec4 v)
+{
+  return intBitsToFloat(0x7eef370b - floatBitsToInt(v));
+}
+
+vec3 workbench_brdf_approx(vec3 spec_color, float roughness, float NV)
+{
+
+  float fresnel = exp2(-8.35f * NV) * (1.0f - roughness);
+  return mix(spec_color, vec3(1.0f), fresnel);
+}
+
+vec4 workbench_blinn_specular(vec4 shininess, vec4 spec_angle, vec4 NL)
+{
+
+  vec4 normalization_factor = shininess * 0.125f + 1.0f;
+  vec4 spec_light = pow(spec_angle, shininess) * NL * normalization_factor;
+
+  return spec_light;
+}
+
+vec4 workbench_wrapped_lighting(vec4 NL, vec4 w)
+{
+  vec4 w_1 = w + 1.0f;
+  vec4 denom = workbench_fast_rcp(w_1 * w_1);
+  return clamp((NL + w) * denom, 0.0f, 1.0f);
+}
+
+
+
+vec3 workbench_get_world_lighting(const workbench_World  world,
+                          vec3 base_color,
+                          float roughness,
+                          float metallic,
+                          vec3 N,
+                          vec3 I)
+{
+
+  vec3 specular_color, diffuse_color;
+
+  if (world_data.use_specular) {
+    diffuse_color = mix(base_color, vec3(0.0f), metallic);
+    specular_color = mix(vec3(0.05f), base_color, metallic);
+  }
+  else {
+    diffuse_color = base_color;
+    specular_color = vec3(0.0f);
+  }
+
+  vec3 specular_light = world_data.ambient_color.rgb;
+  vec3 diffuse_light = world_data.ambient_color.rgb;
+  vec4 wrap = vec4(world_data.lights[0].diffuse_color_wrap.a,
+                       world_data.lights[1].diffuse_color_wrap.a,
+                       world_data.lights[2].diffuse_color_wrap.a,
+                       world_data.lights[3].diffuse_color_wrap.a);
+
+  if (world_data.use_specular) {
+
+    vec3 R = -reflect(I, N);
+
+    vec4 spec_angle, spec_NL, wrapped_NL;
+
+{
+
+                                           {
+      vec3 L = world_data.lights[0].direction.xyz;
+      vec3 half_dir = normalize(L + I);
+      wrapped_NL[0] = dot(L, R);
+      spec_angle[0] = clamp(dot(half_dir, N), 0.0f, 1.0f);
+      spec_NL[0] = clamp(dot(L, N), 0.0f, 1.0f);
+    }
+
+                                           {
+      vec3 L = world_data.lights[1].direction.xyz;
+      vec3 half_dir = normalize(L + I);
+      wrapped_NL[1] = dot(L, R);
+      spec_angle[1] = clamp(dot(half_dir, N), 0.0f, 1.0f);
+      spec_NL[1] = clamp(dot(L, N), 0.0f, 1.0f);
+    }
+
+                                           {
+      vec3 L = world_data.lights[2].direction.xyz;
+      vec3 half_dir = normalize(L + I);
+      wrapped_NL[2] = dot(L, R);
+      spec_angle[2] = clamp(dot(half_dir, N), 0.0f, 1.0f);
+      spec_NL[2] = clamp(dot(L, N), 0.0f, 1.0f);
+    }
+
+                                           {
+      vec3 L = world_data.lights[3].direction.xyz;
+      vec3 half_dir = normalize(L + I);
+      wrapped_NL[3] = dot(L, R);
+      spec_angle[3] = clamp(dot(half_dir, N), 0.0f, 1.0f);
+      spec_NL[3] = clamp(dot(L, N), 0.0f, 1.0f);
+    }
+
+    }
+
+    vec4 gloss = vec4(1.0f - roughness);
+
+    gloss *= 1.0f - wrap;
+    vec4 shininess = exp2(10.0f * gloss + 1.0f);
+
+    vec4 spec_light = workbench_blinn_specular(shininess, spec_angle, spec_NL);
+
+    vec4 w = mix(wrap, vec4(1.0f), roughness);
+    vec4 spec_env = workbench_wrapped_lighting(wrapped_NL, w);
+
+    spec_light = mix(spec_light, spec_env, wrap * wrap);
+
+{
+
+                                           {
+      specular_light += spec_light[0] * world_data.lights[0].specular_color.rgb;
+    }
+
+                                           {
+      specular_light += spec_light[1] * world_data.lights[1].specular_color.rgb;
+    }
+
+                                           {
+      specular_light += spec_light[2] * world_data.lights[2].specular_color.rgb;
+    }
+
+                                           {
+      specular_light += spec_light[3] * world_data.lights[3].specular_color.rgb;
+    }
+
+    }
+
+    float NV = clamp(dot(N, I), 0.0f, 1.0f);
+    specular_color = workbench_brdf_approx(specular_color, roughness, NV);
+  }
+  specular_light *= specular_color;
+
+  vec4 diff_NL;
+
+{
+
+                                         {
+    diff_NL[0] = dot(world_data.lights[0].direction.xyz, N);
+  }
+
+                                         {
+    diff_NL[1] = dot(world_data.lights[1].direction.xyz, N);
+  }
+
+                                         {
+    diff_NL[2] = dot(world_data.lights[2].direction.xyz, N);
+  }
+
+                                         {
+    diff_NL[3] = dot(world_data.lights[3].direction.xyz, N);
+  }
+
+  }
+
+  vec4 diff_light = workbench_wrapped_lighting(diff_NL, wrap);
+
+{
+
+                                         {
+    diffuse_light += diff_light[0] * world_data.lights[0].diffuse_color_wrap.rgb;
+  }
+
+                                         {
+    diffuse_light += diff_light[1] * world_data.lights[1].diffuse_color_wrap.rgb;
+  }
+
+                                         {
+    diffuse_light += diff_light[2] * world_data.lights[2].diffuse_color_wrap.rgb;
+  }
+
+                                         {
+    diffuse_light += diff_light[3] * world_data.lights[3].diffuse_color_wrap.rgb;
+  }
+
+  }
+
+  float spec_energy = dot(specular_color, vec3(0.33333f));
+
+  diffuse_light *= diffuse_color * (1.0f - spec_energy);
+
+  return diffuse_light + specular_light;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+layout(binding = 0) uniform sampler2D depth_tx; layout(binding = 1) uniform sampler2D normal_tx; layout(binding = 2) uniform sampler2D material_tx; 
+
+
+
+
+
+
+
+
+
+
+
+struct workbench_resolve_Resources {
+
+                           workbench_World  world;
+
+                                                  workbench_Cavity  cavity;
+
+};
+
+
+workbench_resolve_Resources workbench_resolve_Resources_ctor_();
+
+
+
+                                           workbench_resolve_Resources workbench_resolve_Resources_ctor_() {workbench_resolve_Resources r;r.world=workbench_World_ctor_();r.cavity=workbench_Cavity_ctor_();return r;}
+
+       
+
+
+
+
+
+
+
+
+
+
+
+           
+
+
+
+
+
+
+
+
+
+
+struct workbench_resolve_FragOut {
+                    vec4 color;
+};
+
+                                         
+
+
+
+
+
+
+
+             void workbench_resolve_frag(
+
+                                                                  )
+{
+
+
+  workbench_resolve_Resources srt = workbench_resolve_Resources_ctor_();
+  vec2 uv = gl_FragCoord.xy / vec2(textureSize(depth_tx, 0).xy);
+
+  float depth = texture(depth_tx, uv).r;
+  if (depth == 1.0f) {
+
+    discard;
+    return;
+  }
+
+  vec3 P = drw_point_screen_to_view(vec3(uv, 0.5f));
+  vec3 V = drw_view_incident_vector(P);
+  vec3 N = workbench_normal_decode(texture(normal_tx, uv));
+  vec4 mat_data = texture(material_tx, uv);
+
+  vec3 base_color = mat_data.rgb;
+  vec4 color = vec4(1.0f);
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                  {
+    float roughness = 0.0f, metallic = 0.0f;
+    workbench_float_pair_decode(mat_data.a, roughness, metallic);
+    color.rgb = workbench_get_world_lighting(workbench_World_new_(), base_color, roughness, metallic, N, V);
+  }
+
+
+
+
+
+
+
+  float cavity = 0.0f, edges = 0.0f, curvature = 0.0f;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  color.rgb *= clamp((1.0f - cavity) * (1.0f + edges) * (1.0f + curvature), 0.0f, 4.0f);
+
+
+
+
+
+
+
+
+  workbench_resolve_FragOut_color = color;
+
+
+
+}
+
+
+
+void main() { workbench_resolve_frag(); }
+
+---END_FRAG_GLSL---
+---FRAG_WGSL---
+diagnostic(off, derivative_uniformity);
+diagnostic(off, chromium.unreachable_code);
+
+struct ViewMatrices_2 {
+  viewmat : mat4x4<f32>,
+  viewinv : mat4x4<f32>,
+  winmat : mat4x4<f32>,
+  wininv : mat4x4<f32>,
+}
+
+struct _view_buf_1 {
+  view_buf : array<ViewMatrices_2, 64u>,
+}
+
+@group(0u) @binding(3u) var<uniform> v_1 : _view_buf_1;
+
+struct SolidLightData {
+  direction : vec4<f32>,
+  specular_color : vec4<f32>,
+  diffuse_color_wrap : vec4<f32>,
+}
+
+struct WorldData {
+  viewport_size : vec2<f32>,
+  viewport_size_inv : vec2<f32>,
+  object_outline_color : vec4<f32>,
+  shadow_direction_vs : vec4<f32>,
+  shadow_focus : f32,
+  shadow_shift : f32,
+  shadow_mul : f32,
+  shadow_add : f32,
+  lights : array<SolidLightData, 4u>,
+  ambient_color : vec4<f32>,
+  cavity_sample_start : i32,
+  cavity_sample_end : i32,
+  cavity_sample_count_inv : f32,
+  cavity_jitter_scale : f32,
+  cavity_valley_factor : f32,
+  cavity_ridge_factor : f32,
+  cavity_attenuation : f32,
+  cavity_distance : f32,
+  curvature_ridge : f32,
+  curvature_valley : f32,
+  ui_scale : f32,
+  _pad0 : f32,
+  matcap_orientation : i32,
+  use_specular : u32,
+  xray_alpha : f32,
+  _pad1 : i32,
+  background_color : vec4<f32>,
+}
+
+struct _world_data {
+  world_data : WorldData,
+}
+
+@group(0u) @binding(4u) var<uniform> v_2 : _world_data;
+
+@group(0u) @binding(256u) var depth_tx_sampler : sampler;
+
+@group(0u) @binding(0u) var depth_tx_image : texture_2d<f32>;
+
+@group(0u) @binding(257u) var normal_tx_sampler : sampler;
+
+@group(0u) @binding(1u) var normal_tx_image : texture_2d<f32>;
+
+@group(0u) @binding(258u) var material_tx_sampler : sampler;
+
+@group(0u) @binding(2u) var material_tx_image : texture_2d<f32>;
+
+var<private> workbench_resolve_FragOut_color : vec4<f32>;
+
+fn main_inner(gl_FragCoord : vec4<f32>) {
+  v_3(gl_FragCoord);
+}
+
+struct ViewMatrices_1 {
+  viewmat : mat4x4<f32>,
+  viewinv : mat4x4<f32>,
+  winmat : mat4x4<f32>,
+  wininv : mat4x4<f32>,
+}
+
+fn v_4() -> ViewMatrices_1 {
+  var v_5 : ViewMatrices_1;
+  let v_6 = v_1.view_buf[0i];
+  v_5.viewmat = v_6.viewmat;
+  v_5.viewinv = v_6.viewinv;
+  v_5.winmat = v_6.winmat;
+  v_5.wininv = v_6.wininv;
+  return v_5;
+}
+
+fn v_7() -> bool {
+  return (v_4().winmat[3u].w == 0.0f);
+}
+
+fn v_8(vP : ptr<function, vec3<f32>>) -> vec3<f32> {
+  var v_9 : vec3<f32>;
+  if (v_7()) {
+    v_9 = normalize(-(*(vP)));
+  } else {
+    v_9 = vec3<f32>(0.0f, 0.0f, 1.0f);
+  }
+  return v_9;
+}
+
+fn v_10(ss_P : ptr<function, vec3<f32>>) -> vec3<f32> {
+  return ((*(ss_P) * 2.0f) - vec3<f32>(1.0f, 1.0f, 1.0f));
+}
+
+fn v_11(hs_P : ptr<function, vec4<f32>>) -> vec3<f32> {
+  let v_12 = (*(hs_P)).xyz;
+  let v_13 = (*(hs_P)).w;
+  return (v_12 / vec3<f32>(v_13, v_13, v_13));
+}
+
+fn v_14(ssP : ptr<function, vec3<f32>>) -> vec3<f32> {
+  var param : vec4<f32>;
+  let v_15 = v_4().wininv;
+  let v_16 = *(ssP);
+  param = (v_15 * vec4<f32>(v_16.x, v_16.y, v_16.z, 1.0f));
+  return v_11(&(param));
+}
+
+fn v_17(ssP : ptr<function, vec3<f32>>) -> vec3<f32> {
+  var param : vec3<f32>;
+  var param_1 : vec3<f32>;
+  param = *(ssP);
+  param_1 = v_10(&(param));
+  return v_14(&(param_1));
+}
+
+struct workbench_World {
+  _pad : i32,
+}
+
+fn v_18() -> workbench_World {
+  var r : workbench_World;
+  r._pad = 0i;
+  return r;
+}
+
+fn v_19() -> workbench_World {
+  var result : workbench_World;
+  result._pad = 0i;
+  return result;
+}
+
+fn v_20(enc : ptr<function, vec4<f32>>) -> vec3<f32> {
+  var fenc : vec2<f32>;
+  var f : f32;
+  var g : f32;
+  var n : vec3<f32>;
+  fenc = (((*(enc)).xy * 4.0f) - vec2<f32>(2.0f, 2.0f));
+  f = dot(fenc, fenc);
+  g = sqrt((1.0f - (f / 4.0f)));
+  let v_21 = (fenc * g);
+  n.x = v_21.x;
+  n.y = v_21.y;
+  n.z = (1.0f - (f / 2.0f));
+  return n;
+}
+
+fn v_22(data : ptr<function, f32>, v1 : ptr<function, f32>, v2 : ptr<function, f32>) {
+  var idata : i32;
+  idata = i32(*(data));
+  *(v1) = (f32((idata & 31i)) * 0.03225806355476379395f);
+  *(v2) = (f32((idata >> bitcast<u32>(5i))) * 0.14285714924335479736f);
+}
+
+struct workbench_Cavity {
+  _pad : i32,
+}
+
+fn v_23() -> workbench_Cavity {
+  var r : workbench_Cavity;
+  r._pad = 0i;
+  return r;
+}
+
+fn v_24(v : ptr<function, vec4<f32>>) -> vec4<f32> {
+  return bitcast<vec4<f32>>((vec4<i32>(2129606411i, 2129606411i, 2129606411i, 2129606411i) - bitcast<vec4<i32>>(*(v))));
+}
+
+fn v_25(spec_color : ptr<function, vec3<f32>>, roughness : ptr<function, f32>, NV : ptr<function, f32>) -> vec3<f32> {
+  var fresnel : f32;
+  fresnel = (exp2((-8.3500003814697265625f * *(NV))) * (1.0f - *(roughness)));
+  let v_26 = *(spec_color);
+  let v_27 = fresnel;
+  return mix(v_26, vec3<f32>(1.0f), vec3<f32>(v_27, v_27, v_27));
+}
+
+fn v_28(shininess : ptr<function, vec4<f32>>, spec_angle : ptr<function, vec4<f32>>, NL : ptr<function, vec4<f32>>) -> vec4<f32> {
+  var normalization_factor : vec4<f32>;
+  var spec_light : vec4<f32>;
+  normalization_factor = ((*(shininess) * 0.125f) + vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f));
+  spec_light = ((pow(*(spec_angle), *(shininess)) * *(NL)) * normalization_factor);
+  return spec_light;
+}
+
+fn v_29(NL : ptr<function, vec4<f32>>, w : ptr<function, vec4<f32>>) -> vec4<f32> {
+  var w_1 : vec4<f32>;
+  var denom : vec4<f32>;
+  var param : vec4<f32>;
+  w_1 = (*(w) + vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f));
+  param = (w_1 * w_1);
+  denom = v_24(&(param));
+  return clamp(((*(NL) + *(w)) * denom), vec4<f32>(0.0f, 0.0f, 0.0f, 0.0f), vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f));
+}
+
+fn v_30(world : workbench_World, base_color : ptr<function, vec3<f32>>, roughness : ptr<function, f32>, metallic : ptr<function, f32>, N : ptr<function, vec3<f32>>, I : ptr<function, vec3<f32>>) -> vec3<f32> {
+  var diffuse_color : vec3<f32>;
+  var specular_color : vec3<f32>;
+  var specular_light : vec3<f32>;
+  var diffuse_light : vec3<f32>;
+  var wrap : vec4<f32>;
+  var R : vec3<f32>;
+  var L : vec3<f32>;
+  var half_dir : vec3<f32>;
+  var wrapped_NL : vec4<f32>;
+  var spec_angle : vec4<f32>;
+  var spec_NL : vec4<f32>;
+  var L_1 : vec3<f32>;
+  var half_dir_1 : vec3<f32>;
+  var L_2 : vec3<f32>;
+  var half_dir_2 : vec3<f32>;
+  var L_3 : vec3<f32>;
+  var half_dir_3 : vec3<f32>;
+  var gloss : vec4<f32>;
+  var shininess : vec4<f32>;
+  var spec_light : vec4<f32>;
+  var param : vec4<f32>;
+  var param_2 : vec4<f32>;
+  var param_3 : vec4<f32>;
+  var w : vec4<f32>;
+  var spec_env : vec4<f32>;
+  var param_4 : vec4<f32>;
+  var param_5 : vec4<f32>;
+  var NV : f32;
+  var param_6 : vec3<f32>;
+  var param_7 : f32;
+  var param_8 : f32;
+  var diff_NL : vec4<f32>;
+  var diff_light : vec4<f32>;
+  var param_9 : vec4<f32>;
+  var param_10 : vec4<f32>;
+  var spec_energy : f32;
+  if ((v_2.world_data.use_specular != 0u)) {
+    let v_31 = *(base_color);
+    let v_32 = *(metallic);
+    diffuse_color = mix(v_31, vec3<f32>(), vec3<f32>(v_32, v_32, v_32));
+    let v_33 = *(base_color);
+    let v_34 = *(metallic);
+    specular_color = mix(vec3<f32>(0.05000000074505805969f), v_33, vec3<f32>(v_34, v_34, v_34));
+  } else {
+    diffuse_color = *(base_color);
+    specular_color = vec3<f32>();
+  }
+  specular_light = v_2.world_data.ambient_color.xyz;
+  diffuse_light = v_2.world_data.ambient_color.xyz;
+  wrap = vec4<f32>(v_2.world_data.lights[0i].diffuse_color_wrap.w, v_2.world_data.lights[1i].diffuse_color_wrap.w, v_2.world_data.lights[2i].diffuse_color_wrap.w, v_2.world_data.lights[3i].diffuse_color_wrap.w);
+  if ((v_2.world_data.use_specular != 0u)) {
+    R = -(reflect(*(I), *(N)));
+    L = v_2.world_data.lights[0i].direction.xyz;
+    half_dir = normalize((L + *(I)));
+    wrapped_NL.x = dot(L, R);
+    spec_angle.x = clamp(dot(half_dir, *(N)), 0.0f, 1.0f);
+    spec_NL.x = clamp(dot(L, *(N)), 0.0f, 1.0f);
+    L_1 = v_2.world_data.lights[1i].direction.xyz;
+    half_dir_1 = normalize((L_1 + *(I)));
+    wrapped_NL.y = dot(L_1, R);
+    spec_angle.y = clamp(dot(half_dir_1, *(N)), 0.0f, 1.0f);
+    spec_NL.y = clamp(dot(L_1, *(N)), 0.0f, 1.0f);
+    L_2 = v_2.world_data.lights[2i].direction.xyz;
+    half_dir_2 = normalize((L_2 + *(I)));
+    wrapped_NL.z = dot(L_2, R);
+    spec_angle.z = clamp(dot(half_dir_2, *(N)), 0.0f, 1.0f);
+    spec_NL.z = clamp(dot(L_2, *(N)), 0.0f, 1.0f);
+    L_3 = v_2.world_data.lights[3i].direction.xyz;
+    half_dir_3 = normalize((L_3 + *(I)));
+    wrapped_NL.w = dot(L_3, R);
+    spec_angle.w = clamp(dot(half_dir_3, *(N)), 0.0f, 1.0f);
+    spec_NL.w = clamp(dot(L_3, *(N)), 0.0f, 1.0f);
+    let v_35 = (1.0f - *(roughness));
+    gloss = vec4<f32>(v_35, v_35, v_35, v_35);
+    let v_36 = (vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f) - wrap);
+    gloss = (gloss * v_36);
+    shininess = exp2(((gloss * 10.0f) + vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f)));
+    param = shininess;
+    param_2 = spec_angle;
+    param_3 = spec_NL;
+    spec_light = v_28(&(param), &(param_2), &(param_3));
+    let v_37 = wrap;
+    let v_38 = *(roughness);
+    w = mix(v_37, vec4<f32>(1.0f), vec4<f32>(v_38, v_38, v_38, v_38));
+    param_4 = wrapped_NL;
+    param_5 = w;
+    spec_env = v_29(&(param_4), &(param_5));
+    spec_light = mix(spec_light, spec_env, (wrap * wrap));
+    let v_39 = spec_light.x;
+    let v_40 = (v_2.world_data.lights[0i].specular_color.xyz * v_39);
+    specular_light = (specular_light + v_40);
+    let v_41 = spec_light.y;
+    let v_42 = (v_2.world_data.lights[1i].specular_color.xyz * v_41);
+    specular_light = (specular_light + v_42);
+    let v_43 = spec_light.z;
+    let v_44 = (v_2.world_data.lights[2i].specular_color.xyz * v_43);
+    specular_light = (specular_light + v_44);
+    let v_45 = spec_light.w;
+    let v_46 = (v_2.world_data.lights[3i].specular_color.xyz * v_45);
+    specular_light = (specular_light + v_46);
+    NV = clamp(dot(*(N), *(I)), 0.0f, 1.0f);
+    param_6 = specular_color;
+    param_7 = *(roughness);
+    param_8 = NV;
+    specular_color = v_25(&(param_6), &(param_7), &(param_8));
+  }
+  let v_47 = specular_color;
+  specular_light = (specular_light * v_47);
+  diff_NL.x = dot(v_2.world_data.lights[0i].direction.xyz, *(N));
+  diff_NL.y = dot(v_2.world_data.lights[1i].direction.xyz, *(N));
+  diff_NL.z = dot(v_2.world_data.lights[2i].direction.xyz, *(N));
+  diff_NL.w = dot(v_2.world_data.lights[3i].direction.xyz, *(N));
+  param_9 = diff_NL;
+  param_10 = wrap;
+  diff_light = v_29(&(param_9), &(param_10));
+  let v_48 = diff_light.x;
+  let v_49 = (v_2.world_data.lights[0i].diffuse_color_wrap.xyz * v_48);
+  diffuse_light = (diffuse_light + v_49);
+  let v_50 = diff_light.y;
+  let v_51 = (v_2.world_data.lights[1i].diffuse_color_wrap.xyz * v_50);
+  diffuse_light = (diffuse_light + v_51);
+  let v_52 = diff_light.z;
+  let v_53 = (v_2.world_data.lights[2i].diffuse_color_wrap.xyz * v_52);
+  diffuse_light = (diffuse_light + v_53);
+  let v_54 = diff_light.w;
+  let v_55 = (v_2.world_data.lights[3i].diffuse_color_wrap.xyz * v_54);
+  diffuse_light = (diffuse_light + v_55);
+  spec_energy = dot(specular_color, vec3<f32>(0.33333000540733337402f));
+  let v_56 = (diffuse_color * (1.0f - spec_energy));
+  diffuse_light = (diffuse_light * v_56);
+  return (diffuse_light + specular_light);
+}
+
+struct workbench_resolve_Resources {
+  world : workbench_World,
+  cavity : workbench_Cavity,
+}
+
+fn v_57() -> workbench_resolve_Resources {
+  var r : workbench_resolve_Resources;
+  r.world = v_18();
+  r.cavity = v_23();
+  return r;
+}
+
+fn v_3(gl_FragCoord : vec4<f32>) {
+  var srt : workbench_resolve_Resources;
+  var uv : vec2<f32>;
+  var depth : f32;
+  var P : vec3<f32>;
+  var param : vec3<f32>;
+  var V : vec3<f32>;
+  var param_11 : vec3<f32>;
+  var N : vec3<f32>;
+  var param_12 : vec4<f32>;
+  var mat_data : vec4<f32>;
+  var base_color : vec3<f32>;
+  var color : vec4<f32>;
+  var roughness : f32;
+  var metallic : f32;
+  var param_13 : f32;
+  var param_14 : f32;
+  var param_15 : f32;
+  var param_16 : vec3<f32>;
+  var param_17 : f32;
+  var param_18 : f32;
+  var param_19 : vec3<f32>;
+  var param_20 : vec3<f32>;
+  var cavity : f32;
+  var edges : f32;
+  var curvature : f32;
+  srt = v_57();
+  _ = depth_tx_sampler;
+  uv = (gl_FragCoord.xy / vec2<f32>(vec2<i32>(textureDimensions(depth_tx_image, 0i))));
+  depth = textureSample(depth_tx_image, depth_tx_sampler, uv).x;
+  if ((depth == 1.0f)) {
+    discard;
+    return;
+  }
+  let v_58 = uv;
+  param = vec3<f32>(v_58.x, v_58.y, 0.5f);
+  P = v_17(&(param));
+  param_11 = P;
+  V = v_8(&(param_11));
+  param_12 = textureSample(normal_tx_image, normal_tx_sampler, uv);
+  N = v_20(&(param_12));
+  mat_data = textureSample(material_tx_image, material_tx_sampler, uv);
+  base_color = mat_data.xyz;
+  color = vec4<f32>(1.0f);
+  roughness = 0.0f;
+  metallic = 0.0f;
+  param_13 = mat_data.w;
+  param_14 = roughness;
+  param_15 = metallic;
+  v_22(&(param_13), &(param_14), &(param_15));
+  roughness = param_14;
+  metallic = param_15;
+  let v_59 = v_19();
+  param_16 = base_color;
+  param_17 = roughness;
+  param_18 = metallic;
+  param_19 = N;
+  param_20 = V;
+  let v_60 = v_30(v_59, &(param_16), &(param_17), &(param_18), &(param_19), &(param_20));
+  color.x = v_60.x;
+  color.y = v_60.y;
+  color.z = v_60.z;
+  cavity = 0.0f;
+  edges = 0.0f;
+  curvature = 0.0f;
+  let v_61 = clamp((((1.0f - cavity) * (1.0f + edges)) * (1.0f + curvature)), 0.0f, 4.0f);
+  let v_62 = (color.xyz * v_61);
+  color.x = v_62.x;
+  color.y = v_62.y;
+  color.z = v_62.z;
+  workbench_resolve_FragOut_color = color;
+}
+
+@fragment
+fn main(@builtin(position) gl_FragCoord : vec4<f32>) -> @location(0u) vec4<f32> {
+  main_inner(gl_FragCoord);
+  return workbench_resolve_FragOut_color;
+}
+
+---END_FRAG_WGSL---
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGB10A2Unorm does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage textures (5) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (11) in the Vertex stage exceeds the maximum per-stage limit (8).
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[3]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::ReadWrite is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[4]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::ReadOnly.
+ - While validating entries[5]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[9]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGBA16Float does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[1]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGBA16Float does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[1]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[6]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGB10A2Unorm does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (9) in the Compute stage exceeds the maximum per-stage limit (8). This adapter supports a higher maxStorageBuffersPerShaderStage of 10, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[6]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R8Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[3]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R8Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[3]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGBA32Float does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[3]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : osd_patch_basis.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGB10A2Unorm does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RGB10A2Unorm does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadOnly.
+ - While validating entries[13]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (9) in the Fragment stage exceeds the maximum per-stage limit (8). This adapter supports a higher maxStorageBuffersPerShaderStage of 10, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[2]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[3]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[4]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R8Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R8Sint does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage textures (7) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::R16Float does not support storage texture access StorageTextureAccess::WriteOnly.
+ - While validating entries[0]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Storage texture binding with StorageTextureAccess::WriteOnly is used with a visibility (ShaderStage::(Vertex|Fragment)) that contains ShaderStage::Vertex.
+ - While validating entries[11]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+

@@ -476,3 +476,24 @@
 # census held 149 PASS / 7 FAIL / 2 CRASH + static_shaders 956/973. See
 # notes/gpu-r44-workbench-resolve.md.
 0123-gpu-webgpu-push-constant-array-std140-stride.patch
+# 0122: bind-unit create-info-slot namespace (M4 r44r2, the F12 BindGroup entry-count family).
+# The workbench deferred resolve binds gbuffer textures BY NAME and matcap BY FIXED create-info
+# slot (WB_MATCAP_SLOT=2); on the web backend name resolution returned the DENSE binding
+# (build_interface in->location = dense) while fixed-slot binds used the create-info slot, so
+# the two collided in the context-wide bind maps whenever a name-resolved dense binding equalled
+# a fixed create-info slot (material dense 2 == matcap slot 2 -> matcap destroyed, material routed
+# onto matcap's b3 -> Dawn 6-vs-10 -> black F12 matcap render; the studio_material compute 1-vs-4
+# is the same class). Vulkan never sees this because vk interface locations ARE create-info slots.
+# Fix (vk-faithful, backend-only): build_interface returns the CREATE-INFO SLOT for UBO/SSBO/
+# SAMPLER/IMAGE (in->location = in->binding = res.slot); the WGSL/BGL numbering stays DENSE,
+# translated at emit by remap_*_binding (already keyed by create-info slot). Every legitimate bind
+# is now MAPPED (pass 0, claim-first), so the dense-namespace sampler stale-skip is removed; the
+# buffer-SSBO emit remaps texel buffers (SAMPLER-declared) via the sampler map. Distinct from the
+# reverted M4.T15 remap-skip, which changed one side only (frontend still passed dense) and
+# regressed 4 compute tests. Census HELD 149 PASS / 7 FAIL / 2 CRASH + static_shaders 956/973
+# (compute/vertex tripwires clean). M6 workbench: light_matcap + light_matcap_no_specular (6v10)
+# and light_studio_material (1v4) FAIL->PASS with matching pixels. The remaining bindgroup-6v7
+# family is a DISTINCT pre-existing bug (workbench prepass mesh: the materials SSBO is in the WGSL
+# but not the create-info resource list -> imap undercounts -> pc-binding collides, b6 unbound),
+# NOT this namespace collision; flagged for follow-up. See notes/gpu-r44-r2-bind-namespace.md.
+0122-gpu-webgpu-bind-unit-create-info-slot-namespace.patch

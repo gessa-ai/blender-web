@@ -1,0 +1,21 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_colorspace_acescg_blackbody",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/colorspace/acescg_blackbody.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.039,0.037,0.034) max=(0.459,0.469,0.474)",
+  "oiiotool_rc": 1,
+  "mean_error": "0.0192027",
+  "max_error": "0.0627450942993164",
+  "pct_over": "8033 pixels (49%) over 0.016",
+  "verdict": "FAIL",
+  "cluster": "pixel-delta"
+}

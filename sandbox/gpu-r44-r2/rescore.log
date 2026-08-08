@@ -1,0 +1,42 @@
+== RUN workbench/workbench/aa-disabled ==
+   -> RENDER-BLACK [render-bug:bindgroup-6v7] mean= gpuErr=42 sig=bindgroup-6v7
+== RUN workbench/workbench/aa-single-pass ==
+   -> RENDER-BLACK [render-bug:bindgroup-6v7] mean= gpuErr=42 sig=bindgroup-6v7
+== RUN workbench/workbench/dof ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.187938 gpuErr=432 sig=bindgroup-6v7
+== RUN workbench/workbench/in_front ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.191675 gpuErr=336 sig=bindgroup-6v7
+== RUN workbench/workbench/in_front_dof ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.205848 gpuErr=432 sig=bindgroup-6v7
+== RUN workbench/workbench/light_flat_attribute ==
+   -> PASS [pixel-pass] mean=0.000227625 gpuErr=0 sig=
+== RUN workbench/workbench/light_flat_custom ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.16678 gpuErr=456 sig=bindgroup-6v7
+== RUN workbench/workbench/light_flat_random ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.261733 gpuErr=456 sig=bindgroup-6v7
+== RUN workbench/workbench/light_matcap ==
+   -> PASS [pixel-pass] mean=0.000819946 gpuErr=0 sig=
+== RUN workbench/workbench/light_matcap_no_specular ==
+   -> PASS [pixel-pass] mean=0.000783963 gpuErr=0 sig=
+== RUN workbench/workbench/light_studio_material ==
+   -> PASS [pixel-pass] mean=0.000785399 gpuErr=18 sig=bindgroup-1v4
+== RUN workbench/workbench/light_studio_object ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.147876 gpuErr=456 sig=bindgroup-6v7
+== RUN workbench/workbench/light_studio_object_no_specular ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.100887 gpuErr=456 sig=bindgroup-6v7
+== RUN workbench/workbench/x-ray ==
+   -> FAIL [render-bug:gpu-validation] mean=0.0120837 gpuErr=81 sig=gpu-validation
+== RUN workbench/workbench/x-ray_0 ==
+   -> FAIL [render-bug:gpu-validation] mean=0.057207 gpuErr=81 sig=gpu-validation
+== RUN workbench/workbench/x-ray_1 ==
+   -> FAIL [render-bug:bindgroup-6v7] mean=0.120927 gpuErr=336 sig=bindgroup-6v7
+== RUN workbench/workbench/x-ray_back_cull ==
+   -> FAIL [render-bug:gpu-validation] mean=0.0112013 gpuErr=81 sig=gpu-validation
+== RUN workbench/workbench/x-ray_in_front ==
+   -> FAIL [render-bug:gpu-validation] mean=0.0112645 gpuErr=82 sig=gpu-validation
+== RUN workbench/colorspace/acescg_blackbody ==
+   -> FAIL [pixel-delta] mean=0.0192027 gpuErr=0 sig=
+== RUN workbench/colorspace/rec2020_lights ==
+   -> FAIL [render-bug:gpu-validation] mean=0.107421 gpuErr=37 sig=gpu-validation
+== r44r2 workbench re-score complete ==
+RESCORE_DONE rc=0 16:30:18

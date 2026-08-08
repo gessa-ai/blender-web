@@ -1,0 +1,18 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_workbench_aa-disabled",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/workbench/aa-disabled.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 42,
+  "gpu_sig": "bindgroup-6v7",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=0.0000 min=(0.000,0.000,0.000) max=(0.000,0.000,0.000)",
+  "verdict": "RENDER-BLACK",
+  "cluster": "render-bug:bindgroup-6v7",
+  "note": "render-result all-zero; gpuErrors=42"
+}

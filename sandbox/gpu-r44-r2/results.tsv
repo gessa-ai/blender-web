@@ -1,0 +1,21 @@
+# engine	dir	test	verdict	cluster	mean_err	max_err	pct_over	gpuErr	gpu_sig
+workbench	workbench	aa-disabled	RENDER-BLACK	render-bug:bindgroup-6v7				42	bindgroup-6v7
+workbench	workbench	aa-single-pass	RENDER-BLACK	render-bug:bindgroup-6v7				42	bindgroup-6v7
+workbench	workbench	dof	FAIL	render-bug:bindgroup-6v7	0.187938	0.7921568155288696	13494 pixels (82.4%) over 0.016	432	bindgroup-6v7
+workbench	workbench	in_front	FAIL	render-bug:bindgroup-6v7	0.191675	0.7999999523162842	11414 pixels (69.7%) over 0.016	336	bindgroup-6v7
+workbench	workbench	in_front_dof	FAIL	render-bug:bindgroup-6v7	0.205848	0.7921569347381592	13544 pixels (82.7%) over 0.016	432	bindgroup-6v7
+workbench	workbench	light_flat_attribute	PASS	pixel-pass	0.000227625	0.003921627998352051	0 pixels (0%) over 0.016	0	
+workbench	workbench	light_flat_custom	FAIL	render-bug:bindgroup-6v7	0.16678	0.6941176652908325	11385 pixels (69.5%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_flat_random	FAIL	render-bug:bindgroup-6v7	0.261733	0.768627405166626	11388 pixels (69.5%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_matcap	PASS	pixel-pass	0.000819946	0.0313725471496582	29 pixels (0.177%) over 0.016	0	
+workbench	workbench	light_matcap_no_specular	PASS	pixel-pass	0.000783963	0.023529410362243652	9 pixels (0.0549%) over 0.016	0	
+workbench	workbench	light_studio_material	PASS	pixel-pass	0.000785399	0.14901959896087646	40 pixels (0.244%) over 0.016	18	bindgroup-1v4
+workbench	workbench	light_studio_object	FAIL	render-bug:bindgroup-6v7	0.147876	0.7882353067398071	11257 pixels (68.7%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_studio_object_no_specular	FAIL	render-bug:bindgroup-6v7	0.100887	0.615686297416687	10881 pixels (66.4%) over 0.016	456	bindgroup-6v7
+workbench	workbench	x-ray	FAIL	render-bug:gpu-validation	0.0120838	0.3294118046760559	3136 pixels (19.1%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_0	FAIL	render-bug:gpu-validation	0.057207	0.6705882549285889	3960 pixels (24.2%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_1	FAIL	render-bug:bindgroup-6v7	0.120927	0.768627405166626	11255 pixels (68.7%) over 0.016	336	bindgroup-6v7
+workbench	workbench	x-ray_back_cull	FAIL	render-bug:gpu-validation	0.0112011	0.301960825920105	3095 pixels (18.9%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_in_front	FAIL	render-bug:gpu-validation	0.0112645	0.301960825920105	3093 pixels (18.9%) over 0.016	82	gpu-validation
+workbench	colorspace	acescg_blackbody	FAIL	pixel-delta	0.0192027	0.0627450942993164	8033 pixels (49%) over 0.016	0	
+workbench	colorspace	rec2020_lights	FAIL	render-bug:gpu-validation	0.107421	0.1450980305671692	16384 pixels (100%) over 0.016	37	gpu-validation

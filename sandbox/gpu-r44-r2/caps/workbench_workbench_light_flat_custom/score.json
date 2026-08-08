@@ -1,0 +1,21 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_workbench_light_flat_custom",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/workbench/light_flat_custom.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 456,
+  "gpu_sig": "bindgroup-6v7",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.008,0.015,0.022) max=(0.049,0.087,0.132)",
+  "oiiotool_rc": 1,
+  "mean_error": "0.16678",
+  "max_error": "0.6941176652908325",
+  "pct_over": "11385 pixels (69.5%) over 0.016",
+  "verdict": "FAIL",
+  "cluster": "render-bug:bindgroup-6v7"
+}

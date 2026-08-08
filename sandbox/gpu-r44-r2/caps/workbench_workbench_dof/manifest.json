@@ -1,0 +1,61 @@
+{
+  "mode": "boot",
+  "hostBlend": "/Users/paws/blender-web/upstream/tests/files/render/workbench/dof.blend",
+  "engine": "BLENDER_WORKBENCH",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 176665
+  },
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "pageCrashed": false,
+  "gpuErrorCount": 432,
+  "kicks": 2,
+  "dones": 2,
+  "caps": [
+    {
+      "file": "bw_readback_0.bin",
+      "seq": 0,
+      "magic": "BWRB",
+      "ver": 1,
+      "w": 128,
+      "hgt": 128,
+      "fmt": 40,
+      "texel": 8,
+      "rowb": 1024,
+      "dbytes": 131072,
+      "len": 131104
+    },
+    {
+      "file": "bw_readback_1.bin",
+      "seq": 1,
+      "magic": "BWRB",
+      "ver": 1,
+      "w": 128,
+      "hgt": 128,
+      "fmt": 49,
+      "texel": 4,
+      "rowb": 512,
+      "dbytes": 65536,
+      "len": 65568
+    }
+  ],
+  "marks": [],
+  "doneLines": [
+    "BW_READBACK_DONE seq=0 label=texread_0 file=/tmp/bw_readback_0.bin w=128 h=128 fmt=40 texel=8 pitch=1024 bytes=131072 status=ok",
+    "BW_READBACK_DONE seq=1 label=texread_1 file=/tmp/bw_readback_1.bin w=128 h=128 fmt=49 texel=4 pitch=512 bytes=65536 status=ok"
+  ],
+  "gpuErrorSample": [
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (6) did not match the expected number of entries (7) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 1, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 2, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 3, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 4, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 5, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 6, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [RenderPassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])\n",
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (6) did not match the expected number of entries (7) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 1, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 2, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 3, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 4, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 5, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 6, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [RenderPassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])\n",
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (6) did not match the expected number of entries (7) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 1, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 2, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 3, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 4, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 5, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::ReadOnlyStorage, minBindingSize: 0, hasDynamicOffset: 0} }, { binding: 6, visibility: ShaderStage::(Vertex|Fragment), buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [RenderPassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n"
+  ]
+}

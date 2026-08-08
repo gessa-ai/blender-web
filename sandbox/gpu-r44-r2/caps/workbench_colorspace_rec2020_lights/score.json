@@ -1,0 +1,21 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_colorspace_rec2020_lights",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/colorspace/rec2020_lights.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 37,
+  "gpu_sig": "gpu-validation",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.032,0.030,0.027) max=(0.463,0.474,0.478)",
+  "oiiotool_rc": 1,
+  "mean_error": "0.107421",
+  "max_error": "0.1450980305671692",
+  "pct_over": "16384 pixels (100%) over 0.016",
+  "verdict": "FAIL",
+  "cluster": "render-bug:gpu-validation"
+}

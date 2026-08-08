@@ -1,0 +1,21 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_workbench_light_matcap_no_specular",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/workbench/light_matcap_no_specular.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.024,0.024,0.029) max=(0.951,0.749,0.599)",
+  "oiiotool_rc": 0,
+  "mean_error": "0.000783963",
+  "max_error": "0.023529410362243652",
+  "pct_over": "9 pixels (0.0549%) over 0.016",
+  "verdict": "PASS",
+  "cluster": "pixel-pass"
+}

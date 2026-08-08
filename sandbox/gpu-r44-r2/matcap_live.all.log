@@ -1,0 +1,14 @@
+Failed to load resource: the server responded with a status of 404 (File not found)
+/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 83.8 ms
+WGPUWeb: presentBackbuffer frame 0 — surface 1280x720 -> canvas (offscreen blit)
+Unable to find the Python binary, the multiprocessing module may not be functional!
+BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+WGPUWeb: presentBackbuffer frame 1 — surface 1280x720 -> canvas (offscreen blit)
+[bw-r44r2] matcap set light=MATCAP studio=basic_bright.exr
+<string>:31: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/bw_diag_cmd' mode='w' encoding='utf-8'>
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[bw-r44r2] scheduled viewport_color readback
+BW_READBACK_KICK seq=0 label=viewport_color w=1280 h=720 fmt=27 texel=4
+BW_READBACK_DONE seq=0 label=viewport_color file=/tmp/bw_readback_0.bin w=1280 h=720 fmt=27 texel=4 pitch=5120 bytes=3686400 status=ok

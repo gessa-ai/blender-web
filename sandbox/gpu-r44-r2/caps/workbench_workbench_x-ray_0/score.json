@@ -1,0 +1,21 @@
+{
+  "capdir": "/Users/paws/blender-web/sandbox/gpu-r44-r2/caps/workbench_workbench_x-ray_0",
+  "golden": "/Users/paws/blender-web/sandbox/m6-prep/goldens/workbench/workbench/x-ray_0.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 81,
+  "gpu_sig": "gpu-validation",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.049,0.087,0.132) max=(0.049,0.087,0.132)",
+  "oiiotool_rc": 1,
+  "mean_error": "0.057207",
+  "max_error": "0.6705882549285889",
+  "pct_over": "3960 pixels (24.2%) over 0.016",
+  "verdict": "FAIL",
+  "cluster": "render-bug:gpu-validation"
+}

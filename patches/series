@@ -438,3 +438,21 @@
 # gpu-comp-i10-vertex-format); the web gbuffer -Y face normal flips +Y->-Y; whole-window
 # parity 11.4%->11% (mean 0.00874->0.00825), cube face ordering now matches native.
 0119-gpu-webgpu-i10-signed-normal-snorm8.patch
+# 0121: window-direct viewport/scissor (M4 r39, the window-direct / viewport-edge family).
+# The WebGPU single-pass + immediate DRAW paths never applied SetViewport/SetScissorRect
+# (the Vulkan port source does: vk_framebuffer vk_viewports_append / render_area_update).
+# Region content drawn into a region-sized offscreen (viewport == whole target) is fine, so
+# it was invisible - but wm_draw_window_onscreen draws region overlays
+# (wm_region_draw_overlay -> ED_*_draw_overlay, e.g. the timeline current-frame indicator)
+# and paint cursors STRAIGHT to the window backbuffer with a region sub-rect set via
+# wmViewport(region->winrct)/GPU_scissor, so that region-local geometry transformed against
+# the FULL window and landed off-target/unconfined. begin_load_pass now applies the
+# frontend viewport/scissor for the window backbuffer only, converting stored GL bottom-
+# origin Y to the WebGPU top-origin backbuffer with the 0115 flip (y' = H - (y + h));
+# offscreen targets and the native/headless gpu gate (no window backbuffer) are untouched,
+# so the fix is inert on native and the census cannot regress. Fixes the bottom-band (r36
+# DEFECT A - dtxl_color alpha proven CLEAN by BW_DIAG readback, r36's negative-alpha
+# hypothesis falsified), the missing timeline current-frame indicator (r36 DEFECT B), and
+# the lower-left blue spike (r37 DEFECT C); whole-window parity 11.0%->2.19%. See
+# notes/gpu-r39-window-direct.md.
+0121-gpu-webgpu-window-direct-viewport-scissor.patch

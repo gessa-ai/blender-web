@@ -1,0 +1,280 @@
+Failed to load resource: the server responded with a status of 404 (File not found)
+/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 17.2 ms
+WGPUWeb: presentBackbuffer frame 0 — surface 1600x900 -> canvas (offscreen blit)
+Unable to find the Python binary, the multiprocessing module may not be functional!
+BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+[bw-r38-ocio-construct] path=LIBOCIO from=Linear Rec.709 view=Standard display=sRGB look= curve_map=0 hdr_buf=0 hdr_disp=0
+[bw-r38-ocio-src-begin] libocio fragment_source bytes=1188 <<<
+
+// Declaration of the OCIO shader function
+
+vec4 OCIO_to_scene_linear(vec4 inPixel)
+{
+  vec4 outColor = inPixel;
+
+  return outColor;
+}
+
+
+// Declaration of the OCIO shader function
+
+vec4 OCIO_to_display(vec4 inPixel)
+{
+  vec4 outColor = inPixel;
+  
+  // Add Gamma 'monCurveRev' processing
+  
+  {
+    vec4 breakPnt = vec4(0.00303993467, 0.00303993467, 0.00303993467, 1.);
+    vec4 slope = vec4(12.9232101, 12.9232101, 12.9232101, 1.);
+    vec4 scale = vec4(1.05499995, 1.05499995, 1.05499995, 1.00000095);
+    vec4 offset = vec4(0.0549999997, 0.0549999997, 0.0549999997, 9.99999997e-07);
+    vec4 gamma = vec4(0.416666657, 0.416666657, 0.416666657, 0.999998987);
+    vec4 isAboveBreak = vec4(greaterThan( outColor, breakPnt));
+    vec4 linSeg = outColor * slope;
+    vec4 powSeg = pow( max( vec4(0., 0., 0., 0.), outColor ), gamma ) * scale - offset;
+    vec4 res = isAboveBreak * powSeg + ( vec4(1., 1., 1., 1.) - isAboveBreak ) * linSeg;
+    outColor.rgb = vec3(res.x, res.y, res.z);
+    outColor.a = res.w;
+  }
+  
+  // Add Range processing
+  
+  {
+    outColor.rgb = max(vec3(0., 0., 0.), outColor.rgb);
+    outColor.rgb = min(vec3(1., 1., 1.), outColor.rgb);
+  }
+
+  return outColor;
+}
+
+
+[bw-r38-ocio-src-end] >>>
+[bw-r38-wgsl-begin] name=OCIO_Display frag_wgsl_bytes=6506 <<<
+diagnostic(off, derivative_uniformity);
+diagnostic(off, chromium.unreachable_code);
+
+struct OCIO_GPUParameters_1 {
+  dither : f32,
+  exponent : f32,
+  opacity : f32,
+  use_predivide : u32,
+  do_overlay_merge : u32,
+  use_hdr_display : u32,
+  _pad0 : i32,
+  _pad1 : i32,
+  scene_linear_matrix : mat4x4<f32>,
+}
+
+struct _parameters_1 {
+  parameters : OCIO_GPUParameters_1,
+}
+
+@group(0u) @binding(2u) var<uniform> v_1 : _parameters_1;
+
+@group(0u) @binding(256u) var image_texture_sampler : sampler;
+
+@group(0u) @binding(0u) var image_texture_image : texture_2d<f32>;
+
+@group(0u) @binding(257u) var overlay_texture_sampler : sampler;
+
+@group(0u) @binding(1u) var overlay_texture_image : texture_2d<f32>;
+
+var<private> fragColor : vec4<f32>;
+
+struct constants_1 {
+  ModelViewProjectionMatrix : mat4x4<f32>,
+}
+
+@group(0u) @binding(3u) var<uniform> v_2 : constants_1;
+
+fn main_inner(texCoord_interp : vec2<f32>) {
+  var col : vec4<f32>;
+  var col_overlay : vec4<f32>;
+  var param : vec4<f32>;
+  var param_1 : vec4<f32>;
+  col = textureSample(image_texture_image, image_texture_sampler, texCoord_interp);
+  col_overlay = textureSample(overlay_texture_image, overlay_texture_sampler, texCoord_interp);
+  param = col;
+  param_1 = col_overlay;
+  fragColor = v_3(&(param), &(param_1), texCoord_interp);
+}
+
+fn v_4(inPixel : ptr<function, vec4<f32>>) -> vec4<f32> {
+  var outColor : vec4<f32>;
+  outColor = *(inPixel);
+  return outColor;
+}
+
+fn v_5(inPixel : ptr<function, vec4<f32>>) -> vec4<f32> {
+  var outColor : vec4<f32>;
+  var breakPnt : vec4<f32>;
+  var slope : vec4<f32>;
+  var scale : vec4<f32>;
+  var offset : vec4<f32>;
+  var gamma : vec4<f32>;
+  var isAboveBreak : vec4<f32>;
+  var linSeg : vec4<f32>;
+  var powSeg : vec4<f32>;
+  var res : vec4<f32>;
+  outColor = *(inPixel);
+  breakPnt = vec4<f32>(0.0030399346724152565f, 0.0030399346724152565f, 0.0030399346724152565f, 1.0f);
+  slope = vec4<f32>(12.92321014404296875f, 12.92321014404296875f, 12.92321014404296875f, 1.0f);
+  scale = vec4<f32>(1.05499994754791259766f, 1.05499994754791259766f, 1.05499994754791259766f, 1.00000095367431640625f);
+  offset = vec4<f32>(0.05499999970197677612f, 0.05499999970197677612f, 0.05499999970197677612f, 0.00000099999999747524f);
+  gamma = vec4<f32>(0.4166666567325592041f, 0.4166666567325592041f, 0.4166666567325592041f, 0.99999898672103881836f);
+  isAboveBreak = select(vec4<f32>(), vec4<f32>(1.0f), (outColor > breakPnt));
+  linSeg = (outColor * slope);
+  powSeg = ((pow(max(vec4<f32>(), outColor), gamma) * scale) - offset);
+  res = ((isAboveBreak * powSeg) + ((vec4<f32>(1.0f) - isAboveBreak) * linSeg));
+  let v_6 = vec3<f32>(res.x, res.y, res.z);
+  outColor.x = v_6.x;
+  outColor.y = v_6.y;
+  outColor.z = v_6.z;
+  outColor.w = res.w;
+  let v_7 = max(vec3<f32>(), outColor.xyz);
+  outColor.x = v_7.x;
+  outColor.y = v_7.y;
+  outColor.z = v_7.z;
+  let v_8 = min(vec3<f32>(1.0f), outColor.xyz);
+  outColor.x = v_8.x;
+  outColor.y = v_8.y;
+  outColor.z = v_8.z;
+  return outColor;
+}
+
+fn v_9(x : ptr<function, vec2<u32>>) -> f32 {
+  var q : vec2<u32>;
+  var n : u32;
+  q = (vec2<u32>(1103515245u, 1103515245u) * ((*(x) >> vec2<u32>(1u, 1u)) ^ (*(x)).yx));
+  n = (1103515245u * (q.x ^ (q.y >> 3u)));
+  return (f32(n) * 0.00000000023283064365f);
+}
+
+fn v_10(co : ptr<function, vec2<u32>>) -> f32 {
+  var v : f32;
+  var param : vec2<u32>;
+  param = *(co);
+  v = v_9(&(param));
+  v = ((v * 2.0f) - 1.0f);
+  v = (sign(v) * (1.0f - sqrt((1.0f - abs(v)))));
+  return v;
+}
+
+fn v_11(col : ptr<function, vec4<f32>>, uv : ptr<function, vec2<u32>>) -> vec4<f32> {
+  var param : vec2<u32>;
+  param = *(uv);
+  let v_12 = ((v_10(&(param)) * 0.00329999998211860657f) * v_1.parameters.dither);
+  let v_13 = ((*(col)).xyz + vec3<f32>(v_12, v_12, v_12));
+  (*(col)).x = v_13.x;
+  (*(col)).y = v_13.y;
+  (*(col)).z = v_13.z;
+  return *(col);
+}
+
+fn v_3(col : ptr<function, vec4<f32>>, col_overlay : ptr<function, vec4<f32>>, texCoord_interp : vec2<f32>) -> vec4<f32> {
+  var param : vec4<f32>;
+  var param_2 : vec4<f32>;
+  var texel : vec2<u32>;
+  var param_3 : vec2<f32>;
+  var param_4 : vec4<f32>;
+  var param_5 : vec2<u32>;
+  if ((v_1.parameters.use_predivide != 0u)) {
+    let v_14 = ((*(col)).w > 0.0f);
+    var v_15 : bool;
+    if (v_14) {
+      v_15 = ((*(col)).w < 1.0f);
+    } else {
+      v_15 = v_14;
+    }
+    if (v_15) {
+      let v_16 = (1.0f / (*(col)).w);
+      let v_17 = ((*(col)).xyz * v_16);
+      (*(col)).x = v_17.x;
+      (*(col)).y = v_17.y;
+      (*(col)).z = v_17.z;
+    }
+  }
+  param = *(col);
+  *(col) = v_4(&(param));
+  *(col) = (v_1.parameters.scene_linear_matrix * *(col));
+  param_2 = *(col);
+  *(col) = v_5(&(param_2));
+  if ((v_1.parameters.do_overlay_merge != 0u)) {
+    let v_18 = sign((*(col)).xyz);
+    let v_19 = abs((*(col)).xyz);
+    let v_20 = (v_1.parameters.exponent * 2.20000004768371582031f);
+    let v_21 = (v_18 * pow(v_19, vec3<f32>(v_20, v_20, v_20)));
+    (*(col)).x = v_21.x;
+    (*(col)).y = v_21.y;
+    (*(col)).z = v_21.z;
+    if ((v_1.parameters.use_hdr_display != 0u)) {
+      let v_22 = *(col);
+      let v_23 = clamp(*(col), vec4<f32>(0.0f, 0.0f, 0.0f, 0.0f), vec4<f32>(1.0f, 1.0f, 1.0f, 1.0f));
+      let v_24 = (*(col_overlay)).w;
+      *(col) = mix(v_22, v_23, vec4<f32>(v_24, v_24, v_24, v_24));
+    }
+    let v_25 = (1.0f - (*(col_overlay)).w);
+    *(col) = (*(col) * v_25);
+    let v_26 = *(col_overlay);
+    *(col) = (*(col) + v_26);
+    let v_27 = (sign((*(col)).xyz) * pow(abs((*(col)).xyz), vec3<f32>(0.45454546809196472168f)));
+    (*(col)).x = v_27.x;
+    (*(col)).y = v_27.y;
+    (*(col)).z = v_27.z;
+  } else {
+    let v_28 = sign((*(col)).xyz);
+    let v_29 = abs((*(col)).xyz);
+    let v_30 = v_1.parameters.exponent;
+    let v_31 = (v_28 * pow(v_29, vec3<f32>(v_30, v_30, v_30)));
+    (*(col)).x = v_31.x;
+    (*(col)).y = v_31.y;
+    (*(col)).z = v_31.z;
+  }
+  if ((v_1.parameters.dither > 0.0f)) {
+    param_3 = texCoord_interp;
+    texel = v_32(image_texture_image, image_texture_sampler, &(param_3));
+    param_4 = *(col);
+    param_5 = texel;
+    *(col) = v_11(&(param_4), &(param_5));
+  }
+  let v_33 = v_1.parameters.opacity;
+  (*(col)).w = ((*(col)).w * v_33);
+  return *(col);
+}
+
+@fragment
+fn main(@location(0u) texCoord_interp : vec2<f32>) -> @location(0u) vec4<f32> {
+  main_inner(texCoord_interp);
+  return fragColor;
+}
+
+fn v_32(tex_image : texture_2d<f32>, tex_sampler : sampler, uv : ptr<function, vec2<f32>>) -> vec2<u32> {
+  var size : vec2<f32>;
+  size = vec2<f32>(vec2<i32>(textureDimensions(tex_image, 0i)));
+  return vec2<u32>((*(uv) * size));
+}
+
+[bw-r38-wgsl-end] >>>
+[bw-r38-ocio-outcome] view=Standard is_valid=1 nluts=0
+[bw-r38-params] bind#1 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+WGPUWeb: presentBackbuffer frame 1 — surface 1600x900 -> canvas (offscreen blit)
+BW_READBACK_KICK seq=0 label=dtxl_color_2_1311x787 w=1311 h=787 fmt=40 texel=8
+[bw-r38-params] bind#2 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#3 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+BW_READBACK_DONE seq=0 label=dtxl_color_2_1311x787 file=/tmp/bw_readback_0.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok
+[bw-r38-params] bind#4 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#5 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#6 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#7 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#8 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#9 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#10 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#11 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#12 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#13 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#14 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#15 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0
+[bw-r38-params] bind#16 view=Standard display=sRGB nluts=0 valid=1 exponent=1.0000 scale=1.0000 overlay_merge=1 predivide=0

@@ -1,0 +1,53 @@
+{
+  "dones": [
+    "BW_READBACK_DONE seq=0 label=dtxl_color_2_1311x787 file=/tmp/bw_readback_0.bin w=1311 h=787 fmt=40 texel=8 pitch=10488 bytes=8254056 status=ok"
+  ],
+  "analyses": [
+    {
+      "label": "dtxl_color_2_1311x787",
+      "w": 1311,
+      "h": 787,
+      "fmt": 40,
+      "texel": 8,
+      "negRowsBelowNeg002": 0,
+      "minAlpha": 0,
+      "minRow": 0,
+      "sampledRowAlpha": {
+        "y0": 0,
+        "y196": 0,
+        "y393": 2.1128,
+        "y590": 0,
+        "y687": 0,
+        "y702": 0,
+        "y717": 0,
+        "y728": 0,
+        "y747": 0,
+        "y767": 0,
+        "y777": 0,
+        "y786": 0
+      },
+      "bottom20rows": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

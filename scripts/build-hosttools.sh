@@ -32,5 +32,41 @@ ST="$SRC/gpu/shader_tool"
   -o "$OUT/shader_tool" \
   "$ST"/*.cc "$ST"/lexit/lexit.cc
 
+# msgfmt: WITH_INTERNATIONAL .po -> .mo catalog compiler. Runs NATIVE under the wasm
+# cross-build (ADR-002): its binary GNU .mo output is target-independent (UTF-8, fixed
+# little-endian magic 0x950412de), and patch 0127 wires macros.cmake's msgfmt_simple to
+# ${BLENDER_WEB_HOST_TOOLS_DIR}/msgfmt. Unlike datatoc/shader_tool, msgfmt links a minimal
+# slice of blenlib (file IO + strings + linklist) and guardedalloc, so its TU set is
+# explicit below. Header deps beyond the source tree: BLI_string_ref.hh needs fmt/ (header-
+# only) and blenlib/intern/fileops_c.cc needs <zstd.h>; both live in the repo-local wasm
+# lib bundle (lib/wasm/include, the same headers the real wasm build uses via -isystem),
+# so no host package is required. zstd's compiled symbols are only in BLI_file_zstd_*
+# functions msgfmt never calls; -Wl,-dead_strip drops them, so libzstd is NOT linked.
+echo "[build-hosttools] msgfmt"
+BL="$SRC/blenlib"
+GA="$ROOT/upstream/intern/guardedalloc"
+MF="$SRC/blentranslation/msgfmt"
+LIBWASM_INC="$ROOT/lib/wasm/include"
+if [ ! -f "$LIBWASM_INC/fmt/ranges.h" ] || [ ! -f "$LIBWASM_INC/zstd.h" ]; then
+  echo "[build-hosttools] ERROR: $LIBWASM_INC missing fmt/ or zstd.h (wasm lib bundle)." >&2
+  echo "[build-hosttools]        msgfmt needs the same headers the wasm build uses." >&2
+  exit 1
+fi
+"$CXX" -std=c++20 -O2 -DNDEBUG \
+  -I "$BL" -I "$GA" -I "$ROOT/upstream/intern/atomic" -I "$ROOT/upstream/intern/eigen" \
+  -I "$SRC/makesdna" -isystem "$LIBWASM_INC" \
+  -Wl,-dead_strip \
+  -o "$OUT/msgfmt" \
+  "$MF/msgfmt.cc" \
+  "$BL/intern/storage.cc" \
+  "$BL/intern/fileops_c.cc" \
+  "$BL/intern/string.cc" \
+  "$BL/intern/BLI_linklist.cc" \
+  "$GA/intern/mallocn.cc" \
+  "$GA/intern/mallocn_lockfree_impl.cc" \
+  "$GA/intern/mallocn_guarded_impl.cc" \
+  "$GA/intern/memory_usage.cc" \
+  "$GA/intern/leak_detector.cc"
+
 echo "[build-hosttools] done:"
-ls -la "$OUT/datatoc" "$OUT/shader_tool"
+ls -la "$OUT/datatoc" "$OUT/shader_tool" "$OUT/msgfmt"

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+
+M5 latency-budget harness page (browser half).
+
+Boots the windowed `blender_browser` wasm module (WITH_GHOST_WEB + WebGPU) with
+`--enable-event-simulate --log operator`, stages the ui_simulate DSL + the
+latency probe module into WasmFS, and runs one probe session in-tab. The driver
+(drive-latency.mjs) captures the visible half via CDP screencast; the input half
+rides the console (M5LAT_* markers + CLOG operator lines). See
+notes/m5-latency-budget.md.
+
+Select via ?session=<mod.func>&n=<count>&spacing=<seconds>.
+Fully local / CSP-clean; no external assets.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>blender-web M5 latency</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #000; color: #d6dce4; overflow: hidden;
+      font: 12px/1.4 ui-monospace, Menlo, monospace;
+    }
+    #canvas {
+      display: block; background: #000; border: 0; outline: none;
+      image-rendering: auto; cursor: default;
+    }
+    #bw-diag { position: fixed; left: -99999px; top: -99999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="1280" height="720" tabindex="0" autofocus></canvas>
+  <div id="bw-diag" aria-hidden="true">
+    <span id="state" class="state-idle" data-state="idle">state: idle</span>
+    <pre id="log"></pre>
+  </div>
+  <script src="/bin/blender_browser.js"></script>
+  <script src="/latency-boot.js"></script>
+</body>
+</html>

@@ -110,6 +110,29 @@ std::atomic<uint32_t> g_backing_generation{0};
 /* devicePixelRatio * 1000, so the DPR travels as an integer atomic. Default 1000 = 1.0. */
 std::atomic<int64_t> g_device_pixel_ratio_milli{1000};
 
+/* --- Idle keepalive state (ghost-keepalive) ------------------------------------------
+ * The web WM_main is emscripten_set_main_loop(fn, 0, 1) - fps=0 => requestAnimationFrame on
+ * THIS (WM/PROXY_TO_PTHREAD) worker (patch 0026). A worker's rAF is PRESENT-GATED: it stops
+ * rescheduling once the OffscreenCanvas stops compositing, so at idle (nothing tagged for
+ * redraw) the whole loop stalls and bpy.app.timers / GPU MapAsync completions never advance
+ * (notes/m7b-files-io.md §4; probe-burst maxHb=1). The keepalive switches the SAME loop to
+ * setTimeout scheduling, which is NOT present-gated, so the loop keeps ticking at idle. These
+ * are seeded by the shell from preRun on the MAIN thread via bw_shell_set_keepalive; the
+ * atomics are constant-initialized so that pre-ctor cross-thread store is race-free, exactly
+ * the bw_shell_set_display posture. Default ENABLED - opt out with ?keepalive=0 for the
+ * pre-fix (rAF, stalls-at-idle) A/B baseline. */
+std::atomic<int32_t> g_keepalive_enabled{1};
+/* Fast / idle setTimeout intervals in ms (shell-tunable; <=0 store keeps the default). */
+std::atomic<int32_t> g_keepalive_active_ms{16};
+std::atomic<int32_t> g_keepalive_idle_ms{250};
+/* Total WM main-loop iterations (processEvents ticks) since boot; the liveness half of the
+ * proof (rising => the loop is alive; frozen after boot => the old idle stall). */
+std::atomic<uint64_t> g_wm_tick_count{0};
+
+/* Stay on the fast interval for this long after the last activity (input / draw / boot) so a
+ * brief pause between interactions does not drop to the idle rate and add wake latency. */
+constexpr double KEEPALIVE_GRACE_MS = 1000.0;
+
 }  // namespace
 
 /* Called from the browser MAIN thread by the shell (boot-windowed.js) on boot and on every
@@ -131,6 +154,36 @@ extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_set_display(int32_t backing_w,
      * guaranteed to also see the paired width/height. */
     g_backing_generation.fetch_add(1u, std::memory_order_release);
   }
+}
+
+/* Shell -> WM-worker idle-keepalive control (ghost-keepalive). Called by the shell from
+ * preRun on the browser MAIN thread (relaxed atomic stores only, so it is race-free before
+ * __wasm_call_ctors, exactly like bw_shell_set_display). \a enabled != 0 turns the setTimeout
+ * keepalive ON (default) so the WM loop keeps ticking at idle; 0 leaves the loop on
+ * requestAnimationFrame - the pre-fix behaviour that stalls at idle, reachable via
+ * ?keepalive=0 for A/B. \a active_ms / \a idle_ms override the fast / idle setTimeout
+ * intervals when > 0 (<= 0 keeps the built-in defaults). Consumed on the WM worker in
+ * processEvents, the only legal caller of emscripten_set_main_loop_timing for this loop. */
+extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_set_keepalive(int32_t enabled,
+                                                            int32_t active_ms,
+                                                            int32_t idle_ms)
+{
+  g_keepalive_enabled.store(enabled ? 1 : 0, std::memory_order_relaxed);
+  if (active_ms > 0) {
+    g_keepalive_active_ms.store(active_ms, std::memory_order_relaxed);
+  }
+  if (idle_ms > 0) {
+    g_keepalive_idle_ms.store(idle_ms, std::memory_order_relaxed);
+  }
+}
+
+/* Total WM main-loop iterations since boot, as double (avoids a BigInt hop under
+ * -sWASM_BIGINT). The liveness half of the ghost-keepalive proof: the shell polls this across
+ * an idle window and shows it keeps rising (loop alive) while bw_present_count stays flat (no
+ * GPU submits at idle). */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_wm_tick_count(void)
+{
+  return double(g_wm_tick_count.load(std::memory_order_relaxed));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -282,6 +335,13 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
 
+  /* ghost-keepalive: count every WM main-loop iteration (this is called once per tick from
+   * wm_window_events_process). Exported via bw_wm_tick_count for the liveness proof. */
+  g_wm_tick_count.fetch_add(1u, std::memory_order_relaxed);
+  /* Input pending for dispatch THIS tick (mouse / key / wheel / resize / focus), sampled
+   * before the boot-heartbeat may push its own event - used as a keepalive activity signal. */
+  const bool had_input = (em != nullptr) && (em->getNumEvents() > 0);
+
   /* Live backing-store resize (bug #1: black bars / blur on window resize).
    * After boot the `#canvas` is an OffscreenCanvas owned by THIS worker, so only this
    * worker may resize its backing store. The shell (main thread) computes the new physical
@@ -342,6 +402,42 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
           std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowActivate, window_));
     }
     redraw_heartbeat_++;
+  }
+
+  /* --- Idle keepalive (ghost-keepalive) ---------------------------------------------
+   * Convert this same WM main loop from present-gated requestAnimationFrame to setTimeout
+   * scheduling so it keeps ticking at idle (see the g_keepalive_* block above and
+   * notes/ghost-keepalive.md). setTimeout on a worker is NOT present-gated, so events,
+   * bpy.app.timers, and the ADR-007 kick-then-consume GPU futures (AllowSpontaneous
+   * completions, r31) keep resolving even with nothing on screen changing. Crucially this
+   * does NOT force a present: wm_draw_update (run later in the same tick) only composites when
+   * something is tagged, so at true idle no frame is submitted - the keepalive pumps events,
+   * it never tag_redraw()s. It runs at a fast interval while anything is happening (boot,
+   * input, or a frame was drawn since the last tick) and backs off to a low idle interval
+   * after a grace period so idle CPU stays negligible and the GPU is untouched. This runs on
+   * the WM worker (same thread as WM_main), the only legal caller of the timing API for this
+   * loop; calling it from inside the loop callback updates scheduling for subsequent ticks.
+   * When disabled (?keepalive=0) the loop is left on rAF = the pre-fix A/B baseline. */
+  if (g_keepalive_enabled.load(std::memory_order_relaxed)) {
+    const double now = emscripten_get_now();
+    const uint64_t presents = ghost_web::present_count();
+    const bool drew = (presents != last_present_count_);
+    last_present_count_ = presents;
+    const bool booting = (redraw_heartbeat_ < 180u);
+    if (drew || booting || had_input) {
+      last_activity_ms_ = now;
+    }
+    const int32_t active_ms = g_keepalive_active_ms.load(std::memory_order_relaxed);
+    const int32_t idle_ms = g_keepalive_idle_ms.load(std::memory_order_relaxed);
+    const bool active = (now - last_activity_ms_) < KEEPALIVE_GRACE_MS;
+    const int32_t desired_ms = active ? active_ms : idle_ms;
+    if (desired_ms != current_timing_ms_) {
+      /* EM_TIMING_SETTIMEOUT (0): schedule the loop via the worker's setTimeout, interval in
+       * ms. The first switch (current_timing_ms_ == -1) happens on tick 0, so the loop never
+       * relies on rAF and cannot stall. */
+      emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, desired_ms);
+      current_timing_ms_ = desired_ms;
+    }
   }
 
   return (em != nullptr) && (em->getNumEvents() > 0);

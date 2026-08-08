@@ -131,6 +131,35 @@ function gateMode() {
 
 const GATE = gateMode();
 
+// ghost-keepalive: idle main-loop keepalive control. The windowed WM_main is a
+// present-gated rAF loop on the WM worker that STALLS at idle (notes/m7b-files-io.md §4);
+// the GHOST keepalive (bw_shell_set_keepalive, consumed on the worker in processEvents)
+// switches it to setTimeout scheduling so events / bpy.app.timers / GPU MapAsync futures
+// keep resolving at idle WITHOUT forcing a present (no GPU burn at idle).
+//   ?keepalive=0  -> OFF: leave the loop on rAF = the pre-fix, stalls-at-idle A/B baseline.
+//   ?keepalive=1  -> ON  (also the default when the param is absent).
+//   ?ka_active=<ms> / ?ka_idle=<ms> -> optional fast / idle interval overrides (experiments).
+// Default ON so the idle stall is fixed out of the box. Returns {enabled, active, idle}.
+function keepaliveConfig() {
+  const cfg = { enabled: 1, active: 0, idle: 0 };
+  try {
+    const u = new URLSearchParams(location.search);
+    let k = u.get("keepalive");
+    if (k == null && typeof window.__BW_KEEPALIVE === "string") k = window.__BW_KEEPALIVE;
+    if (k != null) {
+      const s = String(k).trim().toLowerCase();
+      cfg.enabled = (s === "0" || s === "off" || s === "false") ? 0 : 1;
+    }
+    const a = parseInt(u.get("ka_active"), 10);
+    if (a > 0) cfg.active = a;
+    const i = parseInt(u.get("ka_idle"), 10);
+    if (i > 0) cfg.idle = i;
+  } catch (e) {}
+  return cfg;
+}
+
+const KEEPALIVE = keepaliveConfig();
+
 // ===========================================================================
 // DOM handles (hidden diagnostics preserve the boot-windowed.js + rig contract)
 // ===========================================================================
@@ -333,6 +362,33 @@ function pushDisplayToWorker(mod, w, h, dpr) {
   }
 }
 
+// ghost-keepalive: push the resolved keepalive config to the WM worker. Safe from preRun on
+// the main thread (relaxed atomic stores; constant-initialized on the C side). Mode-agnostic
+// (called in gate and non-gate alike - it only changes loop SCHEDULING, never argv, size, or
+// pixels, so every preserved contract is untouched). Guarded so an older binary without the
+// export degrades to its built-in default (ON). Returns true if the export was reachable.
+let keepalivePushSupported = null; // null=unknown, true/false once probed
+function pushKeepaliveToWorker(mod) {
+  mod = mod || window.__bwModule;
+  if (!mod) return false;
+  if (typeof mod._bw_shell_set_keepalive !== "function") {
+    if (keepalivePushSupported === null) {
+      keepalivePushSupported = false;
+      append("[shell] bw_shell_set_keepalive export unavailable - idle keepalive uses the " +
+        "binary's built-in default (see notes/ghost-keepalive.md)", "sys");
+    }
+    return false;
+  }
+  try {
+    mod._bw_shell_set_keepalive(KEEPALIVE.enabled | 0, KEEPALIVE.active | 0, KEEPALIVE.idle | 0);
+    keepalivePushSupported = true;
+    return true;
+  } catch (e) {
+    append("[shell] bw_shell_set_keepalive threw: " + (e && e.message ? e.message : e), "err");
+    return false;
+  }
+}
+
 // Window resize handler. Compute the new PHYSICAL backing extent (innerW/H * DPR, DPR read
 // fresh each time so moving the window between displays of different density is handled) and
 // post it to the WM worker. rAF-coalesced. No-op in gate mode (fixed size, DPR 1).
@@ -510,6 +566,13 @@ async function boot() {
           pushDisplayToWorker(mod, b.w, b.h, b.dpr);
           append("[shell] DPR seed " + b.dpr + " backing " + b.w + "x" + b.h, "sys");
         }
+        // ghost-keepalive: seed the keepalive config BEFORE main() so the WM worker's very
+        // first processEvents tick already switches the loop to setTimeout (no reliance on
+        // rAF, so it never stalls). Seeded in every mode - scheduling-only, no contract touched.
+        pushKeepaliveToWorker(mod);
+        append("[shell] keepalive " + (KEEPALIVE.enabled ? "ON" : "OFF (rAF baseline)") +
+          (KEEPALIVE.active ? " active=" + KEEPALIVE.active + "ms" : "") +
+          (KEEPALIVE.idle ? " idle=" + KEEPALIVE.idle + "ms" : ""), "sys");
       },
     ],
     setStatus: onStatus,

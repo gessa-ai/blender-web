@@ -1,0 +1,17 @@
+{
+  "BG_off": {
+    "fired": false,
+    "error": "page.waitForFunction: Timeout 60000ms exceeded."
+  },
+  "BG_on": {
+    "fired": true,
+    "visHidden": "visible",
+    "tickDelta": 288,
+    "presentDelta": 9
+  },
+  "_verdicts": {
+    "tab_actually_hidden": false,
+    "off_rAF_stalls": false,
+    "on_keepalive_survives": true
+  }
+}

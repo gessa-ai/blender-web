@@ -1,0 +1,31 @@
+{
+  "A_liveness": {
+    "pass": true,
+    "tickDelta": 293,
+    "presentDelta": 8,
+    "presentPerSec": 0.26666666666666666,
+    "inputPresentDelta": 3,
+    "before": "/Users/paws/blender-web/sandbox/ghost-keepalive/evidence/A_liveness-before.png",
+    "after": "/Users/paws/blender-web/sandbox/ghost-keepalive/evidence/A_liveness-after-idle.png"
+  },
+  "B_timer_ON": {
+    "pass": true,
+    "fired": true,
+    "tickDelta": 282,
+    "presentDelta": 9,
+    "firedElapsed": 20019
+  },
+  "C_ab_off_baseline": {
+    "pass": true,
+    "fired": true,
+    "tickDelta": 1812,
+    "presentDelta": 9,
+    "firedElapsed": 20004
+  },
+  "D_regress_kick": {
+    "pass": true,
+    "presentDelta": 67,
+    "nonBlackFrac": 0.9992568359375,
+    "shot": "/Users/paws/blender-web/sandbox/ghost-keepalive/evidence/D_regress_kick-grid.png"
+  }
+}

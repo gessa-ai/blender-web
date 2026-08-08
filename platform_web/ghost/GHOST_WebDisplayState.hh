@@ -43,4 +43,14 @@ double device_pixel_ratio();
  * (WM) worker's per-tick poll. */
 bool poll_pending_backing(int32_t &w, int32_t &h);
 
+/** Total WebGPU presents (surface submits) since boot. Defined in GHOST_ContextWGPUWeb.cc
+ * and bumped once per GHOST_ContextWGPUWeb::presentBackbuffer(). Read on the WM worker by
+ * GHOST_SystemWeb::processEvents to tell whether a frame was drawn since the last tick
+ * (idle-keepalive activity detection) and exported for the no-idle-burn proof
+ * (bw_present_count). A single relaxed atomic load; safe to call on any thread. */
+uint64_t present_count();
+
+/** Called by GHOST_ContextWGPUWeb::presentBackbuffer() to record one present. */
+void note_present();
+
 }  // namespace ghost_web

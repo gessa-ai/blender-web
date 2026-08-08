@@ -126,6 +126,13 @@ class GHOST_SystemWeb : public GHOST_System {
   /* Main-loop tick counter for the redraw heartbeat (processEvents). */
   uint32_t redraw_heartbeat_ = 0;
 
+  /* Idle-keepalive bookkeeping (ghost-keepalive; all touched only on the WM worker in
+   * processEvents). current_timing_ms_ starts at -1 so the first tick performs the initial
+   * switch from rAF to setTimeout scheduling. */
+  int32_t current_timing_ms_ = -1;
+  double last_activity_ms_ = 0.0;
+  uint64_t last_present_count_ = 0;
+
   int32_t cursor_x_ = 0;
   int32_t cursor_y_ = 0;
   bool mod_ctrl_ = false;

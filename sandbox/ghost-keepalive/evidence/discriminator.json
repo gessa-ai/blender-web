@@ -1,0 +1,31 @@
+{
+  "FG_on": {
+    "tickDelta": 254,
+    "presentDelta": 8,
+    "tickHz": 12.7,
+    "presentHz": 0.4
+  },
+  "FG_off": {
+    "tickDelta": 961,
+    "presentDelta": 8,
+    "tickHz": 48,
+    "presentHz": 0.4
+  },
+  "BG_on": {
+    "fired": true,
+    "tickDelta": 293,
+    "presentDelta": 8,
+    "visHidden": "visible"
+  },
+  "BG_off": {
+    "fired": true,
+    "tickDelta": 2182,
+    "presentDelta": 8,
+    "visHidden": "visible"
+  },
+  "_verdicts": {
+    "background_keepalive_keeps_loop_alive": true,
+    "background_rAF_baseline_stalls": false,
+    "foreground_keepalive_idles_slower_than_rAF": true
+  }
+}

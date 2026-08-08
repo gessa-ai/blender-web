@@ -1,0 +1,20 @@
+[2026-08-08 11:55:39.610] ghost-keepalive proof: base=http://localhost:8128 entry=/windowed.html
+[2026-08-08 11:55:39.929] --- A_liveness: no pyexpr, keepalive default ON; 30 s idle ---
+[2026-08-08 11:55:40.269] A_liveness: crossOriginIsolated=true SAB=true
+[2026-08-08 11:55:40.534] A_liveness: WM_main reached
+[2026-08-08 11:55:43.569] A_liveness: t0 tick=0 present=1; idling 30000 ms...
+[2026-08-08 11:56:13.651] A_liveness: t1 tick=293 present=9 | over 30s idle: tickDelta=293 presentDelta=8 (present/s=0.27)
+[2026-08-08 11:56:15.472] A_liveness: post-idle input -> tickDelta=73 presentDelta=3
+[2026-08-08 11:56:15.472] A_liveness: alive(tick>20)=true noBurn(present/s<5)=true => PASS
+[2026-08-08 11:56:15.493] --- B_timer_ON: one-shot timer (no tag_redraw), keepalive=ON ---
+[2026-08-08 11:56:16.076] B_timer_ON: WM_main reached; timer armed at first_interval=20 s
+[2026-08-08 11:56:46.080] B_timer_ON: over 30s: tickDelta=282 (9.4Hz) presentDelta=9 timerFired=true @20019ms
+[2026-08-08 11:56:46.080] B_timer_ON: => PASS
+[2026-08-08 11:56:46.091] --- C_ab_off_baseline: one-shot timer (no tag_redraw), keepalive=0 ---
+[2026-08-08 11:56:46.702] C_ab_off_baseline: WM_main reached; timer armed at first_interval=20 s
+[2026-08-08 11:57:16.707] C_ab_off_baseline: over 30s: tickDelta=1812 (60.4Hz) presentDelta=9 timerFired=true @20004ms
+[2026-08-08 11:57:16.707] C_ab_off_baseline: => PASS
+[2026-08-08 11:57:16.717] --- D_regress_kick: standard kick rig, keepalive default ON; grid must still render ---
+[2026-08-08 11:57:17.481] D_regress_kick: WM_main reached; settling 45000 ms under the 1 Hz kick...
+[2026-08-08 11:58:02.562] D_regress_kick: presentDelta=67 over 45s; screenshot nonBlack=99.9% (1280x800)
+[2026-08-08 11:58:02.562] D_regress_kick: draws(present>5)=true nonBlack(>2%)=true => PASS

@@ -1,0 +1,7 @@
+[2026-08-08 11:49:56.420] ghost-keepalive discriminator: base=http://localhost:8128
+[2026-08-08 11:50:20.342] FG_on: FG 20 s idle -> tick 254 (12.7 Hz)  present 8 (0.4 Hz)
+[2026-08-08 11:50:43.963] FG_off: FG 20 s idle -> tick 961 (48 Hz)  present 8 (0.4 Hz)
+[2026-08-08 11:50:47.950] BG_on: visibility visible -> visible (blender tab hidden); waiting 30 s backgrounded...
+[2026-08-08 11:51:17.955] BG_on: BG 30 s -> tick 293  present 8  timerFired=true
+[2026-08-08 11:51:21.784] BG_off: visibility visible -> visible (blender tab hidden); waiting 30 s backgrounded...
+[2026-08-08 11:51:51.786] BG_off: BG 30 s -> tick 2182  present 8  timerFired=true

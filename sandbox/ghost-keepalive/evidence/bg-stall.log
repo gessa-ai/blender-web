@@ -1,0 +1,4 @@
+[2026-08-08 11:53:36.464] ghost-keepalive BG stall test: base=http://localhost:8128 (default anti-throttle flags REMOVED)
+[2026-08-08 11:54:37.172] BG_off: ERROR page.waitForFunction: Timeout 60000ms exceeded.
+[2026-08-08 11:54:41.069] BG_on: blender tab visibilityState=visible after hiding; waiting 30 s...
+[2026-08-08 11:55:11.073] BG_on: hidden 30 s -> tickDelta=288  presentDelta=9  timerFired=true  (vis=visible)

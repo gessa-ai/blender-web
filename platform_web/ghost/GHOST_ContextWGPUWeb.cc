@@ -12,12 +12,46 @@
 
 #include "GHOST_ContextWGPUWeb.hh"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <utility>
 
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+
+#include "GHOST_WebDisplayState.hh"
+
+/* --- Present counter (ghost-keepalive) --------------------------------------- */
+/* One monotonically increasing counter of end-of-frame presents (surface submits). It is
+ * the ground truth for "is the app actually drawing": GHOST_SystemWeb::processEvents reads
+ * it to keep the idle keepalive fast while frames are being produced (interaction, playback,
+ * notifier redraws) and to let it back off when nothing is drawn, and the shell reads it via
+ * bw_present_count() to PROVE the idle loop submits no frames (flat counter) while the WM
+ * tick counter keeps rising. A plain relaxed atomic - the only writer is this worker's
+ * presentBackbuffer, readers just need a coherent recent value. */
+namespace {
+std::atomic<uint64_t> g_present_count{0};
+}  // namespace
+
+namespace ghost_web {
+uint64_t present_count()
+{
+  return g_present_count.load(std::memory_order_relaxed);
+}
+void note_present()
+{
+  g_present_count.fetch_add(1u, std::memory_order_relaxed);
+}
+}  // namespace ghost_web
+
+/* Total presents since boot, as double (avoids a BigInt hop under -sWASM_BIGINT). Exported
+ * for the ghost-keepalive no-idle-burn proof: the shell polls this across an idle window and
+ * shows the delta is ~0 (no GPU submits at idle) while bw_wm_tick_count keeps climbing. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_count(void)
+{
+  return double(ghost_web::present_count());
+}
 
 /* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
 /* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
@@ -475,6 +509,9 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
   pass.End();
   wgpu::CommandBuffer cb = enc.Finish();
   queue_.Submit(1, &cb);
+  /* ghost-keepalive: record the present so the idle keepalive can tell frames are being
+   * produced and the no-idle-burn proof can show they are NOT at idle. */
+  ghost_web::note_present();
   /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
    * render pass, one submit, all in-tick, so nothing references the surface after it is
    * destroyed. */

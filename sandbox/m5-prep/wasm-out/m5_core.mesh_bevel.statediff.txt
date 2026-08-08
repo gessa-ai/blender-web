@@ -1,0 +1,1 @@
+PASS  /Users/paws/blender-web/sandbox/m5-prep/goldens/m5_core.mesh_bevel.json == /Users/paws/blender-web/sandbox/m5-prep/wasm-out/m5_core.mesh_bevel.json  (0 divergences)

@@ -1,0 +1,5 @@
+# Bulky/noisy transient run artifacts - not committed. State+trace parity
+# evidence (*.json, *.trace.txt, *.statediff.txt, *.tracediff.txt) IS committed.
+*.console.txt
+*.png
+*.bootfail.txt

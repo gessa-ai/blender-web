@@ -1,0 +1,1 @@
+native NUL bytes=2  wasm NUL bytes=0 (native macro-repr artifact, normalized out)

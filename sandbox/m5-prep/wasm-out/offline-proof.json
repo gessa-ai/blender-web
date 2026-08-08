@@ -1,0 +1,9 @@
+{
+ "session": "m5_core.object_select_all",
+ "total_requests": 42,
+ "unique_hosts": [
+  "localhost:8125"
+ ],
+ "external_hosts": [],
+ "offline_ok": true
+}

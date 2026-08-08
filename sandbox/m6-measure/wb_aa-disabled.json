@@ -1,0 +1,13 @@
+{
+  "hostBlend": "/Users/paws/blender-web/upstream/tests/files/render/workbench/aa-disabled.blend",
+  "engine": "BLENDER_WORKBENCH",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "analysis": {
+    "pngLen": 671,
+    "pngSig": true,
+    "width": 128,
+    "height": 128
+  },
+  "gpuErrorCount": 42,
+  "marks": []
+}

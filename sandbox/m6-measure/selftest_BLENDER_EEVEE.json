@@ -1,0 +1,14 @@
+{
+  "engine": "BLENDER_EEVEE",
+  "sentinel": "OK BLENDER_EEVEE",
+  "analysis": {
+    "pngLen": 4129,
+    "pngSig": true,
+    "width": 128,
+    "height": 128,
+    "zeroFrac": 0.03294,
+    "distinctBytes": 256
+  },
+  "gpuErrorCount": 30,
+  "marks": []
+}

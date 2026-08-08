@@ -1,0 +1,14 @@
+{
+  "engine": "BLENDER_WORKBENCH",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "analysis": {
+    "pngLen": 4129,
+    "pngSig": true,
+    "width": 128,
+    "height": 128,
+    "zeroFrac": 0.03294,
+    "distinctBytes": 256
+  },
+  "gpuErrorCount": 0,
+  "marks": []
+}

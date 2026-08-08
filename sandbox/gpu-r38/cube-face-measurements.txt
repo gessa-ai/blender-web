@@ -1,0 +1,17 @@
+r38 cube-face measurements (1600x900, r37 face centroids), 2026-08-08.
+Both oracle (golden) and web apply the STANDARD view transform (sRGB OETF) to the
+Solid workbench cube (proven: getView(sRGB,0)=getDefaultView(sRGB)='Standard',
+config byte-identical, 16/16 web viewport binds view=Standard nluts=0). So
+scene-linear = sRGB_decode(display).
+
+face   golden(disp R,G,B)     web(disp R,G,B)       scene-linear G   web/gold(linear)
+top    (142.0,143.0,145.0)    ( 89.1, 90.0, 91.0)   gold=0.2747 web=0.1022   0.372
+left   (133.3,135.1,135.7)    ( 85.8, 86.0, 86.2)   gold=0.2427 web=0.0931   0.383
+front  (108.2,110.4,113.7)    ( 77.0, 78.0, 78.0)   gold=0.1573 web=0.0762   0.484
+
+=> web workbench SCENE-LINEAR render is ~0.37-0.48x the oracle's (base_color in the
+gbuffer is correct at 0.8,0.8,0.8 all faces per r37 disc). The deficit is in the
+workbench studio-light RESOLVE, not the view transform and not the base color.
+The brightest/most-camera-facing face (top) is darkened MOST (0.372) and the most
+oblique (front) least (0.484): the signature of reduced diffuse + missing/weak
+specular, NOT a constant ambient loss (which would hit dim faces hardest).

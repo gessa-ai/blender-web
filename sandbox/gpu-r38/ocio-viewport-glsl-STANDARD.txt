@@ -1,0 +1,46 @@
+[bw-r38-ocio-src-begin] libocio fragment_source bytes=1188 <<<
+
+// Declaration of the OCIO shader function
+
+vec4 OCIO_to_scene_linear(vec4 inPixel)
+{
+  vec4 outColor = inPixel;
+
+  return outColor;
+}
+
+
+// Declaration of the OCIO shader function
+
+vec4 OCIO_to_display(vec4 inPixel)
+{
+  vec4 outColor = inPixel;
+  
+  // Add Gamma 'monCurveRev' processing
+  
+  {
+    vec4 breakPnt = vec4(0.00303993467, 0.00303993467, 0.00303993467, 1.);
+    vec4 slope = vec4(12.9232101, 12.9232101, 12.9232101, 1.);
+    vec4 scale = vec4(1.05499995, 1.05499995, 1.05499995, 1.00000095);
+    vec4 offset = vec4(0.0549999997, 0.0549999997, 0.0549999997, 9.99999997e-07);
+    vec4 gamma = vec4(0.416666657, 0.416666657, 0.416666657, 0.999998987);
+    vec4 isAboveBreak = vec4(greaterThan( outColor, breakPnt));
+    vec4 linSeg = outColor * slope;
+    vec4 powSeg = pow( max( vec4(0., 0., 0., 0.), outColor ), gamma ) * scale - offset;
+    vec4 res = isAboveBreak * powSeg + ( vec4(1., 1., 1., 1.) - isAboveBreak ) * linSeg;
+    outColor.rgb = vec3(res.x, res.y, res.z);
+    outColor.a = res.w;
+  }
+  
+  // Add Range processing
+  
+  {
+    outColor.rgb = max(vec3(0., 0., 0.), outColor.rgb);
+    outColor.rgb = min(vec3(1., 1., 1.), outColor.rgb);
+  }
+
+  return outColor;
+}
+
+
+[bw-r38-ocio-src-end] >>>

@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Cloudflare Pages `_headers` for the blender-web static bundle.
+#
+# WHY COOP/COEP: the module is built `-pthread` (SharedArrayBuffer) so it needs a
+# cross-origin-isolated context. Without BOTH of these on the top-level document,
+# `crossOriginIsolated` is false, `SharedArrayBuffer` is undefined, and the wasm
+# aborts before WM_main (GOAL.md "Hosting: COOP/COEP everywhere"). Verify at
+# runtime with `self.crossOriginIsolated === true`.
+#
+# WHY CORP: with COEP `require-corp`, every subresource the document pulls
+# (blender_browser.{js,wasm,data} and the same-file pthread `new Worker`) must be
+# eligible to load in an isolated context. All bundle assets are same-origin, so
+# `Cross-Origin-Resource-Policy: same-origin` satisfies the check. (If any asset
+# ever moves to a separate CDN origin, that origin must send CORP: cross-origin
+# AND the fetch must be crossorigin/anonymous; keep everything same-origin to
+# avoid that.)
+#
+# Cloudflare Pages merges all matching rule blocks, so the isolation headers under
+# `/*` apply to `/bin/*` too; the per-type blocks below only ADD Content-Type and
+# Cache-Control. Cloudflare Pages already infers `application/wasm` for `.wasm` and
+# `text/javascript` for `.js` from the extension and brotli-compresses compressible
+# types at the edge automatically (see README "MIME + brotli"); the explicit
+# Content-Type lines are belt-and-braces because `X-Content-Type-Options: nosniff`
+# forbids sniffing and `WebAssembly.instantiateStreaming` REJECTS anything whose
+# Content-Type is not exactly `application/wasm`.
+
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin
+  X-Content-Type-Options: nosniff
+
+/bin/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=3600
+
+/bin/*.data
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=3600
+
+/bin/*.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: public, max-age=3600

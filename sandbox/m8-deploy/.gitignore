@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Generated, non-committed outputs of the M8 deploy-bundle lane. The bundle is
+# ~230 MB of wasm+data (a moving target rebuilt by the gpu/render lanes) and the
+# verify artifacts are regenerable. Only the scripts, _headers, audit and README
+# are committed.
+bundle/
+artifacts/

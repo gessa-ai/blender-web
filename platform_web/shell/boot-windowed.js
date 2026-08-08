@@ -50,6 +50,22 @@ const ENV_VARS = {
   BLENDER_SYSTEM_PYTHON: "/bw/python",
   BLENDER_SYSTEM_SCRIPTS: "/bw/scripts",
   BLENDER_SYSTEM_DATAFILES: "/bw/datafiles",
+
+  // M7 project store (notes/m7-store-design.md §1b/§1c, joint proof
+  // notes/m7-store-wired.md). The persistent OPFS mount at /projects is created
+  // pre-main on the WM worker by wgpu-preinit-worker.js -> bw_mount_opfs. These
+  // two vars ROUTE Blender's own default user paths onto that mount so userpref,
+  // recent-files, startup.blend, autosave, quit-recovery and user .blend saves
+  // all persist across a page reload:
+  //   BLENDER_USER_RESOURCES -> config/, datafiles/, scripts/, extensions/
+  //                             (appdir.cc get_path_user_ex checks it FIRST)
+  //   TMPDIR -> BKE_tempdir_base() = autosave <pid>_autosave.blend + quit.blend
+  //             (a SEPARATE seam from config/; tempfile.cc reads TMPDIR).
+  // Per-kind overrides (BLENDER_USER_CONFIG, ...) exist if finer control is
+  // wanted. Both dirs are pre-created by the mount so the check_is_dir read-path
+  // accepts them; write paths create missing sub-dirs themselves.
+  BLENDER_USER_RESOURCES: "/projects",
+  TMPDIR: "/projects/.recovery",
 };
 
 // Where blender_browser.{js,wasm,data} + the pthread worker are served from.

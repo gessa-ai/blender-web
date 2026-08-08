@@ -1,0 +1,4 @@
+GATE canvas backing: {"w":800,"h":600,"cssw":"800px","cssh":"600px"} (deviceScaleFactor=2, gate forces DPR 1)
+GATE mount line     : [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 24.3 ms
+PASS gate-exact-size 800x600
+PASS gate-store-coexists

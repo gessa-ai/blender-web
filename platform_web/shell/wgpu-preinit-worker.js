@@ -116,6 +116,13 @@
         catch (ex) {
           log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));
         }
+        // NOTE: the M7 project store OPFS mount is intentionally NOT done here. A
+        // synchronous WasmFS OPFS backend creation at this pre-invokeEntryPoint point
+        // deadlocks the worker (it blocks the message loop before the pthread/OPFS
+        // backend-thread machinery is ready). It is mounted instead from
+        // GHOST_SystemWeb::init() (inside main(), on this same WM worker, before
+        // WM_init runs BKE_tempdir_init / reads the config dir) - the proven-safe
+        // "inside main()" context (notes/m7-opfs-probe.md, notes/m7-store-wired.md).
         h.call(self, e); // run the pthread entry (invokeEntryPoint → main()) exactly once
       })();
       return;

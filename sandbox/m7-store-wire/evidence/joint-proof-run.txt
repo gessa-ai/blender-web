@@ -1,0 +1,60 @@
+  [run] [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 19.0 ms
+  [run] BW-STORE SAVE-ARMED pid=42
+  [run] BW-STORE PHASE save pid=42 tempdir=/projects/.recovery/blender_kaLPJB/
+  [run] BW-STORE SAVE-BLEND ok path=/projects/proof.blend size=97094 fnv=178d7667451cd196 magic=28b52ffda00806 objs=4
+  [run] BW-STORE SAVE-USERPREF ok size=176452 fnv=75d8e16d445a0233
+  [run] BW-STORE SAVE-RECOVERY ok path=/projects/.recovery/bw_recovery_proof.blend size=97094 fnv=178d7667451cd196
+  [run] BW-STORE MEMFS-CONTROL-WRITTEN /tmp/bw_memfs_control.bin
+  [run] BW-STORE DIRLIST /projects=.recovery,config,proof.blend
+  [run] BW-STORE SAVE-DONE
+  [run] [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.8 ms
+  [run] BW-STORE LOAD-ARMED pid=42
+  [run] BW-STORE PHASE load pid=42 tempdir=/projects/.recovery/blender_MJcNKi/
+  [run] BW-STORE LOAD-BLEND-BYTES path=/projects/proof.blend size=97094 fnv=178d7667451cd196 magic=28b52ffda00806
+  [run] BW-STORE LOAD-CONTENT proof_obj=FOUND marker='m7-store-wired' scene_marker=424242 objs=4
+  [run] BW-STORE LOAD-USERPREF ok size=176452 fnv=75d8e16d445a0233
+  [run] BW-STORE LOAD-RECOVERY ok size=97094 fnv=178d7667451cd196
+  [run] BW-STORE MEMFS-CONTROL-AFTER-RELOAD exists=False
+  [run] BW-STORE LOAD-DONE
+
+----- RUN 1 (save) diag -----
+BW-STORE SAVE-ARMED pid=42
+BW-STORE PHASE save pid=42 tempdir=/projects/.recovery/blender_kaLPJB/
+BW-STORE SAVE-BLEND ok path=/projects/proof.blend size=97094 fnv=178d7667451cd196 magic=28b52ffda00806 objs=4
+BW-STORE SAVE-USERPREF ok size=176452 fnv=75d8e16d445a0233
+BW-STORE SAVE-RECOVERY ok path=/projects/.recovery/bw_recovery_proof.blend size=97094 fnv=178d7667451cd196
+BW-STORE MEMFS-CONTROL-WRITTEN /tmp/bw_memfs_control.bin
+BW-STORE DIRLIST /projects=.recovery,config,proof.blend
+BW-STORE SAVE-DONE
+
+----- RUN 1 mount line -----
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 19.0 ms
+
+----- RUN 2 (load) diag -----
+BW-STORE LOAD-ARMED pid=42
+BW-STORE PHASE load pid=42 tempdir=/projects/.recovery/blender_MJcNKi/
+BW-STORE LOAD-BLEND-BYTES path=/projects/proof.blend size=97094 fnv=178d7667451cd196 magic=28b52ffda00806
+BW-STORE LOAD-CONTENT proof_obj=FOUND marker='m7-store-wired' scene_marker=424242 objs=4
+BW-STORE LOAD-USERPREF ok size=176452 fnv=75d8e16d445a0233
+BW-STORE LOAD-RECOVERY ok size=97094 fnv=178d7667451cd196
+BW-STORE MEMFS-CONTROL-AFTER-RELOAD exists=False
+BW-STORE LOAD-DONE
+
+----- RUN 2 mount line -----
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.8 ms
+
+PASS  mount-persistent-run1  [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 19.0 ms
+PASS  mount-persistent-run2  [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.8 ms
+PASS  save-blend  SAVE-BLEND ok path=/projects/proof.blend size=97094 fnv=178d7667451cd196 magic=28b52ffda00806 objs=4
+PASS  reload-persist-size  save=97094 load=97094
+PASS  reload-persist-fnv  save=178d7667451cd196 load=178d7667451cd196
+PASS  content-object  LOAD-CONTENT proof_obj=FOUND marker='m7-store-wired' scene_marker=424242 objs=4
+PASS  content-marker  
+PASS  content-scene-marker  
+PASS  userpref-persist  save=75d8e16d445a0233 load=75d8e16d445a0233
+PASS  recovery-persist  save=178d7667451cd196 load=178d7667451cd196
+PASS  tmpdir-routed  tempdir=/projects/.recovery/blender_kaLPJB/
+PASS  memfs-control-gone  MEMFS-CONTROL-AFTER-RELOAD exists=False
+PASS  distinct-session  save-tempdir=/projects/.recovery/blender_kaLPJB/ load-tempdir=/projects/.recovery/blender_MJcNKi/
+
+===== 13/13 PASS =====

@@ -13,10 +13,14 @@
 #include "GHOST_SystemWeb.hh"
 
 #include <atomic>
+#include <cerrno>
 #include <cstdio>
+
+#include <sys/stat.h>
 
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+#include <emscripten/wasmfs.h>
 
 #include "GHOST_EventBridgeWeb.hh"
 #include "GHOST_WebDisplayState.hh"
@@ -129,6 +133,62 @@ extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_set_display(int32_t backing_w,
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* M7 project store - persistent OPFS mount seam (notes/m7-store-design.md
+ * §1a/§3 T1; joint proof in notes/m7-store-wired.md).
+ *
+ * The whole project store is a pure ROUTING of Blender's default user paths onto
+ * a persistent OPFS WasmFS mount at /projects. This is the one C seam: create the
+ * OPFS backend and the /projects mount point, then pre-create /projects/.recovery
+ * so the TMPDIR read-path (appdir.cc test_env_path with check_is_dir=true) accepts
+ * it. Everything nested under /projects is then OPFS-backed; Blender's own
+ * BLI_dir_create_recursive (via BKE_appdir_folder_id_create) makes config/,
+ * datafiles/, etc. on demand. The env routing itself lives in the shell
+ * (boot-windowed.js ENV_VARS: BLENDER_USER_RESOURCES=/projects,
+ * TMPDIR=/projects/.recovery) - no upstream edits.
+ *
+ * MUST run on the main()-owning (PROXY_TO_PTHREAD WM) worker, pre-main, before
+ * WM_init runs BKE_tempdir_init: OPFS sync access handles are worker-only
+ * (notes/m7-opfs-probe.md test 3, the coupled-decision proof). The shell calls it
+ * from wgpu-preinit-worker.js - the same pre-main worker seam that awaits the
+ * WebGPU device - via the EMSCRIPTEN_KEEPALIVE export Module._bw_mount_opfs,
+ * BEFORE dispatching the cmd:2 entry message that runs main(). KEEPALIVE forces it
+ * into the module exports without touching the (unowned) link flags, exactly like
+ * bw_shell_set_display above.
+ *
+ * Boot NEVER fails on a store failure (graceful degrade). Return codes (the shell
+ * logs them):
+ *    0  OPFS mounted at /projects (+ /projects/.recovery) - PERSISTENT
+ *    1  OPFS unavailable -> /projects created on the in-memory backend so env
+ *       routing still resolves - SESSION-ONLY (no persistence)
+ *   -1  could not create /projects at all - user paths fall back to defaults */
+extern "C" EMSCRIPTEN_KEEPALIVE int bw_mount_opfs(void)
+{
+  /* Idempotent: mount exactly once. 2 = not-yet-called sentinel. */
+  static int s_rc = 2;
+  if (s_rc != 2) {
+    return s_rc;
+  }
+  backend_t opfs = wasmfs_create_opfs_backend();
+  if (opfs != nullptr && wasmfs_create_directory("/projects", 0777, opfs) == 0) {
+    /* Pre-create the TMPDIR base; the config/ subtree is made on demand by
+     * BKE_appdir_folder_id_create's BLI_dir_create_recursive. */
+    mkdir("/projects/.recovery", 0777);
+    s_rc = 0;
+    return s_rc;
+  }
+  /* Graceful degrade: no OPFS (or the mount failed). Give Blender a writable
+   * /projects on the default in-memory backend so the env routing still resolves;
+   * persistence is lost but boot proceeds. */
+  if (mkdir("/projects", 0777) == 0 || errno == EEXIST) {
+    mkdir("/projects/.recovery", 0777);
+    s_rc = 1;
+    return s_rc;
+  }
+  s_rc = -1;
+  return s_rc;
+}
+
 namespace ghost_web {
 
 double device_pixel_ratio()
@@ -165,6 +225,29 @@ GHOST_SystemWeb::~GHOST_SystemWeb() = default;
 
 GHOST_TSuccess GHOST_SystemWeb::init()
 {
+  /* M7 project store: mount the persistent OPFS /projects tree HERE - inside main()
+   * on the WM (PROXY_TO_PTHREAD) worker, at GHOST creation (wm_ghost_init ->
+   * GHOST_ISystem::createSystem(), wm_init_exit.cc:205), which runs BEFORE WM_init
+   * reads the user config dir (wm_homefile_read_ex, :283) and BEFORE BKE_tempdir_init
+   * (wm_files.cc:550). This is the proven-safe site: a synchronous WasmFS OPFS backend
+   * creation in the pre-invokeEntryPoint worker seam DEADLOCKS (it blocks the worker
+   * message loop before the pthread/OPFS-backend machinery is ready), whereas the same
+   * call deep inside main() succeeds (notes/m7-opfs-probe.md test 3; joint proof in
+   * notes/m7-store-wired.md). The env routing that points Blender's default user paths
+   * at this mount lives in the shell (boot-windowed.js ENV_VARS:
+   * BLENDER_USER_RESOURCES=/projects, TMPDIR=/projects/.recovery). bw_mount_opfs is
+   * idempotent and never aborts boot (graceful degrade to an in-memory store). */
+  {
+    const double t0 = emscripten_get_now();
+    const int rc = bw_mount_opfs();
+    const double dt = emscripten_get_now() - t0;
+    const char *what = (rc == 0) ? "OPFS mounted at /projects (+/.recovery) - PERSISTENT" :
+                       (rc == 1) ? "OPFS UNAVAILABLE - /projects on in-memory backend (session-only)" :
+                                   "mount FAILED - user paths fall back to defaults";
+    printf("[bw] M7 store: %s rc=%d in %.1f ms\n", what, rc, dt);
+    fflush(stdout);
+  }
+
   const GHOST_TSuccess success = GHOST_System::init();
   /* Input callbacks are registered in createWindow(), once the canvas + window
    * exist. (Nothing to pump before then.) */

@@ -1,0 +1,47 @@
+[bw-r43bind] shader='workbench_resolve_opaque_matcap_no_cavity_no_curvature_no_shado' DUMP emitted=6 explicit=1 explayout=10 pc=0 pcbind=4294967295 sbase=256
+[bw-r43bind]   LAYOUT b=256 kind=SAMP
+[bw-r43bind]   LAYOUT b=0 kind=TEX
+[bw-r43bind]   LAYOUT b=258 kind=SAMP
+[bw-r43bind]   LAYOUT b=259 kind=SAMP
+[bw-r43bind]   LAYOUT b=4 kind=UBO
+[bw-r43bind]   LAYOUT b=5 kind=UBO
+[bw-r43bind]   LAYOUT b=1 kind=TEX
+[bw-r43bind]   LAYOUT b=2 kind=TEX
+[bw-r43bind]   LAYOUT b=257 kind=SAMP
+[bw-r43bind]   LAYOUT b=3 kind=TEX
+[bw-r43bind]   IMAP b=0 kind=TEX
+[bw-r43bind]   IMAP b=256 kind=SAMP
+[bw-r43bind]   IMAP b=1 kind=TEX
+[bw-r43bind]   IMAP b=257 kind=SAMP
+[bw-r43bind]   IMAP b=2 kind=TEX
+[bw-r43bind]   IMAP b=258 kind=SAMP
+[bw-r43bind]   IMAP b=3 kind=TEX
+[bw-r43bind]   IMAP b=259 kind=SAMP
+[bw-r43bind]   IMAP b=4 kind=UBO
+[bw-r43bind]   IMAP b=5 kind=UBO
+[bw-r43bind]   EMIT   b=5 res=buf
+[bw-r43bind]   EMIT   b=4 res=buf
+[bw-r43bind]   EMIT   b=0 res=tex
+[bw-r43bind]   EMIT   b=256 res=samp
+[bw-r43bind]   EMIT   b=1 res=tex
+[bw-r43bind]   EMIT   b=257 res=samp
+[bw-r43bind]   BND UBO slot=7 ->b=7 mapped=0
+[bw-r43bind]   BND UBO slot=5 ->b=5 mapped=0
+[bw-r43bind]   BND UBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND UBO slot=1 ->b=5 mapped=1
+[bw-r43bind]   BND UBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND UBO slot=11 ->b=4 mapped=1
+[bw-r43bind]   BND SSBO slot=8 ->b=8 mapped=0
+[bw-r43bind]   BND SSBO slot=9 ->b=9 mapped=0
+[bw-r43bind]   BND SSBO slot=10 ->b=10 mapped=0
+[bw-r43bind]   BND SSBO slot=3 ->b=3 mapped=0
+[bw-r43bind]   BND SSBO slot=2 ->b=2 mapped=0
+[bw-r43bind]   BND SSBO slot=0 ->b=0 mapped=0
+[bw-r43bind]   BND SSBO slot=11 ->b=11 mapped=0
+[bw-r43bind]   BND SSBO slot=1 ->b=1 mapped=0
+[bw-r43bind]   BND TEX slot=0 ->b=0 mapped=0 type=2 fmt=49
+[bw-r43bind]   BND TEX slot=1 ->b=1 mapped=0 type=2 fmt=21
+[bw-r43bind]   BND TEX slot=5 ->b=2 mapped=1 type=17 fmt=22
+[bw-r43bind]   BND TEX slot=4 ->b=1 mapped=1 type=18 fmt=22
+[bw-r43bind]   BND TEX slot=3 ->b=0 mapped=1 type=2 fmt=22
+[bw-r43bind]   BND TEX slot=2 ->b=3 mapped=1 type=2 fmt=40

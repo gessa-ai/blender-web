@@ -1,0 +1,5 @@
+# Bulky, regeneratable capture + build artifacts (evidence/ is curated + committed).
+caps/
+build-*.log
+serve.log
+census-m3.log

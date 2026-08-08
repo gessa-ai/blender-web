@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Generated, non-committed outputs of the M8 staged-deploy lane: the assembled
+# bundles (~200 MiB wasm+data each, a moving target), the frozen binary snapshot,
+# brotli precompressions, and regenerable verify/measure logs. Only the scripts,
+# the notes, and the one integrity screenshot (+ its .license) are committed.
+bundle-mono/
+bundle-staged/
+snapshot-bin/
+*.br
+serve-*.log
+artifacts/*
+!artifacts/staged_boot_1280x720.png
+!artifacts/staged_boot_1280x720.png.license

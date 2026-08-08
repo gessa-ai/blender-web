@@ -353,6 +353,27 @@ function(blender_web_browser_binary src_target)
   endif()
 
   set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")
+
+  # ---- strip triplicate __pycache__ from the preload payload -------------------
+  # BEGIN BLENDER-WEB PYCACHE PRUNE (M8 size lane; reverse-appliable block)
+  # Emscripten --preload-file / file_packager has NO exclude globs, so without this
+  # the .data packs every stdlib + script .py PLUS its .pyc at 3 optimisation levels
+  # (plain/opt-1/opt-2) -- ~46 MiB of pure redundancy measured on this tree. Keeping
+  # .py only is import-safe (CPython recompiles to memory on first import; the harvest
+  # side does the same drop in scripts/deps/python.sh). This PRE_LINK step guarantees
+  # a clean .data regardless of how a local tree accumulated __pycache__ (e.g. a native
+  # oracle run leaving .pyc under upstream/scripts, which ships .py only at the pin).
+  # It runs ONLY when blender_browser actually links (EXCLUDE_FROM_ALL target), so the
+  # node/gtest iteration builds other lanes run in this shared tree are untouched.
+  # Idempotent -> safe to re-run; see notes/m8-pycache-strip.md.
+  add_custom_command(TARGET ${_new} PRE_LINK
+    COMMAND bash
+      "${BLENDER_WEB_REPO_ROOT}/scripts/deps/prune-preload-pycache.sh"
+      "${_py_home}" "${_scripts}" "${_datafiles}"
+    COMMENT "blender-web: pruning __pycache__ from preload roots (py-only .data)"
+    VERBATIM)
+  # END BLENDER-WEB PYCACHE PRUNE
+
   message(STATUS
     "blender-web: browser target `blender_browser` enabled "
     "(WasmFS + preload, virtual root /bw). Build: ninja blender_browser")

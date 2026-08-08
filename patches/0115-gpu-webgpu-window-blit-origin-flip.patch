@@ -1,0 +1,24 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -341,7 +341,19 @@
+     const wgpu::TextureFormat sfmt = as_wgpu(stex)->wgpu_format();
+     const wgpu::TextureFormat dfmt = as_wgpu(dtex)->wgpu_format();
+     if (sfmt != dfmt) {
+-      ctx->blit_color_render(stex, dtex, w, h, uint32_t(dst_offset_x), uint32_t(dst_offset_y));
++      /* Origin-convention flip for window-backbuffer composites (patch 0098 origin):
++       * wm_draw's GPU_offscreen_draw_to_screen hands a GL BOTTOM-origin winrct.ymin as
++       * dst_offset_y, but blit_color_render drives a WebGPU TOP-origin SetViewport/
++       * SetScissorRect. Without conversion every UI region lands at its vertical mirror
++       * (topbar at the window bottom, status bar at the top). Convert the origin only
++       * for the window backbuffer; offscreen->offscreen blits (the gpu gate) keep the
++       * ADR-005 convention untouched. Content orientation (sampled uv) is unchanged. */
++      uint32_t dy = uint32_t(dst_offset_y);
++      if (ctx->is_window_backbuffer(dst_fb)) {
++        const int flipped = ds[1] - dst_offset_y - int(h);
++        dy = uint32_t(std::max(flipped, 0));
++      }
++      ctx->blit_color_render(stex, dtex, w, h, uint32_t(dst_offset_x), dy);
+       return;
+     }
+   }

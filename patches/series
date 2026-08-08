@@ -352,3 +352,12 @@
 # r28 crumpled cube outline + empty workbench solid geometry). Unguarded:
 # semantically correct for native Dawn too. Census GREEN (148/158 + static 956/973).
 0114-gpu-webgpu-batch-index-upload-before-draw.patch
+# 0115: window-backbuffer blit origin flip (the chrome-inversion fix). wm_draw
+# passes GL bottom-origin winrct.ymin as dst_offset_y; blit_color_render drives
+# a WebGPU top-origin SetViewport/SetScissorRect, so every UI region composited
+# at its vertical mirror (topbar at bottom, statusbar at top). Latent in 0098
+# since round 18; became visible when 0114 made chrome regions composite.
+# Root-caused by the ghost-verify lane (notes/m4-ghost-resize-dpr.md), applied
+# by the r28b lane pre-interruption, verified + cut by the driver. Gated on
+# is_window_backbuffer: offscreen blits (the native gpu gate) untouched.
+0115-gpu-webgpu-window-blit-origin-flip.patch

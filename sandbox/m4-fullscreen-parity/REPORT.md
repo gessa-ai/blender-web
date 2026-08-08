@@ -18,10 +18,20 @@ FAIL workspace_1600x900  Max error = 0.9960784912109375  Mean error = 0.00873744
 ```
 
 Trend (whole-window % over 0.016): **84.6 -> 74.5 -> 60.2 -> 11.4 (r33 solid-cube
-fix) -> 11.4 (r34, reproduced on HEAD; no regression, no new fix landed)**. r34
+fix) -> 11.4 (r34, reproduced on HEAD; no regression, no new fix landed) -> 11.4
+(r36, opt build BYTE-IDENTICAL to r34's debug capture, md5
+`700245836bdc95d71a6ccbd05b4aece9`; two residuals RE-ROOT-CAUSED, no fix landed -
+both are GPU-backend seams outside the r36 non-GPU fence, handed to r35/r37)**. r34
 reproduced r33 byte-for-byte on the current HEAD tree (`upstream/` clean, windowed
 wasm relinked 2026-08-08 10:06) then ENUMERATED + ROOT-CAUSED the residuals per
 cluster (below). SELFTEST_PASS every run (identity PASS + perturbed(+0.1) FAIL).
+
+**r36 CORRECTION (2026-08-08, evidence-first, `os.write(2,…)` bpy probes):** cluster 1's
+"asset shelf visible" attribution is **FALSIFIED**, and cluster 5's timeline indicator is
+**localized to a GPU seam**. See the two amended clusters below and
+`notes/gpu-r36-chrome-defects.md`. Neither is a region-visibility / startup.blend /
+wm_draw C++ fix; both roots live in `source/blender/gpu/webgpu/**` (r35/r37). No fix
+landed on this lane (0/5 attempts; the honest outcome is the falsification + two seams).
 
 Side-by-side (native | web | inferno diff-heatmap):
 `sandbox/m4-fullscreen-parity/artifacts/sidebyside_workspace_1600x900.png`.
@@ -104,18 +114,26 @@ entirely discrete elements, enumerated below.
 
 ### Residual clusters (dominant to minor) - root-caused
 
-1. **Viewport bottom band = the 3D-viewport ASSET SHELF region rendered in web
-   (native hides it). 92,960 px, 56.9% of ALL failures - the #1 defect.**
-   A semi-transparent band over the viewport bottom (absolute y 727-811, full
-   width): a smooth region-overlap fade-in ramp (y 727-744) then a flat +7/255
-   plateau (~66 -> ~73). Grid lines show THROUGH it, so it is a region drawn over
-   the viewport, not a gradient/shader error (BG_GRADIENT is correct: rows 0-660
-   match native perfectly). Native's default Layout hides the asset shelf
-   (`view3d_new` creates it `RGN_FLAG_HIDDEN`, `space_view3d.cc:223`); web renders
-   it. Root cause is web-side region VISIBILITY on file/home-file load
-   (screen/region setup), NOT the GPU shader path. Evidence:
-   `artifacts/residual_r34_bottom_band_assetshelf.png`. Fix owner: editors/screen +
-   file-load region-ensure (not this GPU lane).
+1. **Viewport bottom band. 92,960 px, 56.9% of ALL failures - the #1 defect.**
+   A full-width, uniform **+7.8/255** plateau over the viewport bottom (absolute y
+   745-800, ramp y 715-745); grid lines show THROUGH it; rows 0-660 match native
+   perfectly.
+   **~~r34: the ASSET SHELF region rendered in web while native hides it.~~ FALSIFIED
+   by r36 (direct `os.write(2,…)` bpy probe).** The active workspace is Layout, and
+   its `RGN_TYPE_ASSET_SHELF` region is HIDDEN in web exactly as in native:
+   `show_region_asset_shelf=False`, `winx/winy=1`, `RGN_FLAG_POLL_FAILED` set (poll
+   fails in Object Mode → the RNA is even read-only). `region_evaluate_visibility`
+   sets `runtime->visible=false`, so every blit/blend loop skips it - it CANNOT draw.
+   (r34 inferred the shelf from source+pixels, unable to dump bpy state; its "toggle"
+   test silently threw `AttributeError`.)
+   **Actual root:** the viewport OFFSCREEN render target `color_render_tx` carries
+   stale/negative alpha (≈ -0.13) in its bottom ~59-85 px, surfaced by the overlay
+   Background alpha-under blend (`frag_color = bg_col*(1-alpha)`,
+   `overlay_background_frag.glsl`). GPU-backend render-target CLEAR / load-store
+   (patch 0110 domain) or DRW render viewport-Y. Evidence:
+   `artifacts/residual_r36_bottom_band_not_shelf.png` (web|gold|diff x8).
+   **Fix owner: r35/r37 (`source/blender/gpu/webgpu/**`)** - NOT editors/screen /
+   region-ensure / startup.blend. See `notes/gpu-r36-chrome-defects.md`.
 
 2. **Cube workbench solid-shading is too dark. ~15,866 px (viewport-interior
    headline).** Every cube face is 25-45% darker than native (native top/left/front
@@ -147,7 +165,23 @@ entirely discrete elements, enumerated below.
    Region FILLS are near-perfect (+1/255, within threshold: sidebar/topbar/statusbar
    backgrounds all exactly +1); the failures are cross-renderer antialiased TEXT and
    ICON edges - irreducible at 0.016 (see gate note). One real widget defect rides
-   here: the timeline current-frame highlight (the blue "1" box) is MISSING in web.
+   here: the timeline current-frame indicator (the blue frame box + number + stalk +
+   tip) is MISSING in web.
+   **r36 root-cause:** it is drawn WINDOW-DIRECT via the region `draw_overlay` callback
+   (`action_main_region_draw_overlay` → `ED_time_scrub_draw_current_frame` →
+   `draw_playhead_box/stalk/tip`), executed by `wm_region_draw_overlay` as geometry
+   straight to the WINDOW BACKBUFFER (`wmViewport(region->winrct)`), after the region
+   blits. The box uses `GPU_SHADER_2D_WIDGET_BASE` - the SAME shader as the "Playback"
+   dropdown that renders fine when drawn to an OFFSCREEN region buffer - so the shader
+   is fine; window-direct geometry against the window backbuffer is dropped. Same domain
+   as patch 0115 (window-backbuffer blit origin flip): blits/blends to the backbuffer
+   were origin-flipped, but the window-direct overlay draw viewport was not made
+   consistent (probe: blue absent everywhere, not flipped-elsewhere; unclipped at
+   frame 30 still absent). Evidence:
+   `artifacts/residual_r36_timeline_curframe_missing.png` (web|gold).
+   **Fix owner: r35/r37 (`source/blender/gpu/webgpu/**` + possibly `platform_web/ghost`
+   presentBackbuffer)** - NOT a wm_draw / time_scrub_ui C++ fix. See
+   `notes/gpu-r36-chrome-defects.md`.
    (The stale "chrome vertical mirror" and "menu-background inversion / solid-cube
    absent" items are FIXED - chrome is upright, fills match, the cube is solid;
    dropped.)

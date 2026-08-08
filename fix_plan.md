@@ -525,17 +525,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     bind assembly + loadstore honor + sampler/BGL-visibility strips + index start/base; grid,
     axes, camera, light, selection outline render; first zero-validation-error boot. Patches
     0110/0112/0113; census held twice. notes/gpu-r26-bind-collision-root-cause.md.
-  - [ ] **M4.T24 r28 [FIVE CONCURRENT LANES, dispatched 2026-08-08]** — user-reported from live
-    use + the r28 queue: (a) workbench solid pass empty (objects selectable but invisible) +
-    outline vertex crumple + nav-gizmo ball missing [lane r28a: gpu-backend, port 8123];
-    (b) INTERACTION regression: context menus/toolbar render without backgrounds, File/Edit
-    topbar text invisible-but-clickable, panels black under playback — suspect 0110 loadstore
-    consume semantics vs wm region redraws [lane r28b: wgpu_framebuffer, opt tree, port 8124];
-    (c) live window resize letterboxes/blurs (worker-owned OffscreenCanvas backing cannot grow
-    post-boot) + DPR>=2 UI scale [lane ghost-web, port 8128]; (d) full-screen 1:1 parity
-    harness vs the installed native 5.2 oracle (honest comparator, repo-committed side-by-side)
-    [lane m4-fullscreen-parity, port 8129]; (e) third adversarial audit (aec2568..HEAD)
-    [lane audit]. Gate promise = after (a)+(b) land, measured via ?gate= + the (d) harness.
+  - [x] **M4.T24 r28 RESOLVED except (a)** — (b) interaction regressions fixed: IBO upload
+    before draw (0114) + deferred-bind claim-on-emit (0116) restored menus/toolbar/topbar/
+    outline/nav-gizmo; (c) resize letterbox/blur + DPR>=2 UI scale fixed (79941b4, 10/10
+    verify); (d) full-window parity harness landed (sandbox/m4-fullscreen-parity, baseline
+    trend 84.6%→74.5%→60.2% failing); (e) audit passed post-correction. Only (a)'s solid
+    pass remains, promoted to T25.
+  - [ ] **M4.T25 solid-cube hunt [r29-r32, ACTIVE]** — the workbench opaque prepass draw
+    rasterizes ZERO fragments (r31 GPU-proven: gbuffer depth exactly 1.0 at submit) while
+    outline/overlay draws of the same mesh work. Eliminated: indirect args (r29 byte-perfect),
+    pipeline+shaders (r30 rasterize standalone), written-then-lost (r31 falsified). r31 landed
+    the diag readback tool (patch 0117, BW_DIAG-gated; AllowSpontaneous is the ONLY delivering
+    callback mode on this profile). Residual: consumed buffer CONTENT (matrices/DRW resource
+    indexing) or a silent wrong-slot bind. CONFOUND: pipeline pool keys on shader pointer —
+    module-swap experiments must bust the pool (taints r30's injected-triangle null). r32
+    dispatched: buffer readback extension + 6-buffer prepass-vs-outline content diff.
+    Gate promise = after the fix, measured via ?gate= + the parity harness.
   - [ ] **M4.T23 r26 SUPERSEDED-TEXT (kept for history): engine output never reaches the canvas.**
     Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
     validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:

@@ -393,3 +393,19 @@
 # caller-facing synchronous/poll readback API for GPU_texture_read/pick-select remains
 # deferred. Used by the r31 gbuffer discriminator (notes/gpu-r31-readback-discriminator.md).
 0117-gpu-webgpu-diag-readback.patch
+# 0118: the dynamic STENCIL REFERENCE (M4 r33, the last M4 solid-cube defect). WebGPU
+# carries the stencil compare/write masks and ops in the pipeline but the reference is a
+# render-pass dynamic value (renderPassEncoder.setStencilReference), which the backend
+# never emitted, so every stencil-tested draw compared against reference 0. The workbench
+# opaque gbuffer prepass uses GPU_STENCIL_NEQUAL at reference 0xFF (compare-mask
+# OBJECT_IN_FRONT = 0x02): with reference 0 the test is 0 != 0 = false for every fragment,
+# so the whole solid pass wrote nothing (r29-r32 mis-read this as a depth-attachment/
+# cross-submit seam because dropping the combined Depth32FloatStencil8 attachment also
+# dropped the stencil test). Adds WGPUContext::apply_stencil_reference (guarded by
+# state.stencil_test != GPU_STENCIL_NONE, mirroring vk_context.cc:342-349) and calls it
+# after SetPipeline in every draw path (wgpu_batch draw/multi-viewport/multi_draw_indirect
+# + wgpu_immediate). GPU-verified: the workbench prepass gbuffer (material/normal/objectid/
+# depth) goes from all-empty to writtenFrac ~1.6% (the cube; depth min 0.99941) and the
+# solid shaded cube composites in-tab, 0 GPU validation errors. Semantically correct for
+# native Dawn too (census unchanged 148/158 + 956/973).
+0118-gpu-webgpu-stencil-reference-dynamic.patch

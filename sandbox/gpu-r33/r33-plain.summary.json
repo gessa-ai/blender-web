@@ -1,0 +1,12 @@
+{
+  "mode": "plain",
+  "distinctDraws": [
+    "[bw-r33] draw shader=workbench_prepass_mesh_opaque_studio_material_no_clip depthFmt=49 writeMask=0x3f depthTest=3 stencilTest=3 off=32 count=1",
+    "[bw-r33] dsa depthRO=0 stencilRO=0 dLoad=1 dStore=1 sLoad=1 sStore=1 dClear=1.000000 fmt=58 dptr=0x2d05fae0",
+    "[bw-r33] draw shader=overlay_outline_prepass_mesh depthFmt=49 writeMask=0x1f depthTest=3 stencilTest=0 off=32 count=1",
+    "[bw-r33] dsa depthRO=0 stencilRO=0 dLoad=1 dStore=1 sLoad=1 sStore=1 dClear=1.000000 fmt=58 dptr=0x2fa6ce38"
+  ],
+  "gpuErrorCount": 0,
+  "gpuErrors": [],
+  "r33LineCount": 2296
+}

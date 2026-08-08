@@ -1,0 +1,82 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 4878e66..2b37ad3 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -171,6 +171,16 @@ class WGPUContext : public Context {
+   void append_resource_bind_entries(WGPUShader *shader,
+                                      std::vector<wgpu::BindGroupEntry> &entries);
+ 
++  /* Apply the dynamic stencil reference to an open render pass, from the frontend's mutable
++   * state, mirroring vk_context.cc's dynamic stencil state. The pipeline carries only the
++   * static stencil compare/write masks and ops (wgpu_pipeline.cc); the reference is a
++   * render-pass dynamic value (WebGPU has no reference in the pipeline). Without this every
++   * stencil-tested draw compares against 0; the workbench opaque gbuffer prepass uses
++   * GPU_STENCIL_NEQUAL at reference 0xFF (compare-mask OBJECT_IN_FRONT), so a 0 reference
++   * fails the test for every fragment and the whole solid pass writes nothing. Call after
++   * SetPipeline, before the draw. No-op when the frontend has no stencil test bound. */
++  void apply_stencil_reference(const wgpu::RenderPassEncoder &pass) const;
++
+   /* A cached wgpu::Sampler for a GPUSamplerState (created lazily, retained for the
+    * context lifetime so the handle outlives every BindGroup that references it). */
+   wgpu::Sampler get_sampler(const GPUSamplerState &state);
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 3818301..378cd49 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -470,6 +470,15 @@ wgpu::BindGroup WGPUContext::create_bind_group_checked(
+   return device_.CreateBindGroup(&bgd);
+ }
+ 
++void WGPUContext::apply_stencil_reference(const wgpu::RenderPassEncoder &pass) const
++{
++  /* Mirror vk_context.cc: the reference is dynamic state only when a stencil test is bound.
++   * The frontend records it via GPU_stencil_reference_set -> mutable_state.stencil_reference. */
++  if (state_manager != nullptr && state_manager->state.stencil_test != GPU_STENCIL_NONE) {
++    pass.SetStencilReference(state_manager->mutable_state.stencil_reference);
++  }
++}
++
+ /* --- Draw/dispatch bind-group resource assembly ---------------------------- */
+ 
+ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index c3e7e40..068fcd2 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -178,6 +178,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
+         wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
+         mv_pass.SetPipeline(pipeline);
++        ctx->apply_stencil_reference(mv_pass);
+         mv_pass.SetViewport(
+             float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
+         mv_pass.SetScissorRect(
+@@ -233,6 +234,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
++  ctx->apply_stencil_reference(pass);
+ 
+   /* Vertex buffers (every slot the plan defines). */
+   bind_vertex_buffers(pass);
+@@ -380,7 +382,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
+-
++  ctx->apply_stencil_reference(pass);
+ 
+   for (uint32_t s = 0; s < vplan.size(); s++) {
+     const webgpu::VertexBinding &b = vplan[s];
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index a495f70..f932762 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -111,6 +111,7 @@ void WGPUImmediate::end()
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
++  ctx->apply_stencil_reference(pass);
+   {
+     /* Immediate is a single interleaved buffer; the plan is one slot (all attributes) plus
+      * any dummy for a shader input the format omits. Bind each to its slot. */

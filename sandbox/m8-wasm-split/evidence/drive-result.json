@@ -1,0 +1,34 @@
+{
+  "pass": true,
+  "tests": {
+    "T1_boot": {
+      "state": "boot-done",
+      "coldRuns": 0,
+      "secondaryFetchedAtBoot": false,
+      "pass": true
+    },
+    "T2_cmd1_proxied_main": {
+      "result": 1912652244,
+      "coldRuns": 1,
+      "secondaryFetchedNow": true,
+      "fetchWasDemand": true,
+      "pass": true
+    },
+    "T3_cmd2_fresh_pthread": {
+      "completed": true,
+      "error": null,
+      "result": 1136106370,
+      "coldRuns": 2,
+      "pass": true
+    }
+  },
+  "sizes": {},
+  "secondaryFile": "harness.deferred.wasm",
+  "fatal": [],
+  "note": null,
+  "wasmRequests": [
+    "harness.wasm",
+    "harness.deferred.wasm",
+    "harness.deferred.wasm"
+  ]
+}

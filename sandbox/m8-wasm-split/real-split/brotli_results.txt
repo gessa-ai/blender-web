@@ -1,0 +1,4 @@
+secondary_g0  2264956
+primary_g0  19360385
+whole_g0  21438062
+ALL_DONE

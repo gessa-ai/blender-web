@@ -1,0 +1,5 @@
+# Regenerable prototype artifacts (rebuild via build.sh / split_real.sh):
+build/
+real-split/*.wasm
+real-split/nm_*.txt
+real-split/coldfuncs.txt

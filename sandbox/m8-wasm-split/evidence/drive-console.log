@@ -1,0 +1,10 @@
+Failed to load resource: the server responded with a status of 404 (File not found)
+[boot] main() on proxied-main (worker) thread
+[hot_function] boot-path, x=7
+[boot] complete; cold_subsystem NOT called; entering command loop
+[cmd1] cold_subsystem on the proxied-main worker
+[cold_subsystem] EXECUTED x=100 -> 1912652244 (run #1)
+[cmd2] cold_subsystem on a fresh pthread
+[pthread] spawned worker calling cold_subsystem
+[cold_subsystem] EXECUTED x=4242 -> 1136106370 (run #2)
+[pthread] cold_subsystem returned 1136106370

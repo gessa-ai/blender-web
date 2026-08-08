@@ -1,0 +1,53 @@
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+
+M8 wasm-split harness shell. Loads the MODULARIZE'd split module, waits for boot
+(cold_subsystem NOT yet loaded), and exposes JS hooks so the Playwright driver can
+issue demand commands and observe results / secondary-module fetches.
+-->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>m8-wasm-split harness</title></head>
+<body>
+<pre id="state" data-state="init">init</pre>
+<script>
+  window.__log = [];
+  window.__bootDone = false;
+  window.__coldRuns = () => (window.__M && window.__M._bw_get_cold_runs) ? window.__M._bw_get_cold_runs() : -1;
+  window.__doneSeq  = () => (window.__M && window.__M._bw_get_done_seq)  ? window.__M._bw_get_done_seq()  : -1;
+  window.__result   = () => (window.__M && window.__M._bw_get_result)    ? window.__M._bw_get_result()    : -1;
+  window.__cmd = (n) => { if (window.__M && window.__M._bw_set_cmd) window.__M._bw_set_cmd(n); };
+  const setState = (s) => { const e = document.getElementById('state'); e.textContent = s; e.setAttribute('data-state', s); };
+
+  const Module = {
+    print:    (t) => { window.__log.push(t); console.log(t); },
+    printErr: (t) => { window.__log.push(t); console.error(t); },
+    onAbort:  (r) => { window.__log.push('ABORT: ' + r); console.error('ABORT', r); setState('aborted'); },
+  };
+  window.__M = Module;
+</script>
+<script src="harness.js"></script>
+<script>
+  (async () => {
+    try {
+      setState('instantiating');
+      await createBlenderModule(Module);   // MODULARIZE factory; resolves after runtime init
+      setState('runtime-init');
+      // Poll the shared boot flag (set by main() once it reaches the command loop).
+      const t0 = Date.now();
+      while (Date.now() - t0 < 60000) {
+        if (Module._bw_get_boot_done && Module._bw_get_boot_done() === 1) break;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      window.__bootDone = Module._bw_get_boot_done && Module._bw_get_boot_done() === 1;
+      setState(window.__bootDone ? 'boot-done' : 'boot-timeout');
+    } catch (e) {
+      window.__log.push('EXC: ' + (e && e.message ? e.message : e));
+      console.error('factory exception', e);
+      setState('aborted');
+    }
+  })();
+</script>
+</body>
+</html>

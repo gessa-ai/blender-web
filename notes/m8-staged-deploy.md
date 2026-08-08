@@ -260,3 +260,13 @@ cp platform_web/shell/file-bridge.js sandbox/m8-staged-deploy/bundle-mono/
 sandbox/m8-staged-deploy/make_staged_bundle.sh --copy --bin "$SNAP" --out sandbox/m8-staged-deploy/bundle-staged
 # verify + measure per the deploy-flow commands above.
 ```
+
+---
+
+**DRIVER CORRECTION (2026-08-09):** residual item 3 above ("dis.py is absent from the
+build's CPython trim") is REFUTED - see notes/python-trim-restore.md (commit 59adad0).
+dis.py ships in the .data payload (40,962 B, verified in all three artifacts including
+this lane's bundle-mono); the tracebacks observed were the HASH-extension gap already
+fixed by c1f6477 (Aug 6), reproduced verbatim only on the stale Aug 4 build-wasm
+binary. All blamed addons (bl_pkg, pose_library) live-enable cleanly on the current
+artifact with zero import tracebacks.

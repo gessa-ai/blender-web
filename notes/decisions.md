@@ -152,3 +152,28 @@ once the r34-mapped real defects land) - it is a regression tripwire, not the ga
 Real defects r34 mapped (asset-shelf visibility, workbench shading delta, left-edge
 overlap artifacts + blue spike, timeline current-frame indicator) are being fixed on
 their merits regardless of gate scope.
+
+## D-10 (2026-08-08, human KA): fidelity-first on every scope tradeoff
+
+Asked to choose between restoring `WITH_INTERNATIONAL` (native-parity splash, real cost)
+and registering an `m4-splash-i18n-row` deferral, KA answered: "whatever the best approach
+is in order to get this natively OSS and consistent with the actual Blender, regardless of
+how difficult or long the approach is - do it the right way. Take care of anything and
+everything like this."
+
+**Decision (standing, applies beyond i18n):** when a scope decision trades implementation
+effort, payload, or wire-size budget against fidelity to native Blender, take the faithful
+path. The driver dispatches such work without a per-item human page. Wire-size pressure is
+handled by staged/lazy loading (the d02c911 mechanism), never by cutting native-visible
+features. Deferrals remain legitimate only for hard external blockers (no WebGPU hardware
+ray tracing, no vertex-stage RW storage, browser-sandbox limits), and even those get an
+engineering attack (emulation/architecture lane) before they settle as deferrals.
+
+**First applications:** (1) `WITH_INTERNATIONAL` restoration dispatched (r45) instead of
+the splash-row deferral; evidence that the wire cost is small: Blender 5.2's
+blentranslation has no external gettext dependency (built-in .mo reader,
+`intern/messages.cc`), the splash row is gated on the compile-time flag only
+(`wm.py:3391`), English needs no catalog, and the 49 .mo catalogs can ride the staged
+deploy. (2) The EEVEE `vertex-stage-rw-storage` deferral is promoted from "registered,
+revisit later" to an active emulation lane at the next free slot (it blocks 30/30 EEVEE
+M6 scenes).

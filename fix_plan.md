@@ -553,6 +553,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     OK/render empty; none ⇒ composite/wrap broken); (c) log the texture ID the region composite
     samples vs the viewport's. Latent (non-gate): full-graph ninja fails at the makesdna TESTS
     genrule (missing emulator prefix + no +x on makesdna.js) — fix when the wasm gtest lane runs.
+  - [ ] **M4.T27 i18n restoration [build-deps r45, D-10]:** restore `WITH_INTERNATIONAL`
+    the faithful way: host msgfmt via the ADR-002 hosttools route, .mo catalogs compiled
+    and staged (stage-0 boot payload must not grow), languages index shipped, splash shows
+    the Language row, live language switch verified. Phase 1 (isolated probe + prep) runs
+    concurrently with r43/r44; Phase 2 (flip patches/blender_web.cmake:217 in the shared
+    tree, .data regen, splash golden re-measure) gated on r43/r44 landing (driver GO).
   - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
     _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
     G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.

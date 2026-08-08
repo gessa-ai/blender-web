@@ -378,3 +378,18 @@
 # no cube depth into the shared gbuffer depth (separate DRW GPU-driven-draw defect,
 # notes/gpu-r28-solid-composite.md).
 0116-gpu-webgpu-deferred-bind-claim-on-emit.patch
+# 0117: the tick-pumped diagnostic GPU texture readback (M4 r31) — the critical-path
+# half of the gpu-sync-readback-windowed deferral (ADR-007). Adds
+# WGPUTexture::diag_kick_readback (submit CopyTextureToBuffer + MapAsync with
+# CallbackMode::AllowSpontaneous, RETURN; the callback fires on the WM worker's event
+# loop between main-loop ticks and dumps the device bytes + an 8-word header to
+# /tmp/bw_readback_<n>.bin with one raw-fd-2 stderr line) and wgpu_diag_readback.{cc,hh}
+# (the named-texture registry + per-frame command poll driven from WGPUContext::activate,
+# + a gbuffer capture at the workbench-prepass submit). INERT unless the env var BW_DIAG
+# is set — poll_and_pump / on_draw_submit return on the first branch otherwise, so the
+# native gpu census and the pixel goldens are unaffected (verified: m3 148/158 + 956/973
+# unchanged; the shipping windowed self-test reads the viewport-colour texture back as
+# non-uniform after the grid renders). NB: this is the DIAGNOSTIC path only; a
+# caller-facing synchronous/poll readback API for GPU_texture_read/pick-select remains
+# deferred. Used by the r31 gbuffer discriminator (notes/gpu-r31-readback-discriminator.md).
+0117-gpu-webgpu-diag-readback.patch

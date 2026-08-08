@@ -1,0 +1,41 @@
+Failed to load resource: the server responded with a status of 404 (File not found)
+/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
+[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.8 ms
+WGPUWeb: presentBackbuffer frame 0 — surface 1280x720 -> canvas (offscreen blit)
+Unable to find the Python binary, the multiprocessing module may not be functional!
+BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+BW_DIAG boot-arm prepass=3
+BW_READBACK_KICK seq=0 label=prepass_depth w=1048 h=621 fmt=49 texel=4
+BW_READBACK_KICK seq=1 label=prepass_material w=1048 h=621 fmt=40 texel=8
+BW_READBACK_KICK seq=2 label=prepass_normal w=1048 h=621 fmt=21 texel=4
+BW_READBACK_KICK seq=3 label=prepass_objectid w=1048 h=621 fmt=7 texel=2
+WGPUWeb: presentBackbuffer frame 1 — surface 1280x720 -> canvas (offscreen blit)
+BW_READBACK_DONE seq=0 label=prepass_depth file=/tmp/bw_readback_0.bin w=1048 h=621 fmt=49 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=1 label=prepass_material file=/tmp/bw_readback_1.bin w=1048 h=621 fmt=40 texel=8 pitch=8384 bytes=5206464 status=ok
+BW_READBACK_DONE seq=2 label=prepass_normal file=/tmp/bw_readback_2.bin w=1048 h=621 fmt=21 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=3 label=prepass_objectid file=/tmp/bw_readback_3.bin w=1048 h=621 fmt=7 texel=2 pitch=2096 bytes=1301616 status=ok
+BW_READBACK_KICK seq=4 label=prepass_depth w=1048 h=621 fmt=49 texel=4
+BW_READBACK_KICK seq=5 label=prepass_material w=1048 h=621 fmt=40 texel=8
+BW_READBACK_KICK seq=6 label=prepass_normal w=1048 h=621 fmt=21 texel=4
+BW_READBACK_KICK seq=7 label=prepass_objectid w=1048 h=621 fmt=7 texel=2
+BW_READBACK_KICK seq=8 label=prepass_depth w=1048 h=621 fmt=49 texel=4
+BW_READBACK_KICK seq=9 label=prepass_material w=1048 h=621 fmt=40 texel=8
+BW_READBACK_KICK seq=10 label=prepass_normal w=1048 h=621 fmt=21 texel=4
+BW_READBACK_KICK seq=11 label=prepass_objectid w=1048 h=621 fmt=7 texel=2
+BW_READBACK_DONE seq=4 label=prepass_depth file=/tmp/bw_readback_4.bin w=1048 h=621 fmt=49 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=5 label=prepass_material file=/tmp/bw_readback_5.bin w=1048 h=621 fmt=40 texel=8 pitch=8384 bytes=5206464 status=ok
+BW_READBACK_DONE seq=6 label=prepass_normal file=/tmp/bw_readback_6.bin w=1048 h=621 fmt=21 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=7 label=prepass_objectid file=/tmp/bw_readback_7.bin w=1048 h=621 fmt=7 texel=2 pitch=2096 bytes=1301616 status=ok
+BW_READBACK_DONE seq=8 label=prepass_depth file=/tmp/bw_readback_8.bin w=1048 h=621 fmt=49 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=9 label=prepass_material file=/tmp/bw_readback_9.bin w=1048 h=621 fmt=40 texel=8 pitch=8384 bytes=5206464 status=ok
+BW_READBACK_DONE seq=10 label=prepass_normal file=/tmp/bw_readback_10.bin w=1048 h=621 fmt=21 texel=4 pitch=4192 bytes=2603232 status=ok
+BW_READBACK_DONE seq=11 label=prepass_objectid file=/tmp/bw_readback_11.bin w=1048 h=621 fmt=7 texel=2 pitch=2096 bytes=1301616 status=ok
+<string>:23: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/bw_diag_cmd' mode='w' encoding='utf-8'>
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[bw-diag] scheduled: readback batch (state b + self-test)
+BW_READBACK_KICK seq=12 label=viewport_color w=1280 h=720 fmt=27 texel=4
+BW_READBACK_KICK seq=13 label=gbuffer_depth w=1048 h=621 fmt=49 texel=4
+worker sent an error! http://localhost:8124/bin/blender_browser.js:1: Uncaught RuntimeError: operation does not support unaligned accesses
+BW_READBACK_DONE seq=12 label=viewport_color file=/tmp/bw_readback_12.bin w=1280 h=720 fmt=27 texel=4 pitch=5120 bytes=3686400 status=ok
+BW_READBACK_DONE seq=13 label=gbuffer_depth file=/tmp/bw_readback_13.bin w=1048 h=621 fmt=49 texel=4 pitch=4192 bytes=2603232 status=ok

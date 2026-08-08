@@ -230,13 +230,14 @@
     },
     {
       "id": "gpu-sync-readback-windowed",
-      "status": "deferred",
+      "status": "partial",
       "milestone": "M5",
-      "revisit": "tier-(c)/M5-M6 capture paths and any GPU_texture_read/GPU_storagebuf_read caller in the windowed profile: implement tick-pumped kick-then-consume readback per ADR-007 (submit copy, return to the WM loop, MapAsync resolves on a later tick) or a dedicated capture path",
-      "blocker": "emdawnwebgpu blocking waits (WaitAny with timeout) require asyncify/JSPI (dropped per ADR-006); MapAsync completion is delivered via the WM worker's JS event loop, which cannot turn while wasm spins inside a synchronous read - webgpu::Buffer::read's WaitAny returns immediately unfulfilled",
-      "impact": "synchronous GPU readback returns all-zero buffers in the windowed browser profile: bpy.ops.screen.screenshot and bpy.ops.render.opengl write constant-zero PNGs while the same content provably composites on-canvas (r25 measurement); a wasm table-OOB crash after back-to-back in-app snapshot ops is a related open defect. Native and headless-node profiles unaffected (real WaitAny).",
-      "workaround": "verification captures use CDP page.screenshot (compositor-level, faithful) via the visible Playwright rig; in-app capture routes deferred",
-      "evidence": "notes/gpu-r25-shim-boot-restored-viewport-isolated.md sections 2-3; ADR-007"
+      "progress": "DIAGNOSTIC readback path DONE (M4 r31, patch 0117): WGPUTexture::diag_kick_readback submits CopyTextureToBuffer + MapAsync and RETURNS; the completion is delivered on the WM worker's own event loop between main-loop ticks via CallbackMode::AllowSpontaneous (the DECISIVE lever: AllowProcessEvents + instance.ProcessEvents does NOT deliver in the imported-device windowed profile, AllowSpontaneous DOES). Proven live: reads the viewport-colour texture back non-uniform after the grid renders, and the gbuffer depth/material/normal/objectid mid-frame. Bytes land in /tmp/bw_readback_<n>.bin (header + 256-pad stripped), pulled via FS.readFile. Inert unless env BW_DIAG set.",
+      "revisit": "STILL DEFERRED: a caller-facing SYNCHRONOUS/POLL readback API so GPU_texture_read / GPU_storagebuf_read / bpy.ops.screen.screenshot / render.opengl / M5 GPU pick-select return real data (they still WaitAny -> zeros). The kick-then-consume primitive exists; the remaining work is a poll/async caller contract (and a sibling buffer readback) plumbed into those paths, plus fixing the back-to-back in-app snapshot table-OOB crash",
+      "blocker": "the SYNCHRONOUS Blender contract (GPU_texture_read returns filled data before returning) is structurally impossible on the WM worker under ADR-006 (no JSPI/asyncify) — a same-thread blocking wait halts the very event loop AllowSpontaneous needs. webgpu::Buffer::read's WaitAny still returns immediately unfulfilled. Callers must adopt a kick-then-poll shape (or a dedicated capture pass) to consume the r31 primitive",
+      "impact": "synchronous GPU readback still returns all-zero buffers for unconverted callers in the windowed profile: bpy.ops.screen.screenshot and bpy.ops.render.opengl write constant-zero PNGs, M5 object pick-select stalls; the diagnostic path (patch 0117) is unaffected. Native and headless-node profiles unaffected (real WaitAny).",
+      "workaround": "diagnostic capture via WGPUTexture::diag_kick_readback + FS.readFile (r31); verification captures use CDP page.screenshot (compositor-level, faithful) via the visible Playwright rig; in-app capture routes for real callers deferred",
+      "evidence": "notes/gpu-r31-readback-discriminator.md (Stage 1 + toolchain finding); notes/gpu-r25-shim-boot-restored-viewport-isolated.md sections 2-3; ADR-007"
     }
   ]
 }

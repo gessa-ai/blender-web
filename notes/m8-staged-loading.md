@@ -194,3 +194,55 @@ sync_backbuffer") — a source-revision artifact, not this probe's variable; STA
 wire bytes, not by a captured splash pixel (the current dev build's composite is blocked in the
 GPU lane, r24). Sizes pinned to the measured `.data`; a python-shim landing in `lib/wasm`
 mid-probe does not move these numbers.
+
+## ADDENDUM 2026-08-07 (M8 DCE lane) - post-pycache-prune .data, remeasured
+
+The pycache prune LANDED (commit bb5bb4e; `patches/platform_wasm.cmake:357-375` ->
+`scripts/deps/prune-preload-pycache.sh`), which dropped the triplicate `__pycache__` from the
+preload payload. The monolithic `.data` in the post-prune tree
+(`build-wasm-windowed/bin/blender_browser.data`) is now:
+
+| .data (monolithic, everything) | raw | brotli-q11 | brotli-q5 |
+|---|---:|---:|---:|
+| pre-prune, this-era opt tree (per m8-wasm-shrink) | ~133.5 MB | (not remeasured) | - |
+| **post-prune, landed** | **85,203,093 (81.3 MiB)** | **35,277,120 (33.64 MiB / 35.28 MB)** | 38,358,888 |
+| old aec2568 monolith (this note, section headline) | 106.2 MB | 28.2 MiB | - |
+
+Note the post-prune monolith brotli (33.64 MiB) is **larger** than the old note's 28.2 MiB
+despite fewer raw bytes: not a contradiction. The two `.data` files differ by more than
+pycache (heavy python/scripts **source drift** since aec2568 added content), and dropping
+`__pycache__` removes bytes that were **already highly compressible** (this note measured the
+40 MiB of pyc as only ~5 MiB of brotli). So the prune's win is mostly **raw** (decode /
+instantiate memory + first-boot IO, from 133.5 -> 85.2 MB), not brotli-wire. The
+staged-loading leverage remains the datafiles defers (fonts, LUTs) and rigify, exactly as this
+note's section 3 concluded.
+
+**STAGE-0 unchanged by the prune:** the stage-0 partition already assumed `__pycache__`
+dropped (step S1), so its **4.29 MiB / 4.50 MB brotli** figure still holds. (Caveat: it
+predates the recent source drift, so a fresh stage-0 cut from the current tree would be
+modestly larger; not repartitioned here - measurement-only.)
+
+### Updated wire-to-interactive vs the 15 MB bar (folding in the M8 DCE findings)
+
+Two new wasm levers from `sandbox/m8-dce-ranking/RANKING.md`: (i) the shipped module still
+carries a 20.38 MB raw `name` section = **1.04 MB brotli of strippable debug metadata**
+(`-sno-name-section`, zero feature risk); (ii) feature compile-outs (sculpt, compositor, GP,
+VSE, editor spaces) total **~1.6 MB brotli**, and a JSPI split of the shader compiler removes
+another **~1.0-1.4 MB** from the boot wasm.
+
+| scenario | wasm br | + stage-0 data | + js | **wire** | vs 15 MB |
+|---|---:|---:|---:|---:|---:|
+| today, monolithic (no staging) | 20.13 | 35.28 (full .data) | 0.09 | **55.5 MB** | 3.7x |
+| today, STAGE-0 (staging not yet landed) | 20.13 | 4.50 | 0.09 | **24.7 MB** | 1.65x |
+| STAGE-0 + strip name section | 19.09 | 4.50 | 0.09 | **23.7 MB** | 1.58x |
+| STAGE-0 + name strip + all feature compile-outs | ~17.5 | 4.50 | 0.09 | **~22.1 MB** | 1.47x |
+| + JSPI-split the shader compiler off boot | ~16.2 | 4.50 | 0.09 | **~20.8 MB** | 1.39x |
+
+**Verdict stands and hardens:** every source/config lever found - name strip, all feature
+compile-outs, and the shader-compiler split - stacked together still lands **~20.8 MB**, still
+~6 MB over the bar. The residual boot wasm is dominated by masses that cannot be compiled out
+(CPython, blenlib/bke/rna core, OIIO+OCIO colormanagement/image, draw/gpu viewport). Reaching
+<=15 MB requires **deeper JSPI wasm-splitting** (defer importers/exporters, and evaluate
+splitting parts of the core off first-paint), not compile-out alone; or revisiting what
+"interactive" means in the LAUNCH.md bar. Data staging + name strip + feature DCE + shader
+split are all necessary and none alone (nor all together) is sufficient.

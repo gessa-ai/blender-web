@@ -188,6 +188,10 @@ Fully local / CSP-clean: no external assets.
   </div>
 
   <script src="/bin/blender_browser.js"></script>
+  <!-- M7b file bridge: .blend drag-drop + File System Access open/save (+ fallbacks)
+       + OPFS persistence. Loaded BEFORE boot-windowed.js so the boot can append the
+       worker daemon's --python-expr and call attach() after the module resolves. -->
+  <script src="/file-bridge.js"></script>
   <script src="/boot-windowed.js"></script>
 </body>
 </html>

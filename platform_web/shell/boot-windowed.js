@@ -457,6 +457,15 @@ async function boot() {
   const pyexpr = bootPythonExpr();
   const extraArgs = bootExtraArgs();
   let bootArgv = ARGV.concat(extraArgs);
+  // M7b FILE BRIDGE: arm the WM-worker file-bridge daemon as its OWN isolated
+  // --python-expr (creator handles each occurrence independently, so this cannot
+  // collide with a user ?pyexpr, which is appended AFTER). This is what makes
+  // .blend drag-drop + FSA open/save work post-boot (notes/m7b-files-io.md).
+  // SKIPPED in gate mode so the golden-capture argv stays byte-pristine.
+  if (!GATE && window.BWFileBridge) {
+    bootArgv = bootArgv.concat(["--python-expr", window.BWFileBridge.daemonPyexpr()]);
+    append("[shell] file-bridge: arming WM-worker daemon (drag-drop + open/save)", "sys");
+  }
   if (pyexpr) bootArgv = bootArgv.concat(["--python-expr", pyexpr]);
   if (extraArgs.length) {
     append("[shell] DEV args hook: appending " + JSON.stringify(extraArgs), "sys");
@@ -476,11 +485,13 @@ async function boot() {
       console.log(line);
       append(line);
       scanForPixels(line);
+      if (window.BWFileBridge) window.BWFileBridge.noteConsoleLine(line);
     },
     printErr: (line) => {
       console.error(line);
       append(line, "err");
       scanForPixels(line);
+      if (window.BWFileBridge) window.BWFileBridge.noteConsoleLine(line);
     },
     preRun: [
       (mod) => {
@@ -525,6 +536,17 @@ async function boot() {
     // In the windowed profile WM_main is an emscripten_set_main_loop that keeps
     // running - createBlenderModule resolves once the runtime is up, NOT on quit.
     append("[shell] module resolved; WM_main loop should now be pumping.", "sys");
+
+    // M7b FILE BRIDGE: attach drag-drop + FSA open/save now that __bwModule (and
+    // thus mod.FS) exists on the browser thread. No-op in gate mode (daemon not
+    // armed there). Guarded so a bridge fault never breaks the boot.
+    if (!GATE && window.BWFileBridge) {
+      try {
+        window.BWFileBridge.attach(mod, { canvas: canvasEl, log: (m) => append(m, "sys") });
+      } catch (e) {
+        append("[shell] file-bridge attach failed: " + (e && e.message ? e.message : e), "err");
+      }
+    }
     // PRESERVED contract (d): the DOM-visible "main loop (WM_main)" marker.
     setState("running", "main loop (WM_main)");
 
@@ -580,6 +602,13 @@ if (GATE && loaderEl) loaderEl.classList.add("bw-gone");
 
 installNativeHardening();
 applyInitialSizing();
+
+// M7b: request OPFS persistence and report the eviction posture at boot (open item
+// 6.4, first half). Browser-API only (independent of the wasm module), so fire it
+// immediately; it logs one honest console line. Skipped in gate mode.
+if (!GATE && window.BWFileBridge) {
+  try { window.BWFileBridge.requestPersistence(); } catch (_) {}
+}
 
 // PRESERVED: a rig that clicks #run still works - boot() is idempotent.
 if (runBtn) runBtn.onclick = boot;

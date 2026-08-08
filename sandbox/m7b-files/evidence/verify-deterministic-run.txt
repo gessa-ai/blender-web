@@ -1,0 +1,11 @@
+
+===== 9/9 PASS =====
+PASS  P1-dragdrop-open-path  objects=["Camera","Cube","Light"] store=/projects/imported/dropped_cube.blend
+PASS  P5-persist-reported  storage.persist(): granted=false persisted=false eviction=best-effort/evictable usage=0 quota=10737418240
+PASS  P2-save-path-live-edit  objects=["BW_RT_MARKER","Camera","Cube","Light"]
+PASS  P2-save-out-valid-blend  out=28b52ffd:95978
+PASS  P3-content-survives-reload  objects=["BW_RT_MARKER","Camera","Cube","Light"]
+PASS  P4-fsa-open  deliveredLen=95944
+PASS  P4-input-fallback-open  deliveredLen=95944
+PASS  P4-fsa-save-writable  {"via":"fsa","len":95944,"magic":"28b52ffd"}
+PASS  P4-download-fallback  magic=28b52ffd len=95944

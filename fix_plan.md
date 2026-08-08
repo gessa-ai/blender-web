@@ -531,16 +531,20 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     verify); (d) full-window parity harness landed (sandbox/m4-fullscreen-parity, baseline
     trend 84.6%→74.5%→60.2% failing); (e) audit passed post-correction. Only (a)'s solid
     pass remains, promoted to T25.
-  - [ ] **M4.T25 solid-cube hunt [r29-r32, ACTIVE]** — the workbench opaque prepass draw
-    rasterizes ZERO fragments (r31 GPU-proven: gbuffer depth exactly 1.0 at submit) while
-    outline/overlay draws of the same mesh work. Eliminated: indirect args (r29 byte-perfect),
-    pipeline+shaders (r30 rasterize standalone), written-then-lost (r31 falsified). r31 landed
-    the diag readback tool (patch 0117, BW_DIAG-gated; AllowSpontaneous is the ONLY delivering
-    callback mode on this profile). Residual: consumed buffer CONTENT (matrices/DRW resource
-    indexing) or a silent wrong-slot bind. CONFOUND: pipeline pool keys on shader pointer —
-    module-swap experiments must bust the pool (taints r30's injected-triangle null). r32
-    dispatched: buffer readback extension + 6-buffer prepass-vs-outline content diff.
-    Gate promise = after the fix, measured via ?gate= + the parity harness.
+  - [x] **M4.T25 solid-cube hunt RESOLVED r33 (68e2bce, patch 0118)** — root cause: the
+    backend never emitted SetStencilReference, so every stencil-tested draw compared against
+    reference 0; the workbench prepass (NEQUAL @ 0xFF) rejected every fragment as a VALID
+    stencil op — zero errors by design, which is why r29-r32's eliminations (args, pipeline,
+    buffers, binds all correct) kept coming back clean. Fix mirrors vk_context dynamic state:
+    apply_stencil_reference after SetPipeline in all 4 draw paths. Receipts: gbuffer
+    writtenFrac 0.0157 x3, census green unchanged, SOLID SHADED CUBE on screen
+    (m4-r33-solid-cube-shot.png). Hunt tooling kept: patch 0117 diag readback.
+  - [ ] **M4.T26 parity residuals [r34, ACTIVE]** — gate bar per GOAL.md: splash + default
+    cube match the native golden within idiff threshold (0.016/1). r33 parity: 11.4% failing
+    (down from 60.2/74.5/84.6). Residuals are chrome, not geometry: panel/header background
+    fills, AA deltas, the pre-existing blue spike sliver, transient hover states in capture.
+    r34 = per-region enumeration -> fix real chrome defects -> clean recapture -> re-run
+    verbatim comparator; REPORT.md trend refresh. Gate promise on pass.
   - [ ] **M4.T23 r26 SUPERSEDED-TEXT (kept for history): engine output never reaches the canvas.**
     Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
     validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:

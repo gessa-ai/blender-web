@@ -1,0 +1,6 @@
+name-section-alone raw=23145958 brotli=1265177
+AFTER-namestrip raw=100127299 brotli=21269072 secs=228
+DONE
+BEFORE-proffuncs raw=123273267 brotli=22553609 secs=277
+AFTER-namestrip raw=100127299 brotli=21269072 secs=201
+DONE

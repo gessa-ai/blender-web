@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "boot_ms": 530,
+  "present": 1,
+  "gpuErr": 0,
+  "wasmBytes": null,
+  "jsHeap": 93246150,
+  "note": "module=true wasm=null fatal=0",
+  "fatal": []
+}

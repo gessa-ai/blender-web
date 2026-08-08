@@ -1,0 +1,8 @@
+prune-preload-pycache: /Users/paws/blender-web/lib/wasm/lib/python3.13 -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: /Users/paws/blender-web/upstream/scripts -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: /Users/paws/blender-web/upstream/release/datafiles -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: TOTAL removed 0 __pycache__ dir(s), 0 .pyc, 0.00 MiB
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+wasm-ld: warning: function signature mismatch: random_multinomial
+>>> defined as (i32, i64, i32, i32, i32, i32) -> void in /Users/paws/blender-web/lib/wasm/lib/libnumpy.a(meson-generated_numpy_random__generator.pyx.c.o)
+>>> defined as (i32, i32, i32, i32, i32, i32) -> void in /Users/paws/blender-web/lib/wasm/lib/libnumpy.a(src_distributions_distributions.c.o)

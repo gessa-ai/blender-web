@@ -287,8 +287,34 @@ function(blender_web_browser_binary src_target)
     "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
 -sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \
 -sPTHREAD_POOL_SIZE=8 -sWASMFS -sFORCE_FILESYSTEM=1 \
--sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain \
---profiling-funcs")
+-sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain")
+
+  # BEGIN BLENDER-WEB NAME-SECTION STRIP (M8 size lane; reverse-appliable block)
+  # The wasm `name` section is ~1 MB brotli of pure function-name debug metadata
+  # (sandbox/m8-dce-ranking/RANKING.md item 1: ~23 MB raw -> ~1.1 MB brotli in the
+  # shipped module) and serves ONLY debugging/profiling. It exists here solely
+  # because --profiling-funcs sets emscripten's EMIT_NAME_SECTION=1
+  # (tools/emsdk/upstream/emscripten/tools/cmdline.py:417). So gate it on the build
+  # type instead of emitting it unconditionally:
+  #   * Release (the SHIPPED browser binary) -> append -g0, which forces
+  #     EMIT_NAME_SECTION=0 (cmdline.py:362-366), order-independent -> the name
+  #     section is dropped. ~1 MB brotli saved, ZERO feature risk, no patch, no
+  #     recompile (link-flag only). This is RANKING.md's item-1 "-sno-name-section"
+  #     lever (there is no literal -s NO_NAME_SECTION in emcc 6.0.5; -g0 is the
+  #     supported spelling).
+  #   * non-Release (RelWithDebInfo / Debug dev + iteration builds) -> keep
+  #     --profiling-funcs so named stack traces AND the DCE census survive. The
+  #     census (llvm-nm --print-size --demangle for per-subsystem byte attribution)
+  #     now runs on the RelWithDebInfo twin `build-wasm-windowed`, which is the SAME
+  #     -O2 objects as the Release tree, so per-function CODE sizes are identical to
+  #     the shipped module -- the census loses nothing. See
+  #     notes/m8-soak-and-namestrip.md for the before/after measurement + rationale.
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    string(APPEND _bw_browser_flags " -g0")
+  else()
+    string(APPEND _bw_browser_flags " --profiling-funcs")
+  endif()
+  # END BLENDER-WEB NAME-SECTION STRIP
 
   # ---- preload payload (host path @ WasmFS mount) ------------------------------
   # Mirrors the node boot recipe's BLENDER_SYSTEM_* triad (notes/m2-python-boot.md).

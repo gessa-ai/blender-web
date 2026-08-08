@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+# engine	dir	test	verdict	cluster	mean_err	max_err	pct_over	gpuErr	gpu_sig
+workbench	workbench	aa-disabled	RENDER-BLACK	render-bug:bindgroup-6v7				42	bindgroup-6v7
+workbench	workbench	aa-single-pass	RENDER-BLACK	render-bug:bindgroup-6v7				42	bindgroup-6v7
+workbench	workbench	dof	FAIL	render-bug:bindgroup-6v7	0.319203	0.9529411792755127	16384 pixels (100%) over 0.016	432	bindgroup-6v7
+workbench	workbench	in_front	FAIL	render-bug:bindgroup-6v7	0.32579	0.9529411792755127	16384 pixels (100%) over 0.016	336	bindgroup-6v7
+workbench	workbench	in_front_dof	FAIL	render-bug:bindgroup-6v7	0.339977	0.9529411792755127	16384 pixels (100%) over 0.016	432	bindgroup-6v7
+workbench	workbench	light_flat_attribute	FAIL	pixel-delta	0.250207	0.847058892250061	16384 pixels (100%) over 0.016	0	
+workbench	workbench	light_flat_custom	FAIL	render-bug:bindgroup-6v7	0.302472	0.8941177129745483	16384 pixels (100%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_flat_random	FAIL	render-bug:bindgroup-6v7	0.412044	0.9215686321258545	16384 pixels (100%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_matcap	FAIL	render-bug:bindgroup-6v10	0.300198	0.9019607901573181	16384 pixels (100%) over 0.016	24	bindgroup-6v10
+workbench	workbench	light_matcap_no_specular	FAIL	render-bug:bindgroup-6v10	0.286351	0.8588235974311829	16384 pixels (100%) over 0.016	24	bindgroup-6v10
+workbench	workbench	light_studio_material	FAIL	render-bug:bindgroup-1v4	0.239226	0.9215686321258545	16383 pixels (100%) over 0.016	42	bindgroup-1v4
+workbench	workbench	light_studio_object	FAIL	render-bug:bindgroup-6v7	0.260875	0.9490196108818054	16384 pixels (100%) over 0.016	456	bindgroup-6v7
+workbench	workbench	light_studio_object_no_specular	FAIL	render-bug:bindgroup-6v7	0.236708	0.7803922295570374	16384 pixels (100%) over 0.016	456	bindgroup-6v7
+workbench	workbench	x-ray	FAIL	render-bug:gpu-validation	0.180053	0.5568628311157227	16381 pixels (100%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_0	FAIL	render-bug:gpu-validation	0.216684	0.7960785031318665	16384 pixels (100%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_1	FAIL	render-bug:bindgroup-6v7	0.206159	0.9137255549430847	16380 pixels (100%) over 0.016	336	bindgroup-6v7
+workbench	workbench	x-ray_back_cull	FAIL	render-bug:gpu-validation	0.186085	0.6078431606292725	16384 pixels (100%) over 0.016	81	gpu-validation
+workbench	workbench	x-ray_in_front	FAIL	render-bug:gpu-validation	0.191448	0.6078431606292725	16384 pixels (100%) over 0.016	82	gpu-validation
+workbench	colorspace	acescg_blackbody	FAIL	pixel-delta	0.24158	0.4941176772117615	16384 pixels (100%) over 0.016	0	
+workbench	colorspace	rec2020_lights	FAIL	render-bug:gpu-validation	0.233397	0.41960790753364563	16384 pixels (100%) over 0.016	37	gpu-validation
+eevee	colorspace	acescg_blackbody	NO-CAPTURE	render-blocked:gpu-validation				30	gpu-validation
+eevee	colorspace	rec2020_lights	NO-CAPTURE	render-blocked:gpu-validation				67	gpu-validation
+eevee	transparency	transparency_blended	NO-CAPTURE	render-blocked:gpu-validation				32	gpu-validation
+eevee	transparency	transparency_dithered	NO-CAPTURE	render-blocked:gpu-validation				30	gpu-validation
+eevee	shadow	shadow_filter	NO-CAPTURE	render-blocked:gpu-validation				38	gpu-validation
+eevee	shadow	shadow_min_pool_size	NO-CAPTURE	render-blocked:gpu-validation				38	gpu-validation
+eevee	shadow	shadow_resolution	RENDER-CRASH	render-crash:gpu-validation				38	gpu-validation
+eevee	shadow	shadow_resolution_scale	NO-CAPTURE	render-blocked:gpu-validation				38	gpu-validation
+eevee	raycast	raycast_attribute	NO-CAPTURE	render-blocked:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_bump	NO-CAPTURE	render-blocked:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_direction_constant	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_hit	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_normal	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_position	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	raycast	raycast_visibility	RENDER-CRASH	render-crash:gpu-validation				38	gpu-validation
+eevee	principled_bsdf	principled_bsdf_coat	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_coat_zero_weight	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_default	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_emission	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_emission_alpha	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_metallic	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_sheen	RENDER-CRASH	render-crash				0	
+eevee	principled_bsdf	principled_bsdf_specular	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_subsurface	RENDER-CRASH	render-crash				0	
+eevee	principled_bsdf	principled_bsdf_thin_glass	RENDER-CRASH	render-crash:gpu-validation				34	gpu-validation
+eevee	principled_bsdf	principled_bsdf_thin_subsurface	RENDER-CRASH	render-crash:gpu-validation				38	gpu-validation
+eevee	principled_bsdf	principled_bsdf_thinfilm_metallic	NO-CAPTURE	render-blocked:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_thinfilm_reflection	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_thinfilm_transmission	RENDER-CRASH	render-crash:gpu-validation				30	gpu-validation
+eevee	principled_bsdf	principled_bsdf_transmission	RENDER-CRASH	render-crash:gpu-validation				42	gpu-validation

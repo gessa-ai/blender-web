@@ -409,3 +409,32 @@
 # solid shaded cube composites in-tab, 0 GPU validation errors. Semantically correct for
 # native Dawn too (census unchanged 148/158 + 956/973).
 0118-gpu-webgpu-stencil-reference-dynamic.patch
+# 0125: the M6 render-result bridge (M6 r35). The synchronous GPU readback the render OP
+# uses returns zeros in the windowed WM-worker profile (gpu-sync-readback-windowed), so
+# bpy.ops.render.render writes a BLACK PNG. This adds a BW_DIAG-gated hook at the top of
+# WGPUTexture::read (the seam BOTH GPU_texture_read and GPU_framebuffer_read_color ->
+# WGPUFrameBuffer::read funnel through): webgpu::diag::on_texture_read kicks the tick-
+# pumped diag_kick_readback (0117, AllowSpontaneous) so the render's TRUE device bytes land
+# in /tmp/bw_readback_<seq>.bin on a later main-loop tick, pulled + decoded + oiiotool-
+# compared to the M6 goldens by the r35 suite comparator (sandbox/gpu-r35/). read() still
+# returns zeros, so RenderResult/PNG stays black by design and native/headless + the pixel
+# goldens are byte-unchanged; the bridge is INERT unless BW_DIAG is set (exactly like 0117).
+# Bounded by kMaxReadCaptures. Proven on the workbench factory cube (real shaded pixels,
+# 0 GPU errors); revealed the real M6 blockers are render-side (workbench bind-group
+# mismatch, EEVEE-Next storage-texture pipeline failure), NOT readback. See
+# notes/m6-gpu-suite-real-scores.md and notes/gpu-r35-render-result-bridge.md.
+0125-gpu-webgpu-render-result-bridge.patch
+# 0119: signed packed-normal (GPU_COMP_I10) vertex format (M4 r37, the workbench solid-
+# shading FLIP). WebGPU has NO signed snorm 10-10-10-2 vertex format, so to_wgpu_vertex_format
+# mapped GPU_COMP_I10 (Blender's signed 2_10_10_10_REV packed mesh normal, INT_TO_FLOAT_UNIT)
+# to the UNSIGNED VF::Unorm10_10_10_2, decoding every NEGATIVE normal component as positive.
+# Any face with a negative object-space normal component shaded with a sign-flipped normal
+# (the default cube's -Y face read as +Y -> inverted studio-light shading). Fix: map
+# normalized I10 -> VF::Snorm8x4 and transcode the packed 2_10_10_10 data to Snorm8x4 at
+# upload (WGPUVertexBuffer::upload_data / transcode_i10_attrs), same 4-byte stride so
+# interleaved+deinterleaved offsets are unchanged. Mirrors Vulkan's A2B10G10R10_SNORM_PACK32
+# intent (8-bit precision, exact for axis normals). GPU-verified: the native Dawn census
+# test vertex_buffer_fetch_mode GPU_COMP_I10 INT_TO_FLOAT_UNIT goes FAIL->PASS (un-defers
+# gpu-comp-i10-vertex-format); the web gbuffer -Y face normal flips +Y->-Y; whole-window
+# parity 11.4%->11% (mean 0.00874->0.00825), cube face ordering now matches native.
+0119-gpu-webgpu-i10-signed-normal-snorm8.patch

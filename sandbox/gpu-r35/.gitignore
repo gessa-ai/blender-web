@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+# Intermediate per-scene captures (bin dumps + composites + logs) - bulky, regenerable.
+# The authoritative scored data is results.tsv; representative renders are in evidence/.
+caps/

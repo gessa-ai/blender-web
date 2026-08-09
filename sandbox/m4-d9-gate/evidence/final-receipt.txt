@@ -1,0 +1,28 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+D-9 M4 first-pixels final receipt
+Date: 2026-08-09
+Source commits: aca6c1a8d249bff32b783ac1bd39684598ad0087 d2592af0a64a3498c2479ab215ffce608febfd6c 159e4a0f9c32f3a4aa4e77178e45d7a0aee6102b
+Capture: headed bundled Chromium, exact 1280x720 canvas, DPR 1, 60000 ms settle, port 8141.
+
+Splash:
+  sha256: 0d215a171dccc33c8f85e9c18d172949d1e7713b3a66f79cc91badbb565a7c86
+  comparator: PASS, max error 0.6588236093521118, 1882 pixels / 0.204% over 0.016
+  receipt: two presents, no crash, no run error, zero blocking errors
+  pixels: 1280x720 RGB uint8, non-constant, full 0..255 range
+  chrome: upright dark UI, full artwork, Language/Theme/Keymap/Mouse/Spacebar rows, Continue button, no wedge
+
+Workspace:
+  sha256: 019570c33537e6695d38cb51d86d3c559a736f1c6de80115ff4f09daf3767bb2
+  comparator: PASS, max error 0.6588236093521118, 4653 pixels / 0.505% over 0.016
+  receipt: two presents, no crash, no run error, zero blocking errors
+  pixels: 1280x720 RGB uint8, non-constant, full 0..255 range
+  chrome: menus/tabs, native cursor, toolbar, cube/camera/light/grid, gizmo, Outliner, Properties, timeline, statusbar; no black frame, inversion, wedge, spike, or hover artifact
+
+Stable artifacts before and after both captures:
+  JS:   287e06e2ffb7b9d0ec322a5167ee9ab0a8dab84d55e1ce202fddd8051ef313ea
+  wasm: cb674f5ba95317c69e0a50bbb4d78e2024eea2958772c31acfcd09b6f23fe89e
+  data: 5aa7c461a5a05aa5f0354754bbd7de7124819334ee336c3bc0f40a1efb7741b1
+
+The four non-blocking console lines in each JSON receipt are known boot diagnostics: favicon 404, OpenImageIO physical_memory assertion text, the device feature/limit receipt, and the missing multiprocessing Python-binary warning. Neither receipt contains a GPU validation error.

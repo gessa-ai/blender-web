@@ -630,3 +630,26 @@
 # the known-spurious I10 RED. Reverse-check and exact four-file round-trip pass. The pre-existing
 # cursor overlay defect remains outside this patch. See notes/gpu-r52-workbench-pixel-unlock.md.
 0134-gpu-webgpu-triangle-fan-emulation.patch
+# 0135: ensure VBOs consumed through vertex pulling or samplerBuffer emulation upload first-use
+# and later DIRTY host bytes before binding. The active-context guard preserves DIRTY data for
+# retry and keeps DEVICE_ONLY behavior unchanged. Actual WebGPU probes cover the DIRTY rebind.
+# This is the native upload invariant required by 0137; it is not claimed as the cursor fix by
+# itself. Reverse-check and the stacked 0135/0137 exact round-trip pass. See
+# notes/gpu-m4-cursor-vertex-pulling-upload.md.
+0135-gpu-webgpu-vertex-pulling-upload.patch
+# 0136: EEVEE storage Phase A C1-C4. Strip over-declared Vertex visibility from writable storage
+# textures, request adapter-guarded TextureFormatsTier1/Tier2, and request the adapter-supported
+# storage texture/buffer ceilings. The browser device request is mirrored directly in the port
+# shell. Dawn controls move 2/9 to 8/9 fragment-only formats, retain 6/6 writable-Vertex rejects,
+# and accept 5/8 storage textures; census holds 149/7/2 plus 956/973. This verifies the device and
+# backend triad only: principled pixels remain blocked by Phase A' RG11B10Ufloat ReadWrite, while
+# F12 readback and Image Editor mip aliasing remain separate. See notes/gpu-eevee-phase-a.md.
+0136-gpu-webgpu-eevee-storage-phase-a.patch
+# 0137: unify StorageBuf, VBO/IBO storage, and samplerBuffer records under one chronological bind
+# serial while retaining tagged Storage and Sampler frontend namespaces. Same raw Storage slots
+# cross-replace, mapped binds retain precedence over identity fallback, and the newest candidate
+# wins only after dense remapping. Actual WebGPU probes cover both bind orders plus Sampler/Storage
+# coexistence. Fresh origin/moved/hidden captures show the native cursor with zero GPU/page errors;
+# splash and workspace pass D-9 at 0.204% and 0.505%. Census holds 149/7/2 plus 956/973. See
+# notes/gpu-m4-cursor-vertex-pulling-upload.md.
+0137-gpu-webgpu-chronological-ssbo-bindings.patch

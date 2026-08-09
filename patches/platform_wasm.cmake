@@ -333,6 +333,23 @@ function(blender_web_browser_binary src_target)
     " --preload-file ${_scripts}@/bw/scripts"
     " --preload-file ${_datafiles}@/bw/datafiles")
 
+  # blender-web / D-10 (WITH_INTERNATIONAL): the compiled .mo catalogs + the `languages`
+  # index live in a repo-owned tree (scripts/build-locale-datafiles.sh -> build-hosttools/
+  # locale), NOT in the read-only upstream datafiles, so they ride their own preload root
+  # mounted under /bw/datafiles at /bw/datafiles/locale (where BKE_appdir resolves
+  # BLENDER_DATAFILES + "locale"). The stager (stage_pack.py) keeps `languages` in stage-0
+  # and defers the 49 .mo to stage-1 with the CJK fonts. See notes/i18n-restore-r45.md.
+  if(WITH_INTERNATIONAL)
+    set(_locale "${BLENDER_WEB_REPO_ROOT}/build-hosttools/locale")
+    if(NOT EXISTS "${_locale}/languages")
+      message(FATAL_ERROR
+        "blender-web browser: WITH_INTERNATIONAL is ON but the locale payload is missing "
+        "at ${_locale}. Run scripts/build-locale-datafiles.sh before configuring.")
+    endif()
+    string(APPEND _bw_browser_flags
+      " --preload-file ${_locale}@/bw/datafiles/locale")
+  endif()
+
   # ---- M4 windowed (WITH_WEBGPU_BACKEND) link additions ------------------------
   # The base flags above OVERWRITE LINK_FLAGS, so the WebGPU arm's PLATFORM_LINKFLAGS
   # (--use-port=emdawnwebgpu) are dropped for this target — re-add them here, plus:

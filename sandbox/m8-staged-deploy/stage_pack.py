@@ -82,6 +82,13 @@ def classify(fn, defer_datafiles):
         if "/datafiles/colormanagement/" in fn and (fn.endswith(".cube") or fn.endswith(".spi1d")) \
            and not any(k in fn for k in CM_LUT_KEEP):
             return "defer"
+        # DEFER: i18n message catalogs (WITH_INTERNATIONAL, r45). English is the source
+        # language and loads no .mo at boot; a non-English catalog is only read when the
+        # user switches language, so the 49 blender.mo ride stage-1 with the CJK fonts. The
+        # small `datafiles/locale/languages` index is NOT matched here and falls through to
+        # KEEP (stage-0) so the language menu is populated at BLT_lang_init.
+        if "/datafiles/locale/" in fn and fn.endswith("/LC_MESSAGES/blender.mo"):
+            return "defer"
     return "keep"
 
 

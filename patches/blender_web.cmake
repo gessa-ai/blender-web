@@ -213,8 +213,14 @@ set(WITH_COREAUDIO          OFF CACHE BOOL "" FORCE)
 set(WITH_WASAPI             OFF CACHE BOOL "" FORCE)
 set(WITH_RUBBERBAND         OFF CACHE BOOL "" FORCE)
 
-# ---- Localization / misc (INTERNATIONAL off initially — size) --------------
-set(WITH_INTERNATIONAL      OFF CACHE BOOL "" FORCE)
+# ---- Localization / misc ---------------------------------------------------
+# WITH_INTERNATIONAL restored (r45, decision D-10): native-parity splash "Language"
+# row + real UI translations. The .po -> .mo catalogs are compiled by the native host
+# msgfmt (ADR-002; scripts/build-hosttools.sh + patch 0127) into build-hosttools/locale,
+# preloaded at /bw/datafiles/locale (platform_wasm.cmake), and staged to stage-1 with the
+# CJK fonts (stage_pack.py). English is the source language and loads no catalog, so boot
+# is unaffected. See notes/i18n-restore-r45.md.
+set(WITH_INTERNATIONAL      ON  CACHE BOOL "" FORCE)
 set(WITH_BLENDER_THUMBNAILER OFF CACHE BOOL "" FORCE)
 set(WITH_BUILDINFO          OFF CACHE BOOL "" FORCE)
 

@@ -497,3 +497,17 @@
 # but not the create-info resource list -> imap undercounts -> pc-binding collides, b6 unbound),
 # NOT this namespace collision; flagged for follow-up. See notes/gpu-r44-r2-bind-namespace.md.
 0122-gpu-webgpu-bind-unit-create-info-slot-namespace.patch
+# 0127: native host msgfmt seam for the WITH_INTERNATIONAL cross build (r45/r47, D-10).
+# Restoring WITH_INTERNATIONAL turns on the `locales` custom target (creator/CMakeLists.txt),
+# which runs msgfmt_simple (macros.cmake:1261) per .po. That macro execs
+# $<TARGET_FILE:msgfmt> with no CMAKE_CROSSCOMPILING_EMULATOR prefix, so under Emscripten it
+# would try to run a .wasm/.js as a native tool and DEPENDS msgfmt would force a useless emcc
+# link of the wasm msgfmt executable. Fix (mirrors patch 0007 for datatoc/shader_tool,
+# ADR-002): msgfmt_simple selects ${BLENDER_WEB_HOST_TOOLS_DIR}/msgfmt (the native host binary
+# from scripts/build-hosttools.sh, set by platform_wasm.cmake) when cross-compiling, else the
+# in-tree $<TARGET_FILE:msgfmt> so native builds are unchanged; DEPENDS follows the selected
+# tool. A `blender_web_host_tool(msgfmt)` guard in msgfmt/CMakeLists.txt gives the wasm target
+# the node link profile if `all` is ever built (no-op otherwise). The .mo byte format is
+# target-independent (fixed LE magic 0x950412de) so the native tool's output is identical and
+# the tool never ships. See notes/i18n-restore-r45.md and notes/adr/ADR-002-host-tool-execution.md.
+0127-hosttools-native-msgfmt-wasm.patch

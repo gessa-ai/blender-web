@@ -239,3 +239,113 @@ scripts/build-hosttools.sh
 5. **Full `ninja bf_blentranslation`** was not run in Phase 1 (disk); the flag-accurate TU compile
    stands as the proof. Belt-and-suspenders full-lib build is a cheap add during the Phase 2
    rebuild if desired.
+
+## 9. Phase 2 results (lane r47, 2026-08-09)
+
+Phase 2 was executed to completion. Phase 1's predecessor (r45) died on a session limit, but
+the repo carried the work much further than a bare "mid-link" - the audit found the whole
+runbook already materialised in the tree (below). This section records the applied-state audit,
+the completed build, the measured staging bound, and the live verification.
+
+### 9.1 Applied-state audit (what the tree already had)
+
+- **patch 0127 APPLIED inside `upstream/`**: `git -C upstream apply --check -p1` fails ("patch
+  does not apply"), `--check --reverse` succeeds - the definitive already-applied signature. The
+  two files it edits (`build_files/cmake/macros.cmake`, `blentranslation/msgfmt/CMakeLists.txt`)
+  are in the upstream dirty set. The series rationale entry was still missing and is now appended
+  to `patches/series` (r47).
+- **`patches/blender_web.cmake`**: `WITH_INTERNATIONAL` flipped `OFF -> ON` with the D-10 rationale
+  block. Well-formed, single edit at the localization stanza. (uncommitted; committed by r47)
+- **`patches/platform_wasm.cmake`**: a complete `if(WITH_INTERNATIONAL)` block adds the repo-owned
+  locale preload root `--preload-file ${BLENDER_WEB_REPO_ROOT}/build-hosttools/locale@/bw/datafiles/locale`,
+  with a `FATAL_ERROR` guard if the locale payload is absent. `BLENDER_WEB_REPO_ROOT` is defined
+  earlier in the file. Well-formed. (uncommitted; committed by r47)
+- **`scripts/build-locale-datafiles.sh`** (new, SPDX header): compiles all 49 `.po` with the native
+  host msgfmt into `build-hosttools/locale/<lang>/LC_MESSAGES/blender.mo` + `languages`. The tree
+  was already built (49 dirs + the 2,248 B index). `build-hosttools/locale` is gitignored (a build
+  artifact, never committed), as is the host msgfmt binary.
+- **`sandbox/m8-staged-deploy/stage_pack.py`**: `classify()` extended - `.mo` under
+  `/datafiles/locale/*/LC_MESSAGES/` -> DEFER (stage-1); `languages` falls through to KEEP (stage-0).
+  Correct. (uncommitted; committed by r47)
+
+Nothing was malformed; the dead lane's edits were kept verbatim.
+
+### 9.2 Build outcome
+
+The build **COMPLETED**, it did not die: `sandbox/i18n-r45/build.log` ends with
+`reconfigure rc=0`, `cache WITH_INTERNATIONAL now: WITH_INTERNATIONAL:BOOL=ON`, `ninja rc=0`,
+`[2218/2218] Linking CXX executable bin/blender_browser.js`, and `data: 165654323`. The tree's
+`build-wasm-windowed-opt/bin/blender_browser.{js,wasm,data}` are that build (data = 165,654,323 B).
+
+**The nested preload mount worked** - the assumed-clean PRIMARY path in section 6, no fallback
+needed. `build.ninja` bakes `--preload-file .../build-hosttools/locale@/bw/datafiles/locale`
+alongside the read-only `/bw/datafiles` root, and the file_packager manifest inside
+`blender_browser.js` lists all **49** `.../LC_MESSAGES/blender.mo` entries plus the `languages`
+index. No file_packager rejection of the nested root - open risk #1 is retired.
+
+### 9.3 Staging bound (the D-10 hard promise, measured)
+
+`stage_pack.py --dry-run` on the built monolith, cross-checked by a manifest byte-audit
+(`scratchpad measure_stage0_bound.py`, reusing `classify()` unchanged):
+
+| slice | files | bytes | note |
+|---|---:|---:|---|
+| stage-0 (keep) | 2,817 | 44,339,255 | of which locale = **1 file, `languages`, 2,248 B** |
+| stage-1 (defer) | 538 | 119,518,211 | of which locale = **49 `.mo`, 80,448,982 B (76.72 MiB)** |
+
+- **stage-0 growth from i18n = exactly 2,248 B** (the `languages` index). `.mo` catalogs leaked
+  into stage-0 = **0**. Baseline (locale removed) stage-0 = 44,337,007 B. The HARD BOUND holds
+  exactly: stage-0 grows only by the languages index.
+- stage-1 locale delta = +80,448,982 B raw (~13-17 MB brotli), riding with the already-deferred
+  CJK fonts. Nothing on the English `--factory-startup` boot path reads a `.mo`.
+- **wire-to-interactive delta = +2,248 B** (only stage-0 gates first pixels; the catalogs are
+  post-first-pixels).
+
+### 9.4 Live verification (headed node-Playwright, bundled Chromium, port 8130, ?gate DPR 1)
+
+Rig: `sandbox/i18n-r45/capture-i18n.mjs` (r47 enhanced the langswitch mode to enable
+`use_translate_interface`/`use_translate_tooltips` before setting the language - `view.language`
+alone loads the catalog but the UI stays English without the interface flag). Comparator:
+verbatim `sandbox/m4-golden-prep/compare_m4.sh` (`--fail 0.016 --failpercent 1`, exit-code-primary).
+Tree at capture: HEAD `f7cf3e0`, upstream 50 dirty files (full patch series + r46 gpu WIP).
+
+- **Splash (a):** `r47-splash_1280x720.png` = **4.54% failing** (41,823 px), **down from the
+  pre-fix 17.8%**. FAIL by exit code, but the fix landed: the **"Language: English (US)" row is
+  present and correctly positioned**, the whole Quick Setup dialog now matches the golden's row
+  layout (the missing row was the driver's own root cause of the 17.8%). The **residual is not
+  i18n**: the amplified diff (`r47-splash-diff3x_1280x720.png`, max err at 521,247 = golden
+  near-white vs capture dark) localises to a **dark triangular wedge over the splash IMAGE** - one
+  triangle of the splash-image quad not sampling its texture. This is a **GPU splash-image draw
+  defect** in the current windowed backend state (r44-r2 + r46 gpu WIP linked into this build); it
+  is absent from the 3D viewport/UI (workspace is clean, 9.4 below) and touches no i18n code path.
+  Flagged for the gpu lane; not in scope to fix here (must not touch r46's gpu WIP).
+- **Workspace (b):** `r47-workspace_1280x720.png` = **1.11% failing** (10,270 px), **improved from
+  the pre-fix 2.05%** (the 0123 cube std140 fix in tree). Essentially at the AA floor. Cube renders
+  correctly (solid + selection outline), full chrome present, no wedge - confirming the wedge is
+  splash-image-specific.
+- **Language switch (c) - the fidelity proof:** `r47-ja_1280x720.png` shows **real Japanese glyphs
+  rendered from Noto Sans CJK**: the viewport header "Add" menu is **追加**, the outliner and
+  properties search fields are **検索** (crisp zoom: `r47-ja-glyphs-header-zoom_1280x720.png`,
+  `r47-ja-glyphs-search-zoom_1280x720.png`). This exercises the whole pipeline live: native msgfmt
+  `.mo` -> preloaded at `/bw/datafiles/locale/ja/LC_MESSAGES/blender.mo` -> `intern/messages.cc`
+  reader -> `BLT_pgettext` -> Noto CJK glyph draw. Round-trip: `en_US -> ja_JP -> en_US` restores
+  English cleanly (`r47-en-restored_1280x720.png`); the console log shows `BW_LANG set ja_JP` then
+  `BW_LANG restored en_US` with no exception. Coverage is partial (追加/検索 translate; File/Edit/
+  header labels stay English) because a runtime RNA `view.language` toggle re-translates the
+  dynamically-evaluated strings but not registration-cached `bl_label`s without a full script
+  re-register; a fully-Japanese UI is the splash "Continue" startup path. This is faithful native
+  Blender runtime-toggle behaviour, and the correctness of the translations proves the reader is
+  sound (no garbage, right words).
+- **Payload numbers (d):** stage-0 before 44,337,007 B -> after 44,339,255 B (delta **+2,248 B**);
+  stage-1 locale delta **+80,448,982 B** (76.72 MiB raw); wire-to-interactive delta **+2,248 B**.
+
+### 9.5 Residue / follow-ups
+
+1. **Splash-image GPU wedge** (one triangle of the splash quad not texturing) is the only thing
+   keeping the splash comparison above its AA floor. It is a gpu-backend defect, not i18n; owned by
+   the gpu lane. The i18n structural fix (Language row) is verified independent of it.
+2. **Live staged-fetch capture** (boot the `make_staged_bundle.sh` bundle, switch to `ja` after the
+   stage1-loader streams the `.mo`) was not run: the classification is byte-proven (9.3) and the
+   monolith proves the reader+font, so the remaining test is the m8 stage1-loader `FS.writeFile`
+   delivery timing, which the m8 lane owns. The rig sets language at boot, which would race the
+   post-boot stream; a delayed-switch variant is the clean way to add it.

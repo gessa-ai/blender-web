@@ -530,3 +530,62 @@
 # object_id Uint sampler slot receiving a depth texture (namespace follow-up); 1v4 compute
 # storage-image undercount. See notes/gpu-r46-round3-finish.md.
 0124-gpu-webgpu-geometry-ssbo-attr-mask.patch
+# 0128: WGSL translation cache for warm-boot shader latency (M4.T29, feeds the M8 30-second
+# bar). r50 traced the ~16 s dead-tab boot window to the first-draw shader set compiling
+# INLINE on the WM worker (use_main_context_workaround bypasses the async ShaderCompiler,
+# gpu_shader.cc:1069). r51 measured the block per-stage (BW_SHADER_TIMING, notes/gpu-r51-
+# shader-latency.md): shaderc GLSL->SPIR-V ~81 %, Tint SPIR-V->WGSL ~5 % (CPU translation
+# ~86 % total), browser createShaderModule + next-shader GLSL codegen only ~14 %. So this
+# adds a content-addressed WGSL cache under the persistent OPFS mount /projects/.shadercache
+# (the M7 store's synchronous WasmFS-OPFS I/O), mirroring the M3 doc D-2 intent (cache the
+# WGSL Tint emits, since the browser consumes WGSL; browsers expose NO pipeline-binary
+# serialization to JS). compile_shader looks the WGSL up before shaderc+Tint; on a hit hands
+# the stored WGSL back and the browser createShaderModule/pipeline caches handle repeats at
+# ITS layer. Key = 128-bit FNV-1a over the exact toolchain salt (shaderc v2025.4 and
+# Tint/Dawn 36cf1fae), format, name, per-stage GLSL (carries all #defines), optimize,
+# sampler_base, and sampler_mappings, so any source/define/resource/toolchain change flips
+# the key and misses. Cache format v2 bounds each stage payload at 16 MiB and stores a
+# payload checksum, rejecting truncation and same-length bit corruption before a hit. New
+# files wgpu_shader_cache.{hh,cc} (registered in
+# gpu/CMakeLists.txt) + the lookup/store wiring in wgpu_shader_compiler.cc; inert wherever the
+# OPFS mount is absent (access("/projects",W_OK)) so the native gpu build and cold-empty boots
+# are byte-for-byte unchanged; BW_SHADER_CACHE=0 force-disables. RESULT: time-to-first-UI-
+# present ~16.3 s cold -> ~3.0 s warm (compile block ~13 s -> ~2 s), zero-input, threefold.
+# CORRECTNESS: 101/101 warm hits byte-identical to fresh (BW_SHADER_CACHE_VERIFY); salt-bump
+# invalidates 100 % (full cold fallback) then repopulates; empty-OPFS cold == cache-off
+# control (+16.6 s). Parity workspace 1600x900 = 1.15 % (16583 px, byte-identical to r50
+# baseline). Census HELD: build-native-gpu rebuilt, run.sh --scope m3 = 149 PASS / 7 FAIL /
+# 2 CRASH + static_shaders 956/973 (only the known-spurious I10 un-defer RED). git apply
+# --check --reverse OK inside upstream; forward round-trip exact for all 4 files. Applies onto
+# the live tree independently (webgpu-only, disjoint from the r46 gpu fence). Diagnostic
+# BW_SHADER_TIMING/VERIFY instrumentation + shell ?env hook reverted before landing. 0129
+# (reserve) unused - one coherent patch sufficed. See notes/gpu-r51-shader-latency.md.
+0128-gpu-webgpu-wgsl-translation-opfs-cache.patch
+# 0133: production GPU readback primitive (M5 lane L-A). Promotes the twice-proven
+# AllowSpontaneous tick-pumped readback (0117/0125) from a BW_DIAG-only diagnostic to a
+# production kick/latch/settle primitive at BOTH backend seams (WGPUTexture::read,
+# webgpu::Buffer::read), behind one heap-owned registry for the current single-device port
+# profile (new wgpu_readback.{cc,hh}).
+# Fixes M5.readback-callback-lifetime: on wasm the dangling `MapAsync(WaitAnyOnly)`+`WaitAny`
+# `[&]` lambda (which could fire after read() returned through a reused wasm table slot = the
+# r25 table-OOB crash) is #ifdef __EMSCRIPTEN__-compiled OUT; the seam kicks a heap-owned
+# readback (staging owned by the registry, callback captures only a uint64 ticket) and, on a
+# later read of the same source, returns the latched bytes (kick-now, fill-one-tick-late per
+# the r49 design section 3.1); first-call-unsettled returns the conservative interim
+# (zeros/empty). Identical in-flight keys deduplicate unless the earlier record is orphaned;
+# buffer keys include the source span, source retirement is kind-aware, and completed tickets
+# retain an immutable exact payload so an older ticket cannot consume newer same-key bytes.
+# Native path is verbatim under #else (blocking WaitAny, real bytes in-call);
+# wgpu_readback.cc compiles to a 336-byte stub on native. Adds the internal settle/poll
+# mechanics later lanes call (pending_count/pump/is_ready/consume_ticket/take_settled); does
+# NOT add the public GPU_*_read_async API (that is L-B) nor convert callers (L-C). VERIFY:
+# primitive proof (persistent-offscreen fill-late: read0=0 -> read1/read2 real, known colour
+# 51/153/229/255 matching the clear); lifetime stress (24 back-to-back render.opengl+screenshot
+# ops, zero table-OOB, WM loop alive); 0117/0125 diag bridge intact (2/2 captures via gpu-r46
+# bridge_boot); census HELD 149 PASS / 7 FAIL / 2 CRASH / 158 + static_shaders 956/973 (only
+# the known-spurious I10 un-defer RED). git apply --check --reverse OK inside upstream; forward
+# round-trip exact for all 5 files. Applies after 0125 (regions disjoint from 0117/0125 diag).
+# Fence: only wgpu_texture.cc, wgpu_buffer.cc, CMakeLists (new-file registration), and the new
+# wgpu_readback.{cc,hh}; wgpu_context/batch/framebuffer/diag_readback (r52) + shader_compiler
+# (r51) untouched. See notes/gpu-r53-readback-primitive.md.
+0133-gpu-webgpu-production-readback-primitive.patch

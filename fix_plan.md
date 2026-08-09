@@ -584,11 +584,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     to with-input boots. The dead-tab window is the INLINE SHADER COMPILE blocking the WM
     worker (+1.0s to +17.4s, load-sensitive; frame 1 presents the instant it finishes).
     Capture rigs no longer need the mouse-nudge for correctness (keep it for older builds).
-  - [ ] **M4.T29/M8 boot-latency: shader-compile block [gpu]:** the real successor to P2#6.
-    ~16s WM-worker block in the workerless inline ShaderCompiler at first engine draw
-    (worse under load). Fix directions per the M3 architecture doc: OPFS shader-binary
-    cache (the planned Vulkan-disk-cache mirror) for warm boots + async/off-thread compile
-    for cold. Feeds the M8 30-second bar directly (staged loading is at 27.8s TTFP cold).
+  - [~] **M4.T29/M8 boot-latency: shader-compile block [gpu]: warm path fixed by r51/0128.**
+    The OPFS WGSL translation cache cuts retained clean zero-input first-UI timing from
+    ~16.3s cold to ~3.0s warm, with 101/101 cached shaders byte-identical and exact shaderc
+    v2025.4 plus Tint/Dawn 36cf1fae invalidation pins. Cache format v2 adds bounded payloads
+    and a checksum. Cold first draw still compiles inline on the WM worker; async/off-thread
+    translation or faithful lazy per-object engine loading remains the cold lever. Feeds the
+    M8 30-second bar directly (staged loading is at 27.8s TTFP cold).
   - P3 python (cattrs) follows separately.
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)

@@ -553,12 +553,27 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     OK/render empty; none ⇒ composite/wrap broken); (c) log the texture ID the region composite
     samples vs the viewport's. Latent (non-gate): full-graph ninja fails at the makesdna TESTS
     genrule (missing emulator prefix + no +x on makesdna.js) — fix when the wasm gtest lane runs.
-  - [ ] **M4.T27 i18n restoration [build-deps r45, D-10]:** restore `WITH_INTERNATIONAL`
-    the faithful way: host msgfmt via the ADR-002 hosttools route, .mo catalogs compiled
-    and staged (stage-0 boot payload must not grow), languages index shipped, splash shows
-    the Language row, live language switch verified. Phase 1 (isolated probe + prep) runs
-    concurrently with r43/r44; Phase 2 (flip patches/blender_web.cmake:217 in the shared
-    tree, .data regen, splash golden re-measure) gated on r43/r44 landing (driver GO).
+  - [x] **M4.T27 i18n restoration [r45 Phase 1 + r47 Phase 2, D-10]: LANDED** (c5e465b +
+    422b488, driver-verified). Language row restored; splash 17.8% -> 4.54%; workspace
+    2.05% -> 1.11%; real Noto CJK ja_JP switch proven (Add menu renders translated) with
+    en_US round-trip; stage-0 +2,248 B exactly (languages index), 49 .mo (76.72 MiB raw)
+    ride stage-1; patch 0127 applied + series entry. Residual coverage note: registration-
+    cached bl_labels need the full-register path (faithful native behavior).
+  - [ ] **M4.T28 splash-image wedge [gpu, GATE-CRITICAL for splash]:** r47's amplified
+    diff localizes the whole 4.54% splash residual to a dark triangular wedge over the
+    splash image (one triangle of the image quad not sampling its texture). CAVEAT: the
+    capture was taken with r46's uncommitted gpu WIP in the tree - r46 must re-capture
+    post-landing to determine pre-existing vs WIP-regression before a hunt is dispatched.
+  - [ ] **M6.EEVEE-A [gpu-backend, L1, blocked-by r46 fence release]:** Phase A+A' per
+    notes/eevee-storage-emulation-design.md (r48, d4c11b8): storage-IMAGE visibility strip
+    (mirror the existing SSBO strip at wgpu_shader_interface_map.cc:239 + wgpu_shader.cc
+    ~2360), adapter-guarded TextureFormatsTier1/Tier2 opt-in + requiredLimits in GHOST
+    device request, then the 1-2 read-write format residuals. Expected yield: 26/30 EEVEE
+    scenes. FIRST STEP: log adapter.features in the M4 browser build (risk R1 - if tiers
+    absent in emdawnwebgpu/Chrome, C2 falls back to R32Uint-packing or MRT).
+  - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
+    emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
+    4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.
   - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
     _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
     G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.

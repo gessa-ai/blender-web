@@ -1,0 +1,15 @@
+Note: Google Test filter = GPUWebGPUTest.shader_storage_binding_chronology:GPUWebGPUTest.buffer_texture
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from GPUWebGPUTest
+color_management | Using fallback mode for management
+                 | source/blender/imbuf/intern/colormanagement.cc:342 colormanagement_init
+[ RUN      ] GPUWebGPUTest.buffer_texture
+[       OK ] GPUWebGPUTest.buffer_texture (95 ms)
+[ RUN      ] GPUWebGPUTest.shader_storage_binding_chronology
+[       OK ] GPUWebGPUTest.shader_storage_binding_chronology (58 ms)
+[----------] 2 tests from GPUWebGPUTest (154 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (279 ms total)
+[  PASSED  ] 2 tests.

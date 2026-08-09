@@ -1,0 +1,49 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+
+M4 cursor vertex pulling and chronological storage binding final receipt
+Date: 2026-08-09
+
+Production source SHA-256:
+d2618daddc64f8e938be6ade768b80666a1aa9222d8001c6e126cc257710d4d1  upstream/source/blender/gpu/webgpu/wgpu_context.cc
+d255c3d0f328e51facc8077680e7168b79190ded6327e1afbef29937784413ce  upstream/source/blender/gpu/webgpu/wgpu_context.hh
+dca7112bbe0fc398849eef4210af1916777e232e20bb2c5c10cc46865f608c2f  upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+5b02d54b77a9a796d59e78664320e6617ebadd19cb0dfb73985160c0f27d917a  upstream/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+
+Patch SHA-256 and discipline:
+f87b15e747f2b62c92852e930dfddf2dc1a23e800d8e599b3e17a673203e0da4  patches/0135-gpu-webgpu-vertex-pulling-upload.patch
+83d33903038fc4b26cd2ec98567cc4d2f3a732a7fe28ad7c43ed89ae347954d4  patches/0137-gpu-webgpu-chronological-ssbo-bindings.patch
+Both patches pass reverse checks. Reverse 0137, reverse 0135, forward 0135, forward 0137 restores the exact production-source hashes above.
+
+Builds:
+PASS  scripts/ninja-locked.sh -C build-native-gpu
+PASS  scripts/ninja-locked.sh -C build-wasm-windowed-opt blender_browser
+287e06e2ffb7b9d0ec322a5167ee9ab0a8dab84d55e1ce202fddd8051ef313ea  build-wasm-windowed-opt/bin/blender_browser.js
+cb674f5ba95317c69e0a50bbb4d78e2024eea2958772c31acfcd09b6f23fe89e  build-wasm-windowed-opt/bin/blender_browser.wasm
+5aa7c461a5a05aa5f0354754bbd7de7124819334ee336c3bc0f40a1efb7741b1  build-wasm-windowed-opt/bin/blender_browser.data
+The three shipping hashes remained stable through every final cursor capture.
+
+Actual WebGPU backend probes:
+PASS 2/2  GPUWebGPUTest.buffer_texture and GPUWebGPUTest.shader_storage_binding_chronology
+The probes exercised later VBO over earlier StorageBuf at raw storage slot 0, reversed later StorageBuf over VBO at the same slot, tagged Sampler and Storage coexistence at numeric slot 0, and host DIRTY update plus rebind upload.
+d5b0609be908b22e0f8a0005f4591140e6cb6e9da6e0d3a146861aae39677625  sandbox/gpu-m4-cursor-upload/0135-0137-native-backend-probes.patch
+1a28aa07d3e37466a6429ec5a6fdaffac41eeb7d9072ea09c76c12838276769a  sandbox/gpu-m4-cursor-upload/0135-0137-native-backend-probes.log
+Temporary probe hunks were reverted before the shipping build. Restored test-source SHA-256:
+487ffc89d55535c1f24225c54b0f6653e290ed89f0ce0ef7496b3fddf64199fe  upstream/source/blender/gpu/tests/shader_test.cc
+042ed37b60827694e8fd6110fa7615a96a35760e1a8213589cdd9b30ade33c44  upstream/source/blender/gpu/tests/buffer_texture_test.cc
+
+Fresh headed 1280x720 cursor controls, each settled 75 seconds:
+a86ad84fe7b122d570bebcd3c2d11975fb81c965a38ba7b9ae0bec7269be2b2c  cursor_origin_final_1280x720.png  presents=2 gpu_errors=0 page_errors=0
+b2eaf43069d057b92faa65a879954e8ed78cd80199383710e0e3a984aced40ef  cursor_moved_final_1280x720.png  cursor=(3,0,0) presents=2 gpu_errors=0 page_errors=0
+31687fc1d9f38c853db28c09fd5912d81edba05cfc7afcfc56fb20b5099846d0  cursor_hidden_final_1280x720.png  presents=2 gpu_errors=0 page_errors=0
+The origin and moved images show the native red and white ring with colored axes. The hidden control removes it. No cursor comparator is applicable to the moved or hidden discriminator controls.
+
+Preliminary fresh D-9 splash regression check:
+PASS splash_1280x720 at fail=0.016 and failpercent=1
+Max error 0.6588236093521118; 4,069 pixels, 0.442 percent, over 0.016; wedge-free on visual inspection.
+The driver reserved the final D-9 splash/workspace pair for post-commit verification. No M4 promise was issued by this lane.
+
+M3 census:
+149 PASS / 7 FAIL / 2 CRASH of 158 GPUWebGPUTest tests
+static_shaders 956/973
+The sole gate RED is the known human-owned I10 un-defer candidate: vertex_buffer_fetch_mode__GPU_COMP_I10__GPU_FETCH_INT_TO_FLOAT_UNIT.

@@ -1,0 +1,1698 @@
+mode=moved cursor=(3.0, 0.0, 0.0) url=http://localhost:8142/windowed.html?gate=1280x720&pyexpr=import%20bpy%0Abpy.context.preferences....
+WM_main_ms=2506
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0 size=0 valid=0
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=13 stride=24 size_used=312 flag=0x5 data=0 buffer=0x3151db80
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3151db80 bytes=312
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3151db80 offset=0 size=312
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+[BW-CURSOR-DIAG] VBO_BIND binding=0 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=0 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=0 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] VBO_BIND binding=1 vertex_len=24 stride=24 size_used=576 flag=0x5 data=0 buffer=0x3516abf8
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=0 offset=0 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_ATTR binding=1 attr=1 offset=12 size=12 comps=3
+[BW-CURSOR-DIAG] VBO_BOUND binding=1 flag=0x5 data=0 buffer=0x3516abf8 bytes=576
+[BW-CURSOR-DIAG] DRAW_BEGIN shader=gpu_shader_3D_polyline_flat_color first=0 count=72 instance_first=0 instance_count=1 prim=2
+[BW-CURSOR-DIAG] PC_BEFORE handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] PC_AFTER handle=0x3516abb0 size=160 valid=1
+[BW-CURSOR-DIAG] BG_ENTRY binding=3 buffer=0x3516abb0 offset=0 size=160
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516b0d0 offset=0 size=512
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3151e188 offset=0 size=16
+[BW-CURSOR-DIAG] BG_ENTRY binding=0 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=1 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] BG_ENTRY binding=2 buffer=0x3516abf8 offset=0 size=576
+[BW-CURSOR-DIAG] DRAW_SUBMIT first=0 count=72 instance_first=0 instance_count=1
+capture=/Users/paws/blender-web/sandbox/gpu-m4-cursor-upload/cursor_moved_diag3_1280x720.png
+presents=2
+gpu_errors=0
+page_errors=0

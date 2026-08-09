@@ -1,0 +1,115 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Evidence only. This temporary probe patch is not applied to upstream.
+
+diff --git a/source/blender/gpu/tests/buffer_texture_test.cc b/source/blender/gpu/tests/buffer_texture_test.cc
+index a33d9108a2e..973ed3914b8 100644
+--- a/source/blender/gpu/tests/buffer_texture_test.cc
++++ b/source/blender/gpu/tests/buffer_texture_test.cc
+@@ -25,19 +25,24 @@ static void test_buffer_texture()
+ 
+   /* Vertex buffer. */
+   GPUVertFormat format = {};
+-  uint value_pos = GPU_vertformat_attr_add(&format, "value", gpu::VertAttrType::SFLOAT_32);
++  uint value_pos = GPU_vertformat_attr_add(
++      &format, "value", gpu::VertAttrType::SFLOAT_32_32_32_32);
+   VertBuf *vertex_buffer = GPU_vertbuf_create_with_format_ex(format,
+                                                              GPU_USAGE_FLAG_BUFFER_TEXTURE_ONLY);
+   float4 value = float4(42.42, 23.23, 1.0, -1.0);
++  const float4 buffer_values[4] = {
++      float4(value.x), float4(value.y), float4(value.z), float4(value.w)};
+   GPU_vertbuf_data_alloc(*vertex_buffer, 4);
+-  GPU_vertbuf_attr_fill(vertex_buffer, value_pos, &value);
+-  GPU_vertbuf_bind_as_texture(vertex_buffer,
+-                              GPU_shader_get_sampler_binding(shader, "bufferTexture"));
++  GPU_vertbuf_attr_fill(vertex_buffer, value_pos, buffer_values);
++  const int sampler_slot = GPU_shader_get_sampler_binding(shader, "bufferTexture");
++  GPU_vertbuf_bind_as_texture(vertex_buffer, sampler_slot);
+ 
+   /* Construct SSBO. */
+   StorageBuf *ssbo = GPU_storagebuf_create_ex(
+       4 * sizeof(float), nullptr, GPU_USAGE_STATIC, __func__);
+-  GPU_storagebuf_bind(ssbo, GPU_shader_get_ssbo_binding(shader, "data_out"));
++  const int storage_slot = GPU_shader_get_ssbo_binding(shader, "data_out");
++  EXPECT_EQ(sampler_slot, storage_slot);
++  GPU_storagebuf_bind(ssbo, storage_slot);
+ 
+   /* Dispatch compute task. */
+   GPU_compute_dispatch(shader, 4, 1, 1);
+@@ -50,6 +55,20 @@ static void test_buffer_texture()
+   GPU_storagebuf_read(ssbo, read_data);
+   EXPECT_EQ(read_data, value);
+ 
++  /* Rebind after a host-side update. The Sampler and Storage frontend slots have the
++  * same number, but must coexist and remap independently. */
++  float4 updated_value = float4(5.0, 6.0, 7.0, 8.0);
++  const float4 updated_buffer_values[4] = {float4(updated_value.x),
++                                           float4(updated_value.y),
++                                           float4(updated_value.z),
++                                           float4(updated_value.w)};
++  GPU_vertbuf_attr_fill(vertex_buffer, value_pos, updated_buffer_values);
++  GPU_vertbuf_bind_as_texture(vertex_buffer, sampler_slot);
++  GPU_compute_dispatch(shader, 4, 1, 1);
++  GPU_memory_barrier(GPU_BARRIER_BUFFER_UPDATE);
++  GPU_storagebuf_read(ssbo, read_data);
++  EXPECT_EQ(read_data, updated_value);
++
+   /* Cleanup. */
+   GPU_shader_unbind();
+   GPU_storagebuf_free(ssbo);
+diff --git a/source/blender/gpu/tests/shader_test.cc b/source/blender/gpu/tests/shader_test.cc
+index dc6382064bf..d080228d197 100644
+--- a/source/blender/gpu/tests/shader_test.cc
++++ b/source/blender/gpu/tests/shader_test.cc
+@@ -221,6 +221,51 @@ static void test_shader_compute_vbo()
+ }
+ GPU_TEST(shader_compute_vbo)
+ 
++static void test_shader_storage_binding_chronology()
++{
++  static constexpr uint SIZE = 16;
++
++  gpu::Shader *shader = GPU_shader_create_from_info_name("gpu_compute_vbo_test");
++  ASSERT_NE(shader, nullptr);
++  GPU_shader_bind(shader);
++  const int slot = GPU_shader_get_ssbo_binding(shader, "out_positions");
++
++  GPUVertFormat format = {0};
++  GPU_vertformat_attr_add(&format, "pos", gpu::VertAttrType::SFLOAT_32_32_32_32);
++  VertBuf *vbo = GPU_vertbuf_create_with_format_ex(format, GPU_USAGE_DEVICE_ONLY);
++  GPU_vertbuf_data_alloc(*vbo, SIZE);
++  StorageBuf *ssbo = GPU_storagebuf_create_ex(
++      SIZE * sizeof(float4), nullptr, GPU_USAGE_DEVICE_ONLY, __func__);
++
++  /* A later VBO bind must replace an earlier StorageBuf at the same raw storage slot. */
++  GPU_storagebuf_bind(ssbo, slot);
++  GPU_vertbuf_bind_as_ssbo(vbo, slot);
++  GPU_compute_dispatch(shader, SIZE, 1, 1);
++  GPU_memory_barrier(GPU_BARRIER_BUFFER_UPDATE);
++  float vbo_data[SIZE * 4];
++  GPU_vertbuf_read(vbo, vbo_data);
++  for (int index = 0; index < SIZE; index++) {
++    EXPECT_FLOAT_EQ(vbo_data[index * 4], float(index));
++  }
++
++  /* Reversing the order must replace the VBO, not leave or later resurrect it. */
++  GPU_vertbuf_bind_as_ssbo(vbo, slot);
++  GPU_storagebuf_bind(ssbo, slot);
++  GPU_compute_dispatch(shader, SIZE, 1, 1);
++  GPU_memory_barrier(GPU_BARRIER_BUFFER_UPDATE);
++  float ssbo_data[SIZE * 4];
++  GPU_storagebuf_read(ssbo, ssbo_data);
++  for (int index = 0; index < SIZE; index++) {
++    EXPECT_FLOAT_EQ(ssbo_data[index * 4], float(index));
++  }
++
++  GPU_shader_unbind();
++  GPU_storagebuf_free(ssbo);
++  GPU_vertbuf_discard(vbo);
++  GPU_shader_free(shader);
++}
++GPU_TEST(shader_storage_binding_chronology)
++
+ static void test_shader_compute_ibo()
+ {
+   static constexpr uint SIZE = 128;

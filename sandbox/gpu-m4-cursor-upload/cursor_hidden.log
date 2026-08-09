@@ -1,0 +1,6 @@
+mode=hidden cursor=(0.0, 0.0, 0.0) url=http://localhost:8142/windowed.html?gate=1280x720&pyexpr=import%20bpy%0Abpy.context.preferences....
+WM_main_ms=2387
+capture=/Users/paws/blender-web/sandbox/gpu-m4-cursor-upload/cursor_hidden_1280x720.png
+presents=2
+gpu_errors=0
+page_errors=0

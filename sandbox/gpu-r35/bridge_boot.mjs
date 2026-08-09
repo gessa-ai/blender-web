@@ -76,13 +76,13 @@ const PYEXPR = [
   '                pass',
   '        sc.render.image_settings.file_format = "PNG"',
   '        sc.render.filepath = "/tmp/m6_bridge"',
-  '        print("M6_BRIDGE_START engine=" + sc.render.engine + " res=%dx%d file=" % (sc.render.resolution_x, sc.render.resolution_y) + (bpy.data.filepath or "<none>"))',
+  '        os.write(2, ("M6_BRIDGE_START engine=" + sc.render.engine + " res=%dx%d file=" % (sc.render.resolution_x, sc.render.resolution_y) + (bpy.data.filepath or "<none>") + "\\n").encode("utf-8"))',
   '        bpy.ops.render.render(write_still=True)',
   '        open("/tmp/m6_bridge_done", "w").write("OK " + sc.render.engine)',
-  '        print("M6_BRIDGE_DONE")',
+  '        os.write(2, ("M6_BRIDGE_DONE engine=" + sc.render.engine + "\\n").encode("utf-8"))',
   '    except Exception as e:',
   '        open("/tmp/m6_bridge_done", "w").write("ERR " + repr(e))',
-  '        print("M6_BRIDGE_FAIL " + repr(e))',
+  '        os.write(2, ("M6_BRIDGE_FAIL " + repr(e) + "\\n").encode("utf-8"))',
   '    return None',
   'bpy.app.timers.register(_bw_render, first_interval=7.0)',
 ].join('\n');
@@ -140,9 +140,29 @@ const tR = Date.now();
 // Everything below is crash-tolerant and a manifest is ALWAYS written (in finally) so
 // the scene is scored as a render-crash instead of losing the whole batch.
 let pageCrashed = false;
+let pageUnresponsive = false;
+let pageUnresponsiveAt = null;
 page.on('crash', () => { pageCrashed = true; });
-async function safeEval(fn, arg) {
-  try { return await page.evaluate(fn, arg); } catch (e) { pageCrashed = true; return undefined; }
+async function safeEval(fn, arg, label = 'evaluate') {
+  let timeoutId;
+  try {
+    return await Promise.race([
+      page.evaluate(fn, arg),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('BW_PAGE_EVAL_TIMEOUT:' + label)), 10000);
+      }),
+    ]);
+  } catch (e) {
+    if (String(e).includes('BW_PAGE_EVAL_TIMEOUT:')) {
+      pageUnresponsive = true;
+      pageUnresponsiveAt = label;
+    } else {
+      pageCrashed = true;
+    }
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 let doneTxt = null;
@@ -150,30 +170,42 @@ const caps = [];
 let listing = [];
 try {
   const tR2 = Date.now();
+  let renderMarker = null;
   while (Date.now() - tR2 < SETTLE_MS && !pageCrashed) {
+    renderMarker = marks.find((m) => m.includes('M6_BRIDGE_DONE') || m.includes('M6_BRIDGE_FAIL'));
+    if (renderMarker) break;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  if (!pageCrashed && !renderMarker) {
+    pageUnresponsive = true;
+    pageUnresponsiveAt = 'render-marker';
+  }
+  if (renderMarker) {
     doneTxt = await safeEval(() => {
       try { return window.__bwModule.FS.readFile('/tmp/m6_bridge_done', { encoding: 'utf8' }); }
       catch (e) { return null; }
-    });
-    if (doneTxt) break;
-    if (pageCrashed) break;
-    await page.waitForTimeout(1500).catch(() => { pageCrashed = true; });
+    }, undefined, 'sentinel');
   }
-  log(`render sentinel: ${doneTxt ? JSON.stringify(doneTxt) : (pageCrashed ? '(page crashed)' : '(timeout)')}`);
+  log(`render sentinel: ${doneTxt ? JSON.stringify(doneTxt) : (pageCrashed ? '(page crashed)' :
+    pageUnresponsive ? '(page unresponsive at ' + pageUnresponsiveAt + ')' : '(timeout)')}`);
 
   let prevCount = -1, stable = 0;
   const tD = Date.now();
-  while (Date.now() - tD < 60000 && !pageCrashed) {
+  while (Date.now() - tD < 60000 && !pageCrashed && !pageUnresponsive) {
     listing = await safeEval(() => {
       try {
         return window.__bwModule.FS.readdir('/tmp').filter((f) => /^bw_readback_\d+\.bin$/.test(f)).sort();
       } catch (e) { return []; }
-    }) || [];
+    }, undefined, 'dump-list') || [];
     if (listing.length > 0 && listing.length === prevCount) { stable++; if (stable >= 3) break; }
     else stable = 0;
+    // WGPUTexture::read and its BW_DIAG kick happen inside bpy.ops.render.render,
+    // before the sentinel is written. If the render has returned with no kick and
+    // no dump, there is no pending map callback to wait another full minute for.
+    if (listing.length === 0 && kicks.length === 0 && Date.now() - tD >= 5000) break;
     prevCount = listing.length;
-    if (pageCrashed) break;
-    await page.waitForTimeout(1000).catch(() => { pageCrashed = true; });
+    if (pageCrashed || pageUnresponsive) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   log(`diag dumps: ${listing.length} files ${JSON.stringify(listing)}`);
 
@@ -189,7 +221,7 @@ try {
       let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       h.b64 = btoa(bin);
       return h;
-    }, fn);
+    }, fn, 'dump-read:' + fn);
     if (!info) continue;
     const seq = parseInt(fn.match(/(\d+)/)[1], 10);
     writeFileSync(`${CAPDIR}/${fn}`, Buffer.from(info.b64, 'base64'));
@@ -197,21 +229,34 @@ try {
     caps.push({ file: fn, seq, ...info });
   }
 
-  const png = await safeEval(() => {
-    try {
-      const b = window.__bwModule.FS.readFile('/tmp/m6_bridge0001.png');
-      let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
-      return { len: b.length, b64: btoa(s) };
-    } catch (e) { return null; }
-  });
-  if (png && png.b64) writeFileSync(`${CAPDIR}/render_op_black.png`, Buffer.from(png.b64, 'base64'));
-  await page.screenshot({ path: `${CAPDIR}/composite.png` }).catch(() => { pageCrashed = true; });
+  if (!pageUnresponsive) {
+    const png = await safeEval(() => {
+      try {
+        const b = window.__bwModule.FS.readFile('/tmp/m6_bridge0001.png');
+        let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+        return { len: b.length, b64: btoa(s) };
+      } catch (e) { return null; }
+    }, undefined, 'render-png');
+    if (png && png.b64) writeFileSync(`${CAPDIR}/render_op_black.png`, Buffer.from(png.b64, 'base64'));
+    await Promise.race([
+      page.screenshot({ path: `${CAPDIR}/composite.png` }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('BW_SCREENSHOT_TIMEOUT')), 10000)),
+    ]).catch((e) => {
+      if (String(e).includes('BW_SCREENSHOT_TIMEOUT')) {
+        pageUnresponsive = true;
+        pageUnresponsiveAt = 'screenshot';
+      } else {
+        pageCrashed = true;
+      }
+    });
+  }
 } catch (e) {
   log('post-boot error (treated as page crash): ' + String(e));
   pageCrashed = true;
 } finally {
   const manifest = { mode: 'boot', hostBlend: HOST_BLEND, engine: ENGINE, res: [RESW, RESH],
-                     opfs: seedRes, sentinel: doneTxt, pageCrashed, gpuErrorCount: gpuErrors.length,
+                     opfs: seedRes, sentinel: doneTxt, pageCrashed, pageUnresponsive,
+                     pageUnresponsiveAt, gpuErrorCount: gpuErrors.length,
                      kicks: kicks.length, dones: dones.length, caps, marks,
                      doneLines: dones.slice(-8), gpuErrorSample: gpuErrors.slice(0, 8) };
   writeFileSync(`${CAPDIR}/manifest.json`, JSON.stringify(manifest, null, 2));
@@ -224,5 +269,8 @@ console.log('kicks/dones:', kicks.length, '/', dones.length);
 console.log('caps     :', caps.map((c) => `#${c.seq}:${c.w}x${c.hgt}/fmt${c.fmt}`).join(' '));
 console.log('gpuErrors:', gpuErrors.length);
 console.log('capdir   :', CAPDIR);
-await browser.close();
+await Promise.race([
+  browser.close(),
+  new Promise((resolve) => setTimeout(resolve, 10000)),
+]);
 process.exit(0);

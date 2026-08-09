@@ -1,0 +1,463 @@
+Note: Google Test filter = GPUWebGPUTest.static_shaders
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from GPUWebGPUTest
+color_management | Using fallback mode for management
+                 | source/blender/imbuf/intern/colormanagement.cc:342 colormanagement_init
+[ RUN      ] GPUWebGPUTest.static_shaders
+gpu.webgpu       | WARNING WGPUShader 'draw_debug_draw_display' compile failed: tint ProgramFromIR: error: var with 'storage' address space and 'read_write' access mode cannot be used by vertex pipeline stage
+                 | note: variable is declared here
+                 | note: called by function 'v_4'
+                 | note: called by function 'main_inner'
+                 | note: called by entry point 'main'
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (11) in the Compute stage exceeds the maximum per-stage limit (10).
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+gpu.webgpu       | WARNING WGPUShader 'fullscreen_blit' compile failed: shaderc [fullscreen_blit]: fullscreen_blit:295: error: 'imageTexture' : undeclared identifier
+                 | fullscreen_blit:295: error: 'textureLod' : no matching overloaded function found
+                 | fullscreen_blit:295: error: '=' :  cannot convert from ' const float' to ' temp highp 4-component vector of float'
+                 |
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_volume_occupancy_convert' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_surfel_cluster_build' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_eevee_surface_occupancy_pointcloud' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Float does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[1]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : osd_patch_basis.glsl
+gpu.webgpu       | WARNING WGPUShader 'subdiv_patch_evaluation_verts_orcos' compile failed: shaderc [subdiv_patch_evaluation_verts_orcos]: subdiv_patch_evaluation_verts_orcos:1372: error: 'OsdPatchParamIsRegular' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts_orcos:1372: error: '' : boolean expression expected
+                 | subdiv_patch_evaluation_verts_orcos:1376: error: 'OsdEvaluatePatchBasis' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts_orcos:1375: error: '=' :  cannot convert from ' const float' to ' temp highp int'
+                 | subdiv_patch_evaluation_verts_orcos:1398: error: 'OsdPatchParamIsRegular' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts_orcos:1398: error: '' : boolean expression expected
+                 | subdiv_patch_evaluation_verts_orcos:1402: error: 'OsdEvaluatePatchBasis' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts_orcos:1401: error: '=' :  cannot convert from ' const float' to ' temp highp int'
+                 |
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : osd_patch_basis.glsl
+gpu.webgpu       | WARNING WGPUShader 'subdiv_patch_evaluation_verts' compile failed: shaderc [subdiv_patch_evaluation_verts]: subdiv_patch_evaluation_verts:1366: error: 'OsdPatchParamIsRegular' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts:1366: error: '' : boolean expression expected
+                 | subdiv_patch_evaluation_verts:1370: error: 'OsdEvaluatePatchBasis' : no matching overloaded function found
+                 | subdiv_patch_evaluation_verts:1369: error: '=' :  cannot convert from ' const float' to ' temp highp int'
+                 |
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : osd_patch_basis.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'subdiv_patch_evaluation_fvar' compile failed: shaderc [subdiv_patch_evaluation_fvar]: subdiv_patch_evaluation_fvar:1344: error: 'OsdPatchParamIsRegular' : no matching overloaded function found
+                 | subdiv_patch_evaluation_fvar:1344: error: '' : boolean expression expected
+                 | subdiv_patch_evaluation_fvar:1348: error: 'OsdEvaluatePatchBasis' : no matching overloaded function found
+                 | subdiv_patch_evaluation_fvar:1347: error: '=' :  cannot convert from ' const float' to ' temp highp int'
+                 |
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_eevee_surface_occupancy_world' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_eevee_surface_occupancy_volume' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+gpu.webgpu       | WARNING WGPUShader 'gpu_texture_atomic_test' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_eevee_surface_occupancy_mesh' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG16Unorm does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[17]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_shadow_tag_update' compile failed: tint ProgramFromIR: error: var with 'storage' address space and 'read_write' access mode cannot be used by vertex pipeline stage
+                 | note: variable is declared here
+                 | note: called by function 'v_19'
+                 | note: called by function 'v_6'
+                 | note: called by function 'main_inner'
+                 | note: called by entry point 'main'
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (11) in the Vertex stage exceeds the maximum per-stage limit (10).
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (11) in the Vertex stage exceeds the maximum per-stage limit (10).
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'draw_curves_test' compile failed: tint ProgramFromIR: error: var with 'storage' address space and 'read_write' access mode cannot be used by vertex pipeline stage
+                 | note: variable is declared here
+                 | note: called by function 'v_6'
+                 | note: called by function 'main_inner'
+                 | note: called by entry point 'main'
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[6]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : osd_patch_basis.glsl
+gpu.webgpu       | WARNING WGPUShader 'subdiv_patch_evaluation_fdots_normals' compile failed: shaderc [subdiv_patch_evaluation_fdots_normals]: subdiv_patch_evaluation_fdots_normals:1373: error: 'OsdPatchParamIsRegular' : no matching overloaded function found
+                 | subdiv_patch_evaluation_fdots_normals:1373: error: '' : boolean expression expected
+                 | subdiv_patch_evaluation_fdots_normals:1377: error: 'OsdEvaluatePatchBasis' : no matching overloaded function found
+                 | subdiv_patch_evaluation_fdots_normals:1376: error: '=' :  cannot convert from ' const float' to ' temp highp int'
+                 |
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): The number of storage buffers (12) in the Vertex stage exceeds the maximum per-stage limit (10).
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'eevee_eevee_surface_occupancy_curves' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+gpu.webgpu       | WARNING WGPUShader 'gpu_graphic_specialization_test' compile failed: tint ProgramFromIR: error: var with 'storage' address space and 'read_write' access mode cannot be used by vertex pipeline stage
+                 | note: variable is declared here
+                 | note: called by function 'v_4'
+                 | note: called by function 'main_inner'
+                 | note: called by entry point 'main'
+                 | source/blender/gpu/webgpu/wgpu_shader.cc:2166 finalize
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): The number of sampled textures (18) in the Vertex stage exceeds the maximum per-stage limit (16). This adapter supports a higher maxSampledTexturesPerShaderStage of 48, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_type_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_vert_lib.glsl
+warn: Generated source not provided. Using fallback for : eevee_nodetree_frag_lib.glsl
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[7]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.
+ - While validating entries[8]
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+[WebGPU] uncaptured device error (type 2): [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.
+ - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).
+
+Shader Test compilation result: 956 / 973 passed (skipped 3 for compatibility reasons)
+source/blender/gpu/tests/shader_create_info_test.cc:32: Failure
+Value of: gpu_shader_create_info_compile_all(nullptr)
+  Actual: false
+Expected: true
+
+[  FAILED  ] GPUWebGPUTest.static_shaders (3339 ms)
+[----------] 1 test from GPUWebGPUTest (3339 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (3460 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] GPUWebGPUTest.static_shaders
+
+ 1 FAILED TEST

@@ -1,0 +1,14 @@
+[2026-08-09 20:35:47.247] seeding bw_suite.blend into OPFS via /bin/bw_seed.html
+[2026-08-09 20:35:47.350] OPFS seed: {"ok":true,"size":178317}
+[2026-08-09 20:35:47.350] booting windowed with args=/projects/bw_suite.blend engine=BLENDER_WORKBENCH
+[2026-08-09 20:35:47.914] WM_main up
+[2026-08-09 20:36:07.427] render sentinel: "OK BLENDER_WORKBENCH"
+[2026-08-09 20:36:10.436] diag dumps: 2 files ["bw_readback_0.bin","bw_readback_1.bin"]
+
+==== BOOT-BRIDGE RESULT ====
+engine   : BLENDER_WORKBENCH
+sentinel : OK BLENDER_WORKBENCH
+kicks/dones: 2 / 2
+caps     : #0:128x128/fmt40 #1:128x128/fmt49
+gpuErrors: 0
+capdir   : /Users/paws/blender-web/sandbox/gpu-r35/caps/control_fd2_light_flat_attribute

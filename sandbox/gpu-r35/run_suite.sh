@@ -16,13 +16,21 @@ R35="$ROOT/sandbox/gpu-r35"
 MAN="$ROOT/sandbox/m6-prep/manifest.tsv"
 NODE="$ROOT/tools/emsdk/node/22.16.0_64bit/bin/node"
 export NODE_PATH=/Users/paws/plushly/game-platform/node_modules
-PORT=8126
+PORT="${M6_PORT:-8126}"
+CASE_TIMEOUT="${M6_CASE_TIMEOUT:-480}"
 
 ENGINE_FILT="${1:-all}"
 TEST_FILT="${2:-}"
 SETTLE="${3:-}"
 TSV="$R35/results.tsv"
-[ -f "$TSV" ] || echo -e "# engine\tdir\ttest\tverdict\tcluster\tmean_err\tmax_err\tpct_over\tgpuErr\tgpu_sig" > "$TSV"
+mkdir -p "$R35/caps"
+if [ ! -f "$TSV" ]; then
+  {
+    echo "# SPDX-FileCopyrightText: 2026 blender-web contributors"
+    echo "# SPDX-License-Identifier: CC0-1.0"
+    echo -e "# engine\tdir\ttest\tverdict\tcluster\tmean_err\tmax_err\tpct_over\tgpuErr\tgpu_sig"
+  } > "$TSV"
+fi
 
 engine_arg() { case "$1" in workbench) echo BLENDER_WORKBENCH;; eevee) echo BLENDER_EEVEE;; esac; }
 
@@ -33,7 +41,10 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   [ -z "$TEST_FILT" ] || case "$dir/$test" in *"$TEST_FILT"*) : ;; *) continue;; esac
 
   # skip already-scored rows (resume support)
-  if grep -qP "^$engine\t$dir\t$test\t" "$TSV" 2>/dev/null; then
+  if awk -F '\t' -v engine="$engine" -v dir="$dir" -v test="$test" '
+      $1 == engine && $2 == dir && $3 == test { found = 1; exit }
+      END { exit !found }
+    ' "$TSV"; then
     echo "SKIP (already scored) $engine/$dir/$test"; continue
   fi
 
@@ -47,22 +58,24 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
 
   eng=$(engine_arg "$engine")
   out="${engine}_${dir}_${test}"
+  cap="$R35/caps/$out"
+  if [ "${REUSE:-0}" != "1" ] && [ -e "$cap" ]; then
+    echo "REFUSE stale capture directory: $cap" >&2
+    echo "Move it aside before a fresh run so an interrupted boot cannot reuse a manifest." >&2
+    exit 4
+  fi
   st="$SETTLE"
   [ -n "$st" ] || { [ "$engine" = "eevee" ] && st=200000 || st=150000; }
 
-  cap="$R35/caps/$out"
   if [ "${REUSE:-0}" = "1" ] && [ -s "$cap/manifest.json" ]; then
     echo "== REUSE cap $engine/$dir/$test =="
   else
     echo "== RUN $engine/$dir/$test =="
-    pkill -f "bridge_boot.mjs" 2>/dev/null
-    pkill -f "chrome-mac/Chromium|headless_shell|Chromium.app" 2>/dev/null
-    sleep 2
     # hard per-test timeout so a hung/crashed tab never stalls the batch
-    timeout 200 "$NODE" "$R35/bridge_boot.mjs" "$bpath" "$eng" "$out" "$PORT" "$st" 128 128 \
+    timeout "$CASE_TIMEOUT" "$NODE" "$R35/bridge_boot.mjs" "$bpath" "$eng" "$out" "$PORT" "$st" 128 128 \
       > "$R35/caps/${out}.log" 2>&1
     tc=$?
-    [ $tc -eq 124 ] && echo "   (bridge_boot TIMED OUT after 200s)"
+    [ $tc -eq 124 ] && echo "   (bridge_boot TIMED OUT after ${CASE_TIMEOUT}s)"
   fi
 
   if [ ! -f "$cap/manifest.json" ]; then
@@ -86,5 +99,4 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   python3 "$R35/make_note.py" "$TSV" > "$ROOT/notes/m6-gpu-suite-real-scores.md" 2>/dev/null || true
 done < "$MAN"
 
-pkill -f "bridge_boot.mjs" 2>/dev/null
 echo "== suite run complete for filter=$ENGINE_FILT =="

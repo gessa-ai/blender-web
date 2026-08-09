@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+
+M6 final Phase A rescore receipt
+outer HEAD: ac03fa6e540136f539c8cf84994a8e623b6f28ec
+browser port: 8126
+reuse: disabled
+stale-artifact backup: /private/tmp/blender-web-m6-rescore.f79MKN
+
+matrix: 50 rows, 20 Workbench, 30 EEVEE, 0 duplicates
+matrix hygiene: 0 missing, 0 LFS, 0 RIG-FAIL, 0 browser crash, 0 reused manifests
+Workbench: 12 PASS, 8 FAIL
+EEVEE: 28 NO-CAPTURE, 2 RENDER-ERR render-start-timeout
+EEVEE bridge activity: 0 readback kicks and 0 device-byte captures across all 30 rows
+
+EEVEE measured validation residue:
+- 7 RG11B10Ufloat ReadWrite BGL rows
+- 1 RGBA16Float writable-storage alias row at bindings 2/3, mip 7
+- 20 OK BLENDER_EEVEE rows with zero GPU errors but no readback hook
+- 2 rows with no START marker within the bounded 200-second progress window
+
+Shadow discriminator: all 4 shadow rows stop first on RG11B10Ufloat ReadWrite.
+Phase B atomics are masked and not measured by this matrix.
+
+Native census: 149 PASS, 7 FAIL, 2 CRASH, 158 total
+static_shaders: 956 / 973
+
+Marker control: light_flat_attribute, START and DONE observed, sentinel OK,
+2 kicks, 2 dones, 2 captures, 0 GPU errors.
+
+Independent scorer reproduction:
+- workbench light_flat_attribute: PASS, mean 0.000227625, max 0.003921627998352051
+- EEVEE principled default: NO-CAPTURE, sentinel OK, 0 GPU errors, 0 caps
+- EEVEE shadow filter: NO-CAPTURE, sentinel OK, 2 GPU errors, 0 caps

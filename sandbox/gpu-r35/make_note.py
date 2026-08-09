@@ -1,106 +1,121 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: CC0-1.0
-#
-# Render notes/m6-gpu-suite-real-scores.md from results.tsv (checkpoint after each test).
+
+"""Render the final Phase A M6 GPU rescore note from results.tsv."""
+
 import sys
 from collections import Counter, defaultdict
 
-TSV = sys.argv[1]
+
+tsv = sys.argv[1]
 rows = []
-with open(TSV) as f:
-    for ln in f:
-        if ln.startswith("#") or not ln.strip():
+with open(tsv) as handle:
+    for line in handle:
+        if line.startswith("#") or not line.strip():
             continue
-        parts = ln.rstrip("\n").split("\t")
-        while len(parts) < 10:
-            parts.append("")
+        parts = line.rstrip("\n").split("\t")
+        parts += [""] * (10 - len(parts))
         rows.append(parts[:10])
 
 by_engine = defaultdict(list)
-for r in rows:
-    by_engine[r[0]].append(r)
+for row in rows:
+    by_engine[row[0]].append(row)
 
-def aggregate(rs):
-    c = Counter(r[3] for r in rs)
-    return c
+
+def emit_table(engine):
+    engine_rows = by_engine[engine]
+    print("## %s (%d rows)" % (engine.capitalize(), len(engine_rows)))
+    print()
+    print("| # | Scene | Verdict | Mean error | Max error | Pixels over | GPU errors | Cluster |")
+    print("|---|---|---|---:|---:|---:|---:|---|")
+    for index, row in enumerate(engine_rows, 1):
+        _, directory, test, verdict, cluster, mean, maximum, percent, gpu_errors, signature = row
+        print("| %d | `%s/%s` | %s | %s | %s | %s | %s | %s |" % (
+            index,
+            directory,
+            test,
+            verdict,
+            mean or "-",
+            maximum or "-",
+            (percent or "-").replace("|", "/"),
+            gpu_errors or "0",
+            cluster or signature or "-",
+        ))
+    print()
+    counts = Counter(row[3] for row in engine_rows)
+    print("**Aggregate:** " + ", ".join("%s=%d" % item for item in sorted(counts.items())))
+    print()
+
 
 print("<!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->")
 print("<!-- SPDX-License-Identifier: CC0-1.0 -->")
-print("# M6 GPU render suites (workbench + EEVEE) - REAL scores via the r35 render-result bridge")
+print("# M6 GPU render suites: final Phase A rescore")
 print()
-print("Measured with the TICK-PUMPED RENDER-RESULT BRIDGE (patch 0125): the BW_DIAG-gated")
-print("hook in `WGPUTexture::read` kicks a tick-pumped async readback (AllowSpontaneous)")
-print("whose true device bytes land in `/tmp/bw_readback_<seq>.bin`, decoded + oiiotool-")
-print("compared to the staged goldens at Blender's own pinned thresholds. The bridge is")
-print("PROVEN on the workbench factory cube (real shaded pixels, 0 GPU errors); see the")
-print("self-test section. Each suite scene is booted as the STARTUP FILE (clean GPU context,")
-print("no live open_mainfile).")
+print("This is the clean 50-scene browser rescore at outer HEAD `ac03fa6e540136f539c8cf84994a8e623b6f28ec`.")
+print("Each blend booted as the startup file in a fresh headed Chromium context. The run used no")
+print("persisted captures and no `REUSE=1`; every scored row has a fresh manifest. Workbench")
+print("pixels came from patch 0125's tick-pumped device-byte bridge and were compared to the")
+print("pinned Blender goldens at 0.016 / 1 percent. EEVEE uses 4/255 / 0.08 percent, but this")
+print("run produced no EEVEE bridge pixels, so no EEVEE row receives a pixel PASS or FAIL.")
 print()
-print("This CORRECTS the r34-truth-pass premise that \"all 50 renders complete correctly and")
-print("readback is the sole M6 blocker\": the readback path WORKS; the real blockers are")
-print("render-side (see clusters).")
+print("Completeness: exactly 20 Workbench plus 30 EEVEE rows, zero duplicates, zero missing/LFS")
+print("inputs, zero RIG-FAIL, zero browser crash, and zero reused manifests. The native census")
+print("also holds at 149 PASS / 7 FAIL / 2 CRASH, with static shaders 956/973.")
 print()
-
-total = Counter()
-for eng in ("workbench", "eevee"):
-    rs = by_engine.get(eng, [])
-    if not rs:
-        continue
-    print("## %s (%d scored)" % (eng, len(rs)))
-    print()
-    print("| # | dir/test | verdict | mean_err | max_err | pct_over | gpuErr | cluster |")
-    print("|---|----------|---------|----------|---------|----------|--------|---------|")
-    for i, r in enumerate(rs, 1):
-        eng_, dir_, test_, verdict, cluster, mean, maxe, pct, gerr, gsig = r
-        total[verdict] += 1
-        print("| %d | %s/%s | %s | %s | %s | %s | %s | %s |" % (
-            i, dir_, test_, verdict, mean or "-", maxe or "-",
-            (pct or "-").replace("|", "/"), gerr or "-", cluster or gsig or "-"))
-    print()
-    agg = aggregate(rs)
-    print("**%s aggregate:** " % eng + ", ".join("%s=%d" % (k, v) for k, v in sorted(agg.items())))
-    print()
-
-print("## Aggregate (all scored)")
+print("## Headline")
 print()
-print("| verdict | count |")
-print("|---------|-------|")
-for k, v in sorted(total.items()):
-    print("| %s | %d |" % (k, v))
+print("- Workbench improves to **12 PASS / 8 FAIL**, with no load flakes or render crashes.")
+print("- EEVEE is **28 NO-CAPTURE / 2 RENDER-ERR**. All 30 rows have zero readback kicks and")
+print("  zero device-byte captures. Therefore Phase A's required non-black behavioral acceptance")
+print("  is not met, including `principled_bsdf_default`.")
+print("- Phase A did remove the old C1-C4 validation flood: no fresh manifest contains the old")
+print("  Vertex-visible writable-storage, WriteOnly-format, or per-stage-limit signatures.")
+print("- The measured EEVEE residue is: 20 rows return `OK BLENDER_EEVEE` with zero GPU errors")
+print("  but do not fire the readback diagnostic hook inside `WGPUTexture::read`: layer-view")
+print("  wrappers have no local `texture_` and return early. Seven rows first fail on RG11B10Ufloat ReadWrite;")
+print("  `principled_bsdf_transmission` instead hits a writable RGBA16Float storage alias between")
+print("  bindings 2 and 3 at mip 7; and sheen plus subsurface never emit a START marker within")
+print("  the bounded 200-second render-progress window.")
+print("- All four shadow rows stop first at the Phase A' RG11B10Ufloat ReadWrite BGL failure.")
+print("  This matrix does not reach and therefore does not measure the Phase B atomic path.")
 print()
 
-# clusters
-clusters = Counter(r[4] or r[9] or "unclustered" for r in rows if r[3] not in ("PASS",))
-print("## Failure clusters")
+emit_table("workbench")
+emit_table("eevee")
+
+print("## Workbench residuals")
 print()
-if not clusters:
-    print("(none - all scored rows PASS)")
-else:
-    print("| cluster | count |")
-    print("|---------|-------|")
-    for k, v in clusters.most_common():
-        print("| %s | %d |" % (k, v))
+print("The two DoF scenes each emit 96 validation errors from three distinct root classes before")
+print("their invalid-command-buffer cascades:")
 print()
-print("### Cluster meanings")
-print("- **render-bug:bindgroup-6v7** - workbench render draw: WebGPU BindGroup has 6 entries")
-print("  but the layout expects 7 -> Invalid CommandBuffer -> Submit rejected -> black render.")
-print("  A backend bind-completion defect (class of patch 0116), scene/feature dependent")
-print("  (the factory default cube renders CLEAN, so it is not universal). REPORTED, not fixed.")
-print("- **render-bug:gpu-validation / device-lost** - EEVEE-Next pipeline creation fails:")
-print("  \"Storage texture WriteOnly used with Vertex/Fragment visibility -> Invalid")
-print("  BindGroupLayout -> CreatePipeline\". EEVEE-Next binds write-only storage textures in")
-print("  graphics stages, which WebGPU disallows (registered deferral: vertex-stage-rw-storage /")
-print("  storage-texture-atomics). The render never runs, so there is no final texture to read -")
-print("  NOT a readback blocker. REPORTED, not fixed.")
-print("- **pixel-delta** - the render produced CLEAN pixels (0 GPU errors) that exceed the")
-print("  golden threshold: a real shading/precision/feature delta, not a render crash.")
-print("- **PASS** - real pixels within Blender's own pinned oiiotool tolerance.")
+print("1. Depth32FloatStencil8 offers UnfilterableFloat or Depth where the layout expects Float.")
+print("2. An RGBA16Float attachment view exposes mipLevelCount 3, while attachments require 1.")
+print("3. RG8Unorm is sampled and writable as a render attachment in the same synchronization scope.")
 print()
-print("### Colour-management caveat")
-print("The decoder applies Blender's **Standard** view transform (linear->sRGB), verified on the")
-print("oracle for the vast majority of scenes. The `colorspace/acescg_blackbody` and")
-print("`colorspace/rec2020_lights` scenes use **ACES 2.0 / Rec.2020** display with a non-zero")
-print("exposure, which the pure-python decoder does NOT replicate. Any pixel-delta on those two")
-print("scenes is therefore CONFOUNDED by colour management and is not a pure render-accuracy")
-print("number; they are measured for completeness but flagged here.")
+print("The remaining clean Workbench pixel deltas are `aa-disabled`, `aa-single-pass`, `in_front`,")
+print("and `x-ray_1`. The `acescg_blackbody` and `rec2020_lights` rows remain intentionally")
+print("reported but color-management-confounded: the bridge decoder applies Standard sRGB, while")
+print("those scenes use ACES 2.0 / Rec.2020 with exposure. Under D-10 they are not evidence of a")
+print("backend pixel regression and cannot be accepted as faithful M6 parity until the real display")
+print("transform or caller-facing readback path is used.")
+print()
+print("## EEVEE outcome taxonomy")
+print()
+print("- `NO-CAPTURE / no-capture`: render returns OK with zero captured validation errors, but")
+print("  the readback diagnostic hook inside `WGPUTexture::read` does not fire because layer-view")
+print("  wrappers have no local `texture_` and return early, so no final device bytes were captured.")
+print("- `NO-CAPTURE / render-blocked:gpu-validation`: the render returns, but a measured validation")
+print("  blocker prevents a capturable final result. Seven are RG11B10Ufloat ReadWrite; one is the separate")
+print("  RGBA16Float writable-storage alias in `principled_bsdf_transmission`.")
+print("- `RENDER-ERR / render-start-timeout`: the bounded retry observes no fd2 START marker within")
+print("  200 seconds, so there is no proof the bpy timer entered `_bw_render`. The second bounded")
+print("  run confirms no START or terminal marker in that window, not an in-render loop hang.")
+print()
+print("## Evidence")
+print()
+print("- Raw matrix: `sandbox/gpu-r35/results.tsv`")
+print("- Per-scene manifests and decoded Workbench images: `sandbox/gpu-r35/caps/`")
+print("- fd2 control: `sandbox/gpu-m6-rescore-final/marker-control/`")
+print("- Native census: `sandbox/gpu-m6-rescore-final/native-census-summary.txt`")
+print("- Proof images and contact sheet: `sandbox/gpu-m6-rescore-final/proof/`")

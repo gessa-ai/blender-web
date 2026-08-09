@@ -69,6 +69,15 @@ def main():
         result["note"] = "tab crashed/device-lost during render; gpuErrors=%d" % man.get("gpuErrorCount", 0)
         emit(result, jsonout); return
 
+    if man.get("pageUnresponsive") and not caps:
+        render_started = any("M6_BRIDGE_START" in mark for mark in man.get("marks", []))
+        result["verdict"] = "RENDER-ERR"
+        result["cluster"] = "render-hang" if render_started else "render-start-timeout"
+        result["note"] = "%s at %s; gpuErrors=%d" % (
+            "render started but no terminal progress" if render_started else "render start not observed",
+            man.get("pageUnresponsiveAt", "unknown"), man.get("gpuErrorCount", 0))
+        emit(result, jsonout); return
+
     if not sentinel or not str(sentinel).startswith("OK"):
         result["verdict"] = "RENDER-ERR"
         result["cluster"] = "render-exception"
@@ -78,9 +87,10 @@ def main():
     rr = pick_render_result(caps, resw, resh)
     if rr is None:
         result["verdict"] = "NO-CAPTURE"
-        # No WGPUTexture::read fired at all: the render never produced a final texture. With
-        # GPU errors present this is a render-BLOCKED scene (e.g. EEVEE-Next pipeline creation
-        # fails on the storage-texture visibility deferral), not a readback miss.
+        # No readback diagnostic hook produced a device-byte dump. With GPU errors present
+        # this is a render-BLOCKED scene (e.g. EEVEE-Next pipeline creation fails on the
+        # storage-texture visibility deferral), not a readback miss. Without errors it remains
+        # NO-CAPTURE; neither classification asserts the absence of a backing texture.
         if man.get("gpuErrorCount", 0) > 0:
             result["cluster"] = ("render-blocked:" + gpu_sig) if gpu_sig else "render-blocked"
         else:

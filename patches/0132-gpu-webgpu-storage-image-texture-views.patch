@@ -1,5 +1,5 @@
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
-index 2f94738..6aaa978 100644
+index 2f94738..884f590 100644
 --- a/source/blender/gpu/webgpu/wgpu_texture.cc
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
 @@ -984,3 +984,10 @@ wgpu::TextureView WGPUTexture::image_view()
@@ -14,7 +14,7 @@ index 2f94738..6aaa978 100644
 +                      (source_ != nullptr ? source_->texture_ : wgpu::Texture(nullptr));
 +  if (tex == nullptr) {
      return nullptr;
-@@ -1000,7 +1007,10 @@ wgpu::TextureView WGPUTexture::image_view()
+@@ -1000,7 +1007,19 @@ wgpu::TextureView WGPUTexture::image_view()
    d.mipLevelCount = 1;
 -  d.baseArrayLayer = 0;
 -  /* arrayLayerCount left at its UNDEFINED default → all remaining layers (1 for a
@@ -23,8 +23,17 @@ index 2f94738..6aaa978 100644
 +  if (dim == wgpu::TextureViewDimension::e2D) {
 +    d.arrayLayerCount = 1;
 +  }
-+  /* Array storage views keep the UNDEFINED default and expose all remaining layers.
-+   * A plain e2D view must expose exactly one layer. */
++  else if (dim == wgpu::TextureViewDimension::e2DArray) {
++    /* Texture::init_view stores the requested subset length in this view's
++     * layer_count(). Do not expose all source layers after baseArrayLayer: a
++     * 4-layer source viewed as start=2,len=1 must remain exactly one layer. Base
++     * cube types are collapsed to e2DArray above and store their face count in d_. */
++    const int layers = ELEM(type_, GPU_TEXTURE_CUBE, GPU_TEXTURE_CUBE_ARRAY) ? d_ :
++                                                                                layer_count();
++    d.arrayLayerCount = uint32_t(std::max(layers, 1));
++  }
++  /* Native 2D and 2D-array/cube-array views now carry explicit, exact layer
++   * counts. Other dimensions retain their existing defaults. */
    d.aspect = wgpu::TextureAspect::All;
 -  return texture_.CreateView(&d);
 +  return tex.CreateView(&d);

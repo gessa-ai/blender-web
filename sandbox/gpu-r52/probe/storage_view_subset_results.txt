@@ -1,0 +1,6 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+view baseArrayLayer=2 arrayLayerCount=1 BGL/dispatch: OK
+source layer 2 receives view-layer 0 write: OK
+source layer 3 rejects out-of-view layer 1 write: OK

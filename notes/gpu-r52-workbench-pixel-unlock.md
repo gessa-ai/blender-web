@@ -62,14 +62,26 @@ null whenever the Blender texture was a view because it checked only the view ob
 entry that survived.
 
 Patch 0132 resolves the aliased source texture, preserves the texture view's mip and layer
-offsets, and restricts a plain e2D storage view to one array layer. Fresh rebuilt browser result
-for `light_studio_material`:
+offsets, and gives native 2D, 2D-array, and cube-array storage views explicit layer counts. An
+e2D view exposes one layer. An e2DArray view exposes exactly the requested subset length rather
+than all remaining source layers; base cube types use their stored face count when lowered to
+e2DArray.
+
+The native Dawn probe in `sandbox/gpu-r52/probe/probe_storage_view_subset.cc` creates a four-layer
+source and a non-final one-layer view at layer 2. The view and bind group validate, a dispatch
+writes source layer 2 red, and an attempted out-of-view write leaves layer 3 untouched. Fresh
+rebuilt browser result for `light_studio_material`:
 
 - GPU errors: 18 before to 0 after;
 - sentinel: `OK BLENDER_WORKBENCH`;
 - mean error: 0.000785399;
 - over threshold 0.016: 40 pixels (0.244%);
 - verdict: PASS.
+
+Two adjacent limitations are deliberately not claimed fixed. `GPU_TEXTURE_1D_ARRAY` has a
+pre-existing inconsistent mapping between its height-emulated 2D allocation/interface and
+`to_wgpu_view_dimension()` returning e2DArray. Also, aliased source resolution remains one hop,
+so nested texture views are not covered. Neither path is exercised by the pinned mipmap compute.
 
 Patch 0132 reverse-checks and round-trips exact inside `upstream/`.
 

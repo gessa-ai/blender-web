@@ -1,0 +1,21 @@
+{
+  "capdir": "sandbox/gpu-r52/caps/r52_0132_hardened_studio_material",
+  "golden": "sandbox/m6-prep/goldens/workbench/workbench/light_studio_material.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=0.9999 min=(0.000,0.000,0.000) max=(12.258,14.328,5.531)",
+  "oiiotool_rc": 0,
+  "mean_error": "0.000785399",
+  "max_error": "0.14901959896087646",
+  "pct_over": "40 pixels (0.244%) over 0.016",
+  "verdict": "PASS",
+  "cluster": "pixel-pass"
+}

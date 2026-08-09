@@ -582,6 +582,15 @@
 # so this is an unlock, not a parity claim. Reverse-check and exact round-trip pass. See
 # notes/gpu-r52-workbench-pixel-unlock.md.
 0131-gpu-webgpu-stencil-sampled-view.patch
+# 0132: resolve storage-image binds through aliased Blender texture views. Generic 2D mipmap
+# compute binds mip_in/out1/out2 as per-mip views, but image_view checked only the view object's
+# empty texture_ and dropped all three entries, leaving one UBO against a four-entry layout.
+# Resolve source_, preserve mip/layer offsets, and expose exact native 2D/2D-array/cube-array
+# layer counts. The hardened Dawn probe writes only requested source layer 2 and leaves adjacent
+# layer 3 untouched. Rebuilt light_studio_material falls from 18 GPU errors to zero and passes at
+# 0.244% over 0.016. Reverse-check and exact round-trip pass. The documented 1D-array mapping,
+# nested-view, and unrelated DoF limitations remain. See notes/gpu-r52-workbench-pixel-unlock.md.
+0132-gpu-webgpu-storage-image-texture-views.patch
 # 0133: production GPU readback primitive (M5 lane L-A). Promotes the twice-proven
 # AllowSpontaneous tick-pumped readback (0117/0125) from a BW_DIAG-only diagnostic to a
 # production kick/latch/settle primitive at BOTH backend seams (WGPUTexture::read,
@@ -610,3 +619,14 @@
 # wgpu_readback.{cc,hh}; wgpu_context/batch/framebuffer/diag_readback (r52) + shader_compiler
 # (r51) untouched. See notes/gpu-r53-readback-primitive.md.
 0133-gpu-webgpu-production-readback-primitive.patch
+# 0134: faithfully emulate Blender TRI_FAN on WebGPU instead of silently lowering it to
+# TriangleStrip. Immediate and non-indexed batches retain original vertices and draw through
+# transient UInt32 fan indices. Indexed fans use a GPU compute expander over packed U16/U32,
+# restart, subrange, shared, and GPU-built IBOs, then draw exact isolated UInt32 strips with
+# restart-only padding; the pipeline key includes stripIndexFormat. Multi-viewport and instance
+# arguments are preserved, while indirect fan is explicitly rejected like Metal. Native Dawn
+# probes render exact triangles with zero validation. Fresh headed splash is wedge-free and PASS
+# at 0.204%; workspace PASS is 0.366%. Census holds 149/7/2 plus static_shaders 956/973 with only
+# the known-spurious I10 RED. Reverse-check and exact four-file round-trip pass. The pre-existing
+# cursor overlay defect remains outside this patch. See notes/gpu-r52-workbench-pixel-unlock.md.
+0134-gpu-webgpu-triangle-fan-emulation.patch

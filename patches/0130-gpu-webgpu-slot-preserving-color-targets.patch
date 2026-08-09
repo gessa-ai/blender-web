@@ -1,0 +1,80 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index 9cf04d0..e9e80cc 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -379,11 +379,29 @@ void WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
+                                     int &color_count,
+                                     wgpu::TextureFormat &depth) const
+ {
++  /* Preserve attachment SLOTS - do NOT compact. A workbench TransparentDepthPass
++   * framebuffer carries GPU_ATTACHMENT_NONE gaps BELOW a populated slot, e.g.
++   * ensure(depth, NONE, NONE, object_id) -> object_id (R16Uint) at colour slot 2,
++   * slots 0/1 empty. Compacting it (colors[color_count++], skipping NONE) put
++   * R16Uint at targets[0], where wgpu_pipeline paired it against the WGSL float
++   * @location(0) output (the prepass frag writes material@0/normal@1/object_id@2) ->
++   * Dawn "R16Uint base type Uint doesn't match fragment output Float", dropping the
++   * whole pipeline. Native Vulkan keeps the gap (VK_ATTACHMENT_UNUSED) and discards
++   * the unmatched outputs; Dawn likewise accepts a NULL colour target at an unused
++   * slot with its fragment output discarded (verified: sandbox/gpu-r52 probe Q1/Q6).
++   * So index each format by its real slot (a gap == TextureFormat::Undefined, which
++   * wgpu_pipeline maps to a null colour target) and report the highest populated slot
++   * + 1. A fully-contiguous framebuffer (the common window/offscreen case) is
++   * byte-identical to the old compaction. */
++  for (int i = 0; i < 8; i++) {
++    colors[i] = wgpu::TextureFormat::Undefined;
++  }
+   color_count = 0;
+   for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT && slot < 8; slot++) {
+     Texture *tex = color_tex(slot);
+     if (tex != nullptr) {
+-      colors[color_count++] = as_wgpu(tex)->wgpu_format();
++      colors[slot] = as_wgpu(tex)->wgpu_format();
++      color_count = slot + 1;
+     }
+   }
+   Texture *dtex = depth_tex();
+@@ -395,10 +413,24 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+ {
+   /* NOTE: the local attachment vectors + views only need to outlive BeginRenderPass
+    * (it captures ref-counted handles). */
++  /* Preserve colour SLOTS through to the render-pass descriptor so its colour layout
++   * matches the slot-indexed pipeline targets (target_formats): a gap slot below a
++   * populated one (TransparentDepthPass NONE gaps) becomes a NULL-view colour
++   * attachment, which Dawn accepts (probe Q6) exactly as Vulkan keeps a
++   * VK_ATTACHMENT_UNUSED slot. Only emit up to the highest populated slot; a
++   * contiguous framebuffer (window/offscreen) is unchanged. */
+   std::vector<wgpu::RenderPassColorAttachment> color_atts;
++  int highest_color_slot = -1;
+   for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
++    if (color_tex(slot) != nullptr) {
++      highest_color_slot = slot;
++    }
++  }
++  for (int slot = 0; slot <= highest_color_slot; slot++) {
+     Texture *tex = color_tex(slot);
+     if (tex == nullptr) {
++      /* Gap slot: a null colour attachment (view + loadOp/storeOp left Undefined). */
++      color_atts.push_back(wgpu::RenderPassColorAttachment{});
+       continue;
+     }
+     wgpu::RenderPassColorAttachment ca = {};
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+index 1941a61..86a785a 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -212,6 +212,15 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
+   std::vector<wgpu::ColorTargetState> targets(info.color_count);
+   for (int i = 0; i < info.color_count; i++) {
+     targets[i].format = info.color_formats[i];
++    if (info.color_formats[i] == wgpu::TextureFormat::Undefined) {
++      /* Gap slot (GPU_ATTACHMENT_NONE preserved by WGPUFrameBuffer::target_formats):
++       * a null colour target. WebGPU requires it carry no blend and writeMask None;
++       * the matching fragment output (if the shader writes one) is discarded, exactly
++       * as native Vulkan does at a VK_ATTACHMENT_UNUSED slot (probe Q1/Q6). */
++      targets[i].blend = nullptr;
++      targets[i].writeMask = wgpu::ColorWriteMask::None;
++      continue;
++    }
+     targets[i].blend = bm.enabled ? &blend : nullptr;
+     targets[i].writeMask = write_mask;
+   }

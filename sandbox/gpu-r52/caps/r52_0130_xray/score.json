@@ -1,0 +1,21 @@
+{
+  "capdir": "sandbox/gpu-r52/caps/r52_0130_xray",
+  "golden": "sandbox/m6-prep/goldens/workbench/workbench/x-ray.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.017,0.021,0.020) max=(0.427,0.546,0.521)",
+  "oiiotool_rc": 0,
+  "mean_error": "0.000298314",
+  "max_error": "0.00784313678741455",
+  "pct_over": "0 pixels (0%) over 0.016",
+  "verdict": "PASS",
+  "cluster": "pixel-pass"
+}

@@ -1,0 +1,22 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+Dawn adapter: "Apple M4 Pro" backend=Metal
+
+==== SPARSE COLOR-TARGET / FRAGMENT-OUTPUT-MASKING MATRIX ====
+Q1 frag[0f,1f,2u] targets[null,null,R16Uint]  : OK
+Q2 frag[2u only] targets[null,null,R16Uint]   : OK
+Q3 frag[0f,1f,2u] targets[R16Uint] (compaction): FAIL  <- Color format (TextureFormat::R16Uint) base type (Uint) doesn't match the fragment module output type (Float).
+ - While validating targets[0] framebuffer output.
+ - While validating fragment state.
+ - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).
+
+Q5 frag[0f,2f]   targets[RGBA,null,RGBA]       : OK
+Q6 renderpass ca[null,null,R16Uint]+draw     : OK
+
+INTERPRETATION:
+  Q1 OK  => slot preservation ALONE fixes the x-ray cluster (Dawn permits
+            fragment outputs at null-target slots; matches Vulkan UNUSED).
+  Q1 FAIL, Q2 OK => need per-framebuffer fragment variant emitting only the
+            present outputs (shader-level, out of the framebuffer/pipeline fence).
+  Q3 FAIL is the live bug reproduced (compaction base-type mismatch).

@@ -511,3 +511,22 @@
 # target-independent (fixed LE magic 0x950412de) so the native tool's output is identical and
 # the tool never ships. See notes/i18n-restore-r45.md and notes/adr/ADR-002-host-tool-execution.md.
 0127-hosttools-native-msgfmt-wasm.patch
+# 0124: geometry-frequency SSBO attribute mask (M4 r46, the bindgroup-6v7 shadow family).
+# Finishes the dead r44 round 3. The workbench prepass "6 entries vs 7" family (aa-*, dof,
+# in_front*, light_flat_custom/random, light_studio_object*) is NOT the r44r2-hypothesised
+# materials-SSBO create-info gap. Root: WGPUShaderInterface::init never populated the base
+# ShaderInterface::ssbo_attr_mask_ from info.geometry_resources_, so the shared frontend
+# gpu_batch.cc gate (if ssbo_attr_mask_ == 0 -> early return) skipped binding the geometry-
+# frequency index buffer as an SSBO at GPU_SSBO_INDEX_BUF_SLOT -> the last WGSL binding stayed
+# unbound -> Dawn 6-vs-7 -> black render for every shadow-enabled workbench scene. Fix mirrors
+# vk_shader_interface.cc:171 / gl_shader_interface.cc:507 exactly (backend-only, in the webgpu
+# interface init). Also folds in two comment-only namespace-doc alignments (wgpu_state_manager.cc,
+# wgpu_uniform_buffer.cc) that describe the 0122 create-info-slot unit and were never captured in
+# a patch. Census HELD 149 PASS / 7 FAIL / 2 CRASH + static_shaders 956/973 (only the known-
+# spurious I10 un-defer RED; compute/vertex/namespace tripwires clean). Applies after 0123
+# (regions disjoint from 0122/0123). git apply --check --reverse OK inside upstream. Residuals
+# uncovered by the fix (all DISTINCT, standing hypotheses falsified): x-ray = color-target
+# compaction on NONE-gap TransparentDepthPass framebuffers (out of fence); ex-6v7 depth-Uint =
+# object_id Uint sampler slot receiving a depth texture (namespace follow-up); 1v4 compute
+# storage-image undercount. See notes/gpu-r46-round3-finish.md.
+0124-gpu-webgpu-geometry-ssbo-attr-mask.patch

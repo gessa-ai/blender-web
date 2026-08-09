@@ -1,0 +1,61 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 409656d..2eccaa5 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -715,6 +715,20 @@ class WGPUShaderInterface : public ShaderInterface {
+         in++;
+       }
+     }
++    /* Geometry-frequency SSBO attributes: the vertex-pulling buffers (mesh positions, the
++     * index buffer at GPU_SSBO_INDEX_BUF_SLOT) that GPU_batch_bind_as_resources binds for
++     * draw_expand / primitive-expansion draws. The shared frontend gates that whole bind on
++     * `interface->ssbo_attr_mask_` (gpu_batch.cc: early-returns when it is 0, and only binds
++     * the index buffer when its bit is set). vk/GL populate it here
++     * (vk_shader_interface.cc:171, gl_shader_interface.cc:507); the web interface omitted it, so
++     * the mask stayed 0 and NO geometry SSBO was bound -- the workbench shadow index buffer
++     * (dense binding 5) was left unbound, giving the 6-vs-7 shadow bind group -> Invalid
++     * CommandBuffer -> black render for every shadow-enabled workbench scene. Mirror vk/GL. */
++    for (const Resource &res : info.geometry_resources_) {
++      if (res.bind_type == Resource::BindType::STORAGE_BUFFER) {
++        ssbo_attr_mask_ |= (1 << res.slot);
++      }
++    }
+     /* Specialization constants. */
+     int constant_id = 0;
+     for (const SpecializationConstant &c : info.specialization_constants_) {
+diff --git a/source/blender/gpu/webgpu/wgpu_state_manager.cc b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+index 6ec974c..14edbd2 100644
+--- a/source/blender/gpu/webgpu/wgpu_state_manager.cc
++++ b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+@@ -37,10 +37,11 @@ void WGPUStateManager::force_state() {}
+ 
+ /* Texture / image bindings are resolved into a `wgpu::BindGroup` at draw-time /
+  * dispatch-time bind-group assembly (wgpu_batch::draw / wgpu_backend::
+- * compute_dispatch). The frontend passes the dense WGSL @binding as `unit`
+- * (GPU_shader_get_sampler_binding → ShaderInput::binding, the same dense value the
+- * codegen + interface map assign), so recording `unit → resource` here is exactly
+- * what the bind-group builders look up. Mirrors VKStateManager's textures_/images_
++ * compute_dispatch). The frontend passes the CREATE-INFO SLOT as `unit`
++ * (GPU_shader_get_sampler_binding → ShaderInput::binding = res.slot since r44r2, the same
++ * namespace fixed create-info-slot binds use), which the bind-group builders translate to the
++ * dense WGSL @binding at emit via remap_*_binding. Recording `unit → resource` here is exactly
++ * what those builders look up. Mirrors VKStateManager's textures_/images_
+  * BindSpace. Binding with no active draw is legitimate call ordering — the entry is
+  * simply consumed at the next dispatch/draw. */
+ void WGPUStateManager::texture_bind(Texture *tex, GPUSamplerState sampler, int unit)
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+index d493fe4..e903d04 100644
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -84,8 +84,9 @@ void WGPUUniformBuffer::clear_to_zero()
+ /* Record the binding in the active context's uniform-buffer bind-space; the actual
+  * wgpu::BindGroup is assembled at draw/dispatch time (append_resource_bind_entries).
+  * ensure() the device buffer here so the handle is valid by assembly time, mirroring
+- * WGPUStorageBuffer::bind(). `slot` is the dense WGSL @binding the frontend recorded
+- * (GPU_shader_get_ubo_binding). */
++ * WGPUStorageBuffer::bind(). `slot` is the CREATE-INFO SLOT the frontend recorded
++ * (GPU_shader_get_ubo_binding → ShaderInput::binding = res.slot since r44r2); the bind-group
++ * builder translates it to the dense WGSL @binding at emit via remap_ubo_binding. */
+ void WGPUUniformBuffer::bind(int slot)
+ {
+   if (!ensure()) {

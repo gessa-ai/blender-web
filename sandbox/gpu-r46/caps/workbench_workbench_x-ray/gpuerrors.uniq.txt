@@ -1,0 +1,3 @@
+[x40] [bw][GPU-ERROR] GPUValidationError: [Invalid RenderPipeline (unlabeled)] is invalid due to a previous error. |  - While encoding [RenderPassEncoder (unlabeled)].SetPipeline([Invalid RenderPipeline (unlabeled)]). |  - While finishing [CommandEncoder (unlabeled)]. | 
+[x40] [bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error. |  - While calling [Queue].Submit([[Invalid CommandBuffer]]) | 
+[x1] [bw][GPU-ERROR] GPUValidationError: Color format (TextureFormat::R16Uint) base type (Uint) doesn't match the fragment module output type (Float). |  - While validating targets[0] framebuffer output. |  - While validating fragment state. |  - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]). | 

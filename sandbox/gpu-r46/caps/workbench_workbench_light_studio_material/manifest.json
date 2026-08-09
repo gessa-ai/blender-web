@@ -1,0 +1,31 @@
+{
+  "mode": "boot",
+  "hostBlend": "/Users/paws/blender-web/upstream/tests/files/render/workbench/light_studio_material.blend",
+  "engine": "BLENDER_WORKBENCH",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 188360
+  },
+  "sentinel": null,
+  "pageCrashed": true,
+  "gpuErrorCount": 9,
+  "kicks": 0,
+  "dones": 0,
+  "caps": [],
+  "marks": [],
+  "doneLines": [],
+  "gpuErrorSample": [
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (1) did not match the expected number of entries (4) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::ReadOnly} }, { binding: 1, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 2, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 3, visibility: ShaderStage::Compute, buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [ComputePassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])\n",
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (1) did not match the expected number of entries (4) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::ReadOnly} }, { binding: 1, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 2, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 3, visibility: ShaderStage::Compute, buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [ComputePassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])\n",
+    "[bw][GPU-ERROR] GPUValidationError: Number of entries (1) did not match the expected number of entries (4) for [BindGroupLayoutInternal (unlabeled)].\nExpected layout: [{ binding: 0, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::ReadOnly} }, { binding: 1, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 2, visibility: ShaderStage::Compute, storageTexture: {format: TextureFormat::RGBA8Unorm, viewDimension: TextureViewDimension::e2D, access: StorageTextureAccess::WriteOnly} }, { binding: 3, visibility: ShaderStage::Compute, buffer: {type: BufferBindingType::Uniform, minBindingSize: 0, hasDynamicOffset: 0} }]\n - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]\n - While calling [Device].CreateBindGroup([BindGroupDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroup (unlabeled)] is invalid due to a previous error.\n - While encoding [ComputePassEncoder (unlabeled)].SetBindGroup(0, [Invalid BindGroup (unlabeled)], 0, ...).\n - While finishing [CommandEncoder (unlabeled)].\n"
+  ]
+}

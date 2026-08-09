@@ -1,0 +1,1061 @@
+Using Python for Dawn codegen: /opt/homebrew/bin/python3.13
+-- The CXX compiler identification is AppleClang 17.0.0.17000603
+-- The C compiler identification is AppleClang 17.0.0.17000603
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Build type...........: Release
+-- C++ compiler.........: /usr/bin/c++
+-- CMake generator......: Ninja
+-- CMake version........: 4.0.3
+-- 
+-- Dawn building using Emscripten toolchain: 0
+-- Dawn build D3D11 backend: OFF
+-- Dawn build D3D12 backend: OFF
+-- Dawn build Metal backend: ON
+-- Dawn build Vulkan backend: OFF
+-- Dawn build OpenGL backend: OFF
+-- Dawn build OpenGL ES backend: OFF
+-- Dawn build Null backend: ON
+-- 
+-- Tint build SPIR-V reader: OFF
+-- Tint build WGSL reader: ON
+-- Tint build GLSL writer: OFF
+-- Tint build GLSL validator: ON
+-- Tint build HLSL writer: OFF
+-- Tint build MSL writer: ON
+-- Tint build SPIR-V writer: OFF
+-- Tint build WGSL writer: ON
+-- Tint build NULL writer: ON
+-- 
+-- Dawn build with ASan: OFF
+-- Dawn build with TSan: OFF
+-- Dawn build with MSan: OFF
+-- Dawn build with UBSan: OFF
+-- Dawn build with RTTI: OFF
+-- DAWN Werror: OFF
+-- Dawn enable install: OFF
+-- Dawn allow system component fallback: OFF
+-- Dawn enable SPIR-V validation: OFF
+-- Dawn build with asserts in all configurations: OFF
+-- Dawn build Wayland support: OFF
+-- Dawn build X11 support: OFF
+-- Dawn build GLFW support: OFF
+-- Dawn build Windows UI support: OFF
+-- Dawn build and use DXC: OFF
+-- Dawn enable DXC asserts in non-debug builds: ON
+-- Dawn target MacOS: ON
+-- Dawn build samples: OFF
+-- Dawn build Node bindings: OFF
+-- Dawn build Swiftshader: OFF
+-- Dawn build benchmarks: OFF
+-- Dawn build protobuf: OFF
+-- Dawn build monolithic library: STATIC
+-- Dawn build PIC: ON
+-- Dawn emit coverage: OFF
+-- Dawn fetch dependencies: ON
+-- LLVM Source dir: 
+-- 
+-- Tint build command line executable tools: OFF
+-- Tint install: OFF
+-- Tint build IR binary: OFF
+-- Tint build fuzzers: OFF
+-- Tint build fuzzing vulkan drivers: OFF
+-- Tint build benchmarks: OFF
+-- Tint build tests: OFF
+-- Tint build tintd: OFF
+-- Tint enable IR dumping: ON
+-- Tint enable IR validation assertions: ON
+-- Tint enable break in debugger: OFF
+-- Tint build checking [chromium-style]: OFF
+-- Tint randomize hashes: OFF
+-- Tint build Mesa: OFF
+-- 
+-- Dawn third_party dir: /Users/paws/blender-web/build-dawn/dawn/third_party
+-- Dawn GLFW dir: /Users/paws/blender-web/build-dawn/dawn/third_party/glfw3/src
+-- Dawn Jinja2 dir: /Users/paws/blender-web/build-dawn/dawn/third_party/jinja2
+-- Dawn MarkupSafe dir: /Users/paws/blender-web/build-dawn/dawn/third_party/markupsafe
+-- Dawn Khronos dir: /Users/paws/blender-web/build-dawn/dawn/third_party/khronos
+-- Dawn Swiftshader dir: /Users/paws/blender-web/build-dawn/dawn/third_party/swiftshader
+-- Dawn Protobuf dir: /Users/paws/blender-web/build-dawn/dawn/third_party/protobuf
+-- Dawn LPM dir: /Users/paws/blender-web/build-dawn/dawn/third_party/libprotobuf-mutator/src
+-- Dawn Emdawnwebgpu dir: /Users/paws/blender-web/build-dawn/dawn/third_party/emdawnwebgpu
+-- Dawn Spir-Tools dir: /Users/paws/blender-web/build-dawn/dawn/third_party/spirv-tools/src
+-- Dawn Spirv-Headers dir: /Users/paws/blender-web/build-dawn/dawn/third_party/spirv-headers/src
+-- Dawn Glslang dir: /Users/paws/blender-web/build-dawn/dawn/third_party/glslang/src
+-- Dawn Vulkan Headers dir: /Users/paws/blender-web/build-dawn/dawn/third_party/vulkan-headers/src
+-- Dawn Vulkan Utility Libraries dir: /Users/paws/blender-web/build-dawn/dawn/third_party/vulkan-utility-libraries/src
+-- 
+-- Node Addon API dir: /Users/paws/blender-web/build-dawn/dawn/third_party/node-addon-api
+-- Node API Headers dir: /Users/paws/blender-web/build-dawn/dawn/third_party/node-api-headers
+-- Webgpu IDL path: /Users/paws/blender-web/build-dawn/dawn/third_party/gpuweb/webgpu.idl
+-- Go exe: go
+-- 
+-- Performing Test dawn_have_compiler_flag-C--Wconditional-uninitialized
+-- Performing Test dawn_have_compiler_flag-C--Wconditional-uninitialized - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wconditional-uninitialized
+-- Performing Test dawn_have_compiler_flag-CXX--Wconditional-uninitialized - Success
+-- Performing Test dawn_have_compiler_flag-C--Wcstring-format-directive
+-- Performing Test dawn_have_compiler_flag-C--Wcstring-format-directive - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wcstring-format-directive
+-- Performing Test dawn_have_compiler_flag-CXX--Wcstring-format-directive - Success
+-- Performing Test dawn_have_compiler_flag-C--Wctad-maybe-unsupported
+-- Performing Test dawn_have_compiler_flag-C--Wctad-maybe-unsupported - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wctad-maybe-unsupported
+-- Performing Test dawn_have_compiler_flag-CXX--Wctad-maybe-unsupported - Success
+-- Performing Test dawn_have_compiler_flag-C--Wc++11-narrowing
+-- Performing Test dawn_have_compiler_flag-C--Wc++11-narrowing - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wc++11-narrowing
+-- Performing Test dawn_have_compiler_flag-CXX--Wc++11-narrowing - Success
+-- Performing Test dawn_have_compiler_flag-C--Wdeprecated-copy
+-- Performing Test dawn_have_compiler_flag-C--Wdeprecated-copy - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wdeprecated-copy
+-- Performing Test dawn_have_compiler_flag-CXX--Wdeprecated-copy - Success
+-- Performing Test dawn_have_compiler_flag-C--Wdeprecated-copy-dtor
+-- Performing Test dawn_have_compiler_flag-C--Wdeprecated-copy-dtor - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wdeprecated-copy-dtor
+-- Performing Test dawn_have_compiler_flag-CXX--Wdeprecated-copy-dtor - Success
+-- Performing Test dawn_have_compiler_flag-C--Wduplicate-enum
+-- Performing Test dawn_have_compiler_flag-C--Wduplicate-enum - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wduplicate-enum
+-- Performing Test dawn_have_compiler_flag-CXX--Wduplicate-enum - Success
+-- Performing Test dawn_have_compiler_flag-C--Wextra-semi
+-- Performing Test dawn_have_compiler_flag-C--Wextra-semi - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wextra-semi
+-- Performing Test dawn_have_compiler_flag-CXX--Wextra-semi - Success
+-- Performing Test dawn_have_compiler_flag-C--Wextra-semi-stmt
+-- Performing Test dawn_have_compiler_flag-C--Wextra-semi-stmt - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wextra-semi-stmt
+-- Performing Test dawn_have_compiler_flag-CXX--Wextra-semi-stmt - Success
+-- Performing Test dawn_have_compiler_flag-C--Wimplicit-fallthrough
+-- Performing Test dawn_have_compiler_flag-C--Wimplicit-fallthrough - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wimplicit-fallthrough
+-- Performing Test dawn_have_compiler_flag-CXX--Wimplicit-fallthrough - Success
+-- Performing Test dawn_have_compiler_flag-C--Winconsistent-missing-destructor-override
+-- Performing Test dawn_have_compiler_flag-C--Winconsistent-missing-destructor-override - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Winconsistent-missing-destructor-override
+-- Performing Test dawn_have_compiler_flag-CXX--Winconsistent-missing-destructor-override - Success
+-- Performing Test dawn_have_compiler_flag-C--Winvalid-offsetof
+-- Performing Test dawn_have_compiler_flag-C--Winvalid-offsetof - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Winvalid-offsetof
+-- Performing Test dawn_have_compiler_flag-CXX--Winvalid-offsetof - Success
+-- Performing Test dawn_have_compiler_flag-C--Wmissing-field-initializers
+-- Performing Test dawn_have_compiler_flag-C--Wmissing-field-initializers - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wmissing-field-initializers
+-- Performing Test dawn_have_compiler_flag-CXX--Wmissing-field-initializers - Success
+-- Performing Test dawn_have_compiler_flag-C--Wnon-c-typedef-for-linkage
+-- Performing Test dawn_have_compiler_flag-C--Wnon-c-typedef-for-linkage - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wnon-c-typedef-for-linkage
+-- Performing Test dawn_have_compiler_flag-CXX--Wnon-c-typedef-for-linkage - Success
+-- Performing Test dawn_have_compiler_flag-C--Wpessimizing-move
+-- Performing Test dawn_have_compiler_flag-C--Wpessimizing-move - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wpessimizing-move
+-- Performing Test dawn_have_compiler_flag-CXX--Wpessimizing-move - Success
+-- Performing Test dawn_have_compiler_flag-C--Wrange-loop-analysis
+-- Performing Test dawn_have_compiler_flag-C--Wrange-loop-analysis - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wrange-loop-analysis
+-- Performing Test dawn_have_compiler_flag-CXX--Wrange-loop-analysis - Success
+-- Performing Test dawn_have_compiler_flag-C--Wredundant-move
+-- Performing Test dawn_have_compiler_flag-C--Wredundant-move - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wredundant-move
+-- Performing Test dawn_have_compiler_flag-CXX--Wredundant-move - Success
+-- Performing Test dawn_have_compiler_flag-C--Wshadow-field
+-- Performing Test dawn_have_compiler_flag-C--Wshadow-field - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wshadow-field
+-- Performing Test dawn_have_compiler_flag-CXX--Wshadow-field - Success
+-- Performing Test dawn_have_compiler_flag-C--Wstrict-prototypes
+-- Performing Test dawn_have_compiler_flag-C--Wstrict-prototypes - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wstrict-prototypes
+-- Performing Test dawn_have_compiler_flag-CXX--Wstrict-prototypes - Success
+-- Performing Test dawn_have_compiler_flag-C--Wsuggest-destructor-override
+-- Performing Test dawn_have_compiler_flag-C--Wsuggest-destructor-override - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wsuggest-destructor-override
+-- Performing Test dawn_have_compiler_flag-CXX--Wsuggest-destructor-override - Success
+-- Performing Test dawn_have_compiler_flag-C--Wsuggest-override
+-- Performing Test dawn_have_compiler_flag-C--Wsuggest-override - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wsuggest-override
+-- Performing Test dawn_have_compiler_flag-CXX--Wsuggest-override - Success
+-- Performing Test dawn_have_compiler_flag-C--Wtautological-unsigned-zero-compare
+-- Performing Test dawn_have_compiler_flag-C--Wtautological-unsigned-zero-compare - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wtautological-unsigned-zero-compare
+-- Performing Test dawn_have_compiler_flag-CXX--Wtautological-unsigned-zero-compare - Success
+-- Performing Test dawn_have_compiler_flag-C--Wunreachable-code-aggressive
+-- Performing Test dawn_have_compiler_flag-C--Wunreachable-code-aggressive - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wunreachable-code-aggressive
+-- Performing Test dawn_have_compiler_flag-CXX--Wunreachable-code-aggressive - Success
+-- Performing Test dawn_have_compiler_flag-C--Wunused-but-set-variable
+-- Performing Test dawn_have_compiler_flag-C--Wunused-but-set-variable - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wunused-but-set-variable
+-- Performing Test dawn_have_compiler_flag-CXX--Wunused-but-set-variable - Success
+-- Performing Test dawn_have_compiler_flag-C--Wunused-macros
+-- Performing Test dawn_have_compiler_flag-C--Wunused-macros - Success
+-- Performing Test dawn_have_compiler_flag-CXX--Wunused-macros
+-- Performing Test dawn_have_compiler_flag-CXX--Wunused-macros - Success
+-- Found Python3: /opt/homebrew/bin/python3.13 (found version "3.13.13") found components: Interpreter
+-- Dawn: using python at /opt/homebrew/bin/python3.13
+-- Running fetch_dawn_dependencies:
+-- -- Listing dependencies from /Users/paws/blender-web/build-dawn/dawn
+-- -- Fetching dependency 'third_party/abseil-cpp'
+-- -- Fetching dependency 'third_party/directx-shader-compiler/src'
+-- -- Fetching dependency 'third_party/directx-headers/src'
+-- -- Fetching dependency 'third_party/glfw3/src'
+-- -- Fetching dependency 'third_party/jinja2'
+-- -- Fetching dependency 'third_party/EGL-Registry/src'
+-- -- Fetching dependency 'third_party/OpenGL-Registry/src'
+-- -- Fetching dependency 'third_party/libprotobuf-mutator/src'
+-- -- Fetching dependency 'third_party/protobuf'
+-- -- Listing dependencies from /Users/paws/blender-web/build-dawn/dawn/third_party/protobuf
+-- -- WARNING: DEPS file '/Users/paws/blender-web/build-dawn/dawn/third_party/protobuf/DEPS' does not define a 'deps' variable
+-- -- Fetching dependency 'third_party/markupsafe'
+-- -- Fetching dependency 'third_party/glslang/src'
+-- -- Listing dependencies from /Users/paws/blender-web/build-dawn/dawn/third_party/glslang/src
+-- -- Fetching dependency 'third_party/google_benchmark/src'
+-- -- Fetching dependency 'third_party/googletest'
+-- -- Fetching dependency 'third_party/spirv-headers/src'
+-- -- Fetching dependency 'third_party/spirv-tools/src'
+-- -- Listing dependencies from /Users/paws/blender-web/build-dawn/dawn/third_party/spirv-tools/src
+-- -- Fetching dependency 'third_party/vulkan-headers/src'
+-- -- Fetching dependency 'third_party/vulkan-loader/src'
+-- -- Fetching dependency 'third_party/vulkan-utility-libraries/src'
+-- -- Fetching dependency 'third_party/webgpu-headers/src'
+-- Dawn: using Abseil at /Users/paws/blender-web/build-dawn/dawn/third_party/abseil-cpp
+-- Performing Test ABSL_INTERNAL_AT_LEAST_CXX17
+-- Performing Test ABSL_INTERNAL_AT_LEAST_CXX17 - Success
+-- Performing Test ABSL_INTERNAL_AT_LEAST_CXX20
+-- Performing Test ABSL_INTERNAL_AT_LEAST_CXX20 - Success
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Dawn: using SPIRV-Headers at /Users/paws/blender-web/build-dawn/dawn/third_party/spirv-headers/src
+-- Dawn: using jinja2 at /Users/paws/blender-web/build-dawn/dawn/third_party/jinja2
+-- Dawn: using markupsafe at /Users/paws/blender-web/build-dawn/dawn/third_party/markupsafe
+-- Dawn: Configuring DawnGenerator for Dawn WebGPU Emscripten headers.
+-- Dawn: Configuring DawnGenerator for Dawn WebGPU Emscripten JS files.
+-- Dawn: Configuring DawnGenerator for Dawn version based utilities.
+-- Dawn: Configuring DawnGenerator for Dawn headers.
+-- Dawn: Configuring DawnGenerator for Dawn C++ headers.
+-- Dawn: Configuring DawnGenerator for Dawn GPU info utilities.
+-- Dawn: Configuring DawnGenerator for Dawn native utilities.
+-- Dawn: Configuring DawnGenerator for Dawn wire.
+-- Dawn: Configuring DawnGenerator for Dawn native utilities.
+-- Dawn: Configuring DawnGenerator for Dawn native WebGPU procs.
+-- Dawn: Configuring DawnGenerator for Dawn C++ wrapper.
+-- Dawn: Configuring DawnGenerator for WebGPU headers.
+-- Configuring done (10.0s)
+-- Generating done (0.3s)
+-- Build files have been written to: /Users/paws/blender-web/build-dawn/eevee-storage-probe-build
+ninja: Entering directory `/Users/paws/blender-web/build-dawn/eevee-storage-probe-build'
+[1/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_containers.dir/utils/containers/containers.cc.o
+[2/748] Building CXX object dawn/src/utils/CMakeFiles/dawn_shared_utils.dir/placeholder.cc.o
+[3/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_macros.dir/utils/macros/macros.cc.o
+[4/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_memory.dir/utils/memory/memory.cc.o
+[5/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_ice.dir/utils/ice/debugger.cc.o
+[6/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_spinlock_wait.dir/internal/spinlock_wait.cc.o
+[7/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_hardening.dir/internal/hardening.cc.o
+[8/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_spinlock_wait.a
+[9/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_system.dir/utils/system/env_other.cc.o
+[10/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_math.dir/utils/math/math.cc.o
+[11/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/internal/unscaledcycleclock.cc.o
+[12/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_raw_logging_internal.dir/internal/raw_logging.cc.o
+[13/748] Building CXX object dawn/src/utils/CMakeFiles/dawn_shared_utils.dir/assert.cc.o
+[14/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_log_severity.dir/log_severity.cc.o
+[15/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/casts.cc.o
+[16/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils.dir/utils/result.cc.o
+[17/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_rtti.dir/utils/rtti/castable.cc.o
+[18/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_utf8_for_code_point.dir/internal/utf8_for_code_point.cc.o
+[19/748] Building CXX object dawn/src/utils/CMakeFiles/dawn_shared_utils.dir/log.cc.o
+[20/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/internal/cycleclock.cc.o
+[21/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_log_severity.a
+[22/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_rtti.dir/utils/rtti/switch.cc.o
+[23/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_ice.dir/utils/ice/ice.cc.o
+[24/748] Linking CXX static library dawn/src/utils/libdawn_shared_utils.a
+[25/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_raw_logging_internal.a
+[26/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/internal/spinlock.cc.o
+[27/748] Linking CXX static library dawn/src/tint/libtint_utils_macros.a
+[28/748] Linking CXX static library dawn/src/tint/libtint_utils_ice.a
+[29/748] Linking CXX static library dawn/src/tint/libtint_utils_math.a
+[30/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/internal/sysinfo.cc.o
+[31/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_system.dir/utils/system/terminal_posix.cc.o
+[32/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_system.dir/utils/system/executable_file_mac.cc.o
+[33/748] Linking CXX static library dawn/src/tint/libtint_utils_memory.a
+[34/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_hardening.a
+[35/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_utf8_for_code_point.a
+[36/748] Linking CXX static library dawn/src/tint/libtint_utils_rtti.a
+[37/748] Linking CXX static library dawn/src/tint/libtint_utils_containers.a
+[38/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base.dir/internal/thread_identity.cc.o
+[39/748] Linking CXX static library dawn/src/tint/libtint_utils_system.a
+[40/748] Linking CXX static library dawn/src/tint/libtint_utils.a
+[41/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_throw_delegate.dir/throw_delegate.cc.o
+[42/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_base.a
+[43/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings_internal.dir/internal/utf8.cc.o
+[44/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_throw_delegate.a
+[45/748] Building CXX object dawn/third_party/abseil/absl/types/CMakeFiles/absl_source_location.dir/source_location.cc.o
+[46/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/styled_text_theme.cc.o
+[47/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_decode_rust_punycode.dir/internal/decode_rust_punycode.cc.o
+[48/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/styled_text_printer.cc.o
+[49/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/color_mode.cc.o
+[50/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_decode_rust_punycode.a
+[51/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/styled_text_printer_posix.cc.o
+[52/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_base_cpu_detect.dir/internal/cpu_detect.cc.o
+[53/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/string_stream.cc.o
+[54/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/base64.cc.o
+[55/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_demangle_rust.dir/internal/demangle_rust.cc.o
+[56/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/string.cc.o
+[57/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings_internal.dir/internal/ostringstream.cc.o
+[58/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/styled_text_printer_ansi.cc.o
+[59/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/unicode.cc.o
+[60/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text.dir/utils/text/styled_text.cc.o
+[61/748] Building CXX object dawn/third_party/abseil/absl/numeric/CMakeFiles/absl_int128.dir/int128.cc.o
+[62/748] Linking CXX static library dawn/src/tint/libtint_utils_text.a
+[63/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings_internal.dir/internal/escaping.cc.o
+[64/748] Linking CXX static library dawn/third_party/abseil/absl/numeric/libabsl_int128.a
+[65/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_strings_internal.a
+[66/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/ascii.cc.o
+[67/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/internal/memutil.cc.o
+[68/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_reflection.dir/utils/reflection/reflection.cc.o
+[69/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/internal/charconv_parse.cc.o
+[70/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/internal/damerau_levenshtein_distance.cc.o
+[71/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/internal/stringify_sink.cc.o
+[72/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/match.cc.o
+[73/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/str_replace.cc.o
+[74/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/charconv.cc.o
+[75/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/str_cat.cc.o
+[76/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/internal/charconv_bigint.cc.o
+[77/748] Linking CXX static library dawn/third_party/abseil/absl/types/libabsl_source_location.a
+warning: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: archive library: dawn/third_party/abseil/absl/types/libabsl_source_location.a the table of contents is empty (no object file members in the library define global symbols)
+[78/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/str_split.cc.o
+[79/748] Linking CXX static library dawn/src/tint/libtint_utils_reflection.a
+[80/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_base_cpu_detect.a
+[81/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/escaping.cc.o
+[82/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_posix.cc.o
+[83/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_debugging_internal.dir/internal/address_is_readable.cc.o
+[84/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_civil_time.dir/internal/cctz/src/civil_time_detail.cc.o
+[85/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_fixed.cc.o
+[86/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_if.cc.o
+[87/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_debugging_internal.dir/internal/elf_mem_image.cc.o
+[88/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/substitute.cc.o
+[89/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_demangle_rust.a
+[90/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_debugging_internal.dir/internal/vdso_support.cc.o
+[91/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_strings.dir/numbers.cc.o
+[92/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_strings.a
+[93/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_libc.cc.o
+[94/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/zone_info_source.cc.o
+[95/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_lookup.cc.o
+[96/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_impl.cc.o
+[97/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_format.cc.o
+[98/748] Building CXX object dawn/src/tint/CMakeFiles/tint_api_common.dir/api/common/vertex_pulling_config.cc.o
+[99/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_malloc_internal.dir/internal/low_level_alloc.cc.o
+[100/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc_internal.dir/internal/crc.cc.o
+[101/748] Linking CXX static library dawn/third_party/abseil/absl/time/libabsl_civil_time.a
+[102/748] Linking CXX static library dawn/src/tint/libtint_api_common.a
+[103/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/extension.cc.o
+[104/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/output.cc.o
+[105/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc_internal.dir/internal/crc_x86_arm_combined.cc.o
+[106/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time.dir/clock.cc.o
+[107/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time_zone.dir/internal/cctz/src/time_zone_info.cc.o
+[108/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/bind.cc.o
+[109/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/arg.cc.o
+[110/748] Linking CXX static library dawn/third_party/abseil/absl/time/libabsl_time_zone.a
+[111/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_demangle_internal.dir/internal/demangle.cc.o
+[112/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/parser.cc.o
+[113/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_malloc_internal.a
+[114/748] Building CXX object dawn/third_party/abseil/absl/base/CMakeFiles/absl_tracing_internal.dir/internal/tracing.cc.o
+[115/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time.dir/civil_time.cc.o
+[116/748] Linking CXX static library dawn/third_party/abseil/absl/crc/libabsl_crc_internal.a
+[117/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time.dir/format.cc.o
+[118/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time.dir/duration.cc.o
+[119/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core.dir/lang/core/binary_op.cc.o
+[120/748] Building CXX object dawn/third_party/abseil/absl/time/CMakeFiles/absl_time.dir/time.cc.o
+[121/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core.dir/lang/core/unary_op.cc.o
+[122/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core.dir/lang/core/number.cc.o
+[123/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_debugging_internal.a
+[124/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_demangle_internal.a
+[125/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_stacktrace.dir/stacktrace.cc.o
+[126/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core.dir/lang/core/enums.cc.o
+[127/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_symbol.dir/utils/symbol/generation_id.cc.o
+[128/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_diagnostic.dir/utils/diagnostic/diagnostic.cc.o
+[129/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_symbol.dir/utils/symbol/symbol.cc.o
+[130/748] Linking CXX static library dawn/third_party/abseil/absl/time/libabsl_time.a
+[131/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_diagnostic.dir/utils/diagnostic/source.cc.o
+[132/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_str_format_internal.dir/internal/str_format/float_conversion.cc.o
+[133/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_diagnostic.dir/utils/diagnostic/formatter.cc.o
+[134/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_str_format_internal.a
+[135/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_symbol.dir/utils/symbol/symbol_table.cc.o
+[136/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc32c.dir/internal/crc_memcpy_fallback.cc.o
+[137/748] Building CXX object dawn/third_party/abseil/absl/hash/CMakeFiles/absl_city.dir/internal/city.cc.o
+[138/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc32c.dir/crc32c.cc.o
+[139/748] Building CXX object dawn/third_party/abseil/absl/debugging/CMakeFiles/absl_symbolize.dir/symbolize.cc.o
+[140/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc32c.dir/internal/crc_non_temporal_memcpy.cc.o
+[141/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc32c.dir/internal/crc_memcpy_x86_arm_combined.cc.o
+[142/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/abstract_numeric.cc.o
+[143/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_kernel_timeout_internal.dir/internal/kernel_timeout.cc.o
+[144/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_graphcycles_internal.dir/internal/graphcycles.cc.o
+[145/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/abstract_int.cc.o
+[146/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/abstract_float.cc.o
+[147/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/array.cc.o
+[148/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/array_count.cc.o
+[149/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/binding_array.cc.o
+[150/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/atomic.cc.o
+[151/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/bool.cc.o
+[152/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/buffer.cc.o
+[153/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/depth_multisampled_texture.cc.o
+[154/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/external_texture.cc.o
+[155/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/depth_texture.cc.o
+[156/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/f16.cc.o
+[157/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/builtin_structs.cc.o
+[158/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/f32.cc.o
+[159/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/function.cc.o
+[160/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/i32.cc.o
+[161/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/invalid.cc.o
+[162/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/node.cc.o
+[163/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/i8.cc.o
+[164/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/numeric_scalar.cc.o
+[165/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/input_attachment.cc.o
+[166/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/memory_view.cc.o
+[167/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/matrix.cc.o
+[168/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/multisampled_texture.cc.o
+[169/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/pointer.cc.o
+[170/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/reference.cc.o
+[171/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/resource_table.cc.o
+[172/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/sampler_kind.cc.o
+[173/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/scalar.cc.o
+[174/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/resource_type.cc.o
+[175/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/sampled_texture.cc.o
+[176/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/sampler.cc.o
+[177/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/manager.cc.o
+[178/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/texture.cc.o
+[179/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/string.cc.o
+[180/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/storage_texture.cc.o
+[181/748] Linking CXX static library dawn/src/tint/libtint_lang_core.a
+[182/748] Linking CXX static library dawn/src/tint/libtint_utils_diagnostic.a
+[183/748] Linking CXX static library dawn/src/tint/libtint_utils_symbol.a
+[184/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/subgroup_matrix.cc.o
+[185/748] Linking CXX static library dawn/third_party/abseil/absl/crc/libabsl_crc32c.a
+[186/748] Linking CXX static library dawn/third_party/abseil/absl/base/libabsl_tracing_internal.a
+[187/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_stacktrace.a
+[188/748] Linking CXX static library dawn/third_party/abseil/absl/debugging/libabsl_symbolize.a
+[189/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/texture_dimension.cc.o
+[190/748] Linking CXX static library dawn/third_party/abseil/absl/hash/libabsl_city.a
+[191/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/texel_buffer.cc.o
+[192/748] Linking CXX static library dawn/third_party/abseil/absl/synchronization/libabsl_graphcycles_internal.a
+[193/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/swizzle_view.cc.o
+[194/748] Linking CXX static library dawn/third_party/abseil/absl/synchronization/libabsl_kernel_timeout_internal.a
+[195/748] Building CXX object dawn/third_party/abseil/absl/profiling/CMakeFiles/absl_exponential_biased.dir/internal/exponential_biased.cc.o
+[196/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/unique_node.cc.o
+[197/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/struct.cc.o
+[198/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/u16.cc.o
+[199/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/u32.cc.o
+[200/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/sem_waiter.cc.o
+[201/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/win32_waiter.cc.o
+[202/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/type.cc.o
+[203/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/u8.cc.o
+[204/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/u64.cc.o
+[205/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/vector.cc.o
+[206/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_type.dir/lang/core/type/void.cc.o
+[207/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/blocking_counter.cc.o
+[208/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/barrier.cc.o
+[209/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/futex_waiter.cc.o
+[210/748] Building CXX object dawn/third_party/abseil/absl/hash/CMakeFiles/absl_hash.dir/internal/hash.cc.o
+[211/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/create_thread_identity.cc.o
+[212/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/per_thread_sem.cc.o
+[213/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/pthread_waiter.cc.o
+[214/748] Building CXX object dawn/third_party/abseil/absl/crc/CMakeFiles/absl_crc_cord_state.dir/internal/crc_cord_state.cc.o
+[215/748] Linking CXX static library dawn/src/tint/libtint_lang_core_type.a
+[216/748] Linking CXX static library dawn/third_party/abseil/absl/hash/libabsl_hash.a
+[217/748] Linking CXX static library dawn/third_party/abseil/absl/profiling/libabsl_exponential_biased.a
+[218/748] Linking CXX static library dawn/third_party/abseil/absl/crc/libabsl_crc_cord_state.a
+[219/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/waiter_base.cc.o
+[220/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/notification.cc.o
+[221/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/internal/stdcpp_waiter.cc.o
+[222/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/node.cc.o
+[223/748] Building CXX object dawn/third_party/abseil/absl/synchronization/CMakeFiles/absl_synchronization.dir/mutex.cc.o
+[224/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/invalid.cc.o
+[225/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/composite.cc.o
+[226/748] Linking CXX static library dawn/third_party/abseil/absl/synchronization/libabsl_synchronization.a
+[227/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/value.cc.o
+[228/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/scalar.cc.o
+[229/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/splat.cc.o
+[230/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/string.cc.o
+[231/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_rep_btree_reader.cc.o
+[232/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_rep_btree_navigator.cc.o
+[233/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_rep_consume.cc.o
+[234/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cordz_functions.dir/internal/cordz_functions.cc.o
+[235/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_internal.cc.o
+[236/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_cordz_functions.a
+[237/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_intrinsic.dir/lang/core/intrinsic/ctor_conv.cc.o
+[238/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_rep_crc.cc.o
+[239/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cordz_handle.dir/internal/cordz_handle.cc.o
+[240/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_cordz_handle.a
+[241/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord_internal.dir/internal/cord_rep_btree.cc.o
+[242/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/manager.cc.o
+[243/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_cord_internal.a
+[244/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_type.dir/lang/core/ir/type/array_count.cc.o
+[245/748] Linking CXX static library dawn/src/tint/libtint_lang_core_ir_type.a
+[246/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl.dir/lang/wgsl/feature_status.cc.o
+[247/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl.dir/lang/wgsl/enums.cc.o
+[248/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl.dir/lang/wgsl/reserved_words.cc.o
+[249/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cordz_info.dir/internal/cordz_info.cc.o
+[250/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/block_param.cc.o
+[251/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/binary.cc.o
+[252/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/block.cc.o
+[253/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/constant.cc.o
+[254/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/access.cc.o
+[255/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/break_if.cc.o
+[256/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/builtin_call.cc.o
+[257/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/call.cc.o
+[258/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/clone_context.cc.o
+[259/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/builder.cc.o
+[260/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/constexpr_if.cc.o
+[261/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_intrinsic.dir/lang/core/intrinsic/table.cc.o
+[262/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/control_instruction.cc.o
+[263/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_intrinsic.dir/lang/core/intrinsic/data.cc.o
+[264/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/continue.cc.o
+[265/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/construct.cc.o
+[266/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/core_binary.cc.o
+[267/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/convert.cc.o
+[268/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/core_builtin_call.cc.o
+[269/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/discard.cc.o
+[270/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/exit.cc.o
+[271/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/core_unary.cc.o
+[272/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/const_param_validator.cc.o
+[273/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/exit_if.cc.o
+[274/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/exit_loop.cc.o
+[275/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/instruction.cc.o
+[276/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/function_param.cc.o
+[277/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/function.cc.o
+[278/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/exit_switch.cc.o
+[279/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/instruction_result.cc.o
+[280/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/evaluator.cc.o
+[281/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/io_attribute_validator.cc.o
+[282/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/if.cc.o
+[283/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/let.cc.o
+[284/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/load.cc.o
+[285/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/load_vector_element.cc.o
+[286/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/operand_instruction.cc.o
+[287/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/member_builtin_call.cc.o
+[288/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/loop.cc.o
+[289/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/multi_in_block.cc.o
+[290/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/next_iteration.cc.o
+[291/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/reflection.cc.o
+[292/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/phony.cc.o
+[293/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/return.cc.o
+[294/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/override.cc.o
+[295/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/store.cc.o
+[296/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/store_vector_element.cc.o
+[297/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/module.cc.o
+[298/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/terminator.cc.o
+[299/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/terminate_invocation.cc.o
+[300/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/swizzle.cc.o
+[301/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/switch.cc.o
+[302/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/unused.cc.o
+[303/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/disassembler.cc.o
+[304/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/value.cc.o
+[305/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/unary.cc.o
+[306/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/accessor_expression.cc.o
+[307/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/unreachable.cc.o
+[308/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/alias.cc.o
+[309/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/attribute.cc.o
+[310/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/user_call.cc.o
+[311/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/var.cc.o
+[312/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/functional_validator.cc.o
+[313/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/validator.cc.o
+[314/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/assignment_statement.cc.o
+[315/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/binary_expression.cc.o
+[316/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/binding_attribute.cc.o
+[317/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/blend_src_attribute.cc.o
+[318/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/bool_literal_expression.cc.o
+[319/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/block_statement.cc.o
+[320/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/break_if_statement.cc.o
+[321/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/break_statement.cc.o
+[322/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/builtin_attribute.cc.o
+[323/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/case_selector.cc.o
+[324/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/call_statement.cc.o
+[325/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/call_expression.cc.o
+[326/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/case_statement.cc.o
+[327/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/color_attribute.cc.o
+[328/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/compound_assignment_statement.cc.o
+[329/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/builder.cc.o
+[330/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/diagnostic_control.cc.o
+[331/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/const.cc.o
+[332/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/const_assert.cc.o
+[333/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/diagnostic_attribute.cc.o
+[334/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/continue_statement.cc.o
+[335/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/diagnostic_directive.cc.o
+[336/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/expression.cc.o
+[337/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/enable.cc.o
+[338/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/discard_statement.cc.o
+[339/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/diagnostic_rule_name.cc.o
+[340/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/extension.cc.o
+[341/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/float_literal_expression.cc.o
+[342/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/for_loop_statement.cc.o
+[343/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/group_attribute.cc.o
+[344/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/id_attribute.cc.o
+[345/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/identifier.cc.o
+[346/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/identifier_expression.cc.o
+[347/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/function.cc.o
+[348/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/if_statement.cc.o
+[349/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/increment_decrement_statement.cc.o
+[350/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/index_accessor_expression.cc.o
+[351/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/input_attachment_index_attribute.cc.o
+[352/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/interpolate_attribute.cc.o
+[353/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/int_literal_expression.cc.o
+[354/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/literal_expression.cc.o
+[355/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/invariant_attribute.cc.o
+[356/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/let.cc.o
+[357/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/node.cc.o
+[358/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/location_attribute.cc.o
+[359/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_constant.dir/lang/core/constant/eval.cc.o
+[360/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/must_use_attribute.cc.o
+[361/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/member_accessor_expression.cc.o
+[362/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/loop_statement.cc.o
+[363/748] Linking CXX static library dawn/src/tint/libtint_lang_core_constant.a
+[364/748] Linking CXX static library dawn/src/tint/libtint_lang_core_intrinsic.a
+[365/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/pipeline_stage.cc.o
+[366/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/override.cc.o
+[367/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/parameter.cc.o
+[368/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/module.cc.o
+[369/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/statement.cc.o
+[370/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/phony_expression.cc.o
+[371/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/return_statement.cc.o
+[372/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/requires.cc.o
+[373/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/stage_attribute.cc.o
+[374/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl.a
+[375/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/struct.cc.o
+[376/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/struct_member.cc.o
+[377/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_cordz_info.a
+[378/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/type_decl.cc.o
+[379/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/struct_member_size_attribute.cc.o
+[380/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/struct_member_align_attribute.cc.o
+[381/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir.dir/lang/core/ir/structural_validator.cc.o
+[382/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/subgroup_size_attribute.cc.o
+[383/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/switch_statement.cc.o
+[384/748] Linking CXX static library dawn/src/tint/libtint_lang_core_ir.a
+[385/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/templated_identifier.cc.o
+[386/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/variable.cc.o
+[387/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/unary_op_expression.cc.o
+[388/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/var.cc.o
+[389/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/variable_decl_statement.cc.o
+[390/748] Building CXX object dawn/third_party/abseil/absl/container/CMakeFiles/absl_hashtablez_sampler.dir/internal/hashtablez_sampler.cc.o
+[391/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/while_statement.cc.o
+[392/748] Building CXX object dawn/third_party/abseil/absl/container/CMakeFiles/absl_hashtablez_sampler.dir/internal/hashtablez_sampler_force_weak_definition.cc.o
+[393/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ast.dir/lang/wgsl/ast/workgroup_attribute.cc.o
+[394/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_ast.a
+[395/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord.dir/cord_analysis.cc.o
+[396/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/accessor_expression.cc.o
+[397/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_type.dir/lang/msl/type/bias.cc.o
+[398/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl.dir/lang/msl/builtin_fn.cc.o
+[399/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/behavior.cc.o
+[400/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_type.dir/lang/msl/type/gradient.cc.o
+[401/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_analysis.dir/lang/core/ir/analysis/for_loop_analysis.cc.o
+[402/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_type.dir/lang/msl/type/level.cc.o
+[403/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_analysis.dir/lang/core/ir/analysis/loop_analysis.cc.o
+[404/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/array_count.cc.o
+[405/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_analysis.dir/lang/core/ir/analysis/subgroup_matrix.cc.o
+[406/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/array.cc.o
+[407/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/break_if_statement.cc.o
+[408/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/block_statement.cc.o
+[409/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/builtin_enum_expression.cc.o
+[410/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/expression.cc.o
+[411/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/for_loop_statement.cc.o
+[412/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/call.cc.o
+[413/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/builtin_fn.cc.o
+[414/748] Building CXX object dawn/third_party/abseil/absl/strings/CMakeFiles/absl_cord.dir/cord.cc.o
+[415/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/function_expression.cc.o
+[416/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_analysis.dir/lang/core/ir/analysis/integer_range_analysis.cc.o
+[417/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/call_target.cc.o
+[418/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/index_accessor_expression.cc.o
+[419/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/if_statement.cc.o
+[420/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/loop_statement.cc.o
+[421/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/load.cc.o
+[422/748] Linking CXX static library dawn/third_party/abseil/absl/container/libabsl_hashtablez_sampler.a
+[423/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/materialize.cc.o
+[424/748] Linking CXX static library dawn/third_party/abseil/absl/strings/libabsl_cord.a
+[425/748] Linking CXX static library dawn/src/tint/libtint_lang_core_ir_analysis.a
+[426/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/function.cc.o
+[427/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/info.cc.o
+[428/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/node.cc.o
+[429/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/member_accessor_expression.cc.o
+[430/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/type_expression.cc.o
+[431/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/module.cc.o
+[432/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/struct.cc.o
+[433/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/switch_statement.cc.o
+[434/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/value_constructor.cc.o
+[435/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/value_conversion.cc.o
+[436/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/value_expression.cc.o
+[437/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/statement.cc.o
+[438/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/while_statement.cc.o
+[439/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_sem.dir/lang/wgsl/sem/variable.cc.o
+[440/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/binding_remapper.cc.o
+[441/748] Building CXX object dawn/third_party/abseil/absl/container/CMakeFiles/absl_raw_hash_set.dir/internal/raw_hash_set.cc.o
+[442/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/bgra8unorm_polyfill.cc.o
+[443/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/change_immediate_to_uniform.cc.o
+[444/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/dead_code_elimination.cc.o
+[445/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/collapse_subgroup_min_max.cc.o
+[446/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/block_decorated_structs.cc.o
+[447/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/combine_access_instructions.cc.o
+[448/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/builtin_scalarize.cc.o
+[449/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/binary_polyfill.cc.o
+[450/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/conversion_polyfill.cc.o
+[451/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/demote_to_helper.cc.o
+[452/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/array_length_from.cc.o
+[453/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/prepare_immediate_data.cc.o
+[454/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/remove_uniform_vector_component_loads.cc.o
+[455/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/preserve_padding.cc.o
+[456/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/remove_terminator_args.cc.o
+[457/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/remove_continue_in_switch.cc.o
+[458/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/rename_conflicts.cc.o
+[459/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/resource_table_helper.cc.o
+[460/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/prevent_infinite_loops.cc.o
+[461/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/propagate_buffer_sizes.cc.o
+[462/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/direct_variable_access.cc.o
+[463/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_type.a
+[464/748] Linking CXX static library dawn/src/tint/libtint_lang_msl.a
+[465/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/multiplanar_external_texture.cc.o
+[466/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/decompose_access.cc.o
+[467/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/resource_table.cc.o
+[468/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/builtin_polyfill.cc.o
+[469/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/shader_io.cc.o
+[470/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_sem.a
+[471/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/signed_integer_polyfill.cc.o
+[472/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/vectorize_scalar_matrix_constructors.cc.o
+[473/748] Linking CXX static library dawn/third_party/abseil/absl/container/libabsl_raw_hash_set.a
+[474/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_intrinsic.dir/lang/wgsl/intrinsic/ctor_conv.cc.o
+[475/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/value_to_let.cc.o
+[476/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/robustness.cc.o
+[477/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/single_entry_point.cc.o
+[478/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_strconv.dir/utils/strconv/float_to_string.cc.o
+[479/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_strconv.dir/utils/strconv/parse_num.cc.o
+[480/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_program.dir/lang/wgsl/program/program.cc.o
+[481/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_ir.dir/lang/msl/ir/component.cc.o
+[482/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/substitute_overrides.cc.o
+[483/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_ir.dir/lang/msl/ir/memory_order.cc.o
+[484/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_program.dir/lang/wgsl/program/program_builder.cc.o
+[485/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_null_writer_common.dir/lang/null/writer/common/output.cc.o
+[486/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_program.a
+[487/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/std140.cc.o
+[488/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_common.dir/lang/msl/writer/common/output.cc.o
+[489/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/vertex_pulling.cc.o
+[490/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_intrinsic.dir/lang/msl/intrinsic/data.cc.o
+[491/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_intrinsic.a
+[492/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_core_ir_transform.dir/lang/core/ir/transform/zero_init_workgroup_memory.cc.o
+[493/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_ir.dir/lang/msl/ir/builtin_call.cc.o
+[494/748] Linking CXX static library dawn/src/tint/libtint_lang_core_ir_transform.a
+[495/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_ir.dir/lang/msl/ir/member_builtin_call.cc.o
+[496/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_null_writer_common.dir/lang/null/writer/common/options.cc.o
+[497/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_common.dir/lang/msl/writer/common/printer_support.cc.o
+[498/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_common.dir/lang/wgsl/writer/common/common.cc.o
+[499/748] Linking CXX static library dawn/src/tint/libtint_utils_strconv.a
+[500/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_common.dir/lang/msl/writer/common/option_helpers.cc.o
+[501/748] Dawn: Generating files for Dawn version based utilities.
+[502/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/incomplete_type.cc.o
+[503/748] Dawn: Generating files for Dawn headers.
+[504/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_ir.a
+[505/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_common.dir/lang/msl/writer/common/options.cc.o
+[506/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_writer_common.a
+[507/748] Dawn: Generating files for Dawn C++ headers.
+[508/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ir.dir/lang/wgsl/ir/unary.cc.o
+[509/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_intrinsic.dir/lang/wgsl/intrinsic/data.cc.o
+[510/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/unresolved_identifier.cc.o
+[511/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_intrinsic.a
+[512/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ir.dir/lang/wgsl/ir/builtin_call.cc.o
+[513/748] Building CXX object dawn/src/tint/CMakeFiles/tint_utils_text_generator.dir/utils/text_generator/text_generator.cc.o
+[514/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/resolve.cc.o
+[515/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_ir.dir/lang/wgsl/ir/atomic_vec2u_to_from_u64.cc.o
+[516/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/sem_helper.cc.o
+[517/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/binary_polyfill.cc.o
+[518/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/module_constant.cc.o
+[519/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/dependency_graph.cc.o
+[520/748] Linking CXX static library dawn/src/tint/libtint_lang_null_writer_common.a
+[521/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/convert_print_to_log.cc.o
+[522/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_ir.a
+[523/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/decompose_buffer.cc.o
+[524/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/raise.cc.o
+[525/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_null_writer_raise.dir/lang/null/writer/raise/raise.cc.o
+[526/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/module_scope_vars.cc.o
+[527/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_printer.dir/lang/msl/writer/printer/printer.cc.o
+[528/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/argument_buffers.cc.o
+[529/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_writer_common.a
+[530/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/shader_io.cc.o
+[531/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/uniformity.cc.o
+[532/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/switch_return.cc.o
+[533/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/fix_type_layout.cc.o
+[534/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/validate_subgroup_matrix.cc.o
+[535/748] Linking CXX static library dawn/src/tint/libtint_utils_text_generator.a
+[536/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/simd_ballot.cc.o
+[537/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_writer_printer.a
+[538/748] Dawn: Generating files for Dawn GPU info utilities.
+[539/748] Linking CXX static library dawn/src/tint/libtint_lang_null_writer_raise.a
+[540/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader_parser.dir/lang/wgsl/reader/parser/lexer.cc.o
+[541/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader_lower.dir/lang/wgsl/reader/lower/lower.cc.o
+[542/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader_parser.dir/lang/wgsl/reader/parser/token.cc.o
+[543/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_inspector.dir/lang/wgsl/inspector/scalar.cc.o
+[544/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_reader_lower.a
+[545/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_inspector.dir/lang/wgsl/inspector/entry_point.cc.o
+[546/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer.dir/lang/wgsl/writer/output.cc.o
+[547/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_inspector.dir/lang/wgsl/inspector/resource_binding.cc.o
+[548/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_null_writer.dir/lang/null/writer/writer.cc.o
+[549/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/validator.cc.o
+[550/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_raise.dir/lang/wgsl/writer/raise/ptr_to_ref.cc.o
+[551/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_raise.dir/lang/wgsl/writer/raise/raise.cc.o
+[552/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_ast_printer.dir/lang/wgsl/writer/ast_printer/ast_printer.cc.o
+[553/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/FutureUtils.cpp.o
+[554/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/AlignedAlloc.cpp.o
+[555/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_raise.dir/lang/wgsl/writer/raise/value_to_let.cc.o
+[556/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_writer_ast_printer.a
+[557/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_writer_raise.a
+[558/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/RefCounted.cpp.o
+[559/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/Defer.cpp.o
+[560/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/Result.cpp.o
+[561/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/__/__/__/gen/src/dawn/common/GPUInfo_autogen.cpp.o
+[562/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/DynamicLib.cpp.o
+[563/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer_raise.dir/lang/msl/writer/raise/builtin_polyfill.cc.o
+[564/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_writer_raise.a
+[565/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader.dir/lang/wgsl/reader/reader.cc.o
+[566/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/Math.cpp.o
+[567/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_msl_writer.dir/lang/msl/writer/writer.cc.o
+[568/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/Sha3.cpp.o
+[569/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/SlabAllocator.cpp.o
+[570/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer.dir/lang/wgsl/writer/writer.cc.o
+[571/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/GPUInfo.cpp.o
+[572/748] Linking CXX static library dawn/src/tint/libtint_lang_msl_writer.a
+[573/748] Linking CXX static library dawn/src/tint/libtint_lang_null_writer.a
+[574/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/StringViewUtils.cpp.o
+[575/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/WeakRefSupport.cpp.o
+[576/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/SystemUtils.cpp.o
+[577/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/SystemUtils_mac.mm.o
+[578/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/EmptyDebugLogger.cpp.o
+[579/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/SystemUtils.cpp.o
+[580/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/ObjCUtils.mm.o
+[581/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/OSXTimer.cpp.o
+[582/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/ExternalTextureParams.cpp.o
+[583/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/IOSurfaceUtils.cpp.o
+[584/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/SystemHandle.cpp.o
+[585/748] Building CXX object dawn/src/dawn/platform/CMakeFiles/dawn_platform.dir/metrics/HistogramMacros.cpp.o
+[586/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/WGPUDeviceCallbackInfos.cpp.o
+[587/748] Building CXX object dawn/src/dawn/platform/CMakeFiles/dawn_platform.dir/tracing/EventTracer.cpp.o
+[588/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_inspector.dir/lang/wgsl/inspector/inspector.cc.o
+[589/748] Building CXX object dawn/src/dawn/platform/CMakeFiles/dawn_platform.dir/DawnPlatform.cpp.o
+[590/748] Building CXX object dawn/src/dawn/common/CMakeFiles/dawn_common.dir/ThreadLocal.cpp.o
+[591/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_inspector.a
+[592/748] Linking CXX static library dawn/src/dawn/common/libdawn_common.a
+[593/748] Building CXX object dawn/src/dawn/platform/CMakeFiles/dawn_platform.dir/WorkerThread.cpp.o
+[594/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader_parser.dir/lang/wgsl/reader/parser/parser.cc.o
+[595/748] Linking CXX static library dawn/src/dawn/platform/libdawn_platform.a
+[596/748] Building CXX object dawn/src/tint/CMakeFiles/tint_api.dir/api/tint.cc.o
+[597/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_writer_ir_to_program.dir/lang/wgsl/writer/ir_to_program/ir_to_program.cc.o
+[598/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_reader_program_to_ir.dir/lang/wgsl/reader/program_to_ir/program_to_ir.cc.o
+[599/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_reader_program_to_ir.a
+[600/748] Building CXX object dawn/src/dawn/utils/CMakeFiles/dawn_system_utils.dir/CommandLineParser.cpp.o
+[601/748] Linking CXX static library dawn/src/dawn/utils/libdawn_system_utils.a
+[602/748] Building CXX object dawn/src/tint/CMakeFiles/tint_lang_wgsl_resolver.dir/lang/wgsl/resolver/resolver.cc.o
+[603/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_resolver.a
+[604/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_reader_parser.a
+[605/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_writer_ir_to_program.a
+[606/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_reader.a
+[607/748] Linking CXX static library dawn/src/tint/libtint_lang_wgsl_writer.a
+[608/748] Linking CXX static library dawn/src/tint/libtint_api.a
+[609/748] Dawn: Generating files for Dawn native utilities.
+[610/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/ObjectType_autogen.cpp.o
+[611/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/wgpu_structs_autogen.cpp.o
+[612/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/ValidationUtils_autogen.cpp.o
+[613/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BindGroupLayout.cpp.o
+[614/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/webgpu_StreamImpl_autogen.cpp.o
+[615/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/webgpu_absl_format_autogen.cpp.o
+[616/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/AsyncTask.cpp.o
+[617/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BackendConnection.cpp.o
+[618/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/ChainUtils_autogen.cpp.o
+[619/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/AttachmentState.cpp.o
+[620/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BindingInfo.cpp.o
+[621/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BuddyAllocator.cpp.o
+[622/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/__/__/__/gen/src/dawn/native/ProcTable.cpp.o
+[623/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/MultiDrawEncoder.mm.o
+[624/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Adapter.cpp.o
+[625/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ApplyClearColorValueWithDrawHelper.cpp.o
+[626/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Blob.cpp.o
+[627/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BindGroup.cpp.o
+[628/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CallbackTaskManager.cpp.o
+[629/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BuddyMemoryAllocator.cpp.o
+[630/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CommandAllocator.cpp.o
+[631/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BindGroupLayoutInternal.cpp.o
+[632/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlitBufferToDepthStencil.cpp.o
+[633/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CacheKey.cpp.o
+[634/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlitBufferToTexture.cpp.o
+[635/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlitDepthToDepth.cpp.o
+[636/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlitColorToColorWithDraw.cpp.o
+[637/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlitTextureToBuffer.cpp.o
+[638/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/BlobCache.cpp.o
+[639/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CachedObject.cpp.o
+[640/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CacheRequest.cpp.o
+[641/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Buffer.cpp.o
+[642/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CommandBuffer.cpp.o
+[643/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/dawn_platform.cpp.o
+[644/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Commands.cpp.o
+[645/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CompilationMessages.cpp.o
+[646/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ErrorInjector.cpp.o
+[647/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CommandBufferStateTracker.cpp.o
+[648/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Error.cpp.o
+[649/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CommandValidation.cpp.o
+[650/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CreatePipelineAsyncEvent.cpp.o
+[651/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ComputePipeline.cpp.o
+[652/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ErrorData.cpp.o
+[653/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/DeviceGuard.cpp.o
+[654/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ComputePassEncoder.cpp.o
+[655/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CopyTextureForBrowserHelper.cpp.o
+[656/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ImmediatesLayout.cpp.o
+[657/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ErrorScope.cpp.o
+[658/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/DynamicUploader.cpp.o
+[659/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/CommandEncoder.cpp.o
+[660/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/MemoryBlockAllocator.cpp.o
+[661/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/EncodingContext.cpp.o
+[662/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ObjectContentHasher.cpp.o
+[663/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Features.cpp.o
+[664/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/IndirectDrawMetadata.cpp.o
+[665/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PerStage.cpp.o
+[666/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ExternalTexture.cpp.o
+[667/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ExecutionQueue.cpp.o
+[668/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PassResourceUsage.cpp.o
+[669/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Format.cpp.o
+[670/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/EventManager.cpp.o
+[671/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/InternalPipelineStore.cpp.o
+[672/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/IndirectDrawValidationEncoder.cpp.o
+[673/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Limits.cpp.o
+[674/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ObjectBase.cpp.o
+[675/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PipelineCache.cpp.o
+[676/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Instance.cpp.o
+[677/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PhysicalDevice.cpp.o
+[678/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PassResourceUsageTracker.cpp.o
+[679/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ResourceMemoryAllocation.cpp.o
+[680/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Device.cpp.o
+[681/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Pipeline.cpp.o
+[682/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RingBufferAllocator.cpp.o
+[683/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PooledResourceMemoryAllocator.cpp.o
+[684/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ProgrammableEncoder.cpp.o
+[685/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/QuerySet.cpp.o
+[686/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/QueryHelper.cpp.o
+[687/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderBundle.cpp.o
+[688/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/PipelineLayout.cpp.o
+[689/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderBundleEncoder.cpp.o
+[690/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderEncoderBase.cpp.o
+[691/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Queue.cpp.o
+[692/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderPassEncoder.cpp.o
+[693/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderPassWorkaroundsHelper.cpp.o
+[694/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ResourceTableDefaultResources.cpp.o
+[695/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/stream/BlobSource.cpp.o
+[696/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ResourceTable.cpp.o
+[697/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Subresource.cpp.o
+[698/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ScratchBuffer.cpp.o
+[699/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Sampler.cpp.o
+[700/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/RenderPipeline.cpp.o
+[701/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/stream/ByteVectorSink.cpp.o
+[702/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SharedFence.cpp.o
+[703/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ShaderModuleParseRequest.cpp.o
+[704/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SharedBufferMemory.cpp.o
+[705/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SystemEvent.cpp.o
+[706/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ValidationUtils.cpp.o
+[707/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/WaitListEvent.cpp.o
+[708/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SharedTextureMemory.cpp.o
+[709/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SharedResourceMemory.cpp.o
+[710/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Toggles.cpp.o
+[711/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/SwapChain.cpp.o
+[712/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Surface.cpp.o
+[713/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/TexelBufferView.cpp.o
+[714/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/TintUtils.cpp.o
+[715/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/utils/WGPUHelpers.cpp.o
+[716/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Texture.cpp.o
+[717/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/BackendMTL.mm.o
+[718/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/webgpu_absl_format.cpp.o
+[719/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/BindGroupLayoutMTL.mm.o
+[720/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/BindGroupMTL.mm.o
+[721/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/BufferMTL.mm.o
+[722/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/CommandRecordingContext.mm.o
+[723/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/ComputePipelineMTL.mm.o
+[724/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/Surface_metal.mm.o
+[725/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/ShaderModule.cpp.o
+[726/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/PipelineLayoutMTL.mm.o
+[727/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/PhysicalDeviceMTL.mm.o
+[728/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/DeviceMTL.mm.o
+[729/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/QuerySetMTL.mm.o
+[730/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/CommandBufferMTL.mm.o
+[731/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/RenderPipelineMTL.mm.o
+[732/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/SamplerMTL.mm.o
+[733/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/QueueMTL.mm.o
+[734/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/SharedFenceMTL.mm.o
+[735/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/SharedTextureMemoryMTL.mm.o
+[736/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/SwapChainMTL.mm.o
+[737/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/UtilsMetal.mm.o
+[738/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/TextureMTL.mm.o
+[739/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/null/DeviceNull.cpp.o
+[740/748] Building CXX object dawn/src/dawn/native/CMakeFiles/dawn_native_objects.dir/metal/ShaderModuleMTL.mm.o
+[741/748] Dawn: Generating files for Dawn native WebGPU procs.
+[742/748] Building CXX object dawn/src/dawn/native/CMakeFiles/webgpu_dawn_objects.dir/__/__/__/gen/src/dawn/native/webgpu_dawn_native_proc.cpp.o
+[743/748] Building CXX object CMakeFiles/eevee_storage_probe.dir/probe_storage_bgl.cc.o
+[744/748] Building CXX object dawn/src/dawn/native/CMakeFiles/webgpu_dawn_objects.dir/DawnNative.cpp.o
+[745/748] Building CXX object dawn/src/dawn/native/CMakeFiles/webgpu_dawn_objects.dir/null/NullBackend.cpp.o
+[746/748] Building CXX object dawn/src/dawn/native/CMakeFiles/webgpu_dawn_objects.dir/metal/MetalBackend.mm.o
+[747/748] Linking CXX static library dawn/src/dawn/native/libwebgpu_dawn.a
+[748/748] Linking CXX executable eevee_storage_probe
+== run ==
+Dawn adapter: "Apple M4 Pro" backend=Metal
+Adapter features:
+  TextureFormatsTier1     : YES
+  TextureFormatsTier2     : YES
+  Unorm16TextureFormats   : YES
+  RG11B10UfloatRenderable : YES
+  BGRA8UnormStorage       : YES
+Adapter limits: maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10
+  RequestDevice failed: adapter is "consumed": it has already been used to create a device
+    at CreateDeviceInternal (/Users/paws/blender-web/build-dawn/dawn/src/dawn/native/Adapter.cpp:326)
+
+
+================ DEVICE: CONTROL (today's features, default limits) ================
+-- WriteOnly storage textures --
+  UNORM_10_10_10_2 (gbuf_closure_img (surf_deferred))
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UNORM_16_16 (gbuf_normal_img (surf_deferred))
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UINT_32 (gbuf_header_img (surf_deferred))
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16 (value passes / DoF)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16_16 (ray_time / misc)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UFLOAT_11_11_10 (volume props)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+-- ReadWrite storage textures --
+  SFLOAT_32 (film depth_img (RW))
+      Fragment-only   : OK
+  SFLOAT_16_16_16_16 (film out_combined_img (RW))
+      Fragment-only   : FAIL
+  UNORM_16_16 (deferred_thickness_amend gbuf_normal (RW))
+      Fragment-only   : FAIL
+-- storage-texture COUNT in one stage (Compute) --
+  4 storage textures : OK
+  5 storage textures : FAIL  <- The number of storage textures (5) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+  8 storage textures : FAIL  <- The number of storage textures (8) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+SUMMARY[CONTROL (today's features, default limits)]: Fragment-only accepted 2/9; Vertex-visible writable rejected 6/6
+
+================ DEVICE: PROPOSED (+Tier1+Tier2+raised limits) ================
+  (device creation FAILED)
+
+Probe verdict: PARTIAL (see matrix; residual formats need per-case handling)

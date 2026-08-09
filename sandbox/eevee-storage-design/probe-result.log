@@ -1,0 +1,84 @@
+Dawn adapter: "Apple M4 Pro" backend=Metal
+Adapter features:
+  TextureFormatsTier1     : YES
+  TextureFormatsTier2     : YES
+  Unorm16TextureFormats   : YES
+  RG11B10UfloatRenderable : YES
+  BGRA8UnormStorage       : YES
+Adapter limits: maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10
+
+================ DEVICE: CONTROL (today's features, default limits) ================
+-- WriteOnly storage textures --
+  UNORM_10_10_10_2 (gbuf_closure_img (surf_deferred))
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UNORM_16_16 (gbuf_normal_img (surf_deferred))
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UINT_32 (gbuf_header_img (surf_deferred))
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16 (value passes / DoF)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16_16 (ray_time / misc)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+  UFLOAT_11_11_10 (volume props)
+      Fragment-only   : FAIL
+      Vertex|Fragment : FAIL (expected)
+-- ReadWrite storage textures --
+  SFLOAT_32 (film depth_img (RW))
+      Fragment-only   : OK
+  SFLOAT_16_16_16_16 (film out_combined_img (RW))
+      Fragment-only   : FAIL
+  UNORM_16_16 (deferred_thickness_amend gbuf_normal (RW))
+      Fragment-only   : FAIL
+-- storage-texture COUNT in one stage (Compute) --
+  4 storage textures : OK
+  5 storage textures : FAIL  <- The number of storage textures (5) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+  8 storage textures : FAIL  <- The number of storage textures (8) in the Compute stage exceeds the maximum per-stage limit (4). This adapter supports a higher maxStorageTexturesPerShaderStage of 8, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.
+ - While validating binding counts
+ - While validating [BindGroupLayoutDescriptor]
+ - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).
+
+SUMMARY[CONTROL (today's features, default limits)]: Fragment-only accepted 2/9; Vertex-visible writable rejected 6/6
+
+================ DEVICE: PROPOSED (+Tier1+Tier2+raised limits) ================
+-- WriteOnly storage textures --
+  UNORM_10_10_10_2 (gbuf_closure_img (surf_deferred))
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  UNORM_16_16 (gbuf_normal_img (surf_deferred))
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  UINT_32 (gbuf_header_img (surf_deferred))
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16 (value passes / DoF)
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  SFLOAT_16_16 (ray_time / misc)
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+  UFLOAT_11_11_10 (volume props)
+      Fragment-only   : OK
+      Vertex|Fragment : FAIL (expected)
+-- ReadWrite storage textures --
+  SFLOAT_32 (film depth_img (RW))
+      Fragment-only   : OK
+  SFLOAT_16_16_16_16 (film out_combined_img (RW))
+      Fragment-only   : OK
+  UNORM_16_16 (deferred_thickness_amend gbuf_normal (RW))
+      Fragment-only   : FAIL
+-- storage-texture COUNT in one stage (Compute) --
+  4 storage textures : OK
+  5 storage textures : OK
+  8 storage textures : OK
+SUMMARY[PROPOSED (+Tier1+Tier2+raised limits)]: Fragment-only accepted 8/9; Vertex-visible writable rejected 6/6
+
+Probe verdict: PARTIAL (see matrix; residual formats need per-case handling)

@@ -1,0 +1,3 @@
+ninja: Entering directory `build-dawn/eevee-storage-probe-build'
+[1/2] Building CXX object CMakeFiles/eevee_storage_probe.dir/probe_storage_bgl.cc.o
+[2/2] Linking CXX executable eevee_storage_probe

@@ -1,0 +1,26 @@
+{
+  "keepalive": {
+    "tickDelta": 247,
+    "presentDelta": 0,
+    "presentPerSec": 0,
+    "alive": true,
+    "noBurn": true
+  },
+  "interaction": {
+    "presentDelta": 22,
+    "responded": true
+  },
+  "resize": {
+    "before": {
+      "w": 1400,
+      "h": 850
+    },
+    "after": {
+      "w": 1000,
+      "h": 700
+    },
+    "backingChanged": true,
+    "presentDelta": 8,
+    "recomposited": true
+  }
+}

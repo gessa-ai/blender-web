@@ -1,0 +1,27 @@
+[09:53:35.765] ZERO-INPUT nosplash: http://localhost:8132/windowed.html?gate=1600x900&pyexpr=import%20bpy%0Abpy.cont...
+[09:53:36.280] WM_main in 389 ms
+[09:53:36.292] +0s	tick=0	present=0	pMsgs=0	buckets=1	nb=0%	blank
+[09:53:38.299] +2s	tick=0	present=0	pMsgs=0	buckets=1	nb=0%	blank
+[09:53:40.305] +4s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:42.313] +6s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:44.322] +8s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:46.330] +10s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:48.334] +12s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:50.341] +14s	tick=1	present=1	pMsgs=1	buckets=1	nb=0%	blank
+[09:53:52.348] +16s	tick=52	present=17	pMsgs=2	buckets=30	nb=100%	blank
+[09:53:54.354] +18s	tick=172	present=37	pMsgs=2	buckets=30	nb=100%	blank
+[09:53:56.358] +20s	tick=242	present=37	pMsgs=2	buckets=30	nb=100%	blank
+[09:53:58.364] +22s	tick=307	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:00.372] +24s	tick=315	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:02.378] +26s	tick=323	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:04.386] +28s	tick=331	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:06.395] +30s	tick=339	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:08.403] +32s	tick=347	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:10.411] +34s	tick=355	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:12.419] +36s	tick=363	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:14.426] +38s	tick=371	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:16.434] +40s	tick=379	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:18.439] +42s	tick=387	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:20.445] +44s	tick=395	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:22.451] +46s	tick=403	present=38	pMsgs=2	buckets=30	nb=100%	blank
+[09:54:24.453] firstFullUI(nosplash, zero-input) = NEVER within 46s

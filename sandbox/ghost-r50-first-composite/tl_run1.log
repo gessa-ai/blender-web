@@ -1,0 +1,29 @@
+[09:46:35.867] ZERO-INPUT timeline: http://localhost:8132/windowed.html?gate=1600x900
+[09:46:36.325] WM_main in 364 ms
+[09:46:36.333] +0s	tick=0	present=0	pMsgs=0	buckets=1	nonblack=0%	blank
+[09:46:38.341] +2s	tick=0	present=0	pMsgs=0	buckets=1	nonblack=0%	blank
+[09:46:40.350] +4s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:42.357] +6s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:44.365] +8s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:46.372] +10s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:48.380] +12s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:50.389] +14s	tick=1	present=1	pMsgs=1	buckets=1	nonblack=0%	blank
+[09:46:52.395] +16s	tick=23	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:46:54.407] +18s	tick=141	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:46:56.421] +20s	tick=239	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:46:58.432] +22s	tick=247	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:00.440] +24s	tick=255	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:02.449] +26s	tick=263	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:04.461] +28s	tick=271	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:06.474] +30s	tick=279	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:08.486] +32s	tick=287	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:10.498] +34s	tick=295	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:12.510] +36s	tick=303	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:14.520] +38s	tick=311	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:16.531] +40s	tick=319	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:18.542] +42s	tick=327	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:20.549] +44s	tick=335	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:22.560] +46s	tick=343	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:24.568] +48s	tick=351	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:26.576] +50s	tick=359	present=9	pMsgs=2	buckets=89	nonblack=100%	FULL-UI
+[09:47:28.577] firstFullUI(zero-input) = +16s

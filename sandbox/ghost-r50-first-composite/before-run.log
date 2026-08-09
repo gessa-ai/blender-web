@@ -1,0 +1,9 @@
+[2026-08-09 09:44:48.010] ZERO-INPUT boot: http://localhost:8132/windowed.html?gate=1600x900  (label=before)
+[2026-08-09 09:44:48.113] crossOriginIsolated=true SAB=true
+[2026-08-09 09:44:48.456] WM_main reached in 342 ms; NO input will be sent
+[2026-08-09 09:44:48.457] gate backing 1600x900 dpr 1
+[2026-08-09 09:44:58.525] +10s: tick=1 present=1 presentMsgs=1 | /Users/paws/blender-web/sandbox/ghost-r50-first-composite/before_1600x900_t10.png
+[2026-08-09 09:44:58.525] +10s: nonBlack=0.0% buckets=1 modalShare=100.0% bytes=6298
+[2026-08-09 09:45:18.691] +30s: tick=279 present=9 presentMsgs=2 | /Users/paws/blender-web/sandbox/ghost-r50-first-composite/before_1600x900_t30.png
+[2026-08-09 09:45:18.691] +30s: nonBlack=99.9% buckets=1905 modalShare=49.4% bytes=552009
+[2026-08-09 09:45:18.691] VERDICT before: fullUI@10s=false fullUI@30s=true

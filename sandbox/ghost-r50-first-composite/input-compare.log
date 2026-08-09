@@ -1,0 +1,78 @@
+[09:56:59.970] A_zeroinput: http://localhost:8132/windowed.html?gate=1600x900
+[09:57:00.435] A_zeroinput: WM_main in 360 ms
+[09:57:00.441] A_zeroinput	+0s	tick=0	present=0	nb=0%	blank
+[09:57:01.445] A_zeroinput	+1s	tick=0	present=0	nb=0%	blank
+[09:57:02.450] A_zeroinput	+2s	tick=0	present=0	nb=0%	blank
+[09:57:03.453] A_zeroinput	+3s	tick=0	present=1	nb=0%	blank
+[09:57:04.457] A_zeroinput	+4s	tick=0	present=1	nb=0%	blank
+[09:57:05.461] A_zeroinput	+5s	tick=1	present=1	nb=0%	blank
+[09:57:06.465] A_zeroinput	+6s	tick=1	present=1	nb=0%	blank
+[09:57:07.470] A_zeroinput	+7s	tick=1	present=1	nb=0%	blank
+[09:57:08.475] A_zeroinput	+8s	tick=1	present=1	nb=0%	blank
+[09:57:09.478] A_zeroinput	+9s	tick=1	present=1	nb=0%	blank
+[09:57:10.484] A_zeroinput	+10s	tick=1	present=1	nb=0%	blank
+[09:57:11.490] A_zeroinput	+11s	tick=1	present=1	nb=0%	blank
+[09:57:12.500] A_zeroinput	+12s	tick=1	present=1	nb=0%	blank
+[09:57:13.507] A_zeroinput	+13s	tick=1	present=1	nb=0%	blank
+[09:57:14.574] A_zeroinput	+14s	tick=1	present=1	nb=0%	blank
+[09:57:15.590] A_zeroinput	+15s	tick=1	present=1	nb=0%	blank
+[09:57:16.595] A_zeroinput	+16s	tick=1	present=1	nb=0%	blank
+[09:57:17.600] A_zeroinput	+17s	tick=48	present=9	nb=100%	COMPOSITED
+[09:57:18.604] A_zeroinput	+18s	tick=108	present=9	nb=100%	COMPOSITED
+[09:57:19.608] A_zeroinput	+19s	tick=168	present=9	nb=100%	COMPOSITED
+[09:57:20.616] A_zeroinput	+20s	tick=228	present=9	nb=100%	COMPOSITED
+[09:57:21.623] A_zeroinput	+21s	tick=242	present=9	nb=100%	COMPOSITED
+[09:57:22.630] A_zeroinput	+22s	tick=246	present=9	nb=100%	COMPOSITED
+[09:57:23.634] A_zeroinput	+23s	tick=250	present=9	nb=100%	COMPOSITED
+[09:57:24.640] A_zeroinput	+24s	tick=254	present=9	nb=100%	COMPOSITED
+[09:57:25.646] A_zeroinput	+25s	tick=258	present=9	nb=100%	COMPOSITED
+[09:57:26.658] A_zeroinput	+26s	tick=262	present=9	nb=100%	COMPOSITED
+[09:57:27.665] A_zeroinput	+27s	tick=266	present=9	nb=100%	COMPOSITED
+[09:57:28.670] A_zeroinput	+28s	tick=270	present=9	nb=100%	COMPOSITED
+[09:57:29.675] A_zeroinput	+29s	tick=274	present=9	nb=100%	COMPOSITED
+[09:57:30.683] A_zeroinput	+30s	tick=278	present=9	nb=100%	COMPOSITED
+[09:57:31.691] A_zeroinput	+31s	tick=282	present=9	nb=100%	COMPOSITED
+[09:57:32.696] A_zeroinput	+32s	tick=286	present=9	nb=100%	COMPOSITED
+[09:57:33.699] A_zeroinput	+33s	tick=290	present=9	nb=100%	COMPOSITED
+[09:57:34.705] A_zeroinput	+34s	tick=294	present=9	nb=100%	COMPOSITED
+[09:57:35.708] A_zeroinput: firstComposite = +17s
+[09:57:35.883] B_one_move: http://localhost:8132/windowed.html?gate=1600x900
+[09:57:36.592] B_one_move: WM_main in 358 ms
+[09:57:36.596] B_one_move	+0s	tick=0	present=0	nb=0%	blank
+[09:57:37.600] B_one_move	+1s	tick=0	present=0	nb=0%	blank
+[09:57:38.605] B_one_move: injected ONE mouse move @+2s at (860,510)
+[09:57:38.608] B_one_move	+2s	tick=0	present=0	nb=0%	blank
+[09:57:39.613] B_one_move	+3s	tick=0	present=1	nb=0%	blank
+[09:57:40.618] B_one_move	+4s	tick=0	present=1	nb=0%	blank
+[09:57:41.621] B_one_move	+5s	tick=1	present=1	nb=0%	blank
+[09:57:42.627] B_one_move	+6s	tick=1	present=1	nb=0%	blank
+[09:57:43.631] B_one_move	+7s	tick=1	present=1	nb=0%	blank
+[09:57:44.635] B_one_move	+8s	tick=1	present=1	nb=0%	blank
+[09:57:45.639] B_one_move	+9s	tick=1	present=1	nb=0%	blank
+[09:57:46.642] B_one_move	+10s	tick=1	present=1	nb=0%	blank
+[09:57:47.645] B_one_move	+11s	tick=1	present=1	nb=0%	blank
+[09:57:48.650] B_one_move	+12s	tick=1	present=1	nb=0%	blank
+[09:57:49.654] B_one_move	+13s	tick=1	present=1	nb=0%	blank
+[09:57:50.659] B_one_move	+14s	tick=1	present=1	nb=0%	blank
+[09:57:51.672] B_one_move	+15s	tick=1	present=1	nb=0%	blank
+[09:57:52.676] B_one_move	+16s	tick=39	present=9	nb=100%	COMPOSITED
+[09:57:53.679] B_one_move	+17s	tick=98	present=9	nb=100%	COMPOSITED
+[09:57:54.686] B_one_move	+18s	tick=158	present=9	nb=100%	COMPOSITED
+[09:57:55.691] B_one_move	+19s	tick=218	present=9	nb=100%	COMPOSITED
+[09:57:56.695] B_one_move	+20s	tick=241	present=9	nb=100%	COMPOSITED
+[09:57:57.699] B_one_move	+21s	tick=245	present=9	nb=100%	COMPOSITED
+[09:57:58.702] B_one_move	+22s	tick=249	present=9	nb=100%	COMPOSITED
+[09:57:59.710] B_one_move	+23s	tick=253	present=9	nb=100%	COMPOSITED
+[09:58:00.714] B_one_move	+24s	tick=257	present=9	nb=100%	COMPOSITED
+[09:58:01.718] B_one_move	+25s	tick=261	present=9	nb=100%	COMPOSITED
+[09:58:02.722] B_one_move	+26s	tick=265	present=9	nb=100%	COMPOSITED
+[09:58:03.726] B_one_move	+27s	tick=269	present=9	nb=100%	COMPOSITED
+[09:58:04.730] B_one_move	+28s	tick=273	present=9	nb=100%	COMPOSITED
+[09:58:05.736] B_one_move	+29s	tick=277	present=9	nb=100%	COMPOSITED
+[09:58:06.742] B_one_move	+30s	tick=281	present=9	nb=100%	COMPOSITED
+[09:58:07.746] B_one_move	+31s	tick=285	present=9	nb=100%	COMPOSITED
+[09:58:08.751] B_one_move	+32s	tick=289	present=9	nb=100%	COMPOSITED
+[09:58:09.755] B_one_move	+33s	tick=293	present=9	nb=100%	COMPOSITED
+[09:58:10.759] B_one_move	+34s	tick=297	present=9	nb=100%	COMPOSITED
+[09:58:11.761] B_one_move: firstComposite = +16s
+[09:58:11.782] RESULT: zeroInput firstComposite=+17s  oneMove firstComposite=+16s

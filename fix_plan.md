@@ -570,9 +570,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     storage limits. The clean Phase A rescore (99a83d2) removes the old C1-C4 flood but
     captures zero EEVEE device-byte results: 20 rows return OK with zero GPU errors but
     layer views return before the readback hook, seven stop on RG11B10Ufloat ReadWrite,
-    one stops on a distinct RGBA16Float mip-7 alias, and two never emit the START marker
-    within 200 seconds. Next: Phase A' format/alias work plus view-aware L-B/L-C readback;
-    no EEVEE pixel-pass claim until a non-black result reaches the pinned comparator.
+    transmission returns OK and then reports a post-render Image Editor mip-7 alias, and
+    two never emit the START marker within 200 seconds. The controlled 2442b90 A/B and
+    timestamp receipt proves the transmission alias is display work, not a render blocker
+    or the cause of the missing Film hook. Next: Phase A' RG11 substitution, a true
+    one-output final-mip variant, and view-aware L-B/L-C readback; no EEVEE pixel-pass
+    claim until a non-black result reaches the pinned comparator.
   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.

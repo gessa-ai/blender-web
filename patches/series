@@ -561,6 +561,27 @@
 # BW_SHADER_TIMING/VERIFY instrumentation + shell ?env hook reverted before landing. 0129
 # (reserve) unused - one coherent patch sufficed. See notes/gpu-r51-shader-latency.md.
 0128-gpu-webgpu-wgsl-translation-opfs-cache.patch
+# 0130: preserve sparse Workbench color-attachment slots instead of compacting NONE gaps.
+# TransparentDepthPass places R16Uint object_id at slot 2 with slots 0/1 empty; compaction
+# paired it with the float fragment output at location 0 and Dawn rejected the pipeline.
+# target_formats and begin_load_pass now retain the true slot indices, while pipeline gaps use
+# Undefined targets, no blend, and writeMask None. Native Dawn/Metal probe: sparse pipeline
+# Q1/Q2/Q5 and sparse render pass Q6 all OK; compacted Q3 reproduces the exact type mismatch.
+# Fresh x-ray browser bridge: sentinel OK, zero GPU errors, 0 pixels over 0.016, PASS. Patch
+# reverse-checks and round-trips exact for framebuffer+pipeline. See
+# notes/gpu-r52-workbench-pixel-unlock.md.
+0130-gpu-webgpu-slot-preserving-color-targets.patch
+# 0131: honor Blender stencil texture views in WGPUTexture::sampled_view. The inherited
+# object_id-collision premise was false: Workbench slot 8 is stencil_tx, sourced from
+# shadow_depth_stencil_tx.stencil_view(); use_stencil_ was recorded but ignored, so a
+# DepthOnly/Depth32Float view reached a Uint binding. Stencil views now expose
+# StencilOnly/Stencil8 before the ordinary depth branch. Dawn probe proves stencil->Uint OK,
+# the old depth->Uint control fails with the production mismatch, and depth->Depth stays OK.
+# Rebuilt browser receipts remove all 3 aa-disabled and all 24 light_studio_object validation
+# errors and restore real pixels; independent pixel deltas remain 7.5% and 4.4%, respectively,
+# so this is an unlock, not a parity claim. Reverse-check and exact round-trip pass. See
+# notes/gpu-r52-workbench-pixel-unlock.md.
+0131-gpu-webgpu-stencil-sampled-view.patch
 # 0133: production GPU readback primitive (M5 lane L-A). Promotes the twice-proven
 # AllowSpontaneous tick-pumped readback (0117/0125) from a BW_DIAG-only diagnostic to a
 # production kick/latch/settle primitive at BOTH backend seams (WGPUTexture::read,

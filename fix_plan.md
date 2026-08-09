@@ -539,12 +539,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     apply_stencil_reference after SetPipeline in all 4 draw paths. Receipts: gbuffer
     writtenFrac 0.0157 x3, census green unchanged, SOLID SHADED CUBE on screen
     (m4-r33-solid-cube-shot.png). Hunt tooling kept: patch 0117 diag readback.
-  - [ ] **M4.T26 parity residuals [r34, ACTIVE]** — gate bar per GOAL.md: splash + default
-    cube match the native golden within idiff threshold (0.016/1). r33 parity: 11.4% failing
-    (down from 60.2/74.5/84.6). Residuals are chrome, not geometry: panel/header background
-    fills, AA deltas, the pre-existing blue spike sliver, transient hover states in capture.
-    r34 = per-region enumeration -> fix real chrome defects -> clean recapture -> re-run
-    verbatim comparator; REPORT.md trend refresh. Gate promise on pass.
+  - [x] **M4.T26 parity gate CLOSED [D-9, ac03fa6]:** exact 1280x720 DPR1 splash and
+    workspace captures pass the unchanged 0.016 / 1% comparator at 0.204% and 0.505%.
+    r58 (ce728d7) closes the old toolbar sub-item: 0134's triangle-fan emulation reduced
+    the toolbar from 1,022 failing pixels to 2, with one icon-strip pixel and zero seam
+    pixels. The remaining bottom-region mass is a mismatched capture state (Timeline active
+    outline plus web-only Pan/Options hints), not a rendering patch target; future cleanup
+    must align native and web pointer/event state before comparison.
   - [ ] **M4.T23 r26 SUPERSEDED-TEXT (kept for history): engine output never reaches the canvas.**
     Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
     validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:

@@ -1,0 +1,23 @@
+[2026-08-09 21:19:40.512] seeding bw_suite.blend into OPFS via /bin/bw_seed.html
+[2026-08-09 21:19:40.598] OPFS seed: {"ok":true,"size":118800}
+[2026-08-09 21:19:40.599] booting windowed with args=/projects/bw_suite.blend engine=BLENDER_EEVEE
+[2026-08-09 21:19:41.239] WM_main up
+[2026-08-09 21:20:03.899] PAGE M6_BRIDGE_START engine=BLENDER_EEVEE res=128x128 file=/projects/bw_suite.blend
+[2026-08-09 21:20:12.484] PAGE M6_BRIDGE_DONE engine=BLENDER_EEVEE
+[2026-08-09 21:20:12.633] PAGE [bw][GPU-ERROR] GPUValidationError: Writable storage texture binding aliasing found between [BindGroup (unlabeled)] set at bind group index 0, binding index 2, and [BindGroup (unlabeled)] set at bind group index 0, binding index 3, with subresources (base mipmap level: 7, mip level count: 1, base array layer: 0, array layer count: 1) and (base mipmap level: 7, mip level count: 1, base array layer: 0, array layer count: 1) in [Texture (unlabeled 128x128 px, TextureFormat::RGBA16Float)].
+ - While encoding [ComputePassEncoder (unlabeled)].DispatchWorkgroups(1, 1, 1).
+ - While finishing [CommandEncoder (unlabeled)].
+
+[2026-08-09 21:20:12.634] PAGE [bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.
+ - While calling [Queue].Submit([[Invalid CommandBuffer]])
+
+[2026-08-09 21:20:12.780] render sentinel: "OK BLENDER_EEVEE"
+[2026-08-09 21:20:17.811] diag dumps: 0 files []
+
+==== BOOT-BRIDGE RESULT ====
+engine   : BLENDER_EEVEE
+sentinel : OK BLENDER_EEVEE
+kicks/dones: 0 / 0
+caps     : 
+gpuErrors: 2
+capdir   : /Users/paws/blender-web/sandbox/gpu-r35/caps/phaseaprime_alias_a_chronology

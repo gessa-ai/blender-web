@@ -1,0 +1,14 @@
+[2026-08-09 21:11:47.675] seeding bw_suite.blend into OPFS via /bin/bw_seed.html
+[2026-08-09 21:11:47.770] OPFS seed: {"ok":true,"size":118800}
+[2026-08-09 21:11:47.770] booting windowed with args=/projects/bw_suite.blend engine=BLENDER_EEVEE
+[2026-08-09 21:11:48.334] WM_main up
+[2026-08-09 21:12:13.859] render sentinel: "OK BLENDER_EEVEE"
+[2026-08-09 21:12:18.876] diag dumps: 0 files []
+
+==== BOOT-BRIDGE RESULT ====
+engine   : BLENDER_EEVEE
+sentinel : OK BLENDER_EEVEE
+kicks/dones: 0 / 0
+caps     : 
+gpuErrors: 2
+capdir   : /Users/paws/blender-web/sandbox/gpu-r35/caps/phaseaprime_alias_a_image_editor

@@ -1,0 +1,24 @@
+<!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+
+# EEVEE transmission display-alias correction hashes
+
+SHA-256 receipt for the exact shipping artifact and correction evidence:
+
+```text
+f0c834645620f5bd0b8a6241e979035e0f6b196ac4f5d2094d32116f69d8de82  build-wasm-windowed-opt/bin/blender_browser.js
+36be41b50d1985191cdf680ffd65e3294fcbd623533498f5e57f4fbaca71c852  build-wasm-windowed-opt/bin/blender_browser.wasm
+5aa7c461a5a05aa5f0354754bbd7de7124819334ee336c3bc0f40a1efb7741b1  build-wasm-windowed-opt/bin/blender_browser.data
+62ecce1706c500adb70a1d75ea1674172fe0516064b88f25d131a700f47cdac2  sandbox/gpu-r35/caps/phaseaprime_alias_a_image_editor.log
+d53ce8acd3cf2c8559c45389df5689d83a98db359563fe2b275f092fe89a9a2d  sandbox/gpu-r35/caps/phaseaprime_alias_a_image_editor/manifest.json
+fb0c3fd08e8870e3562e0d86864ba4d96878e23b4d6c03cf587130776e85ea38  sandbox/gpu-r35/caps/phaseaprime_alias_a_image_editor/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r35/caps/phaseaprime_alias_a_image_editor/composite.png.license
+b669c52507c4efd401fc88333e04c432ecf19f3a7f905e5a93023f7aa5977784  sandbox/gpu-r35/caps/phaseaprime_alias_b_view3d.log
+6d90c37584ec3dca1f992d4a5a0e3ffc5dc9351833ae289aeb9224ee1d3779ef  sandbox/gpu-r35/caps/phaseaprime_alias_b_view3d/manifest.json
+1459a0314a69971116aa7778fb8bd65f27afd935a78e80b15c0819f04a058898  sandbox/gpu-r35/caps/phaseaprime_alias_b_view3d/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r35/caps/phaseaprime_alias_b_view3d/composite.png.license
+bd2cfbe579e721f48d36c53a75f6f40df33d075ebd7a1d2f64cde6d59e4e1313  sandbox/gpu-r35/caps/phaseaprime_alias_a_chronology.log
+d53ce8acd3cf2c8559c45389df5689d83a98db359563fe2b275f092fe89a9a2d  sandbox/gpu-r35/caps/phaseaprime_alias_a_chronology/manifest.json
+fb0c3fd08e8870e3562e0d86864ba4d96878e23b4d6c03cf587130776e85ea38  sandbox/gpu-r35/caps/phaseaprime_alias_a_chronology/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r35/caps/phaseaprime_alias_a_chronology/composite.png.license
+```

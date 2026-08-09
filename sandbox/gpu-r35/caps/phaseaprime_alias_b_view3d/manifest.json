@@ -1,0 +1,28 @@
+{
+  "mode": "boot",
+  "hostBlend": "upstream/tests/files/render/principled_bsdf/principled_bsdf_transmission.blend",
+  "engine": "BLENDER_EEVEE",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 118800
+  },
+  "sentinel": "OK BLENDER_EEVEE",
+  "pageCrashed": false,
+  "pageUnresponsive": false,
+  "pageUnresponsiveAt": null,
+  "gpuErrorCount": 0,
+  "kicks": 0,
+  "dones": 0,
+  "caps": [],
+  "marks": [
+    "M6_BRIDGE_UI_SWITCH IMAGE_EDITOR->VIEW_3D",
+    "M6_BRIDGE_START engine=BLENDER_EEVEE res=128x128 file=/projects/bw_suite.blend",
+    "M6_BRIDGE_DONE engine=BLENDER_EEVEE"
+  ],
+  "doneLines": [],
+  "gpuErrorSample": []
+}

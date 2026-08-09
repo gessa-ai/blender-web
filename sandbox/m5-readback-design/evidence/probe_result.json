@@ -1,0 +1,24 @@
+{
+  "_comment": "SPDX-License-Identifier: CC0-1.0 -- r49 read-only probe result",
+  "lane": "r49",
+  "date": "2026-08-09",
+  "tree": "b7dd8f2 (agent/m2.5-python-boot); no active relink at probe time; only sandbox/m5-readback-design/ untracked",
+  "build": "build-wasm-windowed-opt/bin/blender_browser.{js,wasm,data} (Aug 8 18:16-18:17, current)",
+  "profile": "windowed WM-worker, BW_DIAG UNSET (honest production sync-readback path)",
+  "rig": "headed Google Chrome for Testing (chromium-1228), 1280x720, ?pyexpr= bpy timer, one-shot ops",
+  "ops": {
+    "render.opengl(write_still,view_context)": "{'FINISHED'}",
+    "screen.screenshot(filepath=/tmp/win.png)": "{'FINISHED'}"
+  },
+  "readback_measurements": {
+    "render.opengl -> /tmp/vp0.png": {"res": "1920x1080x4", "constant": true, "value": "0/255 all channels"},
+    "screen.screenshot -> /tmp/win.png": {"res": "1280x720x3", "constant": true, "value": "0/255 all channels"},
+    "CDP compositor control (probe_cdp_composite.png)": {"res": "1280x720", "constant": false, "avg": "61.9/255", "note": "the window PROVABLY composited on-canvas at the same instant the in-app readback returned zeros"}
+  },
+  "table_oob": {
+    "reproduced_this_run": false,
+    "detail": "OPS_COMPLETE printed, loop survived, crashed=false. The r25 back-to-back snapshot table-OOB did NOT reproduce in this single bounded run, consistent with a timing-dependent callback-lifetime / table-slot-reuse race rather than a deterministic fault on the op sequence.",
+    "prior_measurement": "notes/gpu-r25-shim-boot-restored-viewport-isolated.md section 3 (measured the crash)"
+  },
+  "verdict": "First-hand reconfirmation of r25 section 2: caller-facing synchronous GPU readback returns ALL-ZERO in the windowed profile while the window composites. The WaitAny path (WGPUTexture::read wgpu_texture.cc:1277, Buffer::read wgpu_buffer.cc:164) returns unfulfilled; ops report FINISHED but write constant-zero pixels."
+}

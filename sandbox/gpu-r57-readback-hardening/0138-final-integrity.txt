@@ -1,0 +1,31 @@
+Patch 0138 integrity receipt
+
+Shared applied-state check:
+  git -C upstream apply --check --reverse ../patches/0138-gpu-webgpu-readback-ticket-regions.patch
+  PASS
+
+Isolated roundtrip:
+  copy the six production source files to a fresh mktemp tree
+  reverse-apply patch 0138
+  forward apply-check patch 0138
+  forward-apply patch 0138
+  compare all six SHA256 values to the starting tree
+  PASS, byte-identical
+
+Production source SHA256:
+  36b4b6aa344c899626c3f2cb04a683fb01d95dbf2782089fffd5cbe5fe27d37e  wgpu_buffer.cc
+  bd74445db27a7bc0dabc5999756b78119ad8c9ca407361123024e4b035016bba  wgpu_buffer.hh
+  8c7a1b3d8ed68705c881f960a86551b78e2b0e22436ac31b3c1de36e46337782  wgpu_readback.cc
+  7b49830e5f13590e7e4e5bd28cdbf5f00591f5ee3c6403481ede9a02c11e5590  wgpu_readback.hh
+  900765443b32cc34d7c6e52f114936e1a82ea9885a19f8c72b5dbf2fea20cb82  wgpu_texture.cc
+  44fcbe18a6a596d376dd7ebca9959d9f7269098ad8e1abedc8b1b6b45eaeb285  wgpu_texture.hh
+
+Patch SHA256:
+  4ba9eaa3ddaa118865921ac2a0bbdd072b6bc0c26c56c8318b24181d0dc715bd
+
+Temporary probe cleanup:
+  BW_R57_LAYER_PROBE: absent from production source and shipping bridge
+  r57_layer_probe: absent from production source and shipping bridge
+  BW_R57_READ_ENTRY: absent from production source
+  temporary test source: restored to 93fe2781d11f1ceae0efc52eb06fadce7d6fae8d9052cabf39924c207e8a1d21
+  shared outer and upstream indexes: empty at verification time

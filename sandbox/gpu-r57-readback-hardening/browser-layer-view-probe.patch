@@ -1,0 +1,256 @@
+--- a/upstream/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/upstream/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -27,6 +27,7 @@
+ #include "wgpu_readback.hh"
+ 
+ #include "GPU_context.hh"
++#include "GPU_texture.hh"
+ #include "gpu_context_private.hh"
+ 
+ #include "BLI_math_base.h"
+@@ -34,12 +35,18 @@
+ #include "BLI_math_vector_types.hh"
+ 
+ #include <algorithm>
++#include <array>
+ #include <cmath>
+ #include <cstdio>
++#include <cstdlib>
+ #include <cstring>
+ #include <limits>
+ #include <string>
+ #include <vector>
++
++#ifdef __EMSCRIPTEN__
++#  include <emscripten.h>
++#endif
+ 
+ /* Raw fd-2 stderr for the diagnostic readback (the only reliable web console
+  * channel — see notes/m5-windowed-replay.md). */
+@@ -703,12 +710,19 @@
+   return texture_ != nullptr;
+ }
+ 
++#ifdef __EMSCRIPTEN__
++static void r57_layer_probe_kick();
++#endif
++
+ bool WGPUTexture::init_internal()
+ {
+   if (!allocate()) {
+     return false;
+   }
+   this->mip_range_set(0, mipmaps_ - 1);
++#ifdef __EMSCRIPTEN__
++  r57_layer_probe_kick();
++#endif
+   return true;
+ }
+ 
+@@ -755,6 +769,9 @@
+   conv_ = source->conv_;
+   wgpu_format_ = source->wgpu_format_;
+   snorm16_emulated_ = source->snorm16_emulated_;
++#ifdef __EMSCRIPTEN__
++  r57_layer_probe_kick();
++#endif
+   return true;
+ }
+ 
+@@ -1351,7 +1368,186 @@
+                         ((format_flag_ & GPU_FORMAT_DEPTH) ? wgpu::TextureAspect::DepthOnly :
+                                                             wgpu::TextureAspect::All);
+   return true;
++}
++
++#ifdef __EMSCRIPTEN__
++namespace {
++
++struct R57LayerProbePoll {
++  readback::Ticket ticket = readback::kInvalidTicket;
++  std::array<uint8_t, 32> expected{};
++  int polls = 0;
++};
++
++static uint32_t r57_probe_hash(const uint8_t *bytes, size_t size)
++{
++  uint32_t hash = 2166136261u;
++  for (size_t i = 0; i < size; i++) {
++    hash = (hash ^ bytes[i]) * 16777619u;
++  }
++  return hash;
++}
++
++static void r57_layer_probe_poll(void *opaque)
++{
++  R57LayerProbePoll *poll = static_cast<R57LayerProbePoll *>(opaque);
++  const readback::TicketStatus status = readback::ticket_status(poll->ticket);
++  if (status == readback::TicketStatus::Pending && poll->polls++ < 200) {
++    emscripten_async_call(r57_layer_probe_poll, poll, 50);
++    return;
++  }
++
++  std::array<uint8_t, 32> actual{};
++  const size_t reported_size = readback::ticket_size(poll->ticket);
++  const readback::TicketError error = readback::ticket_error(poll->ticket);
++  const size_t consumed = (status == readback::TicketStatus::Ready) ?
++                              readback::consume_ticket(
++                                  poll->ticket, actual.data(), actual.size()) :
++                              0;
++  const readback::TicketStatus post_status = readback::ticket_status(poll->ticket);
++  const size_t second_consumed = readback::consume_ticket(
++      poll->ticket, actual.data(), actual.size());
++  const bool match = consumed == poll->expected.size() && actual == poll->expected;
++  std::fprintf(stderr,
++               "BW_R57_LAYER_PROBE_DONE ticket=%llu status=%u error=%u size=%zu consumed=%zu "
++               "post_status=%u second_consumed=%zu expected_hash=%08x actual_hash=%08x "
++               "match=%d\n",
++               static_cast<unsigned long long>(poll->ticket),
++               uint32_t(status),
++               uint32_t(error),
++               reported_size,
++               consumed,
++               uint32_t(post_status),
++               second_consumed,
++               r57_probe_hash(poll->expected.data(), poll->expected.size()),
++               r57_probe_hash(actual.data(), actual.size()),
++               int(match));
++  std::fflush(stderr);
++  if (status != readback::TicketStatus::Ready) {
++    readback::free_ticket(poll->ticket);
++  }
++  delete poll;
++}
++
++}  // namespace
++
++static void r57_layer_probe_kick()
++{
++  static bool started = false;
++  if (started || std::getenv("BW_R57_LAYER_PROBE") == nullptr) {
++    return;
++  }
++  started = true;
++
++  constexpr int width = 4;
++  constexpr int height = 2;
++  constexpr int layers = 3;
++  std::array<uint8_t, width * height * layers * 4> pixels{};
++  for (int layer = 0; layer < layers; layer++) {
++    for (int y = 0; y < height; y++) {
++      for (int x = 0; x < width; x++) {
++        const size_t index = size_t(((layer * height + y) * width + x) * 4);
++        pixels[index + 0] = uint8_t(0x20 * layer + x);
++        pixels[index + 1] = uint8_t(0x40 + y);
++        pixels[index + 2] = uint8_t(0x80 + x + y);
++        pixels[index + 3] = 0xff;
++      }
++    }
++  }
++
++  gpu::Texture *source = GPU_texture_create_2d_array("r57-layer-probe-source",
++                                                      width,
++                                                      height,
++                                                      layers,
++                                                      1,
++                                                      TextureFormat::UNORM_8_8_8_8,
++                                                      GPU_TEXTURE_USAGE_HOST_READ |
++                                                          GPU_TEXTURE_USAGE_SHADER_READ,
++                                                      nullptr);
++  if (source == nullptr) {
++    std::fprintf(stderr, "BW_R57_LAYER_PROBE_FAIL stage=source\n");
++    std::fflush(stderr);
++    return;
++  }
++  GPU_texture_update(source, GPU_DATA_UBYTE, pixels.data());
++  gpu::Texture *view = GPU_texture_create_view("r57-layer-probe-view",
++                                               source,
++                                               TextureFormat::UNORM_8_8_8_8,
++                                               0,
++                                               1,
++                                               2,
++                                               1,
++                                               false,
++                                               false);
++  GPU_texture_free(source);
++  if (view == nullptr) {
++    std::fprintf(stderr, "BW_R57_LAYER_PROBE_FAIL stage=view_after_source_free\n");
++    std::fflush(stderr);
++    return;
++  }
++
++  WGPUTexture *webgpu_view = static_cast<WGPUTexture *>(view);
++  WGPUTexture::ResolvedReadRegion resolved;
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr || !webgpu_view->resolve_read_region(0, resolved)) {
++    std::fprintf(stderr, "BW_R57_LAYER_PROBE_FAIL stage=resolve_after_source_free\n");
++    std::fflush(stderr);
++    GPU_texture_free(view);
++    return;
++  }
++
++  const readback::TextureRegion region{resolved.mip_level,
++                                       resolved.origin_x,
++                                       resolved.origin_y,
++                                       resolved.origin_z,
++                                       resolved.width,
++                                       resolved.height,
++                                       resolved.depth,
++                                       resolved.aspect};
++  const readback::SourceKey key{readback::SourceKind::Texture,
++                                view,
++                                uint64_t(region.mip_level),
++                                uint64_t(width * height * 4),
++                                region.origin_x,
++                                region.origin_y,
++                                region.origin_z,
++                                region.width,
++                                region.height,
++                                region.depth,
++                                uint8_t(region.aspect)};
++  R57LayerProbePoll *poll = new R57LayerProbePoll();
++  std::copy_n(pixels.data() + width * height * 4 * 2,
++              poll->expected.size(),
++              poll->expected.begin());
++  poll->ticket = readback::kick_texture(ctx->device_get(),
++                                       ctx->queue_get(),
++                                       resolved.texture,
++                                       key,
++                                       region,
++                                       4,
++                                       256,
++                                       width * 4,
++                                       readback::RequestMode::Exact);
++  std::fprintf(stderr,
++               "BW_R57_LAYER_PROBE_KICK ticket=%llu mip=%u origin=%u,%u,%u "
++               "extent=%u,%u,%u source_freed=1\n",
++               static_cast<unsigned long long>(poll->ticket),
++               region.mip_level,
++               region.origin_x,
++               region.origin_y,
++               region.origin_z,
++               region.width,
++               region.height,
++               region.depth);
++  std::fflush(stderr);
++  GPU_texture_free(view);
++  std::fprintf(stderr,
++               "BW_R57_LAYER_PROBE_VIEW_FREED ticket=%llu\n",
++               static_cast<unsigned long long>(poll->ticket));
++  std::fflush(stderr);
++  emscripten_async_call(r57_layer_probe_poll, poll, 50);
+ }
++#endif
+ 
+ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+ {
+--- a/sandbox/gpu-r57-readback-hardening/bridge_layer_view.mjs
++++ b/sandbox/gpu-r57-readback-hardening/bridge_layer_view.mjs
+@@ -47,6 +47,7 @@
+   'import bpy, os, glob',
+   'os.environ["BW_DIAG"] = "1"',
+   'os.environ["BW_READBACK_CAPTURE"] = "1"',
++  'os.environ["BW_R57_LAYER_PROBE"] = "1"',
+   'bpy.context.preferences.view.show_splash = False',
+   'def _bw_kick():',
+   '    try:',

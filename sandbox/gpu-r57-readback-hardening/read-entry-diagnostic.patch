@@ -1,0 +1,53 @@
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1355,13 +1355,50 @@
+ 
+ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+ {
++#ifdef __EMSCRIPTEN__
++  const wgpu::Texture diag_backing = backing_texture();
++  std::fprintf(stderr,
++               "BW_R57_READ_ENTRY this=%p mip=%d data=%p dims=%d,%d,%d mipmaps=%d "
++               "mip_offset=%d layer_offset=%d type=%u backing_type=%u own=%d backing=%d\n",
++               this,
++               mip,
++               data,
++               w_,
++               h_,
++               d_,
++               mipmaps_,
++               mip_offset_,
++               layer_offset_,
++               uint32_t(type_),
++               uint32_t(backing_type_),
++               texture_ != nullptr,
++               diag_backing != nullptr);
++  std::fflush(stderr);
++#endif
+   if (data == nullptr) {
+     return;
+   }
+   ResolvedReadRegion resolved;
+   if (!resolve_read_region(mip, resolved)) {
++#ifdef __EMSCRIPTEN__
++    std::fprintf(stderr, "BW_R57_READ_RESOLVE_FAIL this=%p mip=%d\n", this, mip);
++    std::fflush(stderr);
++#endif
+     return;
+   }
++#ifdef __EMSCRIPTEN__
++  std::fprintf(stderr,
++               "BW_R57_READ_RESOLVE_OK this=%p mip=%u origin=%u,%u,%u extent=%u,%u,%u\n",
++               this,
++               resolved.mip_level,
++               resolved.origin_x,
++               resolved.origin_y,
++               resolved.origin_z,
++               resolved.width,
++               resolved.height,
++               resolved.depth);
++  std::fflush(stderr);
++#endif
+   /* M6 r35 render-result bridge: this seam is where the synchronous GPU readback funnels
+    * (GPU_texture_read directly, and GPU_framebuffer_read_color via WGPUFrameBuffer::read
+    * which calls tex->read). The WaitAny below returns zeros in the windowed WM-worker

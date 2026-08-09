@@ -1,0 +1,24 @@
+R57 bundled-Chromium exact readback payload receipt
+
+Region: mip=0 origin=0,0,2 extent=4,2,1 RGBA8
+Source wrapper freed before kick: yes
+View wrapper freed before map completion: yes
+Ticket completion: Ready
+Ticket error: None
+Reported bytes: 32
+Consumed bytes: 32
+Post-consume ticket state: Invalid
+Second consume bytes: 0
+Expected FNV-1a: a865e519
+Actual FNV-1a: a865e519
+Match: yes
+
+Tight payload hex:
+404080ff414081ff424082ff434083ff404181ff414182ff424183ff434184ff
+
+Tight payload SHA256:
+c7a5538655603323341cbe12d1f5921048275b4a5cf7a6b6915d9f1e2a2337f9
+
+The production capture callback wrote the same 32-byte payload before the render
+driver cleared /tmp. The durable console receipt and the hook's independent exact
+consume/hash check are in caps/principled_layer_view_0138_probe/console.log.

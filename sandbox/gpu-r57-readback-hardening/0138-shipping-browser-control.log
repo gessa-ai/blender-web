@@ -1,0 +1,16 @@
+[2026-08-09 23:04:30.555] seeding bw_suite.blend into OPFS via /bin/bw_seed.html
+[2026-08-09 23:04:30.657] OPFS seed: {"ok":true,"size":121065}
+[2026-08-09 23:04:30.657] booting windowed with args=/projects/bw_suite.blend engine=BLENDER_EEVEE
+[2026-08-09 23:04:31.561] WM_main up
+[2026-08-09 23:05:03.134] render sentinel: "OK BLENDER_EEVEE"
+[2026-08-09 23:05:33.224] diag dumps: 0 files []
+
+==== BOOT-BRIDGE RESULT ====
+engine   : BLENDER_EEVEE
+sentinel : OK BLENDER_EEVEE
+kicks/dones: 0 / 0
+caps     : 
+gpuErrors: 0
+pageErrors: 0
+prodReceipts: 0
+capdir   : /Users/paws/blender-web/sandbox/gpu-r57-readback-hardening/caps/principled_layer_view_0138_shipping_control

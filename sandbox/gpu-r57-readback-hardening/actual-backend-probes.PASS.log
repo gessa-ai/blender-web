@@ -1,0 +1,15 @@
+Note: Google Test filter = GPUWebGPUTest.webgpu_readback_ticket_hardening:GPUWebGPUTest.webgpu_readback_view_region_hardening
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from GPUWebGPUTest
+color_management | Using fallback mode for management
+                 | source/blender/imbuf/intern/colormanagement.cc:342 colormanagement_init
+[ RUN      ] GPUWebGPUTest.webgpu_readback_ticket_hardening
+[       OK ] GPUWebGPUTest.webgpu_readback_ticket_hardening (24 ms)
+[ RUN      ] GPUWebGPUTest.webgpu_readback_view_region_hardening
+[       OK ] GPUWebGPUTest.webgpu_readback_view_region_hardening (18 ms)
+[----------] 2 tests from GPUWebGPUTest (43 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (408 ms total)
+[  PASSED  ] 2 tests.

@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Evidence only. Apply after actual-backend-probes.patch; never ship these limits/tests.
+
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+--- a/source/blender/gpu/webgpu/wgpu_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -33,11 +33,11 @@ namespace {
+ 
+ constexpr size_t kMaxInFlight = 64;
+-constexpr size_t kMaxInFlightBytes = size_t(512) * 1024 * 1024;
++constexpr size_t kMaxInFlightBytes = 24; /* R57 TEMP PROBE. */
+ constexpr size_t kMaxSettled = 128;
+ constexpr size_t kMaxCacheTickets = 128;
+ constexpr size_t kMaxCachePayloadBytes = 24; /* R57 TEMP PROBE: force aggregate eviction. */
+ constexpr size_t kMaxExactClaims = 128;
+-constexpr size_t kMaxExactClaimBytes = size_t(512) * 1024 * 1024;
++constexpr size_t kMaxExactClaimBytes = 24; /* R57 TEMP PROBE. */
+ constexpr size_t kMaxExactRecords = 256;
+ 
+ struct KeyHash {
+diff --git a/source/blender/gpu/tests/texture_test.cc b/source/blender/gpu/tests/texture_test.cc
+--- a/source/blender/gpu/tests/texture_test.cc
++++ b/source/blender/gpu/tests/texture_test.cc
+@@ -1239,6 +1239,16 @@ static void expect_invalid_ticket(webgpu::readback::Ticket ticket)
+   webgpu::readback::free_ticket(ticket);
+ }
+ 
++static void expect_capacity_ticket(webgpu::readback::Ticket ticket)
++{
++  ASSERT_NE(ticket, webgpu::readback::kInvalidTicket);
++  EXPECT_EQ(webgpu::readback::ticket_status(ticket),
++            webgpu::readback::TicketStatus::Failed);
++  EXPECT_EQ(webgpu::readback::ticket_error(ticket),
++            webgpu::readback::TicketError::CapacityExceeded);
++  webgpu::readback::free_ticket(ticket);
++}
++
+ static void test_webgpu_readback_ticket_hardening()
+ {
+   WGPUContext *context = static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+@@ -1428,6 +1438,29 @@ static void test_webgpu_readback_ticket_hardening()
+   EXPECT_EQ(actual_b, value_b);
+   EXPECT_EQ(webgpu::readback::consume_ticket(ticket_a, &actual_a, sizeof(actual_a)), 0u);
+ 
++  /* Reservation precedes staging allocation: with temporary 24-byte in-flight and exact
++   * caps, one otherwise-valid 32-byte snapshot is CapacityExceeded before CreateBuffer. */
++  {
++    constexpr uint64_t over_cap_size = 32;
++    wgpu::BufferDescriptor over_cap_desc = {};
++    over_cap_desc.size = over_cap_size;
++    over_cap_desc.usage = wgpu::BufferUsage::CopySrc;
++    wgpu::Buffer over_cap_source = device.CreateBuffer(&over_cap_desc);
++    ASSERT_NE(over_cap_source, nullptr);
++    const webgpu::readback::SourceKey over_cap_key{
++        webgpu::readback::SourceKind::Buffer, &over_cap_source, 0, over_cap_size};
++    const webgpu::readback::Ticket over_cap = webgpu::readback::kick_buffer(
++        device,
++        queue,
++        over_cap_source,
++        over_cap_key,
++        0,
++        over_cap_size,
++        over_cap_size,
++        webgpu::readback::RequestMode::Exact);
++    expect_capacity_ticket(over_cap);
++  }
++
+   /* Invalid direct copies must become terminal failures before Dawn submission. */
+   wgpu::BufferDescriptor no_copy_buffer_desc = {};
+   no_copy_buffer_desc.size = 4;

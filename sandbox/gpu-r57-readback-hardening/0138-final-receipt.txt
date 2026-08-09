@@ -1,0 +1,67 @@
+Patch 0138 final verification receipt
+
+Production patch and sources
+  patch: 4ba9eaa3ddaa118865921ac2a0bbdd072b6bc0c26c56c8318b24181d0dc715bd
+  source hashes: see 0138-final-integrity.txt and probe-source-restored.sha256
+  reverse check: PASS
+  isolated reverse/forward byte roundtrip: PASS
+  temporary probe markers: absent
+
+Serialized production builds
+  native blender_test: PASS through scripts/ninja-locked.sh
+  current native log: 0138-final-census-build-check.log
+  current native log SHA256: 0705b475c647246039307b4b3977bae6831b2e67f6b6f81bb25a8b624de0bbf1
+  shipping wasm blender_browser: PASS through scripts/ninja-locked.sh
+  shipping wasm log: 0138-final-production-wasm-build.log
+  shipping wasm log SHA256: 8466d239d1e8ea0ab8ac09fdb89d8d473e4fb4053b9c7541066308a68b0e6621
+  shipping JS/wasm/data SHA256: see shipping-artifacts.sha256
+
+Actual Dawn backend probes
+  primary patch SHA256: 35606f8d9d11a4b173b1cb3bffe32b514062a8aa978b950322d43b0996437bfe
+  primary PASS log SHA256: e279d1aab80b53565a1c0e71957c01e20c765456b0002f81464a2c5591cd1c7d
+  result: 2/2 PASS
+  exercised: exact A then mutate then exact B immutable snapshots; consume once;
+    terminal failure/cancel/free; cache cancel/free/no stale settled reuse; cache
+    payload budget; source-free nested 2D-array view; 3D mip; stencil; 1D mip0;
+    explicit 1D mip>0 rejection; CopySrc/map-state/format/aspect/block/bounds/
+    multisample controls.
+  capacity patch SHA256: 137f06dfdfca402f03b2fa60cc9573b6df678b9bc16d2192e5bff6864efa0f2b
+  capacity PASS log SHA256: 596197234339a80a19df6e3e02da80c2fd403ac22758ec94249cea7ae4ce49f5
+  result: valid 32-byte Exact request under temporary 24-byte caps reaches
+    terminal CapacityExceeded before staging allocation.
+  production test/source hashes restored: PASS
+
+Bundled-Chromium production Exact probe
+  evidence hook patch SHA256: 7471e1fff7af0d043d5cbfb5321d5032f3c87e1d39b2b0a0deb06e9d7077b62f
+  console SHA256: a379fffb43d975536cefb37dfb73174f184886e5109293dea87241bedc9e56fe
+  manifest SHA256: d740bad05d9f87743245ff1ea1d912816a851df24830a3ae714dfaca19002981
+  screenshot SHA256: d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161
+  order: KICK origin=0,0,2 extent=4,2,1 source_freed=1; VIEW_FREED;
+    production capture bytes=32; DONE.
+  ticket: status=Ready error=None size=32 consumed=32 post_status=Invalid
+    second_consumed=0 match=1.
+  expected and device FNV-1a: a865e519.
+  payload SHA256: c7a5538655603323341cbe12d1f5921048275b4a5cf7a6b6915d9f1e2a2337f9.
+  GPU errors: 0. Page errors: 0. Screenshot opened by worker and driver.
+
+Clean shipping-browser control
+  manifest SHA256: a5b121d3f4ecdd53739a907ad0937a031a721fb4ffd597f63043075549cc9061
+  composite SHA256: d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161
+  GPU errors: 0. Page errors: 0. Render sentinel: OK BLENDER_EEVEE.
+  Production readback kicks/dones: 0/0 because EEVEE exits before Film::read_pass
+    after eevee_shadow_tag_update and MADefault_Surface_shadow_mesh compile failures.
+  The temporary read-entry control recorded zero WGPUTexture::read entries, so this
+    is an upstream EEVEE Phase B blocker, not a layer-view resolver failure.
+  F12 result remains constant black and is not claimed by patch 0138.
+
+Native M3 census
+  149 PASS / 7 FAIL / 2 CRASH / 158 tests
+  static_shaders: 956 / 973
+  I10 direct control: PASS, confirming the one known-spurious human-owed RED
+  census log SHA256: 2ffa754e74adeb7902028d6e792a78d3eca08758badbd6c20aebeecdc380dc03
+
+Scope boundary
+  Patch 0138 establishes the backend exact ticket and supported view-region
+  primitive. It does not claim the later public GPU caller conversion or F12 pixels.
+  Dependent patch 0143 remains required for full GPU_texture_create_view lifetime,
+  framebuffer/root-operation subresources, and correct 1D-array representation.

@@ -1,0 +1,14 @@
+GPUWebGPUTest census: 149 PASS / 7 FAIL / 2 CRASH / 158 tests
+Non-PASS tests:
+buffer_texture FAIL
+framebuffer_subpass_input FAIL
+framebuffer_subpass_input_clearops FAIL
+static_shaders FAIL
+shader_sampler_argument_buffer_binding FAIL
+shader_texture_atomic CRASH
+specialization_constants_graphic CRASH
+texture_roundtrip__GPU_DATA_FLOAT__GPU_DEPTH_COMPONENT32F FAIL
+texture_roundtrip__GPU_DATA_FLOAT__GPU_DEPTH32F_STENCIL8 FAIL
+static_shaders: 956 / 973
+I10 control exit: 0 (PASS)
+R57_M3_CENSUS PASS expected=149/7/2 static=956/973 I10-only-spurious-red=confirmed

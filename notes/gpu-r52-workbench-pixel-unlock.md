@@ -49,6 +49,30 @@ Fresh rebuilt browser receipts:
 
 Patch 0131 reverse-checks and round-trips exact inside `upstream/`.
 
+## Target 3: compute storage-image 1-vs-4 undercount
+
+A fresh post-0131 run reproduced 18 GPU errors. Six dispatches each created a bind group with
+one entry against a four-entry layout: three RGBA8Unorm storage textures at bindings 0, 1, and
+2 plus one UBO at binding 3. Source matching identifies Blender's generic 2D mipmap compute,
+which binds `mip_in`, `mip_out1`, and `mip_out2` as per-mip texture views.
+
+The context emitter was not undercounting mapped images. `WGPUTexture::image_view()` returned
+null whenever the Blender texture was a view because it checked only the view object's empty
+`texture_`; unlike `sampled_view()`, it never resolved `source_`. The UBO was therefore the only
+entry that survived.
+
+Patch 0132 resolves the aliased source texture, preserves the texture view's mip and layer
+offsets, and restricts a plain e2D storage view to one array layer. Fresh rebuilt browser result
+for `light_studio_material`:
+
+- GPU errors: 18 before to 0 after;
+- sentinel: `OK BLENDER_WORKBENCH`;
+- mean error: 0.000785399;
+- over threshold 0.016: 40 pixels (0.244%);
+- verdict: PASS.
+
+Patch 0132 reverse-checks and round-trips exact inside `upstream/`.
+
 ## Target 2: NONE-gap color attachment compaction
 
 Workbench TransparentDepthPass can bind `object_id` (R16Uint) at color slot 2 with slots 0 and 1
@@ -81,5 +105,5 @@ restores exact SHA-256 hashes for both owned source files.
 
 ## Remaining verification
 
-The rebuilt tree will next be used to re-evaluate the compute 1-vs-4 signature before any 0132
-change, followed by the full 20-scene rescore, splash recapture, and native census.
+The final rebuilt tree will be used for the full 20-scene rescore, splash recapture, and native
+census.

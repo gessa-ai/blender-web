@@ -577,7 +577,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
     _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
     G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.
-  - P2 ghost-web (first-composite needs an input event, blocker #6) + P3 python (cattrs) follow separately.
+  - [x] P2 ghost-web blocker #6 "first composite needs an input event": **FALSIFIED by r50**
+    (f108934, diagnosis-only, 0/5 attempts used). The initial expose/size/activate events
+    have existed since r19/r22 (GHOST_SystemWeb.cc:595 posts kEventWindowSize at
+    createWindow); 8 zero-input boots composite the FULL UI unprompted at ~+17s, identical
+    to with-input boots. The dead-tab window is the INLINE SHADER COMPILE blocking the WM
+    worker (+1.0s to +17.4s, load-sensitive; frame 1 presents the instant it finishes).
+    Capture rigs no longer need the mouse-nudge for correctness (keep it for older builds).
+  - [ ] **M4.T29/M8 boot-latency: shader-compile block [gpu]:** the real successor to P2#6.
+    ~16s WM-worker block in the workerless inline ShaderCompiler at first engine draw
+    (worse under load). Fix directions per the M3 architecture doc: OPFS shader-binary
+    cache (the planned Vulkan-disk-cache mirror) for warm boots + async/off-thread compile
+    for cold. Feeds the M8 30-second bar directly (staged loading is at 27.8s TTFP cold).
+  - P3 python (cattrs) follows separately.
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

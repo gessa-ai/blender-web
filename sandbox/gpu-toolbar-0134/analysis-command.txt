@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+
+Working directory: /Users/paws/blender-web
+Command:
+  python3 sandbox/gpu-toolbar-0134/analyze_toolbar.py > sandbox/gpu-toolbar-0134/metrics.txt
+
+This is a read-only analysis of committed captures plus the retained r28b A/B evidence.
+The comparison is RGB max-channel absolute difference greater than 0.016.
+No browser, build, comparator, golden, or threshold was changed.

@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+threshold=max_channel_abs>0.016
+input native: path=sandbox/m4-golden-prep/goldens/workspace_1280x720.png size=1280x720 sha256=4e791b135e763501c1dfeaee8cb8872727703a3c8ce52351f9fa89310b09b009
+input pre0134: path=sandbox/i18n-r45/captures/r47-workspace_1280x720.png size=1280x720 sha256=81b7cc324e1ad35d99c2c6185b421057495f00472ab96206a2a6a3898f333550
+input current: path=sandbox/m4-d9-gate/evidence/workspace_1280x720.png size=1280x720 sha256=019570c33537e6695d38cb51d86d3c559a736f1c6de80115ff4f09daf3767bb2
+input r28b_baseline: path=platform_web/shell/evidence/m4-r28b-baseline-00-fullwindow.png size=1280x720 sha256=3625a25af326f52ecbaec468905821bfb3943d2097482dca16ceb23956f8e9ec
+input r28b_alwaysload: path=platform_web/shell/evidence/m4-r28b-ab-alwaysload-00-fullwindow.png size=1280x720 sha256=ac858bb276c631afd5839003bae6ef423bed9fc5b471ea5a3a7207512d81be35
+
+[toolbar comparisons against native]
+toolbar rect=(0, 28, 60, 649)
+  pre0134 failed=1022/37260 percent=2.742888 max=0.831372559
+  current failed=2/37260 percent=0.005368 max=0.027450981
+icon_strip rect=(7, 52, 52, 456)
+  pre0134 failed=995/18180 percent=5.473047 max=0.831372559
+  current failed=1/18180 percent=0.005501 max=0.027450981
+seam rect=(48, 28, 64, 649)
+  pre0134 failed=32/9936 percent=0.322061 max=0.101960786
+  current failed=0/9936 percent=0.000000 max=0.015686275
+
+[current toolbar connected components, 8-connected]
+count=2
+size=1 bbox=(13, 84, 13, 84)
+size=1 bbox=(32, 646, 32, 646)
+
+[icon-strip coordinate shift control]
+pre0134
+  dx=+0 dy=+0 failed=995/18180 percent=5.473047 max=0.831372559
+  dx=-1 dy=+0 failed=3327/18180 percent=18.300330 max=0.831372559
+  dx=+1 dy=+0 failed=3191/18180 percent=17.552255 max=0.831372559
+  dx=+0 dy=-1 failed=4264/18180 percent=23.454345 max=0.831372559
+  dx=+0 dy=+1 failed=4234/18180 percent=23.289329 max=0.831372559
+current
+  dx=+0 dy=+0 failed=1/18180 percent=0.005501 max=0.027450981
+  dx=-1 dy=+0 failed=3146/18180 percent=17.304730 max=0.737254918
+  dx=+1 dy=+0 failed=3146/18180 percent=17.304730 max=0.737254918
+  dx=+0 dy=-1 failed=3984/18180 percent=21.914191 max=0.741176486
+  dx=+0 dy=+1 failed=4015/18180 percent=22.084708 max=0.737254918
+
+[r28b load/store A/B baseline versus always-load]
+toolbar failed=0/37260 percent=0.000000 max=0.000000000
+icon_strip failed=0/18180 percent=0.000000 max=0.000000000
+seam failed=0/9936 percent=0.000000 max=0.000000000
+
+[current D-9 disjoint mass]
+toolbar rect=(0, 28, 60, 649) failed=2/37260 percent=0.005368 max=0.027450981
+viewport rect=(60, 28, 1051, 649) failed=1784/615411 percent=0.289888 max=0.658823550
+right_rail rect=(1051, 28, 1280, 649) failed=192/142209 percent=0.135013 max=0.576470613
+bottom rect=(0, 649, 1280, 720) failed=2675/90880 percent=2.943442 max=0.443137258
+topbar rect=(0, 0, 1280, 28) failed=0/35840 percent=0.000000 max=0.007843138
+partition_failed_sum=4653
+whole_window failed=4653/921600 percent=0.504883 max=0.658823550
+
+[current bottom connected components, 8-connected]
+count=12
+perimeter size=2187 bbox=(2, 650, 1049, 696)
+status_hints components=11 pixels=488
+  size=98 bbox=(24, 705, 42, 713)
+  size=82 bbox=(67, 705, 81, 714)
+  size=72 bbox=(6, 701, 19, 716)
+  size=44 bbox=(53, 701, 64, 716)
+  size=39 bbox=(60, 701, 64, 708)
+  size=31 bbox=(89, 707, 94, 713)
+  size=31 bbox=(103, 707, 108, 713)
+  size=30 bbox=(82, 705, 87, 712)
+  size=28 bbox=(10, 703, 13, 709)
+  size=28 bbox=(96, 707, 101, 712)
+  size=5 bbox=(21, 703, 21, 707)
+perimeter_color_pairs_top2
+  pixels=1056 native=(58, 58, 58) current=(76, 76, 76)
+  pixels=1031 native=(46, 46, 46) current=(65, 65, 65)

@@ -559,18 +559,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     en_US round-trip; stage-0 +2,248 B exactly (languages index), 49 .mo (76.72 MiB raw)
     ride stage-1; patch 0127 applied + series entry. Residual coverage note: registration-
     cached bl_labels need the full-register path (faithful native behavior).
-  - [ ] **M4.T28 splash-image wedge [gpu, GATE-CRITICAL for splash]:** r47's amplified
-    diff localizes the whole 4.54% splash residual to a dark triangular wedge over the
-    splash image (one triangle of the image quad not sampling its texture). CAVEAT: the
-    capture was taken with r46's uncommitted gpu WIP in the tree - r46 must re-capture
-    post-landing to determine pre-existing vs WIP-regression before a hunt is dispatched.
-  - [ ] **M6.EEVEE-A [gpu-backend, L1, blocked-by r46 fence release]:** Phase A+A' per
-    notes/eevee-storage-emulation-design.md (r48, d4c11b8): storage-IMAGE visibility strip
-    (mirror the existing SSBO strip at wgpu_shader_interface_map.cc:239 + wgpu_shader.cc
-    ~2360), adapter-guarded TextureFormatsTier1/Tier2 opt-in + requiredLimits in GHOST
-    device request, then the 1-2 read-write format residuals. Expected yield: 26/30 EEVEE
-    scenes. FIRST STEP: log adapter.features in the M4 browser build (risk R1 - if tiers
-    absent in emdawnwebgpu/Chrome, C2 falls back to R32Uint-packing or MRT).
+  - [x] **M4.T28 splash-image wedge [gpu, r52/0134]: FIXED** (fd624eb, driver-verified).
+    The splash quad reached WebGPU as GPU_PRIM_TRI_FAN, whose unsupported fallback was
+    TriangleStrip and omitted the fan's second triangle. Native-faithful indexed fan
+    emulation removes the wedge; the final D-9 splash passes at 0.204% over 0.016.
+  - [~] **M6.EEVEE-A [gpu-backend, L1]: Phase A C1-C4 LANDED; pixels still blocked.**
+    Patch 0136 (159e4a0, driver-verified) strips writable storage-image Vertex visibility,
+    opts into adapter-supported TextureFormatsTier1/Tier2, and requests the measured 8/10
+    storage limits. The clean Phase A rescore (99a83d2) removes the old C1-C4 flood but
+    captures zero EEVEE device-byte results: 20 rows return OK with zero GPU errors but
+    layer views return before the readback hook, seven stop on RG11B10Ufloat ReadWrite,
+    one stops on a distinct RGBA16Float mip-7 alias, and two never emit the START marker
+    within 200 seconds. Next: Phase A' format/alias work plus view-aware L-B/L-C readback;
+    no EEVEE pixel-pass claim until a non-black result reaches the pinned comparator.
   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.
@@ -608,6 +609,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the pinned WebGPU adapter). EEVEE oracle = native macOS Metal headless (mirrors Blender
   CI). Runner: sandbox/m6-prep/run_oracle_renders.sh (exit-code-primary, m2b pattern).
   M6 wasm entry: Cycles-CPU first (no GPU needed), then workbench/EEVEE offscreen PNG path.
+
+- [x] **M6.gpu Phase A clean 50-scene rescore (99a83d2):** fresh headed-browser manifests,
+  zero reuse/RIG-FAIL/crash/duplicates. Workbench is 12 PASS / 8 FAIL. EEVEE is 28
+  NO-CAPTURE / 2 render-start timeouts, with zero readback kicks and zero captured device
+  bytes across all 30 scenes. The exact residual split is recorded above; the census holds
+  149 PASS / 7 FAIL / 2 CRASH and static_shaders 956/973.
 
 - [ ] **M3-GATE [driver, at r16 exit]:** register 5 deferrals in ledger/deferred.json;
   write blacklist doc; harness m3 scope via the lock-lift reconcile procedure (census table

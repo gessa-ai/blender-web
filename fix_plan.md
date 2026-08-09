@@ -569,13 +569,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     opts into adapter-supported TextureFormatsTier1/Tier2, and requests the measured 8/10
     storage limits. The clean Phase A rescore (99a83d2) removes the old C1-C4 flood but
     captures zero EEVEE device-byte results: 20 rows return OK with zero GPU errors but
-    layer views return before the readback hook, seven stop on RG11B10Ufloat ReadWrite,
+    do not reach the backend read seam, seven stop on RG11B10Ufloat ReadWrite,
     transmission returns OK and then reports a post-render Image Editor mip-7 alias, and
     two never emit the START marker within 200 seconds. The controlled 2442b90 A/B and
     timestamp receipt proves the transmission alias is display work, not a render blocker
     or the cause of the missing Film hook. Next: Phase A' RG11 substitution, a true
-    one-output final-mip variant, and view-aware L-B/L-C readback; no EEVEE pixel-pass
-    claim until a non-black result reaches the pinned comparator.
+    one-output final-mip variant, and view-aware L-B/L-C readback. Patch 0138 (f075180,
+    driver-verified) now supplies exact immutable backend tickets and proves a source-free
+    nonzero-layer texture view in bundled Chromium, but the F12 control exits before
+    Film::read_pass because the tag-update and default shadow material shaders fail.
+    Full framebuffer/root view semantics remain binding on 0143, followed by the public
+    async API and caller continuation. No EEVEE pixel-pass claim until a non-black result
+    reaches the pinned comparator.
   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.

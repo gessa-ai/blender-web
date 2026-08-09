@@ -653,3 +653,13 @@
 # splash and workspace pass D-9 at 0.204% and 0.505%. Census holds 149/7/2 plus 956/973. See
 # notes/gpu-m4-cursor-vertex-pulling-upload.md.
 0137-gpu-webgpu-chronological-ssbo-bindings.patch
+# 0138: harden the WebGPU readback registry for exact immutable tickets, terminal status,
+# consume-once ownership, cancellation, pre-allocation capacity checks, and validation-safe
+# buffer/texture regions. Texture views pin and flatten backing mip/layer metadata for sampled,
+# storage, and readback use after source/view wrapper destruction. Actual Dawn probes pass 2/2
+# plus the capacity control; a bundled-Chromium Exact probe returns the known 32-byte layer-2
+# payload and retires once. The clean F12 control never enters WGPUTexture::read because EEVEE
+# stops on two Phase B shader failures, so this patch makes no Film pixel claim. Locked builds
+# pass and census holds 149/7/2 plus static_shaders 956/973. Full framebuffer/root view behavior
+# remains binding on 0143. See notes/gpu-r57-readback-hardening.md.
+0138-gpu-webgpu-readback-ticket-regions.patch

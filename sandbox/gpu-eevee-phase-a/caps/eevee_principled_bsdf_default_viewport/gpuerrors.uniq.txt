@@ -1,0 +1,2 @@
+[x1] [bw][GPU-ERROR] GPUValidationError: Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite. |  - While validating entries[1] |  - While validating [BindGroupLayoutDescriptor] |  - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]). | 
+[x1] [bw][GPU-ERROR] GPUValidationError: [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error. |  - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]). | 

@@ -1,0 +1,24 @@
+Reading sandbox/gpu-eevee-phase-a/caps/eevee_principled_bsdf_default_f12_noerrors/render_operator.png
+sandbox/gpu-eevee-phase-a/caps/eevee_principled_bsdf_default_f12_noerrors/render_operator.png :  128 x  128, 3 channel, uint8 png
+    channel list: R, G, B
+    Camera: "Camera"
+    Date: "2026/08/09 15:22:49"
+    File: "/projects/bw_suite.blend"
+    Frame: "001"
+    RenderTime: "00:10.20"
+    ResolutionUnit: "inch"
+    Scene: "Scene"
+    Time: "00:00:00:01"
+    XResolution: 72
+    YResolution: 72
+    oiio:ColorSpace: "srgb_rec709_scene"
+    Stats Min: 0 0 0 (of 255)
+    Stats Max: 0 0 0 (of 255)
+    Stats Avg: 0.00 0.00 0.00 (of 255)
+    Stats StdDev: 0.00 0.00 0.00 (of 255)
+    Stats NanCount: 0 0 0 
+    Stats InfCount: 0 0 0 
+    Stats FiniteCount: 16384 16384 16384 
+    Constant: Yes
+    Constant Color: 0.00 0.00 0.00 (of 255)
+    Monochrome: Yes

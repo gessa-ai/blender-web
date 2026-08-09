@@ -1,0 +1,11 @@
+{
+  "capdir": "sandbox/gpu-eevee-phase-a/caps/eevee_principled_bsdf_default_f12_noerrors",
+  "golden": "sandbox/m6-prep/goldens/eevee/principled_bsdf/principled_bsdf_default.png",
+  "sentinel": "OK BLENDER_EEVEE",
+  "ncaps": 0,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "verdict": "NO-CAPTURE",
+  "cluster": "no-capture",
+  "note": "no colour render-result dump; gpuErrors=0; caps=[]"
+}

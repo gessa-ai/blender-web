@@ -1,0 +1,29 @@
+{
+  "mode": "viewport",
+  "hostBlend": "upstream/tests/files/render/principled_bsdf/principled_bsdf_default.blend",
+  "engine": "BLENDER_EEVEE",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 121065
+  },
+  "sentinel": "OK VIEWPORT BLENDER_EEVEE",
+  "pageCrashed": false,
+  "gpuErrorCount": 2,
+  "kicks": 0,
+  "dones": 0,
+  "caps": [],
+  "marks": [],
+  "operatorPng": null,
+  "deviceReceipts": [
+    "[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22 tier1=true tier2=true maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10"
+  ],
+  "doneLines": [],
+  "gpuErrorSample": [
+    "[bw][GPU-ERROR] GPUValidationError: Texture format TextureFormat::RG11B10Ufloat does not support storage texture access StorageTextureAccess::ReadWrite.\n - While validating entries[1]\n - While validating [BindGroupLayoutDescriptor]\n - While calling [Device].CreateBindGroupLayout([BindGroupLayoutDescriptor]).\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid BindGroupLayout (unlabeled)] is invalid due to a previous error.\n - While calling [Device].CreatePipelineLayout([PipelineLayoutDescriptor]).\n"
+  ]
+}

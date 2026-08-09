@@ -88,7 +88,16 @@
               adapter.features.forEach(function (f) { requiredFeatures.push(f); });
             }
           } catch (e) {}
-          var device = await adapter.requestDevice({ requiredFeatures: requiredFeatures });
+          // Request only the two adapter-supported ceilings EEVEE needs. Omitting every
+          // other key preserves the browser defaults for all unrelated device limits.
+          var requiredLimits = {
+            maxStorageTexturesPerShaderStage: adapter.limits.maxStorageTexturesPerShaderStage,
+            maxStorageBuffersPerShaderStage: adapter.limits.maxStorageBuffersPerShaderStage,
+          };
+          var device = await adapter.requestDevice({
+            requiredFeatures: requiredFeatures,
+            requiredLimits: requiredLimits,
+          });
           // VISIBILITY (M4.T18, r21): route the WM-worker device's uncaptured
           // validation/OOM errors to the PAGE console. This worker owns all GPU work, but
           // its console.error is NOT proxied to the tab — only log() (Emscripten err() ->
@@ -111,7 +120,13 @@
           catch (e) {}
           Module["preinitializedWebGPUDevice"] = device;
           log("[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=" +
-              requiredFeatures.length);
+              requiredFeatures.length +
+              " tier1=" + requiredFeatures.includes("texture-formats-tier1") +
+              " tier2=" + requiredFeatures.includes("texture-formats-tier2") +
+              " maxStorageTexturesPerShaderStage=" +
+              requiredLimits.maxStorageTexturesPerShaderStage +
+              " maxStorageBuffersPerShaderStage=" +
+              requiredLimits.maxStorageBuffersPerShaderStage);
         }
         catch (ex) {
           log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));

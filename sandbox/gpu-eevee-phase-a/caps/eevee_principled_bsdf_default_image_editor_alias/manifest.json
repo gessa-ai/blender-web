@@ -1,0 +1,32 @@
+{
+  "mode": "boot",
+  "hostBlend": "upstream/tests/files/render/principled_bsdf/principled_bsdf_default.blend",
+  "engine": "BLENDER_EEVEE",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 121065
+  },
+  "sentinel": "OK BLENDER_EEVEE",
+  "pageCrashed": false,
+  "gpuErrorCount": 2,
+  "kicks": 0,
+  "dones": 0,
+  "caps": [],
+  "marks": [],
+  "operatorPng": {
+    "name": "m6_bridge.png",
+    "len": 678
+  },
+  "deviceReceipts": [
+    "[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22 tier1=true tier2=true maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10"
+  ],
+  "doneLines": [],
+  "gpuErrorSample": [
+    "[bw][GPU-ERROR] GPUValidationError: Writable storage texture binding aliasing found between [BindGroup (unlabeled)] set at bind group index 0, binding index 2, and [BindGroup (unlabeled)] set at bind group index 0, binding index 3, with subresources (base mipmap level: 7, mip level count: 1, base array layer: 0, array layer count: 1) and (base mipmap level: 7, mip level count: 1, base array layer: 0, array layer count: 1) in [Texture (unlabeled 128x128 px, TextureFormat::RGBA16Float)].\n - While encoding [ComputePassEncoder (unlabeled)].DispatchWorkgroups(1, 1, 1).\n - While finishing [CommandEncoder (unlabeled)].\n",
+    "[bw][GPU-ERROR] GPUValidationError: [Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])\n"
+  ]
+}

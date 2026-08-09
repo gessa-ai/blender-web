@@ -1,0 +1,43 @@
+d2592af0a64a3498c2479ab215ffce608febfd6c
+b45c633817d2e8dcfb70150aea74dea36baba1cd0af5267ced0cd4811c128634  upstream/intern/ghost/intern/GHOST_ContextWGPU.cc
+479f006bf5831e4bab038a793125976d9cd237750c8511a842d90b07dbfd81d1  upstream/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+94774ab76db5880dfaf211d55b68cfae93036772a2764d9a1a46cc70b8b31c55  upstream/source/blender/gpu/webgpu/wgpu_shader.cc
+611ef24b32afc9f1d60a8e6a5adb53d441fbc2ce5ebd26ed1e96cada5c805c27  patches/0136-gpu-webgpu-eevee-storage-phase-a.patch
+b0d7bbff97a0ea5f04e01c89c2da51d399ff4f89a668815fc1f943dac291aece  platform_web/shell/wgpu-preinit-worker.js
+diff --git a/platform_web/shell/wgpu-preinit-worker.js b/platform_web/shell/wgpu-preinit-worker.js
+index de67834..dba88fd 100644
+--- a/platform_web/shell/wgpu-preinit-worker.js
++++ b/platform_web/shell/wgpu-preinit-worker.js
+@@ -88,7 +88,16 @@
+               adapter.features.forEach(function (f) { requiredFeatures.push(f); });
+             }
+           } catch (e) {}
+-          var device = await adapter.requestDevice({ requiredFeatures: requiredFeatures });
++          // Request only the two adapter-supported ceilings EEVEE needs. Omitting every
++          // other key preserves the browser defaults for all unrelated device limits.
++          var requiredLimits = {
++            maxStorageTexturesPerShaderStage: adapter.limits.maxStorageTexturesPerShaderStage,
++            maxStorageBuffersPerShaderStage: adapter.limits.maxStorageBuffersPerShaderStage,
++          };
++          var device = await adapter.requestDevice({
++            requiredFeatures: requiredFeatures,
++            requiredLimits: requiredLimits,
++          });
+           // VISIBILITY (M4.T18, r21): route the WM-worker device's uncaptured
+           // validation/OOM errors to the PAGE console. This worker owns all GPU work, but
+           // its console.error is NOT proxied to the tab — only log() (Emscripten err() ->
+@@ -111,7 +120,13 @@
+           catch (e) {}
+           Module["preinitializedWebGPUDevice"] = device;
+           log("[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=" +
+-              requiredFeatures.length);
++              requiredFeatures.length +
++              " tier1=" + requiredFeatures.includes("texture-formats-tier1") +
++              " tier2=" + requiredFeatures.includes("texture-formats-tier2") +
++              " maxStorageTexturesPerShaderStage=" +
++              requiredLimits.maxStorageTexturesPerShaderStage +
++              " maxStorageBuffersPerShaderStage=" +
++              requiredLimits.maxStorageBuffersPerShaderStage);
+         }
+         catch (ex) {
+           log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));

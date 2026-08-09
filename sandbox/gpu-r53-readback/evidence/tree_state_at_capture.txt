@@ -1,0 +1,16 @@
+=== r53 L-A capture-time tree state ===
+UTC: 2026-08-09T11:13:01Z
+branch: agent/m2.5-python-boot
+HEAD:
+4f57c84 driver: r46 verified - 6v7 was the unpopulated ssbo_attr_mask; count errors dead; three residuals mapped, r52/r53 out
+938ee0b fix(gpu-webgpu): populate ssbo_attr_mask_ so the geometry index-buffer SSBO binds (M4 r46 bindgroup-6v7)
+aceb777 driver: r50 verified - P2#6 falsified (input never gated composite); real item is shader-compile boot latency
+upstream dirty files: 50
+binaries at capture:
+  build-native-gpu/bin/tests/blender_test Aug 9 07:01:50 2026
+  build-wasm-windowed-opt/bin/blender_browser.wasm Aug 9 07:12:00 2026
+concurrent lanes (recent webgpu mtimes):
+  upstream/source/blender/gpu/webgpu/wgpu_immediate.cc Aug 9 07:10:21 2026
+  upstream/source/blender/gpu/webgpu/wgpu_shader_cache.cc Aug 9 07:10:11 2026
+  upstream/source/blender/gpu/webgpu/wgpu_texture.cc Aug 9 07:08:29 2026
+  upstream/source/blender/gpu/webgpu/wgpu_readback.cc Aug 9 07:08:29 2026

@@ -1,0 +1,19 @@
+[c.error] Failed to load resource: the server responded with a status of 404 (File not found)
+[c.error] /Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[c.error] [bw] WM-worker WebGPU device pre-acquired (ADR-007); features=23
+[c.log] [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 283.8 ms
+[c.log] WGPUWeb: presentBackbuffer frame 0 — surface 1280x720 -> canvas (offscreen blit)
+[c.error] Unable to find the Python binary, the multiprocessing module may not be functional!
+[c.log] WGPUWeb: presentBackbuffer frame 1 — surface 1280x720 -> canvas (offscreen blit)
+[c.error] [r53] offscreen created
+[c.error] [r53] PHASE0 first read (kick, expect zeros)
+[c.error] [r53] read0 n=16384 max=0 nonzero=0 sample=[0, 0, 0, 0, 0, 0, 0, 0]
+[c.error] [r53] PHASE1 second read (fill-late, expect nonzero)
+[c.error] [r53] read1 n=16384 max=255 nonzero=16384 sample=[51, 153, 229, 255, 51, 153, 229, 255]
+[c.error] [r53] PHASE2 third read (steady, expect nonzero)
+[c.error] [r53] read2 n=16384 max=255 nonzero=16384 sample=[51, 153, 229, 255, 51, 153, 229, 255]
+[c.error] [r53] DONE
+[pull] /tmp/r53_read0.bin -> /Users/paws/blender-web/sandbox/gpu-r53-readback/evidence/r53_read0.bin (16384 bytes)
+[pull] /tmp/r53_read1.bin -> /Users/paws/blender-web/sandbox/gpu-r53-readback/evidence/r53_read1.bin (16384 bytes)
+[pull] /tmp/r53_read2.bin -> /Users/paws/blender-web/sandbox/gpu-r53-readback/evidence/r53_read2.bin (16384 bytes)
+[cdp] composite saved

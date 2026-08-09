@@ -1,0 +1,825 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index 14215ce..0838c81 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -496,12 +496,14 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_pipeline.cc
+     webgpu/wgpu_immediate.cc
+     webgpu/wgpu_diag_readback.cc
++    webgpu/wgpu_readback.cc
+ 
+     webgpu/wgpu_backend.hh
+     webgpu/wgpu_buffer.hh
+     webgpu/wgpu_common.hh
+     webgpu/wgpu_context.hh
+     webgpu/wgpu_diag_readback.hh
++    webgpu/wgpu_readback.hh
+     webgpu/wgpu_index_buffer.hh
+     webgpu/wgpu_storage_buffer.hh
+     webgpu/wgpu_uniform_buffer.hh
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index a6eb49a..dd35c4e 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -16,6 +16,8 @@
+ 
+ #include "wgpu_buffer.hh"
+ 
++#include "wgpu_readback.hh"
++
+ #include <cstring>
+ 
+ namespace blender::gpu::webgpu {
+@@ -143,6 +145,31 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+   if (offset + copy > size_) {
+     return out;
+   }
++#ifdef __EMSCRIPTEN__
++  /* Windowed WM-worker profile (ADR-006/007): the blocking WaitAny below cannot resolve a
++   * map future here and is compiled out. Route through the production kick/latch/settle
++   * registry (wgpu_readback): return the latched bytes when a prior kick for THIS buffer
++   * region has settled (the C1 object-pick StorageBuffer path), else kick a HEAP-OWNED
++   * readback and return empty (the conservative first-call interim, matching today's
++   * "unmapped -> empty" behaviour that leaves the caller's destination zeroed). Keyed by
++   * the raw buffer handle, which the record pins so its address cannot be reused while a
++   * result is live. Closes the stale-stack `[&]` callback hazard on this seam too. */
++  {
++    const readback::SourceKey key{
++        readback::SourceKind::Buffer,
++        static_cast<const void *>(handle_.Get()),
++        uint64_t(offset),
++        uint64_t(size)};
++    out.resize(size);
++    const bool hit = readback::take_settled(key, out.data(), size);
++    readback::kick_buffer(device, queue, handle_, key, offset, copy, size);
++    if (!hit) {
++      out.clear();
++    }
++    (void)instance;
++    return out;
++  }
++#else
+   wgpu::BufferDescriptor sd = {};
+   sd.size = copy;
+   sd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
+@@ -170,6 +197,7 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+     staging.Unmap();
+   }
+   return out;
++#endif /* __EMSCRIPTEN__ */
+ }
+ 
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+new file mode 100644
+index 0000000..702518f
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -0,0 +1,470 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * New for the web port (no upstream equivalent). */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Production GPU readback registry (M5 lane L-A). See wgpu_readback.hh for the contract.
++ *
++ * This translation unit owns the single static registry used by the port's single device.
++ * Both backend seams
++ * (`WGPUTexture::read`, `webgpu::Buffer::read`) share: a map of in-flight KICKS keyed by
++ * ticket, and a map of LATCHED results keyed by source. Every kick is heap-owned; the map
++ * completion callback captures ONLY a plain integer ticket, so it can fire spontaneously
++ * on a later WM-loop tick without ever touching a freed caller stack - the exact hazard
++ * the WaitAnyOnly `[&]` lambdas had (design note section 4, M5.readback-callback-lifetime).
++ *
++ * Everything of substance is `__EMSCRIPTEN__`-scoped. On native Dawn the blocking WaitAny
++ * works, `read()` keeps its verbatim synchronous path, and this file compiles to the
++ * inline stubs in the header. */
++
++#include "wgpu_readback.hh"
++
++#ifdef __EMSCRIPTEN__
++
++#  include <algorithm>
++#  include <cstdio>
++#  include <cstdlib>
++#  include <cstring>
++#  include <deque>
++#  include <memory>
++#  include <unordered_map>
++#  include <vector>
++
++/* Raw fd-2 stderr: the only reliable web console channel (notes/m5-windowed-replay.md). */
++#  include <unistd.h>
++
++namespace blender::gpu::webgpu::readback {
++
++namespace {
++
++/* Upper bound on kicks whose map completion has not fired yet. Each in-flight kick pins a
++ * staging buffer; capping the count bounds device memory without ever evicting (and thus
++ * destroying) a staging buffer that a pending map still references. When the cap is hit a
++ * new kick is skipped (the caller sees the conservative interim). Generous: the M5 pick
++ * path issues a handful per settle, and a render OP a few dozen. */
++constexpr int kMaxInFlight = 64;
++
++/* Retention cap on LATCHED results. Settled records only hold host-side bytes (their
++ * staging buffer was released in the completion), so evicting them is always safe. Keyed
++ * by source, so a repeatedly-read source refreshes one slot rather than growing. */
++constexpr size_t kMaxSettled = 128;
++
++struct KeyHash {
++  size_t operator()(const SourceKey &k) const
++  {
++    size_t h = std::hash<const void *>{}(k.obj);
++    h ^= std::hash<uint64_t>{}(k.sub) + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
++    h ^= std::hash<uint64_t>{}(k.span) + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
++    h ^= size_t(k.kind) + 0x9e3779b9u + (h << 6) + (h >> 2);
++    return h;
++  }
++};
++struct KeyEq {
++  bool operator()(const SourceKey &a, const SourceKey &b) const
++  {
++    return a.kind == b.kind && a.obj == b.obj && a.sub == b.sub && a.span == b.span;
++  }
++};
++
++/* A kick in flight: owns its staging buffer until the map completion fires. `orphaned` is
++ * set by forget_source() when the backing object dies mid-flight; the completion then just
++ * frees the record instead of latching a result for a dead key. */
++struct Pending {
++  wgpu::Buffer staging;
++  wgpu::Buffer pin; /* for buffer reads: keeps the source address unique (see kick_buffer) */
++  SourceKey key;
++  uint32_t h = 0;
++  uint32_t z = 0;
++  uint32_t bytes_per_row = 0; /* 256-aligned staging pitch */
++  uint32_t row_bytes = 0;     /* tight pitch to keep */
++  size_t staging_size = 0;
++  size_t want = 0; /* buffer reads keep only the first `want` bytes */
++  bool is_buffer = false;
++  bool orphaned = false;
++};
++
++/* A latched result: tightly-packed device bytes, ready to be served by take_settled(). */
++struct Settled {
++  SourceKey key;
++  wgpu::Buffer pin; /* buffer reads pin the source so its raw-address key stays unique */
++  std::shared_ptr<const std::vector<uint8_t>> bytes;
++};
++
++/* Ticket-addressed results retain the exact immutable payload produced by that kick. A
++ * later kick for the same source may refresh g_settled, but can never change this ticket. */
++struct Completed {
++  SourceKey key;
++  std::shared_ptr<const std::vector<uint8_t>> bytes;
++};
++
++/* The single static registry for the port's single-device profile. Single-threaded (WM
++ * worker): every entry point and the map completion run on the same thread between
++ * main-loop ticks, so no locking is needed. */
++std::unordered_map<uint64_t, Pending> g_pending;
++std::unordered_map<SourceKey, Settled, KeyHash, KeyEq> g_settled;
++std::deque<SourceKey> g_settled_order; /* insertion order, for eviction */
++/* ticket -> its exact immutable payload, for the ticket-addressed consume the async GPU
++ * API (L-B) will build on. Bounded alongside the settled cap. */
++std::unordered_map<uint64_t, Completed> g_completed;
++std::deque<uint64_t> g_completed_order;
++uint64_t g_next_ticket = 1;
++
++/* Optional verification sink: when BW_READBACK_CAPTURE is set, each latched result is also
++ * written to /tmp/bw_prod_readback_<seq>.bin with the same 8-word BWRB header the diag
++ * bridge uses, so a probe can pull it via FS.readFile and confirm true non-zero device
++ * bytes flowed through the production seam. OFF by default (no file I/O in production). */
++int g_capture_state = -1; /* -1 unknown, 0 off, 1 on */
++int g_capture_seq = 0;
++
++bool capture_enabled()
++{
++  if (g_capture_state < 0) {
++    g_capture_state = (std::getenv("BW_READBACK_CAPTURE") != nullptr) ? 1 : 0;
++  }
++  return g_capture_state == 1;
++}
++
++void stderr_line(const char *s)
++{
++  ssize_t rc = ::write(2, s, std::strlen(s));
++  (void)rc;
++}
++
++void capture_to_file(const SourceKey &key,
++                     const uint8_t *bytes,
++                     size_t n,
++                     uint32_t w,
++                     uint32_t h)
++{
++  const int seq = g_capture_seq++;
++  char path[96];
++  std::snprintf(path, sizeof(path), "/tmp/bw_prod_readback_%d.bin", seq);
++  uint32_t hdr[8];
++  std::memcpy(&hdr[0], "BWRB", 4);
++  hdr[1] = 1u; /* version */
++  hdr[2] = w;
++  hdr[3] = h;
++  hdr[4] = uint32_t(key.kind);
++  hdr[5] = 0u;
++  hdr[6] = (h > 0) ? uint32_t(n / h) : uint32_t(n); /* tight row pitch */
++  hdr[7] = uint32_t(n);
++  if (FILE *f = std::fopen(path, "wb")) {
++    std::fwrite(hdr, 1, sizeof(hdr), f);
++    std::fwrite(bytes, 1, n, f);
++    std::fclose(f);
++  }
++  char line[160];
++  std::snprintf(line,
++                sizeof(line),
++                "BW_PROD_READBACK seq=%d kind=%u obj=%p w=%u h=%u bytes=%zu file=%s\n",
++                seq,
++                uint32_t(key.kind),
++                key.obj,
++                w,
++                h,
++                n,
++                path);
++  stderr_line(line);
++}
++
++void evict_settled_if_needed()
++{
++  while (g_settled_order.size() > kMaxSettled) {
++    const SourceKey k = g_settled_order.front();
++    g_settled_order.pop_front();
++    g_settled.erase(k);
++  }
++}
++
++/* Latch tightly-packed `bytes` under `key`, replacing any prior result for that key. */
++std::shared_ptr<const std::vector<uint8_t>> store_settled(const SourceKey &key,
++                                                         std::vector<uint8_t> &&bytes,
++                                                         wgpu::Buffer pin)
++{
++  auto it = g_settled.find(key);
++  if (it == g_settled.end()) {
++    g_settled_order.push_back(key);
++  }
++  Settled &s = g_settled[key];
++  s.key = key;
++  s.pin = pin;
++  s.bytes = std::make_shared<const std::vector<uint8_t>>(std::move(bytes));
++  evict_settled_if_needed();
++  return s.bytes;
++}
++
++Ticket pending_ticket(const SourceKey &key)
++{
++  for (const auto &item : g_pending) {
++    if (!item.second.orphaned && KeyEq{}(item.second.key, key)) {
++      return item.first;
++    }
++  }
++  return kInvalidTicket;
++}
++
++/* The map completion. Runs on the WM worker's own loop between ticks (AllowSpontaneous).
++ * Captured state is the plain integer `ticket` only - never a caller stack reference. */
++void on_map_complete(uint64_t ticket, wgpu::MapAsyncStatus status)
++{
++  auto it = g_pending.find(ticket);
++  if (it == g_pending.end()) {
++    return; /* already forgotten/evicted; nothing owns this ticket */
++  }
++  Pending p = std::move(it->second);
++  g_pending.erase(it);
++
++  if (p.orphaned || status != wgpu::MapAsyncStatus::Success) {
++    return; /* source died mid-flight, or the map failed: drop it (staging frees with p) */
++  }
++
++  const uint8_t *mapped =
++      static_cast<const uint8_t *>(p.staging.GetConstMappedRange(0, p.staging_size));
++  if (mapped == nullptr) {
++    p.staging.Unmap();
++    return;
++  }
++
++  std::vector<uint8_t> tight;
++  uint32_t rep_w = 0, rep_h = 0;
++  if (p.is_buffer) {
++    tight.assign(mapped, mapped + std::min<size_t>(p.want, p.staging_size));
++    rep_w = uint32_t(tight.size());
++    rep_h = 1;
++  }
++  else {
++    const uint32_t layers = std::max<uint32_t>(p.z, 1u);
++    tight.resize(size_t(p.row_bytes) * p.h * layers);
++    uint8_t *out = tight.data();
++    for (uint32_t zz = 0; zz < layers; zz++) {
++      for (uint32_t y = 0; y < p.h; y++) {
++        const uint8_t *row = mapped + (size_t(zz) * p.h + y) * p.bytes_per_row;
++        std::memcpy(out, row, p.row_bytes);
++        out += p.row_bytes;
++      }
++    }
++    rep_w = p.row_bytes;
++    rep_h = p.h * layers;
++  }
++  p.staging.Unmap();
++
++  if (capture_enabled()) {
++    capture_to_file(p.key, tight.data(), tight.size(), rep_w, rep_h);
++  }
++  std::shared_ptr<const std::vector<uint8_t>> exact =
++      store_settled(p.key, std::move(tight), p.pin);
++
++  g_completed[ticket] = Completed{p.key, std::move(exact)};
++  g_completed_order.push_back(ticket);
++  while (g_completed_order.size() > kMaxSettled) {
++    g_completed.erase(g_completed_order.front());
++    g_completed_order.pop_front();
++  }
++}
++
++}  // namespace
++
++Ticket kick_texture(const wgpu::Device &device,
++                    const wgpu::Queue &queue,
++                    const wgpu::Texture &tex,
++                    SourceKey key,
++                    uint32_t ex,
++                    uint32_t ey,
++                    uint32_t ez,
++                    uint32_t texel_bytes,
++                    uint32_t bytes_per_row,
++                    uint32_t row_bytes,
++                    bool depth_only)
++{
++  if (device == nullptr || tex == nullptr) {
++    return kInvalidTicket;
++  }
++  if (const Ticket existing = pending_ticket(key); existing != kInvalidTicket) {
++    return existing;
++  }
++  if (int(g_pending.size()) >= kMaxInFlight) {
++    return kInvalidTicket;
++  }
++  const size_t staging_size = size_t(bytes_per_row) * ey * std::max<uint32_t>(ez, 1u);
++  if (staging_size == 0) {
++    return kInvalidTicket;
++  }
++
++  wgpu::BufferDescriptor bd = {};
++  bd.size = staging_size;
++  bd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
++  wgpu::Buffer staging = device.CreateBuffer(&bd);
++  if (staging == nullptr) {
++    return kInvalidTicket;
++  }
++
++  wgpu::TexelCopyTextureInfo src = {};
++  src.texture = tex;
++  src.mipLevel = uint32_t(key.sub);
++  src.origin = {0, 0, 0};
++  src.aspect = depth_only ? wgpu::TextureAspect::DepthOnly : wgpu::TextureAspect::All;
++
++  wgpu::TexelCopyBufferInfo dst = {};
++  dst.buffer = staging;
++  dst.layout.offset = 0;
++  dst.layout.bytesPerRow = bytes_per_row;
++  dst.layout.rowsPerImage = ey;
++
++  wgpu::Extent3D copy_size = {ex, ey, std::max<uint32_t>(ez, 1u)};
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyTextureToBuffer(&src, &dst, &copy_size);
++  wgpu::CommandBuffer cb = enc.Finish();
++  queue.Submit(1, &cb);
++
++  const uint64_t ticket = g_next_ticket++;
++  Pending &p = g_pending[ticket];
++  p.staging = staging;
++  p.key = key;
++  p.h = ey;
++  p.z = ez;
++  p.bytes_per_row = bytes_per_row;
++  p.row_bytes = row_bytes;
++  p.staging_size = staging_size;
++  p.is_buffer = false;
++
++  staging.MapAsync(wgpu::MapMode::Read,
++                   0,
++                   staging_size,
++                   wgpu::CallbackMode::AllowSpontaneous,
++                   [ticket](wgpu::MapAsyncStatus s, wgpu::StringView) {
++                     on_map_complete(ticket, s);
++                   });
++  (void)texel_bytes;
++  return ticket;
++}
++
++Ticket kick_buffer(const wgpu::Device &device,
++                   const wgpu::Queue &queue,
++                   const wgpu::Buffer &handle,
++                   SourceKey key,
++                   uint64_t offset,
++                   uint64_t copy,
++                   uint64_t want)
++{
++  if (device == nullptr || handle == nullptr || copy == 0) {
++    return kInvalidTicket;
++  }
++  if (const Ticket existing = pending_ticket(key); existing != kInvalidTicket) {
++    return existing;
++  }
++  if (int(g_pending.size()) >= kMaxInFlight) {
++    return kInvalidTicket;
++  }
++
++  wgpu::BufferDescriptor sd = {};
++  sd.size = copy;
++  sd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
++  wgpu::Buffer staging = device.CreateBuffer(&sd);
++  if (staging == nullptr) {
++    return kInvalidTicket;
++  }
++
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyBufferToBuffer(handle, offset, staging, 0, copy);
++  wgpu::CommandBuffer cb = enc.Finish();
++  queue.Submit(1, &cb);
++
++  const uint64_t ticket = g_next_ticket++;
++  Pending &p = g_pending[ticket];
++  p.staging = staging;
++  p.pin = handle; /* keep the source buffer's raw address unique while a result is live */
++  p.key = key;
++  p.staging_size = size_t(copy);
++  p.want = size_t(std::min<uint64_t>(want, copy));
++  p.is_buffer = true;
++
++  staging.MapAsync(wgpu::MapMode::Read,
++                   0,
++                   copy,
++                   wgpu::CallbackMode::AllowSpontaneous,
++                   [ticket](wgpu::MapAsyncStatus s, wgpu::StringView) {
++                     on_map_complete(ticket, s);
++                   });
++  return ticket;
++}
++
++bool take_settled(SourceKey key, void *dst, size_t dst_len)
++{
++  if (dst == nullptr || dst_len == 0) {
++    return false;
++  }
++  auto it = g_settled.find(key);
++  if (it == g_settled.end() || it->second.bytes == nullptr ||
++      it->second.bytes->size() != dst_len)
++  {
++    return false;
++  }
++  std::memcpy(dst, it->second.bytes->data(), dst_len);
++  return true;
++}
++
++bool is_ready(Ticket ticket)
++{
++  /* Ready == a result latched for this ticket. A kick that failed/orphaned leaves neither
++   * a pending nor a completed entry; a settle barrier bounds itself by frame budget rather
++   * than waiting on such a ticket forever. */
++  return g_completed.find(ticket) != g_completed.end();
++}
++
++size_t consume_ticket(Ticket ticket, void *dst, size_t dst_len)
++{
++  auto it = g_completed.find(ticket);
++  if (it == g_completed.end() || dst == nullptr || dst_len == 0) {
++    return 0;
++  }
++  if (it->second.bytes == nullptr) {
++    return 0;
++  }
++  const size_t n = std::min(dst_len, it->second.bytes->size());
++  std::memcpy(dst, it->second.bytes->data(), n);
++  return n;
++}
++
++int pending_count()
++{
++  return int(g_pending.size());
++}
++
++void pump()
++{
++  evict_settled_if_needed();
++}
++
++void forget_source(SourceKind kind, const void *obj)
++{
++  for (auto &kv : g_pending) {
++    if (kv.second.key.kind == kind && kv.second.key.obj == obj) {
++      kv.second.orphaned = true;
++    }
++  }
++  for (auto it = g_settled_order.begin(); it != g_settled_order.end();) {
++    if (it->kind == kind && it->obj == obj) {
++      g_settled.erase(*it);
++      it = g_settled_order.erase(it);
++    }
++    else {
++      ++it;
++    }
++  }
++  for (auto it = g_completed.begin(); it != g_completed.end();) {
++    if (it->second.key.kind == kind && it->second.key.obj == obj) {
++      it = g_completed.erase(it);
++    }
++    else {
++      ++it;
++    }
++  }
++}
++
++}  // namespace blender::gpu::webgpu::readback
++
++#endif /* __EMSCRIPTEN__ */
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
+new file mode 100644
+index 0000000..c25cedb
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_readback.hh
+@@ -0,0 +1,181 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * New for the web port (no upstream equivalent). */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Production GPU readback primitive (M5 lane L-A) - the caller-facing "kick on request,
++ * latch on tick, consume on settle" contract adopted in
++ * notes/m5-sync-readback-contract-design.md.
++ *
++ * WHY THIS EXISTS. In the windowed WM-worker profile a WebGPU map future cannot be
++ * waited on synchronously: `instance.WaitAny` needs asyncify/JSPI (dropped per ADR-006)
++ * and a same-thread blocking wait halts the very event loop that would deliver the map
++ * completion (ADR-007). So the historic `WGPUTexture::read` / `webgpu::Buffer::read`
++ * path (a `MapAsync(WaitAnyOnly)` + `WaitAny(f, UINT64_MAX)`) returns all-zero buffers
++ * on the web. Worse, its completion lambda captured the caller's stack BY REFERENCE and
++ * could fire spontaneously AFTER `read()` returned - a dangling write through a reused
++ * wasm function-table slot, the suspected `table index is out of bounds` crash after
++ * back-to-back snapshot ops (r25). See the design note section 4 (M5.readback-callback-
++ * lifetime).
++ *
++ * The proven lever (patches 0117/0125, twice) is `CallbackMode::AllowSpontaneous`: the
++ * map completion fires on the WM worker's own event loop BETWEEN main-loop ticks with no
++ * `ProcessEvents` dependency, provided the C++ stack has returned to the browser loop.
++ * This module promotes that lever to production quality behind ONE registry shared by
++ * both backend seams:
++ *
++ *   KICK    - a request submits the copy + `MapAsync(AllowSpontaneous)` and registers a
++ *             HEAP-OWNED pending record (the staging buffer lives in the record, never on
++ *             the caller stack). The callback captures only a plain integer ticket, so it
++ *             can never dangle.
++ *   LATCH   - when the map resolves (a later tick) the callback strips row padding into a
++ *             per-source settled record, keyed so a later read of the SAME source finds it.
++ *   CONSUME - `take_settled()` returns the latched device bytes when present. The two
++ *             `read()` seams use it for the design's "return the latched bytes when
++ *             settled; on first-call-unsettled return the conservative interim (zeros)"
++ *             contract (kick-now, fill-one-tick-late).
++ *
++ * NATIVE PATH IS UNTOUCHED. Everything here is `__EMSCRIPTEN__`-scoped: on native Dawn the
++ * blocking `WaitAny` works, so `read()` keeps its verbatim synchronous path and never
++ * calls into this module (`pending_count()` stays 0, the API compiles to trivial stubs).
++ *
++ * POLL / SETTLE for later lanes. `pending_count()` and `pump()` are the internal hooks a
++ * WM-loop "settle barrier" (L-C `wait_for_gpu_idle`) drives: advance ticks (returning to
++ * the loop so AllowSpontaneous can fire) until `pending_count()` reaches zero or a bounded
++ * frame budget is hit. The PUBLIC `GPU_*_read_async` API is deliberately NOT here - that
++ * is lane L-B (upstream-shared gpu/intern). This lane ships only the backend mechanics. */
++
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++
++#ifdef __EMSCRIPTEN__
++#  include "webgpu/webgpu_cpp.h"
++#endif
++
++namespace blender::gpu::webgpu {
++class WGPUTexture;
++}
++
++namespace blender::gpu::webgpu::readback {
++
++/** A readback ticket. 0 is never a valid ticket. Returned by the kick entry points and
++ * accepted by the poll/consume entry points; the later async GPU API (L-B) will surface
++ * these to callers. */
++using Ticket = uint64_t;
++constexpr Ticket kInvalidTicket = 0;
++
++/** Which backend seam a source key belongs to (a texture handle or a buffer handle can
++ * share a raw address across kinds, so the kind is part of the identity). */
++enum class SourceKind : uint8_t {
++  Texture = 0,
++  Buffer = 1,
++};
++
++/** Stable identity of a readback source, used both to de-duplicate in-flight kicks and to
++ * serve a settled result on a later read of the same source. `obj` is the wrapper/handle
++ * pointer (see the two seams for exactly which), `sub` disambiguates mip (texture) or
++ * byte offset (buffer), and `span` disambiguates differently-sized reads of one buffer
++ * region. */
++struct SourceKey {
++  SourceKind kind = SourceKind::Texture;
++  const void *obj = nullptr;
++  uint64_t sub = 0;
++  uint64_t span = 0;
++};
++
++#ifdef __EMSCRIPTEN__
++
++/** KICK a texture readback: submit `CopyTextureToBuffer` of mip `key.sub` into a fresh
++ * MapRead staging buffer, then `MapAsync(AllowSpontaneous)` and RETURN. The completion
++ * (a later tick) strips the 256-byte row padding to a tight `row_bytes` pitch and latches
++ * the device bytes under `key`. Heap-owned throughout; nothing is captured from the
++ * caller stack. An identical in-flight key returns its existing ticket. Otherwise returns
++ * a new ticket, or kInvalidTicket if the kick could not be issued (no context, staging
++ * alloc failed, or the in-flight cap was hit). `depth_only` selects the depth aspect for
++ * depth textures. */
++Ticket kick_texture(const wgpu::Device &device,
++                    const wgpu::Queue &queue,
++                    const wgpu::Texture &tex,
++                    SourceKey key,
++                    uint32_t ex,
++                    uint32_t ey,
++                    uint32_t ez,
++                    uint32_t texel_bytes,
++                    uint32_t bytes_per_row,
++                    uint32_t row_bytes,
++                    bool depth_only);
++
++/** KICK a buffer readback: `CopyBufferToBuffer(handle, offset, staging, 0, copy)` +
++ * `MapAsync(AllowSpontaneous)`. `want` (<= copy) bytes are latched under `key` when the
++ * map resolves. The underlying buffer handle is pinned in the record so its raw address
++ * cannot be reused while a result for it is live (no stale key hits). An identical
++ * in-flight key returns its existing ticket; otherwise returns a new ticket or
++ * kInvalidTicket. */
++Ticket kick_buffer(const wgpu::Device &device,
++                   const wgpu::Queue &queue,
++                   const wgpu::Buffer &handle,
++                   SourceKey key,
++                   uint64_t offset,
++                   uint64_t copy,
++                   uint64_t want);
++
++/** CONSUME the latched device bytes for `key`, if a settled record exists whose payload
++ * is exactly `dst_len` bytes. Copies into `dst` and returns true (the record is kept so
++ * repeated reads keep hitting until the source is forgotten or the slot is evicted).
++ * Returns false when nothing is settled for `key` (the caller then sees the conservative
++ * interim: zeros/empty). This is the "return the latched bytes when settled" half. */
++bool take_settled(SourceKey key, void *dst, size_t dst_len);
++
++/** True once the kick with this ticket has latched its result. */
++bool is_ready(Ticket ticket);
++
++/** Copy this exact ticket's immutable bytes into `dst` (up to `dst_len`) if ready; returns
++ * the number of bytes copied, or 0 if not ready / unknown ticket. A later kick for the same
++ * source cannot change this result. Ticket-addressed consume for the async GPU API (L-B). */
++size_t consume_ticket(Ticket ticket, void *dst, size_t dst_len);
++
++/** Number of kicks whose map completion has not fired yet. A settle barrier pumps ticks
++ * until this reaches 0 (or a bounded budget). */
++int pending_count();
++
++/** Per-tick maintenance hook a WM-loop settle barrier may call: evicts stale settled
++ * records beyond the retention cap. The AllowSpontaneous completions do NOT need this to
++ * fire (they ride the loop on their own); it is bookkeeping only. Safe to never call. */
++void pump();
++
++/** Drop every pending/settled record that references the exact (`kind`, `obj`) source.
++ * In-flight pending records are marked orphaned so their completion discards instead of
++ * latching a result for a dead key. Kind is required because texture-wrapper and buffer-
++ * handle addresses may coincide. Called when a texture is destroyed or re-adopted. */
++void forget_source(SourceKind kind, const void *obj);
++
++#else /* !__EMSCRIPTEN__ : native keeps the verbatim blocking read; this is all inert. */
++
++inline bool take_settled(SourceKey /*key*/, void * /*dst*/, size_t /*dst_len*/)
++{
++  return false;
++}
++inline bool is_ready(Ticket /*ticket*/)
++{
++  return false;
++}
++inline size_t consume_ticket(Ticket /*ticket*/, void * /*dst*/, size_t /*dst_len*/)
++{
++  return 0;
++}
++inline int pending_count()
++{
++  return 0;
++}
++inline void pump() {}
++inline void forget_source(SourceKind /*kind*/, const void * /*obj*/) {}
++
++#endif /* __EMSCRIPTEN__ */
++
++}  // namespace blender::gpu::webgpu::readback
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 02ecd2f..8684405 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -24,6 +24,7 @@
+ #include "wgpu_context.hh"
+ #include "wgpu_data_conversion.hh"
+ #include "wgpu_diag_readback.hh"
++#include "wgpu_readback.hh"
+ 
+ #include "GPU_context.hh"
+ #include "gpu_context_private.hh"
+@@ -601,6 +602,10 @@ static wgpu::TextureUsage to_wgpu_usage(eGPUTextureUsage usage,
+ 
+ WGPUTexture::~WGPUTexture()
+ {
++  /* Drop any readback records keyed on this wrapper so a freed-then-reallocated texture at
++   * the same address can never serve a stale latched result (wgpu_readback). No-op on
++   * native, where the registry is inert. */
++  readback::forget_source(readback::SourceKind::Texture, this);
+   texture_ = nullptr; /* wgpu::Texture is ref-counted; release the handle. */
+ }
+ 
+@@ -1069,5 +1074,9 @@ void WGPUTexture::adopt_external(const wgpu::Texture &texture,
+    * texture_/wgpu_format_ (attachment view + pipeline target format) and w_/h_
+    * (update_size); format_/format_flag_ are set to a plain colour so the depth
+    * branch in begin_load_pass never misfires. */
++  /* A surface wrapper is re-used for successive acquired textures. Purge the old logical
++   * source before replacing its handle so a same-sized new surface texture cannot consume
++   * bytes latched for the previous acquisition. */
++  readback::forget_source(readback::SourceKind::Texture, this);
+   texture_ = texture;
+   wgpu_format_ = wgpu_format;
+@@ -1232,11 +1241,47 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+    * are stripped after mapping. */
+   const uint32_t row_bytes = ex * texel_bytes;
+   const uint32_t bytes_per_row = uint32_t(align_up(row_bytes, 256));
+-  const size_t staging_size = size_t(bytes_per_row) * ey * ez;
+ 
++#ifdef __EMSCRIPTEN__
++  /* Windowed WM-worker profile (ADR-006/007): a synchronous map wait cannot resolve here,
++   * so route through the production kick/latch/settle registry (wgpu_readback) rather than
++   * the blocking WaitAny path below (which is compiled out on this profile). Contract per
++   * notes/m5-sync-readback-contract-design.md section 3.1: return the latched device bytes
++   * when a prior kick for THIS texture+mip has settled (kick-now, fill-one-tick-late), else
++   * kick a fresh HEAP-OWNED readback and deterministically convert a zero-filled device
++   * buffer into `data` (the conservative first-call interim). The old
++   * `MapAsync(WaitAnyOnly)` + `WaitAny` lambda,
++   * which captured the caller stack by reference and could fire after read() returned, does
++   * not exist in the wasm binary, closing M5.readback-callback-lifetime (design section 4). */
++  {
++    const size_t sample_count = size_t(ex) * ey * ez;
++    std::vector<uint8_t> device_data(sample_count * texel_bytes);
++    const readback::SourceKey key{
++        readback::SourceKind::Texture, this, uint64_t(mip), uint64_t(device_data.size())};
++    readback::take_settled(key, device_data.data(), device_data.size());
++    const bool depth_only = (format_flag_ & GPU_FORMAT_DEPTH) != 0;
++    readback::kick_texture(ctx->device_get(),
++                           ctx->queue_get(),
++                           texture_,
++                           key,
++                           ex,
++                           ey,
++                           ez,
++                           texel_bytes,
++                           bytes_per_row,
++                           row_bytes,
++                           depth_only);
++    /* device_data is value-initialized, so a miss deterministically returns the documented
++     * conservative zero interim even when the caller did not pre-initialize `data`. */
++    convert_device_to_host(
++        static_cast<uint8_t *>(data), device_data.data(), sample_count, format);
++    return;
++  }
++#else
+   const wgpu::TextureAspect aspect = (format_flag_ & GPU_FORMAT_DEPTH) ?
+                                          wgpu::TextureAspect::DepthOnly :
+                                          wgpu::TextureAspect::All;
++  const size_t staging_size = size_t(bytes_per_row) * ey * ez;
+ 
+   wgpu::Device device = ctx->device_get();
+ 
+@@ -1298,6 +1343,7 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+   staging.Unmap();
+ 
+   convert_device_to_host(static_cast<uint8_t *>(data), device_data.data(), sample_count, format);
++#endif /* __EMSCRIPTEN__ */
+ }
+ 
+ /* -------------------------------------------------------------------- */

@@ -1,0 +1,41 @@
+{
+  "label": "landed",
+  "env_both": "",
+  "hold_ms": 24000,
+  "cold": {
+    "tag": "cold",
+    "wm_main_s": 0.528,
+    "frame0": "+3.028s",
+    "frame1": "+16.408s",
+    "timing_lines": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "verify_identical": 0,
+    "verify_mismatch": 0,
+    "m7": "[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 84.2 ms"
+  },
+  "warm": {
+    "tag": "warm",
+    "wm_main_s": 0.453,
+    "frame0": "+0.818s",
+    "frame1": "+2.946s",
+    "timing_lines": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "verify_identical": 0,
+    "verify_mismatch": 0,
+    "m7": "[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.5 ms"
+  },
+  "warm2": {
+    "tag": "warm2",
+    "wm_main_s": 0.438,
+    "frame0": "+0.790s",
+    "frame1": "+2.814s",
+    "timing_lines": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "verify_identical": 0,
+    "verify_mismatch": 0,
+    "m7": "[bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 18.6 ms"
+  }
+}

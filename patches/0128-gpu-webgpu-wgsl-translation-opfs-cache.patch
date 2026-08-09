@@ -1,0 +1,440 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index 5c2d21f..0838c81 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -487,6 +487,7 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_state_table.cc
+     webgpu/wgpu_shader_interface_map.cc
+     webgpu/wgpu_shader_compiler.cc
++    webgpu/wgpu_shader_cache.cc
+     webgpu/wgpu_shader.cc
+     webgpu/wgpu_batch.cc
+     webgpu/wgpu_texture.cc
+@@ -513,6 +514,7 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_state_table.hh
+     webgpu/wgpu_shader_interface_map.hh
+     webgpu/wgpu_shader_compiler.hh
++    webgpu/wgpu_shader_cache.hh
+     webgpu/wgpu_shader.hh
+     webgpu/wgpu_batch.hh
+     webgpu/wgpu_texture.hh
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.cc b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+new file mode 100644
+index 0000000..8ff8629
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+@@ -0,0 +1,253 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * Implements the WGSL translation cache declared in wgpu_shader_cache.hh. Plain
++ * synchronous stdio against the persistent OPFS mount; inert where absent. */
++
++#include "wgpu_shader_cache.hh"
++
++#include "wgpu_shader_compiler.hh"
++
++#include <cerrno>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string>
++
++#include <sys/stat.h>
++#include <unistd.h>
++
++namespace blender::gpu::webgpu {
++
++namespace {
++
++/* Cache directory under the persistent OPFS user-resources mount (M7 store). */
++constexpr const char *kCacheDir = "/projects/.shadercache";
++
++/* On-disk format tag. Folded into the key AND stored in the header. The concrete
++ * compiler pins are part of the salt so a dependency upgrade cannot reuse WGSL
++ * emitted by the previous toolchain. Bump the policy suffix when writer options
++ * or binding transforms change without a dependency-pin change. */
++constexpr const char *kSalt =
++    "BWSC-v2|shaderc-v2025.4|tint-dawn-36cf1fae|spv1.3-vk1.1|"
++    "tint-ir-wgsl|clipdist+dualsrc+nonunif+noopt";
++
++constexpr uint32_t kFormatVersion = 2u;
++constexpr char kMagic[4] = {'B', 'W', 'S', 'C'};
++constexpr uint32_t kMaxStageBytes = 16u * 1024u * 1024u;
++
++/* Two differently seeded 64-bit FNV-1a streams form the 128-bit content address.
++ * This is an accidental-collision guard, not a cryptographic hash. */
++struct Hash128 {
++  uint64_t a = 0xcbf29ce484222325ull;
++  uint64_t b = 0x84222325cbf29ce4ull;
++  void feed(const void *data, size_t n)
++  {
++    const unsigned char *p = static_cast<const unsigned char *>(data);
++    for (size_t i = 0; i < n; i++) {
++      a = (a ^ p[i]) * 0x100000001b3ull;
++      b = (b ^ p[i]) * 0x100000001b3ull;
++    }
++  }
++  void feed_str(const std::string &s)
++  {
++    const uint64_t len = s.size();
++    feed(&len, sizeof(len)); /* length-delimit so concatenations are unambiguous */
++    feed(s.data(), s.size());
++  }
++  void feed_u32(uint32_t v) { feed(&v, sizeof(v)); }
++  void feed_u64(uint64_t v) { feed(&v, sizeof(v)); }
++};
++
++std::string key_path(const ShaderCacheKey &key)
++{
++  char name[64];
++  std::snprintf(name, sizeof(name), "%s/%016llx%016llx.wgslc",
++                kCacheDir,
++                static_cast<unsigned long long>(key.hi),
++                static_cast<unsigned long long>(key.lo));
++  return std::string(name);
++}
++
++uint64_t salt_hash()
++{
++  Hash128 h;
++  h.feed(kSalt, std::strlen(kSalt));
++  h.feed_u32(kFormatVersion);
++  return h.a ^ h.b;
++}
++
++uint64_t payload_hash(const std::string &vertex_wgsl,
++                      const std::string &fragment_wgsl,
++                      const std::string &compute_wgsl)
++{
++  Hash128 h;
++  h.feed_str(vertex_wgsl);
++  h.feed_str(fragment_wgsl);
++  h.feed_str(compute_wgsl);
++  return h.a ^ ((h.b << 1) | (h.b >> 63));
++}
++
++/* Read the whole of an open file into `out`; false on short read / error. */
++bool read_exact(FILE *f, void *out, size_t n)
++{
++  return std::fread(out, 1, n, f) == n;
++}
++
++}  // namespace
++
++bool cache_available()
++{
++  static int state = -1; /* -1 unknown, 0 no, 1 yes */
++  if (state >= 0) {
++    return state == 1;
++  }
++  state = 0;
++  const char *flag = std::getenv("BW_SHADER_CACHE");
++  if (flag != nullptr && std::strcmp(flag, "0") == 0) {
++    return false; /* forced off (A/B baseline) */
++  }
++  /* Require the OPFS mount: /projects must exist and be writable. Absent on the
++   * native build, so the whole cache is inert there. */
++  if (::access("/projects", W_OK) != 0) {
++    return false;
++  }
++  if (::mkdir(kCacheDir, 0777) != 0 && errno != EEXIST) {
++    return false;
++  }
++  state = 1;
++  return true;
++}
++
++ShaderCacheKey cache_key(const ShaderStageSources &sources,
++                         bool optimize,
++                         uint32_t sampler_base,
++                         const std::vector<SamplerRemap> &sampler_mappings)
++{
++  Hash128 h;
++  h.feed(kSalt, std::strlen(kSalt));
++  h.feed_u32(kFormatVersion);
++  h.feed_str(sources.name);
++  h.feed_str(sources.vertex);
++  h.feed_str(sources.fragment);
++  h.feed_str(sources.compute);
++  h.feed_u32(optimize ? 1u : 0u);
++  h.feed_u32(sampler_base);
++  h.feed_u64(static_cast<uint64_t>(sampler_mappings.size()));
++  for (const SamplerRemap &m : sampler_mappings) {
++    h.feed_u32(m.from.group);
++    h.feed_u32(m.from.binding);
++    h.feed_u32(m.to.group);
++    h.feed_u32(m.to.binding);
++  }
++  return ShaderCacheKey{h.a, h.b};
++}
++
++bool cache_lookup(const ShaderCacheKey &key,
++                  std::string &vertex_wgsl,
++                  std::string &fragment_wgsl,
++                  std::string &compute_wgsl)
++{
++  if (!cache_available()) {
++    return false;
++  }
++  const std::string path = key_path(key);
++  FILE *f = std::fopen(path.c_str(), "rb");
++  if (f == nullptr) {
++    return false;
++  }
++  bool ok = false;
++  do {
++    char magic[4];
++    uint32_t fmt = 0;
++    uint64_t salt = 0;
++    uint32_t vlen = 0, flen = 0, clen = 0;
++    uint64_t expected_payload_hash = 0;
++    if (!read_exact(f, magic, sizeof(magic)) || std::memcmp(magic, kMagic, 4) != 0) {
++      break;
++    }
++    if (!read_exact(f, &fmt, sizeof(fmt)) || fmt != kFormatVersion) {
++      break;
++    }
++    if (!read_exact(f, &salt, sizeof(salt)) || salt != salt_hash()) {
++      break;
++    }
++    if (!read_exact(f, &vlen, sizeof(vlen)) || !read_exact(f, &flen, sizeof(flen)) ||
++        !read_exact(f, &clen, sizeof(clen)))
++    {
++      break;
++    }
++    if (vlen > kMaxStageBytes || flen > kMaxStageBytes || clen > kMaxStageBytes) {
++      break;
++    }
++    if (!read_exact(f, &expected_payload_hash, sizeof(expected_payload_hash))) {
++      break;
++    }
++    std::string v(vlen, '\0'), fr(flen, '\0'), c(clen, '\0');
++    if ((vlen && !read_exact(f, &v[0], vlen)) || (flen && !read_exact(f, &fr[0], flen)) ||
++        (clen && !read_exact(f, &c[0], clen)))
++    {
++      break;
++    }
++    if (payload_hash(v, fr, c) != expected_payload_hash) {
++      break;
++    }
++    vertex_wgsl = std::move(v);
++    fragment_wgsl = std::move(fr);
++    compute_wgsl = std::move(c);
++    ok = true;
++  } while (false);
++  std::fclose(f);
++  return ok;
++}
++
++void cache_store(const ShaderCacheKey &key,
++                 const std::string &vertex_wgsl,
++                 const std::string &fragment_wgsl,
++                 const std::string &compute_wgsl)
++{
++  if (!cache_available()) {
++    return;
++  }
++  /* Direct write (no temp+rename): WasmFS-OPFS rename support is not relied upon,
++   * and a torn write is self-healing - cache_lookup validates the header, bounded
++   * lengths, payload checksum, and every read, then treats any failure as a miss.
++   * compile_shader is serial on the single WM worker, so there is no intra-process
++   * concurrent access to the same key. */
++  const std::string final_path = key_path(key);
++  FILE *f = std::fopen(final_path.c_str(), "wb");
++  if (f == nullptr) {
++    return;
++  }
++  if (vertex_wgsl.size() > kMaxStageBytes || fragment_wgsl.size() > kMaxStageBytes ||
++      compute_wgsl.size() > kMaxStageBytes)
++  {
++    std::fclose(f);
++    std::remove(final_path.c_str());
++    return;
++  }
++  const uint64_t salt = salt_hash();
++  const uint32_t vlen = static_cast<uint32_t>(vertex_wgsl.size());
++  const uint32_t flen = static_cast<uint32_t>(fragment_wgsl.size());
++  const uint32_t clen = static_cast<uint32_t>(compute_wgsl.size());
++  const uint64_t stored_payload_hash = payload_hash(vertex_wgsl, fragment_wgsl, compute_wgsl);
++  bool ok = std::fwrite(kMagic, 1, sizeof(kMagic), f) == sizeof(kMagic) &&
++            std::fwrite(&kFormatVersion, 1, sizeof(kFormatVersion), f) == sizeof(kFormatVersion) &&
++            std::fwrite(&salt, 1, sizeof(salt), f) == sizeof(salt) &&
++            std::fwrite(&vlen, 1, sizeof(vlen), f) == sizeof(vlen) &&
++            std::fwrite(&flen, 1, sizeof(flen), f) == sizeof(flen) &&
++            std::fwrite(&clen, 1, sizeof(clen), f) == sizeof(clen) &&
++            std::fwrite(&stored_payload_hash, 1, sizeof(stored_payload_hash), f) ==
++                sizeof(stored_payload_hash) &&
++            (vlen == 0 || std::fwrite(vertex_wgsl.data(), 1, vlen, f) == vlen) &&
++            (flen == 0 || std::fwrite(fragment_wgsl.data(), 1, flen, f) == flen) &&
++            (clen == 0 || std::fwrite(compute_wgsl.data(), 1, clen, f) == clen);
++  std::fclose(f);
++  if (!ok) {
++    std::remove(final_path.c_str());
++  }
++}
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.hh b/source/blender/gpu/webgpu/wgpu_shader_cache.hh
+new file mode 100644
+index 0000000..1ae2513
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_shader_cache.hh
+@@ -0,0 +1,84 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * M4.T29 - WGSL translation cache (warm-boot shader latency).
++ *
++ * The web build runs the M3 shader chain (shaderc GLSL->SPIR-V, then Tint
++ * SPIR-V->WGSL) INLINE on the WM worker for the whole first-draw shader set,
++ * because `use_main_context_workaround=true` bypasses the async ShaderCompiler
++ * worker. Measured (notes/gpu-r51-shader-latency.md, Phase 1): that CPU
++ * translation is ~86% of the ~16 s boot compile block, and shaderc alone is
++ * ~81% - a pure-CPU, device-free cost that produces the exact same WGSL every
++ * boot for an unchanged shader.
++ *
++ * This cache mirrors the intent of the Vulkan backend's shader disk cache
++ * (notes/gpu-webgpu-architecture.md D-2: "mirror the .spv+sidecar disk cache
++ * onto OPFS ... for WGSL we cache the WGSL, since the browser device consumes
++ * WGSL"). On a warm boot we read the already-translated WGSL back and hand it
++ * straight to createShaderModule, skipping shaderc+Tint entirely. The browser's
++ * own shader/pipeline caches then handle repeats at ITS layer (WebGPU exposes no
++ * pipeline-binary serialization to JS, so we cache OUR CPU work, not GPU
++ * binaries).
++ *
++ * Storage: plain synchronous file I/O under the persistent OPFS mount at
++ * `/projects/.shadercache` (the M7 store proved synchronous WasmFS-OPFS I/O from
++ * the WM worker). The cache is INERT wherever that mount is absent (e.g. the
++ * native gpu build): `cache_available()` returns false and every entry point is
++ * a no-op, so cold behaviour is byte-for-byte unchanged.
++ *
++ * Key = 128-bit content address of {salt (exact pinned shaderc and Tint/Dawn
++ * revisions plus translation policy), name, per-stage GLSL (which already
++ * contains all #defines), optimize flag, sampler_base, sampler_mappings} -
++ * everything that determines the emitted WGSL. A source, define, resource, or
++ * toolchain change flips the key and misses. The file header also bounds stage
++ * lengths and checksums the WGSL payload, so accidental cache corruption misses
++ * and re-translates instead of reaching createShaderModule. */
++
++#pragma once
++
++#include <cstdint>
++#include <string>
++#include <vector>
++
++#include "wgpu_shader_interface_map.hh"
++
++namespace blender::gpu::webgpu {
++
++struct ShaderStageSources;  /* wgpu_shader_compiler.hh */
++
++/** Opaque 128-bit content key for a translated shader. */
++struct ShaderCacheKey {
++  uint64_t hi = 0;
++  uint64_t lo = 0;
++};
++
++/** True once, when the OPFS-backed cache directory is present/creatable. Cheap
++ * after the first call (memoised). False on any platform without the mount, in
++ * which case every other entry point is a no-op and the caller runs the full
++ * translation exactly as before. Honours `BW_SHADER_CACHE=0` to force-disable. */
++bool cache_available();
++
++/** Compute the content key from the translation inputs. */
++ShaderCacheKey cache_key(const ShaderStageSources &sources,
++                         bool optimize,
++                         uint32_t sampler_base,
++                         const std::vector<SamplerRemap> &sampler_mappings);
++
++/** Read a cached translation. On a hit, fills the three WGSL strings (empty for
++ * an absent stage, matching the fresh path) and returns true. On any miss /
++ * corruption / version-mismatch returns false and leaves the strings untouched. */
++bool cache_lookup(const ShaderCacheKey &key,
++                  std::string &vertex_wgsl,
++                  std::string &fragment_wgsl,
++                  std::string &compute_wgsl);
++
++/** Persist a freshly-translated shader. Best-effort: failures are swallowed (the
++ * next warm boot simply misses and re-translates). */
++void cache_store(const ShaderCacheKey &key,
++                 const std::string &vertex_wgsl,
++                 const std::string &fragment_wgsl,
++                 const std::string &compute_wgsl);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_compiler.cc b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+index 5ea0742..6e1cdaa 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_compiler.cc
+@@ -8,6 +8,8 @@
+ 
+ #include "wgpu_shader_compiler.hh"
+ 
++#include "wgpu_shader_cache.hh"
++
+ #include <sstream>
+ 
+ #include <shaderc/shaderc.hpp>
+@@ -114,7 +116,9 @@ CompileResult compile_shader(const ShaderStageSources &sources,
+ {
+   CompileResult out;
+ 
+-  /* 1. Interface map: binding numbers + sampler_mappings + BGL. */
++  /* 1. Interface map: binding numbers + sampler_mappings + BGL. Cheap and derived
++   * purely from `resources`, so it is rebuilt on every boot (warm and cold) - only
++   * the expensive shaderc+Tint translation is cached. */
+   out.interface = build_interface_map(resources, options.sampler_base);
+   if (!out.interface.ok) {
+     out.error = "interface map: " + out.interface.error;
+@@ -123,11 +127,6 @@ CompileResult compile_shader(const ShaderStageSources &sources,
+   const std::vector<SamplerRemap> &maps = out.interface.sampler_mappings;
+ 
+   /* 2+3. Compile + translate each present stage. */
+-  struct Stage {
+-    const std::string &glsl;
+-    int kind;
+-    std::string &wgsl_out;
+-  };
+   std::string err;
+   auto run_stage = [&](const std::string &glsl, int kind, std::string &wgsl_out) -> bool {
+     if (glsl.empty()) {
+@@ -141,12 +140,28 @@ CompileResult compile_shader(const ShaderStageSources &sources,
+     return translate_spirv_to_wgsl(spirv, maps, wgsl_out, err);
+   };
+ 
+-  if (!run_stage(sources.vertex, shaderc_vertex_shader, out.vertex_wgsl) ||
+-      !run_stage(sources.fragment, shaderc_fragment_shader, out.fragment_wgsl) ||
+-      !run_stage(sources.compute, shaderc_compute_shader, out.compute_wgsl))
+-  {
+-    out.error = err;
+-    return out;
++  /* WARM-BOOT CACHE (M4.T29): the emitted WGSL is a pure function of the per-stage
++   * GLSL (which already carries every #define) plus the translation inputs
++   * (optimize flag, sampler_base, sampler_mappings). On the web build the whole
++   * first-draw shader set is translated INLINE on the WM worker (the async
++   * ShaderCompiler is bypassed under use_main_context_workaround), and shaderc
++   * alone measures ~81% of the ~16 s boot compile block (notes/gpu-r51-shader-
++   * latency.md). So look the WGSL up before paying shaderc+Tint; on a hit, hand the
++   * stored WGSL straight back. The browser createShaderModule that the caller runs
++   * next is unaffected - it recompiles the identical WGSL and hits ITS own cache.
++   * The cache is inert (every call a no-op, cold behaviour byte-for-byte
++   * unchanged) wherever the OPFS mount is absent, e.g. the native gpu build. */
++  const ShaderCacheKey ckey =
++      cache_key(sources, options.optimize, out.interface.sampler_base, maps);
++  if (!cache_lookup(ckey, out.vertex_wgsl, out.fragment_wgsl, out.compute_wgsl)) {
++    if (!run_stage(sources.vertex, shaderc_vertex_shader, out.vertex_wgsl) ||
++        !run_stage(sources.fragment, shaderc_fragment_shader, out.fragment_wgsl) ||
++        !run_stage(sources.compute, shaderc_compute_shader, out.compute_wgsl))
++    {
++      out.error = err;
++      return out;
++    }
++    cache_store(ckey, out.vertex_wgsl, out.fragment_wgsl, out.compute_wgsl);
+   }
+ 
+   out.ok = true;

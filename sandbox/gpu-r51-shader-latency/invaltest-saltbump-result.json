@@ -1,0 +1,14 @@
+{
+  "tag": "invaltest-saltbump",
+  "env": "",
+  "wm_main_s": 0.464,
+  "frame0": "+2.860s",
+  "frame1": "+15.935s",
+  "timing_lines": 0,
+  "cache_hits": 0,
+  "cache_misses": 0,
+  "shaderc_ms": 0,
+  "tint_ms": 0,
+  "verify_identical": 0,
+  "verify_mismatch": 0
+}

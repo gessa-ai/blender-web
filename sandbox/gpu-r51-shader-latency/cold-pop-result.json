@@ -1,0 +1,14 @@
+{
+  "tag": "cold-pop",
+  "env": "BW_SHADER_TIMING=1",
+  "wm_main_s": 0.48,
+  "frame0": "+3.370s",
+  "frame1": "+18.670s",
+  "timing_lines": 101,
+  "cache_hits": 1,
+  "cache_misses": 100,
+  "shaderc_ms": 14321.4,
+  "tint_ms": 923.8,
+  "verify_identical": 0,
+  "verify_mismatch": 0
+}

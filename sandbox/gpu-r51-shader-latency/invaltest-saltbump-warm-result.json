@@ -1,0 +1,14 @@
+{
+  "tag": "invaltest-saltbump-warm",
+  "env": "",
+  "wm_main_s": 0.455,
+  "frame0": "+0.811s",
+  "frame1": "+2.870s",
+  "timing_lines": 0,
+  "cache_hits": 0,
+  "cache_misses": 0,
+  "shaderc_ms": 0,
+  "tint_ms": 0,
+  "verify_identical": 0,
+  "verify_mismatch": 0
+}

@@ -1,0 +1,14 @@
+{
+  "tag": "ctrl-cacheoff",
+  "env": "BW_SHADER_CACHE=0,BW_SHADER_TIMING=1",
+  "wm_main_s": 0.505,
+  "frame0": "+3.037s",
+  "frame1": "+16.615s",
+  "timing_lines": 101,
+  "cache_hits": 0,
+  "cache_misses": 101,
+  "shaderc_ms": 12935.1,
+  "tint_ms": 772.8,
+  "verify_identical": 0,
+  "verify_mismatch": 0
+}

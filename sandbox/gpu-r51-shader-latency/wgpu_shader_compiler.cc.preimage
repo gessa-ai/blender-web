@@ -1,0 +1,156 @@
+/* SPDX-FileCopyrightText: 2026 blender-web contributors
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later */
+
+/** \file
+ * Implements the M3 shader chain: shaderc(GLSL->SPIR-V 1.3) -> Tint(SPIR-V->WGSL)
+ * with the normative sampler_mappings. See wgpu_shader_compiler.hh. */
+
+#include "wgpu_shader_compiler.hh"
+
+#include <sstream>
+
+#include <shaderc/shaderc.hpp>
+
+#include "src/tint/api/common/binding_point.h"
+#include "src/tint/lang/core/ir/module.h"
+#include "src/tint/lang/spirv/reader/reader.h"
+#include "src/tint/lang/wgsl/enums.h"
+#include "src/tint/lang/wgsl/program/program.h"
+#include "src/tint/lang/wgsl/writer/writer.h"
+
+namespace blender::gpu::webgpu {
+
+std::vector<uint32_t> compile_glsl_to_spirv(const std::string &glsl,
+                                            int shaderc_kind,
+                                            const std::string &name,
+                                            bool optimize,
+                                            std::string &error)
+{
+  shaderc::Compiler compiler;
+  shaderc::CompileOptions options;
+
+  /* HARD constraint (notes/gpu-dawn-probe.md §4a): Tint's IR SPIR-V reader
+   * hardcodes SPV_ENV_VULKAN_1_1, so we MUST emit SPIR-V 1.3. Blender's Vulkan
+   * backend uses vulkan_1_2 (SPIR-V 1.5) -> would be rejected by Tint. */
+  options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_1);
+  options.SetSourceLanguage(shaderc_source_language_glsl);
+  options.SetOptimizationLevel(optimize ? shaderc_optimization_level_performance
+                                        : shaderc_optimization_level_zero);
+  /* Match Blender's raised id-bound (vk_shader_compiler.cc:238). */
+  /* (shaderc has no public SetMaxIdBound; the default suffices for these.) */
+
+  shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(
+      glsl, static_cast<shaderc_shader_kind>(shaderc_kind), name.c_str(), "main", options);
+
+  if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+    error = "shaderc [" + name + "]: " + result.GetErrorMessage();
+    return {};
+  }
+  return {result.cbegin(), result.cend()};
+}
+
+bool translate_spirv_to_wgsl(const std::vector<uint32_t> &spirv,
+                             const std::vector<SamplerRemap> &sampler_mappings,
+                             std::string &out_wgsl,
+                             std::string &error)
+{
+  tint::spirv::reader::Options reader_opts;
+  for (const SamplerRemap &m : sampler_mappings) {
+    reader_opts.sampler_mappings[tint::BindingPoint{m.from.group, m.from.binding}] =
+        tint::BindingPoint{m.to.group, m.to.binding};
+  }
+
+  auto ir = tint::spirv::reader::ReadIR(spirv, reader_opts);
+  if (ir != tint::Success) {
+    std::stringstream ss;
+    ss << ir.Failure();
+    error = "tint ReadIR: " + ss.str();
+    return false;
+  }
+  tint::wgsl::writer::Options writer_opts;
+  /* Align the WGSL writer's "current environment" with our real WebGPU target so
+   * Tint emits the language features Blender's shaders legitimately use instead of
+   * rejecting them at ProgramFromIR:
+   *   - clip_distances / dual_source_blending: two WebGPU extensions the backend
+   *     requests on the device (GHOST_ContextWGPU, adapter-guarded). The writer's
+   *     default allowed_features set is empty, so it otherwise rejects the `enable`
+   *     directive ("extension '...' is not allowed in the current environment").
+   *     Kept TARGETED (not AllowedFeatures::Everything) so any other extension
+   *     stays an honest failure rather than emitting WGSL a conformant device
+   *     would reject.
+   *   - allow_non_uniform_derivatives: several shaders call textureSample / fwidth
+   *     / dpdx / dpdy in non-uniform control flow; WebGPU permits this via a
+   *     diagnostic(off, derivative_uniformity) directive (core WGSL, no device
+   *     feature).
+   *   - disable_unreachable_code_warning: ProgramFromIR otherwise surfaces this
+   *     non-fatal warning as a hard failure. */
+  writer_opts.allowed_features.extensions.insert(tint::wgsl::Extension::kClipDistances);
+  writer_opts.allowed_features.extensions.insert(tint::wgsl::Extension::kDualSourceBlending);
+  writer_opts.allow_non_uniform_derivatives = true;
+  writer_opts.disable_unreachable_code_warning = true;
+  auto prog = tint::wgsl::writer::ProgramFromIR(ir.Get(), writer_opts);
+  if (prog != tint::Success) {
+    std::stringstream ss;
+    ss << prog.Failure();
+    error = "tint ProgramFromIR: " + ss.str();
+    return false;
+  }
+  tint::Program program = prog.Move();
+  auto gen = tint::wgsl::writer::Generate(program, writer_opts);
+  if (gen != tint::Success) {
+    std::stringstream ss;
+    ss << gen.Failure();
+    error = "tint Generate: " + ss.str();
+    return false;
+  }
+  out_wgsl = gen.Get().wgsl;
+  return true;
+}
+
+CompileResult compile_shader(const ShaderStageSources &sources,
+                             const std::vector<ResourceDesc> &resources,
+                             const CompileOptions &options)
+{
+  CompileResult out;
+
+  /* 1. Interface map: binding numbers + sampler_mappings + BGL. */
+  out.interface = build_interface_map(resources, options.sampler_base);
+  if (!out.interface.ok) {
+    out.error = "interface map: " + out.interface.error;
+    return out;
+  }
+  const std::vector<SamplerRemap> &maps = out.interface.sampler_mappings;
+
+  /* 2+3. Compile + translate each present stage. */
+  struct Stage {
+    const std::string &glsl;
+    int kind;
+    std::string &wgsl_out;
+  };
+  std::string err;
+  auto run_stage = [&](const std::string &glsl, int kind, std::string &wgsl_out) -> bool {
+    if (glsl.empty()) {
+      return true;
+    }
+    std::vector<uint32_t> spirv =
+        compile_glsl_to_spirv(glsl, kind, sources.name, options.optimize, err);
+    if (spirv.empty()) {
+      return false;
+    }
+    return translate_spirv_to_wgsl(spirv, maps, wgsl_out, err);
+  };
+
+  if (!run_stage(sources.vertex, shaderc_vertex_shader, out.vertex_wgsl) ||
+      !run_stage(sources.fragment, shaderc_fragment_shader, out.fragment_wgsl) ||
+      !run_stage(sources.compute, shaderc_compute_shader, out.compute_wgsl))
+  {
+    out.error = err;
+    return out;
+  }
+
+  out.ok = true;
+  return out;
+}
+
+}  // namespace blender::gpu::webgpu

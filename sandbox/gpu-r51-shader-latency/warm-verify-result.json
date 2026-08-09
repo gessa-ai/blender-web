@@ -1,0 +1,14 @@
+{
+  "tag": "warm-verify",
+  "env": "BW_SHADER_TIMING=1,BW_SHADER_CACHE_VERIFY=1",
+  "wm_main_s": 0.532,
+  "frame0": "+3.217s",
+  "frame1": "+17.535s",
+  "timing_lines": 101,
+  "cache_hits": 101,
+  "cache_misses": 0,
+  "shaderc_ms": 0,
+  "tint_ms": 0,
+  "verify_identical": 101,
+  "verify_mismatch": 0
+}

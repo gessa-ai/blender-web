@@ -1,0 +1,15 @@
+{
+  "tag": "p1-timing",
+  "shaders": 101,
+  "stages": 199,
+  "wm_main_s": 1.159,
+  "iface_ms": "1.6",
+  "shaderc_ms": "20319.8",
+  "tint_ms": "1319.2",
+  "cpu_total_ms": "21640.6",
+  "intershader_gap_ms": "3541.8",
+  "wall_span_ms": "25185.3",
+  "spirv_words": 631325,
+  "present_frame0": "+6.482s",
+  "present_frame1": "+27.066s"
+}

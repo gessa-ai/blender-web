@@ -1,0 +1,209 @@
++0.152s Failed to load resource: the server responded with a status of 404 (File not found)
++0.531s /Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
++0.536s [bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22
++0.727s [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 29.0 ms
++1.236s BW_SHADER_CACHE_VERIFY name=gpu_shader_text result=IDENTICAL
++1.236s BW_SHADER_TIMING name=gpu_shader_text entry_us=1786272163929200 exit_us=1786272164252209 iface_us=91 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++1.468s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_widget_base result=IDENTICAL
++1.468s BW_SHADER_TIMING name=gpu_shader_2D_widget_base entry_us=1786272164261714 exit_us=1786272164485119 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++1.624s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_uniform_color result=IDENTICAL
++1.624s BW_SHADER_TIMING name=gpu_shader_3D_uniform_color entry_us=1786272164486690 exit_us=1786272164641110 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++1.789s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_polyline_uniform_color result=IDENTICAL
++1.789s BW_SHADER_TIMING name=gpu_shader_3D_polyline_uniform_color entry_us=1786272164642490 exit_us=1786272164807150 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++1.933s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_image_color result=IDENTICAL
++1.933s BW_SHADER_TIMING name=gpu_shader_3D_image_color entry_us=1786272164808460 exit_us=1786272164951099 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.077s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_node_socket result=IDENTICAL
++2.077s BW_SHADER_TIMING name=gpu_shader_2D_node_socket entry_us=1786272164952539 exit_us=1786272165093100 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.230s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_widget_base_inst result=IDENTICAL
++2.230s BW_SHADER_TIMING name=gpu_shader_2D_widget_base_inst entry_us=1786272165096059 exit_us=1786272165248065 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.370s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_line_dashed_uniform_color result=IDENTICAL
++2.370s BW_SHADER_TIMING name=gpu_shader_3D_line_dashed_uniform_color entry_us=1786272165249195 exit_us=1786272165387855 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.512s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_image_desaturate_color result=IDENTICAL
++2.512s BW_SHADER_TIMING name=gpu_shader_2D_image_desaturate_color entry_us=1786272165388900 exit_us=1786272165529710 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.657s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_polyline_smooth_color result=IDENTICAL
++2.657s BW_SHADER_TIMING name=gpu_shader_3D_polyline_smooth_color entry_us=1786272165531304 exit_us=1786272165674820 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.799s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_widget_shadow result=IDENTICAL
++2.799s BW_SHADER_TIMING name=gpu_shader_2D_widget_shadow entry_us=1786272165676035 exit_us=1786272165816349 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++2.938s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_diag_stripes result=IDENTICAL
++2.938s BW_SHADER_TIMING name=gpu_shader_2D_diag_stripes entry_us=1786272165817349 exit_us=1786272165955709 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++3.074s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_image_rect_color result=IDENTICAL
++3.074s BW_SHADER_TIMING name=gpu_shader_2D_image_rect_color entry_us=1786272165956784 exit_us=1786272166091810 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++3.215s BW_SHADER_CACHE_VERIFY name=gpu_shader_2D_area_borders result=IDENTICAL
++3.215s BW_SHADER_TIMING name=gpu_shader_2D_area_borders entry_us=1786272166092819 exit_us=1786272166232574 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++3.217s WGPUWeb: presentBackbuffer frame 0 — surface 1600x900 -> canvas (offscreen blit)
++3.222s Unable to find the Python binary, the multiprocessing module may not be functional!
++5.245s BW_SHADER_CACHE_VERIFY name=overlay_antialiasing_pipeline result=IDENTICAL
++5.245s BW_SHADER_TIMING name=overlay_antialiasing_pipeline entry_us=1786272168108080 exit_us=1786272168262755 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++5.390s BW_SHADER_CACHE_VERIFY name=overlay_armature_dof result=IDENTICAL
++5.390s BW_SHADER_TIMING name=overlay_armature_dof entry_us=1786272168265914 exit_us=1786272168408280 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++5.536s BW_SHADER_CACHE_VERIFY name=overlay_armature_envelope_solid result=IDENTICAL
++5.536s BW_SHADER_TIMING name=overlay_armature_envelope_solid entry_us=1786272168411324 exit_us=1786272168553465 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++5.684s BW_SHADER_CACHE_VERIFY name=overlay_armature_envelope_outline result=IDENTICAL
++5.684s BW_SHADER_TIMING name=overlay_armature_envelope_outline entry_us=1786272168556395 exit_us=1786272168701445 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++5.829s BW_SHADER_CACHE_VERIFY name=overlay_armature_shape_solid result=IDENTICAL
++5.829s BW_SHADER_TIMING name=overlay_armature_shape_solid entry_us=1786272168704505 exit_us=1786272168847069 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++5.980s BW_SHADER_CACHE_VERIFY name=overlay_armature_shape_outline result=IDENTICAL
++5.980s BW_SHADER_TIMING name=overlay_armature_shape_outline entry_us=1786272168850255 exit_us=1786272168997400 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.131s BW_SHADER_CACHE_VERIFY name=overlay_armature_shape_wire_strip result=IDENTICAL
++6.131s BW_SHADER_TIMING name=overlay_armature_shape_wire_strip entry_us=1786272169000460 exit_us=1786272169148869 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.282s BW_SHADER_CACHE_VERIFY name=overlay_armature_shape_wire result=IDENTICAL
++6.282s BW_SHADER_TIMING name=overlay_armature_shape_wire entry_us=1786272169151889 exit_us=1786272169300235 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.429s BW_SHADER_CACHE_VERIFY name=overlay_armature_sphere_solid result=IDENTICAL
++6.429s BW_SHADER_TIMING name=overlay_armature_sphere_solid entry_us=1786272169303330 exit_us=1786272169446479 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.575s BW_SHADER_CACHE_VERIFY name=overlay_armature_sphere_outline result=IDENTICAL
++6.575s BW_SHADER_TIMING name=overlay_armature_sphere_outline entry_us=1786272169449240 exit_us=1786272169592880 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.717s BW_SHADER_CACHE_VERIFY name=overlay_armature_stick result=IDENTICAL
++6.717s BW_SHADER_TIMING name=overlay_armature_stick entry_us=1786272169596119 exit_us=1786272169734540 iface_us=5 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.860s BW_SHADER_CACHE_VERIFY name=overlay_armature_wire result=IDENTICAL
++6.860s BW_SHADER_TIMING name=overlay_armature_wire entry_us=1786272169737584 exit_us=1786272169877805 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++6.997s BW_SHADER_CACHE_VERIFY name=overlay_viewer_attribute_curve result=IDENTICAL
++6.997s BW_SHADER_TIMING name=overlay_viewer_attribute_curve entry_us=1786272169880065 exit_us=1786272170014380 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.144s BW_SHADER_CACHE_VERIFY name=overlay_viewer_attribute_curves result=IDENTICAL
++7.144s BW_SHADER_TIMING name=overlay_viewer_attribute_curves entry_us=1786272170017080 exit_us=1786272170161520 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.283s BW_SHADER_CACHE_VERIFY name=overlay_viewer_attribute_mesh result=IDENTICAL
++7.283s BW_SHADER_TIMING name=overlay_viewer_attribute_mesh entry_us=1786272170164130 exit_us=1786272170300744 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.426s BW_SHADER_CACHE_VERIFY name=overlay_viewer_attribute_pointcloud result=IDENTICAL
++7.426s BW_SHADER_TIMING name=overlay_viewer_attribute_pointcloud entry_us=1786272170304055 exit_us=1786272170443055 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.566s BW_SHADER_CACHE_VERIFY name=overlay_background result=IDENTICAL
++7.566s BW_SHADER_TIMING name=overlay_background entry_us=1786272170445400 exit_us=1786272170583595 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.715s BW_SHADER_CACHE_VERIFY name=overlay_edit_curves_handle result=IDENTICAL
++7.715s BW_SHADER_TIMING name=overlay_edit_curves_handle entry_us=1786272170586674 exit_us=1786272170732950 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.855s BW_SHADER_CACHE_VERIFY name=overlay_edit_particle_strand result=IDENTICAL
++7.855s BW_SHADER_TIMING name=overlay_edit_particle_strand entry_us=1786272170735814 exit_us=1786272170873100 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++7.999s BW_SHADER_CACHE_VERIFY name=overlay_edit_curves_point result=IDENTICAL
++7.999s BW_SHADER_TIMING name=overlay_edit_curves_point entry_us=1786272170876049 exit_us=1786272171017329 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.144s BW_SHADER_CACHE_VERIFY name=overlay_depth_curves result=IDENTICAL
++8.145s BW_SHADER_TIMING name=overlay_depth_curves entry_us=1786272171020640 exit_us=1786272171162279 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.310s BW_SHADER_CACHE_VERIFY name=overlay_depth_gpencil result=IDENTICAL
++8.310s BW_SHADER_TIMING name=overlay_depth_gpencil entry_us=1786272171166650 exit_us=1786272171328075 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.449s BW_SHADER_CACHE_VERIFY name=overlay_depth_mesh result=IDENTICAL
++8.449s BW_SHADER_TIMING name=overlay_depth_mesh entry_us=1786272171331164 exit_us=1786272171466714 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.589s BW_SHADER_CACHE_VERIFY name=overlay_depth_pointcloud result=IDENTICAL
++8.589s BW_SHADER_TIMING name=overlay_depth_pointcloud entry_us=1786272171469904 exit_us=1786272171607290 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.730s BW_SHADER_CACHE_VERIFY name=overlay_extra_grid result=IDENTICAL
++8.730s BW_SHADER_TIMING name=overlay_extra_grid entry_us=1786272171610109 exit_us=1786272171747650 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++8.869s BW_SHADER_CACHE_VERIFY name=overlay_extra_groundline result=IDENTICAL
++8.869s BW_SHADER_TIMING name=overlay_extra_groundline entry_us=1786272171750589 exit_us=1786272171886670 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.008s BW_SHADER_CACHE_VERIFY name=overlay_extra_loose_point result=IDENTICAL
++9.008s BW_SHADER_TIMING name=overlay_extra_loose_point entry_us=1786272171889455 exit_us=1786272172026085 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.149s BW_SHADER_CACHE_VERIFY name=overlay_extra_point result=IDENTICAL
++9.149s BW_SHADER_TIMING name=overlay_extra_point entry_us=1786272172029104 exit_us=1786272172166840 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.292s BW_SHADER_CACHE_VERIFY name=overlay_extra result=IDENTICAL
++9.292s BW_SHADER_TIMING name=overlay_extra entry_us=1786272172169775 exit_us=1786272172309949 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.436s BW_SHADER_CACHE_VERIFY name=overlay_extra_wire_object result=IDENTICAL
++9.436s BW_SHADER_TIMING name=overlay_extra_wire_object entry_us=1786272172312989 exit_us=1786272172453315 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.574s BW_SHADER_CACHE_VERIFY name=overlay_extra_wire result=IDENTICAL
++9.574s BW_SHADER_TIMING name=overlay_extra_wire entry_us=1786272172456235 exit_us=1786272172592300 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.714s BW_SHADER_CACHE_VERIFY name=overlay_volume_gridlines_flags result=IDENTICAL
++9.714s BW_SHADER_TIMING name=overlay_volume_gridlines_flags entry_us=1786272172595610 exit_us=1786272172731964 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.849s BW_SHADER_CACHE_VERIFY name=overlay_volume_gridlines_flat result=IDENTICAL
++9.849s BW_SHADER_TIMING name=overlay_volume_gridlines_flat entry_us=1786272172734180 exit_us=1786272172867049 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++9.985s BW_SHADER_CACHE_VERIFY name=overlay_volume_gridlines_range result=IDENTICAL
++9.985s BW_SHADER_TIMING name=overlay_volume_gridlines_range entry_us=1786272172869639 exit_us=1786272173003095 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.126s BW_SHADER_CACHE_VERIFY name=overlay_volume_velocity_mac result=IDENTICAL
++10.126s BW_SHADER_TIMING name=overlay_volume_velocity_mac entry_us=1786272173005465 exit_us=1786272173143484 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.263s BW_SHADER_CACHE_VERIFY name=overlay_volume_velocity_needle result=IDENTICAL
++10.263s BW_SHADER_TIMING name=overlay_volume_velocity_needle entry_us=1786272173145874 exit_us=1786272173280999 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.405s BW_SHADER_CACHE_VERIFY name=overlay_volume_velocity_streamline result=IDENTICAL
++10.405s BW_SHADER_TIMING name=overlay_volume_velocity_streamline entry_us=1786272173283440 exit_us=1786272173422484 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.553s BW_SHADER_CACHE_VERIFY name=overlay_grid_next result=IDENTICAL
++10.553s BW_SHADER_TIMING name=overlay_grid_next entry_us=1786272173424645 exit_us=1786272173571004 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.692s BW_SHADER_CACHE_VERIFY name=overlay_image_depth_bias result=IDENTICAL
++10.692s BW_SHADER_TIMING name=overlay_image_depth_bias entry_us=1786272173573989 exit_us=1786272173709945 iface_us=5 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.829s BW_SHADER_CACHE_VERIFY name=overlay_edit_lattice_point result=IDENTICAL
++10.829s BW_SHADER_TIMING name=overlay_edit_lattice_point entry_us=1786272173712884 exit_us=1786272173847134 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++10.965s BW_SHADER_CACHE_VERIFY name=overlay_edit_lattice_wire result=IDENTICAL
++10.965s BW_SHADER_TIMING name=overlay_edit_lattice_wire entry_us=1786272173849710 exit_us=1786272173982429 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.106s BW_SHADER_CACHE_VERIFY name=overlay_edit_curve_handle result=IDENTICAL
++11.107s BW_SHADER_TIMING name=overlay_edit_curve_handle entry_us=1786272173985240 exit_us=1786272174124365 iface_us=10 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.252s BW_SHADER_CACHE_VERIFY name=overlay_edit_curve_point result=IDENTICAL
++11.252s BW_SHADER_TIMING name=overlay_edit_curve_point entry_us=1786272174127249 exit_us=1786272174269449 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.401s BW_SHADER_CACHE_VERIFY name=overlay_edit_curve_wire result=IDENTICAL
++11.401s BW_SHADER_TIMING name=overlay_edit_curve_wire entry_us=1786272174272195 exit_us=1786272174418739 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.549s BW_SHADER_CACHE_VERIFY name=overlay_extra_spot_cone result=IDENTICAL
++11.549s BW_SHADER_TIMING name=overlay_extra_spot_cone entry_us=1786272174422159 exit_us=1786272174567184 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.688s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_analysis result=IDENTICAL
++11.688s BW_SHADER_TIMING name=overlay_edit_mesh_analysis entry_us=1786272174570070 exit_us=1786272174705289 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.832s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_depth result=IDENTICAL
++11.832s BW_SHADER_TIMING name=overlay_edit_mesh_depth entry_us=1786272174708140 exit_us=1786272174849440 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++11.986s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_edge result=IDENTICAL
++11.986s BW_SHADER_TIMING name=overlay_edit_mesh_edge entry_us=1786272174852914 exit_us=1786272175003395 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.130s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_face result=IDENTICAL
++12.130s BW_SHADER_TIMING name=overlay_edit_mesh_face entry_us=1786272175006354 exit_us=1786272175147630 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.279s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_facedot result=IDENTICAL
++12.279s BW_SHADER_TIMING name=overlay_edit_mesh_facedot entry_us=1786272175150814 exit_us=1786272175295119 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.420s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_skin_root result=IDENTICAL
++12.420s BW_SHADER_TIMING name=overlay_edit_mesh_skin_root entry_us=1786272175297869 exit_us=1786272175437374 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.566s BW_SHADER_CACHE_VERIFY name=overlay_edit_mesh_vert result=IDENTICAL
++12.566s BW_SHADER_TIMING name=overlay_edit_mesh_vert entry_us=1786272175440395 exit_us=1786272175583784 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.720s BW_SHADER_CACHE_VERIFY name=overlay_motion_path_line result=IDENTICAL
++12.720s BW_SHADER_TIMING name=overlay_motion_path_line entry_us=1786272175586990 exit_us=1786272175737465 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++12.862s BW_SHADER_CACHE_VERIFY name=overlay_motion_path_point result=IDENTICAL
++12.862s BW_SHADER_TIMING name=overlay_motion_path_point entry_us=1786272175740359 exit_us=1786272175879350 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.015s BW_SHADER_CACHE_VERIFY name=overlay_outline_detect result=IDENTICAL
++13.015s BW_SHADER_TIMING name=overlay_outline_detect entry_us=1786272175882249 exit_us=1786272176032730 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.164s BW_SHADER_CACHE_VERIFY name=overlay_outline_prepass_curves result=IDENTICAL
++13.164s BW_SHADER_TIMING name=overlay_outline_prepass_curves entry_us=1786272176035820 exit_us=1786272176181455 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.326s BW_SHADER_CACHE_VERIFY name=overlay_outline_prepass_gpencil result=IDENTICAL
++13.326s BW_SHADER_TIMING name=overlay_outline_prepass_gpencil entry_us=1786272176185494 exit_us=1786272176344075 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.467s BW_SHADER_CACHE_VERIFY name=overlay_outline_prepass_mesh result=IDENTICAL
++13.467s BW_SHADER_TIMING name=overlay_outline_prepass_mesh entry_us=1786272176347184 exit_us=1786272176484705 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.612s BW_SHADER_CACHE_VERIFY name=overlay_outline_prepass_pointcloud result=IDENTICAL
++13.612s BW_SHADER_TIMING name=overlay_outline_prepass_pointcloud entry_us=1786272176487940 exit_us=1786272176629524 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.759s BW_SHADER_CACHE_VERIFY name=overlay_outline_prepass_wire result=IDENTICAL
++13.759s BW_SHADER_TIMING name=overlay_outline_prepass_wire entry_us=1786272176632335 exit_us=1786272176776084 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++13.901s BW_SHADER_CACHE_VERIFY name=overlay_paint_weight_fake_shading result=IDENTICAL
++13.901s BW_SHADER_TIMING name=overlay_paint_weight_fake_shading entry_us=1786272176778419 exit_us=1786272176918285 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.043s BW_SHADER_CACHE_VERIFY name=overlay_particle_dot result=IDENTICAL
++14.043s BW_SHADER_TIMING name=overlay_particle_dot entry_us=1786272176921285 exit_us=1786272177060424 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.184s BW_SHADER_CACHE_VERIFY name=overlay_edit_particle_strand result=IDENTICAL
++14.184s BW_SHADER_TIMING name=overlay_edit_particle_strand entry_us=1786272177063255 exit_us=1786272177202115 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.335s BW_SHADER_CACHE_VERIFY name=overlay_edit_particle_point result=IDENTICAL
++14.335s BW_SHADER_TIMING name=overlay_edit_particle_point entry_us=1786272177205040 exit_us=1786272177353129 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.481s BW_SHADER_CACHE_VERIFY name=overlay_particle_hair result=IDENTICAL
++14.481s BW_SHADER_TIMING name=overlay_particle_hair entry_us=1786272177356464 exit_us=1786272177498510 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.626s BW_SHADER_CACHE_VERIFY name=overlay_particle_shape result=IDENTICAL
++14.626s BW_SHADER_TIMING name=overlay_particle_shape entry_us=1786272177501540 exit_us=1786272177643545 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.770s BW_SHADER_CACHE_VERIFY name=overlay_edit_pointcloud result=IDENTICAL
++14.770s BW_SHADER_TIMING name=overlay_edit_pointcloud entry_us=1786272177646494 exit_us=1786272177787630 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++14.914s BW_SHADER_CACHE_VERIFY name=overlay_uniform_color result=IDENTICAL
++14.914s BW_SHADER_TIMING name=overlay_uniform_color entry_us=1786272177790680 exit_us=1786272177931450 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.067s BW_SHADER_CACHE_VERIFY name=overlay_wireframe_curve result=IDENTICAL
++15.068s BW_SHADER_TIMING name=overlay_wireframe_curve entry_us=1786272177934415 exit_us=1786272178083225 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.218s BW_SHADER_CACHE_VERIFY name=overlay_wireframe result=IDENTICAL
++15.218s BW_SHADER_TIMING name=overlay_wireframe entry_us=1786272178086405 exit_us=1786272178235365 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.365s BW_SHADER_CACHE_VERIFY name=overlay_wireframe_points result=IDENTICAL
++15.365s BW_SHADER_TIMING name=overlay_wireframe_points entry_us=1786272178238830 exit_us=1786272178382629 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.513s BW_SHADER_CACHE_VERIFY name=workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado result=IDENTICAL
++15.513s BW_SHADER_TIMING name=workbench_resolve_opaque_studio_no_cavity_no_curvature_no_shado entry_us=1786272178385900 exit_us=1786272178530234 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.648s BW_SHADER_CACHE_VERIFY name=workbench_transparent_resolve result=IDENTICAL
++15.648s BW_SHADER_TIMING name=workbench_transparent_resolve entry_us=1786272178531284 exit_us=1786272178664944 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.784s BW_SHADER_CACHE_VERIFY name=workbench_merge_depth result=IDENTICAL
++15.784s BW_SHADER_TIMING name=workbench_merge_depth entry_us=1786272178665874 exit_us=1786272178801704 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++15.922s BW_SHADER_CACHE_VERIFY name=workbench_effect_outline result=IDENTICAL
++15.922s BW_SHADER_TIMING name=workbench_effect_outline entry_us=1786272178802814 exit_us=1786272178939705 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.057s BW_SHADER_CACHE_VERIFY name=workbench_overlay_depth result=IDENTICAL
++16.057s BW_SHADER_TIMING name=workbench_overlay_depth entry_us=1786272178940760 exit_us=1786272179075180 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.196s BW_SHADER_CACHE_VERIFY name=workbench_taa result=IDENTICAL
++16.196s BW_SHADER_TIMING name=workbench_taa entry_us=1786272179076124 exit_us=1786272179213455 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.336s BW_SHADER_CACHE_VERIFY name=workbench_smaa_stage_0 result=IDENTICAL
++16.336s BW_SHADER_TIMING name=workbench_smaa_stage_0 entry_us=1786272179215749 exit_us=1786272179352600 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.494s BW_SHADER_CACHE_VERIFY name=workbench_smaa_stage_1 result=IDENTICAL
++16.494s BW_SHADER_TIMING name=workbench_smaa_stage_1 entry_us=1786272179355225 exit_us=1786272179511170 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.641s BW_SHADER_CACHE_VERIFY name=workbench_smaa_stage_2 result=IDENTICAL
++16.641s BW_SHADER_TIMING name=workbench_smaa_stage_2 entry_us=1786272179513369 exit_us=1786272179658585 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.794s BW_SHADER_CACHE_VERIFY name=gpu_shader_3D_polyline_flat_color result=IDENTICAL
++16.794s BW_SHADER_TIMING name=gpu_shader_3D_polyline_flat_color entry_us=1786272179660110 exit_us=1786272179811744 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++16.948s BW_SHADER_CACHE_VERIFY name=overlay_wireframe_points_with_radius result=IDENTICAL
++16.948s BW_SHADER_TIMING name=overlay_wireframe_points_with_radius entry_us=1786272179816104 exit_us=1786272179965489 iface_us=6 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.105s BW_SHADER_CACHE_VERIFY name=workbench_prepass_mesh_opaque_studio_material_no_clip result=IDENTICAL
++17.105s BW_SHADER_TIMING name=workbench_prepass_mesh_opaque_studio_material_no_clip entry_us=1786272179970729 exit_us=1786272180122279 iface_us=4 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.200s BW_SHADER_CACHE_VERIFY name=draw_resource_finalize result=IDENTICAL
++17.200s BW_SHADER_TIMING name=draw_resource_finalize entry_us=1786272180134050 exit_us=1786272180217609 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.283s BW_SHADER_CACHE_VERIFY name=draw_visibility_compute result=IDENTICAL
++17.283s BW_SHADER_TIMING name=draw_visibility_compute entry_us=1786272180221394 exit_us=1786272180300614 iface_us=10 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.369s BW_SHADER_CACHE_VERIFY name=draw_command_generate result=IDENTICAL
++17.369s BW_SHADER_TIMING name=draw_command_generate entry_us=1786272180301694 exit_us=1786272180379984 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.533s BW_SHADER_CACHE_VERIFY name=OCIO_Display result=IDENTICAL
++17.533s BW_SHADER_TIMING name=OCIO_Display entry_us=1786272180397400 exit_us=1786272180550400 iface_us=0 shaderc_us=0 tint_us=0 nstages=0 spirv_words=0 cache=hit
++17.535s WGPUWeb: presentBackbuffer frame 1 — surface 1600x900 -> canvas (offscreen blit)

@@ -27,8 +27,27 @@ then proved slot 8 is `stencil_tx` in `workbench_composite.bsl.hh`, and Workbenc
 `WGPUTexture::init_internal(..., use_stencil)` records `use_stencil_`, but
 `WGPUTexture::sampled_view()` ignores it and forces every combined depth-stencil texture view to
 `DepthOnly` plus `Depth32Float`. Dawn correctly rejects that depth view against the shader's Uint
-stencil binding. This is a stencil-view aspect defect, not an object-id collision. The focused
-fix is patch 0131 after patch 0130 is isolated behaviorally.
+stencil binding. This is a stencil-view aspect defect, not an object-id collision. Patch 0131
+honors `use_stencil_` before the generic depth branch, producing a `StencilOnly` plus `Stencil8`
+view for either supported combined depth-stencil format.
+
+The native Dawn/Metal probe in `sandbox/gpu-r52/probe/probe_stencil_view.cc` validates all
+three sides of the contract:
+
+- StencilOnly Stencil8 view against a Uint sampled-texture binding: OK;
+- the old DepthOnly Depth32Float view against Uint: expected validation failure with the
+  exact production sample-type mismatch;
+- DepthOnly Depth32Float view against a Depth binding: OK, proving the ordinary depth path
+  remains valid.
+
+Fresh rebuilt browser receipts:
+
+- `aa-disabled`: GPU errors 3 before to 0 after; render advances from black/validation failure
+  to real pixels, with an independent residual pixel delta (7.5% over threshold);
+- `light_studio_object`: GPU errors 24 before to 0 after; real pixels, with an independent
+  residual pixel delta (4.4% over threshold).
+
+Patch 0131 reverse-checks and round-trips exact inside `upstream/`.
 
 ## Target 2: NONE-gap color attachment compaction
 
@@ -62,6 +81,5 @@ restores exact SHA-256 hashes for both owned source files.
 
 ## Remaining verification
 
-Patch 0131 will address the stencil view. The rebuilt tree will then be used to re-evaluate the
-compute 1-vs-4 signature before any 0132 change, followed by the full 20-scene rescore, splash
-recapture, and native census.
+The rebuilt tree will next be used to re-evaluate the compute 1-vs-4 signature before any 0132
+change, followed by the full 20-scene rescore, splash recapture, and native census.

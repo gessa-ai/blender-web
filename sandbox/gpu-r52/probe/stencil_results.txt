@@ -1,0 +1,10 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+StencilOnly Stencil8 -> Uint binding: OK
+DepthOnly Depth32Float -> Uint binding control: EXPECTED FAIL <- None of the supported sample types (UnfilterableFloat|Depth) of [Texture (unlabeled 4x4 px, TextureFormat::Depth32FloatStencil8)] match the expected sample types (Uint).
+ - While validating entries[0] against { binding: 0, visibility: ShaderStage::Fragment, texture: {sampleType: TextureSampleType::Uint, viewDimension: TextureViewDimension::e2D, multisampled: 0} }.
+ - While validating [BindGroupDescriptor] against [BindGroupLayout (unlabeled)]
+ - While calling [Device].CreateBindGroup([BindGroupDescriptor]).
+
+DepthOnly Depth32Float -> Depth binding: OK

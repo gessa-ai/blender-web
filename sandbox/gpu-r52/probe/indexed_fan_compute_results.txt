@@ -1,0 +1,5 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+Dawn packed-U16 compute + indexed strip draw exact 3 triangles: OK
+Dawn U32 compute + indexed strip draw exact 3 triangles: OK

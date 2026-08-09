@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+# engine	dir	test	verdict	cluster	mean_err	max_err	pct_over	gpuErr	gpu_sig
+workbench	workbench	aa-disabled	FAIL	pixel-delta	0.00868518	0.2549020051956177	1228 pixels (7.5%) over 0.016	0	
+workbench	workbench	aa-single-pass	FAIL	pixel-delta	0.0104327	0.6392157077789307	1558 pixels (9.51%) over 0.016	0	
+workbench	workbench	dof	FAIL	render-bug:gpu-validation	0.0208645	0.34117648005485535	5183 pixels (31.6%) over 0.016	96	gpu-validation
+workbench	workbench	in_front	FAIL	pixel-delta	0.00579467	0.2509804368019104	1410 pixels (8.61%) over 0.016	0	
+workbench	workbench	in_front_dof	FAIL	render-bug:gpu-validation	0.0237566	0.34117648005485535	6167 pixels (37.6%) over 0.016	96	gpu-validation
+workbench	workbench	light_flat_attribute	PASS	pixel-pass	0.000227625	0.003921627998352051	0 pixels (0%) over 0.016	0	
+workbench	workbench	light_flat_custom	FAIL	pixel-delta	0.0089839	0.26274508237838745	1392 pixels (8.5%) over 0.016	0	
+workbench	workbench	light_flat_random	FAIL	pixel-delta	0.00419108	0.2509803771972656	750 pixels (4.58%) over 0.016	0	
+workbench	workbench	light_matcap	RENDER-CRASH	render-crash				0	
+workbench	workbench	light_matcap_no_specular	RENDER-CRASH	render-crash				0	
+workbench	workbench	light_studio_material	PASS	pixel-pass	0.000785399	0.14901959896087646	40 pixels (0.244%) over 0.016	0	
+workbench	workbench	light_studio_object	FAIL	pixel-delta	0.00359716	0.23137247562408447	721 pixels (4.4%) over 0.016	0	
+workbench	workbench	light_studio_object_no_specular	RENDER-CRASH	render-crash				0	
+workbench	workbench	x-ray	PASS	pixel-pass	0.000298155	0.00784313678741455	0 pixels (0%) over 0.016	0	
+workbench	workbench	x-ray_0	PASS	pixel-pass	0.000127895	0.003921627998352051	0 pixels (0%) over 0.016	0	
+workbench	workbench	x-ray_1	FAIL	pixel-delta	0.00309739	0.2352941632270813	655 pixels (4%) over 0.016	0	
+workbench	workbench	x-ray_back_cull	RENDER-CRASH	render-crash				0	
+workbench	workbench	x-ray_in_front	PASS	pixel-pass	0.000281001	0.007843166589736938	0 pixels (0%) over 0.016	0	
+workbench	colorspace	acescg_blackbody	FAIL	pixel-delta	0.0192027	0.0627450942993164	8033 pixels (49%) over 0.016	0	
+workbench	colorspace	rec2020_lights	FAIL	pixel-delta	0.107421	0.1450980305671692	16384 pixels (100%) over 0.016	0	

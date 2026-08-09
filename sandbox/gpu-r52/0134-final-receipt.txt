@@ -1,0 +1,13 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+Locked wasm rebuild: PASS
+CPU fan plus Dawn TriangleList probe: PASS, 144 expected red pixels
+Dawn packed-U16 indexed compute plus strip draw: PASS, exact 3 triangles
+Dawn U32 indexed compute plus strip draw: PASS, exact 3 triangles
+Headed splash comparator: PASS, 1882 pixels (0.204%) over 0.016
+Headed workspace comparator: PASS, 3373 pixels (0.366%) over 0.016
+Locked native rebuild: PASS
+M3 census: 149 PASS, 7 FAIL, 2 CRASH out of 158
+Static shader census: 956 PASS out of 973
+Known M3 RED only: I10 un-defer candidate

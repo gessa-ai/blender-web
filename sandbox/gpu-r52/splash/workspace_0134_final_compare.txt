@@ -1,0 +1,4 @@
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+
+PASS workspace_1280x720  Max error  = 0.8823530077934265 over: 3373 pixels (0.366%) over 0.016

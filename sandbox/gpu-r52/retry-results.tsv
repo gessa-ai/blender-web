@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+# test	initial	one_retry	gpuErr	mean_error	pct_over
+light_matcap	RENDER-CRASH	PASS	0	0.000819946	29 pixels (0.177%) over 0.016
+light_matcap_no_specular	RENDER-CRASH	PASS	0	0.000783963	9 pixels (0.0549%) over 0.016
+light_studio_object_no_specular	RENDER-CRASH	RENDER-CRASH	0		boot timeout, no sentinel or capture
+x-ray_back_cull	RENDER-CRASH	RENDER-CRASH	0		boot timeout, no sentinel or capture

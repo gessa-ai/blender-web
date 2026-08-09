@@ -115,7 +115,100 @@ Targeted rebuilt browser result, `x-ray.blend`, 128x128 F12 bridge:
 Patch discipline: patch 0130 reverse-checks inside `upstream/`; reverse then forward application
 restores exact SHA-256 hashes for both owned source files.
 
-## Remaining verification
+## Target 4: splash TRI_FAN wedge
 
-The final rebuilt tree will be used for the full 20-scene rescore, splash recapture, and native
-census.
+The fresh post-0124 splash recapture still showed the black diagonal wedge. The remaining cause
+was topology lowering: WebGPU has no triangle-fan primitive, but the backend silently lowered
+`GPU_PRIM_TRI_FAN` to `TriangleStrip`. For four vertices, the requested fan triangles are
+`(0,1,2)` and `(0,2,3)`, while a strip produces `(0,1,2)` and `(2,1,3)`.
+
+Patch 0134 preserves vertex identity and implements the retained fan paths explicitly:
+
+- immediate-mode fans use a transient UInt32 index list and a TriangleList draw;
+- direct non-indexed batches use the same exact fan order with absolute vertex indices;
+- direct indexed batches run a cached single-invocation compute expander over the existing
+  Index|Storage IBO, including packed U16/U32 indices, subranges, restart-separated fans, shared
+  or already-uploaded buffers, and GPU-built buffers;
+- indexed expansion emits isolated UInt32 TriangleStrip groups `(a,b,c,restart)`, with an exact
+  restart-only tail. This avoids extra vertex invocations while retaining instance parameters;
+- multi-viewport direct draws use the same expanded buffers;
+- indirect triangle fans remain explicitly rejected, matching Metal. The pin has no production
+  literal indirect-fan caller, so this is documented without claiming universal fan support.
+
+The pipeline key now includes the strip index format. Fan-emulation strips select UInt32, while
+ordinary strips retain Undefined. Range, source-byte, UInt32, and allocation overflow checks keep
+draw ranges inside the logical index buffer and safe on wasm32. The old silent fan-to-strip
+fallback is now an assertion-only unreachable guard.
+
+Native Dawn/Metal probes cover both implementations:
+
+- `probe_triangle_fan_expand.cc`: exact CPU order, original 20-byte vertex stride, valid
+  TriangleList pipeline/draw, and 144 expected red pixels;
+- `probe_indexed_fan_compute.cc`: production-shaped compute expansion plus a real
+  TriangleStrip pipeline with `stripIndexFormat=Uint32` and full-capacity DrawIndexed. Packed U16
+  and U32 restart/subrange cases each produce exactly three visible triangles with no validation
+  errors.
+
+The final headed-browser splash capture is wedge-free. Against the native golden it passes with
+max error 0.6588236094 and 1,882 pixels (0.204%) over 0.016. The final workspace capture passes
+with max error 0.8823530078 and 3,373 pixels (0.366%) over 0.016. The white cursor spike cluster in
+that workspace capture is also present in the pre-0134 historical capture
+`sandbox/i18n-r45/captures/r47-workspace_1280x720.png`; it is a separate pre-existing D-9 overlay
+defect, not an 0134 regression or a claimed fix.
+
+Patch 0134 reverse-checks inside `upstream/`. A reverse then forward application restores exact
+SHA-256 hashes for all four owned source files.
+
+## Full 20-scene rescore
+
+The post-0132 final workbench binary produced the following raw matrix. Patch 0134 changes UI
+immediate/batch fan drawing, not these F12 workbench scene pipelines.
+
+| Test | Verdict | GPU errors | Mean error | Pixels over 0.016 |
+|---|---:|---:|---:|---:|
+| aa-disabled | FAIL | 0 | 0.00868518 | 1,228 (7.5%) |
+| aa-single-pass | FAIL | 0 | 0.0104327 | 1,558 (9.51%) |
+| dof | FAIL | 96 | 0.0208645 | 5,183 (31.6%) |
+| in_front | FAIL | 0 | 0.00579467 | 1,410 (8.61%) |
+| in_front_dof | FAIL | 96 | 0.0237566 | 6,167 (37.6%) |
+| light_flat_attribute | PASS | 0 | 0.000227625 | 0 |
+| light_flat_custom | FAIL | 0 | 0.0089839 | 1,392 (8.5%) |
+| light_flat_random | FAIL | 0 | 0.00419108 | 750 (4.58%) |
+| light_matcap | RENDER-CRASH | 0 | - | boot timeout |
+| light_matcap_no_specular | RENDER-CRASH | 0 | - | boot timeout |
+| light_studio_material | PASS | 0 | 0.000785399 | 40 (0.244%) |
+| light_studio_object | FAIL | 0 | 0.00359716 | 721 (4.4%) |
+| light_studio_object_no_specular | RENDER-CRASH | 0 | - | boot timeout |
+| x-ray | PASS | 0 | 0.000298155 | 0 |
+| x-ray_0 | PASS | 0 | 0.000127895 | 0 |
+| x-ray_1 | FAIL | 0 | 0.00309739 | 655 (4%) |
+| x-ray_back_cull | RENDER-CRASH | 0 | - | boot timeout |
+| x-ray_in_front | PASS | 0 | 0.000281001 | 0 |
+| acescg_blackbody | FAIL | 0 | 0.0192027 | 8,033 (49%) |
+| rec2020_lights | FAIL | 0 | 0.107421 | 16,384 (100%) |
+
+Raw count: 5 PASS, 11 FAIL, and 4 boot-timeout RENDER-CRASH. Each timeout was retried exactly
+once without source or rig changes. `light_matcap` and `light_matcap_no_specular` then passed with
+zero GPU errors. `light_studio_object_no_specular` and `x-ray_back_cull` timed out again and were
+not retried further. Effective count: 7 PASS, 11 FAIL, and 2 unresolved load flakes.
+
+The two 96-error DoF families predate patches 0130 through 0134. The identical mipLevelCount(3),
+same-pass writable plus TextureBinding, and both Depth32FloatStencil8 expected-Float signatures
+are recorded in
+`sandbox/gpu-r46/caps/workbench_workbench_in_front_dof/gpuerrors.uniq.txt`. They remain queued for
+the later M6 round rather than expanding this lane.
+
+## Final build and census
+
+- locked wasm rebuild: PASS;
+- headed splash and workspace captures: PASS, with the comparator values above;
+- locked native rebuild: PASS;
+- M3 census: 149 PASS, 7 FAIL, 2 CRASH out of 158;
+- static shader census: 956 PASS out of 973;
+- the only M3 RED is the known I10 un-defer candidate.
+
+Residual scope is therefore eleven pixel-delta scenes, the two pre-existing DoF validation
+families, two twice-timed-out browser loads, the pre-existing cursor overlay defect, and the
+documented 1D-array/nested-view and indirect-fan limitations. No foreign dirty files, ledger
+results, dashboard, patch series, progress log, harness, or golden files are part of this lane's
+commits.

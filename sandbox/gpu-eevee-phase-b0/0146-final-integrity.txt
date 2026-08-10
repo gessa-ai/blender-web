@@ -1,0 +1,67 @@
+EEVEE SHADOW PHASE B0 PATCH 0146 INTEGRITY RECEIPT
+Date: 2026-08-10
+
+Frozen inputs
+-------------
+986f95b9d3645c4fffc1cfc65e1d0b7fcce09ca7ef7605b991e2e54ba4613899  patches/0146-gpu-eevee-shadow-tag-readonly.patch
+4deef4585a6b8c0a0d1676e93f9f407bcbc3c628cc5c788263b50673ab4eb838  sandbox/gpu-eevee-phase-b0/0146-final-receipt.txt
+
+Patch checks
+------------
+0146 patch paths: 1
+0146 diffstat: 6 insertions, 2 deletions
+0146 live reverse apply-check: PASS
+0146 live forward apply-check: expected FAIL because the patch is applied
+Preimage SHA-256 after patch 0144: 04be244d8d05c2ae09b0124ec5ef4f30a6817144b441f5fb79ad5717d560dc59
+Postimage SHA-256: aafa6f6223107d3fa532b8ccfaec6a61aa0bac833e0b8e9856fac4b9fae7bfba
+
+Disposable stacked replay
+-------------------------
+Input: the 13 live source paths named by patches 0144 and 0146
+Reverse order: 0146, then 0144
+Reverse result: PASS
+Forward order: 0144, then 0146
+Forward flags: --whitespace=error-all
+Forward result: PASS
+Byte comparison against all 13 live source paths: PASS
+
+Static declaration checks
+-------------------------
+TileMapsRead slot 8 declaration count: 1
+Read-only array declaration count for TileMapsRead: 1
+TileMapsRead users: tag_update_vert and tag_update_frag only
+tag_propagate generic read-write TileMaps use: retained
+Tiles slot 9 atomicOr: retained
+
+Owned evidence hashes
+---------------------
+a56f7508080980a4d4e871984501ea83c0163ec0cd23323ade8d62de96ae9e20  notes/gpu-eevee-phase-b0.md
+cbf7a0114ce9d8fda202df5a215db61ae1a9f1ad89a2c650d6f2ff03b6d6744a  sandbox/gpu-eevee-phase-b0/probe-plan.md
+6748423ca117fb6158677480cf1d112b019e91fbb34075d4cb6a46d874875502  sandbox/gpu-eevee-phase-b0/static-freeze.md
+9a31f776b356b65c8bbd4bf592207dd4dc731dd180ac729e1cd362c89519e7eb  sandbox/gpu-eevee-phase-b0/0146-native-build.log
+cedc65e67be4c8508ffda2f5c91b775f53001abfe557108bcf55d18f4715cd56  sandbox/gpu-eevee-phase-b0/0146-wasm-build.log
+11fa4153a705c8257afbc7ac74cacd27bdc90bb208248165b140bf4a439c0d20  sandbox/gpu-eevee-phase-b0/0146-m3-census.log
+32787e5824e6865694408646b81de1031740c31c6a777e0434d509f29ce16235  sandbox/gpu-eevee-phase-b0/0146-principled-default.log
+4deef4585a6b8c0a0d1676e93f9f407bcbc3c628cc5c788263b50673ab4eb838  sandbox/gpu-eevee-phase-b0/0146-final-receipt.txt
+100c565d2952861492108be785fd64c45a41b3cd594c89eff02e3016e2081a54  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/manifest.json
+cbcab1eb482edceaa10e84244f005f11d0be4b83ecdb482e7cff170c551db0bd  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/console.log
+d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/composite.png.license
+67363917d75d863458579dc0013581ffedb1d6918900fba354a1e9f9f3f1bc50  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/render_operator.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/render_operator.png.license
+
+Packaging policy checks
+-----------------------
+Proposed commit inventory: 16 paths total: patch, note, 8 phase-owned sandbox text/log files,
+and 6 capture files.
+PNG license sidecars: 2 / 2 present
+Authored U+2014 characters: 0
+Whitespace/error-marker checks: PASS
+Upstream source edits by this packaging lane: none
+Series, ledger, reports, harness, goldens, thresholds, and deferrals edited by this lane: none
+Index edits by this lane: none
+
+Scope conclusion
+----------------
+The package is ready for a dedicated evidence commit, but patch 0146 remains only partially
+accepted. It must not be represented as a completed shadow pixel pass.

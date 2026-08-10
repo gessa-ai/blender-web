@@ -1,0 +1,83 @@
+EEVEE SHADOW PHASE B0 PATCH 0146 FINAL EVIDENCE RECEIPT
+Date: 2026-08-10
+
+Acceptance status
+-----------------
+Partial behavioral acceptance only. Native and shipping wasm builds complete, the locked static
+census gains exactly one passing shader over the 0144-only result, and the targeted browser
+console proves that the tag-update vertex read-write declaration failure is gone. The independent
+shadow image-atomic compiler blocker remains, so this receipt does not claim a shadow pixel pass.
+
+Frozen patch identity
+---------------------
+Path: patches/0146-gpu-eevee-shadow-tag-readonly.patch
+SHA-256: 986f95b9d3645c4fffc1cfc65e1d0b7fcce09ca7ef7605b991e2e54ba4613899
+Size: 1,405 bytes, 33 lines
+Diffstat: 1 path, 6 insertions, 2 deletions
+
+Patch path inventory and current live SHA-256
+------------------------------------------------
+aafa6f6223107d3fa532b8ccfaec6a61aa0bac833e0b8e9856fac4b9fae7bfba  source/blender/draw/engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh
+
+Preimage SHA-256 after patch 0144: 04be244d8d05c2ae09b0124ec5ef4f30a6817144b441f5fb79ad5717d560dc59
+Postimage SHA-256: aafa6f6223107d3fa532b8ccfaec6a61aa0bac833e0b8e9856fac4b9fae7bfba
+
+Static structure
+----------------
+Local TileMapsRead slot: 8
+Access: read-only array
+Users: tag_update_vert and tag_update_frag only
+tag_propagate: unchanged generic read-write TileMaps table
+Fragment Tiles slot 9 and its atomicOr: unchanged
+
+Build evidence
+--------------
+9a31f776b356b65c8bbd4bf592207dd4dc731dd180ac729e1cd362c89519e7eb  sandbox/gpu-eevee-phase-b0/0146-native-build.log
+Result: [8/8] Linking CXX executable bin/tests/blender_test
+
+cedc65e67be4c8508ffda2f5c91b775f53001abfe557108bcf55d18f4715cd56  sandbox/gpu-eevee-phase-b0/0146-wasm-build.log
+Result: [8/8] Linking CXX executable bin/blender_browser.js
+
+Current outputs from the completed 0146 build:
+c7b5517d044d1702a8d55d3f90fd974441999df1a357b672725395024fea98f4  build-native-gpu/bin/tests/blender_test
+e6873f19e2a6bce1c07f305a8fe3727ebfa4776c70b09adf7ebd230df2edd48c  build-wasm-windowed-opt/bin/blender_browser.js
+e55fa9e9e9d5cee529c659ce2a03abf2ea95bfc68aba30d9da641334c7be0afc  build-wasm-windowed-opt/bin/blender_browser.wasm
+5aa7c461a5a05aa5f0354754bbd7de7124819334ee336c3bc0f40a1efb7741b1  build-wasm-windowed-opt/bin/blender_browser.data
+
+Locked census
+-------------
+11fa4153a705c8257afbc7ac74cacd27bdc90bb208248165b140bf4a439c0d20  sandbox/gpu-eevee-phase-b0/0146-m3-census.log
+GPUWebGPUTest: 164 PASS / 7 FAIL / 2 CRASH / 173 tests
+Static shaders: 971 / 987
+I10 control: PASS
+Interpretation: patch 0146 raises static coverage from the 0144-only 970 / 987 result by exactly
+one shader. The census script's final FAIL label compares against intentionally stale expected
+values; neither expectations nor harness files were changed.
+
+Targeted principled-default browser evidence
+---------------------------------------------
+32787e5824e6865694408646b81de1031740c31c6a777e0434d509f29ce16235  sandbox/gpu-eevee-phase-b0/0146-principled-default.log
+Result: OK BLENDER_EEVEE; 0 GPU validation errors; 0 readback kicks; 0 readback completions;
+0 device-byte captures.
+
+100c565d2952861492108be785fd64c45a41b3cd594c89eff02e3016e2081a54  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/manifest.json
+cbcab1eb482edceaa10e84244f005f11d0be4b83ecdb482e7cff170c551db0bd  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/console.log
+d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/composite.png.license
+67363917d75d863458579dc0013581ffedb1d6918900fba354a1e9f9f3f1bc50  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/render_operator.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146/render_operator.png.license
+
+Image statistics from ImageMagick identify:
+composite.png: 720x560, 2,865 colors, mean 0.203288, min 0, max 1
+render_operator.png: 128x128, 1 color, mean 0, min 0, max 0
+
+The console no longer contains the eevee_shadow_tag_update failure seen in the 0144-only capture.
+The retained MADefault_Surface_shadow_mesh OpImageTexelPointer error is the independent Phase B1
+image-atomic blocker.
+
+Remaining acceptance
+--------------------
+A representative shadowed scene still needs at least two frames, a caster or light mutation,
+non-black Film readback, and unchanged-golden comparison after Phase B1 removes the atomic shader
+blocker. No harness, oracle, golden, threshold, ledger, report, series, deferral, or upstream source
+file was changed by this evidence-packaging lane.

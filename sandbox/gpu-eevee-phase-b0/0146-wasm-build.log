@@ -1,0 +1,43 @@
+ninja: Entering directory `build-wasm-windowed-opt'
+[1/8] Generating engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh.tmp, engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh.hh, engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh.info, engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh.d
+[2/8] Generating engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh.c
+[3/8] Building C object source/blender/draw/CMakeFiles/bf_draw_shaders.dir/Unity/unity_13_c.c.o
+[4/8] Linking C static library lib/libbf_draw_shaders.a
+[5/8] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_dependency.cc.o
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_dependency.cc:26:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_create_info.hh:25:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_create_info_pipeline.hh:13:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_state_private.hh:15:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_texture_private.hh:14:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/GPU_vertex_buffer.hh:16:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_virtual_array.hh:34:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_index_mask.hh:24:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_unique_sorted_indices.hh:29:
+/Users/paws/blender-web/upstream/source/blender/blenlib/BLI_binary_search.hh:21:16: warning: unused function template 'first_if' [-Wunused-template]
+   21 | static int64_t first_if(Iterator begin, Iterator end, Predicate &&predicate)
+      |                ^~~~~~~~
+1 warning generated.
+[6/8] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_create_info.cc.o
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_create_info.cc:22:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_create_info.hh:25:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_shader_create_info_pipeline.hh:13:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_state_private.hh:15:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/intern/gpu_texture_private.hh:14:
+In file included from /Users/paws/blender-web/upstream/source/blender/gpu/GPU_vertex_buffer.hh:16:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_virtual_array.hh:34:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_index_mask.hh:24:
+In file included from /Users/paws/blender-web/upstream/source/blender/blenlib/BLI_unique_sorted_indices.hh:29:
+/Users/paws/blender-web/upstream/source/blender/blenlib/BLI_binary_search.hh:21:16: warning: unused function template 'first_if' [-Wunused-template]
+   21 | static int64_t first_if(Iterator begin, Iterator end, Predicate &&predicate)
+      |                ^~~~~~~~
+1 warning generated.
+[7/8] Linking CXX static library lib/libbf_gpu.a
+[8/8] Linking CXX executable bin/blender_browser.js
+prune-preload-pycache: /Users/paws/blender-web/lib/wasm/lib/python3.13 -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: /Users/paws/blender-web/upstream/scripts -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: /Users/paws/blender-web/upstream/release/datafiles -> removed 0 __pycache__ dir(s), 0 .pyc, 0 KiB
+prune-preload-pycache: TOTAL removed 0 __pycache__ dir(s), 0 .pyc, 0.00 MiB
+em++: warning: -pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly, see https://github.com/WebAssembly/design/issues/1271 [-Wpthreads-mem-growth]
+wasm-ld: warning: function signature mismatch: random_multinomial
+>>> defined as (i32, i64, i32, i32, i32, i32) -> void in /Users/paws/blender-web/lib/wasm/lib/libnumpy.a(meson-generated_numpy_random__generator.pyx.c.o)
+>>> defined as (i32, i32, i32, i32, i32, i32) -> void in /Users/paws/blender-web/lib/wasm/lib/libnumpy.a(src_distributions_distributions.c.o)

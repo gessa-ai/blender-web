@@ -1,0 +1,14 @@
+[2026-08-10 12:33:54.310] seeding bw_suite.blend into OPFS via /bin/bw_seed.html
+[2026-08-10 12:33:54.383] OPFS seed: {"ok":true,"size":121065}
+[2026-08-10 12:33:54.383] booting windowed with args=/projects/bw_suite.blend engine=BLENDER_EEVEE
+[2026-08-10 12:33:54.989] WM_main up
+[2026-08-10 12:34:23.512] render sentinel: "OK BLENDER_EEVEE"
+[2026-08-10 12:34:28.526] diag dumps: 0 files []
+
+==== BOOT-BRIDGE RESULT ====
+engine   : BLENDER_EEVEE
+sentinel : OK BLENDER_EEVEE
+kicks/dones: 0 / 0
+caps     : 
+gpuErrors: 0
+capdir   : /Users/paws/blender-web/sandbox/gpu-r60/browser/scenes/caps/b0_principled_default_0146

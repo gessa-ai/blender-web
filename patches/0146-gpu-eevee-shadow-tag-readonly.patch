@@ -1,0 +1,33 @@
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh
+index f2960237b0a..71f204a8b4b 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_shadow_tag_update.bsl.hh
+@@ -31,6 +31,10 @@ struct TagUpdate {
+   [[storage(6, read)]] const uint (&resource_ids_buf)[];
+ };
+ 
++struct TileMapsRead {
++  [[storage(8, read)]] const ShadowTileMapData (&tilemaps_buf)[];
++};
++
+ struct VertIn {
+   [[attribute(0)]] float3 pos;
+ };
+@@ -41,7 +45,7 @@ struct VertOut {
+ 
+ [[vertex]]
+ void tag_update_vert([[resource_table]] TagUpdate &srt,
+-                     [[resource_table]] TileMaps &tilemaps,
++                     [[resource_table]] const TileMapsRead &tilemaps,
+                      [[instance_id]] const int inst_per_tilemap_id,
+                      [[in]] const VertIn &v_in,
+                      [[out]] VertOut &v_out,
+@@ -103,7 +107,7 @@ void tag_update_vert([[resource_table]] TagUpdate &srt,
+ 
+ [[fragment]]
+ void tag_update_frag([[resource_table]] Tiles &tiles,
+-                     [[resource_table]] TileMaps &tilemaps,
++                     [[resource_table]] const TileMapsRead &tilemaps,
+                      [[frag_coord]] const float4 frag_coord,
+                      [[in]] const VertOut &v_out)
+ {

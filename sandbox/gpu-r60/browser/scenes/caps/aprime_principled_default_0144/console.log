@@ -1,0 +1,21 @@
+[error] /Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[error] [bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22 tier1=true tier2=true maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10
+[log] [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 19.2 ms
+[log] WGPUWeb: presentBackbuffer frame 0 — surface 640x480 -> canvas (offscreen blit)
+[error] Unable to find the Python binary, the multiprocessing module may not be functional!
+[log] 00:03.855  blend            | Read blend: "/projects/bw_suite.blend"
+[log] 00:03.863  blend.doversion  | WARNING Region type 4 missing in space type "Info" (id: 7) - removing region
+[error] BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+[log] WGPUWeb: presentBackbuffer frame 1 — surface 640x480 -> canvas (offscreen blit)
+[error] M6_BRIDGE_START engine=BLENDER_EEVEE res=128x128 file=/projects/bw_suite.blend
+[log] 00:20.785  gpu.webgpu       | WARNING WGPUShader 'eevee_shadow_tag_update' compile failed: tint ProgramFromIR: error: var with 'storage' address space and 'read_write' access mode cannot be used by vertex pipeline stage
+[log]                             | note: variable is declared here
+[log]                             | note: called by function 'v_19'
+[log]                             | note: called by function 'v_6'
+[log]                             | note: called by function 'main_inner'
+[log]                             | note: called by entry point 'main'
+[log] 00:21.779  gpu.webgpu       | WARNING WGPUShader 'MADefault_Surface_shadow_mesh' compile failed: tint ReadIR: unhandled SPIR-V instruction: OpImageTexelPointer (val = 60)
+[log] 00:21.895  render           | Saved: '/tmp/m6_bridge.png'
+[error] <string>:39: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/m6_bridge_done' mode='w' encoding='utf-8'>
+[error] ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[error] M6_BRIDGE_DONE engine=BLENDER_EEVEE

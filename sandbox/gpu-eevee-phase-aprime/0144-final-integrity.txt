@@ -1,0 +1,67 @@
+EEVEE PHASE A-PRIME PATCH 0144 INTEGRITY RECEIPT
+Date: 2026-08-10
+
+Frozen inputs
+-------------
+b4fdb24cb2c34740d2e60cff5dc9fcf33e8ac94d784f85f106ba2ae706f1d032  patches/0144-gpu-eevee-storage-format-and-final-mip.patch
+986f95b9d3645c4fffc1cfc65e1d0b7fcce09ca7ef7605b991e2e54ba4613899  patches/0146-gpu-eevee-shadow-tag-readonly.patch
+23b6807995367daa9ed3cfbfd1062a668f7c277bfa6e2effd962fedc73908ed4  sandbox/gpu-eevee-phase-aprime/0144-final-receipt.txt
+
+Patch checks
+------------
+0144 patch paths: 12
+0144 diffstat: 275 insertions, 77 deletions
+0144 live reverse apply-check: PASS
+0144 live forward apply-check: expected FAIL because the patch is applied
+0146 live reverse apply-check: PASS
+
+Disposable stacked replay
+-------------------------
+Input: the 13 live source paths named by patches 0144 and 0146
+Reverse order: 0146, then 0144
+Reverse result: PASS
+Forward order: 0144, then 0146
+Forward flags: --whitespace=error-all
+Forward result: PASS
+Byte comparison against all 13 live source paths: PASS
+
+Static counts
+-------------
+One-level pipeline objects: 14
+Built-in enum entries: 14
+Built-in name mappings: 14
+eevee_storage_format() call sites in the five allocation owners: 14
+
+Owned evidence hashes
+---------------------
+0fe4918e73f30e21664f93414521966542bc6e7b05fa0ea034311f19c9f4ecd0  notes/gpu-eevee-phase-aprime.md
+2158816899a96c303dcc5e38209ea6727d4e8eae83cb993de80ead0a5aef27fe  sandbox/gpu-eevee-phase-aprime/probe-plan.md
+4d7483dbd0b6f45f2e0f467cbfc9c78f8d22f14586c9a31f54e47830e52e0090  sandbox/gpu-eevee-phase-aprime/static-freeze.md
+95c64d79299cc10e1a23dd77a0ffbdbff8c2215aeac862855bc3df70fc2bb0d4  sandbox/gpu-eevee-phase-aprime/0144-native-build.log
+5723978d484d7720d99d14d6fc09b66b5d926af9d72e1d47d4a0bf9af11e16c5  sandbox/gpu-eevee-phase-aprime/0144-wasm-build.log
+ffb1062150363c3e56555d0478fe4dd7d93716e3191de5ab491728a39c509100  sandbox/gpu-eevee-phase-aprime/0144-m3-census.log
+b50c88f7a00313cc6f05a022346458c430522bb1b2c77854f4930d090be15787  sandbox/gpu-eevee-phase-aprime/0144-principled-default.log
+23b6807995367daa9ed3cfbfd1062a668f7c277bfa6e2effd962fedc73908ed4  sandbox/gpu-eevee-phase-aprime/0144-final-receipt.txt
+100c565d2952861492108be785fd64c45a41b3cd594c89eff02e3016e2081a54  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/manifest.json
+e54d963b605ae7627bf3367ebf31c380584faee4bb875d98f1a925f5ceadc2da  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/console.log
+d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/composite.png.license
+9467d9cde413bacfd93208bee9c37567b32020f502e6588376733b84fc67bc9b  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/render_operator.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/render_operator.png.license
+
+Packaging policy checks
+-----------------------
+Proposed commit inventory: 16 paths total: patch, note, 8 phase-owned sandbox text/log files,
+and 6 capture files.
+Excluded from proposed commit: sandbox/gpu-eevee-phase-aprime/0144-serve.log
+PNG license sidecars: 2 / 2 present
+Authored U+2014 characters: 0
+Whitespace/error-marker checks: PASS
+Upstream source edits by this packaging lane: none
+Series, ledger, reports, harness, goldens, thresholds, and deferrals edited by this lane: none
+Index edits by this lane: none
+
+Scope conclusion
+----------------
+The package is ready for a dedicated evidence commit, but patch 0144 remains only partially
+accepted. It must not be represented as a completed EEVEE pixel pass.

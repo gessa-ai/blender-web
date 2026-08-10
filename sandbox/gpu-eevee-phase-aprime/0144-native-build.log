@@ -1,0 +1,1132 @@
+ninja: Entering directory `build-native-gpu'
+[1/461] Building CXX object source/blender/makesrna/intern/CMakeFiles/bf_rna.dir/rna_space_gen.cc.o
+[2/461] Building CXX object source/blender/makesrna/intern/CMakeFiles/bf_rna.dir/rna_nodetree_gen.cc.o
+[3/461] Linking CXX static library lib/libbf_rna.a
+[4/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_draw_utils.cc.o
+[5/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/time_scrub_ui.cc.o
+[6/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/arrow3d_gizmo.cc.o
+[7/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/anim_motion_paths.cc.o
+[8/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/anim_draw.cc.o
+[9/461] Building CXX object source/blender/editors/curve/CMakeFiles/bf_editor_curve.dir/editcurve_paint.cc.o
+[10/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/keyframes_draw.cc.o
+[11/461] Linking CXX static library lib/libbf_editor_curve.a
+[12/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/anim_markers.cc.o
+[13/461] Building CXX object source/blender/editors/asset/CMakeFiles/bf_editor_asset.dir/intern/asset_ops.cc.o
+[14/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/button2d_gizmo.cc.o
+[15/461] Linking CXX static library lib/libbf_editor_asset.a
+[16/461] Building CXX object source/blender/editors/curves/CMakeFiles/bf_editor_curves.dir/intern/curves_draw.cc.o
+[17/461] Linking CXX static library lib/libbf_editor_curves.a
+[18/461] Building CXX object source/blender/editors/animation/CMakeFiles/bf_editor_animation.dir/anim_channels_defines.cc.o
+[19/461] Linking CXX static library lib/libbf_editor_animation.a
+[20/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/cage2d_gizmo.cc.o
+[21/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/cage3d_gizmo.cc.o
+[22/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/dial3d_gizmo.cc.o
+[23/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/move3d_gizmo.cc.o
+[24/461] Building CXX object source/blender/editors/gizmo_library/CMakeFiles/bf_editor_gizmo_library.dir/gizmo_types/primitive3d_gizmo.cc.o
+[25/461] Linking CXX static library lib/libbf_editor_gizmo_library.a
+[26/461] Building CXX object source/blender/editors/gpencil_legacy/CMakeFiles/bf_editor_gpencil_legacy.dir/annotate_draw.cc.o
+[27/461] Building CXX object source/blender/editors/gpencil_legacy/CMakeFiles/bf_editor_gpencil_legacy.dir/annotate_paint.cc.o
+[28/461] Linking CXX static library lib/libbf_editor_gpencil_legacy.a
+[29/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/interface_button_sections.cc.o
+[30/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/interface_draw.cc.o
+[31/461] Building CXX object source/blender/editors/grease_pencil/CMakeFiles/bf_editor_grease_pencil.dir/intern/grease_pencil_image_render.cc.o
+[32/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/view2d/view2d_draw.cc.o
+[33/461] Building CXX object source/blender/editors/grease_pencil/CMakeFiles/bf_editor_grease_pencil.dir/intern/grease_pencil_primitive.cc.o
+[34/461] Linking CXX static library lib/libbf_editor_grease_pencil.a
+[35/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/view2d/view2d.cc.o
+[36/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/interface_icons.cc.o
+[37/461] Building CXX object source/blender/editors/mesh/CMakeFiles/bf_editor_mesh.dir/editmesh_preselect_edgering.cc.o
+[38/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/interface_widgets.cc.o
+[39/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/views/tree_view.cc.o
+[40/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/interface_panel.cc.o
+[41/461] Building CXX object source/blender/editors/interface/CMakeFiles/bf_editor_interface.dir/regions/interface_region_tooltip.cc.o
+[42/461] Building CXX object source/blender/editors/mask/CMakeFiles/bf_editor_mask.dir/mask_draw.cc.o
+[43/461] Linking CXX static library lib/libbf_editor_mask.a
+[44/461] Linking CXX static library lib/libbf_editor_interface.a
+[45/461] Building CXX object source/blender/editors/mesh/CMakeFiles/bf_editor_mesh.dir/editmesh_preselect_elem.cc.o
+[46/461] Building CXX object source/blender/editors/mesh/CMakeFiles/bf_editor_mesh.dir/editmesh_knife.cc.o
+[47/461] Building CXX object source/blender/editors/object/CMakeFiles/bf_editor_object.dir/object_remesh.cc.o
+[48/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/paint_cursor.cc.o
+[49/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/paint_cursor.cc.o
+[50/461] Linking CXX static library lib/libbf_editor_mesh.a
+[51/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/grease_pencil/paint_cursor.cc.o
+[52/461] Linking CXX static library lib/libbf_editor_object.a
+[53/461] Building CXX object source/blender/editors/render/CMakeFiles/bf_editor_render.dir/render_preview.cc.o
+[54/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/paint_image_ops_paint.cc.o
+[55/461] Linking CXX static library lib/libbf_editor_render.a
+[56/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/paint_stroke.cc.o
+[57/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/curves/sculpt_ops.cc.o
+[58/461] Building CXX object source/blender/editors/physics/CMakeFiles/bf_editor_physics.dir/particle_edit.cc.o
+[59/461] Linking CXX static library lib/libbf_editor_physics.a
+[60/461] Building CXX object source/blender/editors/space_clip/CMakeFiles/bf_editor_space_clip.dir/clip_graph_draw.cc.o
+[61/461] Building CXX object source/blender/editors/space_clip/CMakeFiles/bf_editor_space_clip.dir/clip_dopesheet_draw.cc.o
+[62/461] Building CXX object source/blender/editors/space_clip/CMakeFiles/bf_editor_space_clip.dir/clip_utils.cc.o
+[63/461] Building CXX object source/blender/editors/space_clip/CMakeFiles/bf_editor_space_clip.dir/clip_draw.cc.o
+[64/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/brushes/multiplane_scrape.cc.o
+[65/461] Linking CXX static library lib/libbf_editor_space_clip.a
+[66/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/sculpt_detail.cc.o
+[67/461] Building CXX object source/blender/editors/space_action/CMakeFiles/bf_editor_space_action.dir/action_draw.cc.o
+[68/461] Linking CXX static library lib/libbf_editor_space_action.a
+[69/461] Building CXX object source/blender/editors/space_console/CMakeFiles/bf_editor_space_console.dir/console_draw.cc.o
+[70/461] Linking CXX static library lib/libbf_editor_space_console.a
+[71/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/sculpt_boundary.cc.o
+[72/461] Building CXX object source/blender/editors/space_info/CMakeFiles/bf_editor_space_info.dir/textview.cc.o
+[73/461] Building CXX object source/blender/editors/space_file/CMakeFiles/bf_editor_space_file.dir/file_draw.cc.o
+[74/461] Linking CXX static library lib/libbf_editor_space_info.a
+[75/461] Linking CXX static library lib/libbf_editor_space_file.a
+[76/461] Building CXX object source/blender/editors/space_graph/CMakeFiles/bf_editor_space_graph.dir/graph_draw.cc.o
+[77/461] Building CXX object source/blender/editors/space_graph/CMakeFiles/bf_editor_space_graph.dir/space_graph.cc.o
+[78/461] Building CXX object source/blender/editors/space_image/CMakeFiles/bf_editor_space_image.dir/image_draw.cc.o
+[79/461] Building CXX object source/blender/editors/space_nla/CMakeFiles/bf_editor_space_nla.dir/nla_draw.cc.o
+[80/461] Linking CXX static library lib/libbf_editor_space_graph.a
+[81/461] Linking CXX static library lib/libbf_editor_space_image.a
+[82/461] Linking CXX static library lib/libbf_editor_space_nla.a
+[83/461] Building CXX object source/blender/editors/sculpt_paint/CMakeFiles/bf_editor_sculpt_paint.dir/mesh/sculpt_cloth.cc.o
+[84/461] Linking CXX static library lib/libbf_editor_sculpt_paint.a
+[85/461] Building CXX object source/blender/editors/space_node/CMakeFiles/bf_editor_space_node.dir/node_compositor_job.cc.o
+[86/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_quads_batch.cc.o
+[87/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_strips_batch.cc.o
+[88/461] Building CXX object source/blender/editors/space_node/CMakeFiles/bf_editor_space_node.dir/drawnode.cc.o
+[89/461] Building CXX object source/blender/editors/space_node/CMakeFiles/bf_editor_space_node.dir/node_edit.cc.o
+[90/461] Building CXX object source/blender/editors/space_outliner/CMakeFiles/bf_editor_space_outliner.dir/outliner_edit.cc.o
+[91/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_retiming_draw.cc.o
+[92/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_thumbnails.cc.o
+[93/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_preview_draw.cc.o
+[94/461] Building CXX object source/blender/editors/space_outliner/CMakeFiles/bf_editor_space_outliner.dir/outliner_draw.cc.o
+[95/461] Linking CXX static library lib/libbf_editor_space_outliner.a
+[96/461] Building CXX object source/blender/editors/space_spreadsheet/CMakeFiles/bf_editor_space_spreadsheet.dir/spreadsheet_draw.cc.o
+[97/461] Linking CXX static library lib/libbf_editor_space_spreadsheet.a
+[98/461] Building CXX object source/blender/editors/space_sequencer/CMakeFiles/bf_editor_space_sequencer.dir/sequencer_timeline_draw.cc.o
+[99/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_gizmo_navigate_type.cc.o
+[100/461] Linking CXX static library lib/libbf_editor_space_sequencer.a
+[101/461] Building CXX object source/blender/editors/space_text/CMakeFiles/bf_editor_space_text.dir/text_draw.cc.o
+[102/461] Linking CXX static library lib/libbf_editor_space_text.a
+[103/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_cursor_snap.cc.o
+[104/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_gizmo_ruler.cc.o
+[105/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_navigate_fly.cc.o
+[106/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_navigate_walk.cc.o
+[107/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_draw.cc.o
+[108/461] Building CXX object source/blender/editors/transform/CMakeFiles/bf_editor_transform.dir/transform_draw_cursors.cc.o
+[109/461] Building CXX object source/blender/editors/space_node/CMakeFiles/bf_editor_space_node.dir/node_draw.cc.o
+[110/461] Linking CXX static library lib/libbf_editor_space_node.a
+[111/461] Building CXX object source/blender/editors/transform/CMakeFiles/bf_editor_transform.dir/transform_constraints.cc.o
+[112/461] Building CXX object source/blender/editors/space_view3d/CMakeFiles/bf_editor_space_view3d.dir/view3d_placement.cc.o
+[113/461] Linking CXX static library lib/libbf_editor_space_view3d.a
+[114/461] Building CXX object source/blender/editors/uvedit/CMakeFiles/bf_editor_uvedit.dir/uvedit_draw.cc.o
+[115/461] Building CXX object source/blender/editors/transform/CMakeFiles/bf_editor_transform.dir/transform_mode_vert_slide.cc.o
+[116/461] Building CXX object source/blender/editors/transform/CMakeFiles/bf_editor_transform.dir/transform_mode_edge_slide.cc.o
+[117/461] Building CXX object source/blender/editors/screen/CMakeFiles/bf_editor_screen.dir/glutil.cc.o
+[118/461] Building CXX object source/blender/editors/transform/CMakeFiles/bf_editor_transform.dir/transform_snap.cc.o
+[119/461] Building CXX object source/blender/editors/util/CMakeFiles/bf_editor_util.dir/ed_draw.cc.o
+[120/461] Building CXX object source/blender/editors/util/CMakeFiles/bf_editor_util.dir/ed_util_imbuf.cc.o
+[121/461] Linking CXX static library lib/libbf_editor_transform.a
+[122/461] Linking CXX static library lib/libbf_editor_util.a
+[123/461] Building CXX object source/blender/editors/screen/CMakeFiles/bf_editor_screen.dir/screen_draw.cc.o
+[124/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_gesture.cc.o
+[125/461] Building CXX object source/blender/editors/uvedit/CMakeFiles/bf_editor_uvedit.dir/uvedit_smart_stitch.cc.o
+[126/461] Linking CXX static library lib/libbf_editor_uvedit.a
+[127/461] Building CXX object source/blender/blenkernel/CMakeFiles/bf_blenkernel.dir/intern/anim_visualization.cc.o
+[128/461] Building CXX object source/blender/editors/screen/CMakeFiles/bf_editor_screen.dir/area.cc.o
+[129/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_dragdrop.cc.o
+[130/461] Linking CXX static library lib/libbf_editor_screen.a
+[131/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_draw.cc.o
+[132/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_playanim.cc.o
+[133/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_init_exit.cc.o
+[134/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_stereo.cc.o
+[135/461] Building CXX object source/blender/blenkernel/CMakeFiles/bf_blenkernel.dir/intern/world.cc.o
+[136/461] Building CXX object source/blender/windowmanager/CMakeFiles/bf_windowmanager.dir/intern/wm_operators.cc.o
+[137/461] Linking CXX static library lib/libbf_windowmanager.a
+[138/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh.cc.o
+[139/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache.cc.o
+[140/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_fdots.cc.o
+[141/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_extract_mesh.cc.o
+[142/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_edituv.cc.o
+[143/461] Building CXX object source/blender/blenkernel/CMakeFiles/bf_blenkernel.dir/intern/material.cc.o
+[144/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_lines.cc.o
+[145/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_extract_mesh_render_data.cc.o
+[146/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_lines_adjacency.cc.o
+[147/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_lines_paint_mask.cc.o
+[148/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_tris.cc.o
+[149/461] Building CXX object source/blender/blenkernel/CMakeFiles/bf_blenkernel.dir/intern/image.cc.o
+[150/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_edge_fac.cc.o
+[151/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_edituv_data.cc.o
+[152/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_ibo_points.cc.o
+[153/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_edit_data.cc.o
+[154/461] Linking CXX static library lib/libbf_blenkernel.a
+[155/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_edituv_stretch_area.cc.o
+[156/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_edituv_stretch_angle.cc.o
+[157/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_fdots_edituv_data.cc.o
+[158/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_fdots_nor.cc.o
+[159/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_fdots_pos.cc.o
+[160/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_orco.cc.o
+[161/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_fdots_uv.cc.o
+[162/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_paint_overlay_flag.cc.o
+[163/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_mesh_analysis.cc.o
+[164/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_lnor.cc.o
+[165/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_pos.cc.o
+[166/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_skin_roots.cc.o
+[167/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_select_idx.cc.o
+[168/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_attributes.cc.o
+[169/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_sculpt_data.cc.o
+[170/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_attributes.cc.o
+[171/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_tan.cc.o
+[172/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_vnor.cc.o
+[173/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_weights.cc.o
+[174/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/mesh_extractors/extract_mesh_vbo_uv.cc.o
+[175/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_lattice.cc.o
+[176/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_curve.cc.o
+[177/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_volume.cc.o
+[178/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_pointcloud.cc.o
+[179/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_mesh.cc.o
+[180/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_color_management.cc.o
+[181/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_curves.cc.o
+[182/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_subdivision.cc.o
+[183/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_particles.cc.o
+[184/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_command.cc.o
+[185/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_curves.cc.o
+[186/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_cache_impl_grease_pencil.cc.o
+[187/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_fluid.cc.o
+[188/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_debug.cc.o
+[189/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_gpu_context.cc.o
+[190/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_resource.cc.o
+[191/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_hair.cc.o
+[192/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_pointcloud.cc.o
+[193/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_manager.cc.o
+[194/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_context.cc.o
+[195/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_sculpt.cc.o
+[196/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_select_buffer.cc.o
+[197/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_shader.cc.o
+[198/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_view.cc.o
+[199/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_view_c.cc.o
+[200/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/image/image_shader.cc.o
+[201/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_view_data.cc.o
+[202/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_volume.cc.o
+[203/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/image/image_drawing_mode_image_space.cc.o
+[204/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/compositor/compositor_engine.cc.o
+[205/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/image/image_engine.cc.o
+[206/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_ambient_occlusion.cc.o
+[207/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/image/image_drawing_mode_screen_space.cc.o
+[208/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_cryptomatte.cc.o
+[209/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_camera.cc.o
+[210/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/intern/draw_pbvh.cc.o
+[211/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_depth_of_field.cc.o
+[212/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_hizbuffer.cc.o
+[213/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_film.cc.o
+[214/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_engine.cc.o
+[215/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_light.cc.o
+[216/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lightprobe.cc.o
+[217/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lightprobe_planar.cc.o
+[218/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_instance.cc.o
+[219/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lightcache.cc.o
+[220/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lightprobe_sphere.cc.o
+[221/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lookdev.cc.o
+[222/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_lightprobe_volume.cc.o
+[223/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_precompute.cc.o
+[224/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_material.cc.o
+[225/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_motion_blur.cc.o
+[226/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_renderbuffers.cc.o
+[227/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_sampling.cc.o
+[228/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_pipeline.cc.o
+[229/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_raytrace.cc.o
+[230/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_subsurface.cc.o
+[231/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_shadow.cc.o
+[232/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_sync.cc.o
+[233/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_shader.cc.o
+[234/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_velocity.cc.o
+[235/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_effect_antialiasing.cc.o
+[236/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_view.cc.o
+[237/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_effect_dof.cc.o
+[238/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_effect_cavity.cc.o
+[239/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_volume.cc.o
+[240/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/eevee/eevee_world.cc.o
+[241/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_effect_outline.cc.o
+[242/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_resources.cc.o
+[243/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_materials.cc.o
+[244/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_mesh_passes.cc.o
+[245/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_shader_cache.cc.o
+[246/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_state.cc.o
+[247/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_shadow.cc.o
+[248/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_volume.cc.o
+[249/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/workbench/workbench_engine.cc.o
+[250/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/external/external_engine.cc.o
+[251/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_antialiasing.cc.o
+[252/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_cache_utils.cc.o
+[253/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_draw_data.cc.o
+[254/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_render.cc.o
+[255/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_shader_fx.cc.o
+[256/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/select/select_engine.cc.o
+[257/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/gpencil/gpencil_engine_c.cc.o
+[258/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_armature.cc.o
+[259/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_mode_transfer.cc.o
+[260/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_shader.cc.o
+[261/461] Building CXX object source/blender/blenfont/CMakeFiles/bf_blenfont.dir/intern/blf_font.cc.o
+[262/461] Linking CXX static library lib/libbf_blenfont.a
+[263/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_batch_presets.cc.o
+[264/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_batch.cc.o
+[265/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_batch_utils.cc.o
+[266/461] Building CXX object source/blender/render/CMakeFiles/bf_render.dir/intern/compositor.cc.o
+[267/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_shape.cc.o
+[268/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_capabilities.cc.o
+[269/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_compute.cc.o
+[270/461] Building CXX object source/blender/render/CMakeFiles/bf_render.dir/intern/pipeline.cc.o
+[271/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_codegen.cc.o
+[272/461] Linking CXX static library lib/libbf_render.a
+[273/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_context.cc.o
+[274/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_debug.cc.o
+[275/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_immediate_util.cc.o
+[276/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_index_buffer.cc.o
+[277/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_framebuffer.cc.o
+[278/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_immediate.cc.o
+[279/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_init_exit.cc.o
+[280/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_matrix.cc.o
+[281/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_builtin.cc.o
+[282/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_material.cc.o
+[283/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_pass.cc.o
+[284/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_node_graph.cc.o
+[285/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_interface.cc.o
+[286/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader.cc.o
+[287/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_state.cc.o
+[288/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_storage_buffer.cc.o
+[289/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_log.cc.o
+[290/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/select/select_instance.cc.o
+[291/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_engine.cc.o
+[292/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_texture.cc.o
+[293/461] Building CXX object source/blender/draw/CMakeFiles/bf_draw.dir/engines/overlay/overlay_instance.cc.o
+[294/461] Linking CXX static library lib/libbf_draw.a
+[295/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_texture_mipmap.cc.o
+[296/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_texture_pool.cc.o
+[297/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_preprocessor.cc.o
+[298/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_uniform_buffer.cc.o
+[299/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_vertex_buffer.cc.o
+[300/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_vertex_format.cc.o
+[301/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_viewport.cc.o
+[302/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_batch.mm.o
+[303/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_backend.mm.o
+[304/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_immediate.mm.o
+[305/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_debug.mm.o
+[306/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_framebuffer.mm.o
+[307/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_index_buffer.mm.o
+[308/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_command_buffer.mm.o
+[309/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_context.mm.o
+[310/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_push_constant.cc.o
+[311/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_memory.mm.o
+[312/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_shader_log.mm.o
+[313/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_query.mm.o
+[314/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_shader_interface.mm.o
+[315/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_shader_generate.cc.o
+[316/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_state.mm.o
+[317/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_storage_buffer.mm.o
+[318/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_texture_pool.mm.o
+[319/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_texture.mm.o
+[320/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_shader.mm.o
+[321/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_backend.cc.o
+[322/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_uniform_buffer.mm.o
+[323/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_vertex_buffer.mm.o
+[324/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/metal/mtl_texture_util.mm.o
+[325/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_index_buffer.cc.o
+[326/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_storage_buffer.cc.o
+[327/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_context.cc.o
+[328/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_uniform_buffer.cc.o
+[329/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_vertex_buffer.cc.o
+[330/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_batch.cc.o
+[331/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_framebuffer.cc.o
+[332/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_texture.cc.o
+[333/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_pipeline.cc.o
+[334/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_diag_readback.cc.o
+[335/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_immediate.cc.o
+[336/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/buffer_texture_test.cc.o
+[337/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/compute_test.cc.o
+[338/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/immediate_test.cc.o
+[339/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/push_constants_test.cc.o
+[340/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/framebuffer_test.cc.o
+[341/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/webgpu/wgpu_shader.cc.o
+[342/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/shader_create_info_test.cc.o
+[343/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/specialization_constants_test.cc.o
+[344/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/state_blend_test.cc.o
+[345/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_dependency.cc.o
+[346/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/shader_test.cc.o
+[347/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/vertex_buffer_test.cc.o
+[348/461] Building CXX object source/blender/imbuf/opencolorio/CMakeFiles/bf_imbuf_opencolorio.dir/intern/gpu_shader_binder.cc.o
+[349/461] Linking CXX static library lib/libbf_imbuf_opencolorio.a
+[350/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/texture_view_test.cc.o
+[351/461] Building CXX object source/blender/gpu/CMakeFiles/gpu_tests.dir/tests/texture_test.cc.o
+[352/461] Linking CXX static library lib/libgpu_tests.a
+[353/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_8_cxx.cxx.o
+[354/461] Building CXX object source/blender/nodes/CMakeFiles/bf_nodes.dir/intern/node_common.cc.o
+[355/461] Linking CXX static library lib/libbf_nodes.a
+[356/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_6_cxx.cxx.o
+[357/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_5_cxx.cxx.o
+[358/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_7_cxx.cxx.o
+[359/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_4_cxx.cxx.o
+[360/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_2_cxx.cxx.o
+[361/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_5_cxx.cxx.o
+[362/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_0_cxx.cxx.o
+[363/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_3_cxx.cxx.o
+[364/461] Building CXX object source/blender/gpu/CMakeFiles/bf_gpu.dir/intern/gpu_shader_create_info.cc.o
+[365/461] Linking CXX static library lib/libbf_gpu.a
+[366/461] Building CXX object source/blender/nodes/composite/CMakeFiles/bf_nodes_composite.dir/Unity/unity_1_cxx.cxx.o
+[367/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_2_cxx.cxx.o
+[368/461] Linking CXX static library lib/libbf_nodes_composite.a
+[369/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_4_cxx.cxx.o
+[370/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_3_cxx.cxx.o
+[371/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_21_cxx.cxx.o
+[372/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_1_cxx.cxx.o
+[373/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_19_cxx.cxx.o
+[374/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_11_cxx.cxx.o
+[375/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_13_cxx.cxx.o
+[376/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_18_cxx.cxx.o
+[377/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_24_cxx.cxx.o
+[378/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_15_cxx.cxx.o
+[379/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_14_cxx.cxx.o
+[380/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_26_cxx.cxx.o
+[381/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_9_cxx.cxx.o
+[382/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_10_cxx.cxx.o
+[383/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_8_cxx.cxx.o
+[384/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_7_cxx.cxx.o
+[385/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_6_cxx.cxx.o
+[386/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_3_cxx.cxx.o
+[387/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_5_cxx.cxx.o
+[388/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_1_cxx.cxx.o
+[389/461] Building CXX object source/blender/nodes/function/CMakeFiles/bf_nodes_function.dir/Unity/unity_0_cxx.cxx.o
+[390/461] Linking CXX static library lib/libbf_nodes_function.a
+[391/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_1_cxx.cxx.o
+[392/461] Building CXX object source/blender/sequencer/CMakeFiles/bf_sequencer.dir/intern/cache/compositor_cache.cc.o
+[393/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_2_cxx.cxx.o
+[394/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_0_cxx.cxx.o
+[395/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_5_cxx.cxx.o
+[396/461] Building CXX object source/blender/sequencer/CMakeFiles/bf_sequencer.dir/intern/compositor.cc.o
+[397/461] Building CXX object source/blender/sequencer/CMakeFiles/bf_sequencer.dir/intern/effects/effect_compositor.cc.o
+[398/461] Building CXX object source/blender/nodes/geometry/CMakeFiles/bf_nodes_geometry.dir/Unity/unity_0_cxx.cxx.o
+[399/461] Linking CXX static library lib/libbf_nodes_geometry.a
+[400/461] Building CXX object source/blender/sequencer/CMakeFiles/bf_sequencer.dir/intern/modifiers/MOD_compositor.cc.o
+[401/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/context.cc.o
+[402/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/group_input_node_operation.cc.o
+[403/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/conversion_operation.cc.o
+[404/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/compile_state.cc.o
+[405/461] Building CXX object source/blender/sequencer/CMakeFiles/bf_sequencer.dir/intern/sequencer.cc.o
+[406/461] Linking CXX static library lib/libbf_sequencer.a
+[407/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/group_output_node_operation.cc.o
+[408/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/implicit_input_operation.cc.o
+[409/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/group_node_operation.cc.o
+[410/461] Building CXX object source/blender/nodes/shader/CMakeFiles/bf_nodes_shader.dir/Unity/unity_4_cxx.cxx.o
+[411/461] Linking CXX static library lib/libbf_nodes_shader.a
+[412/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/node_operation.cc.o
+[413/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/node_group_operation.cc.o
+[414/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/render_context.cc.o
+[415/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/operation.cc.o
+[416/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/pixel_operation.cc.o
+[417/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/realize_on_domain_operation.cc.o
+[418/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/shader_node.cc.o
+[419/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/multi_function_procedure_operation.cc.o
+[420/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/scheduler.cc.o
+[421/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/result.cc.o
+[422/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/static_cache_manager.cc.o
+[423/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/simple_operation.cc.o
+[424/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/undefined_node_operation.cc.o
+[425/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/utilities.cc.o
+[426/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/single_value_node_input_operation.cc.o
+[427/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/intern/shader_operation.cc.o
+[428/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/compute_preview.cc.o
+[429/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/deriche_gaussian_blur.cc.o
+[430/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/convolve.cc.o
+[431/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/extract_alpha.cc.o
+[432/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/jump_flooding.cc.o
+[433/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/morphological_blur.cc.o
+[434/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/morphological_distance.cc.o
+[435/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/morphological_distance_feather.cc.o
+[436/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/pad.cc.o
+[437/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/recursive_gaussian_blur.cc.o
+[438/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/sample_pixel.cc.o
+[439/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/summed_area_table.cc.o
+[440/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/symmetric_separable_blur.cc.o
+[441/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/parallel_reduction.cc.o
+[442/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/smaa.cc.o
+[443/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/symmetric_separable_blur_variable_size.cc.o
+[444/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/algorithms/intern/van_vliet_gaussian_blur.cc.o
+[445/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/bokeh_kernel.cc.o
+[446/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/cached_shader.cc.o
+[447/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/cached_mask.cc.o
+[448/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/deriche_gaussian_coefficients.cc.o
+[449/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/cached_image.cc.o
+[450/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/image_coordinates.cc.o
+[451/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/morphological_distance_feather_weights.cc.o
+[452/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/distortion_grid.cc.o
+[453/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/keying_screen.cc.o
+[454/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/smaa_precomputed_textures.cc.o
+[455/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/string_image.cc.o
+[456/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/symmetric_blur_weights.cc.o
+[457/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/ocio_color_space_conversion_shader.cc.o
+[458/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/symmetric_separable_blur_weights.cc.o
+[459/461] Building CXX object source/blender/compositor/CMakeFiles/bf_compositor.dir/cached_resources/intern/van_vliet_gaussian_coefficients.cc.o
+[460/461] Linking CXX static library lib/libbf_compositor.a
+[461/461] Linking CXX executable bin/tests/blender_test
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_api.a[2](tint.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader.a[2](reader.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[2](atomics.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[3](builtins.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[4](decompose_strided_array.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[5](decompose_strided_matrix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[6](lower.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[7](shader_io.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[8](texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[9](transpose_row_major.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_lower.a[10](vector_element_pointer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_reader_parser.a[2](parser.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_ir.a[3](builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_intrinsic.a[2](data.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv.a[2](builtin_fn.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_type.a[2](explicit_layout_array.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_type.a[3](image.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_type.a[4](literal.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_type.a[5](sampled_image.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_spirv_validate.a[2](validate.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[6](basic_block.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[9](build_module.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[12](cfg.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[17](const_folding_rules.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[18](constants.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[27](decoration_manager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[28](debug_info_manager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[29](def_use_manager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[33](dominator_tree.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[40](feature_manager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[43](fold.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[44](folding_rules.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[47](function.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[48](graph.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[54](instruction.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[55](instruction_list.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[60](ir_context.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[61](ir_loader.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[64](liveness.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[71](loop_descriptor.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[82](module.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[84](pass.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[98](resolve_binding_conflicts_pass.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[99](scalar_analysis.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[100](scalar_analysis_simplification.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[104](split_combined_image_sampler_pass.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[110](struct_cfg_analysis.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[114](type_manager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[115](types.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a[118](value_number_table.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[2](bit_vector.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[3](parse_number.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[4](string_utils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[5](assembly_grammar.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[6](binary.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[7](diagnostic.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[8](disassemble.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[9](ext_inst.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[10](extensions.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[11](libspirv.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[12](name_mapper.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[13](opcode.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[14](operand.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[15](parsed_operand.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[16](print.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[18](spirv_endian.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[22](spirv_target_env.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[23](spirv_validator_options.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[24](table.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[25](table2.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[26](text.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[27](text_handler.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[28](to_string.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[29](validate.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[30](validate_adjacency.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[31](validate_annotation.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[32](validate_arithmetics.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[33](validate_atomics.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[34](validate_barriers.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[35](validate_bitwise.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[36](validate_builtins.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[37](validate_capability.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[38](validate_cfg.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[39](validate_composites.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[40](validate_constants.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[41](validate_conversion.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[42](validate_debug.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[43](validate_decorations.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[44](validate_derivatives.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[45](validate_dot_product.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[46](validate_extensions.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[47](validate_execution_limitations.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[48](validate_explicit_layout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[49](validate_function.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[50](validate_graph.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[51](validate_group.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[52](validate_id.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[53](validate_image.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[54](validate_interfaces.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[55](validate_instruction.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[56](validate_layout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[57](validate_literals.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[58](validate_logicals.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[59](validate_logical_pointers.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[60](validate_memory.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[61](validate_memory_semantics.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[62](validate_mesh_shading.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[63](validate_misc.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[64](validate_mode_setting.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[65](validate_non_uniform.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[66](validate_pipe.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[67](validate_primitives.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[68](validate_ray_query.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[69](validate_ray_tracing.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[70](validate_ray_tracing_reorder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[71](validate_scopes.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[72](validate_small_type_uses.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[73](validate_tensor_layout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[74](validate_tensor.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[75](validate_type.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[76](validate_invalid_type.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[77](basic_block.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[78](construct.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[79](function.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[80](instruction.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/spirv-tools/source/libSPIRV-Tools.a[81](validation_state.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer.a[2](output.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer.a[3](writer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer_ast_printer.a[2](ast_printer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer_ir_to_program.a[2](ir_to_program.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer_raise.a[2](ptr_to_ref.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer_raise.a[3](raise.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_writer_raise.a[4](value_to_let.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_inspector.a[2](entry_point.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_inspector.a[3](inspector.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_inspector.a[4](resource_binding.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer.a[2](writer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_printer.a[2](printer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text_generator.a[2](text_generator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[2](argument_buffers.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[3](binary_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[4](builtin_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[5](convert_print_to_log.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[6](decompose_buffer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[7](fix_type_layout.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[8](module_constant.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[9](module_scope_vars.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[10](raise.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[11](shader_io.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[12](simd_ballot.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[13](switch_return.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_raise.a[14](validate_subgroup_matrix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_ir.a[2](builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_ir.a[3](component.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_ir.a[4](member_builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_ir.a[5](memory_order.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_intrinsic.a[2](data.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl.a[2](builtin_fn.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_type.a[2](bias.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_type.a[3](gradient.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_type.a[4](level.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_common.a[2](option_helpers.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_common.a[3](options.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_common.a[4](output.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_msl_writer_common.a[5](printer_support.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_null_writer.a[2](writer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_null_writer_raise.a[2](raise.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[2](array_length_from.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[4](binary_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[5](binding_remapper.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[7](builtin_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[8](builtin_scalarize.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[9](change_immediate_to_uniform.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[10](collapse_subgroup_min_max.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[12](conversion_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[13](dead_code_elimination.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[15](demote_to_helper.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[17](multiplanar_external_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[18](prepare_immediate_data.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[19](preserve_padding.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[20](prevent_infinite_loops.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[21](propagate_buffer_sizes.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[22](remove_continue_in_switch.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[23](remove_terminator_args.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[25](rename_conflicts.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[28](robustness.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[29](shader_io.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[30](signed_integer_polyfill.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[31](single_entry_point.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[33](substitute_overrides.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[34](value_to_let.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[35](vectorize_scalar_matrix_constructors.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[36](vertex_pulling.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_transform.a[37](zero_init_workgroup_memory.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_analysis.a[3](integer_range_analysis.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_analysis.a[4](loop_analysis.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_analysis.a[5](subgroup_matrix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_null_writer_common.a[2](options.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_null_writer_common.a[3](output.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader.a[2](reader.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader_lower.a[2](lower.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader_parser.a[2](lexer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader_parser.a[3](parser.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader_parser.a[4](token.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_strconv.a[2](float_to_string.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_strconv.a[3](parse_num.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[2](ascii.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[3](charconv.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[5](charconv_bigint.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[6](charconv_parse.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[8](memutil.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[10](match.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings.a[11](numbers.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/strings/libabsl_strings_internal.a[3](utf8.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/numeric/libabsl_int128.a[2](int128.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_base.a[3](cycleclock.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_base.a[4](spinlock.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_base.a[5](sysinfo.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_base.a[6](thread_identity.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_spinlock_wait.a[2](spinlock_wait.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_throw_delegate.a[2](throw_delegate.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/third_party/abseil/absl/base/libabsl_raw_logging_internal.a[2](raw_logging.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[2](dependency_graph.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[3](incomplete_type.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[4](resolve.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[5](resolver.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[6](sem_helper.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[7](uniformity.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[8](unresolved_identifier.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_resolver.a[9](validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_reader_program_to_ir.a[2](program_to_ir.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_program.a[2](program.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_program.a[3](program_builder.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[2](accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[3](array.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[4](array_count.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[5](behavior.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[6](block_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[7](break_if_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[8](builtin_enum_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[9](builtin_fn.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[10](call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[11](call_target.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[12](expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[13](for_loop_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[14](function.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[15](function_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[16](if_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[17](index_accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[18](info.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[19](load.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[20](loop_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[21](materialize.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[22](member_accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[23](module.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[24](node.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[25](statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[26](struct.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[27](switch_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[28](type_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[29](value_constructor.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[30](value_conversion.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[31](value_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[32](variable.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_sem.a[33](while_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[2](accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[3](alias.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[4](assignment_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[5](attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[6](binary_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[7](binding_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[8](blend_src_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[9](block_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[10](bool_literal_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[11](break_if_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[12](break_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[13](builder.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[14](builtin_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[15](call_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[16](call_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[17](case_selector.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[18](case_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[19](color_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[20](compound_assignment_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[21](const.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[22](const_assert.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[23](continue_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[24](diagnostic_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[25](diagnostic_control.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[26](diagnostic_directive.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[27](diagnostic_rule_name.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[28](discard_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[29](enable.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[30](expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[31](extension.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[32](float_literal_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[33](for_loop_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[34](function.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[35](group_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[36](id_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[37](identifier.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[38](identifier_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[39](if_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[40](increment_decrement_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[41](index_accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[42](input_attachment_index_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[43](int_literal_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[44](interpolate_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[45](invariant_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[46](let.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[47](literal_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[48](location_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[49](loop_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[50](member_accessor_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[51](module.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[52](must_use_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[53](node.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[54](override.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[55](parameter.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[56](phony_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[57](pipeline_stage.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[58](requires.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[59](return_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[60](stage_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[61](statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[62](struct.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[63](struct_member.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[64](struct_member_align_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[65](struct_member_size_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[66](subgroup_size_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[67](switch_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[68](templated_identifier.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[69](type_decl.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[70](unary_op_expression.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[71](var.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[72](variable.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[73](variable_decl_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[74](while_statement.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ast.a[75](workgroup_attribute.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ir.a[2](atomic_vec2u_to_from_u64.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ir.a[3](builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_ir.a[4](unary.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[2](access.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[3](binary.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[4](block.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[5](block_param.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[6](break_if.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[7](builder.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[8](builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[9](call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[10](clone_context.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[11](const_param_validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[12](constant.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[13](constexpr_if.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[14](construct.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[15](continue.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[16](control_instruction.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[17](convert.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[18](core_binary.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[19](core_builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[20](core_unary.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[21](disassembler.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[22](discard.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[23](evaluator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[24](exit.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[25](exit_if.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[26](exit_loop.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[27](exit_switch.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[28](function.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[29](function_param.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[30](functional_validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[31](if.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[32](instruction.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[33](instruction_result.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[34](io_attribute_validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[35](let.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[36](load.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[37](load_vector_element.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[38](loop.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[39](member_builtin_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[40](module.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[41](multi_in_block.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[42](next_iteration.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[43](operand_instruction.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[44](override.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[45](phony.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[46](reflection.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[47](return.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[48](store.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[49](store_vector_element.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[50](structural_validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[51](switch.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[52](swizzle.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[53](terminate_invocation.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[54](terminator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[55](unary.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[56](unreachable.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[57](unused.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[58](user_call.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[59](validator.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[60](value.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir.a[61](var.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_ir_type.a[2](array_count.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_intrinsic.a[2](ctor_conv.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl_intrinsic.a[3](data.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl.a[2](enums.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl.a[3](feature_status.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_wgsl.a[4](reserved_words.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_intrinsic.a[2](ctor_conv.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_intrinsic.a[3](data.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_intrinsic.a[4](table.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[2](composite.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[3](eval.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[4](invalid.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[5](manager.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[6](node.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[7](scalar.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[8](splat.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[9](string.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_constant.a[10](value.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[2](abstract_float.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[3](abstract_int.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[4](abstract_numeric.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[5](array.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[6](array_count.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[7](atomic.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[8](binding_array.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[9](bool.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[10](buffer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[11](builtin_structs.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[12](depth_multisampled_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[13](depth_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[14](external_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[15](f16.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[16](f32.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[17](function.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[18](i32.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[19](i8.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[20](input_attachment.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[21](invalid.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[22](manager.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[23](matrix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[24](memory_view.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[25](multisampled_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[26](node.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[27](numeric_scalar.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[28](pointer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[29](reference.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[31](resource_type.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[32](sampled_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[33](sampler.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[34](sampler_kind.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[35](scalar.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[36](storage_texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[37](string.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[38](struct.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[39](subgroup_matrix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[40](swizzle_view.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[41](texel_buffer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[42](texture.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[43](texture_dimension.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[44](type.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[45](u16.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[46](u32.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[47](u64.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[48](u8.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[49](unique_node.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[50](vector.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core_type.a[51](void.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core.a[2](binary_op.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core.a[3](enums.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core.a[4](number.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_lang_core.a[5](unary_op.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_api_common.a[2](vertex_pulling_config.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_diagnostic.a[2](diagnostic.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_diagnostic.a[3](formatter.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_diagnostic.a[4](source.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_symbol.a[2](generation_id.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_symbol.a[3](symbol.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_symbol.a[4](symbol_table.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[4](string.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[5](string_stream.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[6](styled_text.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[7](styled_text_printer.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[8](styled_text_printer_ansi.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[9](styled_text_theme.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[10](unicode.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_text.a[11](styled_text_printer_posix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils.a[2](result.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_system.a[2](env_other.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_system.a[3](terminal_posix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_rtti.a[2](castable.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_rtti.a[3](switch.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_ice.a[2](debugger.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/tint/libtint_utils_ice.a[3](ice.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/utils/libdawn_shared_utils.a[3](log.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[2](webgpu_dawn_native_proc.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[3](DawnNative.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[6](GPUInfo_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[7](AlignedAlloc.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[8](Defer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[10](FutureUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[11](GPUInfo.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[12](Math.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[13](RefCounted.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[14](Result.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[15](Sha3.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[16](SlabAllocator.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[17](StringViewUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[18](SystemUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[19](ThreadLocal.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[20](WeakRefSupport.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[21](IOSurfaceUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[24](WGPUDeviceCallbackInfos.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[25](hash.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[35](city.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[73](arg.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[74](bind.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[75](extension.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[76](float_conversion.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[77](output.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[78](parser.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[88](create_thread_identity.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[90](per_thread_sem.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[91](pthread_waiter.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[94](waiter_base.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[97](mutex.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[99](low_level_alloc.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[100](kernel_timeout.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[102](clock.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[103](duration.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[105](time.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[107](time_zone_fixed.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[109](time_zone_if.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[110](time_zone_impl.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[111](time_zone_info.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[112](time_zone_libc.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[113](time_zone_lookup.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[114](time_zone_posix.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[115](zone_info_source.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[116](stacktrace.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[123](raw_hash_set.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[124](hashtablez_sampler.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[125](hashtablez_sampler_force_weak_definition.cc.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[129](DawnPlatform.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[130](WorkerThread.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[131](HistogramMacros.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[132](EventTracer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[133](MultiDrawEncoder.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[134](ValidationUtils_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[135](wgpu_structs_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[136](ProcTable.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[137](ChainUtils_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[138](webgpu_absl_format_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[139](webgpu_StreamImpl_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[140](ObjectType_autogen.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[141](Adapter.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[142](ApplyClearColorValueWithDrawHelper.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[143](AsyncTask.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[144](AttachmentState.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[145](BackendConnection.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[146](BindGroup.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[147](BindGroupLayout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[148](BindGroupLayoutInternal.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[149](BindingInfo.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[150](BlitBufferToDepthStencil.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[151](BlitBufferToTexture.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[152](BlitColorToColorWithDraw.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[153](BlitDepthToDepth.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[154](BlitTextureToBuffer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[155](Blob.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[156](BlobCache.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[159](Buffer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[160](CachedObject.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[161](CacheKey.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[162](CacheRequest.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[163](CallbackTaskManager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[164](CommandAllocator.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[165](CommandBuffer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[166](CommandBufferStateTracker.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[167](CommandEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[168](Commands.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[169](CommandValidation.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[170](CompilationMessages.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[171](ComputePassEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[172](ComputePipeline.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[173](CopyTextureForBrowserHelper.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[174](CreatePipelineAsyncEvent.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[175](dawn_platform.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[176](Device.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[177](DeviceGuard.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[178](DynamicUploader.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[179](EncodingContext.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[180](Error.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[181](ErrorData.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[183](ErrorScope.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[184](EventManager.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[185](ExecutionQueue.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[186](ExternalTexture.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[187](Features.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[188](Format.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[189](ImmediatesLayout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[190](IndirectDrawMetadata.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[191](IndirectDrawValidationEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[192](Instance.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[193](InternalPipelineStore.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[194](Limits.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[195](MemoryBlockAllocator.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[196](ObjectBase.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[197](ObjectContentHasher.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[199](PassResourceUsageTracker.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[200](PerStage.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[201](PhysicalDevice.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[202](Pipeline.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[204](PipelineLayout.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[206](ProgrammableEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[207](QueryHelper.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[208](QuerySet.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[209](Queue.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[210](RenderBundle.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[211](RenderBundleEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[212](RenderEncoderBase.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[213](RenderPassEncoder.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[214](RenderPassWorkaroundsHelper.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[215](RenderPipeline.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[217](ResourceTable.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[218](ResourceTableDefaultResources.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[219](RingBufferAllocator.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[220](Sampler.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[221](ScratchBuffer.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[222](ShaderModule.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[223](ShaderModuleParseRequest.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[224](SharedBufferMemory.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[225](SharedFence.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[226](SharedResourceMemory.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[227](SharedTextureMemory.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[228](BlobSource.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[229](ByteVectorSink.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[230](Subresource.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[231](Surface.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[232](SwapChain.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[234](Texture.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[235](TexelBufferView.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[236](TintUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[237](Toggles.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[238](WGPUHelpers.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[239](ValidationUtils.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[241](webgpu_absl_format.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[242](BackendMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[243](BindGroupLayoutMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[244](BindGroupMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[245](BufferMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[246](CommandBufferMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[247](CommandRecordingContext.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[248](ComputePipelineMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[249](DeviceMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[250](PhysicalDeviceMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[251](PipelineLayoutMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[252](QuerySetMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[253](QueueMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[254](RenderPipelineMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[255](SamplerMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[256](ShaderModuleMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[257](SharedFenceMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[258](SharedTextureMemoryMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[259](SwapChainMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[260](TextureMTL.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[261](UtilsMetal.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[262](Surface_metal.mm.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)
+ld: warning: object file (/Users/paws/blender-web/build-dawn/probe-build/dawn/src/dawn/native/libwebgpu_dawn.a[263](DeviceNull.cpp.o)) was built for newer 'macOS' version (26.0) than being linked (11.2)

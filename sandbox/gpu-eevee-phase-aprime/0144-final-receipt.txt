@@ -1,0 +1,93 @@
+EEVEE PHASE A-PRIME PATCH 0144 FINAL EVIDENCE RECEIPT
+Date: 2026-08-10
+
+Acceptance status
+-----------------
+Partial behavioral acceptance only. Native and shipping wasm builds complete, the locked GPU
+census records all 14 new static mip pipelines, and the targeted browser run proves that the
+RG11B10Ufloat storage-texture error family is gone. The render does not reach Film readback due to
+later shadow shader blockers, so this receipt does not claim a non-black pixel pass or completion
+of the probe-plan matrix.
+
+Frozen patch identity
+---------------------
+Path: patches/0144-gpu-eevee-storage-format-and-final-mip.patch
+SHA-256: b4fdb24cb2c34740d2e60cff5dc9fcf33e8ac94d784f85f106ba2ae706f1d032
+Size: 41,978 bytes, 747 lines
+Diffstat: 12 paths, 275 insertions, 77 deletions
+
+Patch path inventory and current live SHA-256
+------------------------------------------------
+f2185848a6ca23f171e84e12ef98f757c75449648fd6dbc4ba87c32bc0978896  source/blender/draw/CMakeLists.txt
+37ac83800c8d2827a0104f31401ac8077432a03bb2fd6f59b0d54479693debe3  source/blender/draw/engines/eevee/eevee_depth_of_field.cc
+0df778734fed9a2c6ea2c14364c1f0451cf58a3fa7f0a8f53f6cca81ba203c25  source/blender/draw/engines/eevee/eevee_pipeline.hh
+5adf54a2072ea139c264f56a7ea2892b946747b6f2b98c34cdf9cf1c1f5a1c74  source/blender/draw/engines/eevee/eevee_raytrace.cc
+488aabe4fb6d06306737b9e1f6a756b5682c6fb7907670d8137b98a9b56c7ba2  source/blender/draw/engines/eevee/eevee_storage_format.hh
+6b230334af41019024efbd405cd98053ea9152ff5c1e309446bfe5d6a6a08824  source/blender/draw/engines/eevee/eevee_subsurface.cc
+3b7e6b6342449d2e98c54f7b73e4e20ff7f034108e6c3c43bde159a267643714  source/blender/draw/engines/eevee/eevee_volume.cc
+5a96abadda41993e4eec6978bc6ac918639df129debbeaabd1c38eca9363ad4e  source/blender/gpu/GPU_shader_builtin.hh
+5e7bd8bfbf14b31b0e41fd2f2e1ce2073ff28931c540a2c5145cad0fc5590a64  source/blender/gpu/intern/gpu_shader_builtin.cc
+ac5a4aecda91d259854294987b76bbedf6fbe43092e617ac0cff3d9b384377c5  source/blender/gpu/intern/gpu_texture_mipmap.cc
+5c8bace09308a38bcb933a02c20f855c9da0166c6b80bed7738cb7e3380ee1b7  source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
+9a0aa786f23d97eab0289817282824c9cc99ff998c7177b7ee7b1b1c82182760  source/blender/gpu/webgpu/wgpu_shader.cc
+
+The hashes above are from the live 0144+0146 stack. Patch 0146 changes a separate thirteenth source
+path and therefore does not alter any 0144 postimage.
+
+Static structure
+----------------
+One-level pipeline objects: 14
+Built-in enum entries: 14
+Built-in name mappings: 14
+eevee_storage_format() call sites in the five allocation owners: 14
+
+Build evidence
+--------------
+95c64d79299cc10e1a23dd77a0ffbdbff8c2215aeac862855bc3df70fc2bb0d4  sandbox/gpu-eevee-phase-aprime/0144-native-build.log
+Result: [461/461] Linking CXX executable bin/tests/blender_test
+
+5723978d484d7720d99d14d6fc09b66b5d926af9d72e1d47d4a0bf9af11e16c5  sandbox/gpu-eevee-phase-aprime/0144-wasm-build.log
+Result: [440/441] Linking CXX executable bin/blender_browser.js, followed by preload packaging
+
+The 0144-only native and wasm outputs were overwritten by the later 0146 build. No historical
+0144-only binary hash was recorded. The build logs prove their final link steps, but this receipt
+does not substitute the current 0146 binary hashes for missing 0144-only hashes.
+
+Locked census
+-------------
+ffb1062150363c3e56555d0478fe4dd7d93716e3191de5ab491728a39c509100  sandbox/gpu-eevee-phase-aprime/0144-m3-census.log
+GPUWebGPUTest: 164 PASS / 7 FAIL / 2 CRASH / 173 tests
+Static shaders: 970 / 987
+I10 control: PASS
+Interpretation: all 14 new pipelines compile over the earlier 956 / 973 static baseline. The
+census script's final FAIL label compares against the intentionally stale 149 / 7 / 2 and
+956 / 973 expected values; neither expectations nor harness files were changed.
+
+Targeted principled-default browser evidence
+---------------------------------------------
+b50c88f7a00313cc6f05a022346458c430522bb1b2c77854f4930d090be15787  sandbox/gpu-eevee-phase-aprime/0144-principled-default.log
+Result: OK BLENDER_EEVEE; 0 GPU validation errors; 0 readback kicks; 0 readback completions;
+0 device-byte captures.
+
+100c565d2952861492108be785fd64c45a41b3cd594c89eff02e3016e2081a54  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/manifest.json
+e54d963b605ae7627bf3367ebf31c380584faee4bb875d98f1a925f5ceadc2da  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/console.log
+d722851809b847038080ac671a49739363f3b6826d07c1078bc28c3088cf2161  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/composite.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/composite.png.license
+9467d9cde413bacfd93208bee9c37567b32020f502e6588376733b84fc67bc9b  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/render_operator.png
+c4ac90e771f560fd1c1052d603a8198027fee2268921641d4babf83ab39d58f5  sandbox/gpu-r60/browser/scenes/caps/aprime_principled_default_0144/render_operator.png.license
+
+Image statistics from ImageMagick identify:
+composite.png: 720x560, 2,865 colors, mean 0.203288, min 0, max 1
+render_operator.png: 128x128, 1 color, mean 0, min 0, max 0
+
+The console contains no RG11B10Ufloat storage failure. It exposes the later
+eevee_shadow_tag_update vertex read-write storage failure and the independent
+MADefault_Surface_shadow_mesh OpImageTexelPointer failure. Patch 0146 addresses only the first.
+
+Remaining acceptance
+--------------------
+The full seven-row former-RG11 matrix, camera DoF, volume, transmission display, paired mip
+dispatch, and one-output final mip dispatch remain unexecuted. Each pixel-bearing row still needs
+non-black readback and unchanged-golden comparison after the shadow path reaches Film readback.
+No harness, oracle, golden, threshold, ledger, report, series, deferral, or upstream source file
+was changed by this evidence-packaging lane.

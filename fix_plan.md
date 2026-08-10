@@ -578,9 +578,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     driver-verified) now supplies exact immutable backend tickets and proves a source-free
     nonzero-layer texture view in bundled Chromium, but the F12 control exits before
     Film::read_pass because the tag-update and default shadow material shaders fail.
-    Full framebuffer/root view semantics remain binding on 0143, followed by the public
-    async API and caller continuation. No EEVEE pixel-pass claim until a non-black result
-    reaches the pinned comparator.
+    Patch 0143 (e9808d9, driver-verified) now lands the full framebuffer/root subresource
+    dependency: flattened source-free mip/layer/aspect ownership, exact attachment/clear/copy
+    and typed-blit routing, 3D slices, physical 1D arrays with matching shader lowering, and
+    guarded RG11/D32S8 capabilities. All 15 added WebGPU tests pass, actual Dawn optional-RG11
+    and depth-route controls pass, and Workbench pixel controls remain native-faithful with zero
+    GPU errors. Next is the frozen 0144 Phase A-prime rebase and its EEVEE acceptance matrix,
+    followed by the public async API and caller continuation. No EEVEE pixel-pass claim until a
+    non-black result reaches the pinned comparator.
   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.

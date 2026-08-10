@@ -663,3 +663,11 @@
 # pass and census holds 149/7/2 plus static_shaders 956/973. Full framebuffer/root view behavior
 # remains binding on 0143. See notes/gpu-r57-readback-hardening.md.
 0138-gpu-webgpu-readback-ticket-regions.patch
+# 0143: make texture views own exact flattened mip/layer/aspect ranges, carry them through
+# framebuffer, sampled, storage, clear, copy, typed-blit, 3D-slice, and readback paths, and
+# replace row-packed 1D arrays with physical WebGPU 2D arrays plus matching shader lowering.
+# Fifteen added WebGPU tests pass, the census rises to 164/7/2 only by those passes, actual Dawn
+# optional-RG11 and depth-route controls pass, and fresh Workbench controls have zero GPU errors
+# with native-parity pixels. EEVEE remains honestly blocked before Film readback by Phase B shader
+# work and this patch makes no EEVEE pixel claim. See notes/gpu-webgpu-texture-view-subresources.md.
+0143-gpu-webgpu-texture-view-subresources.patch

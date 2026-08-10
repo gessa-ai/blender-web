@@ -1,0 +1,15 @@
+[error] /Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && "Need to implement Sysutil::physical_memory on this platform"' failed.
+[error] [bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22 tier1=true tier2=true maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10
+[log] [bw] M7 store: OPFS mounted at /projects (+/.recovery) - PERSISTENT rc=0 in 89.0 ms
+[log] WGPUWeb: presentBackbuffer frame 0 — surface 1280x720 -> canvas (offscreen blit)
+[error] Unable to find the Python binary, the multiprocessing module may not be functional!
+[log] 00:06.072  blend            | Read blend: "/projects/bw_suite.blend"
+[error] BW_DIAG enabled: diagnostic readback active (BW_DIAG set)
+[log] WGPUWeb: presentBackbuffer frame 1 — surface 1280x720 -> canvas (offscreen blit)
+[error] M6_BRIDGE_START engine=BLENDER_WORKBENCH res=128x128 file=/projects/bw_suite.blend
+[error] BW_READBACK_KICK seq=0 label=texread_0 mip=0 origin_z=0 extent=128,128,1 fmt=40 texel=8
+[log] 00:26.174  render           | Saved: '/tmp/m6_bridge.png'
+[error] <string>:39: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/m6_bridge_done' mode='w' encoding='utf-8'>
+[error] ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[error] M6_BRIDGE_DONE engine=BLENDER_WORKBENCH
+[error] BW_READBACK_DONE seq=0 label=texread_0 file=/tmp/bw_readback_0.bin w=128 h=128 fmt=40 texel=8 pitch=1024 bytes=131072 status=ok

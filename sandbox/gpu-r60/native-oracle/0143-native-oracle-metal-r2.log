@@ -1,0 +1,6 @@
+Note: Google Test filter = GPUMetalTest.texture_view_native_srgb_and_mip_clear_oracle:GPUMetalWorkaroundsTest.texture_view_native_srgb_and_mip_clear_oracle:GPUMetalTest.texture_view_native_combined_direct_clear_oracle:GPUMetalWorkaroundsTest.texture_view_native_combined_direct_clear_oracle
+[==========] Running 4 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from GPUMetalTest
+color_management | Using fallback mode for management
+                 | source/blender/imbuf/intern/colormanagement.cc:342 colormanagement_init

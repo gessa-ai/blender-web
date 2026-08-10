@@ -1,0 +1,9 @@
+{
+  "blender_version": "4.5.3 LTS",
+  "backend": "METAL",
+  "width": 0,
+  "height": 0,
+  "channels": 0,
+  "float_count": 0,
+  "source": "/Users/paws/blender-web/upstream/tests/files/render/image_mapping/image_mapping_udim_packed.blend"
+}

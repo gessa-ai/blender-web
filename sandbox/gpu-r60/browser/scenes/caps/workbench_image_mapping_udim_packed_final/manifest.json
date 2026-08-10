@@ -1,0 +1,43 @@
+{
+  "mode": "boot",
+  "hostBlend": "upstream/tests/files/render/image_mapping/image_mapping_udim_packed.blend",
+  "engine": "BLENDER_WORKBENCH",
+  "res": [
+    128,
+    128
+  ],
+  "opfs": {
+    "ok": true,
+    "size": 280861
+  },
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "pageCrashed": false,
+  "pageUnresponsive": false,
+  "pageUnresponsiveAt": null,
+  "gpuErrorCount": 0,
+  "kicks": 1,
+  "dones": 1,
+  "caps": [
+    {
+      "file": "bw_readback_0.bin",
+      "seq": 0,
+      "magic": "BWRB",
+      "ver": 1,
+      "w": 128,
+      "hgt": 128,
+      "fmt": 40,
+      "texel": 8,
+      "rowb": 1024,
+      "dbytes": 131072,
+      "len": 131104
+    }
+  ],
+  "marks": [
+    "M6_BRIDGE_START engine=BLENDER_WORKBENCH res=128x128 file=/projects/bw_suite.blend",
+    "M6_BRIDGE_DONE engine=BLENDER_WORKBENCH"
+  ],
+  "doneLines": [
+    "BW_READBACK_DONE seq=0 label=texread_0 file=/tmp/bw_readback_0.bin w=128 h=128 fmt=40 texel=8 pitch=1024 bytes=131072 status=ok"
+  ],
+  "gpuErrorSample": []
+}

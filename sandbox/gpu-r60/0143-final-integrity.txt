@@ -1,0 +1,34 @@
+0143 WebGPU texture-view subresources integrity receipt
+
+Patch identity
+sha256=01a03d36cdd7ea412cc48b2ee5b45ce69b0b7ed25454facc923f62ac80f2e17b
+lines=4650
+bytes=214963
+paths=13
+insertions=3241
+deletions=522
+
+Postimage SHA-256
+e995a72dc7c30d7002ded192629f032ef3800ce956d2028ba0b4842ea5cd9311  upstream/source/blender/gpu/webgpu/wgpu_texture.cc
+0dd4ff3a2c931e63697fb8588d4babc0c4394ac2a70c9717a9c7c41446c8c990  upstream/source/blender/gpu/webgpu/wgpu_texture.hh
+b4e6f6d38a8a17e67d2989fabf9603ba2290aefadc75d888e7e5145b53ef526d  upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+a638cc5e6e846f6ef9ec9deb1be31c364257fb2deefdd3067b9f762ed8eb0f7e  upstream/source/blender/gpu/webgpu/wgpu_context.cc
+164916d65ae458a85b3019d469ebf2d3d119c1920903e16bd25d65d9acbf48bb  upstream/source/blender/gpu/webgpu/wgpu_context.hh
+766cf94e1991fe49860a3dcc4d6136acb0277942f6f51813650616ef47807912  upstream/source/blender/gpu/webgpu/wgpu_shader.cc
+fca58b77454bce5babd6ba5ff93524b725f8058c34c9a634ab3d0120d3269458  upstream/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+29ae68445718e73b1ed0be57c81864b75f2d8232bc563a389a593478b196349f  upstream/source/blender/gpu/webgpu/wgpu_texture_format.cc
+c90dde4a04c926da274ed1906657d44c4a773b34d9389217349d1ae39f914ef9  upstream/source/blender/gpu/webgpu/wgpu_texture_format.hh
+09e0c1574fcdec9b3ff4e6a8997cd31eef11adcd8a7b674d070d425726be76fc  upstream/source/blender/gpu/intern/gpu_texture.cc
+212ea5289a35d2d24564ae324ddd1563b937068c0346779487adc47e27b56eb9  upstream/source/blender/gpu/tests/texture_test.cc
+7abc270e9beb9408ae525adae96460a55b092f1ae2ba2c9ef9011ea68afb6619  upstream/source/blender/gpu/tests/texture_view_test.cc
+1b91ec00d85bd9e445d480b0bb22c37cdcf1960cfcfb5fcfdc392abb43f5653b  upstream/intern/ghost/intern/GHOST_ContextWGPU.cc
+
+Checks
+- git apply reverse check against the live applied source: PASS.
+- Isolated baseline forward apply and final reverse apply: byte-identical PASS.
+- Whitespace check: PASS.
+- Added-line U+2014 scan: zero.
+- Exact 13-path source/test fence: PASS.
+- Temporary native oracle hunk: absent from production source.
+- Standalone probe binary, object, dependency file, experimental capture scripts, stale-bin captures, and frozen 0144/0146 artifacts: excluded from the 0143 commit.
+- Outer and upstream indexes before staging: empty.

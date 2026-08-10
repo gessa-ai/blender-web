@@ -1,0 +1,28 @@
+SOURCE_SHA256 1a4053273764375630d36712101515f1e36121becb33ba60f0f3da13c36dad96  /Users/paws/blender-web/sandbox/gpu-r60/probe_rg11_depth_routes.cc
+BINARY_SHA256 1b412f44b3950fc9dff43f995f737eaecfa35d0e385a402c2379af9385b83fef  /Users/paws/blender-web/sandbox/gpu-r60/probe_rg11_depth_routes
+COMMAND /Users/paws/blender-web/sandbox/gpu-r60/probe_rg11_depth_routes
+adapter RG11B10UfloatRenderable=YES Depth32FloatStencil8=YES
+  validation[RG11B10Ufloat]: The texture usage (TextureUsage::(CopySrc|CopyDst|TextureBinding|RenderAttachment)) includes TextureUsage::RenderAttachment, which is incompatible with the non-renderable format (TextureFormat::RG11B10Ufloat).
+ - While validating [TextureDescriptor ""r60-rg11-no-feature""].
+ - While calling [Device].CreateTexture([TextureDescriptor ""r60-rg11-no-feature""]).
+
+RG11 no-feature raw usage: OK
+RG11 no-feature +RenderAttachment: EXPECTED VALIDATION
+depth route Depth16Unorm -> Depth32Float at mip=1 layer=1
+  depth=0.249989 expected=0.25 stencil=n/a validation=OK
+depth route Depth32Float -> Depth16Unorm at mip=1 layer=1
+  depth=0.250004 expected=0.25 stencil=n/a validation=OK
+depth route Depth24Plus -> Depth32Float at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=n/a validation=OK
+depth route Depth32Float -> Depth24PlusStencil8 at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=preserved validation=OK
+depth route Depth24PlusStencil8 -> Depth24Plus at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=n/a validation=OK
+depth route Depth32FloatStencil8 -> Depth32Float at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=n/a validation=OK
+depth route Depth32Float -> Depth32FloatStencil8 at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=preserved validation=OK
+depth route Depth32FloatStencil8 -> Depth32FloatStencil8 at mip=1 layer=1
+  depth=0.25 expected=0.25 stencil=preserved validation=OK
+r60 probe verdict: PASS
+RUN_EXIT 0

@@ -1,0 +1,65 @@
+0143 WebGPU texture-view subresources final receipt
+
+Production patch
+01a03d36cdd7ea412cc48b2ee5b45ce69b0b7ed25454facc923f62ac80f2e17b  patches/0143-gpu-webgpu-texture-view-subresources.patch
+9166781813eca7b4f6c12c0879ef53b7941d912cbf07d7144b8d33d04d0fdfa9  notes/gpu-webgpu-texture-view-subresources.md
+
+Build and test receipts
+416275c71769eea137078aa9c7cb0a1687d069a166b193d533479dbbcaae5afc  sandbox/gpu-r60/0143-final-native-build-r3.log
+a6014651bf7a84d3139132eebb7282e60ec3755b5ab1ea0460122c6e98f8a9cb  sandbox/gpu-r60/0143-final-webgpu-targeted-tests-r3.log
+f5a953ddb60fa7e2b465f2a066ab7079e32a662bb29d97dc1ccb0a042ef6d940  sandbox/gpu-r60/0143-final-m3-census.log
+2655a5a391171492ffc15b81223806aead0e438a3b1de419869effc7f2eb1ddb  sandbox/gpu-r60/0143-final-wasm-build.log
+
+Standalone Dawn probe
+1a4053273764375630d36712101515f1e36121becb33ba60f0f3da13c36dad96  sandbox/gpu-r60/probe_rg11_depth_routes.cc
+5f47376da69da586722be7459af569afd7f062b669334545de139e9e1ce1444c  sandbox/gpu-r60/standalone-dawn-compile.log
+f86dbf5ab4d06d8dbee4a77ca1643ed1af8f8e006543203aeb73557409ecf889  sandbox/gpu-r60/standalone-dawn-link.log
+7ce781898a4a9f54660ba9632ad692ecab78fd45c7a08e17cf9f78c42190a98a  sandbox/gpu-r60/standalone-dawn-run-r1.log
+
+Metal fixture negative control
+e6b78108c144bef68e705e9dd546073def79500dd58b27b1f0c7e7ff0aa0a840  sandbox/gpu-r60/native-oracle/0143-native-oracle-cf913747.patch
+804524d626764e716be44f755e8835138d5378f44f1dd1ded95eb79700eb7031  sandbox/gpu-r60/native-oracle/0143-native-oracle-build-r2.log
+4bd78e01e4fd3d5ef1349ce7d3c4e07affd375958d38a821a65c90b60c0c6779  sandbox/gpu-r60/native-oracle/0143-native-oracle-metal-r2.log
+
+Browser harness and visual controls
+85eaa81650822e01521867572d4026d58c3c214830fc3033b9a73b8e4480f2a7  sandbox/gpu-r60/capture_scene_0143.mjs
+0e8d6a4010ff286296f4343a4d40087d9875dfbeee337d407f49fa32899a8b94  sandbox/gpu-r60/browser/native-oracle/udim_native_standard.log
+aea8c4936bd00ac44371283b5265179e4ca11b64db926e50cbc416c193a842ce  sandbox/gpu-r60/browser/native-oracle/udim_native_standard.png
+8447f60714004d59423b5c5566b7238d0114d392cb5566a02246762c0b40acff  sandbox/gpu-r60/browser/proof/0143-udim-native-web-contact.png
+
+Workbench light_flat_attribute
+19787529bca4869c4adee543c59f48b91d6e16df37530ff1224ff99e7e5c7554  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/bw_readback_0.bin
+0d026aae66fb0694b473b63fb32239b79b5b5935e7ffe5a56d23b99dd3487fea  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/bw_readback_1.bin
+b05c73206e8941813a37147e13c97f3f78b3bdeb1ec4ba43ed55c1001a1a2dd2  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/manifest.json
+8ef5e1aa8d316ad38acd286922831dd09ac0eeaa86a5ee99cc88fefc48082db3  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/score.json
+edae73f2538a1fe4013e62f34dbc535775ed94d35b3d844292b99f7f51e2f6c6  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/render_result.png
+e69c461fa837474c57a1311eb5b23f3db570eff34444621b9b797b7811fbe225  sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute/composite_canvas_640x480.png
+
+Workbench packed UDIM
+d7cf3683be7d9ce3ce8aa5225f51c539804adc8067d2f17ca30bf1005b3ff9fc  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/bw_readback_0.bin
+6b82bbdafc44bae951ae805b2f0c4b84f5f1f4feed56174053bdb8e61ed3fad4  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/manifest.json
+729037658bf763c0d288feeebfa5816942cb924bcb700c92b7320ad971f00cf1  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/console.log
+bab96cae20d6ece40f7dc548217814ee33ee165c846118bc57cf8331f1a835cb  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/native-standard-compare.log
+b9c8eb976f26cea94480f3a5af52aed8a6f40832f8c0a8037f027a89137c66cc  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/production-compare.log
+eb3912acaf08e2d0c9d55bac203132e3a510832b878fbdfad9bf82b6c4777526  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/render_result.png
+0e4635730fb49db480beadc630789130931d1fcaa95169f9bbdfa21a2c558414  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/render_operator.png
+8a69651f14fe7291f6973a1e7433b2abfbb32d7dec8000c62ae6225ccdd2a038  sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/composite_canvas_1280x720.png
+
+EEVEE principled control
+100c565d2952861492108be785fd64c45a41b3cd594c89eff02e3016e2081a54  sandbox/gpu-r60/browser/scenes/caps/eevee_principled_default_0143/manifest.json
+2de90de8bfc12c81c2d72f0051ae427d0d2e319f3ccf0ff25e7f7d66fce4c5a1  sandbox/gpu-r60/browser/scenes/caps/eevee_principled_default_0143/console.log
+f8942067d95871e235963fe41605700c1719f87e46475a2e049a49b734a458b1  sandbox/gpu-r60/browser/scenes/caps/eevee_principled_default_0143/composite_canvas_1280x720.png
+
+Shipping artifacts
+e849c706c7dde4ed85427c8f68f59e58e515a04243d19a9cdb09f6525fa35519  build-wasm-windowed-opt/bin/blender.js
+b7a3e261e76939f0a9fa05c2518556756bc580ca00ac4d064fc436d99982edb1  build-wasm-windowed-opt/bin/blender.wasm
+5aa7c461a5a05aa5f0354754bbd7de7124819334ee336c3bc0f40a1efb7741b1  build-wasm-windowed-opt/bin/blender.data
+
+Behavioral verdict
+- Locked native build: PASS.
+- Fifteen targeted WebGPU tests: 15 PASS.
+- Census: 164 PASS, 7 FAIL, 2 CRASH of 173; static shaders 956/973; I10 control PASS.
+- Standalone Dawn: raw RG11 without renderability PASS; expected RG11 attachment validation 1/1; depth routes 8/8; stencil preservation 3/3; unexpected validation 0.
+- Workbench light_flat_attribute: PASS, mean 0.000227625, max 0.003921628, 0 pixels over 0.016, GPU errors 0.
+- Packed UDIM native Standard versus WebGPU: mean 0.00116190, max 0.00784314, 0 pixels over 0.016, GPU errors 0.
+- EEVEE principled: sentinel OK and GPU validation errors 0; no pixel pass claimed because known Phase B shader blockers stop before Film readback.

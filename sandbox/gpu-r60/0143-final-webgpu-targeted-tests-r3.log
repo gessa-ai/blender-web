@@ -1,0 +1,41 @@
+Note: Google Test filter = GPUWebGPUTest.texture_1d_array_webgpu_mips_partial_update_and_view_lifetime:GPUWebGPUTest.texture_1d_array_webgpu_sample_fetch_size_and_storage:GPUWebGPUTest.texture_1d_array_webgpu_nested_bind_source_free_lifetime:GPUWebGPUTest.texture_1d_array_webgpu_shader_lowering_overloads:GPUWebGPUTest.texture_view_webgpu_rejects_incompatible_alias:GPUWebGPUTest.texture_view_webgpu_geometry_and_rejected_update:GPUWebGPUTest.texture_view_webgpu_srgb_clear_encoding:GPUWebGPUTest.texture_view_webgpu_rg11_optional_render_capability:GPUWebGPUTest.texture_view_webgpu_nested_source_free_fbo_clear_blit:GPUWebGPUTest.texture_view_webgpu_mip_all_layer_clear:GPUWebGPUTest.texture_view_webgpu_depth_stencil_layers_and_blits:GPUWebGPUTest.texture_view_webgpu_depth_crossformat_and_0147_boundaries:GPUWebGPUTest.texture_view_webgpu_3d_attachment_slice:GPUWebGPUTest.texture_view_webgpu_3d_integer_slice_render_blit:GPUWebGPUTest.texture_view_webgpu_render_blit_cropped_extent
+[==========] Running 15 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 15 tests from GPUWebGPUTest
+color_management | Using fallback mode for management
+                 | source/blender/imbuf/intern/colormanagement.cc:342 colormanagement_init
+[ RUN      ] GPUWebGPUTest.texture_1d_array_webgpu_mips_partial_update_and_view_lifetime
+[       OK ] GPUWebGPUTest.texture_1d_array_webgpu_mips_partial_update_and_view_lifetime (50 ms)
+[ RUN      ] GPUWebGPUTest.texture_1d_array_webgpu_sample_fetch_size_and_storage
+[       OK ] GPUWebGPUTest.texture_1d_array_webgpu_sample_fetch_size_and_storage (154 ms)
+[ RUN      ] GPUWebGPUTest.texture_1d_array_webgpu_nested_bind_source_free_lifetime
+[       OK ] GPUWebGPUTest.texture_1d_array_webgpu_nested_bind_source_free_lifetime (118 ms)
+[ RUN      ] GPUWebGPUTest.texture_1d_array_webgpu_shader_lowering_overloads
+[       OK ] GPUWebGPUTest.texture_1d_array_webgpu_shader_lowering_overloads (439 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_rejects_incompatible_alias
+[       OK ] GPUWebGPUTest.texture_view_webgpu_rejects_incompatible_alias (0 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_geometry_and_rejected_update
+[       OK ] GPUWebGPUTest.texture_view_webgpu_geometry_and_rejected_update (16 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_srgb_clear_encoding
+[       OK ] GPUWebGPUTest.texture_view_webgpu_srgb_clear_encoding (24 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_rg11_optional_render_capability
+[       OK ] GPUWebGPUTest.texture_view_webgpu_rg11_optional_render_capability (3 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_nested_source_free_fbo_clear_blit
+[       OK ] GPUWebGPUTest.texture_view_webgpu_nested_source_free_fbo_clear_blit (6 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_mip_all_layer_clear
+[       OK ] GPUWebGPUTest.texture_view_webgpu_mip_all_layer_clear (5 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_depth_stencil_layers_and_blits
+[       OK ] GPUWebGPUTest.texture_view_webgpu_depth_stencil_layers_and_blits (35 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_depth_crossformat_and_0147_boundaries
+[       OK ] GPUWebGPUTest.texture_view_webgpu_depth_crossformat_and_0147_boundaries (15 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_3d_attachment_slice
+[       OK ] GPUWebGPUTest.texture_view_webgpu_3d_attachment_slice (5 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_3d_integer_slice_render_blit
+[       OK ] GPUWebGPUTest.texture_view_webgpu_3d_integer_slice_render_blit (10 ms)
+[ RUN      ] GPUWebGPUTest.texture_view_webgpu_render_blit_cropped_extent
+[       OK ] GPUWebGPUTest.texture_view_webgpu_render_blit_cropped_extent (12 ms)
+[----------] 15 tests from GPUWebGPUTest (899 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 1 test suite ran. (1277 ms total)
+[  PASSED  ] 15 tests.

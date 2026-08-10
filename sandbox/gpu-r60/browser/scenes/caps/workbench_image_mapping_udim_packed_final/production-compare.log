@@ -1,0 +1,8 @@
+Computing diff of "/private/tmp/0143-golden-rgb.png" vs "/private/tmp/0143-udim-web-production-rgb.png"
+  Mean error = 0.384824
+  RMS error = 0.390874
+  Peak SNR = 8.15927
+  Max error  = 0.5764706134796143 @ (56, 46, B)  values are 0.4431373, 0.37254903, 0.5764706 vs 0, 0, 0
+  16384 pixels (100%) over 1e-06
+  16384 pixels (100%) over 0.016
+FAILURE

@@ -1,0 +1,327 @@
+--- a/source/blender/gpu/tests/texture_view_test.cc
++++ b/source/blender/gpu/tests/texture_view_test.cc
+@@ -17,6 +17,8 @@
+ #include "BLI_math_vector_types.hh"
+ #include "BLI_vector.hh"
+ 
++#include "GPU_batch.hh"
++#include "GPU_batch_presets.hh"
+ #include "GPU_context.hh"
+ #include "GPU_framebuffer.hh"
+ #include "GPU_state.hh"
+@@ -30,6 +32,7 @@
+ #endif
+ 
+ #include <bitset>
++#include <cstdio>
+ 
+ namespace blender::gpu::tests {
+ 
+@@ -1169,4 +1172,307 @@
+ }
+ GPU_WEBGPU_TEST(texture_view_webgpu_render_blit_cropped_extent)
+ #endif
++
++/* Temporary native-only oracle. This block is intentionally not part of 0143.
++ * It records native Metal clear behavior without teaching the production test
++ * suite an expected result before the receipt exists. */
++static uchar4 native_oracle_read_rgba(gpu::Texture *texture, int pixels, const char *case_name)
++{
++  uchar4 result(0);
++  uchar4 *bytes = static_cast<uchar4 *>(GPU_texture_read(texture, GPU_DATA_UBYTE, 0));
++  EXPECT_NE(bytes, nullptr) << case_name;
++  if (bytes != nullptr) {
++    result = bytes[0];
++    for (int i = 1; i < pixels; i++) {
++      EXPECT_EQ(bytes[i], result) << case_name << " pixel=" << i;
++    }
++    MEM_delete(bytes);
++  }
++  return result;
++}
++
++static void native_oracle_print_rgba(const char *case_name, const uchar4 value)
++{
++  std::fprintf(stderr,
++               "NATIVE_SRGB backend=%s case=%s rgba=%u,%u,%u,%u\n",
++               GPU_backend_get_name(),
++               case_name,
++               uint(value.x),
++               uint(value.y),
++               uint(value.z),
++               uint(value.w));
++}
++
++static void test_texture_view_native_srgb_and_mip_clear_oracle()
++{
++  GPU_render_begin();
++  constexpr eGPUTextureUsage usage = GPU_TEXTURE_USAGE_ATTACHMENT |
++                                     GPU_TEXTURE_USAGE_HOST_READ |
++                                     GPU_TEXTURE_USAGE_FORMAT_VIEW;
++  const float4 color(0.25f, 0.5f, 0.75f, 1.0f);
++
++  /* 1. Direct clear of a linear root. */
++  gpu::Texture *root_unorm = GPU_texture_create_2d(
++      __func__, 2, 2, 1, TextureFormat::UNORM_8_8_8_8, usage, nullptr);
++  ASSERT_NE(root_unorm, nullptr);
++  GPU_texture_clear(root_unorm, GPU_DATA_FLOAT, color);
++  native_oracle_print_rgba(
++      "root_unorm_direct", native_oracle_read_rgba(root_unorm, 4, "root_unorm_direct"));
++  GPU_texture_free(root_unorm);
++
++  /* 2. Direct clear of an sRGB root, read through a linear view to expose bytes. */
++  gpu::Texture *root_srgb = GPU_texture_create_2d(
++      __func__, 2, 2, 1, TextureFormat::SRGBA_8_8_8_8, usage, nullptr);
++  ASSERT_NE(root_srgb, nullptr);
++  gpu::Texture *root_srgb_raw = GPU_texture_create_view(__func__,
++                                                         root_srgb,
++                                                         TextureFormat::UNORM_8_8_8_8,
++                                                         0,
++                                                         1,
++                                                         0,
++                                                         1,
++                                                         false,
++                                                         false);
++  ASSERT_NE(root_srgb_raw, nullptr);
++  GPU_texture_clear(root_srgb, GPU_DATA_FLOAT, color);
++  native_oracle_print_rgba(
++      "root_srgb_direct", native_oracle_read_rgba(root_srgb_raw, 4, "root_srgb_direct"));
++  GPU_texture_free(root_srgb_raw);
++  GPU_texture_free(root_srgb);
++
++  /* 3. Direct clear through an sRGB view of linear storage. */
++  gpu::Texture *unorm_storage = GPU_texture_create_2d(
++      __func__, 2, 2, 1, TextureFormat::UNORM_8_8_8_8, usage, nullptr);
++  ASSERT_NE(unorm_storage, nullptr);
++  gpu::Texture *srgb_view = GPU_texture_create_view(__func__,
++                                                     unorm_storage,
++                                                     TextureFormat::SRGBA_8_8_8_8,
++                                                     0,
++                                                     1,
++                                                     0,
++                                                     1,
++                                                     false,
++                                                     false);
++  ASSERT_NE(srgb_view, nullptr);
++  GPU_texture_clear(srgb_view, GPU_DATA_FLOAT, color);
++  native_oracle_print_rgba("unorm_to_srgb_view_direct",
++                           native_oracle_read_rgba(
++                               unorm_storage, 4, "unorm_to_srgb_view_direct"));
++  GPU_texture_free(srgb_view);
++  GPU_texture_free(unorm_storage);
++
++  /* 4. Direct clear through a linear view of sRGB storage. */
++  gpu::Texture *srgb_storage = GPU_texture_create_2d(
++      __func__, 2, 2, 1, TextureFormat::SRGBA_8_8_8_8, usage, nullptr);
++  ASSERT_NE(srgb_storage, nullptr);
++  gpu::Texture *linear_view = GPU_texture_create_view(__func__,
++                                                       srgb_storage,
++                                                       TextureFormat::UNORM_8_8_8_8,
++                                                       0,
++                                                       1,
++                                                       0,
++                                                       1,
++                                                       false,
++                                                       false);
++  ASSERT_NE(linear_view, nullptr);
++  GPU_texture_clear(linear_view, GPU_DATA_FLOAT, color);
++  native_oracle_print_rgba("srgb_to_unorm_view_direct",
++                           native_oracle_read_rgba(
++                               linear_view, 4, "srgb_to_unorm_view_direct"));
++  GPU_texture_free(linear_view);
++  GPU_texture_free(srgb_storage);
++
++  /* 5. Framebuffer clear through an sRGB view of linear storage. */
++  gpu::Texture *fbo_storage = GPU_texture_create_2d(
++      __func__, 2, 2, 1, TextureFormat::UNORM_8_8_8_8, usage, nullptr);
++  ASSERT_NE(fbo_storage, nullptr);
++  gpu::Texture *fbo_srgb_view = GPU_texture_create_view(__func__,
++                                                         fbo_storage,
++                                                         TextureFormat::SRGBA_8_8_8_8,
++                                                         0,
++                                                         1,
++                                                         0,
++                                                         1,
++                                                         false,
++                                                         false);
++  ASSERT_NE(fbo_srgb_view, nullptr);
++  gpu::FrameBuffer *srgb_fb = nullptr;
++  GPU_framebuffer_ensure_config(
++      &srgb_fb, {GPU_ATTACHMENT_NONE, GPU_ATTACHMENT_TEXTURE(fbo_srgb_view)});
++  ASSERT_NE(srgb_fb, nullptr);
++  GPU_framebuffer_clear_color(srgb_fb, double4(color));
++  native_oracle_print_rgba("unorm_to_srgb_view_framebuffer",
++                           native_oracle_read_rgba(
++                               fbo_storage, 4, "unorm_to_srgb_view_framebuffer"));
++  GPU_framebuffer_free(srgb_fb);
++  GPU_texture_free(fbo_srgb_view);
++  GPU_texture_free(fbo_storage);
++
++  /* Public direct clear is relative mip zero. Seed mip one through a view, clear
++   * the root, and report both raw subresources. */
++  gpu::Texture *mip_root = GPU_texture_create_2d(
++      __func__, 4, 4, 2, TextureFormat::UNORM_8_8_8_8, usage, nullptr);
++  ASSERT_NE(mip_root, nullptr);
++  gpu::Texture *mip_one = GPU_texture_create_view(__func__,
++                                                   mip_root,
++                                                   TextureFormat::UNORM_8_8_8_8,
++                                                   1,
++                                                   1,
++                                                   0,
++                                                   1,
++                                                   false,
++                                                   false);
++  ASSERT_NE(mip_one, nullptr);
++  GPU_texture_clear(mip_one, GPU_DATA_FLOAT, float4(1.0f, 0.0f, 0.0f, 1.0f));
++  GPU_texture_clear(mip_root, GPU_DATA_FLOAT, float4(0.0f, 1.0f, 0.0f, 1.0f));
++  const uchar4 mip_zero_value = native_oracle_read_rgba(mip_root, 16, "root_two_mip_mip0");
++  const uchar4 mip_one_value = native_oracle_read_rgba(mip_one, 4, "root_two_mip_mip1");
++  std::fprintf(stderr,
++               "NATIVE_MIP backend=%s case=root_two_mip_direct mip0=%u,%u,%u,%u "
++               "mip1=%u,%u,%u,%u\n",
++               GPU_backend_get_name(),
++               uint(mip_zero_value.x),
++               uint(mip_zero_value.y),
++               uint(mip_zero_value.z),
++               uint(mip_zero_value.w),
++               uint(mip_one_value.x),
++               uint(mip_one_value.y),
++               uint(mip_one_value.z),
++               uint(mip_one_value.w));
++  GPU_texture_free(mip_one);
++  GPU_texture_free(mip_root);
++  GPU_render_end();
++}
++GPU_METAL_TEST(texture_view_native_srgb_and_mip_clear_oracle)
++
++static void test_texture_view_native_combined_direct_clear_oracle()
++{
++  GPU_render_begin();
++  constexpr int root_size = 4;
++  constexpr int target_size = 2;
++  constexpr int layers = 3;
++  constexpr int mips = 2;
++  constexpr int target_layer = 1;
++  constexpr uint target_stencil = 18u;
++  constexpr eGPUTextureUsage usage = GPU_TEXTURE_USAGE_ATTACHMENT |
++                                     GPU_TEXTURE_USAGE_HOST_READ |
++                                     GPU_TEXTURE_USAGE_FORMAT_VIEW;
++  const TextureFormat format = TextureFormat::SFLOAT_32_DEPTH_UINT_8;
++  gpu::Texture *root = GPU_texture_create_2d_array(
++      __func__, root_size, root_size, layers, mips, format, usage, nullptr);
++  ASSERT_NE(root, nullptr);
++
++  /* Give every mip/layer a unique sentinel through an exact framebuffer view. */
++  for (int mip = 0; mip < mips; mip++) {
++    for (int layer = 0; layer < layers; layer++) {
++      gpu::Texture *seed_view = GPU_texture_create_view(
++          __func__, root, format, mip, 1, layer, 1, false, false);
++      ASSERT_NE(seed_view, nullptr);
++      gpu::FrameBuffer *seed_fb = nullptr;
++      GPU_framebuffer_ensure_config(
++          &seed_fb, {GPU_ATTACHMENT_TEXTURE(seed_view), GPU_ATTACHMENT_NONE});
++      ASSERT_NE(seed_fb, nullptr);
++      GPU_framebuffer_clear_depth_stencil(
++          seed_fb, 0.1f * float(1 + mip * layers + layer), uint(10 + mip * 7 + layer));
++      GPU_framebuffer_free(seed_fb);
++      GPU_texture_free(seed_view);
++    }
++  }
++
++  gpu::Texture *stencil_wrapper = GPU_texture_create_view(
++      __func__, root, format, 1, 1, target_layer, 1, false, true);
++  gpu::Texture *selected_depth = GPU_texture_create_view(
++      __func__, root, format, 1, 1, target_layer, 1, false, false);
++  gpu::Texture *neighbor_depth = GPU_texture_create_view(
++      __func__, root, format, 1, 1, 0, 1, false, false);
++  gpu::Texture *mip_zero_depth = GPU_texture_create_view(
++      __func__, root, format, 0, 1, target_layer, 1, false, false);
++  ASSERT_NE(stencil_wrapper, nullptr);
++  ASSERT_NE(selected_depth, nullptr);
++  ASSERT_NE(neighbor_depth, nullptr);
++  ASSERT_NE(mip_zero_depth, nullptr);
++
++  const float clear_depth = 0.8f;
++  GPU_texture_clear(stencil_wrapper, GPU_DATA_FLOAT, &clear_depth);
++  float *selected = static_cast<float *>(
++      GPU_texture_read(selected_depth, GPU_DATA_FLOAT, 0));
++  float *neighbor = static_cast<float *>(
++      GPU_texture_read(neighbor_depth, GPU_DATA_FLOAT, 0));
++  float *mip_zero = static_cast<float *>(
++      GPU_texture_read(mip_zero_depth, GPU_DATA_FLOAT, 0));
++  ASSERT_NE(selected, nullptr);
++  ASSERT_NE(neighbor, nullptr);
++  ASSERT_NE(mip_zero, nullptr);
++  EXPECT_NEAR(selected[0], clear_depth, 1e-6f);
++  EXPECT_NEAR(neighbor[0], 0.4f, 1e-6f);
++  EXPECT_NEAR(mip_zero[0], 0.2f, 1e-6f);
++
++  /* Public native readback cannot expose stencil directly. Render through an
++   * EQUAL stencil test: a white result proves the selected stencil sentinel was
++   * loaded and preserved by direct clear. */
++  gpu::Texture *color = GPU_texture_create_2d(__func__,
++                                               target_size,
++                                               target_size,
++                                               1,
++                                               TextureFormat::UNORM_8_8_8_8,
++                                               GPU_TEXTURE_USAGE_ATTACHMENT |
++                                                   GPU_TEXTURE_USAGE_HOST_READ,
++                                               nullptr);
++  ASSERT_NE(color, nullptr);
++  gpu::FrameBuffer *verify_fb = nullptr;
++  GPU_framebuffer_ensure_config(
++      &verify_fb,
++      {GPU_ATTACHMENT_TEXTURE(selected_depth), GPU_ATTACHMENT_TEXTURE(color)});
++  ASSERT_NE(verify_fb, nullptr);
++  GPU_framebuffer_bind(verify_fb);
++  GPU_framebuffer_clear_color(verify_fb, double4(0.0));
++  GPU_depth_test(GPU_DEPTH_NONE);
++  GPU_stencil_test(GPU_STENCIL_EQUAL);
++  GPU_stencil_reference_set(target_stencil);
++  GPU_stencil_write_mask_set(0u);
++  Batch *quad = GPU_batch_preset_quad();
++  GPU_batch_program_set_builtin(quad, GPU_SHADER_3D_UNIFORM_COLOR);
++  GPU_batch_uniform_4fv(quad, "color", float4(1.0f));
++  GPU_batch_draw(quad);
++  GPU_finish();
++  uchar4 *stencil_receipt = static_cast<uchar4 *>(
++      GPU_texture_read(color, GPU_DATA_UBYTE, 0));
++  ASSERT_NE(stencil_receipt, nullptr);
++  bool stencil_preserved = true;
++  for (int i = 0; i < target_size * target_size; i++) {
++    stencil_preserved &= stencil_receipt[i] == uchar4(255);
++  }
++  EXPECT_TRUE(stencil_preserved);
++  std::fprintf(stderr,
++               "NATIVE_DS backend=%s selected_depth=%.9g neighbor_depth=%.9g "
++               "mip0_depth=%.9g stencil_preserved=%d exact_range=%d\n",
++               GPU_backend_get_name(),
++               double(selected[0]),
++               double(neighbor[0]),
++               double(mip_zero[0]),
++               stencil_preserved ? 1 : 0,
++               (std::abs(selected[0] - clear_depth) < 1e-6f &&
++                std::abs(neighbor[0] - 0.4f) < 1e-6f &&
++                std::abs(mip_zero[0] - 0.2f) < 1e-6f) ?
++                   1 :
++                   0);
++
++  GPU_stencil_test(GPU_STENCIL_NONE);
++  GPU_stencil_reference_set(0u);
++  GPU_stencil_write_mask_set(0xFFu);
++  MEM_delete(stencil_receipt);
++  MEM_delete(mip_zero);
++  MEM_delete(neighbor);
++  MEM_delete(selected);
++  GPU_framebuffer_free(verify_fb);
++  GPU_texture_free(color);
++  GPU_texture_free(mip_zero_depth);
++  GPU_texture_free(neighbor_depth);
++  GPU_texture_free(selected_depth);
++  GPU_texture_free(stencil_wrapper);
++  GPU_texture_free(root);
++  GPU_render_end();
++}
++GPU_METAL_TEST(texture_view_native_combined_direct_clear_oracle)
++
+ }  // namespace blender::gpu::tests

@@ -1,0 +1,21 @@
+{
+  "capdir": "sandbox/gpu-r60/browser/scenes/caps/workbench_light_flat_attribute",
+  "golden": "sandbox/m6-prep/goldens/workbench/workbench/light_flat_attribute.png",
+  "sentinel": "OK BLENDER_WORKBENCH",
+  "ncaps": 2,
+  "gpuErrorCount": 0,
+  "gpu_sig": "",
+  "render_result": {
+    "seq": 0,
+    "w": 128,
+    "h": 128,
+    "fmt": 40
+  },
+  "decode": "nzFrac=1.0000 min=(0.017,0.057,0.019) max=(0.939,0.932,0.943)",
+  "oiiotool_rc": 0,
+  "mean_error": "0.000227625",
+  "max_error": "0.003921627998352051",
+  "pct_over": "0 pixels (0%) over 0.016",
+  "verdict": "PASS",
+  "cluster": "pixel-pass"
+}

@@ -1,0 +1,8 @@
+Computing diff of "/private/tmp/0143-udim-native-standard-rgb.png" vs "sandbox/gpu-r60/browser/scenes/caps/workbench_image_mapping_udim_packed_final/render_result.png"
+  Mean error = 0.0011619
+  RMS error = 0.00213562
+  Peak SNR = 53.4095
+  Max error  = 0.00784313678741455 @ (34, 2, R)  values are 0.5019608, 0.37254903, 0.37254903 vs 0.50980395, 0.37254903, 0.37647063
+  9828 pixels (60%) over 1e-06
+  0 pixels (0%) over 0.016
+WARNING

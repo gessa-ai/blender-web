@@ -89,7 +89,7 @@ BUILD_TRIPLE="$(CC=cc CC_FOR_BUILD=cc "$SRC/config.guess")"
 # --- 1. native bootstrap interpreter (host tool, config-independent) ------------
 NATIVE="$SCRATCH/build-native"
 rm -rf "$NATIVE"; mkdir -p "$NATIVE"
-( cd "$NATIVE" && "$SRC/configure" -C >/dev/null && make -j"$NPROC" >/dev/null )
+( export CC=cc CXX=c++ AR=ar RANLIB=ranlib; cd "$NATIVE" && "$SRC/configure" -C >/dev/null && make -j"$NPROC" >/dev/null )
 # macOS case-insensitive FS names it python.exe (avoids clash with the Python/ object dir).
 BUILD_PY="$NATIVE/python.exe"; [ -x "$BUILD_PY" ] || BUILD_PY="$NATIVE/python"
 [ -x "$BUILD_PY" ] || { echo "python: native bootstrap interpreter not found"; exit 1; }

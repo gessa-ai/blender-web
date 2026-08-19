@@ -236,7 +236,7 @@ install_mp_shim
 # (source + 3 bytecode levels). Keeping .py only is import-safe (CPython recompiles to
 # memory; node-embed reads this same tree and is equally safe). See
 # scripts/deps/prune-preload-pycache.sh + notes/m8-pycache-strip.md.
-"$(dirname "$0")/prune-preload-pycache.sh" "$STDLIB_DST"
+"$ROOT/scripts/deps/prune-preload-pycache.sh" "$STDLIB_DST"
 
 LIB_TMP="$PREFIX/lib/.libpython${PY_SHORT}.a.tmp.$$"
 cp "$COMBINED" "$LIB_TMP"; chmod 644 "$LIB_TMP"

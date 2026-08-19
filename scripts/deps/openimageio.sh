@@ -74,7 +74,7 @@ tar -xzf "$TARBALL" -C "$SCRATCH"
 # for M1 — Blender links OCIO directly — so guard the target reference. See
 # notes/deps-oiio.md. Idempotent (source re-extracted each run).
 EXTPKG="$SRC/src/cmake/externalpackages.cmake"
-sed -i '' \
+sed -i \
   's/^if (NOT OPENCOLORIO_INCLUDES)$/if (NOT OPENCOLORIO_INCLUDES AND TARGET OpenColorIO::OpenColorIO)/' \
   "$EXTPKG"
 # ...and libOpenImageIO unconditionally LINKS OpenColorIO::OpenColorIO. The OCIO
@@ -82,7 +82,7 @@ sed -i '' \
 # package is found), so making the link itself conditional yields a valid
 # OCIO-less library. Rebuild OIIO with OCIO if a consumer ever needs its
 # ImageBufAlgo::colorconvert (Blender does not — it links intern/opencolorio).
-sed -i '' \
+sed -i \
   's/^\( *\)OpenColorIO::OpenColorIO$/\1$<TARGET_NAME_IF_EXISTS:OpenColorIO::OpenColorIO>/' \
   "$SRC/src/libOpenImageIO/CMakeLists.txt"
 
@@ -98,7 +98,7 @@ SU="$SRC/src/libutil"
 # Add __EMSCRIPTEN__ to every glibc-family guard (the c_loc locale def AND the
 # strcasecmp_l/strncasecmp_l branches must flip together, else one references a
 # c_loc the other never defined). musl provides both the _l funcs and newlocale.
-sed -i '' 's/defined(__GLIBC__)/defined(__GLIBC__) || defined(__EMSCRIPTEN__)/g' \
+sed -i 's/defined(__GLIBC__)/defined(__GLIBC__) || defined(__EMSCRIPTEN__)/g' \
   "$SU/strutil.cpp"
 perl -0777 -i -pe 's{#include <OpenImageIO/platform.h>\n}{#include <OpenImageIO/platform.h>\n#include <strings.h>  // emscripten/musl: strcasecmp_l\n#include <locale.h>   // emscripten/musl: newlocale/LC_ALL_MASK\n}' \
   "$SU/strutil.cpp"
@@ -115,7 +115,7 @@ perl -0777 -i -pe 's{#else\n    // No idea what platform this is\n    OIIO_ASSER
 # this_program_path(): no /proc or dyld in the sandbox. Fold __EMSCRIPTEN__ into
 # the existing "can't determine -> r=0" elif so it returns an empty path instead
 # of tripping the unimplemented-platform static assert.
-sed -i '' 's/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32)/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32) || defined(__EMSCRIPTEN__)/' \
+sed -i 's/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32)/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32) || defined(__EMSCRIPTEN__)/' \
   "$SU/sysutil.cpp"
 # ustring::TableRep — the libc++ branch pokes std::string's private __long fields
 # (__cap_/__size_/__data_) for long strings, assuming a specific libc++ layout.
@@ -128,7 +128,7 @@ sed -i '' 's/#elif defined(__GNU__) || defined(__OpenBSD__) || defined(_WIN32)/#
 # EXCLUDES aarch64 from this branch (falls to the safe `str = strref` copy);
 # exclude __EMSCRIPTEN__ the same way. Costs one extra small alloc per interned
 # long string; buys correct ustring::string() everywhere on wasm.
-sed -i '' 's/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__)/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__) \&\& !defined(__EMSCRIPTEN__)/' \
+sed -i 's/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__)/#elif defined(_LIBCPP_VERSION) \&\& !defined(__aarch64__) \&\& !defined(__EMSCRIPTEN__)/' \
   "$SU/ustring.cpp"
 
 BUILD="$SCRATCH/build"

@@ -69,7 +69,7 @@ if [ -d "$BUILD/lib/cmake/libjpeg-turbo" ]; then
   # to the installed archive so downstream find_package(libjpeg-turbo) CONFIG
   # (OpenImageIO, Blender) resolves a file that actually exists.
   for f in "$PREFIX"/lib/cmake/libjpeg-turbo/libjpeg-turboTargets-*.cmake; do
-    [ -f "$f" ] && sed -i '' "s#${BUILD}/lib/libjpeg.a#${PREFIX}/lib/libjpeg.a#g" "$f"
+    [ -f "$f" ] && sed -i "s#${BUILD}/lib/libjpeg.a#${PREFIX}/lib/libjpeg.a#g" "$f"
   done
 fi
 [ -f "$BUILD/lib/pkgconfig/libjpeg.pc" ] && \

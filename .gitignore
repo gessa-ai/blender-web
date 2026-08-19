@@ -118,3 +118,4 @@ build-wasm-*/
 /sandbox/m8-wasm-split/pthread-view-growth/evidence/
 /sandbox/m8-wasm-split/single-flight-harness/*.wasm
 /sandbox/**/*.log
+.ci-cache/

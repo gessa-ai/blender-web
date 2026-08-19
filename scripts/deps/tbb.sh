@@ -44,7 +44,7 @@ cd "$SCRATCH"
 if [ ! -f "oneTBB-${VER}.tar.gz" ]; then
   curl -sL -o "oneTBB-${VER}.tar.gz" "$URL"
 fi
-GOT="$(md5 -q "oneTBB-${VER}.tar.gz")"
+GOT="$(md5 -q "oneTBB-${VER}.tar.gz" 2>/dev/null || md5sum "oneTBB-${VER}.tar.gz" | awk '{print $1}')"
 [ "$GOT" = "$MD5" ] || { echo "tbb: MD5 mismatch got=$GOT want=$MD5"; exit 1; }
 rm -rf "$SRC"; tar xzf "oneTBB-${VER}.tar.gz"
 

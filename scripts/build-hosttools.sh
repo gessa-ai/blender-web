@@ -42,6 +42,9 @@ ST="$SRC/gpu/shader_tool"
 # lib bundle (lib/wasm/include, the same headers the real wasm build uses via -isystem),
 # so no host package is required. zstd's compiled symbols are only in BLI_file_zstd_*
 # functions msgfmt never calls; -Wl,-dead_strip drops them, so libzstd is NOT linked.
+# ld64 spells it -dead_strip; GNU ld spells the same intent --gc-sections.
+DEAD_STRIP="-Wl,--gc-sections"
+[ "$(uname -s)" = Darwin ] && DEAD_STRIP="-Wl,-dead_strip"
 echo "[build-hosttools] msgfmt"
 BL="$SRC/blenlib"
 GA="$ROOT/upstream/intern/guardedalloc"
@@ -55,7 +58,7 @@ fi
 "$CXX" -std=c++20 -O2 -DNDEBUG \
   -I "$BL" -I "$GA" -I "$ROOT/upstream/intern/atomic" -I "$ROOT/upstream/intern/eigen" \
   -I "$SRC/makesdna" -isystem "$LIBWASM_INC" \
-  -Wl,-dead_strip \
+  "$DEAD_STRIP" \
   -o "$OUT/msgfmt" \
   "$MF/msgfmt.cc" \
   "$BL/intern/storage.cc" \

@@ -128,7 +128,7 @@ if [ "$FORCE" = 0 ] && [ -f "$PREFIX/lib/libosdCPU.a" ] && \
 fi
 
 # --- disk guard (need headroom for the source + object tree) ---
-FREE_G="$(df -g / | awk 'NR==2{print $4}')"
+FREE_G="$(df -Pk / | awk 'NR==2{print int($4/1048576)}')"
 if [ "${FREE_G:-0}" -lt 8 ]; then
   echo "opensubdiv: ABORT: only ${FREE_G} GiB free on / (need >= 8 GiB)" >&2
   exit 1

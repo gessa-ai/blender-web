@@ -84,7 +84,7 @@ GOT="$(md5 -q "$TARBALL" 2>/dev/null || md5sum "$TARBALL" | awk '{print $1}')"
 SRC="$SCRATCH/Python-${PY_VERSION}"
 rm -rf "$SRC"
 tar -xf "$TARBALL" -C "$SCRATCH"
-BUILD_TRIPLE="$("$SRC/config.guess")"
+BUILD_TRIPLE="$(CC=cc CC_FOR_BUILD=cc "$SRC/config.guess")"
 
 # --- 1. native bootstrap interpreter (host tool, config-independent) ------------
 NATIVE="$SCRATCH/build-native"

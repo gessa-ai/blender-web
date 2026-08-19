@@ -39,6 +39,8 @@ PY
 
 # shellcheck disable=SC1091
 source "$EMSDK_ROOT/emsdk_env.sh" >/dev/null 2>&1
+export EM_CACHE="${EM_CACHE:-$ROOT/.ci-cache/emscripten}" # emsdk_env.sh unsets EM_CACHE when its stored config does not define a cache (fresh Linux emsdk); re-assert the hermetic default
+export CCACHE_DIR="${CCACHE_DIR:-$ROOT/.ci-cache/ccache}" # emsdk_env.sh clears CCACHE_DIR too; same re-assert
 emcc_version="$(emcc --version | head -n 1)"
 [[ "$emcc_version" == *"6.0.5 ($EMCC_COMMIT)"* ]] \
   || die "unexpected emcc identity: $emcc_version"

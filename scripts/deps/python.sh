@@ -161,7 +161,7 @@ cd "$XBUILD"
 # lambda callback, which needs no signature adaptation).
 CONFIG_SITE="$SRC/Tools/wasm/config.site-wasm32-emscripten" \
 CFLAGS="-fexceptions -matomics -mbulk-memory -DPY_CALL_TRAMPOLINE" \
-CPPFLAGS="-matomics -mbulk-memory -DPY_CALL_TRAMPOLINE" \
+CPPFLAGS="-matomics -mbulk-memory -DPY_CALL_TRAMPOLINE -I$PREFIX/include" \
 LDFLAGS="-fexceptions" \
   emconfigure "$SRC/configure" -C \
     --host=wasm32-unknown-emscripten \
@@ -170,7 +170,7 @@ LDFLAGS="-fexceptions" \
     --with-build-python="$BUILD_PY" \
     --disable-shared --disable-ipv6 \
     py_cv_module__sqlite3=n/a py_cv_module__bz2=n/a \
-    py_cv_module__decimal=n/a \
+    py_cv_module__decimal=n/a py_cv_module__lzma=n/a \
     py_cv_module_pyexpat=n/a py_cv_module__elementtree=n/a
 
 # --- 3. build libpython + generated files, then harvest via install targets -----

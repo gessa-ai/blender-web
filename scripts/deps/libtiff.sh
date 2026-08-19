@@ -11,14 +11,14 @@
 # Idempotent: no-op once lib/wasm/lib/libtiff.a is present.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/libtiff"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 TIFF_VERSION="4.7.1"
-TIFF_URL="http://download.osgeo.org/libtiff/tiff-${TIFF_VERSION}.tar.gz"
+TIFF_URL="https://download.osgeo.org/libtiff/tiff-${TIFF_VERSION}.tar.gz"
 TIFF_MD5="f1044dd3b4466cc53464210148e08146"
 TARBALL="$CACHE/tiff-${TIFF_VERSION}.tar.gz"
 

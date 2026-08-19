@@ -13,7 +13,7 @@
 # Idempotent: no-op once the config package is present.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/openjph"
 CACHE="$ROOT/build-deps/_cache"
@@ -63,7 +63,7 @@ emcmake cmake -S "$SRC" -B "$BUILD" -G "Unix Makefiles" \
   -DCMAKE_C_FLAGS="-pthread" \
   -DCMAKE_CXX_FLAGS="-pthread"
 
-emmake cmake --build "$BUILD" --target install -j"$(sysctl -n hw.ncpu)"
+emmake cmake --build "$BUILD" --target install -j"$(getconf _NPROCESSORS_ONLN)"
 
 if [ ! -f "$CONFIG_MARKER" ]; then
   echo "openjph: install did not produce $CONFIG_MARKER" >&2

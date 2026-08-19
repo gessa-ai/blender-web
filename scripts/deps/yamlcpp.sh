@@ -7,11 +7,11 @@
 # OpenColorIO dep. Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/yamlcpp"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 YAMLCPP_VERSION="0.8.0"
 YAMLCPP_URL="https://github.com/jbeder/yaml-cpp/archive/refs/tags/${YAMLCPP_VERSION}.tar.gz"

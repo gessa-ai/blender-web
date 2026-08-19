@@ -37,7 +37,7 @@
 # Idempotent: re-running with libshaderc.a present is a no-op.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DAWN_SRC="$ROOT/build-dawn/dawn"
 SRC="$ROOT/build-deps/shaderc-src"
 BUILD="$ROOT/build-deps/shaderc"

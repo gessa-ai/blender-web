@@ -12,6 +12,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 VERSION="2.1.3"
 URL="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${VERSION}.tar.gz"
+MD5="627b980fad0573e08e4c3b80b290fc91"
 SCRATCH="$ROOT/build-deps/libjpeg"
 SRC="$SCRATCH/libjpeg-turbo-${VERSION}"
 BUILD="$SCRATCH/build"
@@ -28,6 +29,11 @@ source "$ROOT/tools/emsdk/emsdk_env.sh" >/dev/null 2>&1
 mkdir -p "$SCRATCH"
 if [ ! -d "$SRC" ]; then
   [ -f "$TARBALL" ] || curl -fL --retry 3 -o "$TARBALL" "$URL"
+  GOT_MD5="$(md5 -q "$TARBALL" 2>/dev/null || md5sum "$TARBALL" | awk '{print $1}')"
+  if [ "$GOT_MD5" != "$MD5" ]; then
+    echo "libjpeg: MD5 mismatch (got $GOT_MD5 want $MD5)" >&2
+    exit 1
+  fi
   tar -xzf "$TARBALL" -C "$SCRATCH"
 fi
 
@@ -48,7 +54,7 @@ emcmake cmake "$SRC" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_C_FLAGS="$FLAGS"
 
-emmake cmake --build . --target install -j"$(sysctl -n hw.ncpu)"
+emmake cmake --build . --target install -j"$(getconf _NPROCESSORS_ONLN)"
 
 # libjpeg-turbo 2.1.3 ships a bundled GNUInstallDirs.cmake that resolves
 # CMAKE_INSTALL_LIBDIR into the build tree, so the static archive + cmake

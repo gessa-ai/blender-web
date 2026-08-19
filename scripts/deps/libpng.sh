@@ -15,6 +15,7 @@ VERSION="1.6.58"
 # Pinned sourceforge URI (versions.cmake) first, github release as fallback.
 URL_PRIMARY="https://download.sourceforge.net/libpng/libpng-${VERSION}.tar.xz"
 URL_FALLBACK="https://github.com/pnggroup/libpng/releases/download/v${VERSION}/libpng-${VERSION}.tar.xz"
+SHA256="28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775"
 SCRATCH="$ROOT/build-deps/libpng"
 SRC="$SCRATCH/libpng-${VERSION}"
 BUILD="$SCRATCH/build"
@@ -37,6 +38,12 @@ mkdir -p "$SCRATCH"
 if [ ! -d "$SRC" ]; then
   [ -f "$TARBALL" ] || curl -fL --retry 3 -o "$TARBALL" "$URL_PRIMARY" || \
     curl -fL --retry 3 -o "$TARBALL" "$URL_FALLBACK"
+  GOT_SHA256="$(shasum -a 256 "$TARBALL" 2>/dev/null | awk '{print $1}' || \
+    sha256sum "$TARBALL" | awk '{print $1}')"
+  if [ "$GOT_SHA256" != "$SHA256" ]; then
+    echo "libpng: SHA256 mismatch (got $GOT_SHA256 want $SHA256)" >&2
+    exit 1
+  fi
   tar -xf "$TARBALL" -C "$SCRATCH"
 fi
 
@@ -59,7 +66,7 @@ emcmake cmake "$SRC" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_C_FLAGS="$FLAGS"
 
-emmake cmake --build . --target install -j"$(sysctl -n hw.ncpu)"
+emmake cmake --build . --target install -j"$(getconf _NPROCESSORS_ONLN)"
 
 # Ensure a plain libpng.a alias exists next to the versioned archive.
 if [ -f "$PREFIX/lib/libpng16.a" ] && [ ! -e "$PREFIX/lib/libpng.a" ]; then

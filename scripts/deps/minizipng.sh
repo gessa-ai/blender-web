@@ -10,11 +10,11 @@
 # Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/minizipng"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 MINIZIPNG_VERSION="4.0.10"
 MINIZIPNG_URL="https://github.com/zlib-ng/minizip-ng/archive/${MINIZIPNG_VERSION}.tar.gz"

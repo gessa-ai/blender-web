@@ -26,7 +26,7 @@
 # archives already present is a no-op.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DAWN_SRC="$ROOT/build-dawn/dawn"
 BUILD="$ROOT/build-deps/tint"
 PREFIX="$ROOT/lib/wasm/tint"

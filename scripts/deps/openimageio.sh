@@ -20,11 +20,11 @@
 # Idempotent: no-op once the OpenImageIO CMake config is present.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/openimageio"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 OIIO_VERSION="3.1.13.1"
 OIIO_URL="https://github.com/AcademySoftwareFoundation/OpenImageIO/archive/refs/tags/v${OIIO_VERSION}.tar.gz"
@@ -32,7 +32,7 @@ OIIO_MD5="9f6f083900680b79ca4a136270103844"
 TARBALL="$CACHE/OpenImageIO-${OIIO_VERSION}.tar.gz"
 
 CONFIG_MARKER="$PREFIX/lib/cmake/OpenImageIO/OpenImageIOConfig.cmake"
-if [ -f "$CONFIG_MARKER" ]; then
+if [ -f "$CONFIG_MARKER" ] && [ "${BW_REBUILD_OPENIMAGEIO:-0}" != 1 ]; then
   echo "openimageio: already installed ($CONFIG_MARKER) — skip"
   exit 0
 fi
@@ -104,7 +104,13 @@ perl -0777 -i -pe 's{#include <OpenImageIO/platform.h>\n}{#include <OpenImageIO/
   "$SU/strutil.cpp"
 # emscripten needs <unistd.h> for isatty()/usleep() (the __linux__ include block
 # is skipped on this platform).
-perl -0777 -i -pe 's{#include <OpenImageIO/platform.h>\n}{#include <OpenImageIO/platform.h>\n#ifdef __EMSCRIPTEN__\n#  include <unistd.h>\n#  include <sys/ioctl.h>\n#endif\n}' \
+perl -0777 -i -pe 's{#include <OpenImageIO/platform.h>\n}{#include <OpenImageIO/platform.h>\n#ifdef __EMSCRIPTEN__\n#  include <unistd.h>\n#  include <sys/ioctl.h>\n#  include <emscripten/heap.h>\n#endif\n}' \
+  "$SU/sysutil.cpp"
+# A browser has no host-RAM syscall. Reporting zero trips OIIO_ASSERT during
+# every Blender boot and can poison cache-sizing heuristics. The maximum
+# growable Wasm heap is the actual address-space budget available to this
+# process and is supplied without a JSPI/Asyncify round-trip.
+perl -0777 -i -pe 's{#else\n    // No idea what platform this is\n    OIIO_ASSERT\(\n        0 && "Need to implement Sysutil::physical_memory on this platform"\);}{#elif defined(__EMSCRIPTEN__)\n    return emscripten_get_heap_max();\n\n#else\n    // No idea what platform this is\n    OIIO_ASSERT(\n        0 && "Need to implement Sysutil::physical_memory on this platform");}' \
   "$SU/sysutil.cpp"
 # this_program_path(): no /proc or dyld in the sandbox. Fold __EMSCRIPTEN__ into
 # the existing "can't determine -> r=0" elif so it returns an empty path instead
@@ -220,13 +226,22 @@ fi
 VDIR="$SCRATCH/verify"
 mkdir -p "$VDIR"
 cat > "$VDIR/t.cpp" <<'EOF'
+#include <cstdio>
+#include <emscripten/heap.h>
 #include <OpenImageIO/imageio.h>
+#include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/typedesc.h>
 int main() {
   OIIO::ImageSpec spec(64, 48, 4, OIIO::TypeDesc::UINT8);
   // exercise a non-trivial method so the linker keeps real OIIO code
   std::string s = spec.serialize(OIIO::ImageSpec::SerialText);
-  return (spec.width == 64 && spec.height == 48 && !s.empty()) ? 0 : 1;
+  const size_t memory = OIIO::Sysutil::physical_memory();
+  const size_t heap_size = emscripten_get_heap_size();
+  const size_t heap_max = emscripten_get_heap_max();
+  std::printf("physical_memory=%zu heap_size=%zu heap_max=%zu\n",
+              memory, heap_size, heap_max);
+  return (spec.width == 64 && spec.height == 48 && !s.empty()
+          && memory == heap_max && memory > heap_size) ? 0 : 1;
 }
 EOF
 LIBS="$(ls \
@@ -249,10 +264,12 @@ LIBS="$(ls \
   "$PREFIX"/lib/libpystring.a \
   "$PREFIX"/lib/libminizip.a \
   "$PREFIX"/lib/libz.a 2>/dev/null)"
-em++ -pthread -fexceptions -std=c++17 -I"$PREFIX/include" \
+em++ -pthread -fexceptions -std=c++17 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=33554432 \
+  -I"$PREFIX/include" \
   "$VDIR/t.cpp" -Wl,--start-group $LIBS -Wl,--end-group -o "$VDIR/t.js"
 test -f "$VDIR/t.wasm"
-echo "openimageio: verify link OK"
+node "$VDIR/t.js"
+echo "openimageio: verify link+physical-memory runtime OK"
 
 rm -rf "$SCRATCH"
 echo "openimageio ${OIIO_VERSION}: installed to $PREFIX (config: lib/cmake/OpenImageIO)"

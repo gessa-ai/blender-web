@@ -10,7 +10,7 @@
 # Idempotent: re-running is a no-op once the config package is present.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/eigen"
 CACHE="$ROOT/build-deps/_cache"

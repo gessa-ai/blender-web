@@ -9,11 +9,11 @@
 # Links against our lib/wasm zlib (1.3.1) and brotli (1.0.9). Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/freetype"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 FT_VERSION="2.13.3"
 FT_URL="https://downloads.sourceforge.net/project/freetype/freetype2/${FT_VERSION}/freetype-${FT_VERSION}.tar.gz"

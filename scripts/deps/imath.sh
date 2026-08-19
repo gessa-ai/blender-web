@@ -9,7 +9,7 @@
 # Idempotent: re-running is a no-op once the config package is present.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/imath"
 CACHE="$ROOT/build-deps/_cache"
@@ -58,7 +58,7 @@ emcmake cmake -S "$SRC" -B "$BUILD" -G "Unix Makefiles" \
   -DCMAKE_CXX_FLAGS="-pthread"
 
 # --- build + install ---
-emmake cmake --build "$BUILD" --target install -j"$(sysctl -n hw.ncpu)"
+emmake cmake --build "$BUILD" --target install -j"$(getconf _NPROCESSORS_ONLN)"
 
 # --- verify config package landed ---
 if [ ! -f "$CONFIG_MARKER" ]; then

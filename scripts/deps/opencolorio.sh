@@ -16,11 +16,11 @@
 # Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/opencolorio"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 OCIO_VERSION="2.5.0"
 OCIO_URL="https://github.com/AcademySoftwareFoundation/OpenColorIO/archive/v${OCIO_VERSION}.tar.gz"

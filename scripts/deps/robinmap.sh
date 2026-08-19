@@ -9,11 +9,11 @@
 # resolves from the shared prefix. Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/robinmap"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 ROBINMAP_VERSION="1.3.0"
 ROBINMAP_URL="https://github.com/Tessil/robin-map/archive/refs/tags/v${ROBINMAP_VERSION}.tar.gz"

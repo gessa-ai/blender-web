@@ -7,11 +7,11 @@
 # OpenColorIO dep. Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/expat"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 EXPAT_TAG="R_2_7_5"
 EXPAT_URL="https://github.com/libexpat/libexpat/archive/${EXPAT_TAG}.tar.gz"

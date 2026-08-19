@@ -2,38 +2,36 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Build OpenSubdiv (CPU-only, TBB-backed) static for wasm and harvest to lib/wasm.
+# Build OpenSubdiv (TBB-backed with API-independent GLSL patch-source data) static
+# for wasm and harvest to lib/wasm.
 # Version + hash pinned from
 # upstream/build_files/build_environment/cmake/versions.cmake (OPENSUBDIV_VERSION
 # v3_7_0, MD5 470d53c4d4335a601c33a052ce7c33b4). Options mirror the Blender
 # superbuild's cmake/opensubdiv.cmake, adapted for the browser target: every GPU
-# backend (OpenGL/Metal/CUDA/OpenCL/DX) is disabled (there is no GPU API under
-# Emscripten), leaving Far/Sdc/Vtr/Bfr + the CPU (incl. TBB) evaluators. TBB comes
-# from the shared prefix (scripts/deps/tbb.sh) via TBB_DIR.
+# backend (OpenGL/Metal/CUDA/OpenCL/DX) is disabled (there is no native GPU API
+# under Emscripten), leaving Far/Sdc/Vtr/Bfr + the CPU evaluators. The independent
+# GLSL patch-source generator remains enabled for Blender's WebGPU shader compiler.
+# TBB comes from the shared prefix (scripts/deps/tbb.sh) via TBB_DIR.
 #
 # GOTCHA (consumer contract): Blender's build_files/cmake/Modules/FindOpenSubdiv.cmake
 # resolves TWO components, osdCPU AND osdGPU, and dependency_targets.cmake does
 #   target_link_libraries(bf_deps_optional_opensubdiv INTERFACE ${OPENSUBDIV_LIBRARIES})
 # so a missing osdGPU injects a literal "-NOTFOUND" link token and breaks configure.
-# With all GPU backends off OpenSubdiv emits no GPU object code at all
-# (opensubdiv/osd/CMakeLists.txt:404 `if(GPU_SOURCE_FILES)` and
-# opensubdiv/CMakeLists.txt:136 `if(OSD_GPU)` are both false), so no libosdGPU.a is
-# produced. We therefore harvest the real libosdCPU.a and, when the build emits no
-# libosdGPU.a, a VALID EMPTY libosdGPU.a to satisfy the two-component find. This is
-# not a stub of behaviour: Blender's GPU-subdivision path (intern/opensubdiv's
-# gpu_compute_evaluator.cc / eval_output_gpu.cc) is driven by Blender's own bf::gpu
-# module and references NO OpenSubdiv osdGPU symbols, so the empty archive links
-# cleanly and nothing that runs depends on GPU-side OpenSubdiv code.
+# Blender's WebGPU subdivision shaders call
+# GLSLPatchShaderSource::GetPatchBasisShaderSource(), so the installed osdGPU
+# component must contain that generated string implementation even though GL API
+# support remains disabled. An empty compatibility archive is not sufficient.
 #
-# Idempotent: no-op once lib/wasm/lib/libosdCPU.a is present (--force to rebuild,
-# --test to (re)run the Far cube-refine smoke). Deletes the build tree after harvest.
+# Idempotent: no-op once both archives and the GLSL header/symbol contract are
+# present (--force to rebuild, --test to rerun the smoke). Deletes the build tree
+# after harvest.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/opensubdiv"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 OSD_VERSION="v3_7_0"
 OSD_URL="https://github.com/PixarAnimationStudios/OpenSubdiv/archive/${OSD_VERSION}.tar.gz"
@@ -47,16 +45,39 @@ for a in "$@"; do case "$a" in --force) FORCE=1;; --test) DOTEST=1;; esac; done
 # shellcheck disable=SC1091
 source "$ROOT/tools/emsdk/emsdk_env.sh" >/dev/null 2>&1
 
+verify_gpu_shader_source_archive() {
+  local gpu_lib="$PREFIX/lib/libosdGPU.a"
+  local glsl_header="$PREFIX/include/opensubdiv/osd/glslPatchShaderSource.h"
+  [ -f "$glsl_header" ] || return 1
+  [ -f "$gpu_lib" ] || return 1
+  [ "$(wc -c < "$gpu_lib")" -gt 8 ] || return 1
+  emar t "$gpu_lib" | grep -q 'glslPatchShaderSource' || return 1
+  emnm -C --defined-only "$gpu_lib" | \
+    grep -Eq '[[:space:]][TtWw][[:space:]].*GLSLPatchShaderSource::GetPatchBasisShaderSource' || \
+    return 1
+  if emar t "$gpu_lib" | grep -Eq '(^|/)(glComputeEvaluator|glVertexBuffer|glPatchTable|glMesh)'; then
+    echo "opensubdiv: osdGPU unexpectedly contains OpenGL API objects" >&2
+    return 1
+  fi
+  if emnm -u "$gpu_lib" | grep -Eq '(^|[[:space:]])_?gl[A-Z]'; then
+    echo "opensubdiv: osdGPU unexpectedly imports OpenGL API symbols" >&2
+    return 1
+  fi
+}
+
 run_test() {
   local v="$SCRATCH/verify"
   mkdir -p "$v"
-  # Far-only functional test: Catmull-Clark refine a cube one level and print the
-  # vertex count. A cube (8v/6 quads) at level 1 -> 8 orig + 12 edge-pts + 6
-  # face-pts = 26 verts. Exercises far/vtr/sdc from libosdCPU.a on wasm+node.
+  # Far + GLSL patch-source functional test: Catmull-Clark refine a cube one level
+  # and verify generated basis-source markers. A cube (8v/6 quads) at level 1 ->
+  # 8 orig + 12 edge-pts + 6 face-pts = 26 verts. Exercises far/vtr/sdc from
+  # libosdCPU.a and the WebGPU shader-source dependency from libosdGPU.a.
   cat > "$v/t.cpp" <<'EOF'
 #include <cstdio>
+#include <string>
 #include <opensubdiv/far/topologyRefinerFactory.h>
 #include <opensubdiv/far/topologyDescriptor.h>
+#include <opensubdiv/osd/glslPatchShaderSource.h>
 using namespace OpenSubdiv;
 static int   g_nverts = 8;
 static int   g_nfaces = 6;
@@ -77,21 +98,30 @@ int main() {
       Far::TopologyRefinerFactory<Descriptor>::Options(type, options));
   refiner->RefineUniform(Far::TopologyRefiner::UniformOptions(1));
   int nv = refiner->GetLevel(1).GetNumVertices();
-  printf("OSD_WASM_REFINE nverts_level1=%d\n", nv);
-  return nv == 26 ? 0 : 1;
+  const std::string basis = Osd::GLSLPatchShaderSource::GetPatchBasisShaderSource();
+  const bool has_param = basis.find("OsdPatchParamIsRegular") != std::string::npos;
+  const bool has_evaluate = basis.find("OsdEvaluatePatchBasis") != std::string::npos;
+  printf("OSD_WASM_REFINE nverts_level1=%d glsl_bytes=%zu param=%d evaluate=%d\n",
+         nv,
+         basis.size(),
+         int(has_param),
+         int(has_evaluate));
+  return nv == 26 && has_param && has_evaluate ? 0 : 1;
 }
 EOF
   em++ -std=c++17 -pthread -fexceptions -I "$PREFIX/include" \
-    "$v/t.cpp" "$PREFIX/lib/libosdCPU.a" "$PREFIX/lib/libtbb.a" \
+    "$v/t.cpp" "$PREFIX/lib/libosdCPU.a" "$PREFIX/lib/libosdGPU.a" \
+    "$PREFIX/lib/libtbb.a" \
     -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=4 -sEXIT_RUNTIME=1 \
     -sINITIAL_MEMORY=134217728 -sWASM_BIGINT -o "$v/t.js"
   test -f "$v/t.wasm"
   node "$v/t.js" | tee "$v/t.out"
-  grep -q "OSD_WASM_REFINE nverts_level1=26" "$v/t.out"
-  echo "opensubdiv: Far cube-refine smoke OK (level-1 verts=26)"
+  grep -Eq "OSD_WASM_REFINE nverts_level1=26 glsl_bytes=[1-9][0-9]* param=1 evaluate=1" "$v/t.out"
+  echo "opensubdiv: Far refine + GLSL patch-basis smoke OK"
 }
 
-if [ "$FORCE" = 0 ] && [ -f "$PREFIX/lib/libosdCPU.a" ] && [ -f "$PREFIX/lib/libosdGPU.a" ]; then
+if [ "$FORCE" = 0 ] && [ -f "$PREFIX/lib/libosdCPU.a" ] && \
+   verify_gpu_shader_source_archive; then
   echo "opensubdiv: already installed ($PREFIX/lib/libosdCPU.a); skip (--force to rebuild)"
   [ "$DOTEST" = 1 ] && run_test
   exit 0
@@ -123,9 +153,11 @@ STAGE="$SCRATCH/install"
 BUILD="$SCRATCH/build"
 rm -rf "$BUILD" "$STAGE"
 
-# CPU-only, TBB-backed, no GPU/GL/GLFW/examples/tests/doc. Flags mirror the Blender
-# superbuild opensubdiv.cmake with every GPU backend forced OFF for wasm. -pthread
-# + -fexceptions match the TBB consumer flags (notes/deps-tbb.md).
+# TBB-backed with every native GPU API disabled, while retaining OpenSubdiv's
+# API-independent GLSL patch-source data for Blender's WebGPU shader path. No
+# GL/GLFW/examples/tests/doc are built. Flags otherwise mirror Blender's
+# superbuild opensubdiv.cmake. -pthread + -fexceptions match the TBB consumer
+# flags (notes/deps-tbb.md).
 emcmake cmake -S "$SRC" -B "$BUILD" -G "Unix Makefiles" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$STAGE" \
@@ -142,6 +174,7 @@ emcmake cmake -S "$SRC" -B "$BUILD" -G "Unix Makefiles" \
   -DNO_OPENCL=ON \
   -DNO_CLEW=ON \
   -DNO_OPENGL=ON \
+  -DOSD_PATCH_SHADER_SOURCE_GLSL=ON \
   -DNO_METAL=ON \
   -DNO_DX=ON \
   -DNO_TESTS=ON \
@@ -163,6 +196,10 @@ if [ -z "$CPU_LIB" ] || [ ! -f "$CPU_LIB" ]; then
   echo "opensubdiv: build produced no libosdCPU.a under $STAGE" >&2
   exit 1
 fi
+if [ -z "$GPU_LIB" ] || [ ! -f "$GPU_LIB" ]; then
+  echo "opensubdiv: build produced no GLSL patch-source libosdGPU.a under $STAGE" >&2
+  exit 1
+fi
 # INC_DIR is .../include/opensubdiv/osd ; the harvest root is its grandparent.
 OSD_INC_ROOT="$(cd "$INC_DIR/../.." && pwd)"   # .../include
 if [ ! -f "$OSD_INC_ROOT/opensubdiv/osd/mesh.h" ]; then
@@ -175,21 +212,15 @@ mkdir -p "$PREFIX/include" "$PREFIX/lib"
 rm -rf "$PREFIX/include/opensubdiv"
 cp -R "$OSD_INC_ROOT/opensubdiv" "$PREFIX/include/opensubdiv"
 cp "$CPU_LIB" "$PREFIX/lib/libosdCPU.a"
-if [ -n "$GPU_LIB" ] && [ -f "$GPU_LIB" ]; then
-  cp "$GPU_LIB" "$PREFIX/lib/libosdGPU.a"
-  echo "opensubdiv: harvested real libosdGPU.a (a GPU backend was enabled)"
-else
-  # No GPU object code exists in a CPU-only build; emit a valid empty archive so the
-  # two-component FindOpenSubdiv resolves (see GOTCHA note above). Nothing at runtime
-  # references osdGPU symbols in this headless build.
-  rm -f "$PREFIX/lib/libosdGPU.a"
-  emar rcs "$PREFIX/lib/libosdGPU.a"
-  echo "opensubdiv: emitted empty libosdGPU.a (CPU-only build; no GPU object code)"
-fi
+cp "$GPU_LIB" "$PREFIX/lib/libosdGPU.a"
 
 [ -f "$PREFIX/lib/libosdCPU.a" ] || { echo "opensubdiv: harvest missing libosdCPU.a" >&2; exit 1; }
 [ -f "$PREFIX/lib/libosdGPU.a" ] || { echo "opensubdiv: harvest missing libosdGPU.a" >&2; exit 1; }
 [ -f "$PREFIX/include/opensubdiv/osd/mesh.h" ] || { echo "opensubdiv: harvest missing headers" >&2; exit 1; }
+verify_gpu_shader_source_archive || {
+  echo "opensubdiv: harvested osdGPU fails GLSL-source/no-OpenGL contract" >&2
+  exit 1
+}
 echo "opensubdiv ${OSD_VERSION}: harvested libosdCPU.a + libosdGPU.a + include/opensubdiv to $PREFIX"
 
 run_test

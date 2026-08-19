@@ -8,11 +8,11 @@
 # — we write the same minimal CMakeLists. OpenColorIO dep. Idempotent.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/pystring"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 PYSTRING_VERSION="1.1.3"
 PYSTRING_URL="https://codeload.github.com/imageworks/pystring/tar.gz/refs/tags/v${PYSTRING_VERSION}"

@@ -17,17 +17,16 @@
 #   ledger/deps.json, notes/gpu-gate-census.md, harness/status.sh (executed —
 #   it is the read-only status tool), git log.
 #
-# Idempotent: two consecutive runs differ only in the "Generated at" line.
+# Byte-idempotent: unchanged source inputs produce exactly identical output.
 #
 # Usage:  scripts/dashboard.sh            # writes reports/dashboard.md
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-OUT="reports/dashboard.md"
+OUT="${1:-reports/dashboard.md}"
 
 python3 - "$ROOT" "$OUT" <<'PY'
-import json, os, re, subprocess, sys
-from datetime import datetime, timezone
+import hashlib, json, os, re, subprocess, sys
 
 ROOT, OUT = sys.argv[1], sys.argv[2]
 os.chdir(ROOT)
@@ -77,10 +76,23 @@ def git_date(path):
     return d or "unavailable"
 
 # ---------- gather sources --------------------------------------------------
-m0 = read_json("ledger/results/m0.json")
-m1 = read_json("ledger/results/m1.json")
-m2b = read_json("ledger/results/m2b.json")
-m3 = read_json("ledger/results/m3.json")
+# Milestone names/promises are the fixed GOAL.md configuration. Every status and
+# percentage comes from the mapped JSON receipt. A historical promise tag is
+# shown as context but can never override a missing or failing current receipt.
+RESULT_SPECS = [
+    ("M0", "TOOLCHAIN + ORACLE",       "M0_TOOLCHAIN",   "m0",  "toolchain/oracle checks"),
+    ("M1", "CORE BOOTS + FREE ORACLE", "M1_CORE_BOOTS",  "m1",  "core-boot checks"),
+    ("M2", "DEPS + PYTHON BOOTS",      "M2_DEPS_PYTHON", "m2b", "tier-(b) checks"),
+    ("M3", "WEBGPU BACKEND (Dawn)",    "M3_GPU_BACKEND", "m3",  "WebGPU backend checks"),
+    ("M4", "FIRST PIXELS IN A TAB",    "M4_FIRST_PIXELS","m4",  "first-pixels checks"),
+    ("M5", "INTERACTIVE PARITY",       "M5_INTERACTIVE", "m5",  "interactive-parity checks"),
+    ("M6", "RENDER PARITY",            "M6_RENDER",      "m6",  "render-parity checks"),
+    ("M7", "FILES + PIPELINE",         "M7_FILES",       "m7",  "files/pipeline checks"),
+    ("M8", "TECHNICAL RELEASE PACKAGE", "M8_TECHNICAL_RELEASE", "m8", "technical-release checks"),
+]
+result_docs = {mid: read_json(f"ledger/results/{stem}.json")
+               for mid, _name, _promise, stem, _label in RESULT_SPECS}
+m0, m1, m2b, m3 = (result_docs[mid] for mid in ("M0", "M1", "M2", "M3"))
 deferred_doc = read_json("ledger/deferred.json")
 deps = read_json("ledger/deps.json")
 census = read_text("notes/gpu-gate-census.md")
@@ -88,7 +100,25 @@ progress = read_text("ledger/progress.txt")
 
 head_short = git("rev-parse", "--short", "HEAD") or "unavailable"
 head_subj = git("log", "-1", "--format=%s") or ""
-now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+# This digest makes provenance deterministic and auditable. Wall-clock generation
+# time would make the post-receipt verifier normalize bytes instead of comparing
+# them exactly, weakening the promised byte-exact contract.
+dashboard_inputs = [
+    *(f"ledger/results/{stem}.json" for _mid, _name, _promise, stem, _label in RESULT_SPECS),
+    "ledger/deferred.json", "ledger/deps.json", "ledger/progress.txt",
+    "notes/gpu-gate-census.md", "harness/status.sh", "scripts/dashboard.sh",
+]
+input_hash = hashlib.sha256()
+for name in sorted(dashboard_inputs):
+    input_hash.update(name.encode("utf-8") + b"\0")
+    try:
+        with open(name, "rb") as source:
+            input_hash.update(source.read())
+    except OSError:
+        input_hash.update(b"<unavailable>")
+    input_hash.update(b"\0")
+input_hash.update((head_short + "\0" + head_subj).encode("utf-8"))
 
 # harness/status.sh is the read-only status tool — execute for gate + pin lines.
 gate_line = pin_line = "unavailable"
@@ -101,6 +131,8 @@ try:
             pin_line = ln.split(":", 1)[1].strip()
 except Exception:
     pass
+input_hash.update((gate_line + "\0" + pin_line).encode("utf-8"))
+input_digest = input_hash.hexdigest()
 
 # GPU census + static_shaders numbers (parsed, never hardcoded). Source priority:
 # the harness-authoritative ledger/results/m3.json when present; the hand-maintained
@@ -133,21 +165,8 @@ if gpu_src is None:  # fall back to the hand-maintained census note
     gpu_when = git_date("notes/gpu-gate-census.md")
 
 # ---------- (a) milestone bar ----------------------------------------------
-# Milestone definitions are fixed config (from GOAL.md); STATUS is derived live
-# from issued promise tags, result-JSON pass flags, and census/progress markers.
-MILESTONES = [
-    ("M0", "TOOLCHAIN + ORACLE",        "M0_TOOLCHAIN",   m0,  None),
-    ("M1", "CORE BOOTS + FREE ORACLE",  "M1_CORE_BOOTS",  m1,  None),
-    ("M2", "DEPS + PYTHON BOOTS",       "M2_DEPS_PYTHON", m2b, None),
-    ("M3", "WEBGPU BACKEND (Dawn)",     "M3_GPU_BACKEND", m3,  "census"),
-    ("M4", "FIRST PIXELS IN A TAB",     "M4_FIRST_PIXELS",None, "FIRST PIXELS"),
-    ("M5", "INTERACTIVE PARITY",        "M5_INTERACTIVE", None, None),
-    ("M6", "RENDER PARITY",             "M6_RENDER",      None, None),
-    ("M7", "FILES + PIPELINE",          "M7_FILES",       None, None),
-    ("M8", "LAUNCH GATE",               "M8_LAUNCH_GATE", None, None),
-]
-
-RES_SRC = {"M0": "m0.json", "M1": "m1.json", "M2": "m2b.json", "M3": "m3.json"}
+def percentage(n, total):
+    return "unavailable" if not total else f"{n}/{total} ({100.0*n/total:.1f}%)"
 
 def promise_issued(name):
     """Detect the literal <promise>NAME</promise> tag — NOT a casual mention of the
@@ -163,40 +182,27 @@ def promise_issued(name):
         return "progress", (pc or "ledger/progress.txt")
     return None, None
 
-def milestone_row(mid, name, promise, results, marker):
+def milestone_row(mid, name, promise, stem, _label):
+    results = result_docs[mid]
     where, cite = promise_issued(promise)
-    res_pass = res_frac = None
-    if isinstance(results, dict):
-        checks = results.get("checks", {})
-        npass = sum(1 for c in checks.values() if c.get("pass"))
-        tot = len(checks)
-        res_frac = f"{npass}/{tot}"
-        res_pass = bool(results.get("pass")) and npass == tot and tot > 0
-    # DONE if the literal promise tag was issued OR the mapped result-JSON passed.
-    if where or res_pass:
-        parts = []
-        if where == "git":
-            parts.append(f"promise <promise>{promise}</promise> @ commit {cite}")
-        elif where == "progress":
-            parts.append(f"promise <promise>{promise}</promise> recorded ({cite})")
-        if res_frac is not None:
-            parts.append(f"results/{RES_SRC.get(mid, 'results')} {res_frac}"
-                         + (f" @ {results.get('ts')}" if results.get("ts") else ""))
-        return "DONE", "; ".join(parts) or "unavailable"
-    # IN-PROGRESS if a live activity marker resolves (partial work, no promise yet).
-    if marker == "census" and c_pass is not None:
-        return "IN-PROGRESS", (f"{gpu_src} gate {c_pass}/{c_total}, "
-                               f"static_shaders {ss_pass}/{ss_total} — no promise tag yet")
-    if marker and marker != "census":
-        commit2 = git("log", "--all", "-1", "--grep", marker, "--format=%h %s")
-        if commit2:
-            return "IN-PROGRESS", f"commit {commit2} — no promise tag yet"
-        if progress and marker in progress:
-            return "IN-PROGRESS", f"ledger/progress.txt: “{marker}” — no promise tag yet"
-    return "pending", f"awaiting <promise>{promise}</promise>"
+    promise_note = ""
+    if where:
+        promise_note = (f"; historical promise recorded via {where}: {cite}; "
+                        "current receipt remains authoritative")
+    if not isinstance(results, dict) or not isinstance(results.get("checks"), dict):
+        return "UNAVAILABLE", f"ledger/results/{stem}.json missing/unreadable{promise_note}"
+    checks = results["checks"]
+    npass = sum(1 for check in checks.values()
+                if isinstance(check, dict) and check.get("pass") is True)
+    total = len(checks)
+    receipt = (f"ledger/results/{stem}.json {percentage(npass, total)}"
+               + (f" @ {results.get('ts')}" if results.get("ts") else "")
+               + promise_note)
+    passed = results.get("pass") is True and total > 0 and npass == total
+    return ("PASS" if passed else "FAIL"), receipt
 
-mile_rows = [(mid, name, *milestone_row(mid, name, promise, results, marker))
-             for mid, name, promise, results, marker in MILESTONES]
+mile_rows = [(mid, name, *milestone_row(mid, name, promise, stem, label))
+             for mid, name, promise, stem, label in RESULT_SPECS]
 
 # ---------- (b) per-suite table --------------------------------------------
 suite_rows = []  # (suite, passing, nonpassing, source, when)
@@ -210,46 +216,48 @@ def json_suite(label, doc, path):
     tot = len(checks)
     fails = [n for n, c in checks.items() if not c.get("pass")]
     nonp = "0" if not fails else f"{len(fails)}: " + ", ".join(fails)
-    suite_rows.append((label, f"{npass}/{tot}", nonp, path, doc.get("ts", "unavailable")))
+    suite_rows.append((label, percentage(npass, tot), nonp, path, doc.get("ts", "unavailable")))
     return checks
 
-c0 = json_suite("m0  toolchain/oracle checks", m0, "ledger/results/m0.json")
-c1 = json_suite("m1  core-boot checks", m1, "ledger/results/m1.json")
+suite_checks = {}
+for mid, _name, _promise, stem, label in RESULT_SPECS:
+    suite_checks[mid] = json_suite(f"{mid.lower()}  {label}", result_docs[mid],
+                                   f"ledger/results/{stem}.json")
+c0, c1, c2 = (suite_checks[mid] for mid in ("M0", "M1", "M2"))
 
 # m1 sub-metrics (surface the gtest / corpus counts so non-passes aren't buried)
 if c1:
     ts1 = m1.get("ts", "unavailable")
     bp, bt = frac(c1.get("blenlib_gtests", {}).get("detail"), r"(\d+)/(\d+)\s+PASSED")
     if bp is not None:
-        suite_rows.append(("m1 › blenlib gtests", f"{bp}/{bt}",
-                           f"{bt-bp} characterized (9 fenv-defer + 1 host-chdir)",
+        suite_rows.append(("m1 › blenlib gtests", percentage(bp, bt),
+                           f"{bt-bp} non-passing (see receipt detail)",
                            "ledger/results/m1.json", ts1))
     mp, mt = frac(c1.get("bmesh_core_gtests", {}).get("detail"), r"(\d+)/(\d+)\s+PASSED")
     if mp is not None:
-        suite_rows.append(("m1 › bmesh_core gtests", f"{mp}/{mt}", "0",
+        suite_rows.append(("m1 › bmesh_core gtests", percentage(mp, mt), "0",
                            "ledger/results/m1.json", ts1))
     cp, _ = frac(c1.get("corpus_parity", {}).get("detail"), r"all (\d+) committed wasm dumps")
     if cp is not None:
-        suite_rows.append(("m1 › corpus state-dump parity", f"{cp}/{cp}",
+        suite_rows.append(("m1 › corpus state-dump parity", percentage(cp, cp),
                            "0 (sha256==MANIFEST, tolerance 0)", "ledger/results/m1.json", ts1))
 
-c2 = json_suite("m2b tier-(b) checks", m2b, "ledger/results/m2b.json")
 if c2:
     gp, gt = frac(c2.get("core_green", {}).get("detail"), r"(\d+)/(\d+)\s+must-pass")
     if gp is not None:
-        suite_rows.append(("m2b › CORE must-pass suites", f"{gp}/{gt}", "0",
+        suite_rows.append(("m2b › CORE must-pass suites", percentage(gp, gt), "0",
                            "ledger/results/m2b.json", m2b.get("ts", "unavailable")))
 
 # GPU census + static_shaders (source: m3.json when present, else the census note)
 if c_pass is not None:
-    suite_rows.append(("gpu gate census (native Dawn)", f"{c_pass}/{c_total}",
+    suite_rows.append(("gpu gate census (native Dawn)", percentage(c_pass, c_total),
                        f"{c_total-c_pass} ({c_fail} FAIL / {c_crash} CRASH, all characterized)",
                        gpu_src, gpu_when))
 else:
     suite_rows.append(("gpu gate census (native Dawn)", "unavailable", "unavailable",
                        gpu_src, gpu_when))
 if ss_pass is not None:
-    suite_rows.append(("gpu static_shaders compile", f"{ss_pass}/{ss_total}",
+    suite_rows.append(("gpu static_shaders compile", percentage(ss_pass, ss_total),
                        f"{ss_total-ss_pass} (deferrals/blacklist/census artifacts)",
                        gpu_src, gpu_when))
 else:
@@ -276,20 +284,24 @@ w = L.append
 w("<!-- Generated by scripts/dashboard.sh from files on disk. DO NOT EDIT BY HAND. -->")
 w("<!-- Regenerate: scripts/dashboard.sh -->")
 w("")
-w("# blender-web — port factory dashboard")
+w("# Source-derived WebAssembly editor — technical release dashboard")
 w("")
 w("_The human's only interface (GOAL.md Communication). Every count below is read "
   "from a file on disk at generation time; an unreadable source shows `unavailable`, "
   "never a guess. Failures and deferrals carry their own columns — equal weight, "
   "never buried in a green total._")
 w("")
+w("_Scope: the M8 row is the locally verifiable technical release package. Public "
+  "launch, legal approval, hosting, and publication are intentionally outside this dashboard._")
+w("")
 
 # (a) milestones
 w("## (a) Milestones M0–M8")
 w("")
-done = sum(1 for r in mile_rows if r[2] == "DONE")
-inprog = sum(1 for r in mile_rows if r[2] == "IN-PROGRESS")
-w(f"**{done} DONE · {inprog} IN-PROGRESS · {len(mile_rows)-done-inprog} pending**")
+passed = sum(1 for r in mile_rows if r[2] == "PASS")
+failed = sum(1 for r in mile_rows if r[2] == "FAIL")
+unavailable = sum(1 for r in mile_rows if r[2] == "UNAVAILABLE")
+w(f"**{passed} PASS · {failed} FAIL · {unavailable} UNAVAILABLE**")
 w("")
 w("| Milestone | Status | Receipt |")
 w("|---|---|---|")
@@ -354,7 +366,7 @@ w("")
 w(f"- gate: {cell(gate_line,80)}")
 w(f"- upstream: {cell(pin_line,90)}")
 w(f"- git HEAD: `{head_short}` {cell(head_subj,90)}")
-w(f"- Generated at: {now}")
+w(f"- dashboard input SHA-256: `{input_digest}`")
 w("")
 
 with open(OUT, "w") as fh:

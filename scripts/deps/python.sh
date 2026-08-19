@@ -36,11 +36,11 @@
 # after M1 closes). This script only produces + harvests the artifact.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 SCRATCH="$ROOT/build-deps/python"
 CACHE="$ROOT/build-deps/_cache"
-NPROC="$(sysctl -n hw.ncpu)"
+NPROC="$(getconf _NPROCESSORS_ONLN)"
 
 PY_VERSION="3.13.13"
 PY_SHORT="3.13"
@@ -229,6 +229,14 @@ if [ -d "$SP_KEEP" ]; then
   mv "$SP_KEEP" "$STDLIB_DST/site-packages"   # restore preserved trees (numpy, ...)
 fi
 install_mp_shim
+
+# Prune the triplicate __pycache__ (.pyc at plain/opt-1/opt-2) that `make libinstall`
+# just compiled into the harvested stdlib. Emscripten --preload-file has no exclude
+# globs, so leaving these makes blender_browser.data ship each stdlib module up to 4x
+# (source + 3 bytecode levels). Keeping .py only is import-safe (CPython recompiles to
+# memory; node-embed reads this same tree and is equally safe). See
+# scripts/deps/prune-preload-pycache.sh + notes/m8-pycache-strip.md.
+"$(dirname "$0")/prune-preload-pycache.sh" "$STDLIB_DST"
 
 LIB_TMP="$PREFIX/lib/.libpython${PY_SHORT}.a.tmp.$$"
 cp "$COMBINED" "$LIB_TMP"; chmod 644 "$LIB_TMP"

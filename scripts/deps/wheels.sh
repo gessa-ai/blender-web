@@ -63,7 +63,7 @@
 # half-written tree.
 set -euo pipefail
 
-ROOT="/Users/paws/blender-web"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PREFIX="$ROOT/lib/wasm"
 PY_SHORT="3.13"
 SITE="$PREFIX/lib/python${PY_SHORT}/site-packages"

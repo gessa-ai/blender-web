@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<meta charset="utf-8">
+<title>Growable SAB fixed-view refresh discriminator</title>
+<pre id="result">RUNNING</pre>
+<script>
+async function run() {
+  const worker = new Worker("gsab-observer.js");
+  const nonce = 0x42575331;
+  let ackCount = 0;
+  const result = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("GSAB worker timeout")), 10000);
+    worker.onerror = (event) => { clearTimeout(timeout); reject(event.error || new Error(event.message)); };
+    worker.onmessage = ({data}) => {
+      if (data.cmd !== "result") return reject(new Error("unexpected worker ACK " + data.cmd));
+      ackCount++;
+      clearTimeout(timeout);
+      resolve(data);
+    };
+    worker.postMessage({cmd:"run", nonce});
+  });
+  worker.terminate();
+  window.__bwViewGrowth = {crossOriginIsolated, nonce, ackCount, result};
+  document.querySelector("#result").textContent = JSON.stringify(window.__bwViewGrowth);
+}
+run().catch((error) => {
+  window.__bwViewGrowth = {fatal:String(error && error.stack || error)};
+  document.querySelector("#result").textContent = JSON.stringify(window.__bwViewGrowth);
+});
+</script>

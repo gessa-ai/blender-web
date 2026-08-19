@@ -9,19 +9,60 @@
 // Output is restricted to sandbox/m4-d9-gate/evidence.
 //
 // Usage:
-//   NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
-//     node sandbox/m4-d9-gate/capture_m4.mjs <splash|workspace> [port]
+//   npm install --prefix .m4-node --no-save @playwright/test@1.61.1
+//   BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+//     node sandbox/m4-d9-gate/capture_m4.mjs <splash|workspace> [port] [label]
 //   node sandbox/m4-d9-gate/capture_m4.mjs --selfcheck
 
 import { createHash } from 'crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
+import { delimiter, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-const require = createRequire('/Users/paws/plushly/game-platform/node_modules/');
-const { chromium } = require('playwright');
-
-const ROOT = '/Users/paws/blender-web';
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const moduleRoots = [process.env.BW_NODE_MODULES, process.env.NODE_PATH, `${ROOT}/node_modules`]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean);
+let chromium = null;
+let playwrightRoot = null;
+for (const root of moduleRoots) {
+  try {
+    chromium = createRequire(`${resolve(root)}/package.json`)('playwright').chromium;
+    playwrightRoot = resolve(root);
+    break;
+  }
+  catch {
+    // Try the next explicit/local module root.
+  }
+}
+if (chromium === null) {
+  throw new Error(`playwright is unavailable; checked module roots: ${moduleRoots.join(', ')}`);
+}
+const DRIVER_PATH = `${ROOT}/sandbox/m4-d9-gate/capture_m4.mjs`;
 const OUTDIR = `${ROOT}/sandbox/m4-d9-gate/evidence`;
+const BIN_DIR = process.env.BLENDER_WEB_BIN || `${ROOT}/build-wasm-windowed-opt/bin`;
+const DEFERRED_WASM_FILENAME =
+  process.env.BW_DEFERRED_WASM_FILENAME || 'blender_browser.deferred.wasm';
+if (!/^blender_browser(?:\.[A-Za-z0-9_-]+)*\.wasm$/.test(DEFERRED_WASM_FILENAME) ||
+    ['blender_browser.wasm', 'blender_browser.wasm.orig'].includes(DEFERRED_WASM_FILENAME)) {
+  throw new Error(`unsafe deferred Wasm filename: ${DEFERRED_WASM_FILENAME}`);
+}
+const BINARY_PATHS = Object.freeze({
+  javascript: `${BIN_DIR}/blender_browser.js`,
+  wasm: `${BIN_DIR}/blender_browser.wasm`,
+  deferred: `${BIN_DIR}/${DEFERRED_WASM_FILENAME}`,
+  preload: `${BIN_DIR}/blender_browser.data`,
+});
+const SHELL_PATHS = Object.freeze({
+  index: `${ROOT}/platform_web/shell/index.html`,
+  windowed: `${ROOT}/platform_web/shell/windowed.html`,
+  diagnostics: `${ROOT}/platform_web/shell/diagnostics-bootstrap.js`,
+  boot: `${ROOT}/platform_web/shell/boot-windowed.js`,
+  fileBridge: `${ROOT}/platform_web/shell/file-bridge.js`,
+  preinit: `${ROOT}/platform_web/shell/wgpu-preinit-worker.js`,
+});
 const WIDTH = 1280;
 const HEIGHT = 720;
 const SETTLE_MS = 60000;
@@ -31,13 +72,16 @@ const VALID_MODES = new Set(['splash', 'workspace']);
 
 if (process.argv[2] === '--selfcheck') {
   const checks = [
-    OUTDIR === '/Users/paws/blender-web/sandbox/m4-d9-gate/evidence',
+    OUTDIR === `${ROOT}/sandbox/m4-d9-gate/evidence`,
     WIDTH === 1280,
     HEIGHT === 720,
     SETTLE_MS === 60000,
     HEADLESS === false,
+    Object.keys(BINARY_PATHS).join(',') === 'javascript,wasm,deferred,preload',
+    Object.keys(SHELL_PATHS).join(',') === 'index,windowed,diagnostics,boot,fileBridge,preinit',
     VALID_MODES.has('splash'),
     VALID_MODES.has('workspace'),
+    playwrightRoot !== null,
   ];
   if (checks.every(Boolean)) {
     console.log('SELF_CHECK_PASS output=m4-d9-gate/evidence gate=1280x720 dpr=1 settle_ms=60000 modes=splash,workspace');
@@ -49,13 +93,19 @@ if (process.argv[2] === '--selfcheck') {
 
 const MODE = (process.argv[2] || '').trim();
 if (!VALID_MODES.has(MODE)) {
-  console.error('usage: capture_m4.mjs <splash|workspace> [port]');
+  console.error('usage: capture_m4.mjs <splash|workspace> [port] [unique-label]');
   process.exit(2);
 }
 
 const PORT = Number.parseInt(process.argv[3] || '8141', 10);
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   console.error(`invalid port: ${process.argv[3] || ''}`);
+  process.exit(2);
+}
+
+const LABEL = (process.argv[4] || '').trim();
+if (!/^[a-z0-9][a-z0-9._-]*$/i.test(LABEL)) {
+  console.error('a safe, non-empty unique label is required');
   process.exit(2);
 }
 
@@ -81,9 +131,10 @@ PYTHON_LINES.push(
 
 const BASE = `http://127.0.0.1:${PORT}`;
 const url = `${BASE}/windowed.html?gate=${WIDTH}x${HEIGHT}&pyexpr=${encodeURIComponent(PYTHON_LINES.join('\n'))}`;
-const output = `${OUTDIR}/${MODE}_${WIDTH}x${HEIGHT}.png`;
+const outputStem = `${LABEL}-${MODE}`;
+const output = `${OUTDIR}/${outputStem}_${WIDTH}x${HEIGHT}.png`;
 const licensePath = `${output}.license`;
-const receiptPath = `${OUTDIR}/${MODE}_${WIDTH}x${HEIGHT}.receipt.json`;
+const receiptPath = `${OUTDIR}/${outputStem}_${WIDTH}x${HEIGHT}.receipt.json`;
 const consoleErrors = [];
 const blockingErrors = [];
 const marks = [];
@@ -104,7 +155,35 @@ function recordError(text, kind) {
   }
 }
 
+function artifactReceipt(path) {
+  const bytes = readFileSync(path);
+  return { path, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+
 mkdirSync(OUTDIR, { recursive: true });
+for (const path of [output, licensePath, receiptPath]) {
+  if (existsSync(path)) {
+    console.error(`refusing to overwrite existing evidence: ${path}`);
+    process.exit(2);
+  }
+}
+const shippingBinary = Object.fromEntries(
+  Object.entries(BINARY_PATHS).map(([name, path]) => [name, artifactReceipt(path)]),
+);
+const sources = { capture: artifactReceipt(DRIVER_PATH) };
+const expectedServedShell = Object.fromEntries(
+  Object.entries(SHELL_PATHS).map(([name, path]) => [name, artifactReceipt(path)]),
+);
+// The receipt is the atomic reservation for this label/mode pair. If a capture
+// crashes, the empty receipt intentionally prevents that immutable attempt from
+// being silently reused.
+closeSync(openSync(receiptPath, 'wx'));
+stamp('shipping artifacts bound', {
+  javascript: shippingBinary.javascript.sha256,
+  wasm: shippingBinary.wasm.sha256,
+  deferred: shippingBinary.deferred.sha256,
+  preload: shippingBinary.preload.sha256,
+});
 const browser = await chromium.launch({ headless: HEADLESS });
 const context = await browser.newContext({
   viewport: { width: WIDTH + 120, height: HEIGHT + 120 },
@@ -132,10 +211,37 @@ let gate = null;
 let rect = null;
 let sha256 = null;
 let runError = null;
+let servedShell = null;
 
 try {
   stamp('boot', { url });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
+  servedShell = await page.evaluate(async () => {
+    const specs = { index: '/index.html', windowed: '/windowed.html', diagnostics: '/diagnostics-bootstrap.js', boot: '/boot-windowed.js',
+      fileBridge: '/file-bridge.js', preinit: '/wgpu-preinit-worker.js' };
+    const result = {};
+    for (const [name, path] of Object.entries(specs)) {
+      const response = await fetch(path, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`served shell fetch failed: ${path} status=${response.status}`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      result[name] = {
+        url: new URL(path, location.href).href,
+        bytes: bytes.length,
+        sha256: Array.from(new Uint8Array(digest),
+          (value) => value.toString(16).padStart(2, '0')).join(''),
+      };
+    }
+    return result;
+  });
+  for (const [name, expected] of Object.entries(expectedServedShell)) {
+    const actual = servedShell?.[name];
+    if (!actual || actual.bytes !== expected.bytes || actual.sha256 !== expected.sha256) {
+      throw new Error(`served shell differs from local ${name}: ${JSON.stringify({ actual, expected })}`);
+    }
+  }
+  stamp('served shell bound', Object.fromEntries(
+    Object.entries(servedShell).map(([name, value]) => [name, value.sha256])));
   const bootStart = Date.now();
   await page.waitForFunction(() => {
     const state = document.querySelector('#state');
@@ -197,6 +303,7 @@ try {
 } finally {
   const receipt = {
     mode: MODE,
+    label: LABEL,
     url,
     output,
     licensePath,
@@ -212,6 +319,10 @@ try {
     runError,
     consoleErrors,
     blockingErrors,
+    shippingBinary,
+    servedShell,
+    expectedServedShell,
+    sources,
     marks,
   };
   writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);

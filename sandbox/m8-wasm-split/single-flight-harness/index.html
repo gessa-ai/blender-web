@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<meta charset="utf-8">
+<title>blender-web split single-flight harness</title>
+<script type="module">
+const parameters = new URLSearchParams(location.search);
+const expectedBytes = Number(parameters.get('bytes'));
+const expectedSha256 = parameters.get('sha256');
+// Match the real Blender/TBB observation (8 preloaded Emscripten workers plus
+// dynamically-expanded workers already alive by first interaction).
+const workerCount = 43;
+const stats = { fetchCount: 0, compileCount: 0, pageInstanceCount: 0 };
+
+function hex(bytes) {
+  return Array.from(new Uint8Array(bytes), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+async function install(worker, module, generation) {
+  return await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`worker ACK timeout generation=${generation}`)), 10000);
+    const onMessage = (event) => {
+      const message = event.data;
+      if (message.command === 'error') {
+        clearTimeout(timeout); worker.removeEventListener('message', onMessage);
+        reject(new Error(message.error));
+      }
+      else if (message.command === 'ready' && message.generation === generation) {
+        clearTimeout(timeout); worker.removeEventListener('message', onMessage);
+        resolve(message);
+      }
+    };
+    worker.addEventListener('message', onMessage);
+    worker.postMessage({ command: 'install', generation, module });
+  });
+}
+
+async function run() {
+  if (!crossOriginIsolated || typeof SharedArrayBuffer !== 'function') {
+    throw new Error('COOP/COEP isolation is absent');
+  }
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || !/^[0-9a-f]{64}$/.test(expectedSha256 || '')) {
+    throw new Error('invalid expected secondary identity');
+  }
+  stats.fetchCount++;
+  const response = await fetch('./secondary.wasm', { credentials: 'same-origin', cache: 'no-store' });
+  if (!response.ok) throw new Error(`secondary fetch ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength !== expectedBytes) throw new Error(`secondary bytes ${bytes.byteLength} != ${expectedBytes}`);
+  const actualSha256 = hex(await crypto.subtle.digest('SHA-256', bytes));
+  if (actualSha256 !== expectedSha256) throw new Error(`secondary sha256 ${actualSha256} != ${expectedSha256}`);
+
+  stats.compileCount++;
+  const module = await WebAssembly.compile(bytes);
+  const pageInstance = await WebAssembly.instantiate(module, {});
+  stats.pageInstanceCount++;
+  if (pageInstance.exports.value() !== 42) throw new Error('page instance returned wrong value');
+
+  const workers = Array.from({ length: workerCount }, () => new Worker('./worker.js', { type: 'module' }));
+  const poolAcks = await Promise.all(workers.map((worker, index) => install(worker, module, index + 1)));
+  if (poolAcks.some((ack) => ack.instanceCount !== 1 || ack.value !== 42)) {
+    throw new Error('pool worker instance/value contract failed');
+  }
+
+  const duplicateAck = await install(workers[0], module, 100);
+  if (duplicateAck.instanceCount !== 1 || duplicateAck.value !== 42) {
+    throw new Error('duplicate delivery instantiated the module twice');
+  }
+
+  const lateWorker = new Worker('./worker.js', { type: 'module' });
+  const lateAck = await install(lateWorker, module, 101);
+  if (lateAck.instanceCount !== 1 || lateAck.value !== 42) {
+    throw new Error('late worker delivery failed');
+  }
+
+  for (const worker of [...workers, lateWorker]) worker.terminate();
+  return {
+    verdict: 'PASS', marker: 'BW_SPLIT_SINGLE_FLIGHT_SYNTHETIC_V1',
+    crossOriginIsolated, expectedBytes, expectedSha256, actualSha256,
+    workerCount, poolAckCount: poolAcks.length, duplicateInstanceCount: duplicateAck.instanceCount,
+    lateWorkerAckCount: 1, lateWorkerInstanceCount: lateAck.instanceCount, stats,
+  };
+}
+
+run().then((result) => { window.bwHarnessResult = result; }).catch((error) => {
+  window.bwHarnessResult = { verdict: 'FAIL', error: String(error && error.stack || error), stats };
+});
+</script>

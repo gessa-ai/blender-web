@@ -608,6 +608,31 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     M8 30-second bar directly (staged loading is at 27.8s TTFP cold).
   - P3 python (cattrs) follows separately.
 
+### Migration save point — 2026-08-18 (ornith-lab, WSL2 Linux)
+
+- [x] **M4 durable evidence:** retain the immutable 2026-08-09 D-9 PASS as historical evidence:
+  splash 0.204% and workspace 0.505% over 0.016, both below the unchanged 1% threshold. The
+  newer `ledger/results/m4.json` RED is also correct: later windowed artifacts no longer match
+  that binding. Never overwrite or relabel either result.
+- [x] **M4 rig path portability:** `sandbox/m4-d9-gate/capture_m4.mjs` now derives the repository
+  root and resolves Playwright from `BW_NODE_MODULES`, `NODE_PATH`, or local `node_modules`.
+  The macOS paths `/Users/paws/plushly/game-platform/node_modules` and
+  `~/Library/Caches/ms-playwright` are no longer source assumptions.
+- [x] **Source preservation:** the ignored `upstream/` integration diff is frozen in
+  `patches/PREVIEW_SNAPSHOT.patch` (SHA-256 recorded beside it); `lib/` and every build tree are
+  explicitly rebuild-only. See `notes/gpu-r26-migration-savepoint.md` and
+  `notes/migration-to-ornith-lab.md`.
+- [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** install the pinned emsdk and
+  Playwright 1.61.1 browser, rebuild `build-wasm-windowed-opt`, serve with COOP/COEP under WSLg,
+  capture fresh immutable splash/workspace labels at 1280x720 DPR1, bind, run the unchanged
+  comparator, then run `harness/run.sh --scope m4`. Do not adapt the old macOS receipt to the new
+  binary.
+- [ ] **M3-LINUX-REPLAY [gpu-backend, before any translation feature work]:** configure Dawn
+  `36cf1fae` for Vulkan instead of Metal, rebuild the canonical test target, and require the
+  checked-in exact 197/1,003 manifests, 197/197, DrawWebGPU 2/2, cold 1,003 MISS/files, warm
+  1,003 HIT, zero uncaptured errors, OpenSubdiv proof, and final Ninja no-work. Any platform
+  delta is a new named round, not an automatic rebaseline.
+
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 
 - [x] **M6.pre-a Cycles-CPU compile probe (96e3a0f):** COMPILES CLEAN wasm32, zero source

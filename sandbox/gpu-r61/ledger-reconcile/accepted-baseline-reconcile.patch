@@ -1,0 +1,59 @@
+diff --git a/patches/series b/patches/series
+--- a/patches/series
++++ b/patches/series
+@@ -671,3 +671,15 @@
+ # with native-parity pixels. EEVEE remains honestly blocked before Film readback by Phase B shader
+ # work and this patch makes no EEVEE pixel claim. See notes/gpu-webgpu-texture-view-subresources.md.
+ 0143-gpu-webgpu-texture-view-subresources.patch
++# 0144: promote EEVEE's unsupported RG11 writable-storage owners to RGBA16Float on WebGPU and
++# route generic mip generation through one-output-per-level built-ins. Locked native and shipping
++# wasm builds pass; the census holds 164/7/2 of 173 and static shaders rise from 956/973 to 970/987.
++# The principled control removes the RG11 error family but stops on later shadow shaders before
++# Film readback, so this patch makes no pixel claim. See notes/gpu-eevee-phase-aprime.md.
++0144-gpu-eevee-storage-format-and-final-mip.patch
++# 0146: split the shadow tag-update tile-map declaration into a read-only slot while retaining the
++# fragment tile atomic and generic propagation table. Locked native and shipping wasm builds pass;
++# the census holds 164/7/2 of 173 and static shaders rise by exactly one to 971/987. The targeted
++# control removes the tag-update writable-vertex error but the independent shadow image-atomic
++# blocker still stops before Film readback, so this patch makes no pixel claim.
++# See notes/gpu-eevee-phase-b0.md.
++0146-gpu-eevee-shadow-tag-readonly.patch
+diff --git a/fix_plan.md b/fix_plan.md
+--- a/fix_plan.md
++++ b/fix_plan.md
+@@ -583,9 +583,22 @@
+     and typed-blit routing, 3D slices, physical 1D arrays with matching shader lowering, and
+     guarded RG11/D32S8 capabilities. All 15 added WebGPU tests pass, actual Dawn optional-RG11
+     and depth-route controls pass, and Workbench pixel controls remain native-faithful with zero
+-    GPU errors. Next is the frozen 0144 Phase A-prime rebase and its EEVEE acceptance matrix,
+-    followed by the public async API and caller continuation. No EEVEE pixel-pass claim until a
+-    non-black result reaches the pinned comparator.
++    GPU errors.
++  - [x] **M6.EEVEE-A' 0144 targeted unblock [gpu-backend]: PARTIALLY ACCEPTED.** Patch 0144
++    (dc56eef) replaces the seven RG11 writable-storage owners on WebGPU and adds fourteen
++    one-output mip pipelines. Locked native and shipping wasm links pass; the accepted census is
++    164 PASS / 7 FAIL / 2 CRASH of 173 and static shaders are 970/987. The principled control has
++    zero GPU validation errors and no RG11 family, but later shadow shaders stop before Film
++    readback: zero kicks, zero completions, and no non-black pixel result. The full former-RG11
++    matrix and pixel comparator remain open.
++  - [x] **M6.EEVEE-B0 0146 targeted unblock [gpu-backend]: PARTIALLY ACCEPTED.** Patch 0146
++    (7090add) makes only the shadow tag-update tile-map slot read-only while retaining the generic
++    propagation table and fragment atomic. Locked native and shipping wasm links pass; the GPU
++    census remains 164/7/2 of 173 and static shaders rise exactly once to 971/987. The tag-update
++    writable-vertex failure is absent, but the independent shadow image-atomic compiler blocker
++    remains; there is still no Film readback or EEVEE pixel-pass claim.
++    Phase B1, the public async API, L-C/F12 caller conversion, and the pinned EEVEE matrix remain
++    mandatory. No EEVEE pixel-pass claim until a non-black result reaches the pinned comparator.
+   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
+     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
+     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.
+diff --git a/ledger/progress.txt b/ledger/progress.txt
+--- a/ledger/progress.txt
++++ b/ledger/progress.txt
+@@ -443,3 +443,5 @@
+ driver 2026-08-09T21:32Z r59 VERIFIED (2442b90, diagnosis-only): audited the exact 14-file correction commit and contiguous worker trailers, read the source attribution and hash receipt, opened the saved Image Editor and in-memory 3D View screenshots, and inspected all three manifests plus the timestamp log. The same transmission blend returns OK with zero readback hooks or captures in both controls; the saved Image Editor produces the two RGBA16Float mip-7 writable-alias errors, while switching only that area to a 3D View removes both errors. The chronology control records M6_BRIDGE_DONE at 21:20:12.484 and the alias errors at 21:20:12.633 and .634. The M6 attribution is corrected append-only: this is post-render generic Image Editor mipmap work, not an EEVEE render blocker and not the cause of the missing Film readback. The native-faithful successor is a true one-output final-mip variant; no matrix, result, oracle, threshold, source, or existing ledger line was rewritten.
+ driver 2026-08-09T23:12Z r57-0138 VERIFIED (f075180, patch 0138): audited the complete 43-file worker commit, exact trailers, six-file applied patch, note, receipts, and diagnostic cleanup; reverse-apply passes and an independent isolated reverse-forward replay returns all six source hashes byte-identically. Actual Dawn probes pass 2/2 plus the pre-allocation CapacityExceeded control, covering immutable A/mutate/B tickets, terminal errors, cancel/free, cache bounds, mapped and invalid sources, nested source-free 2D-array views, 3D mips, stencil, and the explicit current 1D mip boundary. I opened the licensed Chromium proof image and inspected the ordered console receipt: source freed before kick, view freed before completion, mip 0 origin 0,0,2 extent 4,2,1, Ready/None, 32 exact known bytes with matching a865e519 hashes, then Invalid and zero on the second consume. Production source was restored, the final JS/wasm/data hashes returned exactly, locked native and wasm builds pass, and census holds 149/7/2 plus static_shaders 956/973 with only the known-spurious I10 RED. The clean F12 control records zero backend read entries because eevee_shadow_tag_update and MADefault_Surface_shadow_mesh fail before Film::read_pass; this verifies the exact backend primitive only and makes no Film or nonblack EEVEE pixel claim. Full framebuffer/root texture-view semantics remain binding on 0143, followed by public L-B and caller L-C.
+ driver 2026-08-10T03:02Z r60-0143 VERIFIED (e9808d9, patch 0143): audited the complete 46-file worker commit, exact trailers, 13-path patch, note, receipts, and screenshot licenses; strict reverse-apply passes, and independent postimage hashes match the byte-exact isolated forward/reverse replay. The locked native build and all 15 added WebGPU tests pass; census rises only by those tests from 149/7/2 of 158 to 164/7/2 of 173 while static_shaders stays 956/973 and I10 passes. The actual Dawn/Metal probe deliberately omits RG11 renderability: sampled RG11 succeeds, RenderAttachment produces exactly one expected scoped validation, all 8 D16/D24/D24S8/D32/D32S8 mip-1/layer-1 depth routes pass, and all 3 combined destinations preserve stencil with zero unexpected validation. I independently reran the unchanged Workbench comparator: light_flat_attribute passes at mean 0.000227625 with zero pixels over 0.016 and zero GPU errors; packed UDIM completes one nonblack device capture with zero GPU errors and matches native Metal under Standard/sRGB at mean 0.00116190, max 0.00784314, and zero pixels over 0.016. I opened the licensed native/WebGPU/diff contact sheet and confirmed upright matching tile structure. EEVEE principled returns OK with zero validation errors and no texture-view family, but known Phase B shadow shader failures stop before Film readback, so no EEVEE pixel pass is claimed. Full framebuffer/root subresource semantics and physical 1D-array behavior are verified; frozen 0144, public async readback, and caller continuation remain next, with incompatible aliases binding on 0145 and the documented fidelity tail on 0147.
++driver 2026-08-10T13:19Z r61-0144 VERIFIED (dc56eef, patch 0144): accepted as a targeted unblock only. The frozen 12-path patch is b4fdb24cb2c34740d2e60cff5dc9fcf33e8ac94d784f85f106ba2ae706f1d032 and passes strict stacked reverse/forward replay. Locked native and shipping wasm links complete. The census holds 164 PASS / 7 FAIL / 2 CRASH of 173, static shaders rise from 956/973 to 970/987 by the fourteen added one-output mip pipelines, and I10 passes. The principled control returns OK with zero GPU validation errors and no RG11 storage-error family, but later tag-update writable-vertex and MADefault shadow image-atomic shaders stop before Film readback: zero readback kicks, zero completions, and a black render-operator image. The former-RG11 matrix and non-black pixel comparator remain open; no EEVEE pixel pass or M6 promise is claimed.
++driver 2026-08-10T13:19Z r61-0146 VERIFIED (7090add, patch 0146): accepted as a targeted unblock only. The frozen one-path patch is 986f95b9d3645c4fffc1cfc65e1d0b7fcce09ca7ef7605b991e2e54ba4613899 and passes strict stacked reverse/forward replay after 0144. Locked native and shipping wasm links complete. The census remains 164 PASS / 7 FAIL / 2 CRASH of 173, static shaders rise exactly once from 970/987 to 971/987, and I10 passes. The principled control returns OK with zero GPU validation errors and the tag-update writable-vertex failure absent, but the independent MADefault shadow image-atomic compiler blocker remains before Film readback: zero readback kicks, zero completions, and a black render-operator image. Phase B1, public L-B, L-C/F12, the pinned EEVEE matrix, and non-black pixels remain open; no EEVEE pixel pass or M6 promise is claimed.
+

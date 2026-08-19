@@ -1,0 +1,82 @@
+{
+  "mode": "splash",
+  "label": "m4-current-r1",
+  "url": "http://127.0.0.1:8151/windowed.html?gate=1280x720&pyexpr=import%20bpy%0Adef%20_bw_d9_kick()%3A%0A%20%20%20%20try%3A%0A%20%20%20%20%20%20%20%20for%20win%20in%20bpy.context.window_manager.windows%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20scr%20%3D%20win.screen%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20not%20scr%3A%20continue%0A%20%20%20%20%20%20%20%20%20%20%20%20for%20area%20in%20scr.areas%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20for%20region%20in%20area.regions%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20region.tag_redraw()%0A%20%20%20%20except%20Exception%20as%20e%3A%0A%20%20%20%20%20%20%20%20import%20os%0A%20%20%20%20%20%20%20%20os.write(2%2C%20(%22BW_D9_KICK_ERROR%20%22%20%2B%20repr(e)%20%2B%20%22%5Cn%22).encode())%0A%20%20%20%20return%201.0%0Abpy.app.timers.register(_bw_d9_kick%2C%20first_interval%3D1.0)",
+  "output": "/Users/paws/blender-web/sandbox/m4-d9-gate/evidence/m4-current-r1-splash_1280x720.png",
+  "licensePath": "/Users/paws/blender-web/sandbox/m4-d9-gate/evidence/m4-current-r1-splash_1280x720.png.license",
+  "sha256": "417ea5906cc6e918e31a469ab50db2ba8cfcc2655948b4beeae4bf364b027431",
+  "gate": "1280x720",
+  "deviceScaleFactor": 1,
+  "settleMs": 60000,
+  "bootMs": 523,
+  "gateReceipt": {
+    "backingWidth": 1280,
+    "backingHeight": 720,
+    "cssWidth": 1280,
+    "cssHeight": 720,
+    "dpr": 1,
+    "gateClass": true
+  },
+  "clipReceipt": {
+    "x": 60,
+    "y": 60,
+    "width": 1280,
+    "height": 720
+  },
+  "presentCount": 2,
+  "pageCrashed": false,
+  "runError": null,
+  "consoleErrors": [
+    {
+      "kind": "console:error",
+      "text": "Failed to load resource: the server responded with a status of 404 (File not found)"
+    },
+    {
+      "kind": "console:error",
+      "text": "/Users/paws/blender-web/build-deps/openimageio/OpenImageIO-3.1.13.1/src/libutil/sysutil.cpp:214: physical_memory: Assertion '0 && \"Need to implement Sysutil::physical_memory on this platform\"' failed."
+    },
+    {
+      "kind": "console:error",
+      "text": "[bw] WM-worker WebGPU device pre-acquired (ADR-007); features=22 tier1=true tier2=true maxStorageTexturesPerShaderStage=8 maxStorageBuffersPerShaderStage=10 maxBufferSize=4294967292 maxStorageBufferBindingSize=4294967292 adapterMaxColorAttachmentBytesPerSample=128 requestedMaxColorAttachmentBytesPerSample=128 deviceMaxColorAttachmentBytesPerSample=128 adapterMaxComputeWorkgroupStorageSize=32768 requestedMaxComputeWorkgroupStorageSize=32768 deviceMaxComputeWorkgroupStorageSize=32768"
+    },
+    {
+      "kind": "console:error",
+      "text": "Unable to find the Python binary, the multiprocessing module may not be functional!"
+    }
+  ],
+  "blockingErrors": [],
+  "marks": [
+    {
+      "label": "boot",
+      "iso": "2026-08-11T14:29:55.126Z",
+      "url": "http://127.0.0.1:8151/windowed.html?gate=1280x720&pyexpr=import%20bpy%0Adef%20_bw_d9_kick()%3A%0A%20%20%20%20try%3A%0A%20%20%20%20%20%20%20%20for%20win%20in%20bpy.context.window_manager.windows%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20scr%20%3D%20win.screen%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20not%20scr%3A%20continue%0A%20%20%20%20%20%20%20%20%20%20%20%20for%20area%20in%20scr.areas%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20for%20region%20in%20area.regions%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20region.tag_redraw()%0A%20%20%20%20except%20Exception%20as%20e%3A%0A%20%20%20%20%20%20%20%20import%20os%0A%20%20%20%20%20%20%20%20os.write(2%2C%20(%22BW_D9_KICK_ERROR%20%22%20%2B%20repr(e)%20%2B%20%22%5Cn%22).encode())%0A%20%20%20%20return%201.0%0Abpy.app.timers.register(_bw_d9_kick%2C%20first_interval%3D1.0)"
+    },
+    {
+      "label": "WM_main",
+      "iso": "2026-08-11T14:29:55.804Z",
+      "bootMs": 523
+    },
+    {
+      "label": "gate exact",
+      "iso": "2026-08-11T14:29:55.806Z",
+      "backingWidth": 1280,
+      "backingHeight": 720,
+      "cssWidth": 1280,
+      "cssHeight": 720,
+      "dpr": 1,
+      "gateClass": true
+    },
+    {
+      "label": "settle begin",
+      "iso": "2026-08-11T14:29:55.806Z",
+      "settleMs": 60000
+    },
+    {
+      "label": "capture complete",
+      "iso": "2026-08-11T14:30:56.290Z",
+      "output": "/Users/paws/blender-web/sandbox/m4-d9-gate/evidence/m4-current-r1-splash_1280x720.png",
+      "sha256": "417ea5906cc6e918e31a469ab50db2ba8cfcc2655948b4beeae4bf364b027431",
+      "presentCount": 2
+    }
+  ]
+}

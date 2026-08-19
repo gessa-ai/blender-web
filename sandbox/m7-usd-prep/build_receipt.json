@@ -1,0 +1,49 @@
+{
+  "schema": "blender-web.m7-openusd-wasm-build.v1",
+  "date": "2026-08-11",
+  "openusd": {
+    "version": "26.03",
+    "archive_md5": "cc6d6bffdcdd038f60e2fe4726b08673",
+    "archive_sha256": "590ea75ffa3ac0c35fdd080df04d61a696733b8f3d6a79bdc3f13f8077162d36",
+    "configure": "PASS",
+    "build_install": "PASS",
+    "build_steps": 1693,
+    "installed_headers": 880,
+    "installed_resource_files": 70
+  },
+  "installed_prefix": "/Users/paws/blender-web/lib/wasm",
+  "artifacts": {
+    "libusd_m": {
+      "bytes": 166246828,
+      "sha256": "cd7b427c32ba595b7eb64e5483159df6a596686211ac779fb77cb40b0fee0d4f"
+    },
+    "libusdShaders": {
+      "bytes": 66468,
+      "sha256": "277064d6a05d39379665a68f16635362b60fd3f3dcc44157fff4205c10301239"
+    },
+    "pxrConfig": {
+      "bytes": 4494,
+      "sha256": "8692d00780db221ae2eb0ca7d02a3209c79ab8e06fc6f3215c1baf9ee0b164bb"
+    },
+    "license_sha256": "4d6e8e3a9bd0104e10c48e3bc6af2f0976448a70a377d20cef674740f96f4452",
+    "notice_sha256": "f6ad9d41f77b1bd8edaecd64bd1e13f4224876b010e2415e308267a84862bc14"
+  },
+  "smoke": {
+    "status": "PASS",
+    "stdout": "USD_CORE_SMOKE_OK format=usda prim=/Triangle points=3",
+    "flags": [
+      "-pthread",
+      "-sPROXY_TO_PTHREAD=1",
+      "-sPTHREAD_POOL_SIZE=4",
+      "-sWASM_BIGINT=1"
+    ],
+    "javascript_bytes": 109054,
+    "javascript_sha256": "60f493acfac82e2012041f5a52df2c96452339ebf66d3ec80fd59795c2bcb339",
+    "wasm_bytes": 10954911,
+    "wasm_sha256": "c1ebbb03652deae24d24651ae4a0b2d123fa27f8e96ffe468360791a527a0396"
+  },
+  "consumer_find_fix": {
+    "status": "required_and_verified",
+    "detail": "Set pxr_DIR to the installed prefix and bypass Emscripten CMake root-path rewriting. OpenUSD's root pxrConfig also requires explicit harvest when relocating with cmake --install --prefix."
+  }
+}

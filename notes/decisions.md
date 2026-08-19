@@ -177,3 +177,51 @@ blentranslation has no external gettext dependency (built-in .mo reader,
 deploy. (2) The EEVEE `vertex-stage-rw-storage` deferral is promoted from "registered,
 revisit later" to an active emulation lane at the next free slot (it blocks 30/30 EEVEE
 M6 scenes).
+
+## D-11 (2026-08-18, driver): GPU gates bind exact identities and raw evidence, never counts alone
+
+**Decided:** M3 accepts the exact checked-in 197 GPU test identities and 1,003 static shader
+identities. It also binds and independently reparses the raw list/run/cold/warm transcripts,
+requires full-line GTest identities, snapshots critical inputs before and after execution, and
+ends with an exact Ninja no-work proof.
+
+**Evidence:** coherent same-count substitutions and suffix aliases passed the older count-only /
+substring contracts. OpenSubdiv proof could likewise inspect one archive and receipt a later
+replacement. Direct adversarial fixtures reproduced each false green. The current contracts
+reject those mutations and the final macOS source passed 197/197, DrawWebGPU 2/2, and exact
+1,003 cold-MISS/warm-HIT sets.
+
+**Consequence:** Linux/Vulkan may reveal real platform differences, but it does not get a silent
+manifest rebaseline. A changed identity requires a named source-level explanation and an updated
+adversarial contract.
+
+## D-12 (2026-08-18, driver): the honest static set substitutes a real WebGPU shader for a Metal-only row
+
+**Decided:** `fullscreen_blit` is marked Metal-only and absent from the WebGPU static set;
+`draw_debug_draw_compact` is a genuine WebGPU compute prepass and present. The total remains 1,003
+because of this semantic substitution, not because the gate is padded to retain a number.
+
+The compact pass moves debug-line lifetime mutation out of the vertex stage, where WebGPU forbids
+read-write storage. `draw_debug_lifetime_rebind` proves the production compute-to-display sequence
+and lifetime carry. OpenSubdiv's four formerly failing placeholders are compiled only after the
+real GLSL patch-basis source is harvested and selected for WebGPU.
+
+**Rejected:** declaring a Metal kernel to be WebGPU-capable solely to preserve census size;
+leaving a new production compute shader outside static coverage; or accepting an empty Wasm
+`libosdGPU.a`.
+
+## D-13 (2026-08-18, migration): build products and host browser installs are never repository source
+
+**Decided:** `lib/`, `build-deps/`, `build-dawn/`, every `build-wasm-*`, native build trees,
+Playwright caches, and `.m8-browsers` are reproducible machine-local state and are ignored. The
+outer Git repository carries pins, recipes, exact identity manifests, immutable selected receipts,
+and the complete `upstream/` integration patch.
+
+The M4 capture driver derives the repository root and resolves Playwright from an explicit or
+local module root. A macOS `.app`, `codesign`, `spctl`, plist path, Homebrew path, or
+`~/Library/Caches/ms-playwright` path is not a cross-platform identity. Linux rebuild and browser
+identity rules are recorded in `notes/migration-to-ornith-lab.md`.
+
+**Reason:** the ornith-lab migration transfers only `.git`. Treating 2.7 GB of platform-specific
+libraries or signed macOS browser bundles as source would both bloat the repository and still fail
+to reproduce on Linux. The source boundary must be sufficient to reconstruct them instead.

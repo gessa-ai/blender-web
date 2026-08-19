@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "milestone": "M4_FIRST_PIXELS",
+  "run": "m4-current-r1",
+  "capturedAt": "2026-08-11",
+  "browserMode": "headed bundled Chromium",
+  "gate": {
+    "width": 1280,
+    "height": 720,
+    "deviceScaleFactor": 1,
+    "settleMs": 60000,
+    "failThreshold": 0.016,
+    "failPercent": 1.0
+  },
+  "verificationArtifacts": {
+    "javascript": {
+      "path": "build-wasm-windowed-opt/bin/blender_browser.js",
+      "bytes": 628027,
+      "sha256": "cd6b4798f5756c56a17e58d68062593f24433b279ae6fee7c9cd38dc69c5a306"
+    },
+    "webAssembly": {
+      "path": "build-wasm-windowed-opt/bin/blender_browser.wasm",
+      "bytes": 105827406,
+      "sha256": "0655c8843213cc1fe8590365c225a08faacb29f9b1b78def6879946f501d7fde"
+    },
+    "preloadedData": {
+      "path": "build-wasm-windowed-opt/bin/blender_browser.data",
+      "bytes": 165870780,
+      "sha256": "06fa62fa70cb4b674189021d8985eccec0602c5c879b662f365716768bf1623d"
+    }
+  },
+  "captures": {
+    "splash": {
+      "image": "sandbox/m4-d9-gate/evidence/m4-current-r1-splash_1280x720.png",
+      "imageSha256": "417ea5906cc6e918e31a469ab50db2ba8cfcc2655948b4beeae4bf364b027431",
+      "receipt": "sandbox/m4-d9-gate/evidence/m4-current-r1-splash_1280x720.receipt.json",
+      "receiptSha256": "5b070389b200afeacedebe500e86768ee48bcd01d34a3dd8e75060843a8310e0",
+      "golden": "sandbox/m4-golden-prep/goldens/splash_1280x720.png",
+      "goldenSha256": "b258e12ddb1686485aa65ba60eeba8eb52638436d663de1fd04465b29f473df1",
+      "maxError": 0.5764706134796143,
+      "pixelsOverThreshold": 4040,
+      "percentOverThreshold": 0.438,
+      "verdict": "PASS"
+    },
+    "workspace": {
+      "image": "sandbox/m4-d9-gate/evidence/m4-current-r1-workspace_1280x720.png",
+      "imageSha256": "9b77a62983a78f9ed6afa9108610832e05ab10822cd4b69847ba1d180e632b9f",
+      "receipt": "sandbox/m4-d9-gate/evidence/m4-current-r1-workspace_1280x720.receipt.json",
+      "receiptSha256": "2440b5b65c3907ab4a25dc16546d7398fd69d13e269e7ab86a35227d9d5db2a2",
+      "golden": "sandbox/m4-golden-prep/goldens/workspace_1280x720.png",
+      "goldenSha256": "4e791b135e763501c1dfeaee8cb8872727703a3c8ce52351f9fa89310b09b009",
+      "maxError": 0.5764706134796143,
+      "pixelsOverThreshold": 2404,
+      "percentOverThreshold": 0.261,
+      "verdict": "PASS"
+    }
+  }
+}

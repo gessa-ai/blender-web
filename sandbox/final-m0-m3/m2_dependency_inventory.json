@@ -1,0 +1,415 @@
+{
+  "dependencies": {
+    "attrs": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/attrs/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "brotli": {
+      "artifacts": [
+        "lib/wasm/lib/libbrotlicommon-static.a",
+        "lib/wasm/lib/libbrotlidec-static.a",
+        "lib/wasm/lib/libbrotlienc-static.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "cattrs": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/cattrs/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "certifi": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/certifi/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MPL-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "charset_normalizer": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/charset_normalizer/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "eigen": {
+      "artifacts": [
+        "lib/wasm/include/eigen3/Eigen/Core"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MPL-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "epoxy": {
+      "artifacts": [],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": false
+    },
+    "expat": {
+      "artifacts": [
+        "lib/wasm/lib/libexpat.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "fmt": {
+      "artifacts": [
+        "lib/wasm/lib/libfmt.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "freetype": {
+      "artifacts": [
+        "lib/wasm/lib/libfreetype.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/FTL.txt",
+        "upstream/release/license/spdx/GPL-2.0-or-later.txt"
+      ],
+      "runtime_linked": true
+    },
+    "idna": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/idna/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "imath": {
+      "artifacts": [
+        "lib/wasm/lib/libImath-3_2.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "libdeflate": {
+      "artifacts": [
+        "lib/wasm/lib/libdeflate.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "libjpeg": {
+      "artifacts": [
+        "lib/wasm/lib/libjpeg.a"
+      ],
+      "license_payloads": [
+        "lib/wasm/share/doc/libjpeg-turbo/LICENSE.md",
+        "upstream/release/license/spdx/BSD-3-Clause.txt",
+        "upstream/release/license/spdx/Zlib.txt"
+      ],
+      "runtime_linked": true
+    },
+    "libpng": {
+      "artifacts": [
+        "lib/wasm/lib/libpng16.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/libpng-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "minizipng": {
+      "artifacts": [
+        "lib/wasm/lib/libminizip.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Zlib.txt"
+      ],
+      "runtime_linked": true
+    },
+    "numpy": {
+      "artifacts": [
+        "lib/wasm/lib/libnumpy.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "opencolorio": {
+      "artifacts": [
+        "lib/wasm/lib/libOpenColorIO.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "openexr": {
+      "artifacts": [
+        "lib/wasm/lib/libIex-3_4.a",
+        "lib/wasm/lib/libIlmThread-3_4.a",
+        "lib/wasm/lib/libOpenEXR-3_4.a",
+        "lib/wasm/lib/libOpenEXRCore-3_4.a",
+        "lib/wasm/lib/libOpenEXRUtil-3_4.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "openimageio": {
+      "artifacts": [
+        "lib/wasm/lib/libOpenImageIO.a",
+        "lib/wasm/lib/libOpenImageIO_Util.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Apache-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "openjph": {
+      "artifacts": [
+        "lib/wasm/lib/libopenjph.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-2-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "opensubdiv": {
+      "artifacts": [
+        "lib/wasm/lib/libosdCPU.a",
+        "lib/wasm/lib/libosdGPU.a"
+      ],
+      "license_payloads": [
+        "LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
+        "THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt"
+      ],
+      "runtime_linked": true
+    },
+    "openusd": {
+      "artifacts": [
+        "lib/wasm/lib/libusdShaders.a",
+        "lib/wasm/lib/libusd_m.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/others/TOST-1.0.txt",
+        "lib/wasm/share/licenses/OpenUSD-26.03/NOTICE.txt"
+      ],
+      "runtime_linked": true
+    },
+    "pystring": {
+      "artifacts": [
+        "lib/wasm/lib/libpystring.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "python": {
+      "artifacts": [
+        "lib/wasm/lib/libpython3.13.a"
+      ],
+      "license_payloads": [
+        "lib/wasm/lib/python3.13/LICENSE.txt"
+      ],
+      "runtime_linked": true
+    },
+    "requests": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/requests/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Apache-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "robinmap": {
+      "artifacts": [
+        "lib/wasm/include/tsl/robin_map.h"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "shaderc": {
+      "artifacts": [
+        "lib/wasm/shaderc/lib/libSPIRV.a",
+        "lib/wasm/shaderc/lib/libglslang.a",
+        "lib/wasm/shaderc/lib/libshaderc.a",
+        "lib/wasm/shaderc/lib/libshaderc_util.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Apache-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "tbb": {
+      "artifacts": [
+        "lib/wasm/lib/libtbb.a",
+        "lib/wasm/lib/libtbbmalloc.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Apache-2.0.txt"
+      ],
+      "runtime_linked": true
+    },
+    "tiff": {
+      "artifacts": [
+        "lib/wasm/lib/libtiff.a",
+        "lib/wasm/lib/libtiffxx.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/libtiff.txt"
+      ],
+      "runtime_linked": true
+    },
+    "tint": {
+      "artifacts": [
+        "lib/wasm/tint/lib/libSPIRV-Tools-opt.a",
+        "lib/wasm/tint/lib/libSPIRV-Tools.a",
+        "lib/wasm/tint/lib/libabsl_base.a",
+        "lib/wasm/tint/lib/libabsl_hardening.a",
+        "lib/wasm/tint/lib/libabsl_int128.a",
+        "lib/wasm/tint/lib/libabsl_log_severity.a",
+        "lib/wasm/tint/lib/libabsl_raw_logging_internal.a",
+        "lib/wasm/tint/lib/libabsl_source_location.a",
+        "lib/wasm/tint/lib/libabsl_spinlock_wait.a",
+        "lib/wasm/tint/lib/libabsl_strings.a",
+        "lib/wasm/tint/lib/libabsl_strings_internal.a",
+        "lib/wasm/tint/lib/libabsl_throw_delegate.a",
+        "lib/wasm/tint/lib/libdawn_shared_utils.a",
+        "lib/wasm/tint/lib/libtint_api.a",
+        "lib/wasm/tint/lib/libtint_api_common.a",
+        "lib/wasm/tint/lib/libtint_lang_core.a",
+        "lib/wasm/tint/lib/libtint_lang_core_constant.a",
+        "lib/wasm/tint/lib/libtint_lang_core_intrinsic.a",
+        "lib/wasm/tint/lib/libtint_lang_core_ir.a",
+        "lib/wasm/tint/lib/libtint_lang_core_ir_analysis.a",
+        "lib/wasm/tint/lib/libtint_lang_core_ir_transform.a",
+        "lib/wasm/tint/lib/libtint_lang_core_ir_type.a",
+        "lib/wasm/tint/lib/libtint_lang_core_type.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_intrinsic.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_ir.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_reader.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_reader_common.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_reader_lower.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_reader_parser.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_type.a",
+        "lib/wasm/tint/lib/libtint_lang_spirv_validate.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_ast.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_inspector.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_intrinsic.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_ir.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_program.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_reader.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_reader_lower.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_reader_parser.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_reader_program_to_ir.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_resolver.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_sem.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_writer.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_writer_ast_printer.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_writer_common.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_writer_ir_to_program.a",
+        "lib/wasm/tint/lib/libtint_lang_wgsl_writer_raise.a",
+        "lib/wasm/tint/lib/libtint_utils.a",
+        "lib/wasm/tint/lib/libtint_utils_containers.a",
+        "lib/wasm/tint/lib/libtint_utils_diagnostic.a",
+        "lib/wasm/tint/lib/libtint_utils_ice.a",
+        "lib/wasm/tint/lib/libtint_utils_macros.a",
+        "lib/wasm/tint/lib/libtint_utils_math.a",
+        "lib/wasm/tint/lib/libtint_utils_memory.a",
+        "lib/wasm/tint/lib/libtint_utils_reflection.a",
+        "lib/wasm/tint/lib/libtint_utils_rtti.a",
+        "lib/wasm/tint/lib/libtint_utils_strconv.a",
+        "lib/wasm/tint/lib/libtint_utils_symbol.a",
+        "lib/wasm/tint/lib/libtint_utils_system.a",
+        "lib/wasm/tint/lib/libtint_utils_text.a",
+        "lib/wasm/tint/lib/libtint_utils_text_generator.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    },
+    "typing_extensions": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/typing_extensions.py"
+      ],
+      "license_payloads": [
+        "lib/wasm/lib/python3.13/LICENSE.txt"
+      ],
+      "runtime_linked": true
+    },
+    "urllib3": {
+      "artifacts": [
+        "lib/wasm/lib/python3.13/site-packages/urllib3/__init__.py"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "vulkan": {
+      "artifacts": [],
+      "license_payloads": [
+        "upstream/release/license/spdx/Apache-2.0.txt"
+      ],
+      "runtime_linked": false
+    },
+    "yamlcpp": {
+      "artifacts": [
+        "lib/wasm/lib/libyaml-cpp.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/MIT.txt"
+      ],
+      "runtime_linked": true
+    },
+    "zlib": {
+      "artifacts": [
+        "lib/wasm/lib/libz.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/Zlib.txt"
+      ],
+      "runtime_linked": true
+    },
+    "zstd": {
+      "artifacts": [
+        "lib/wasm/lib/libzstd.a"
+      ],
+      "license_payloads": [
+        "upstream/release/license/spdx/BSD-3-Clause.txt"
+      ],
+      "runtime_linked": true
+    }
+  },
+  "schema": 1
+}

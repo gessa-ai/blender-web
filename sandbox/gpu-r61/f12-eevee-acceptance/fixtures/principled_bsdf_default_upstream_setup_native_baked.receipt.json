@@ -1,0 +1,79 @@
+{
+  "active_object": "Volume_Probe_Baked",
+  "blender": {
+    "build_hash": "fbe6228777e7",
+    "version": "5.2.0 LTS"
+  },
+  "input": {
+    "path": "/Users/paws/blender-web/upstream/tests/files/render/principled_bsdf/principled_bsdf_default.blend",
+    "sha256": "39db218041e5d1f8338a666f78e3d06d93f6e7cbd1029390c8e1c646c7ddea5a"
+  },
+  "output": {
+    "path": "/Users/paws/blender-web/sandbox/gpu-r61/f12-eevee-acceptance/fixtures/principled_bsdf_default_upstream_setup_native_baked.blend",
+    "sha256": "c26e91e6d1e2946d8ac89dd1d387b4a23762fd91c317f2b6f35c0a45128ef0a4"
+  },
+  "probes": [
+    {
+      "clip_start": 0.800000011920929,
+      "data_name": "Sphere",
+      "falloff": 0.0,
+      "influence_distance": 1.2000000476837158,
+      "location": [
+        0.0,
+        0.10000000149011612,
+        1.0
+      ],
+      "object_name": "Sphere.001",
+      "object_type": "LIGHT_PROBE",
+      "probe_type": "SPHERE",
+      "scale": [
+        5.0,
+        5.0,
+        2.0
+      ]
+    },
+    {
+      "bake_samples": 128,
+      "capture_world": true,
+      "data_name": "Volume_Probe_Baked",
+      "dilation_threshold": 1.0,
+      "location": [
+        0.0,
+        0.0,
+        2.0
+      ],
+      "object_name": "Volume_Probe_Baked",
+      "object_type": "LIGHT_PROBE",
+      "probe_type": "VOLUME",
+      "resolution": [
+        32,
+        16,
+        8
+      ],
+      "scale": [
+        8.0,
+        4.5,
+        4.5
+      ],
+      "surfel_density": 100
+    }
+  ],
+  "recognition_identity": {
+    "data_name": "Volume_Probe_Baked",
+    "lookup": "bpy.data.objects.get('Volume_Probe_Baked')",
+    "object_name": "Volume_Probe_Baked",
+    "object_type": "LIGHT_PROBE",
+    "probe_type": "VOLUME"
+  },
+  "scene_provenance": {
+    "BW_fixture_blender_build_hash": "fbe6228777e7",
+    "BW_fixture_input_sha256": "39db218041e5d1f8338a666f78e3d06d93f6e7cbd1029390c8e1c646c7ddea5a",
+    "BW_fixture_schema": "blender-web.eevee-native-prebake.v1",
+    "BW_fixture_setup_sha256": "18a5e10c897df2180f97021657162bc1544b1b8d29fa18c6b98f705f20435af2"
+  },
+  "schema": "blender-web.eevee-native-prebake-receipt.v1",
+  "setup": {
+    "path": "/Users/paws/blender-web/upstream/tests/python/eevee_render_tests.py",
+    "sha256": "18a5e10c897df2180f97021657162bc1544b1b8d29fa18c6b98f705f20435af2"
+  }
+}

@@ -1,0 +1,168 @@
+diff --git a/scripts/addons_core/io_scene_gltf2/blender/exp/export.py b/scripts/addons_core/io_scene_gltf2/blender/exp/export.py
+index 2014c78782e..045911cee36 100644
+--- a/scripts/addons_core/io_scene_gltf2/blender/exp/export.py
++++ b/scripts/addons_core/io_scene_gltf2/blender/exp/export.py
+@@ -11,7 +11,6 @@ import sys
+ import traceback
+ 
+ from ...io.exp import export as gltf2_io_export
+-from ...io.exp import draco as gltf2_io_draco_compression_extension
+ from ...io.exp.user_extensions import export_user_extensions
+ from ..com import json_util
+ from . import gather as gltf2_blender_gather
+@@ -391,6 +390,10 @@ def __gather_gltf(exporter, export_settings):
+     unused_skins = export_settings['vtree'].get_unused_skins()
+ 
+     if export_settings['gltf_draco_mesh_compression']:
++        # ctypes is an optional Python module and the Draco bridge is optional.
++        # Import them only when compression was explicitly requested so regular
++        # glTF IO works on platforms such as Emscripten that ship neither.
++        from ...io.exp import draco as gltf2_io_draco_compression_extension
+         gltf2_io_draco_compression_extension.encode_scene_primitives(scenes, export_settings)
+         exporter.add_draco_extension()
+ 
+diff --git a/scripts/addons_core/io_scene_gltf2/blender/imp/mesh.py b/scripts/addons_core/io_scene_gltf2/blender/imp/mesh.py
+index 452f02eb993..4bd59df53b0 100644
+--- a/scripts/addons_core/io_scene_gltf2/blender/imp/mesh.py
++++ b/scripts/addons_core/io_scene_gltf2/blender/imp/mesh.py
+@@ -12,7 +12,6 @@ from ...blender.com.conversion import get_attribute_type
+ from ..com.extras import set_extras
+ from ..com.gltf2_blender_utils import fast_structured_np_unique
+ from .material import BlenderMaterial
+-from .draco_compression_extension import decode_primitive
+ 
+ 
+ class BlenderMesh():
+@@ -91,6 +90,7 @@ def do_primitives_pointcloud(gltf, mesh_idx, pointcloud):
+ 
+         if prim.extensions is not None and 'KHR_draco_mesh_compression' in prim.extensions:
+             gltf.log.info('Draco Decoder: Decode primitive {}'.format(pypc.name or '[unnamed]'))
++            from .draco_compression_extension import decode_primitive
+             decode_primitive(gltf, prim)
+ 
+         if prim.mode != 0:
+@@ -280,6 +280,7 @@ def do_primitives(gltf, mesh_idx, skin_idx, mesh, ob):
+         if prim.extensions is not None and 'KHR_draco_mesh_compression' in prim.extensions:
+ 
+             gltf.log.info('Draco Decoder: Decode primitive {}'.format(pymesh.name or '[unnamed]'))
++            from .draco_compression_extension import decode_primitive
+             decode_primitive(gltf, prim)
+ 
+         import_user_extensions('gather_import_decode_primitive', gltf, pymesh, prim, skin_idx)
+diff --git a/scripts/addons_core/io_scene_gltf2/io/com/library.py b/scripts/addons_core/io_scene_gltf2/io/com/library.py
+index fcbfc692435..6d38c8781d7 100644
+--- a/scripts/addons_core/io_scene_gltf2/io/com/library.py
++++ b/scripts/addons_core/io_scene_gltf2/io/com/library.py
+@@ -38,6 +38,9 @@ def dll_exists(lib_name, lib_display_name) -> bool:
+     :return: True if the DLL exists.
+     """
+     path = dll_path(lib_name, lib_display_name)
++    if path is None:
++        print('INFO', '{} compression is unavailable on this platform'.format(lib_display_name))
++        return False
+     exists = (path is not None) and (path.exists() and path.is_file())
+     if exists:
+         print('INFO', '{} is available, use library at %s'.format(lib_display_name) % path.absolute())
+diff --git a/scripts/addons_core/io_scene_gltf2/io/exp/meshopt.py b/scripts/addons_core/io_scene_gltf2/io/exp/meshopt.py
+index ee27cb8795a..5703ac81157 100644
+--- a/scripts/addons_core/io_scene_gltf2/io/exp/meshopt.py
++++ b/scripts/addons_core/io_scene_gltf2/io/exp/meshopt.py
+@@ -2,7 +2,6 @@
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ 
+-import ctypes
+ import numpy as np
+ 
+ from ...io.com.library import dll_path
+@@ -19,6 +18,15 @@ EXP_FILTER_BITS = 12
+ QUAT_FILTER_BITS = 8
+ 
+ 
++def _ctypes():
++    """Import the optional FFI only when Meshopt compression is used."""
++    try:
++        import ctypes
++    except ModuleNotFoundError as ex:
++        raise RuntimeError("MeshOptimizer compression needs the optional ctypes module") from ex
++    return ctypes
++
++
+ class MeshoptEncoder:
+     """Meshopt encoder."""
+     def __new__(cls, *args, **kwargs):
+@@ -38,6 +46,7 @@ class MeshoptEncoder:
+         """Load the Meshopt encoder library."""
+         if 'meshopt_encoder' in export_settings.keys():
+             return
++        ctypes = _ctypes()
+         lib_path = MeshoptEncoder.find_library()
+         try:
+             lib = ctypes.CDLL(lib_path.resolve())
+@@ -137,6 +146,7 @@ class MeshoptEncoder:
+     def encode_index_buffer(data, export_settings):
+ 
+         filter = None
++        ctypes = _ctypes()
+ 
+         MeshoptEncoder.load_library(export_settings)
+         lib = export_settings['meshopt_encoder']
+@@ -162,6 +172,7 @@ class MeshoptEncoder:
+     def encode_index_sequence(data, export_settings):
+ 
+         filter = None
++        ctypes = _ctypes()
+ 
+         MeshoptEncoder.load_library(export_settings)
+         lib = export_settings['meshopt_encoder']
+@@ -187,6 +198,7 @@ class MeshoptEncoder:
+     def encode_attribute(attribute_name, data, byteStride, export_settings):
+ 
+         filter = None
++        ctypes = _ctypes()
+         if attribute_name in ["POSITION", "SK_POSITION", "NORMAL", "SK_NORMAL", "TANGENT", "SK_TANGENT",
+                               "SCALE", "TIME", "GPU_TRANSLATION", "GPU_SCALE", "SK_ANIM"]:
+             filter = 'EXPONENTIAL'
+diff --git a/scripts/addons_core/io_scene_gltf2/io/imp/gltf2_io_binary_meshopt.py b/scripts/addons_core/io_scene_gltf2/io/imp/gltf2_io_binary_meshopt.py
+index 34d372f6da3..8189026fed8 100644
+--- a/scripts/addons_core/io_scene_gltf2/io/imp/gltf2_io_binary_meshopt.py
++++ b/scripts/addons_core/io_scene_gltf2/io/imp/gltf2_io_binary_meshopt.py
+@@ -2,13 +2,21 @@
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ 
+-import ctypes
+ import sys
+ import os
+ from .gltf2_io_gltf import ImportError
+ from ..com.library import dll_path
+ 
+ 
++def _ctypes():
++    """Import the optional FFI only when a Meshopt buffer is decoded."""
++    try:
++        import ctypes
++    except ModuleNotFoundError as ex:
++        raise ImportError("MeshOptimizer compression needs the optional ctypes module") from ex
++    return ctypes
++
++
+ class MeshoptDecoder:
+     """Meshopt decoder."""
+     def __new__(cls, *args, **kwargs):
+@@ -28,6 +36,7 @@ class MeshoptDecoder:
+         """Load the Meshopt decoder library."""
+         if hasattr(gltf, 'meshopt_decoder'):
+             return
++        ctypes = _ctypes()
+         lib_path = MeshoptDecoder.find_library()
+         try:
+             lib = ctypes.CDLL(lib_path.resolve())
+@@ -68,6 +77,7 @@ class MeshoptDecoder:
+     @staticmethod
+     def get_buffer_view(gltf, bufferview_index):
+         """Decodes EXT/KHR_meshopt_compression buffer view."""
++        ctypes = _ctypes()
+         # Check if already in cache
+         if not hasattr(gltf, 'meshopt_cache'):
+             gltf.meshopt_cache = {}

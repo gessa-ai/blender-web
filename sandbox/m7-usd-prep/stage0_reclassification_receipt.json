@@ -1,0 +1,27 @@
+{
+  "schema": "blender-web.m7-stage0-reclassification.v1",
+  "date": "2026-08-11",
+  "source": "build-wasm-windowed-opt/bin/blender_browser.{js,data}",
+  "classifier_test": "STAGE0_CLASSIFIER_OK defer=9 keep=5",
+  "legacy": {
+    "files": 2834,
+    "raw_bytes": 44416856,
+    "brotli_q5_bytes": 16888435,
+    "brotli_q11_bytes": 15423653
+  },
+  "reclassified": {
+    "files": 2533,
+    "raw_bytes": 28012542,
+    "brotli_q5_bytes": 6222146,
+    "brotli_q11_bytes": 5091195
+  },
+  "moved": {
+    "files": 301,
+    "raw_bytes": 16404314
+  },
+  "strict_runtime_proofs_pending": [
+    "stage0_first_pixels",
+    "post_stage1_full_workbench_matrix",
+    "stage1_byte_exact"
+  ]
+}

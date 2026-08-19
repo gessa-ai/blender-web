@@ -1,0 +1,11 @@
+{
+  "scope": "m4",
+  "pass": false,
+  "ts": "2026-08-11T14:50:45Z",
+  "checks": {
+    "browser_pixels": {
+      "pass": false,
+      "detail": "M4_BINDING_FAIL sha256 mismatch for build-wasm-windowed-opt/bin/blender_browser.js: 52e2a6fbeb815c3d48d5f6733b65e40bdbb3246dac2f3a375d646ede0373d95f != cd6b4798f5756c56a17e58d68062593f24433b279ae6fee7c9cd38dc69c5a306"
+    }
+  }
+}

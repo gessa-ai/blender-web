@@ -1,7 +1,7 @@
 {
   "scope": "m4",
   "pass": false,
-  "ts": "2026-08-20T14:53:06Z",
+  "ts": "2026-08-20T15:04:29Z",
   "checks": {
     "browser_pixels": {
       "pass": false,

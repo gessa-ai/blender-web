@@ -775,9 +775,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   has 17/17 base plus 18/18 live-loader browser-free self-checks from root and descendant cwd.
   No browser or receipt was produced; s7 hardware plus APPLY remain mandatory. See
   `notes/m5-canvas-linux-portability-20260820.md`.
-- [ ] **M5-LATENCY-LINUX-PORTABILITY [driver, producer-only]:** port the current ROI-latency
-  producer after its repo-local `sharp` host-tool dependency is pinned and recorded; do not change
-  the established Sharp greyscale/resize detector while making the loader portable.
+- [x] **M5-LATENCY-LINUX-PORTABILITY [driver, producer-only] (8bc251b):** the current
+  ROI-latency producer now derives checkout/module/evidence paths, requires Node 22.16.0 plus
+  Playwright 1.61.1/Sharp 0.35.3/libvips 8.18.3, confines output to one repository-local immutable
+  child, and has 15/15 base plus 17/17 live browser-free self-checks from root and descendant CWD.
+  Sharp and its host-only Linux closure are recorded in `ledger/deps.json`; the established
+  greyscale/resize/MAD detector and budgets are unchanged. No browser or receipt was produced;
+  s7 hardware plus APPLY remain mandatory. See `notes/m5-latency-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

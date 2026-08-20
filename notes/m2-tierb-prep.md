@@ -479,7 +479,17 @@ recipe"):
 1. build banner date/time (hash pinned, date varies) → `Blender <VER> LTS (hash <PIN> built <DATE>)`;
 2. unittest timing `Ran N tests in <T>s`; 3. hex addresses `0xADDR` (guardedalloc/repr);
 4. temp dirs `/var/folders|/private/var/folders|/tmp/…` → `<TMP>`; 5. repo-absolute paths → `<REPO>`.
-6. **Watch (wasm-only, expected):** mathutils/float `repr` last-ULP differences between arm64 and
+6. Blender CLG elapsed-process clock prefixes with the exact
+   `HH:MM.mmm  subsystem | ` grammar → `<LOG_TIME>  subsystem | `; the
+   subsystem, severity, and full message remain byte-significant. The final M2
+   runner also composes the product's installed script layout, including Cycles
+   at `scripts/addons_core/cycles`, plus the stage-0 locale `languages` index.
+   Consequently a missing-Cycles startup notice and missing locale data are
+   input-completeness failures, not generic normalization rules. The sole
+   compiled-feature exception is exactly one `bl_rna_accessors` denoiser enum
+   warning, suite-scoped and accepted only with a hash-bound
+   `WITH_OPENIMAGEDENOISE:BOOL=OFF` cache.
+7. **Watch (wasm-only, expected):** mathutils/float `repr` last-ULP differences between arm64 and
    wasm. These do NOT appear as stdout noise — `bl_pyapi_mathutils` compares against hardcoded
    expected values INSIDE the test, so any float divergence surfaces as a genuine test FAILURE
    (nonzero exit). That is the correct tier-b signal, not something to normalize away.
@@ -729,3 +739,107 @@ Full trace (all confirmed by instrumentation, since reverted):
    must also invalidate/clear the poisoned indices.
 
 ### BUG3 (NodeSocketUndefined) — NOT STARTED (time spent on bug2 dive).
+
+## 8. Exact M2 pass-with-delta closeout (2026-08-17)
+
+The final technical M2 contract distinguishes byte parity from a successful
+test that still exposes a real platform delta. It never turns the latter into a
+plain `PASS`:
+
+- `bl_rna_paths` is `PASS_WITH_DEFERRAL` under the existing
+  `os-shell-affordances` goal deferral. The schema replaces only one exact,
+  contiguous native file-browser menu and one exact, contiguous eight-row browser-sandbox
+  menu for comparison; every shared RNA path remains byte-bound. Native alternatives are
+  explicitly enumerated: the six-row macOS menu from the original receipt or the eleven-row
+  Linux oracle-container menu (`work`, the three `/etc` bind labels, then the seven home
+  shortcuts). Mixed, reordered, or otherwise changed native menus fail closed.
+- `bl_animation_action` is `PASS_WITH_DEFERRAL` under
+  `wasm32-animation-action-objectdata`. All 32 assertions pass, but Wasm emits
+  the exact missing-local-`ObjectData` warning and missing-Suzanne-data line.
+  Those diagnostics remain verbatim in evidence and are accepted only in the
+  observed progress/read-library/layered-read sequence; relocation or an extra
+  warning is a failure. Native progress has two exact accepted layouts: the
+  original 23-dot remap prefix, or three complete Linux six-line prefixes that
+  distribute exactly 25 dots among the exact unassigned-slot error, exact
+  slot-type warning, and a 22/23-dot remap prefix. Native null diagnostics likewise
+  accept only the observed `0x0` and `(nil)`
+  spellings. The first layered-file read also admits only its two exact layouts:
+  a leading dot on that read, or the same dot on the immediately preceding
+  pinned library-info line. Dot/cardinality changes, near-match diagnostics,
+  and mixed layouts fail closed.
+- `blendfile_library_overrides` is `PASS_WITH_DEFERRAL` under
+  `wasm32-library-override-idname-allocation`. All assertions pass. The current
+  isolated runtime evidence contains six differing
+  `LibCube` rows across three collection instances. Native and Wasm are bound
+  separately as exact nine-line hierarchy-print phases, including the three
+  stable interleaved `LibController2` rows and the exact preceding/following
+  library-read records. Pooled names, reordered rows, reassignment, or moving
+  the intact hierarchy phase do not pass.
+
+The two M2-specific ledger rows must remain `status=deferred`, `milestone=M2`,
+and `evidence=notes/m2-tierb-prep.md §8`. `os-shell-affordances` must remain
+`status=deferred-by-goal`, `milestone=GOAL`, and `evidence=GOAL.md:19`. A
+coherently changed `resolved` status is rejected rather than allowing a stale
+delta to green.
+
+Other repeatable output variance is narrower and fully enumerated: the keymap
+test's two unique set-derived inventories are sorted only after exact
+159/28-row cardinality checks. On the Linux oracle, `bl_rna_accessors` also emits exactly one
+native CUEW library-open warning while Wasm emits the existing exact compiled-out OIDN
+warning. The suite envelope removes only those exact lines (native at most once, Wasm exactly
+once); duplicates and near-matches remain visible failures. Its intermittent single progress
+dot is restored only across three exact layouts around the second pinned ColorManaged-input
+warning and the fixed unittest separator: dot-prefixed warning, separate dot, or separate dot
+plus one blank line. Unmatched text remains byte-exact.
+The progress-only `sequencer_strip_naming` suite similarly binds exactly six
+dots and the exact six-test success tail while accepting only the observed
+one- or two-line dot grouping.
+The progress-only `bl_sculpt_brush_curve_presets` contract does the same for
+exactly nine dots and its exact nine-test success tail.
+The progress-only `operator_function_py_api` contract binds exactly 33 dots,
+its exact 33-test success tail, and only the observed one- or two-line grouping.
+The progress-only `geometry_attributes` contract applies the same bounds to
+exactly 16 dots and its exact 16-test success tail.
+The progress-only `node_tools` contract applies the same bounds to exactly
+four dots and its exact four-test success tail.
+`bl_animation_armature` binds its complete nine-line output and accepts only
+the two exact six-dot layouts around the pinned armature file-read line.
+`bl_node_group_compat` restores one dot only across the two exact adjacent
+layouts formed by the pinned compositor socket-interface read and its pinned
+do-version warning. It also binds the complete six-line `nodegroup36` phase and
+its two exact middle read/output-warning dot layouts.
+`bl_animation_keyframing` binds the complete ordered 14-line diagnostic phase
+before restoring the two progress dots observed across three exact layouts on
+its first scale warning, terminal F-Curve-creation warning, and following
+keying-set error.
+`vertex_group_painting` binds its complete eight-line output and only the two
+observed flush positions for the exact locked-groups error.
+`bl_animation_fcurves` binds its complete six-line Euler-filter phase plus the
+exact contiguous 300-row no-keys warning phase; only the two observed four-dot
+offset sets are projected.
+`mesh_validate` binds the exact ordered five-error phase and only the observed
+one-dot-per-error or five-dots-on-final-error layouts.
+`bl_sculpt_face_set` binds its complete eight-line output and only the two
+observed three-read progress layouts.
+The three physics suites are rebuilt only from exact
+named START/PASSED/result records and complete frame sequences; and only the
+terminal millisecond fields of anchored GoogleTest OK/census lines are masked.
+Unknown warnings, rows, duplicates, missing frames, and near matches stay red.
+
+Runtime completeness is causal rather than normalized away. M2 creates
+per-suite/per-platform empty scratch roots, pins `PYTHONHASHSEED=0`, requests
+unbuffered Python writes, stages the full cache-pruned scripts tree with Cycles
+at `scripts/addons_core/cycles`, and byte-copies complete
+`upstream/release/datafiles` plus `upstream/assets`. Every source/staged file
+pair, the locale language index, and the OIDN-off cache flag is receipt-bound
+and independently replayed. Embedded Wasm Python bytecode caches generated
+during the matrix are removed before sealing, and both composed destination
+trees must then equal those receipt inventories exactly. This removes the
+former startup Cycles/locale noise without hiding either notice or accepting
+runtime-grown files.
+Only runner-owned scratch roots with exact suite cardinalities are tokenized:
+`blendfile_io` 6, `bl_animation_action` 1, `blendfile_liblink` 33,
+`blendfile_relationships` 4, and `blendfile_library_overrides` 83. The latter's
+hierarchy phase accepts only a coherent legacy `<TMP>` anchor pair or the exact
+Linux scratch-root anchor pair. Mixed roots, missing/extra occurrences, and
+near-match paths fail closed.

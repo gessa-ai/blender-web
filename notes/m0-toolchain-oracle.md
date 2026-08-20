@@ -49,14 +49,21 @@ bash scripts/oracle-container.sh oiiotool --version
 bash scripts/oracle-container.sh with-env bash harness/run.sh --scope m0
 ```
 
-Runtime networking is disabled and the current directory is the only mounted
-project path. The official Blender 5.2.0 Linux archive is x86-64, so the wrapper
+Runtime networking is disabled and the wrapper's launch directory is the only mounted
+project path. A direct `blender` or `oiiotool` call uses its current directory. `with-env`
+freezes its launch directory for every later shim invocation and maps a descendant caller
+directory to the matching `/work/...` directory inside the container. This lets a receipt
+runner use per-suite scratch directories without hiding repository-owned scripts and fixtures
+from the oracle. The official Blender 5.2.0 Linux archive is x86-64, so the wrapper
 always selects `linux/amd64`; Apple Silicon Docker uses its normal amd64
 emulation. This container is the headless CPU/state and image-comparator oracle,
 not the native Metal UI/render oracle documented by the M4-M6 lanes.
 
 `with-env` supplies temporary `BLENDER_BIN` and `oiiotool` command shims that
 route the existing protected M0 harness checks through the same pinned image.
+The Blender shim is an executable substitute: it preserves the caller's arguments instead of
+injecting another `--background --factory-startup` pair. The direct `blender` convenience
+command continues to add that pair itself.
 The shims are removed when the requested command exits, preserve its exit code,
 and do not change `oracle/` or `harness/`. Relative and absolute wrapper
 invocations canonicalize the same executable source before creating the shims.

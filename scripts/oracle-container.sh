@@ -19,7 +19,20 @@ done
 SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 SCRIPT_SOURCE="$SCRIPT_DIR/$(basename "$SCRIPT_SOURCE")"
 ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
-WORK_ROOT="$(pwd -P)"
+CALLER_DIR="$(pwd -P)"
+if [[ -n "${BLENDER_ORACLE_WORK_ROOT:-}" ]]; then
+  WORK_ROOT="$(cd "$BLENDER_ORACLE_WORK_ROOT" && pwd -P)"
+else
+  WORK_ROOT="$CALLER_DIR"
+fi
+if [[ "$CALLER_DIR" == "$WORK_ROOT" ]]; then
+  WORK_DIR="/work"
+elif [[ "$CALLER_DIR" == "$WORK_ROOT/"* ]]; then
+  WORK_DIR="/work/${CALLER_DIR#"$WORK_ROOT"/}"
+else
+  echo "oracle container: caller directory is outside the with-env work root" >&2
+  exit 2
+fi
 DOCKERFILE="$ROOT/containers/oracle/Dockerfile"
 IMAGE="${BLENDER_ORACLE_IMAGE:-blender-web/oracle:5.2.0-fbe6228777e7}"
 PLATFORM="linux/amd64"
@@ -74,7 +87,7 @@ run_image() {
     --user "$(id -u):$(id -g)" \
     --env HOME=/tmp \
     --volume "$WORK_ROOT:/work" \
-    --workdir /work \
+    --workdir "$WORK_DIR" \
     "$@"
 }
 
@@ -95,7 +108,7 @@ translate_work_args() {
 
 case "${0##*/}" in
   blender-oracle)
-    set -- blender "$@"
+    set -- blender-exec "$@"
     ;;
   oiiotool)
     set -- oiiotool "$@"
@@ -127,17 +140,21 @@ case "$command_name" in
       | grep --fixed-strings '2.4.17.0'
     echo "M0_ORACLE_CONTAINER_OK"
     ;;
-  blender)
+  blender|blender-exec)
     require_docker
     translate_work_args "$@"
+    blender_args=()
+    if [[ "$command_name" == "blender" ]]; then
+      blender_args=(--background --factory-startup)
+    fi
     exec docker run --rm \
       --platform "$PLATFORM" \
       --network none \
       --user "$(id -u):$(id -g)" \
       --env HOME=/tmp \
       --volume "$WORK_ROOT:/work" \
-      --workdir /work \
-      "$IMAGE" --background --factory-startup "${translated_args[@]}"
+      --workdir "$WORK_DIR" \
+      "$IMAGE" "${blender_args[@]}" "${translated_args[@]}"
     ;;
   oiiotool)
     require_docker
@@ -148,7 +165,7 @@ case "$command_name" in
       --user "$(id -u):$(id -g)" \
       --env HOME=/tmp \
       --volume "$WORK_ROOT:/work" \
-      --workdir /work \
+      --workdir "$WORK_DIR" \
       --entrypoint /usr/bin/oiiotool \
       "$IMAGE" "${translated_args[@]}"
     ;;
@@ -171,7 +188,8 @@ case "$command_name" in
     }
     trap cleanup_shims EXIT
     set +e
-    BLENDER_BIN="$shim_dir/blender-oracle" PATH="$shim_dir:$PATH" "$@"
+    BLENDER_ORACLE_WORK_ROOT="$WORK_ROOT" \
+      BLENDER_BIN="$shim_dir/blender-oracle" PATH="$shim_dir:$PATH" "$@"
     command_status=$?
     set -e
     exit "$command_status"

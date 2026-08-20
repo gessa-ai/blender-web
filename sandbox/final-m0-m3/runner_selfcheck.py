@@ -120,6 +120,14 @@ def main() -> int:
         m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE + denoiser_warning + wasm_body,
         wasm=True, suite=m2.NO_DENOISER_SUITE,
     ) == expected_normalized
+    native_cuew_warning = (
+        b"00:01.002  cycles           | WARNING CUEW initialization failed: "
+        b"Error opening the library\n"
+    )
+    assert m2.normalized_bytes(
+        native_cuew_warning + native_body + m2.ALLOCATOR_LINE + native_banner,
+        wasm=False, suite=m2.NO_DENOISER_SUITE,
+    ) == expected_normalized
     assert m2.NO_DENOISER_NORMALIZED_LINE in m2.normalized_bytes(
         m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE + denoiser_warning,
         wasm=True, suite="script_pyapi_bpy_app",
@@ -128,10 +136,18 @@ def main() -> int:
         b"before\n" + m2.ALLOCATOR_LINE + native_banner + b"after\n", wasm=False
     ) == b"before\nafter\n"
     assert m2.normalized_bytes(
+        b"before\n..." + m2.ALLOCATOR_LINE + native_banner + b"after\n", wasm=False
+    ) == b"before\n...\nafter\n"
+    assert m2.normalized_bytes(
         b"before\n" + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
         + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n"
         + b"after\n", wasm=True
     ) == b"before\nafter\n"
+    assert m2.normalized_bytes(
+        b".." + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
+        + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n"
+        + b"after\n", wasm=True
+    ) == b"..\nafter\n"
     # Normalization may remove only the exact, position-bound runtime envelope.
     # Failure signatures and unknown/near-match warnings remain byte-visible.
     for signature in (
@@ -165,6 +181,10 @@ def main() -> int:
         + b"Blender 5.2.0 LTS (hash deadbeefdead built 2026-07-14 01:31:22)\n",
         wasm=False,
     ))
+    reject("m2_normalizer_nonprogress_allocator_prefix", lambda: m2.normalized_bytes(
+        b"x" + m2.ALLOCATOR_LINE + native_banner,
+        wasm=False,
+    ))
     reject("m2_normalizer_misplaced_locale_warning", lambda: m2.normalized_bytes(
         m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE + b"test output\n"
         + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n",
@@ -179,10 +199,498 @@ def main() -> int:
         + denoiser_warning + denoiser_warning + wasm_body,
         wasm=True, suite=m2.NO_DENOISER_SUITE,
     ))
+    reject("m2_normalizer_duplicate_native_cuew_warning", lambda: m2.normalized_bytes(
+        native_cuew_warning + native_cuew_warning + native_body
+        + m2.ALLOCATOR_LINE + native_banner,
+        wasm=False, suite=m2.NO_DENOISER_SUITE,
+    ))
+    cuew_near_match = native_cuew_warning.replace(b"failed", b"succeeded")
+    assert m2.NATIVE_CUEW_NORMALIZED_LINE.replace(
+        b"failed", b"succeeded"
+    ) in m2.normalized_bytes(
+        cuew_near_match + native_body + m2.ALLOCATOR_LINE + native_banner,
+        wasm=False, suite=m2.NO_DENOISER_SUITE,
+    )
     reject("m2_normalizer_duplicate_banner_pair", lambda: m2.normalized_bytes(
         m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
         + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE,
         wasm=True,
+    ))
+
+    expected_tempdir = m2.TEMPDIR_PROGRESS_CANONICAL + m2.TEMPDIR_RESULT_TAIL
+    for variant in m2.TEMPDIR_PROGRESS_FIXTURES + (b"\n.\n.\n\n..\n.\n",):
+        assert m2.canonicalize_tempdir_progress(
+            variant + m2.TEMPDIR_RESULT_TAIL
+        ) == expected_tempdir
+    reject("m2_tempdir_wrong_dot_count", lambda: m2.canonicalize_tempdir_progress(
+        b"\n.\n.\n.\n.\n" + m2.TEMPDIR_RESULT_TAIL
+    ))
+    reject("m2_tempdir_wrong_test_count", lambda: m2.canonicalize_tempdir_progress(
+        m2.TEMPDIR_PROGRESS_FIXTURES[0]
+        + m2.TEMPDIR_RESULT_TAIL.replace(b"Ran 5 tests", b"Ran 6 tests")
+    ))
+    reject("m2_tempdir_wrong_newline_count", lambda: m2.canonicalize_tempdir_progress(
+        m2.TEMPDIR_PROGRESS_FIXTURES[0].replace(b"\n\n", b"\n", 1)
+        + m2.TEMPDIR_RESULT_TAIL
+    ))
+    reject("m2_tempdir_nonprogress_byte", lambda: m2.canonicalize_tempdir_progress(
+        m2.TEMPDIR_PROGRESS_FIXTURES[0].replace(b"..", b".x", 1)
+        + m2.TEMPDIR_RESULT_TAIL
+    ))
+
+    prop_diagnostics = b"".join(m2.PROP_ARRAY_DIAGNOSTICS)
+    prop_expected = (
+        m2.PROP_ARRAY_PROGRESS_CANONICAL + prop_diagnostics
+        + m2.PROP_ARRAY_RESULT_TAIL
+    )
+    for before, after in ((30, 12), (29, 13)):
+        assert m2.canonicalize_prop_array_progress(
+            b"." * before + prop_diagnostics + b"." * after + b"\n"
+            + m2.PROP_ARRAY_RESULT_TAIL
+        ) == prop_expected
+    reject("m2_prop_array_wrong_dot_count", lambda: m2.canonicalize_prop_array_progress(
+        b"." * 29 + prop_diagnostics + b"." * 12 + b"\n"
+        + m2.PROP_ARRAY_RESULT_TAIL
+    ))
+    reject("m2_prop_array_diagnostic_change", lambda: m2.canonicalize_prop_array_progress(
+        b"." * 30 + prop_diagnostics.replace(b"got 7", b"got 8", 1)
+        + b"." * 12 + b"\n" + m2.PROP_ARRAY_RESULT_TAIL
+    ))
+    reject("m2_prop_array_diagnostic_reorder", lambda: m2.canonicalize_prop_array_progress(
+        b"." * 30 + b"".join(reversed(m2.PROP_ARRAY_DIAGNOSTICS))
+        + b"." * 12 + b"\n" + m2.PROP_ARRAY_RESULT_TAIL
+    ))
+    reject("m2_prop_array_excess_fragment_lines", lambda: m2.canonicalize_prop_array_progress(
+        b"." * 15 + b"\n" + b"." * 15 + b"\n" + prop_diagnostics
+        + b"." * 12 + b"\n" + m2.PROP_ARRAY_RESULT_TAIL
+    ))
+
+    text_expected = m2.TEXT_PROGRESS_CANONICAL + m2.TEXT_RESULT_TAIL
+    for progress in (b".....\n", b"....\n.\n"):
+        assert m2.canonicalize_text_progress(
+            progress + m2.TEXT_RESULT_TAIL
+        ) == text_expected
+    reject("m2_text_wrong_dot_count", lambda: m2.canonicalize_text_progress(
+        b"....\n" + m2.TEXT_RESULT_TAIL
+    ))
+    reject("m2_text_wrong_newline_count", lambda: m2.canonicalize_text_progress(
+        b".\n.\n.\n.\n.\n" + m2.TEXT_RESULT_TAIL
+    ))
+    reject("m2_text_nonprogress_byte", lambda: m2.canonicalize_text_progress(
+        b"....x\n" + m2.TEXT_RESULT_TAIL
+    ))
+
+    sequencer_expected = (
+        m2.SEQUENCER_STRIP_NAMING_PROGRESS_CANONICAL
+        + m2.SEQUENCER_STRIP_NAMING_RESULT_TAIL
+    )
+    for progress in (b"......\n", b".....\n.\n"):
+        assert m2.canonicalize_sequencer_strip_naming_progress(
+            progress + m2.SEQUENCER_STRIP_NAMING_RESULT_TAIL
+        ) == sequencer_expected
+    reject(
+        "m2_sequencer_strip_naming_wrong_dot_count",
+        lambda: m2.canonicalize_sequencer_strip_naming_progress(
+            b".....\n" + m2.SEQUENCER_STRIP_NAMING_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_sequencer_strip_naming_wrong_newline_count",
+        lambda: m2.canonicalize_sequencer_strip_naming_progress(
+            b"..\n..\n..\n" + m2.SEQUENCER_STRIP_NAMING_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_sequencer_strip_naming_nonprogress_byte",
+        lambda: m2.canonicalize_sequencer_strip_naming_progress(
+            b".....x\n" + m2.SEQUENCER_STRIP_NAMING_RESULT_TAIL
+        ),
+    )
+
+    armature_wasm = (
+        m2.ANIMATION_ARMATURE_HOMEFILE + b"." + m2.ANIMATION_ARMATURE_READ
+        + b".....\n" + m2.ANIMATION_ARMATURE_RESULT_TAIL
+    )
+    assert m2.canonicalize_animation_armature_progress(
+        m2.ANIMATION_ARMATURE_CANONICAL
+    ) == m2.ANIMATION_ARMATURE_CANONICAL
+    assert m2.canonicalize_animation_armature_progress(
+        armature_wasm
+    ) == m2.ANIMATION_ARMATURE_CANONICAL
+    reject(
+        "m2_animation_armature_wrong_dot_count",
+        lambda: m2.canonicalize_animation_armature_progress(
+            armature_wasm.replace(b".....\n", b"....\n", 1)
+        ),
+    )
+    reject(
+        "m2_animation_armature_read_near_match",
+        lambda: m2.canonicalize_animation_armature_progress(
+            armature_wasm.replace(b"armature_join", b"armature_other", 1)
+        ),
+    )
+    reject(
+        "m2_animation_armature_extra_output",
+        lambda: m2.canonicalize_animation_armature_progress(
+            armature_wasm + b"WARNING unexpected\n"
+        ),
+    )
+
+    sculpt_curve_expected = (
+        m2.SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_CANONICAL
+        + m2.SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+    )
+    for progress in (b".........\n", b".........\n\n"):
+        assert m2.canonicalize_sculpt_brush_curve_presets_progress(
+            progress + m2.SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+        ) == sculpt_curve_expected
+    reject(
+        "m2_sculpt_brush_curve_wrong_dot_count",
+        lambda: m2.canonicalize_sculpt_brush_curve_presets_progress(
+            b"........\n" + m2.SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_sculpt_brush_curve_wrong_newline_count",
+        lambda: m2.canonicalize_sculpt_brush_curve_presets_progress(
+            b"...\n...\n...\n" + m2.SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_sculpt_brush_curve_nonprogress_byte",
+        lambda: m2.canonicalize_sculpt_brush_curve_presets_progress(
+            b"........x\n" + m2.SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+        ),
+    )
+
+    operator_expected = (
+        m2.OPERATOR_FUNCTION_PY_API_PROGRESS_CANONICAL
+        + m2.OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+    )
+    for progress in (b"." * 33 + b"\n", b"." * 7 + b"\n" + b"." * 26 + b"\n"):
+        assert m2.canonicalize_operator_function_py_api_progress(
+            progress + m2.OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+        ) == operator_expected
+    reject(
+        "m2_operator_function_wrong_dot_count",
+        lambda: m2.canonicalize_operator_function_py_api_progress(
+            b"." * 32 + b"\n" + m2.OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_operator_function_wrong_newline_count",
+        lambda: m2.canonicalize_operator_function_py_api_progress(
+            b"." * 11 + b"\n" + b"." * 11 + b"\n" + b"." * 11 + b"\n"
+            + m2.OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_operator_function_nonprogress_byte",
+        lambda: m2.canonicalize_operator_function_py_api_progress(
+            b"." * 32 + b"x\n" + m2.OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+        ),
+    )
+
+    geometry_expected = (
+        m2.GEOMETRY_ATTRIBUTES_PROGRESS_CANONICAL
+        + m2.GEOMETRY_ATTRIBUTES_RESULT_TAIL
+    )
+    for progress in (b"." * 16 + b"\n", b"." * 9 + b"\n" + b"." * 7 + b"\n"):
+        assert m2.canonicalize_geometry_attributes_progress(
+            progress + m2.GEOMETRY_ATTRIBUTES_RESULT_TAIL
+        ) == geometry_expected
+    reject(
+        "m2_geometry_attributes_wrong_dot_count",
+        lambda: m2.canonicalize_geometry_attributes_progress(
+            b"." * 15 + b"\n" + m2.GEOMETRY_ATTRIBUTES_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_geometry_attributes_wrong_newline_count",
+        lambda: m2.canonicalize_geometry_attributes_progress(
+            b".....\n.....\n......\n" + m2.GEOMETRY_ATTRIBUTES_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_geometry_attributes_nonprogress_byte",
+        lambda: m2.canonicalize_geometry_attributes_progress(
+            b"." * 15 + b"x\n" + m2.GEOMETRY_ATTRIBUTES_RESULT_TAIL
+        ),
+    )
+
+    rna_progress_native = (
+        b"rna-prefix\n." + m2.RNA_ACCESSORS_COLORSPACE_WARNING
+        + b"\n" + m2.RNA_ACCESSORS_RESULT_SEPARATOR + b"rna-suffix\n"
+    )
+    rna_progress_wasm = (
+        b"rna-prefix\n" + m2.RNA_ACCESSORS_COLORSPACE_WARNING
+        + b".\n" + m2.RNA_ACCESSORS_RESULT_SEPARATOR + b"rna-suffix\n"
+    )
+    rna_progress_native_blank = (
+        b"rna-prefix\n" + m2.RNA_ACCESSORS_COLORSPACE_WARNING
+        + b".\n\n" + m2.RNA_ACCESSORS_RESULT_SEPARATOR + b"rna-suffix\n"
+    )
+    rna_progress_expected = (
+        b"rna-prefix\n" + m2.RNA_ACCESSORS_PROGRESS_CANONICAL
+        + m2.RNA_ACCESSORS_RESULT_SEPARATOR + b"rna-suffix\n"
+    )
+    assert m2.canonicalize_rna_accessors_progress(
+        rna_progress_native
+    ) == rna_progress_expected
+    assert m2.canonicalize_rna_accessors_progress(
+        rna_progress_wasm
+    ) == rna_progress_expected
+    assert m2.canonicalize_rna_accessors_progress(
+        rna_progress_native_blank
+    ) == rna_progress_expected
+    rna_progress_near = rna_progress_native.replace(b"'(null)'", b"'null'", 1)
+    assert m2.canonicalize_rna_accessors_progress(
+        rna_progress_near
+    ) == rna_progress_near
+    reject(
+        "m2_rna_accessors_ambiguous_progress",
+        lambda: m2.canonicalize_rna_accessors_progress(
+            rna_progress_native + rna_progress_wasm
+        ),
+    )
+
+    nodegroup36_native = b"".join([
+        m2.NODE_GROUP_COMPAT_NODEGROUP36_READ,
+        m2.NODE_GROUP_COMPAT_OUTPUT_WARNING,
+        m2.NODE_GROUP_COMPAT_NODEGROUP36_READ[1:],
+        b"." + m2.NODE_GROUP_COMPAT_OUTPUT_WARNING,
+        m2.NODE_GROUP_COMPAT_NODEGROUP36_READ,
+        m2.NODE_GROUP_COMPAT_OUTPUT_WARNING,
+    ])
+    node_group_native = (
+        b"node-prefix\n" + nodegroup36_native
+        + m2.NODE_GROUP_COMPAT_COMPOSITOR_READ
+        + b"." + m2.NODE_GROUP_COMPAT_DOVERSION_WARNING + b"node-suffix\n"
+    )
+    node_group_wasm = (
+        b"node-prefix\n" + m2.NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL
+        + b"." + m2.NODE_GROUP_COMPAT_COMPOSITOR_READ
+        + m2.NODE_GROUP_COMPAT_DOVERSION_WARNING + b"node-suffix\n"
+    )
+    node_group_expected = (
+        b"node-prefix\n" + m2.NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL
+        + m2.NODE_GROUP_COMPAT_PROGRESS_CANONICAL
+        + b"node-suffix\n"
+    )
+    assert m2.canonicalize_node_group_compat_progress(
+        node_group_native
+    ) == node_group_expected
+    assert m2.canonicalize_node_group_compat_progress(
+        node_group_wasm
+    ) == node_group_expected
+    reject(
+        "m2_node_group_compat_wrong_dot_count",
+        lambda: m2.canonicalize_node_group_compat_progress(
+            node_group_native.replace(
+                b"." + m2.NODE_GROUP_COMPAT_DOVERSION_WARNING,
+                b".." + m2.NODE_GROUP_COMPAT_DOVERSION_WARNING,
+                1,
+            )
+        ),
+    )
+    reject(
+        "m2_node_group_compat_warning_near_match",
+        lambda: m2.canonicalize_node_group_compat_progress(
+            node_group_native.replace(b"id: 7", b"id: 8", 1)
+        ),
+    )
+
+    node_tools_expected = m2.NODE_TOOLS_PROGRESS_CANONICAL + m2.NODE_TOOLS_RESULT_TAIL
+    for progress in (b"....\n", b"...\n.\n"):
+        assert m2.canonicalize_node_tools_progress(
+            progress + m2.NODE_TOOLS_RESULT_TAIL
+        ) == node_tools_expected
+    reject(
+        "m2_node_tools_wrong_dot_count",
+        lambda: m2.canonicalize_node_tools_progress(
+            b"...\n" + m2.NODE_TOOLS_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_node_tools_wrong_newline_count",
+        lambda: m2.canonicalize_node_tools_progress(
+            b".\n.\n..\n" + m2.NODE_TOOLS_RESULT_TAIL
+        ),
+    )
+    reject(
+        "m2_node_tools_nonprogress_byte",
+        lambda: m2.canonicalize_node_tools_progress(
+            b"...x\n" + m2.NODE_TOOLS_RESULT_TAIL
+        ),
+    )
+
+    keyframing_native = b"".join([
+        b"keyframing-prefix\n",
+        b"." + m2.ANIMATION_KEYFRAMING_FIRST_WARNING,
+        *m2.ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+        m2.ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+        b"." + m2.ANIMATION_KEYFRAMING_KEYING_SET_ERROR,
+        b"keyframing-suffix\n",
+    ])
+    keyframing_wasm = (
+        b"keyframing-prefix\n" + m2.ANIMATION_KEYFRAMING_PROGRESS_CANONICAL
+        + b"keyframing-suffix\n"
+    )
+    assert m2.canonicalize_animation_keyframing_progress(
+        keyframing_native
+    ) == keyframing_wasm
+    assert m2.canonicalize_animation_keyframing_progress(
+        keyframing_wasm
+    ) == keyframing_wasm
+    keyframing_double_dot = b"".join([
+        b"keyframing-prefix\n",
+        m2.ANIMATION_KEYFRAMING_FIRST_WARNING,
+        *m2.ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+        b".." + m2.ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+        m2.ANIMATION_KEYFRAMING_KEYING_SET_ERROR,
+        b"keyframing-suffix\n",
+    ])
+    assert m2.canonicalize_animation_keyframing_progress(
+        keyframing_double_dot
+    ) == keyframing_wasm
+    reject(
+        "m2_animation_keyframing_extra_dot",
+        lambda: m2.canonicalize_animation_keyframing_progress(
+            keyframing_native.replace(
+                b"." + m2.ANIMATION_KEYFRAMING_FIRST_WARNING,
+                b".." + m2.ANIMATION_KEYFRAMING_FIRST_WARNING,
+                1,
+            )
+        ),
+    )
+    reject(
+        "m2_animation_keyframing_middle_warning_changed",
+        lambda: m2.canonicalize_animation_keyframing_progress(
+            keyframing_native.replace(b"scale[1]", b"scale[9]", 1)
+        ),
+    )
+
+    vertex_group_native = (
+        m2.VERTEX_GROUP_PAINTING_READ + b"." + m2.VERTEX_GROUP_PAINTING_READ
+        + b".\n" + m2.VERTEX_GROUP_PAINTING_RESULT_TAIL
+        + m2.VERTEX_GROUP_PAINTING_ERROR
+    )
+    assert m2.canonicalize_vertex_group_painting_output(
+        vertex_group_native
+    ) == m2.VERTEX_GROUP_PAINTING_CANONICAL
+    assert m2.canonicalize_vertex_group_painting_output(
+        m2.VERTEX_GROUP_PAINTING_CANONICAL
+    ) == m2.VERTEX_GROUP_PAINTING_CANONICAL
+    reject(
+        "m2_vertex_group_error_changed",
+        lambda: m2.canonicalize_vertex_group_painting_output(
+            vertex_group_native.replace(b"All groups", b"Some groups", 1)
+        ),
+    )
+    reject(
+        "m2_vertex_group_extra_dot",
+        lambda: m2.canonicalize_vertex_group_painting_output(
+            vertex_group_native.replace(b".\n" + b"-" * 70, b"..\n" + b"-" * 70, 1)
+        ),
+    )
+
+    fcurves_native_euler = b"".join([
+        m2.ANIMATION_FCURVES_EULER_READ,
+        b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
+        m2.ANIMATION_FCURVES_EULER_FILTERED,
+        m2.ANIMATION_FCURVES_EULER_READ,
+        m2.ANIMATION_FCURVES_EULER_MISSING,
+        m2.ANIMATION_FCURVES_EULER_FILTERED,
+    ])
+    fcurves_native = (
+        b"fcurves-prefix\n" + fcurves_native_euler
+        + b"".join(m2.animation_fcurves_warning_block(
+            m2.ANIMATION_FCURVES_NATIVE_DOT_OFFSETS
+        )) + b"fcurves-suffix\n"
+    )
+    fcurves_wasm = (
+        b"fcurves-prefix\n" + m2.ANIMATION_FCURVES_EULER_CANONICAL
+        + m2.ANIMATION_FCURVES_WARNING_CANONICAL + b"fcurves-suffix\n"
+    )
+    assert m2.canonicalize_animation_fcurves_output(fcurves_native) == fcurves_wasm
+    assert m2.canonicalize_animation_fcurves_output(fcurves_wasm) == fcurves_wasm
+    reject(
+        "m2_animation_fcurves_warning_row_missing",
+        lambda: m2.canonicalize_animation_fcurves_output(
+            fcurves_native.replace(m2.ANIMATION_FCURVES_NO_KEYS_WARNING, b"", 1)
+        ),
+    )
+    reject(
+        "m2_animation_fcurves_warning_near_match",
+        lambda: m2.canonicalize_animation_fcurves_output(
+            fcurves_native.replace(b"No keys", b"Some keys", 1)
+        ),
+    )
+
+    mesh_validate_native = b"".join([
+        b"mesh-prefix\n",
+        *m2.MESH_VALIDATE_PROGRESS_ERRORS[:-1],
+        b"....." + m2.MESH_VALIDATE_PROGRESS_ERRORS[-1],
+        b"mesh-suffix\n",
+    ])
+    mesh_validate_wasm = (
+        b"mesh-prefix\n" + m2.MESH_VALIDATE_PROGRESS_CANONICAL
+        + b"mesh-suffix\n"
+    )
+    assert m2.canonicalize_mesh_validate_progress(
+        mesh_validate_native
+    ) == mesh_validate_wasm
+    assert m2.canonicalize_mesh_validate_progress(
+        mesh_validate_wasm
+    ) == mesh_validate_wasm
+    reject(
+        "m2_mesh_validate_wrong_dot_count",
+        lambda: m2.canonicalize_mesh_validate_progress(
+            mesh_validate_native.replace(b".....", b"....", 1)
+        ),
+    )
+    reject(
+        "m2_mesh_validate_error_near_match",
+        lambda: m2.canonicalize_mesh_validate_progress(
+            mesh_validate_native.replace(b"Face 1", b"Face 2", 1)
+        ),
+    )
+
+    sculpt_face_native = (
+        m2.SCULPT_FACE_SET_READ + m2.SCULPT_FACE_SET_READ
+        + b".." + m2.SCULPT_FACE_SET_READ + b".\n"
+        + m2.SCULPT_FACE_SET_RESULT_TAIL
+    )
+    assert m2.canonicalize_sculpt_face_set_output(
+        sculpt_face_native
+    ) == m2.SCULPT_FACE_SET_CANONICAL
+    assert m2.canonicalize_sculpt_face_set_output(
+        m2.SCULPT_FACE_SET_CANONICAL
+    ) == m2.SCULPT_FACE_SET_CANONICAL
+    reject(
+        "m2_sculpt_face_set_wrong_dot_count",
+        lambda: m2.canonicalize_sculpt_face_set_output(
+            sculpt_face_native.replace(b".." + m2.SCULPT_FACE_SET_READ,
+                                       b"." + m2.SCULPT_FACE_SET_READ, 1)
+        ),
+    )
+    reject(
+        "m2_sculpt_face_set_read_near_match",
+        lambda: m2.canonicalize_sculpt_face_set_output(
+            sculpt_face_native.replace(b"30k_monkey", b"31k_monkey", 1)
+        ),
+    )
+
+    host_repo_line = os.fsencode(m2.ROOT) + b"/upstream/tests/python/fixture.py\n"
+    container_repo_line = b"/work/upstream/tests/python/fixture.py\n"
+    expected_repo_line = m2.REPOSITORY_ROOT_TOKEN + b"/upstream/tests/python/fixture.py\n"
+    assert m2.canonicalize_repository_roots(host_repo_line) == expected_repo_line
+    assert m2.canonicalize_repository_roots(container_repo_line) == expected_repo_line
+    reject("m2_repository_roots_mixed", lambda: m2.canonicalize_repository_roots(
+        host_repo_line + container_repo_line
+    ))
+    reject("m2_repository_root_reserved_token", lambda: m2.canonicalize_repository_roots(
+        expected_repo_line
     ))
 
     native_scratch = Path("/fixture/m2/scratch/blendfile_io/native")
@@ -207,6 +715,19 @@ def main() -> int:
     assert m2.normalized_bytes(
         native_scratch_raw, wasm=False, suite=m2.SCRATCH_ROOT_SUITE,
         scratch_root=native_scratch,
+    ) == expected_scratch
+    repo_scratch = m2.ROOT / "sandbox/final-m0-m3/evidence/fixture/m2/scratch/blendfile_io/native"
+    container_scratch = (
+        m2.CONTAINER_REPOSITORY_ROOT + b"/"
+        + os.fsencode(os.fspath(repo_scratch.relative_to(m2.ROOT)))
+    )
+    container_scratch_raw = b"".join(
+        container_scratch + f"/fixture-{number}.blend\n".encode()
+        for number in range(m2.SCRATCH_ROOT_OCCURRENCES)
+    ) + m2.ALLOCATOR_LINE + native_banner
+    assert m2.normalized_bytes(
+        container_scratch_raw, wasm=False, suite=m2.SCRATCH_ROOT_SUITE,
+        scratch_root=repo_scratch,
     ) == expected_scratch
     assert m2.normalized_bytes(
         wasm_scratch_raw, wasm=True, suite=m2.SCRATCH_ROOT_SUITE,
@@ -236,6 +757,72 @@ def main() -> int:
         native_scratch_raw + m2.SCRATCH_ROOT_TOKEN + b"\n",
         wasm=False, suite=m2.SCRATCH_ROOT_SUITE, scratch_root=native_scratch,
     ))
+
+    relationships_scratch = Path(
+        "/fixture/m2/scratch/blendfile_relationships/native"
+    )
+    relationships_paths = b"".join(
+        os.fsencode(relationships_scratch / f"blendfile_io/fixture-{number}.blend")
+        + b"\n"
+        for number in range(m2.SCRATCH_ROOT_POLICIES["blendfile_relationships"])
+    )
+    relationships_expected = relationships_paths.replace(
+        os.fsencode(relationships_scratch), m2.SCRATCH_ROOT_TOKEN
+    )
+    assert m2.canonicalize_suite_scratch_root(
+        relationships_paths,
+        suite="blendfile_relationships",
+        scratch_root=relationships_scratch,
+    ) == relationships_expected
+    reject(
+        "m2_relationships_scratch_missing_occurrence",
+        lambda: m2.canonicalize_suite_scratch_root(
+            relationships_paths.replace(
+                os.fsencode(relationships_scratch), b"/wrong/scratch", 1
+            ),
+            suite="blendfile_relationships",
+            scratch_root=relationships_scratch,
+        ),
+    )
+
+    library_override_scratch = Path(
+        "/fixture/m2/scratch/blendfile_library_overrides/native"
+    )
+    library_override_paths = b"".join(
+        os.fsencode(
+            library_override_scratch / f"blendfile_io/fixture-{number}.blend"
+        ) + b"\n"
+        for number in range(
+            m2.SCRATCH_ROOT_POLICIES["blendfile_library_overrides"]
+        )
+    )
+    library_override_expected = library_override_paths.replace(
+        os.fsencode(library_override_scratch), m2.SCRATCH_ROOT_TOKEN
+    )
+    assert m2.canonicalize_suite_scratch_root(
+        library_override_paths,
+        suite="blendfile_library_overrides",
+        scratch_root=library_override_scratch,
+    ) == library_override_expected
+    reject(
+        "m2_library_override_scratch_missing_occurrence",
+        lambda: m2.canonicalize_suite_scratch_root(
+            library_override_paths.replace(
+                os.fsencode(library_override_scratch), b"/wrong/scratch", 1
+            ),
+            suite="blendfile_library_overrides",
+            scratch_root=library_override_scratch,
+        ),
+    )
+    reject(
+        "m2_library_override_scratch_extra_occurrence",
+        lambda: m2.canonicalize_suite_scratch_root(
+            library_override_paths + os.fsencode(library_override_scratch)
+            + b"/extra.blend\n",
+            suite="blendfile_library_overrides",
+            scratch_root=library_override_scratch,
+        ),
+    )
 
     animation_scratch = Path("/fixture/m2/scratch/bl_animation_action/native")
     animation_path = (
@@ -436,17 +1023,24 @@ def main() -> int:
     registry = {
         item: {"id": item, **contract} for item, contract in m2.PASS_DELTA_LEDGER.items()
     }
-    rna_native = b"prefix\n" + b"".join(m2.rna_menu_lines(m2.RNA_NATIVE_MENU)) + b"suffix\n"
     rna_wasm = b"prefix\n" + b"".join(m2.rna_menu_lines(m2.RNA_WASM_MENU)) + b"suffix\n"
-    assert m2.pass_delta_records("bl_rna_paths", registry, rna_native, rna_wasm)[0] == [
-        "os-shell-affordances"
+    rna_native_rows = [
+        b"prefix\n" + b"".join(m2.rna_menu_lines(names)) + b"suffix\n"
+        for names in m2.RNA_NATIVE_MENUS
     ]
+    for rna_native in rna_native_rows:
+        assert m2.pass_delta_records(
+            "bl_rna_paths", registry, rna_native, rna_wasm
+        )[0] == ["os-shell-affordances"]
     reject("m2_rna_menu_reordered", lambda: m2.pass_delta_records(
-        "bl_rna_paths", registry, rna_native,
+        "bl_rna_paths", registry, rna_native_rows[1],
         rna_wasm.replace(
             m2.rna_menu_lines(m2.RNA_WASM_MENU)[0] + m2.rna_menu_lines(m2.RNA_WASM_MENU)[1],
             m2.rna_menu_lines(m2.RNA_WASM_MENU)[1] + m2.rna_menu_lines(m2.RNA_WASM_MENU)[0], 1,
         ),
+    ))
+    reject("m2_rna_native_menu_ambiguous", lambda: m2.pass_delta_records(
+        "bl_rna_paths", registry, rna_native_rows[0] + rna_native_rows[1], rna_wasm
     ))
 
     animation_info = m2.ANIMATION_INFO_LIBRARY
@@ -473,6 +1067,59 @@ def main() -> int:
     assert m2.pass_delta_records(
         "bl_animation_action", registry, animation_native, animation_wasm
     )[0] == ["wasm32-animation-action-objectdata"]
+    animation_slot_context = (
+        b"." + m2.ANIMATION_SLOT_XX_WARNING + m2.ANIMATION_REPORT_CONTINUATION
+        + m2.ANIMATION_SLOT_OB_WARNING + m2.ANIMATION_REPORT_CONTINUATION
+    )
+    animation_slot_context_bare = animation_slot_context[1:]
+    animation_linux_native = animation_native.replace(
+        b"prefix\n" + b"." * 23 + m2.ANIMATION_REMAP_READ,
+        b"prefix\n" + b"." + m2.ANIMATION_SLOT_UNASSIGNED_ERROR
+        + b"." + animation_slot_context
+        + b"." * 22 + m2.ANIMATION_REMAP_READ,
+        1,
+    ).replace(native_group, native_group.replace(b"val=0x0", b"val=(nil)"), 1)
+    animation_linux_wasm = animation_wasm.replace(
+        b"prefix\n", b"prefix\n" + b"." + m2.ANIMATION_SLOT_UNASSIGNED_ERROR
+        + animation_slot_context, 1
+    )
+    assert m2.pass_delta_records(
+        "bl_animation_action", registry, animation_linux_native, animation_linux_wasm
+    )[0] == ["wasm32-animation-action-objectdata"]
+    animation_linux_native_error_shift = animation_native.replace(
+        b"prefix\n" + b"." * 23 + m2.ANIMATION_REMAP_READ,
+        b"prefix\n" + b".." + m2.ANIMATION_SLOT_UNASSIGNED_ERROR
+        + animation_slot_context_bare + b"." * 23 + m2.ANIMATION_REMAP_READ,
+        1,
+    ).replace(native_group, native_group.replace(b"val=0x0", b"val=(nil)"), 1)
+    assert m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native_error_shift, animation_linux_wasm,
+    )[0] == ["wasm32-animation-action-objectdata"]
+    animation_linux_native_split_shift = animation_native.replace(
+        b"prefix\n" + b"." * 23 + m2.ANIMATION_REMAP_READ,
+        b"prefix\n" + b".." + m2.ANIMATION_SLOT_UNASSIGNED_ERROR
+        + animation_slot_context + b"." * 22 + m2.ANIMATION_REMAP_READ,
+        1,
+    ).replace(native_group, native_group.replace(b"val=0x0", b"val=(nil)"), 1)
+    assert m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native_split_shift, animation_linux_wasm,
+    )[0] == ["wasm32-animation-action-objectdata"]
+    reject("m2_animation_linux_progress_cardinality", lambda: m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native.replace(
+            b"." * 22 + m2.ANIMATION_REMAP_READ,
+            b"." * 21 + m2.ANIMATION_REMAP_READ,
+            1,
+        ),
+        animation_linux_wasm,
+    ))
+    reject("m2_animation_linux_null_near_match", lambda: m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native.replace(b"val=(nil)", b"val=null", 1),
+        animation_linux_wasm,
+    ))
     reject("m2_animation_warning_relocated", lambda: m2.pass_delta_records(
         "bl_animation_action", registry, animation_native,
         animation_wasm.replace(m2.ANIMATION_OBJECTDATA_WARNING, b"", 1)
@@ -483,6 +1130,24 @@ def main() -> int:
         m2.ANIMATION_TEMP_READ + m2.ANIMATION_OBJECTDATA_WARNING + animation_info
         + animation_missing + m2.ANIMATION_LAYERED_READ
     )
+    shifted_native_library_phase = (
+        m2.ANIMATION_TEMP_READ + b"." + animation_info
+        + m2.ANIMATION_LAYERED_READ_BARE
+    )
+    animation_linux_native_shifted = animation_linux_native.replace(
+        native_library_phase, shifted_native_library_phase, 1
+    )
+    assert m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native_shifted, animation_linux_wasm,
+    )[0] == ["wasm32-animation-action-objectdata"]
+    reject("m2_animation_library_progress_extra_dot", lambda: m2.pass_delta_records(
+        "bl_animation_action", registry,
+        animation_linux_native_shifted.replace(
+            m2.ANIMATION_LAYERED_READ_BARE, m2.ANIMATION_LAYERED_READ, 1
+        ),
+        animation_linux_wasm,
+    ))
     relocated_native_phase = animation_native.replace(native_library_phase, b"", 1).replace(
         b"prefix\n", b"prefix\n" + native_library_phase, 1
     )
@@ -553,6 +1218,29 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="final-m0-m3-runners-") as temp:
         root = Path(temp)
+
+        composed = root / "composed-scripts"
+        module_path = composed / "modules/fixture.py"
+        module_path.parent.mkdir(parents=True)
+        module_path.write_text("fixture = True\n", encoding="utf-8")
+        cache = module_path.parent / "__pycache__"
+        cache.mkdir()
+        (cache / "fixture.cpython-313.pyc").write_bytes(b"generated")
+        legacy_bytecode = composed / "startup/legacy.pyc"
+        legacy_bytecode.parent.mkdir()
+        legacy_bytecode.write_bytes(b"generated")
+        assert m2.remove_generated_python_caches(composed) == 2
+        m2.require_exact_composed_tree(composed, [module_path], "fixture")
+        unreceipted = composed / "runtime-grown.txt"
+        unreceipted.write_text("unexpected\n", encoding="utf-8")
+        reject("m2_composed_tree_runtime_growth", lambda:
+               m2.require_exact_composed_tree(composed, [module_path], "fixture"))
+        unreceipted.unlink()
+        hostile_cache = module_path.parent / "__pycache__"
+        hostile_cache.mkdir()
+        (hostile_cache / "not-bytecode.txt").write_text("unexpected\n", encoding="utf-8")
+        reject("m2_python_cache_unexpected_entry", lambda:
+               m2.remove_generated_python_caches(composed))
 
         linux_libdir = root / "linux-libdir"
         (linux_libdir / "zeta/lib").mkdir(parents=True)

@@ -548,19 +548,26 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             ],
         },
         "platform_envelope": {
-            "native": "one exact adjacent allocator + pinned native banner",
-            "wasm": "one exact adjacent allocator + pinned Wasm banner",
+            "native": "one exact adjacent optional-dot-prefix allocator + pinned native banner",
+            "wasm": "one exact adjacent optional-dot-prefix allocator + pinned Wasm banner",
             "wasm_optional": [
                 "exact immediately-following locale startup warning",
             ],
         },
         "suite_envelope": {
             verify_module.M2_NO_DENOISER_SUITE: {
-                "platform": "wasm",
-                "exact_count": 1,
-                "exact_normalized_line": (
-                    verify_module.M2_NO_DENOISER_NORMALIZED_LINE.decode().rstrip("\n")
-                ),
+                "wasm": {
+                    "exact_count": 1,
+                    "exact_normalized_line": (
+                        verify_module.M2_NO_DENOISER_NORMALIZED_LINE.decode().rstrip("\n")
+                    ),
+                },
+                "native_optional": {
+                    "max_count": 1,
+                    "exact_normalized_line": (
+                        verify_module.M2_NATIVE_CUEW_NORMALIZED_LINE.decode().rstrip("\n")
+                    ),
+                },
                 "required_cache_flag": "WITH_OPENIMAGEDENOISE:BOOL=OFF",
             },
         },
@@ -568,6 +575,11 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             "suites": dict(sorted(verify_module.M2_SCRATCH_ROOT_POLICIES.items())),
             "platforms": ["native", "wasm"],
             "replacement": verify_module.M2_SCRATCH_ROOT_TOKEN.decode(),
+        },
+        "repository_root": {
+            "accepted": ["producer host root", "/work container root"],
+            "replacement": verify_module.M2_REPOSITORY_ROOT_TOKEN.decode(),
+            "mixed_roots": "reject",
         },
         "exit_code_primary": True,
         "normalized_bytes_exact_for_pass": True,
@@ -611,7 +623,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     ])
 
     rna_native_body = b"rna-prefix\n" + b"".join(
-        verify_module.m2_rna_menu_lines(verify_module.M2_RNA_NATIVE_MENU)
+        verify_module.m2_rna_menu_lines(verify_module.M2_RNA_NATIVE_MENUS[1])
     ) + b"rna-suffix\n"
     rna_wasm_body = b"rna-prefix\n" + b"".join(
         verify_module.m2_rna_menu_lines(verify_module.M2_RNA_WASM_MENU)
@@ -625,16 +637,27 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     )
     animation_wasm_group = animation_native_group.replace(b"val=0x0", b"val=0")
     animation_summary = b"----------------------------------------------------------------------\nRan 32 tests in <T>s\n\nOK\n"
+    animation_slot_context = (
+        b"." + verify_module.M2_ANIMATION_SLOT_XX_WARNING
+        + verify_module.M2_ANIMATION_REPORT_CONTINUATION
+        + verify_module.M2_ANIMATION_SLOT_OB_WARNING
+        + verify_module.M2_ANIMATION_REPORT_CONTINUATION
+    )
     animation_native_body = b"animation-prefix\n" + (
-        b"." * 23 + verify_module.M2_ANIMATION_REMAP_READ
+        b".." + verify_module.M2_ANIMATION_SLOT_UNASSIGNED_ERROR
+        + animation_slot_context
+        + b"." * 22 + verify_module.M2_ANIMATION_REMAP_READ
         + verify_module.M2_ANIMATION_SECOND_REMAP_READ + verify_module.M2_ANIMATION_SAVED
-        + verify_module.M2_ANIMATION_TEMP_READ + animation_info
-        + verify_module.M2_ANIMATION_LAYERED_READ + animation_summary
-        + verify_module.M2_ANIMATION_ASSIGNMENT_WARNING + animation_native_group
+        + verify_module.M2_ANIMATION_TEMP_READ + b"." + animation_info
+        + verify_module.M2_ANIMATION_LAYERED_READ_BARE + animation_summary
+        + verify_module.M2_ANIMATION_ASSIGNMENT_WARNING
+        + animation_native_group.replace(b"val=0x0", b"val=(nil)")
         + verify_module.M2_ANIMATION_FCURVE_ERROR
     )
     animation_wasm_body = b"animation-prefix\n" + (
-        b"." * 4 + verify_module.M2_ANIMATION_ASSIGNMENT_WARNING
+        b"." + verify_module.M2_ANIMATION_SLOT_UNASSIGNED_ERROR
+        + animation_slot_context
+        + b"." * 4 + verify_module.M2_ANIMATION_ASSIGNMENT_WARNING
         + b"." * 6 + animation_wasm_group
         + verify_module.M2_ANIMATION_FCURVE_ERROR
         + b"." * 13 + verify_module.M2_ANIMATION_REMAP_READ
@@ -691,12 +714,187 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             canonical = physics_fixture_body(name)
             native_body = b"".join(reversed(canonical.splitlines(keepends=True)))
             wasm_body = canonical
+        elif name == verify_module.M2_TEMPDIR_SUITE:
+            native_body = (
+                verify_module.M2_TEMPDIR_PROGRESS_FIXTURES[0]
+                + verify_module.M2_TEMPDIR_RESULT_TAIL
+            )
+            wasm_body = (
+                verify_module.M2_TEMPDIR_PROGRESS_FIXTURES[1]
+                + verify_module.M2_TEMPDIR_RESULT_TAIL
+            )
+        elif name == verify_module.M2_PROP_ARRAY_SUITE:
+            diagnostics = b"".join(verify_module.M2_PROP_ARRAY_DIAGNOSTICS)
+            native_body = (
+                b"." * 30 + diagnostics + b"." * 12 + b"\n"
+                + verify_module.M2_PROP_ARRAY_RESULT_TAIL
+            )
+            wasm_body = (
+                b"." * 29 + diagnostics + b"." * 13 + b"\n"
+                + verify_module.M2_PROP_ARRAY_RESULT_TAIL
+            )
+        elif name == verify_module.M2_TEXT_SUITE:
+            native_body = b"....\n.\n" + verify_module.M2_TEXT_RESULT_TAIL
+            wasm_body = b".....\n" + verify_module.M2_TEXT_RESULT_TAIL
+        elif name == verify_module.M2_SEQUENCER_STRIP_NAMING_SUITE:
+            native_body = (
+                b".....\n.\n" + verify_module.M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL
+            )
+            wasm_body = (
+                b"......\n" + verify_module.M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL
+            )
+        elif name == verify_module.M2_ANIMATION_ARMATURE_SUITE:
+            native_body = verify_module.M2_ANIMATION_ARMATURE_CANONICAL
+            wasm_body = (
+                verify_module.M2_ANIMATION_ARMATURE_HOMEFILE + b"."
+                + verify_module.M2_ANIMATION_ARMATURE_READ + b".....\n"
+                + verify_module.M2_ANIMATION_ARMATURE_RESULT_TAIL
+            )
+        elif name == verify_module.M2_SCULPT_BRUSH_CURVE_PRESETS_SUITE:
+            native_body = (
+                b".........\n\n"
+                + verify_module.M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+            )
+            wasm_body = (
+                b".........\n"
+                + verify_module.M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+            )
+        elif name == verify_module.M2_OPERATOR_FUNCTION_PY_API_SUITE:
+            native_body = (
+                b"." * 7 + b"\n" + b"." * 26 + b"\n"
+                + verify_module.M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+            )
+            wasm_body = (
+                b"." * 33 + b"\n"
+                + verify_module.M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+            )
+        elif name == verify_module.M2_GEOMETRY_ATTRIBUTES_SUITE:
+            native_body = (
+                b"." * 9 + b"\n" + b"." * 7 + b"\n"
+                + verify_module.M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL
+            )
+            wasm_body = (
+                b"." * 16 + b"\n"
+                + verify_module.M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL
+            )
+        elif name == verify_module.M2_NO_DENOISER_SUITE:
+            native_body = (
+                b"rna-prefix\n." + verify_module.M2_RNA_ACCESSORS_COLORSPACE_WARNING
+                + b"\n" + verify_module.M2_RNA_ACCESSORS_RESULT_SEPARATOR
+                + b"rna-suffix\n"
+            )
+            wasm_body = (
+                b"rna-prefix\n" + verify_module.M2_RNA_ACCESSORS_COLORSPACE_WARNING
+                + b".\n" + verify_module.M2_RNA_ACCESSORS_RESULT_SEPARATOR
+                + b"rna-suffix\n"
+            )
+        elif name == verify_module.M2_NODE_GROUP_COMPAT_SUITE:
+            nodegroup36_native = b"".join([
+                verify_module.M2_NODE_GROUP_COMPAT_NODEGROUP36_READ,
+                verify_module.M2_NODE_GROUP_COMPAT_OUTPUT_WARNING,
+                verify_module.M2_NODE_GROUP_COMPAT_NODEGROUP36_READ[1:],
+                b"." + verify_module.M2_NODE_GROUP_COMPAT_OUTPUT_WARNING,
+                verify_module.M2_NODE_GROUP_COMPAT_NODEGROUP36_READ,
+                verify_module.M2_NODE_GROUP_COMPAT_OUTPUT_WARNING,
+            ])
+            native_body = (
+                b"node-prefix\n" + nodegroup36_native
+                + verify_module.M2_NODE_GROUP_COMPAT_COMPOSITOR_READ
+                + b"." + verify_module.M2_NODE_GROUP_COMPAT_DOVERSION_WARNING
+                + b"node-suffix\n"
+            )
+            wasm_body = (
+                b"node-prefix\n"
+                + verify_module.M2_NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL
+                + b"." + verify_module.M2_NODE_GROUP_COMPAT_COMPOSITOR_READ
+                + verify_module.M2_NODE_GROUP_COMPAT_DOVERSION_WARNING
+                + b"node-suffix\n"
+            )
+        elif name == verify_module.M2_NODE_TOOLS_SUITE:
+            native_body = b"...\n.\n" + verify_module.M2_NODE_TOOLS_RESULT_TAIL
+            wasm_body = b"....\n" + verify_module.M2_NODE_TOOLS_RESULT_TAIL
+        elif name == verify_module.M2_ANIMATION_KEYFRAMING_SUITE:
+            native_body = b"".join([
+                b"keyframing-prefix\n",
+                b"." + verify_module.M2_ANIMATION_KEYFRAMING_FIRST_WARNING,
+                *verify_module.M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+                verify_module.M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+                b"." + verify_module.M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR,
+                b"keyframing-suffix\n",
+            ])
+            wasm_body = (
+                b"keyframing-prefix\n"
+                + verify_module.M2_ANIMATION_KEYFRAMING_PROGRESS_CANONICAL
+                + b"keyframing-suffix\n"
+            )
+        elif name == verify_module.M2_VERTEX_GROUP_PAINTING_SUITE:
+            native_body = (
+                verify_module.M2_VERTEX_GROUP_PAINTING_READ + b"."
+                + verify_module.M2_VERTEX_GROUP_PAINTING_READ + b".\n"
+                + verify_module.M2_VERTEX_GROUP_PAINTING_RESULT_TAIL
+                + verify_module.M2_VERTEX_GROUP_PAINTING_ERROR
+            )
+            wasm_body = verify_module.M2_VERTEX_GROUP_PAINTING_CANONICAL
+        elif name == verify_module.M2_ANIMATION_FCURVES_SUITE:
+            native_euler = b"".join([
+                verify_module.M2_ANIMATION_FCURVES_EULER_READ,
+                b"." + verify_module.M2_ANIMATION_FCURVES_EULER_MISSING,
+                verify_module.M2_ANIMATION_FCURVES_EULER_FILTERED,
+                verify_module.M2_ANIMATION_FCURVES_EULER_READ,
+                verify_module.M2_ANIMATION_FCURVES_EULER_MISSING,
+                verify_module.M2_ANIMATION_FCURVES_EULER_FILTERED,
+            ])
+            native_body = (
+                b"fcurves-prefix\n" + native_euler
+                + b"".join(verify_module.m2_animation_fcurves_warning_block(
+                    verify_module.M2_ANIMATION_FCURVES_NATIVE_DOT_OFFSETS
+                )) + b"fcurves-suffix\n"
+            )
+            wasm_body = (
+                b"fcurves-prefix\n"
+                + verify_module.M2_ANIMATION_FCURVES_EULER_CANONICAL
+                + verify_module.M2_ANIMATION_FCURVES_WARNING_CANONICAL
+                + b"fcurves-suffix\n"
+            )
+        elif name == verify_module.M2_MESH_VALIDATE_SUITE:
+            native_body = b"".join([
+                b"mesh-prefix\n",
+                *verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[:-1],
+                b"....." + verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[-1],
+                b"mesh-suffix\n",
+            ])
+            wasm_body = (
+                b"mesh-prefix\n" + verify_module.M2_MESH_VALIDATE_PROGRESS_CANONICAL
+                + b"mesh-suffix\n"
+            )
+        elif name == verify_module.M2_SCULPT_FACE_SET_SUITE:
+            native_body = (
+                verify_module.M2_SCULPT_FACE_SET_READ
+                + verify_module.M2_SCULPT_FACE_SET_READ
+                + b".." + verify_module.M2_SCULPT_FACE_SET_READ + b".\n"
+                + verify_module.M2_SCULPT_FACE_SET_RESULT_TAIL
+            )
+            wasm_body = verify_module.M2_SCULPT_FACE_SET_CANONICAL
+        elif name == "script_pyapi_idprop":
+            native_body = b'  File "/work/upstream/tests/python/bl_pyapi_idprop.py"\n'
+            wasm_body = (
+                b'  File "' + os.fsencode(root.resolve())
+                + b'/upstream/tests/python/bl_pyapi_idprop.py"\n'
+            )
         elif name == "bl_rna_paths":
             native_body, wasm_body = rna_native_body, rna_wasm_body
         elif name == "bl_animation_action":
             native_body, wasm_body = animation_native_body, animation_wasm_body
         elif name == "blendfile_library_overrides":
             native_body, wasm_body = library_native_body, library_wasm_body
+        native_body = native_body.replace(
+            verify_module.M2_REPOSITORY_ROOT_TOKEN,
+            verify_module.M2_CONTAINER_REPOSITORY_ROOT,
+        )
+        wasm_body = wasm_body.replace(
+            verify_module.M2_REPOSITORY_ROOT_TOKEN,
+            os.fsencode(root.resolve()),
+        )
         native_scratch = (
             root.resolve() / "sandbox/final-m0-m3/evidence" / label / "m2" /
             "scratch" / name / "native"
@@ -727,6 +925,56 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
                     verify_module.M2_SCRATCH_ROOT_POLICIES["blendfile_liblink"]
                 )
             ) + wasm_body
+        elif name == "blendfile_relationships":
+            native_body = b"".join(
+                os.fsencode(native_scratch / f"blendfile_io/fixture-{number}.blend") + b"\n"
+                for number in range(
+                    verify_module.M2_SCRATCH_ROOT_POLICIES["blendfile_relationships"]
+                )
+            ) + native_body
+            wasm_body = b"".join(
+                os.fsencode(wasm_scratch / f"blendfile_io/fixture-{number}.blend") + b"\n"
+                for number in range(
+                    verify_module.M2_SCRATCH_ROOT_POLICIES["blendfile_relationships"]
+                )
+            ) + wasm_body
+        elif name == "blendfile_library_overrides":
+            def materialize_library_override_scratch(
+                body: bytes, scratch_root: Path
+            ) -> bytes:
+                encoded_root = os.fsencode(scratch_root)
+                before = verify_module.M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_BEFORE.replace(
+                    verify_module.M2_SCRATCH_ROOT_TOKEN, encoded_root
+                )
+                after = verify_module.M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_AFTER.replace(
+                    verify_module.M2_SCRATCH_ROOT_TOKEN, encoded_root
+                )
+                body = body.replace(
+                    verify_module.M2_LIBRARY_OVERRIDE_PHASE_BEFORE, before, 1
+                ).replace(
+                    verify_module.M2_LIBRARY_OVERRIDE_PHASE_AFTER, after, 1
+                )
+                filler_count = (
+                    verify_module.M2_SCRATCH_ROOT_POLICIES[
+                        "blendfile_library_overrides"
+                    ] - 3
+                )
+                filler = b" ".join(
+                    encoded_root + f"/fixture-{number}.blend".encode()
+                    for number in range(filler_count)
+                )
+                return body.replace(
+                    b"library-prefix-00\n",
+                    b"library-prefix-00 " + filler + b"\n",
+                    1,
+                )
+
+            native_body = materialize_library_override_scratch(
+                native_body, native_scratch
+            )
+            wasm_body = materialize_library_override_scratch(
+                wasm_body, wasm_scratch
+            )
         elif name == "bl_animation_action":
             native_temp_read = (
                 b'<LOG_TIME>  blend            | Read blend: "'
@@ -747,14 +995,22 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
                 verify_module.M2_ANIMATION_TEMP_READ, wasm_temp_read, 1
             )
         normalized_native = verify_module.m2_canonicalize_suite_records(
-            verify_module.m2_canonicalize_suite_scratch_root(
-                native_body, suite=name, scratch_root=native_scratch
+            verify_module.m2_canonicalize_repository_roots(
+                verify_module.m2_canonicalize_suite_scratch_root(
+                    native_body, suite=name, scratch_root=native_scratch,
+                    root=root.resolve(),
+                ),
+                root=root.resolve(),
             ),
             name,
         )
         normalized_wasm = verify_module.m2_canonicalize_suite_records(
-            verify_module.m2_canonicalize_suite_scratch_root(
-                wasm_body, suite=name, scratch_root=wasm_scratch
+            verify_module.m2_canonicalize_repository_roots(
+                verify_module.m2_canonicalize_suite_scratch_root(
+                    wasm_body, suite=name, scratch_root=wasm_scratch,
+                    root=root.resolve(),
+                ),
+                root=root.resolve(),
             ),
             name,
         )
@@ -768,9 +1024,15 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             raw_dir / "m2-wasm" / f"{name}.txt",
             detector_marker + "\n" if detector else normalized_wasm,
         )
+        native_runtime_warning = (
+            verify_module.M2_NATIVE_CUEW_NORMALIZED_LINE.replace(
+                b"<LOG_TIME>", b"00:01.002"
+            )
+            if name == verify_module.M2_NO_DENOISER_SUITE else b""
+        )
         native_raw = write(
             raw_dir / "m2-native-raw" / f"{name}.txt",
-            native_body
+            native_runtime_warning + native_body
             + verify_module.M2_ALLOCATOR_LINE
             + b"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:31:22)\n"
         )
@@ -2057,7 +2319,11 @@ def main() -> int:
         def relocate_library_phase(payload: bytes, *, wasm: bool) -> bytes:
             lines = payload.splitlines(keepends=True)
             start = lines.index(verify_module.M2_ANIMATION_TEMP_READ)
-            end = lines.index(verify_module.M2_ANIMATION_LAYERED_READ, start) + 1
+            layered_read = (
+                verify_module.M2_ANIMATION_LAYERED_READ
+                if wasm else verify_module.M2_ANIMATION_LAYERED_READ_BARE
+            )
+            end = lines.index(layered_read, start) + 1
             phase = lines[start:end]
             del lines[start:end]
             lines[1:1] = phase

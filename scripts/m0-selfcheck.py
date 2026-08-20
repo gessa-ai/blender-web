@@ -93,7 +93,10 @@ require_text(
         "M0_ORACLE_CONTAINER_OK",
         "with-env COMMAND [ARGS...]",
         'BLENDER_BIN="$shim_dir/blender-oracle"',
+        'BLENDER_ORACLE_WORK_ROOT="$WORK_ROOT"',
+        'set -- blender-exec "$@"',
         'SCRIPT_SOURCE="$SCRIPT_DIR/$(basename "$SCRIPT_SOURCE")"',
+        '--workdir "$WORK_DIR"',
         'translate_work_args "$@"',
         'translated_args+=("/work/${argument#"$WORK_ROOT"/}")',
     ],
@@ -233,6 +236,70 @@ with tempfile.TemporaryDirectory(prefix="m0-oracle-paths-") as temp_name:
         fail("oracle container did not translate exact project paths into /work")
     if str(source_path) in docker_arguments or str(output_path) in docker_arguments:
         fail("oracle container leaked host project paths into container arguments")
+
+    nested_argv = fake_bin / "docker-nested-argv"
+    nested_environment = probe_environment.copy()
+    nested_environment["DOCKER_ARGV_FILE"] = str(nested_argv)
+    nested_probe = subprocess.run(
+        [
+            str(oracle_wrapper),
+            "with-env",
+            "bash",
+            "-c",
+            'cd "$1" && "$BLENDER_BIN" --python "$2"',
+            "m0-nested-probe",
+            str(source_path.parent),
+            str(source_path),
+        ],
+        cwd=ROOT,
+        env=nested_environment,
+        capture_output=True,
+        text=True,
+    )
+    if nested_probe.returncode != 0 or not nested_argv.is_file():
+        fail(f"oracle nested with-env probe: {nested_probe.stderr.strip()}")
+    nested_arguments = nested_argv.read_text(encoding="utf-8").splitlines()
+    nested_expected = {
+        f"{ROOT}:/work",
+        "/work/sandbox/corpus-prep",
+        "/work/sandbox/corpus-prep/state_dump.py",
+    }
+    if not nested_expected <= set(nested_arguments):
+        fail("oracle with-env did not preserve its root across a descendant cwd")
+    if str(source_path) in nested_arguments:
+        fail("oracle nested with-env leaked a host project path")
+
+    protected_argv = fake_bin / "docker-protected-argv"
+    protected_environment = probe_environment.copy()
+    protected_environment["DOCKER_ARGV_FILE"] = str(protected_argv)
+    protected_probe = subprocess.run(
+        [
+            str(oracle_wrapper),
+            "with-env",
+            "bash",
+            "-c",
+            'cd "$1" && "$2" --python "$3"',
+            "m0-protected-probe",
+            str(source_path.parent),
+            str(ROOT / "oracle/bpy.sh"),
+            str(source_path),
+        ],
+        cwd=ROOT,
+        env=protected_environment,
+        capture_output=True,
+        text=True,
+    )
+    if protected_probe.returncode != 0 or not protected_argv.is_file():
+        fail(f"protected oracle shim probe: {protected_probe.stderr.strip()}")
+    protected_arguments = protected_argv.read_text(encoding="utf-8").splitlines()
+    if protected_arguments.count("-b") != 1:
+        fail("protected oracle shim did not preserve exactly one background flag")
+    if protected_arguments.count("--factory-startup") != 1:
+        fail("protected oracle shim did not preserve exactly one factory-startup flag")
+    if "--background" in protected_arguments:
+        fail("protected oracle shim injected a duplicate background launch flag")
+    if "/work/sandbox/corpus-prep/state_dump.py" not in protected_arguments:
+        fail("protected oracle shim did not translate its repository script path")
 
 exit_probe = subprocess.run(
     [str(oracle_wrapper), "with-env", "bash", "-c", "exit 37"],

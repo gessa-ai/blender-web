@@ -122,3 +122,37 @@ precompiled dependency), even though its direct RUNPATH is present. Linux
 canonical `lib/linux_<arch>/*/lib` package directories to `LD_LIBRARY_PATH`, retain
 the caller's path only as a fallback, and apply that environment to both list and
 run phases. Do not copy libraries into the build tree or substitute system packages.
+
+## Class 6 — container-backed test shims must freeze the launch mount across child `cwd` changes
+Signature: a host path exists, but the containerized oracle reports that the same Python test
+file cannot be opened as soon as a matrix runner gives each suite its own scratch `cwd`.
+A shim that derives its bind mount from every invocation's current directory mounts only that
+scratch leaf, so absolute repository arguments cannot translate into `/work/...`. Freeze the
+`with-env` launch directory in an inherited variable, mount that stable root for each shim call,
+and map descendant caller directories to their exact container workdir. Keep direct wrapper
+calls on their existing current-directory-only contract and reject shim calls from outside the
+frozen root.
+When the shim substitutes for an existing launcher, it must also preserve arguments exactly;
+do not inject convenience flags already supplied by that launcher, or startup metadata can be
+emitted twice and break exact normalized parity.
+
+## Class 7 — combined stdout/stderr can fragment unittest progress without changing results
+Signature: native and Wasm both exit zero with the same `Ran N tests`/`OK` tail, but one combined
+log groups adjacent progress dots while the other writes one dot per line. This is descriptor
+buffering/interleaving, not operator behavior. Canonicalize only a suite-scoped, whole-output
+grammar with the exact dot cardinality and exact normalized result tail; reject missing/extra dots,
+changed test counts, or any additional output. Do not add a general punctuation filter.
+
+Containerized oracle logs also spell repository paths under the fixed `/work` mount while the
+Wasm runtime prints the host checkout root. Normalize only those exact roots followed by `/`,
+reject a log that mixes both roots or already contains the reserved token, and perform the more
+specific per-suite scratch-root mapping first. Arbitrary paths remain visible parity evidence.
+The same buffering can prefix progress dots directly onto a later stdout launcher-envelope line.
+Recognize only a dot-only prefix immediately before the exact allocator text and pinned adjacent
+banner, preserve the dots plus their newline, and reject every other prefix.
+For suites that intentionally emit diagnostics during unittest progress, canonicalize only a
+whole-output grammar: bind the exact ordered diagnostics and exact `Ran N tests`/`OK` tail, allow
+dot/newline bytes only around that block, and require the total dot count to equal `N`.
+When one platform moves a progress dot across an exact diagnostic boundary, enumerate the complete
+anchored layout and restore that single dot before comparing streams. Keep platform null-pointer
+spellings as an explicit finite set; do not mask arbitrary pointer-value text.

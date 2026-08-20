@@ -153,6 +153,218 @@ M2_NO_DENOISER_NORMALIZED_LINE = (
     b"<LOG_TIME>  bpy.rna          | WARNING current value '4' matches no enum in "
     b"'CyclesRenderSettings', '', 'denoiser'\n"
 )
+M2_NATIVE_CUEW_NORMALIZED_LINE = (
+    b"<LOG_TIME>  cycles           | WARNING CUEW initialization failed: "
+    b"Error opening the library\n"
+)
+M2_RNA_ACCESSORS_COLORSPACE_WARNING = (
+    b"<LOG_TIME>  bpy.rna          | WARNING current value '-1' matches no enum in "
+    b"'ColorManagedInputColorspaceSettings', '(null)', 'name'\n"
+)
+M2_RNA_ACCESSORS_PROGRESS_CANONICAL = M2_RNA_ACCESSORS_COLORSPACE_WARNING + b".\n"
+M2_RNA_ACCESSORS_RESULT_SEPARATOR = b"-" * 70 + b"\n"
+M2_TEMPDIR_SUITE = "script_pyapi_bpy_app_tempdir"
+M2_TEMPDIR_PROGRESS_FIXTURES = (
+    b"\n\n..\n.\n.\n.\n",
+    b"\n.\n.\n.\n.\n.\n",
+)
+M2_TEMPDIR_PROGRESS_DOTS = 5
+M2_TEMPDIR_PROGRESS_NEWLINES = 6
+M2_TEMPDIR_PROGRESS_CANONICAL = b"\n.....\n"
+M2_TEMPDIR_RESULT_TAIL = b"-" * 70 + b"\nRan 5 tests in <T>s\n\nOK\n"
+M2_PROP_ARRAY_SUITE = "script_pyapi_prop_array"
+M2_PROP_ARRAY_DIAGNOSTICS = (
+    b"<LOG_TIME>  reports          | ERROR Array length mismatch (got 7, expected more)\n",
+    b"<LOG_TIME>  reports          | ERROR Array length mismatch (got 7, expected more)\n",
+    b"<LOG_TIME>  reports          | ERROR Array length mismatch (got 23, expected more)\n",
+    b"<LOG_TIME>  reports          | ERROR Array length mismatch (got 23, expected more)\n",
+)
+M2_PROP_ARRAY_PROGRESS_DOTS = 42
+M2_PROP_ARRAY_RESULT_TAIL = b"-" * 70 + b"\nRan 42 tests in <T>s\n\nOK\n"
+M2_PROP_ARRAY_PROGRESS_CANONICAL = b"<PROP_ARRAY_PROGRESS_42_AROUND_DIAGNOSTICS>\n"
+M2_TEXT_SUITE = "script_pyapi_text"
+M2_TEXT_PROGRESS_DOTS = 5
+M2_TEXT_PROGRESS_NEWLINES = {1, 2}
+M2_TEXT_RESULT_TAIL = b"-" * 70 + b"\nRan 5 tests in <T>s\n\nOK\n"
+M2_TEXT_PROGRESS_CANONICAL = b"<TEXT_PROGRESS_5>\n"
+M2_SEQUENCER_STRIP_NAMING_SUITE = "sequencer_strip_naming"
+M2_SEQUENCER_STRIP_NAMING_PROGRESS_DOTS = 6
+M2_SEQUENCER_STRIP_NAMING_PROGRESS_NEWLINES = {1, 2}
+M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL = b"-" * 70 + b"\nRan 6 tests in <T>s\n\nOK\n"
+M2_SEQUENCER_STRIP_NAMING_PROGRESS_CANONICAL = b"<SEQUENCER_STRIP_NAMING_PROGRESS_6>\n"
+M2_ANIMATION_ARMATURE_SUITE = "bl_animation_armature"
+M2_ANIMATION_ARMATURE_HOMEFILE = b"\x1b[92mloading empty homefile\x1b[0m\n"
+M2_ANIMATION_ARMATURE_READ = (
+    b'<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'animation/armature_join_with_action_constraints.blend"\n'
+)
+M2_ANIMATION_ARMATURE_RESULT_TAIL = (
+    b"-" * 70 + b"\nRan 6 tests in <T>s\n\nOK\n\nBlender quit\n"
+)
+M2_ANIMATION_ARMATURE_CANONICAL = (
+    M2_ANIMATION_ARMATURE_HOMEFILE + M2_ANIMATION_ARMATURE_READ + b"......\n"
+    + M2_ANIMATION_ARMATURE_RESULT_TAIL
+)
+M2_SCULPT_BRUSH_CURVE_PRESETS_SUITE = "bl_sculpt_brush_curve_presets"
+M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_DOTS = 9
+M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_NEWLINES = {1, 2}
+M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL = b"-" * 70 + b"\nRan 9 tests in <T>s\n\nOK\n"
+M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_CANONICAL = b"<SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_9>\n"
+M2_OPERATOR_FUNCTION_PY_API_SUITE = "operator_function_py_api"
+M2_OPERATOR_FUNCTION_PY_API_PROGRESS_DOTS = 33
+M2_OPERATOR_FUNCTION_PY_API_PROGRESS_NEWLINES = {1, 2}
+M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL = b"-" * 70 + b"\nRan 33 tests in <T>s\n\nOK\n"
+M2_OPERATOR_FUNCTION_PY_API_PROGRESS_CANONICAL = b"<OPERATOR_FUNCTION_PY_API_PROGRESS_33>\n"
+M2_GEOMETRY_ATTRIBUTES_SUITE = "geometry_attributes"
+M2_GEOMETRY_ATTRIBUTES_PROGRESS_DOTS = 16
+M2_GEOMETRY_ATTRIBUTES_PROGRESS_NEWLINES = {1, 2}
+M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL = b"-" * 70 + b"\nRan 16 tests in <T>s\n\nOK\n"
+M2_GEOMETRY_ATTRIBUTES_PROGRESS_CANONICAL = b"<GEOMETRY_ATTRIBUTES_PROGRESS_16>\n"
+M2_NODE_GROUP_COMPAT_SUITE = "bl_node_group_compat"
+M2_NODE_GROUP_COMPAT_COMPOSITOR_READ = (
+    b'<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'node_group/node_group_socket_interface_compositor.blend"\n'
+)
+M2_NODE_GROUP_COMPAT_DOVERSION_WARNING = (
+    b'<LOG_TIME>  blend.doversion  | WARNING Region type 4 missing in space type '
+    b'"Info" (id: 7) - removing region\n'
+)
+M2_NODE_GROUP_COMPAT_PROGRESS_CANONICAL = (
+    b"." + M2_NODE_GROUP_COMPAT_COMPOSITOR_READ
+    + M2_NODE_GROUP_COMPAT_DOVERSION_WARNING
+)
+M2_NODE_GROUP_COMPAT_NODEGROUP36_READ = (
+    b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'node_group/nodegroup36.blend"\n'
+)
+M2_NODE_GROUP_COMPAT_OUTPUT_WARNING = (
+    b'<LOG_TIME>  object.modifier  | WARNING Object: "Cube", Modifier: '
+    b'"GeometryNodes", Node group must have a group output node\n'
+)
+M2_NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL = b"".join(
+    [M2_NODE_GROUP_COMPAT_NODEGROUP36_READ, M2_NODE_GROUP_COMPAT_OUTPUT_WARNING] * 3
+)
+M2_NODE_TOOLS_SUITE = "node_tools"
+M2_NODE_TOOLS_PROGRESS_DOTS = 4
+M2_NODE_TOOLS_PROGRESS_NEWLINES = {1, 2}
+M2_NODE_TOOLS_RESULT_TAIL = b"-" * 70 + b"\nRan 4 tests in <T>s\n\nOK\n"
+M2_NODE_TOOLS_PROGRESS_CANONICAL = b"<NODE_TOOLS_PROGRESS_4>\n"
+M2_ANIMATION_KEYFRAMING_SUITE = "bl_animation_keyframing"
+M2_ANIMATION_KEYFRAMING_CONTINUATION = b"                            | \n"
+M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING = (
+    b"Warning: Could not create 1 F-Curve(s). This can happen when only inserting "
+    b"to available F-Curves.\n"
+)
+M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR = (
+    b"Error: No suitable context info for active keying set\n"
+)
+
+
+def m2_animation_keyframing_scale_warning(index: int, slot: str) -> bytes:
+    return (
+        f"<LOG_TIME>  anim.action      | WARNING FCurve scale[{index}] for slot {slot} "
+        "was not created due to either the Only Insert Available setting or Replace "
+        "keyframing mode.\n"
+    ).encode()
+
+
+M2_ANIMATION_KEYFRAMING_FIRST_WARNING = m2_animation_keyframing_scale_warning(
+    0, "OBCube"
+)
+M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE = [
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+    m2_animation_keyframing_scale_warning(1, "OBCube"),
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+    m2_animation_keyframing_scale_warning(2, "OBCube"),
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+    m2_animation_keyframing_scale_warning(0, "OBanim_object"),
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+    m2_animation_keyframing_scale_warning(1, "OBanim_object"),
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+    m2_animation_keyframing_scale_warning(2, "OBanim_object"),
+    M2_ANIMATION_KEYFRAMING_CONTINUATION,
+]
+M2_ANIMATION_KEYFRAMING_PROGRESS_CANONICAL = b"".join([
+    M2_ANIMATION_KEYFRAMING_FIRST_WARNING,
+    *M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+    b"." + M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+    b"." + M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR,
+])
+M2_VERTEX_GROUP_PAINTING_SUITE = "vertex_group_painting"
+M2_VERTEX_GROUP_PAINTING_READ = (
+    b'<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'animation/vertex_groups.blend"\n'
+)
+M2_VERTEX_GROUP_PAINTING_ERROR = b"Error: All groups are locked\n"
+M2_VERTEX_GROUP_PAINTING_RESULT_TAIL = b"-" * 70 + b"\nRan 2 tests in <T>s\n\nOK\n"
+M2_VERTEX_GROUP_PAINTING_CANONICAL = (
+    M2_VERTEX_GROUP_PAINTING_READ + b"." + M2_VERTEX_GROUP_PAINTING_READ
+    + M2_VERTEX_GROUP_PAINTING_ERROR + b".\n"
+    + M2_VERTEX_GROUP_PAINTING_RESULT_TAIL
+)
+M2_ANIMATION_FCURVES_SUITE = "bl_animation_fcurves"
+M2_ANIMATION_FCURVES_EULER_READ = (
+    b'<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'animation/euler-filter.blend"\n'
+)
+M2_ANIMATION_FCURVES_EULER_MISSING = (
+    b"Info: Missing Z component(s) of euler rotation for ID='OBOne-Channel-Jumps' "
+    b"and RNA-Path='rotation_euler'\n"
+)
+M2_ANIMATION_FCURVES_EULER_FILTERED = b"Info: All 5 rotation channels were filtered\n"
+M2_ANIMATION_FCURVES_EULER_CANONICAL = b"".join([
+    M2_ANIMATION_FCURVES_EULER_READ,
+    M2_ANIMATION_FCURVES_EULER_MISSING,
+    M2_ANIMATION_FCURVES_EULER_FILTERED,
+    b"." + M2_ANIMATION_FCURVES_EULER_READ,
+    M2_ANIMATION_FCURVES_EULER_MISSING,
+    M2_ANIMATION_FCURVES_EULER_FILTERED,
+])
+M2_ANIMATION_FCURVES_NO_KEYS_WARNING = (
+    b"<LOG_TIME>  reports          | WARNING No keys have been inserted and no "
+    b"errors have been reported.\n"
+)
+M2_ANIMATION_FCURVES_WARNING_ROWS = 300
+M2_ANIMATION_FCURVES_NATIVE_DOT_OFFSETS = {0, 99, 200, 250}
+M2_ANIMATION_FCURVES_WASM_DOT_OFFSETS = {0, 100, 200, 250}
+
+
+def m2_animation_fcurves_warning_block(offsets: set[int]) -> list[bytes]:
+    return [
+        (b"." if index in offsets else b"") + M2_ANIMATION_FCURVES_NO_KEYS_WARNING
+        for index in range(M2_ANIMATION_FCURVES_WARNING_ROWS)
+    ]
+
+
+M2_ANIMATION_FCURVES_WARNING_CANONICAL = b"".join(
+    m2_animation_fcurves_warning_block(M2_ANIMATION_FCURVES_WASM_DOT_OFFSETS)
+)
+M2_MESH_VALIDATE_SUITE = "mesh_validate"
+M2_MESH_VALIDATE_PROGRESS_ERRORS = [
+    b"<LOG_TIME>  geom.mesh        | ERROR Face 1 is a duplicate of 0\n",
+    b"<LOG_TIME>  geom.mesh        | ERROR Corner 2 has incorrect edge index 0\n",
+    b"<LOG_TIME>  geom.mesh        | ERROR Face offsets must be monotonically "
+    b"increasing. Considering all faces invalid\n",
+    b"<LOG_TIME>  geom.mesh        | ERROR Edge 0 has out of range vertex (0, 99)\n",
+    b"<LOG_TIME>  geom.mesh        | ERROR Attribute position has invalid values "
+    b"at indices: 0\n",
+]
+M2_MESH_VALIDATE_PROGRESS_CANONICAL = b"".join(
+    b"." + line for line in M2_MESH_VALIDATE_PROGRESS_ERRORS
+)
+M2_SCULPT_FACE_SET_SUITE = "bl_sculpt_face_set"
+M2_SCULPT_FACE_SET_READ = (
+    b'<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'sculpting/30k_monkey_mask_and_face_set.blend"\n'
+)
+M2_SCULPT_FACE_SET_RESULT_TAIL = b"-" * 70 + b"\nRan 3 tests in <T>s\n\nOK\n"
+M2_SCULPT_FACE_SET_CANONICAL = (
+    M2_SCULPT_FACE_SET_READ + b"." + M2_SCULPT_FACE_SET_READ
+    + b"." + M2_SCULPT_FACE_SET_READ + b".\n"
+    + M2_SCULPT_FACE_SET_RESULT_TAIL
+)
+M2_REPOSITORY_ROOT_TOKEN = b"<REPO>"
+M2_CONTAINER_REPOSITORY_ROOT = b"/work"
 M2_SCRATCH_ROOT_SUITE = "blendfile_io"
 M2_SCRATCH_ROOT_TOKEN = b"<SUITE_SCRATCH>"
 M2_SCRATCH_ROOT_OCCURRENCES = 6
@@ -160,6 +372,8 @@ M2_SCRATCH_ROOT_POLICIES = {
     M2_SCRATCH_ROOT_SUITE: M2_SCRATCH_ROOT_OCCURRENCES,
     "bl_animation_action": 1,
     "blendfile_liblink": 33,
+    "blendfile_relationships": 4,
+    "blendfile_library_overrides": 83,
 }
 M2_KEYMAP_ORDER_SUITE = "script_load_keymap"
 M2_KEYMAP_FIRST_HEADER = b"Keymaps that are in 'bl_keymap_utils.keymap_hierarchy' but not blender\n"
@@ -180,9 +394,9 @@ M2_PASS_DELTA_DEFERRALS = {
     "blendfile_library_overrides": "wasm32-library-override-idname-allocation",
 }
 M2_PASS_DELTA_MARKERS = {
-    "bl_rna_paths": "normalized-delta:v1:rna-paths:macos-menu-6_vs_wasm-sandbox-menu-8",
-    "bl_animation_action": "normalized-delta:v1:animation-action:wasm-missing-objectdata-warning-pair",
-    "blendfile_library_overrides": "normalized-delta:v3:library-overrides:six-idname-bijection-phase",
+    "bl_rna_paths": "normalized-delta:v2:rna-paths:native-platform-menu_vs_wasm-sandbox-menu",
+    "bl_animation_action": "normalized-delta:v5:animation-action:wasm-objectdata-and-native-stream-layouts",
+    "blendfile_library_overrides": "normalized-delta:v4:library-overrides:six-idname-bijection-and-scratch-phase",
 }
 M2_PASS_DELTA_LEDGER = {
     "os-shell-affordances": {
@@ -212,13 +426,30 @@ M2_RNA_MENU_CONTEXT = (
     b'"bpy.data.screens[\'Shading\'].areas[4]", '
     b'"bpy.data.screens[\'Shading\'].areas[4].spaces[0]"]\n'
 )
-M2_RNA_NATIVE_MENU = ("iCloud Drive", "Macintosh HD", "Desktop", "Documents", "Downloads", "Applications")
+M2_RNA_NATIVE_MENUS = (
+    ("iCloud Drive", "Macintosh HD", "Desktop", "Documents", "Downloads", "Applications"),
+    ("work", "hosts", "hostname", "resolv.conf", "Home", "Desktop", "Documents",
+     "Downloads", "Videos", "Pictures", "Music"),
+)
 M2_RNA_WASM_MENU = ("/", "Home", "Desktop", "Documents", "Downloads", "Videos", "Pictures", "Music")
 M2_ANIMATION_ASSIGNMENT_WARNING = (
     b"WARNING: ignoring assignment to target_id_type of Slot 'OBLegacy Slot' in "
     b"Action 'ACAction Without IDRoot'. A Slot's target_id_type can only be changed "
     b"when currently 'UNSPECIFIED'.\n"
 )
+M2_ANIMATION_SLOT_UNASSIGNED_ERROR = (
+    b"<LOG_TIME>  reports          | ERROR Cannot set slot without an assigned Action.\n"
+)
+M2_ANIMATION_SLOT_XX_WARNING = (
+    b'<LOG_TIME>  reports          | WARNING Attempted to set slot identifier to '
+    b'"MAEvenCoolerSlot", but the type prefix does not match the slot\'s '
+    b'\'target_id_type\' "XX". Setting to "XXEvenCoolerSlot" instead.\n'
+)
+M2_ANIMATION_SLOT_OB_WARNING = M2_ANIMATION_SLOT_XX_WARNING.replace(
+    b'"XX". Setting to "XXEvenCoolerSlot"',
+    b'"OB". Setting to "OBEvenCoolerSlot"',
+)
+M2_ANIMATION_REPORT_CONTINUATION = b"                            | \n"
 M2_ANIMATION_FCURVE_ERROR = (
     b"ERROR: F-Curve (datapath: 'location') doesn't belong to the same channel bag "
     b"as channel group 'group1'\n"
@@ -241,6 +472,7 @@ M2_ANIMATION_LAYERED_READ = (
     b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
     b'animation/layered_action_versioning_42.blend"\n'
 )
+M2_ANIMATION_LAYERED_READ_BARE = M2_ANIMATION_LAYERED_READ[1:]
 M2_ANIMATION_RELATIVE_LIBRARY = (
     b"//../../../../../../../../../upstream/tests/files/animation/"
     b"liboverride-action-slot-libfile.blend"
@@ -270,6 +502,20 @@ M2_LIBRARY_OVERRIDE_PHASE_BEFORE = (
 )
 M2_LIBRARY_OVERRIDE_PHASE_AFTER = (
     b'<LOG_TIME>  blend            | Read blend: "<TMP>"\n'
+)
+M2_LIBRARY_OVERRIDE_SCRATCH_LIB = (
+    M2_SCRATCH_ROOT_TOKEN + b"/blendfile_io/blendlib_overrides_lib.blend"
+)
+M2_LIBRARY_OVERRIDE_SCRATCH_RECURSIVE = (
+    M2_SCRATCH_ROOT_TOKEN + b"/blendfile_io/blendlib_overrides_test_recursive.blend"
+)
+M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_BEFORE = (
+    b"Info: Read library: '" + M2_LIBRARY_OVERRIDE_SCRATCH_LIB + b"', '"
+    + M2_LIBRARY_OVERRIDE_SCRATCH_LIB + b"', parent '<direct>'\n"
+)
+M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_AFTER = (
+    b'<LOG_TIME>  blend            | Read blend: "'
+    + M2_LIBRARY_OVERRIDE_SCRATCH_RECURSIVE + b'"\n'
 )
 M2_LIBRARY_OVERRIDE_CONTROLLER = m2_library_override_line(
     "LibController2", "LibController2", "LibController2"
@@ -1340,34 +1586,42 @@ def active_deferrals(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, A
 def m2_strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
     """Independently replay the producer's narrow platform-envelope policy."""
     lines = payload.splitlines(keepends=True)
+    allocator_rows = [
+        (index, line[:-len(M2_ALLOCATOR_LINE)])
+        for index, line in enumerate(lines[:-1])
+        if line.endswith(M2_ALLOCATOR_LINE)
+        and not (set(line[:-len(M2_ALLOCATOR_LINE)]) - {ord(".")})
+    ]
     if wasm:
         pair_indexes = [
-            index for index in range(len(lines) - 1)
-            if lines[index] == M2_ALLOCATOR_LINE
-            and lines[index + 1] == M2_WASM_BANNER_LINE
+            (index, prefix) for index, prefix in allocator_rows
+            if lines[index + 1] == M2_WASM_BANNER_LINE
         ]
         if len(pair_indexes) != 1:
             fail("m2: Wasm log lacks one exact adjacent allocator/banner envelope")
-        pair_index = pair_indexes[0]
-        del lines[pair_index:pair_index + 2]
+        pair_index, progress_prefix = pair_indexes[0]
         locale_indexes = [
             index for index, line in enumerate(lines)
             if M2_WASM_LOCALE_RE.fullmatch(line)
         ]
         if locale_indexes:
-            if locale_indexes != [pair_index]:
+            if locale_indexes != [pair_index + 2]:
                 fail("m2: Wasm locale warning is duplicated or outside its envelope")
-            lines.pop(pair_index)
+        consumed = 3 if locale_indexes else 2
+        lines[pair_index:pair_index + consumed] = (
+            [progress_prefix + b"\n"] if progress_prefix else []
+        )
     else:
         pair_indexes = [
-            index for index in range(len(lines) - 1)
-            if lines[index] == M2_ALLOCATOR_LINE
-            and M2_NATIVE_BANNER_RE.fullmatch(lines[index + 1]) is not None
+            (index, prefix) for index, prefix in allocator_rows
+            if M2_NATIVE_BANNER_RE.fullmatch(lines[index + 1]) is not None
         ]
         if len(pair_indexes) != 1:
             fail("m2: native log lacks one exact adjacent allocator/banner envelope")
-        pair_index = pair_indexes[0]
-        del lines[pair_index:pair_index + 2]
+        pair_index, progress_prefix = pair_indexes[0]
+        lines[pair_index:pair_index + 2] = (
+            [progress_prefix + b"\n"] if progress_prefix else []
+        )
     return b"".join(lines)
 
 
@@ -1439,7 +1693,374 @@ def m2_canonicalize_library_override_sets(payload: bytes) -> bytes:
     )
 
 
+def m2_canonicalize_tempdir_progress(payload: bytes) -> bytes:
+    """Independently replay bounded five-dot progress fragmentation."""
+    if not payload.endswith(M2_TEMPDIR_RESULT_TAIL):
+        fail("m2: script_pyapi_bpy_app_tempdir progress/result grammar differs")
+    prefix = payload[:-len(M2_TEMPDIR_RESULT_TAIL)]
+    if (
+        not prefix.startswith(b"\n")
+        or not prefix.endswith(b"\n")
+        or set(prefix) - {ord("."), ord("\n")}
+        or prefix.count(b".") != M2_TEMPDIR_PROGRESS_DOTS
+        or prefix.count(b"\n") != M2_TEMPDIR_PROGRESS_NEWLINES
+    ):
+        fail("m2: script_pyapi_bpy_app_tempdir progress/result grammar differs")
+    return M2_TEMPDIR_PROGRESS_CANONICAL + M2_TEMPDIR_RESULT_TAIL
+
+
+def m2_canonicalize_prop_array_progress(payload: bytes) -> bytes:
+    """Independently bind diagnostics and replay progress interleaving."""
+    if not payload.endswith(M2_PROP_ARRAY_RESULT_TAIL):
+        fail("m2: script_pyapi_prop_array progress/result grammar differs")
+    body = payload[:-len(M2_PROP_ARRAY_RESULT_TAIL)]
+    diagnostics = b"".join(M2_PROP_ARRAY_DIAGNOSTICS)
+    if body.count(diagnostics) != 1:
+        fail("m2: script_pyapi_prop_array diagnostic block differs")
+    before, after = body.split(diagnostics)
+    punctuation = before + after
+    if (
+        set(punctuation) - {ord("."), ord("\n")}
+        or punctuation.count(b".") != M2_PROP_ARRAY_PROGRESS_DOTS
+        or punctuation.count(b"\n") not in {1, 2}
+    ):
+        fail("m2: script_pyapi_prop_array progress cardinality differs")
+    return (
+        M2_PROP_ARRAY_PROGRESS_CANONICAL + diagnostics + M2_PROP_ARRAY_RESULT_TAIL
+    )
+
+
+def m2_canonicalize_text_progress(payload: bytes) -> bytes:
+    """Independently replay bounded five-test progress fragmentation."""
+    if not payload.endswith(M2_TEXT_RESULT_TAIL):
+        fail("m2: script_pyapi_text progress/result grammar differs")
+    progress = payload[:-len(M2_TEXT_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_TEXT_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_TEXT_PROGRESS_NEWLINES
+    ):
+        fail("m2: script_pyapi_text progress cardinality differs")
+    return M2_TEXT_PROGRESS_CANONICAL + M2_TEXT_RESULT_TAIL
+
+
+def m2_canonicalize_sequencer_strip_naming_progress(payload: bytes) -> bytes:
+    """Independently replay bounded six-test progress fragmentation."""
+    if not payload.endswith(M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL):
+        fail("m2: sequencer_strip_naming progress/result grammar differs")
+    progress = payload[:-len(M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_SEQUENCER_STRIP_NAMING_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_SEQUENCER_STRIP_NAMING_PROGRESS_NEWLINES
+    ):
+        fail("m2: sequencer_strip_naming progress cardinality differs")
+    return (
+        M2_SEQUENCER_STRIP_NAMING_PROGRESS_CANONICAL
+        + M2_SEQUENCER_STRIP_NAMING_RESULT_TAIL
+    )
+
+
+def m2_canonicalize_animation_armature_progress(payload: bytes) -> bytes:
+    """Independently bind and replay the exact armature output layouts."""
+    layouts = (
+        M2_ANIMATION_ARMATURE_CANONICAL,
+        M2_ANIMATION_ARMATURE_HOMEFILE + b"." + M2_ANIMATION_ARMATURE_READ + b".....\n"
+        + M2_ANIMATION_ARMATURE_RESULT_TAIL,
+    )
+    if payload not in layouts:
+        fail("m2: bl_animation_armature output/progress grammar differs")
+    return M2_ANIMATION_ARMATURE_CANONICAL
+
+
+def m2_canonicalize_sculpt_brush_curve_presets_progress(payload: bytes) -> bytes:
+    """Independently replay bounded nine-test progress fragmentation."""
+    if not payload.endswith(M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL):
+        fail("m2: bl_sculpt_brush_curve_presets progress/result grammar differs")
+    progress = payload[:-len(M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_NEWLINES
+    ):
+        fail("m2: bl_sculpt_brush_curve_presets progress cardinality differs")
+    return (
+        M2_SCULPT_BRUSH_CURVE_PRESETS_PROGRESS_CANONICAL
+        + M2_SCULPT_BRUSH_CURVE_PRESETS_RESULT_TAIL
+    )
+
+
+def m2_canonicalize_operator_function_py_api_progress(payload: bytes) -> bytes:
+    """Independently replay bounded 33-test progress fragmentation."""
+    if not payload.endswith(M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL):
+        fail("m2: operator_function_py_api progress/result grammar differs")
+    progress = payload[:-len(M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_OPERATOR_FUNCTION_PY_API_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_OPERATOR_FUNCTION_PY_API_PROGRESS_NEWLINES
+    ):
+        fail("m2: operator_function_py_api progress cardinality differs")
+    return (
+        M2_OPERATOR_FUNCTION_PY_API_PROGRESS_CANONICAL
+        + M2_OPERATOR_FUNCTION_PY_API_RESULT_TAIL
+    )
+
+
+def m2_canonicalize_geometry_attributes_progress(payload: bytes) -> bytes:
+    """Independently replay bounded 16-test progress fragmentation."""
+    if not payload.endswith(M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL):
+        fail("m2: geometry_attributes progress/result grammar differs")
+    progress = payload[:-len(M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_GEOMETRY_ATTRIBUTES_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_GEOMETRY_ATTRIBUTES_PROGRESS_NEWLINES
+    ):
+        fail("m2: geometry_attributes progress cardinality differs")
+    return (
+        M2_GEOMETRY_ATTRIBUTES_PROGRESS_CANONICAL
+        + M2_GEOMETRY_ATTRIBUTES_RESULT_TAIL
+    )
+
+
+def m2_canonicalize_rna_accessors_progress(payload: bytes) -> bytes:
+    """Independently restore one dot around the exact colorspace warning."""
+    lines = payload.splitlines(keepends=True)
+    layouts = (
+        [b"." + M2_RNA_ACCESSORS_COLORSPACE_WARNING, b"\n",
+         M2_RNA_ACCESSORS_RESULT_SEPARATOR],
+        [M2_RNA_ACCESSORS_COLORSPACE_WARNING, b".\n",
+         M2_RNA_ACCESSORS_RESULT_SEPARATOR],
+        [M2_RNA_ACCESSORS_COLORSPACE_WARNING, b".\n", b"\n",
+         M2_RNA_ACCESSORS_RESULT_SEPARATOR],
+    )
+    matches: list[tuple[int, int]] = []
+    for layout in layouts:
+        matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if not matches:
+        return payload
+    if len(matches) != 1:
+        fail("m2: bl_rna_accessors has ambiguous progress/warning layouts")
+    index, length = matches[0]
+    lines[index:index + length] = [
+        M2_RNA_ACCESSORS_PROGRESS_CANONICAL, M2_RNA_ACCESSORS_RESULT_SEPARATOR,
+    ]
+    return b"".join(lines)
+
+
+def m2_canonicalize_node_group_compat_progress(payload: bytes) -> bytes:
+    """Independently restore the compositor-read/doversion dot."""
+    lines = payload.splitlines(keepends=True)
+    nodegroup36_bare = M2_NODE_GROUP_COMPAT_NODEGROUP36_READ[1:]
+    nodegroup36_layouts = (
+        [M2_NODE_GROUP_COMPAT_NODEGROUP36_READ,
+         M2_NODE_GROUP_COMPAT_OUTPUT_WARNING,
+         nodegroup36_bare, b"." + M2_NODE_GROUP_COMPAT_OUTPUT_WARNING,
+         M2_NODE_GROUP_COMPAT_NODEGROUP36_READ,
+         M2_NODE_GROUP_COMPAT_OUTPUT_WARNING],
+        M2_NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL.splitlines(keepends=True),
+    )
+    nodegroup36_matches: list[tuple[int, int]] = []
+    for layout in nodegroup36_layouts:
+        nodegroup36_matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(nodegroup36_matches) != 1:
+        fail("m2: bl_node_group_compat lacks exact nodegroup36 progress layout")
+    index, length = nodegroup36_matches[0]
+    lines[index:index + length] = [M2_NODE_GROUP_COMPAT_NODEGROUP36_CANONICAL]
+    layouts = (
+        [M2_NODE_GROUP_COMPAT_COMPOSITOR_READ,
+         b"." + M2_NODE_GROUP_COMPAT_DOVERSION_WARNING],
+        [b"." + M2_NODE_GROUP_COMPAT_COMPOSITOR_READ,
+         M2_NODE_GROUP_COMPAT_DOVERSION_WARNING],
+    )
+    matches: list[tuple[int, int]] = []
+    for layout in layouts:
+        matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(matches) != 1:
+        fail("m2: bl_node_group_compat lacks one exact progress/read layout")
+    index, length = matches[0]
+    lines[index:index + length] = [M2_NODE_GROUP_COMPAT_PROGRESS_CANONICAL]
+    return b"".join(lines)
+
+
+def m2_canonicalize_node_tools_progress(payload: bytes) -> bytes:
+    """Independently replay bounded four-test progress fragmentation."""
+    if not payload.endswith(M2_NODE_TOOLS_RESULT_TAIL):
+        fail("m2: node_tools progress/result grammar differs")
+    progress = payload[:-len(M2_NODE_TOOLS_RESULT_TAIL)]
+    if (
+        set(progress) - {ord("."), ord("\n")}
+        or progress.count(b".") != M2_NODE_TOOLS_PROGRESS_DOTS
+        or progress.count(b"\n") not in M2_NODE_TOOLS_PROGRESS_NEWLINES
+    ):
+        fail("m2: node_tools progress cardinality differs")
+    return M2_NODE_TOOLS_PROGRESS_CANONICAL + M2_NODE_TOOLS_RESULT_TAIL
+
+
+def m2_canonicalize_animation_keyframing_progress(payload: bytes) -> bytes:
+    """Independently restore the exact keyframing diagnostic-phase dot."""
+    lines = payload.splitlines(keepends=True)
+    layouts = (
+        [b"." + M2_ANIMATION_KEYFRAMING_FIRST_WARNING,
+         *M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+         M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+         b"." + M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR],
+        [M2_ANIMATION_KEYFRAMING_FIRST_WARNING,
+         *M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+         b"." + M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+         b"." + M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR],
+        [M2_ANIMATION_KEYFRAMING_FIRST_WARNING,
+         *M2_ANIMATION_KEYFRAMING_PROGRESS_MIDDLE,
+         b".." + M2_ANIMATION_KEYFRAMING_FCURVE_CREATE_WARNING,
+         M2_ANIMATION_KEYFRAMING_KEYING_SET_ERROR],
+    )
+    matches: list[tuple[int, int]] = []
+    for layout in layouts:
+        matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(matches) != 1:
+        fail("m2: bl_animation_keyframing lacks one exact diagnostic layout")
+    index, length = matches[0]
+    lines[index:index + length] = [M2_ANIMATION_KEYFRAMING_PROGRESS_CANONICAL]
+    return b"".join(lines)
+
+
+def m2_canonicalize_vertex_group_painting_output(payload: bytes) -> bytes:
+    """Independently bind the complete vertex-group output layouts."""
+    native_layout = (
+        M2_VERTEX_GROUP_PAINTING_READ + b"." + M2_VERTEX_GROUP_PAINTING_READ
+        + b".\n" + M2_VERTEX_GROUP_PAINTING_RESULT_TAIL
+        + M2_VERTEX_GROUP_PAINTING_ERROR
+    )
+    if payload not in (native_layout, M2_VERTEX_GROUP_PAINTING_CANONICAL):
+        fail("m2: vertex_group_painting output/error-order grammar differs")
+    return M2_VERTEX_GROUP_PAINTING_CANONICAL
+
+
+def m2_canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
+    """Independently bind the Euler and exact 300-warning phases."""
+    lines = payload.splitlines(keepends=True)
+    euler_layouts = (
+        [M2_ANIMATION_FCURVES_EULER_READ,
+         b"." + M2_ANIMATION_FCURVES_EULER_MISSING,
+         M2_ANIMATION_FCURVES_EULER_FILTERED,
+         M2_ANIMATION_FCURVES_EULER_READ,
+         M2_ANIMATION_FCURVES_EULER_MISSING,
+         M2_ANIMATION_FCURVES_EULER_FILTERED],
+        M2_ANIMATION_FCURVES_EULER_CANONICAL.splitlines(keepends=True),
+    )
+    euler_matches: list[tuple[int, int]] = []
+    for layout in euler_layouts:
+        euler_matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(euler_matches) != 1:
+        fail("m2: bl_animation_fcurves lacks one exact Euler progress layout")
+    index, length = euler_matches[0]
+    lines[index:index + length] = [M2_ANIMATION_FCURVES_EULER_CANONICAL]
+    warning_layouts = (
+        m2_animation_fcurves_warning_block(M2_ANIMATION_FCURVES_NATIVE_DOT_OFFSETS),
+        m2_animation_fcurves_warning_block(M2_ANIMATION_FCURVES_WASM_DOT_OFFSETS),
+    )
+    warning_matches: list[tuple[int, int]] = []
+    for layout in warning_layouts:
+        warning_matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(warning_matches) != 1:
+        fail("m2: bl_animation_fcurves lacks exact 300-warning progress layout")
+    index, length = warning_matches[0]
+    lines[index:index + length] = [M2_ANIMATION_FCURVES_WARNING_CANONICAL]
+    return b"".join(lines)
+
+
+def m2_canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
+    """Independently restore the exact five-error progress phase."""
+    lines = payload.splitlines(keepends=True)
+    layouts = (
+        [*M2_MESH_VALIDATE_PROGRESS_ERRORS[:-1],
+         b"....." + M2_MESH_VALIDATE_PROGRESS_ERRORS[-1]],
+        [b"." + line for line in M2_MESH_VALIDATE_PROGRESS_ERRORS],
+    )
+    matches: list[tuple[int, int]] = []
+    for layout in layouts:
+        matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(matches) != 1:
+        fail("m2: mesh_validate lacks one exact five-error progress layout")
+    index, length = matches[0]
+    lines[index:index + length] = [M2_MESH_VALIDATE_PROGRESS_CANONICAL]
+    return b"".join(lines)
+
+
+def m2_canonicalize_sculpt_face_set_output(payload: bytes) -> bytes:
+    """Independently bind the complete sculpt face-set output layouts."""
+    native_layout = (
+        M2_SCULPT_FACE_SET_READ + M2_SCULPT_FACE_SET_READ
+        + b".." + M2_SCULPT_FACE_SET_READ + b".\n"
+        + M2_SCULPT_FACE_SET_RESULT_TAIL
+    )
+    if payload not in (native_layout, M2_SCULPT_FACE_SET_CANONICAL):
+        fail("m2: bl_sculpt_face_set output/progress grammar differs")
+    return M2_SCULPT_FACE_SET_CANONICAL
+
+
 def m2_canonicalize_suite_records(payload: bytes, suite: str | None) -> bytes:
+    if suite == M2_TEMPDIR_SUITE:
+        return m2_canonicalize_tempdir_progress(payload)
+    if suite == M2_PROP_ARRAY_SUITE:
+        return m2_canonicalize_prop_array_progress(payload)
+    if suite == M2_TEXT_SUITE:
+        return m2_canonicalize_text_progress(payload)
+    if suite == M2_SEQUENCER_STRIP_NAMING_SUITE:
+        return m2_canonicalize_sequencer_strip_naming_progress(payload)
+    if suite == M2_ANIMATION_ARMATURE_SUITE:
+        return m2_canonicalize_animation_armature_progress(payload)
+    if suite == M2_SCULPT_BRUSH_CURVE_PRESETS_SUITE:
+        return m2_canonicalize_sculpt_brush_curve_presets_progress(payload)
+    if suite == M2_OPERATOR_FUNCTION_PY_API_SUITE:
+        return m2_canonicalize_operator_function_py_api_progress(payload)
+    if suite == M2_GEOMETRY_ATTRIBUTES_SUITE:
+        return m2_canonicalize_geometry_attributes_progress(payload)
+    if suite == M2_NO_DENOISER_SUITE:
+        return m2_canonicalize_rna_accessors_progress(payload)
+    if suite == M2_NODE_GROUP_COMPAT_SUITE:
+        return m2_canonicalize_node_group_compat_progress(payload)
+    if suite == M2_NODE_TOOLS_SUITE:
+        return m2_canonicalize_node_tools_progress(payload)
+    if suite == M2_ANIMATION_KEYFRAMING_SUITE:
+        return m2_canonicalize_animation_keyframing_progress(payload)
+    if suite == M2_VERTEX_GROUP_PAINTING_SUITE:
+        return m2_canonicalize_vertex_group_painting_output(payload)
+    if suite == M2_ANIMATION_FCURVES_SUITE:
+        return m2_canonicalize_animation_fcurves_output(payload)
+    if suite == M2_MESH_VALIDATE_SUITE:
+        return m2_canonicalize_mesh_validate_progress(payload)
+    if suite == M2_SCULPT_FACE_SET_SUITE:
+        return m2_canonicalize_sculpt_face_set_output(payload)
     if suite == M2_KEYMAP_ORDER_SUITE:
         return m2_canonicalize_keymap_inventory(payload)
     if suite in M2_PHYSICS_ORDER:
@@ -1450,7 +2071,7 @@ def m2_canonicalize_suite_records(payload: bytes, suite: str | None) -> bytes:
 
 
 def m2_canonicalize_suite_scratch_root(
-    payload: bytes, *, suite: str | None, scratch_root: Path | None
+    payload: bytes, *, suite: str | None, scratch_root: Path | None, root: Path
 ) -> bytes:
     """Independently replay the exact runner-owned scratch-root policy."""
     expected_occurrences = M2_SCRATCH_ROOT_POLICIES.get(suite)
@@ -1462,14 +2083,39 @@ def m2_canonicalize_suite_scratch_root(
         fail(
             f"m2: {suite} raw log contains the reserved scratch token"
         )
-    root_bytes = os.fsencode(os.fspath(scratch_root))
-    root_pattern = re.compile(re.escape(root_bytes) + rb"(?=/)")
-    if len(root_pattern.findall(payload)) != expected_occurrences:
+    candidates = [os.fsencode(os.fspath(scratch_root))]
+    try:
+        relative = scratch_root.relative_to(root)
+    except ValueError:
+        pass
+    else:
+        candidates.append(
+            M2_CONTAINER_REPOSITORY_ROOT + b"/" + os.fsencode(os.fspath(relative))
+        )
+    patterns = [re.compile(re.escape(value) + rb"(?=/)") for value in candidates]
+    counts = [len(pattern.findall(payload)) for pattern in patterns]
+    if sum(counts) != expected_occurrences or sum(count > 0 for count in counts) != 1:
         fail(
             f"m2: {suite} scratch root occurrence count differs: "
             f"expected={expected_occurrences}"
         )
-    return root_pattern.sub(M2_SCRATCH_ROOT_TOKEN, payload)
+    for pattern in patterns:
+        payload = pattern.sub(M2_SCRATCH_ROOT_TOKEN, payload)
+    return payload
+
+
+def m2_canonicalize_repository_roots(payload: bytes, *, root: Path) -> bytes:
+    """Independently replay exact host/container repository-root mapping."""
+    if M2_REPOSITORY_ROOT_TOKEN in payload:
+        fail("m2: raw log contains the reserved repository-root token")
+    candidates = tuple(dict.fromkeys((os.fsencode(root), M2_CONTAINER_REPOSITORY_ROOT)))
+    patterns = [re.compile(re.escape(value) + rb"(?=/)") for value in candidates]
+    counts = [len(pattern.findall(payload)) for pattern in patterns]
+    if sum(count > 0 for count in counts) > 1:
+        fail("m2: raw log mixes host and container repository roots")
+    for pattern in patterns:
+        payload = pattern.sub(M2_REPOSITORY_ROOT_TOKEN, payload)
+    return payload
 
 
 def m2_normalized_bytes(
@@ -1477,8 +2123,9 @@ def m2_normalized_bytes(
     scratch_root: Path | None = None,
 ) -> bytes:
     payload = m2_canonicalize_suite_scratch_root(
-        payload, suite=suite, scratch_root=scratch_root
+        payload, suite=suite, scratch_root=scratch_root, root=root
     )
+    payload = m2_canonicalize_repository_roots(payload, root=root)
     payload = m2_strip_platform_envelope(payload, wasm=wasm)
     shared = root / "sandbox/tierb-prep/normalize.sed"
     denoise = root / "sandbox/tierb-prep/wasm-denoise.pl"
@@ -1520,6 +2167,17 @@ def m2_normalized_bytes(
             )
         lines.pop(indexes[0])
         payload = b"".join(lines)
+    elif not wasm and suite == M2_NO_DENOISER_SUITE:
+        lines = payload.splitlines(keepends=True)
+        indexes = [
+            index for index, line in enumerate(lines)
+            if line == M2_NATIVE_CUEW_NORMALIZED_LINE
+        ]
+        if len(indexes) > 1:
+            fail("m2: bl_rna_accessors carries duplicate native CUEW warnings")
+        if indexes:
+            lines.pop(indexes[0])
+            payload = b"".join(lines)
     payload = m2_canonicalize_suite_records(payload, suite)
     M2_NORMALIZATION_CACHE[key] = payload
     return payload
@@ -1547,16 +2205,95 @@ def m2_replace_exact_block(
     return b"".join(lines[:index] + [marker] + lines[index + len(block):])
 
 
-def m2_animation_delta_projection(payload: bytes, *, wasm: bool) -> bytes:
+def m2_replace_exact_alternative_block(
+    payload: bytes, blocks: tuple[list[bytes], ...], marker: bytes, where: str
+) -> bytes:
     lines = payload.splitlines(keepends=True)
-    group_error = (
-        b"ERROR: one of the ID's for the groups to assign to is invalid "
-        + (b"(ptr=0xADDR, val=0)\n" if wasm else b"(ptr=0xADDR, val=0x0)\n")
+    matches: list[tuple[int, int]] = []
+    for block in blocks:
+        matches.extend(
+            (index, len(block))
+            for index in range(len(lines) - len(block) + 1)
+            if lines[index:index + len(block)] == block
+        )
+    if len(matches) != 1:
+        fail(f"m2: {where} lacks one exact native platform delta block")
+    index, length = matches[0]
+    return b"".join(lines[:index] + [marker] + lines[index + length:])
+
+
+def m2_canonicalize_animation_native_progress(payload: bytes) -> bytes:
+    lines = payload.splitlines(keepends=True)
+    classic = [b"." * 23 + M2_ANIMATION_REMAP_READ]
+    linux_variants = (
+        [
+            b"." + M2_ANIMATION_SLOT_UNASSIGNED_ERROR,
+            b".." + M2_ANIMATION_SLOT_XX_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            M2_ANIMATION_SLOT_OB_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            b"." * 22 + M2_ANIMATION_REMAP_READ,
+        ],
+        [
+            b".." + M2_ANIMATION_SLOT_UNASSIGNED_ERROR,
+            M2_ANIMATION_SLOT_XX_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            M2_ANIMATION_SLOT_OB_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            b"." * 23 + M2_ANIMATION_REMAP_READ,
+        ],
+        [
+            b".." + M2_ANIMATION_SLOT_UNASSIGNED_ERROR,
+            b"." + M2_ANIMATION_SLOT_XX_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            M2_ANIMATION_SLOT_OB_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            b"." * 22 + M2_ANIMATION_REMAP_READ,
+        ],
+    )
+    variant_matches: list[tuple[int, int]] = []
+    for block in linux_variants:
+        variant_matches.extend(
+            (index, len(block))
+            for index in range(len(lines) - len(block) + 1)
+            if lines[index:index + len(block)] == block
+        )
+    if len(variant_matches) > 1:
+        fail("m2: bl_animation_action has ambiguous native progress layouts")
+    if variant_matches:
+        index, length = variant_matches[0]
+        lines[index:index + length] = [
+            b"." + M2_ANIMATION_SLOT_UNASSIGNED_ERROR,
+            b"." + M2_ANIMATION_SLOT_XX_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            M2_ANIMATION_SLOT_OB_WARNING,
+            M2_ANIMATION_REPORT_CONTINUATION,
+            classic[0],
+        ]
+    classic_matches = [
+        index
+        for index in range(len(lines) - len(classic) + 1)
+        if lines[index:index + len(classic)] == classic
+    ]
+    if len(classic_matches) != 1:
+        fail("m2: bl_animation_action lacks one exact native progress layout")
+    return b"".join(lines)
+
+
+def m2_animation_delta_projection(payload: bytes, *, wasm: bool) -> bytes:
+    if not wasm:
+        payload = m2_canonicalize_animation_native_progress(payload)
+    lines = payload.splitlines(keepends=True)
+    group_prefix = b"ERROR: one of the ID's for the groups to assign to is invalid "
+    wasm_group_error = group_prefix + b"(ptr=0xADDR, val=0)\n"
+    native_group_errors = (
+        group_prefix + b"(ptr=0xADDR, val=0x0)\n",
+        group_prefix + b"(ptr=0xADDR, val=(nil))\n",
     )
     native_progress = [b"." * 23 + M2_ANIMATION_REMAP_READ]
     wasm_progress = [
         b"." * 4 + M2_ANIMATION_ASSIGNMENT_WARNING,
-        b"." * 6 + group_error,
+        b"." * 6 + wasm_group_error,
         M2_ANIMATION_FCURVE_ERROR,
         b"." * 13 + M2_ANIMATION_REMAP_READ,
     ]
@@ -1594,8 +2331,13 @@ def m2_animation_delta_projection(payload: bytes, *, wasm: bool) -> bytes:
         if not lines or lines[-1] != b"OK\n":
             fail("m2: bl_animation_action Wasm diagnostics moved outside the test sequence")
     else:
+        matching_group_errors = [
+            line for line in native_group_errors if len(lines) >= 2 and lines[-2] == line
+        ]
+        if len(matching_group_errors) != 1:
+            fail("m2: bl_animation_action native group-error null format differs")
         post_ok = [
-            b"OK\n", M2_ANIMATION_ASSIGNMENT_WARNING, group_error,
+            b"OK\n", M2_ANIMATION_ASSIGNMENT_WARNING, matching_group_errors[0],
             M2_ANIMATION_FCURVE_ERROR,
         ]
         if lines[-4:] != post_ok:
@@ -1605,8 +2347,13 @@ def m2_animation_delta_projection(payload: bytes, *, wasm: bool) -> bytes:
         if len(indexes) != 1 or indexes[0] + 2 >= len(lines):
             fail("m2: bl_animation_action native library-read context differs")
         index = indexes[0]
-        if (lines[index + 1] != M2_ANIMATION_INFO_LIBRARY
-                or lines[index + 2] != M2_ANIMATION_LAYERED_READ):
+        library_layout = lines[index:index + 3]
+        if library_layout not in (
+            [M2_ANIMATION_TEMP_READ, M2_ANIMATION_INFO_LIBRARY,
+             M2_ANIMATION_LAYERED_READ],
+            [M2_ANIMATION_TEMP_READ, b"." + M2_ANIMATION_INFO_LIBRARY,
+             M2_ANIMATION_LAYERED_READ_BARE],
+        ):
             fail("m2: bl_animation_action native library-read sequence differs")
         lines[index:index + 3] = [
             M2_ANIMATION_TEMP_READ, b"<ANIMATION_LIBRARY_READ>\n",
@@ -1619,8 +2366,14 @@ def m2_library_override_delta_projection(payload: bytes, *, wasm: bool) -> bytes
     del wasm
     lines = payload.splitlines(keepends=True)
     index = M2_LIBRARY_OVERRIDE_PHASE_BEFORE_INDEX
-    if (len(lines) <= index + 10 or lines[index] != M2_LIBRARY_OVERRIDE_PHASE_BEFORE
-            or lines[index + 10] != M2_LIBRARY_OVERRIDE_PHASE_AFTER):
+    anchor_pair = (
+        (lines[index], lines[index + 10]) if len(lines) > index + 10 else None
+    )
+    if anchor_pair not in (
+        (M2_LIBRARY_OVERRIDE_PHASE_BEFORE, M2_LIBRARY_OVERRIDE_PHASE_AFTER),
+        (M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_BEFORE,
+         M2_LIBRARY_OVERRIDE_SCRATCH_PHASE_AFTER),
+    ):
         fail("m2: blendfile_library_overrides hierarchy phase moved")
     phase = lines[index + 1:index + 10]
     controllers = (
@@ -1657,8 +2410,11 @@ def m2_library_override_delta_projection(payload: bytes, *, wasm: bool) -> bytes
 def m2_validate_pass_delta(suite: str, native_output: bytes, wasm_output: bytes) -> None:
     if suite == "bl_rna_paths":
         marker = b"<OS_FILE_BROWSER_MENU>\n"
-        native_projection = m2_replace_exact_block(
-            native_output, m2_rna_menu_lines(M2_RNA_NATIVE_MENU), marker, suite
+        native_projection = m2_replace_exact_alternative_block(
+            native_output,
+            tuple(m2_rna_menu_lines(names) for names in M2_RNA_NATIVE_MENUS),
+            marker,
+            suite,
         )
         wasm_projection = m2_replace_exact_block(
             wasm_output, m2_rna_menu_lines(M2_RNA_WASM_MENU), marker, suite
@@ -1981,7 +2737,8 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
     )
     exact(normalization, {
         "schema", "pipeline", "platform_envelope", "exit_code_primary",
-        "suite_envelope", "scratch_root", "normalized_bytes_exact_for_pass",
+        "suite_envelope", "scratch_root", "repository_root",
+        "normalized_bytes_exact_for_pass",
         "exact_replay_by_verifier",
     }, "m2.normalization_policy")
     if (normalization["schema"] != 1 or normalization["exit_code_primary"] is not True
@@ -1993,8 +2750,8 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
         "m2.normalization_policy.platform_envelope",
     )
     if envelope != {
-        "native": "one exact adjacent allocator + pinned native banner",
-        "wasm": "one exact adjacent allocator + pinned Wasm banner",
+        "native": "one exact adjacent optional-dot-prefix allocator + pinned native banner",
+        "wasm": "one exact adjacent optional-dot-prefix allocator + pinned Wasm banner",
         "wasm_optional": [
             "exact immediately-following locale startup warning",
         ],
@@ -2006,9 +2763,14 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
     )
     if suite_envelope != {
         M2_NO_DENOISER_SUITE: {
-            "platform": "wasm",
-            "exact_count": 1,
-            "exact_normalized_line": M2_NO_DENOISER_NORMALIZED_LINE.decode().rstrip("\n"),
+            "wasm": {
+                "exact_count": 1,
+                "exact_normalized_line": M2_NO_DENOISER_NORMALIZED_LINE.decode().rstrip("\n"),
+            },
+            "native_optional": {
+                "max_count": 1,
+                "exact_normalized_line": M2_NATIVE_CUEW_NORMALIZED_LINE.decode().rstrip("\n"),
+            },
             "required_cache_flag": "WITH_OPENIMAGEDENOISE:BOOL=OFF",
         },
     }:
@@ -2024,6 +2786,17 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
         "replacement": M2_SCRATCH_ROOT_TOKEN.decode(),
     }:
         fail("m2: scratch-root normalization policy differs")
+    repository_root_policy = exact(
+        normalization["repository_root"],
+        {"accepted", "replacement", "mixed_roots"},
+        "m2.normalization_policy.repository_root",
+    )
+    if repository_root_policy != {
+        "accepted": ["producer host root", "/work container root"],
+        "replacement": M2_REPOSITORY_ROOT_TOKEN.decode(),
+        "mixed_roots": "reject",
+    }:
+        fail("m2: repository-root normalization policy differs")
     pipeline = exact(
         normalization["pipeline"], {"native", "wasm"},
         "m2.normalization_policy.pipeline",

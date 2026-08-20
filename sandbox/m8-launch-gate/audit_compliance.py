@@ -5,19 +5,31 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import hashlib
 from html.parser import HTMLParser
 import json
+import os
 import re
+import shutil
+import stat
 import subprocess
+import tempfile
 from pathlib import Path
+from typing import Mapping
 
 import verify_m8
 
 
 ROOT = verify_m8.ROOT
 OUT = verify_m8.ART / "current-compliance-receipt.json"
+REUSE_VERSION = "6.2.0"
+REUSE_ENV = "BW_REUSE_BIN"
+REUSE_LOCAL_CANDIDATES = (
+    ROOT / ".host-tools/reuse-6.2.0/bin/reuse",
+    ROOT / ".host-tools/bin/reuse",
+)
 
 # The default M8 gate is the locally verifiable technical release package. These
 # checks are facts about bytes/source carried by that package. Public branding,
@@ -48,6 +60,144 @@ STANDARD_LICENSE_SHA256 = {
     "LICENSES/GPL-2.0-or-later.txt": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
     "LICENSES/GPL-3.0-or-later.txt": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0",
 }
+
+
+class ComplianceToolError(RuntimeError):
+    """A required host compliance tool is absent or differs from its exact contract."""
+
+
+def exact_executable(path: Path, label: str) -> Path:
+    """Return one absolute, normalized, non-symlink executable or fail closed."""
+    if not path.is_absolute() or Path(os.path.normpath(str(path))) != path:
+        raise ComplianceToolError(f"{label} path must be absolute and normalized: {path}")
+    current = Path(path.anchor)
+    try:
+        for part in path.parts[1:]:
+            current /= part
+            if stat.S_ISLNK(current.lstat().st_mode):
+                raise ComplianceToolError(f"{label} path contains a symlink: {current}")
+        info = path.stat()
+    except FileNotFoundError as error:
+        raise ComplianceToolError(f"{label} executable is unavailable: {path}") from error
+    if not stat.S_ISREG(info.st_mode) or info.st_size <= 0 or not os.access(path, os.X_OK):
+        raise ComplianceToolError(f"{label} must be a nonempty executable file: {path}")
+    if path.resolve() != path:
+        raise ComplianceToolError(f"{label} path is not its exact real path: {path}")
+    return path
+
+
+def reuse_identity(path: Path) -> dict[str, object]:
+    try:
+        version = subprocess.run(
+            [str(path), "--version"], cwd=ROOT, capture_output=True, text=True,
+            timeout=30, env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ComplianceToolError(f"cannot execute REUSE host tool {path}: {error}") from error
+    first_line = version.stdout.splitlines()[0] if version.stdout.splitlines() else ""
+    expected = f"reuse, version {REUSE_VERSION}"
+    if version.returncode != 0 or first_line != expected:
+        detail = (version.stderr or version.stdout).strip().splitlines()
+        observed = detail[0] if detail else f"exit {version.returncode}"
+        raise ComplianceToolError(
+            f"REUSE {REUSE_VERSION} required, got {observed!r} from {path}"
+        )
+    info = path.stat()
+    return {
+        "path": str(path),
+        "version": REUSE_VERSION,
+        "bytes": info.st_size,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def resolve_reuse(
+    environ: Mapping[str, str] = os.environ,
+    local_candidates: tuple[Path, ...] = REUSE_LOCAL_CANDIDATES,
+) -> tuple[Path, dict[str, object]]:
+    explicit = environ.get(REUSE_ENV)
+    if explicit is not None:
+        if not explicit:
+            raise ComplianceToolError(f"{REUSE_ENV} must not be empty")
+        path = exact_executable(Path(explicit), "REUSE")
+        return path, reuse_identity(path)
+
+    candidates = [candidate for candidate in local_candidates if candidate.exists()]
+    discovered = shutil.which("reuse", path=environ.get("PATH", ""))
+    if discovered:
+        candidates.append(Path(discovered))
+    failures: list[str] = []
+    for candidate in candidates:
+        try:
+            path = exact_executable(candidate, "REUSE")
+            return path, reuse_identity(path)
+        except ComplianceToolError as error:
+            failures.append(str(error))
+    suffix = f" ({'; '.join(failures)})" if failures else ""
+    raise ComplianceToolError(
+        f"REUSE {REUSE_VERSION} is unavailable; install the repository-local host tool "
+        f"or set {REUSE_ENV} to its exact executable{suffix}"
+    )
+
+
+def compliance_tool_selfcheck() -> int:
+    positive = 0
+    negatives: list[str] = []
+
+    def reject(name: str, action) -> None:
+        try:
+            action()
+        except ComplianceToolError:
+            negatives.append(name)
+            return
+        raise AssertionError(f"compliance tool self-check false green: {name}")
+
+    with tempfile.TemporaryDirectory(prefix="m8-compliance-tool-") as temporary:
+        root = Path(temporary).resolve()
+        exact = root / "reuse-6.2.0"
+        exact.write_text(
+            "#!/bin/sh\n"
+            "printf 'reuse, version 6.2.0\\n\\nfixture license text\\n'\n",
+            encoding="utf-8",
+        )
+        exact.chmod(0o755)
+        path_bin = root / "path-bin"
+        path_bin.mkdir()
+        path_reuse = path_bin / "reuse"
+        path_reuse.write_bytes(exact.read_bytes())
+        path_reuse.chmod(0o755)
+        wrong = root / "reuse-wrong"
+        wrong.write_text("#!/bin/sh\nprintf 'reuse, version 6.1.2\\n'\n", encoding="utf-8")
+        wrong.chmod(0o755)
+        nonexec = root / "reuse-nonexec"
+        nonexec.write_text("fixture\n", encoding="utf-8")
+        alias = root / "reuse-alias"
+        alias.symlink_to(exact)
+
+        selected, identity = resolve_reuse({REUSE_ENV: str(exact)}, ())
+        assert selected == exact and identity["version"] == REUSE_VERSION
+        assert identity["sha256"] == hashlib.sha256(exact.read_bytes()).hexdigest()
+        positive += 1
+        selected, _ = resolve_reuse({"PATH": str(root)}, (exact,))
+        assert selected == exact
+        positive += 1
+        selected, _ = resolve_reuse({"PATH": str(path_bin)}, ())
+        assert selected == path_reuse
+        positive += 1
+
+        reject("relative_explicit", lambda: resolve_reuse({REUSE_ENV: "reuse"}, ()))
+        reject("empty_explicit", lambda: resolve_reuse({REUSE_ENV: ""}, ()))
+        reject("missing_explicit", lambda: resolve_reuse({REUSE_ENV: str(root / "missing")}, ()))
+        reject("wrong_version", lambda: resolve_reuse({REUSE_ENV: str(wrong)}, ()))
+        reject("nonexecutable", lambda: resolve_reuse({REUSE_ENV: str(nonexec)}, ()))
+        reject("symlink", lambda: resolve_reuse({REUSE_ENV: str(alias)}, ()))
+        reject("absent_default", lambda: resolve_reuse({"PATH": ""}, ()))
+
+    print(
+        f"M8_COMPLIANCE_TOOL_SELFCHECK_PASS positive={positive} negative={len(negatives)} "
+        f"version={REUSE_VERSION}"
+    )
+    return 0
 
 
 def exact_sha256(path: Path, expected: str) -> bool:
@@ -173,7 +323,27 @@ def third_party_mismatches(third_party: str) -> list[str]:
 
 
 def main() -> int:
-    reuse = subprocess.run(["reuse", "lint", "-j"], cwd=ROOT, capture_output=True, text=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--selfcheck", action="store_true",
+        help="run browser/build-free adversarial REUSE host-tool contract checks",
+    )
+    args = parser.parse_args()
+    if args.selfcheck:
+        return compliance_tool_selfcheck()
+    try:
+        reuse_path, reuse_tool = resolve_reuse()
+    except ComplianceToolError as error:
+        print(f"M8_TECHNICAL_COMPLIANCE_FAIL preflight: {error}")
+        return 1
+    try:
+        reuse = subprocess.run(
+            [str(reuse_path), "lint", "-j"], cwd=ROOT, capture_output=True, text=True,
+            timeout=300, env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"M8_TECHNICAL_COMPLIANCE_FAIL preflight: REUSE lint failed to execute: {error}")
+        return 1
     try:
         reuse_doc = json.loads(reuse.stdout)
     except json.JSONDecodeError:
@@ -286,6 +456,7 @@ def main() -> int:
                                    ai_disclosure_without_assisted == 0,
         "details": {
             "reuse_summary": reuse_summary,
+            "reuse_tool": reuse_tool,
             "reuse_missing_files": missing_reuse[:100],
             "used_license_ids": used_licenses,
             "required_license_texts": required_licenses,

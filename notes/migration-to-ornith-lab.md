@@ -115,10 +115,17 @@ python3 -m venv .host-tools
 . .host-tools/bin/activate
 python -m pip install --upgrade pip
 python -m pip install 'cmake==4.0.3' 'ninja==1.13.1'
+/usr/bin/python3 -m venv .host-tools/reuse-6.2.0
+.host-tools/reuse-6.2.0/bin/python -m pip install 'reuse==6.2.0'
 cmake --version
 ninja --version
 clang-17 --version
+.host-tools/reuse-6.2.0/bin/reuse --version
 ```
+
+The M8 technical-compliance producer requires that exact REUSE executable. Export
+`BW_REUSE_BIN="$PWD/.host-tools/reuse-6.2.0/bin/reuse"`; a different version, a relative path,
+or a symlinked executable fails before a receipt is allocated.
 
 For the browser rig, install native Node 22.16.0 (for `npm`) using the site's standard Node
 manager or the official Linux x64 archive. Do not substitute emsdk's Node path for an npm

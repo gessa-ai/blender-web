@@ -724,6 +724,16 @@
       "rationale": "Linux-only host process census for the strict M8 soak. ps supplies RSS plus command rows used to sum the dedicated branded-Chrome profile's browser, renderer, GPU, and utility processes. It is never linked, preloaded, or shipped in the Blender browser product.",
       "source": "Ubuntu procps package on ornith-lab; sandbox/m8-launch-gate/soak_current.mjs; notes/m8-soak-linux-portability-20260820.md"
     },
+    "reuse_compliance_tool": {
+      "version": "6.2.0",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "Apache-2.0 AND CC0-1.0 AND CC-BY-SA-4.0 AND GPL-3.0-or-later",
+      "gpl_compatible": true,
+      "rationale": "Host-side REUSE Specification 3.3 linter for the strict M8 technical-package compliance receipt. The exact executable version and bytes are bound into generated evidence; the tool and its Python closure are never linked, preloaded, or shipped in the Blender browser product.",
+      "source": "PyPI reuse==6.2.0 (FSFE reuse-tool); sandbox/m8-launch-gate/audit_compliance.py; notes/migration-to-ornith-lab.md"
+    },
     "emdawnwebgpu": {
       "version": "port (emscripten 6.0.5; emdawnwebgpu.175430)",
       "build_time": false,

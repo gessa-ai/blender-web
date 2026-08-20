@@ -192,8 +192,15 @@ judgment, public source URL, and history/disclosure policy as non-blocking exter
 policy facts; the default technical gate does not manufacture or require them.
 
 ```sh
+export BW_REUSE_BIN="$PWD/.host-tools/reuse-6.2.0/bin/reuse"
+python3 sandbox/m8-launch-gate/audit_compliance.py --selfcheck
 python3 sandbox/m8-launch-gate/audit_compliance.py
 ```
+
+The producer accepts only REUSE 6.2.0 from the explicit absolute non-symlink path, the
+repository-local host-tool location, or `PATH`; it records the selected executable's size and
+SHA-256. Missing, indirect, or version-drifted tools fail before evidence allocation. The cold-host
+installation is pinned in `notes/migration-to-ornith-lab.md`.
 
 After M7 has reassembled and verified the current bundle, run its 1.5 MB/s + 40 ms
 measurement and bind both M7 JSON proofs plus q11 wire sizes:

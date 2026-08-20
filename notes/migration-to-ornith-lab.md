@@ -387,7 +387,7 @@ cold-MISS/warm-HIT contract recorded in `notes/gpu-r26-migration-savepoint.md`.
 
 | Old assumption | Linux/WSL equivalent or disposition |
 |---|---|
-| `/Users/paws/blender-web` in M4, current M5 click-pick/canvas-smoke/ROI-latency, current M6 Workbench/EEVEE capture, the current M7 USD browser producer, and the current M8 staged capture | Removed; roots are derived from `import.meta.url` in each current producer. Retained historical rigs remain immutable. |
+| `/Users/paws/blender-web` in M4, current M5 click-pick/canvas-smoke/ROI-latency, current M6 Workbench/EEVEE capture, the current M7 USD browser producer, the current M8 staged capture, and its staged assembly/server/update support | Removed; JavaScript roots derive from `import.meta.url`, Python from `__file__`, and shell assembly from `BASH_SOURCE[0]`. Retained historical rigs remain immutable. |
 | `NODE_PATH=/Users/paws/plushly/game-platform/node_modules` | M4, current M5 click-pick/canvas-smoke/ROI-latency, current M6 producers, the current M7 USD browser producer, and the M8 product/performance/soak/staged producers use `BW_NODE_MODULES=$PWD/.m4-node/node_modules`; Playwright 1.61.1, PNGJS 7.0.0, and host-only Sharp 0.35.3 install into that local prefix for the accepted-adapter replay. The latency producer also binds libvips 8.18.3. |
 | `~/Library/Caches/ms-playwright` and macOS `.app` bundle | `PLAYWRIGHT_BROWSERS_PATH=$PWD/.m4-browsers`; install Playwright's Linux Chromium. |
 | `/opt/homebrew/bin/cmake`, Ninja, Python, glslang | Pinned venv CMake/Ninja plus Ubuntu clang/Python/glslang commands above. |

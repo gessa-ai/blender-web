@@ -11,13 +11,16 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
+import {dirname, join, resolve} from "node:path";
+import {fileURLToPath} from "node:url";
 
-const ROOT = "/Users/paws/blender-web";
-const SELF = `${ROOT}/sandbox/m8-staged-deploy`;
-const assembler = readFileSync(`${SELF}/make_staged_bundle.sh`, "utf8");
-const workerSource = readFileSync(`${SELF}/service-worker.js`, "utf8");
-const registerSource = readFileSync(`${SELF}/service-worker-register.js`, "utf8");
-const verifierSource = readFileSync(`${ROOT}/sandbox/m8-launch-gate/verify_m8.py`, "utf8");
+const SELF = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(SELF, "..", "..");
+const fixtureSource = readFileSync(fileURLToPath(import.meta.url), "utf8");
+const assembler = readFileSync(join(SELF, "make_staged_bundle.sh"), "utf8");
+const workerSource = readFileSync(join(SELF, "service-worker.js"), "utf8");
+const registerSource = readFileSync(join(SELF, "service-worker-register.js"), "utf8");
+const verifierSource = readFileSync(join(ROOT, "sandbox/m8-launch-gate/verify_m8.py"), "utf8");
 
 const CONTROL = "/service-worker-register.js";
 const OLD = "11111111111111111111";
@@ -25,6 +28,12 @@ const NEW = "22222222222222222222";
 const PRECACHE = ["/", "/index.html", CONTROL, "/bin/deferred.wasm?sha256=abc"];
 
 function sourceContract() {
+  assert.ok(readFileSync(join(ROOT, "GOAL.md"), "utf8").startsWith("# GOAL.md"));
+  assert.equal(fixtureSource.includes("/Users/" + "paws"), false);
+  assert.equal(assembler.includes("/Users/" + "paws"), false);
+  assert.ok(assembler.includes(
+    'SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"'));
+  assert.ok(assembler.includes('REPO="$(cd -- "${SELF_DIR}/../.." && pwd -P)"'));
   assert.match(assembler,
     /cache_first = \[url for url in precache if url != "\/service-worker-register\.js"\]/);
   assert.match(workerSource, /if \(CACHE_FIRST_URLS\.has\(logicalKey\)\)/);
@@ -195,4 +204,5 @@ function transitionSelfcheck() {
 
 sourceContract();
 transitionSelfcheck();
-console.log("M8_SW_UPDATE_TRANSITION_SELFCHECK_PASS positive=3 negative=4 versions=2");
+console.log(
+  "M8_SW_UPDATE_TRANSITION_SELFCHECK_PASS positive=6 negative=4 versions=2 root=derived");

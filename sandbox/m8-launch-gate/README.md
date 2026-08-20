@@ -240,12 +240,16 @@ run; the rig never substitutes a weaker WM-main or cache-inventory assertion.
 The transport parser/path/docroot negative fixtures are browser-free:
 
 ```sh
-python3 sandbox/m8-staged-deploy/serve_measure.py --selfcheck
-node sandbox/m8-staged-deploy/verify_update_transition.mjs
-python3 sandbox/m8-launch-gate/test_technical_receipt_contracts.py
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+bash sandbox/m8-staged-deploy/make_staged_bundle.sh --selfcheck
+.host-tools/bin/python3.13 sandbox/m8-staged-deploy/serve_measure.py --selfcheck
+"$node22" sandbox/m8-staged-deploy/verify_update_transition.mjs
+.host-tools/bin/python3.13 sandbox/m8-launch-gate/test_technical_receipt_contracts.py
 ```
 
-The second fixture models two distinct generated cache versions. It proves that
+The assembly and server self-checks derive the checkout from their own files and
+read no APPLY manifest or product bytes. The transition fixture models two distinct
+generated cache versions. It proves that
 an old cache-first shell revalidates `/service-worker-register.js` online,
 authenticates and precaches the new active worker before that worker claims the
 page, and retains the old register/cache as the verified offline and failed-claim

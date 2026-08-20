@@ -41,12 +41,12 @@ for po in "$PO_DIR"/*.po; do
   dst_dir="$OUT/$lang/LC_MESSAGES"
   mkdir -p "$dst_dir"
   "$MSGFMT" "$po" "$dst_dir/blender.mo"
-  sz=$(stat -f %z "$dst_dir/blender.mo" 2>/dev/null || stat -c %s "$dst_dir/blender.mo")
+  sz=$(stat -c %s "$dst_dir/blender.mo" 2>/dev/null || stat -f %z "$dst_dir/blender.mo")
   total=$((total + sz))
   n=$((n + 1))
 done
 
-lang_bytes=$(stat -f %z "$OUT/languages" 2>/dev/null || stat -c %s "$OUT/languages")
+lang_bytes=$(stat -c %s "$OUT/languages" 2>/dev/null || stat -f %z "$OUT/languages")
 echo "[build-locale] compiled $n catalogs into $OUT"
 echo "[build-locale] languages index: $lang_bytes B (rides stage-0)"
 echo "[build-locale] total .mo bytes: $total (rides stage-1 with the CJK fonts)"

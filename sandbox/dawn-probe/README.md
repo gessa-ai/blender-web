@@ -4,7 +4,8 @@ SPDX-License-Identifier: GPL-2.0-or-later
 -->
 # M3.T1 — Dawn + Tint native toolchain probe
 
-Proves the WebGPU shader chain runs natively on arm64 macOS, in-process:
+Proves the WebGPU shader chain runs natively on macOS/Metal or Linux/Vulkan,
+in-process:
 
 ```
 GLSL 450 (hand-written vert+frag)
@@ -12,7 +13,7 @@ GLSL 450 (hand-written vert+frag)
   -> tint::spirv::reader::ReadIR               -> tint::core::ir::Module
   -> tint::wgsl::writer::ProgramFromIR         -> tint::Program
   -> tint::wgsl::writer::Generate              -> WGSL text
-  -> wgpuDeviceCreateShaderModule(WGSL)        -> validated on a real Dawn/Metal device
+  -> wgpuDeviceCreateShaderModule(WGSL)        -> validated on a hardware Dawn device
 ```
 
 This is the T1 de-risk for **R2** (Dawn/Tint native build + SPIR-V reader) and it
@@ -33,10 +34,13 @@ Tint is **not** a separate dependency — it lives inside Dawn's tree
 
 ## Prerequisites
 
-- CMake ≥ 3.16, Ninja, a C++17 clang (Xcode CLT).
-- `glslangValidator` (`brew install glslang`) for the offline GLSL→SPIR-V step.
+- CMake ≥ 3.16, Ninja, and a C++20 compiler (Xcode CLT or Linux clang/GCC).
+- `glslangValidator` (`brew install glslang` or the distro package) for the
+  offline GLSL→SPIR-V step.
 - Python 3 + git on `PATH` (for Dawn's `DAWN_FETCH_DEPENDENCIES` fetcher).
 - Network access the first time (the fetcher git-clones Dawn's third-party deps).
+- A hardware adapter exposed through Metal on macOS or Vulkan on Linux. CPU/software
+  adapters are rejected and cannot produce a probe receipt.
 
 ## Build & run
 
@@ -55,14 +59,16 @@ harness/buildwrap.sh bash sandbox/dawn-probe/build.sh
 ## Success criterion
 
 The probe prints the vertex + fragment WGSL, creates both shader modules on a
-live Dawn/Metal device, and exits **0** iff both validate with zero validation
+hardware Dawn device, and exits **0** iff both validate with zero validation
 errors. Distinct non-zero exit codes mark which stage failed (2 load, 3 tint,
-4–6 device bring-up, 7 module validation).
+4–6 device bring-up, 7 module validation). Exit 5 with `PROBE_BLOCKED` means the
+host exposed only a software/CPU adapter; that result is not a receipt.
 
 ## Files
 
 - `shaders/probe.vert`, `shaders/probe.frag` — trivial GLSL 450; the fragment
   uses a combined `sampler2D` on purpose (the R1 hazard).
 - `probe.cc` — the in-process chain + headless Dawn device + validation.
+- `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

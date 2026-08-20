@@ -21,17 +21,26 @@ if(NOT DEFINED DAWN_SRC_DIR)
   message(FATAL_ERROR "Pass -DDAWN_SRC_DIR=/path/to/dawn (the pinned checkout)")
 endif()
 
-# --- Dawn build options: the M3.T1 flag set + a lean macOS link surface -------
+# --- Dawn build options: the M3.T1 flag set + a lean host link surface --------
 set(DAWN_FETCH_DEPENDENCIES ON  CACHE BOOL "" FORCE)  # python dep fetcher, no depot_tools
 set(TINT_BUILD_SPV_READER   ON  CACHE BOOL "" FORCE)  # SPIR-V -> IR  (the chain)
 set(TINT_BUILD_WGSL_WRITER  ON  CACHE BOOL "" FORCE)  # IR -> WGSL    (the chain)
-set(DAWN_ENABLE_METAL       ON  CACHE BOOL "" FORCE)
 set(DAWN_BUILD_SAMPLES      OFF CACHE BOOL "" FORCE)
 set(TINT_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
 set(TINT_BUILD_CMD_TOOLS    ON  CACHE BOOL "" FORCE)  # bonus: the `tint` CLI
 
-# Keep the backend/link surface minimal on this host.
-set(DAWN_ENABLE_VULKAN      OFF CACHE BOOL "" FORCE)
+# Keep the backend/link surface minimal on this host. Metal is the established
+# macOS probe backend; Linux replays the same probe through Vulkan.
+if(APPLE)
+  set(DAWN_ENABLE_METAL     ON  CACHE BOOL "" FORCE)
+  set(DAWN_ENABLE_VULKAN    OFF CACHE BOOL "" FORCE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(DAWN_ENABLE_METAL     OFF CACHE BOOL "" FORCE)
+  set(DAWN_ENABLE_VULKAN    ON  CACHE BOOL "" FORCE)
+else()
+  message(FATAL_ERROR "dawn_probe supports the M3 Metal or Linux Vulkan host only")
+endif()
+
 set(DAWN_ENABLE_OPENGLES    OFF CACHE BOOL "" FORCE)
 set(DAWN_ENABLE_DESKTOP_GL  OFF CACHE BOOL "" FORCE)
 set(DAWN_USE_GLFW           OFF CACHE BOOL "" FORCE)  # headless: no windowing

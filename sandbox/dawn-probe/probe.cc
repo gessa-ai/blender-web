@@ -3,14 +3,14 @@
 //
 // M3.T1 — Dawn+Tint native toolchain probe (blender-web).
 //
-// Proves the full WebGPU shader chain runs natively on this Mac, in-process:
+// Proves the full WebGPU shader chain runs natively on macOS or Linux, in-process:
 //
 //   .spv (Vulkan-1.1 / SPIR-V 1.3, produced offline by glslangValidator;
 //         Tint's IR reader hardcodes SPV_ENV_VULKAN_1_1 — see notes)
 //     -> tint::spirv::reader::ReadIR      -> tint::core::ir::Module
 //     -> tint::wgsl::writer::ProgramFromIR -> tint::Program
 //     -> tint::wgsl::writer::Generate      -> WGSL text
-//     -> wgpuDeviceCreateShaderModule(WGSL) on a real Dawn/Metal device
+//     -> wgpuDeviceCreateShaderModule(WGSL) on a hardware Dawn device
 //     -> validate via a Validation error scope + uncaptured-error callback.
 //
 // Exit 0 iff BOTH stages translate cleanly AND both shader modules validate
@@ -35,9 +35,11 @@
 // WebGPU C++ bindings. We link the monolithic dawn::webgpu_dawn static library
 // (Dawn's documented external-consumption target, docs/quickstart-cmake.md),
 // which provides the real wgpu* implementation directly — so no dawn_proc table
-// wiring and no DawnNative.h are needed; the native Metal backend is registered
+// wiring and no DawnNative.h are needed; the native host backend is registered
 // by wgpuCreateInstance itself.
 #include "webgpu/webgpu_cpp.h"
+
+#include "probe_platform.hh"
 
 // Tint (lives inside Dawn's tree; headers are rooted at the Dawn source dir).
 #include "src/tint/lang/core/ir/module.h"
@@ -195,7 +197,7 @@ int main(int argc, char** argv) {
   std::cout << "\n===== VERTEX WGSL =====\n" << vert_wgsl;
   std::cout << "\n===== FRAGMENT WGSL =====\n" << frag_wgsl << "\n";
 
-  // ---- Stage 3: real Dawn/Metal device (headless, no surface) --------------
+  // ---- Stage 3: real Dawn host device (headless, no surface) ---------------
   wgpu::InstanceDescriptor instance_desc = {};
   static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
   instance_desc.requiredFeatureCount = 1;
@@ -207,7 +209,7 @@ int main(int argc, char** argv) {
   }
 
   wgpu::RequestAdapterOptions adapter_opts = {};
-  adapter_opts.backendType = wgpu::BackendType::Metal;
+  adapter_opts.backendType = blender_web::dawn_probe::kBackendType;
   adapter_opts.featureLevel = wgpu::FeatureLevel::Core;
   wgpu::Adapter adapter;
   instance.WaitAny(
@@ -222,13 +224,20 @@ int main(int argc, char** argv) {
           }),
       UINT64_MAX);
   if (adapter == nullptr) {
-    std::cerr << "no Metal adapter\n";
+    std::cerr << "no " << blender_web::dawn_probe::kBackendName << " adapter\n";
     return 5;
   }
   wgpu::AdapterInfo info;
   adapter.GetInfo(&info);
   std::cout << "Dawn adapter: \"" << ToStr(info.device) << "\" vendor=\""
-            << ToStr(info.vendor) << "\" backend=Metal\n";
+            << ToStr(info.vendor) << "\" backend=" << blender_web::dawn_probe::kBackendName
+            << " adapter_type=" << static_cast<int>(info.adapterType) << "\n";
+  if (!blender_web::dawn_probe::is_hardware_adapter(info)) {
+    std::cerr << "PROBE_BLOCKED: refusing non-hardware "
+              << blender_web::dawn_probe::kBackendName << " adapter \"" << ToStr(info.device)
+              << "\"\n";
+    return 5;
+  }
 
   wgpu::DeviceDescriptor device_desc = {};
   device_desc.SetUncapturedErrorCallback(

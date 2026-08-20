@@ -36,6 +36,8 @@
 
 #include "webgpu/webgpu_cpp.h"
 
+#include "probe_platform.hh"
+
 #include "src/tint/api/common/binding_point.h"
 #include "src/tint/lang/core/ir/module.h"
 #include "src/tint/lang/spirv/reader/reader.h"
@@ -186,7 +188,7 @@ int main(int argc, char** argv) {
   PrintBindings("B/vertex", b_vert);
   PrintBindings("B/fragment", b_frag);
 
-  // ---- Dawn device (headless Metal) ----------------------------------------
+  // ---- Dawn device (headless host backend) ---------------------------------
   wgpu::InstanceDescriptor idesc = {};
   static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
   idesc.requiredFeatureCount = 1;
@@ -195,7 +197,7 @@ int main(int argc, char** argv) {
   if (instance == nullptr) { std::cerr << "CreateInstance failed\n"; return 4; }
 
   wgpu::RequestAdapterOptions aopts = {};
-  aopts.backendType = wgpu::BackendType::Metal;
+  aopts.backendType = blender_web::dawn_probe::kBackendType;
   aopts.featureLevel = wgpu::FeatureLevel::Core;
   wgpu::Adapter adapter;
   instance.WaitAny(instance.RequestAdapter(
@@ -209,6 +211,18 @@ int main(int argc, char** argv) {
                        }),
                    UINT64_MAX);
   if (adapter == nullptr) { std::cerr << "no adapter\n"; return 5; }
+
+  wgpu::AdapterInfo info;
+  adapter.GetInfo(&info);
+  std::cout << "\nDawn adapter: \"" << ToStr(info.device) << "\" backend="
+            << blender_web::dawn_probe::kBackendName
+            << " adapter_type=" << static_cast<int>(info.adapterType) << "\n";
+  if (!blender_web::dawn_probe::is_hardware_adapter(info)) {
+    std::cerr << "PROBE_BLOCKED: refusing non-hardware "
+              << blender_web::dawn_probe::kBackendName << " adapter \"" << ToStr(info.device)
+              << "\"\n";
+    return 5;
+  }
 
   wgpu::DeviceDescriptor ddesc = {};
   ddesc.SetUncapturedErrorCallback(
@@ -227,9 +241,6 @@ int main(int argc, char** argv) {
                        }),
                    UINT64_MAX);
   if (device == nullptr) { std::cerr << "no device\n"; return 6; }
-  wgpu::AdapterInfo info;
-  adapter.GetInfo(&info);
-  std::cout << "\nDawn adapter: \"" << ToStr(info.device) << "\" backend=Metal\n";
 
   // ---- Validate the four modules -------------------------------------------
   std::cout << "\n================ module validation ================\n";

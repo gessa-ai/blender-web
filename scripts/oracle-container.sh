@@ -6,7 +6,17 @@
 # disabled: oracle checks consume only files explicitly mounted from the caller.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_SOURCE" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+  LINK_TARGET="$(readlink "$SCRIPT_SOURCE")"
+  if [[ "$LINK_TARGET" = /* ]]; then
+    SCRIPT_SOURCE="$LINK_TARGET"
+  else
+    SCRIPT_SOURCE="$SCRIPT_DIR/$LINK_TARGET"
+  fi
+done
+ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
 DOCKERFILE="$ROOT/containers/oracle/Dockerfile"
 IMAGE="${BLENDER_ORACLE_IMAGE:-blender-web/oracle:5.2.0-fbe6228777e7}"
 PLATFORM="linux/amd64"
@@ -26,6 +36,8 @@ commands:
   blender ARGS...  run Blender headless with the caller's directory at /work
   oiiotool ARGS... run pinned oiiotool with the caller's directory at /work
   version          print the pinned Blender and oiiotool versions
+  with-env COMMAND [ARGS...]
+                   run a command with container-backed Blender/oiiotool shims
 EOF
 }
 
@@ -62,6 +74,15 @@ run_image() {
     --workdir /work \
     "$@"
 }
+
+case "${0##*/}" in
+  blender-oracle)
+    set -- blender "$@"
+    ;;
+  oiiotool)
+    set -- oiiotool "$@"
+    ;;
+esac
 
 command_name="${1:-}"
 if [[ -z "$command_name" ]]; then
@@ -114,6 +135,26 @@ case "$command_name" in
   version)
     run_image "$IMAGE" --version
     run_image --entrypoint /usr/bin/oiiotool "$IMAGE" --version
+    ;;
+  with-env)
+    if [[ "$#" -eq 0 ]]; then
+      echo "oracle container: with-env requires a command" >&2
+      usage
+      exit 2
+    fi
+    shim_dir="$(mktemp -d /tmp/blender-web-oracle.XXXXXX)"
+    ln -s "$SCRIPT_SOURCE" "$shim_dir/blender-oracle"
+    ln -s "$SCRIPT_SOURCE" "$shim_dir/oiiotool"
+    cleanup_shims() {
+      rm -f "$shim_dir/blender-oracle" "$shim_dir/oiiotool"
+      rmdir "$shim_dir" 2>/dev/null || true
+    }
+    trap cleanup_shims EXIT
+    set +e
+    BLENDER_BIN="$shim_dir/blender-oracle" PATH="$shim_dir:$PATH" "$@"
+    command_status=$?
+    set -e
+    exit "$command_status"
     ;;
   -h|--help|help)
     usage

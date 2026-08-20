@@ -46,6 +46,7 @@ bash scripts/oracle-container.sh build
 bash scripts/oracle-container.sh verify
 bash scripts/oracle-container.sh blender --python-expr 'import bpy; print(bpy.app.version_string)'
 bash scripts/oracle-container.sh oiiotool --version
+bash scripts/oracle-container.sh with-env bash harness/run.sh --scope m0
 ```
 
 Runtime networking is disabled and the current directory is the only mounted
@@ -53,6 +54,11 @@ project path. The official Blender 5.2.0 Linux archive is x86-64, so the wrapper
 always selects `linux/amd64`; Apple Silicon Docker uses its normal amd64
 emulation. This container is the headless CPU/state and image-comparator oracle,
 not the native Metal UI/render oracle documented by the M4-M6 lanes.
+
+`with-env` supplies temporary `BLENDER_BIN` and `oiiotool` command shims that
+route the existing protected M0 harness checks through the same pinned image.
+The shims are removed when the requested command exits, preserve its exit code,
+and do not change `oracle/` or `harness/`.
 
 `scripts/m0-selfcheck.py` validates the Dockerfile, wrapper, exact pins, CI
 workflow, shell syntax, protected `oracle/PIN`, and the live upstream checkout

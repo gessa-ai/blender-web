@@ -89,6 +89,8 @@ require_text(
         "--network none",
         'exec python3 "$ROOT/scripts/m0-selfcheck.py"',
         "M0_ORACLE_CONTAINER_OK",
+        "with-env COMMAND [ARGS...]",
+        'BLENDER_BIN="$shim_dir/blender-oracle"',
     ],
 )
 require_text(
@@ -143,6 +145,29 @@ for script in (
     )
     if result.returncode:
         fail(f"syntax {script.relative_to(ROOT)}: {result.stderr.strip()}")
+
+oracle_wrapper = ROOT / "scripts/oracle-container.sh"
+environment_probe = subprocess.run(
+    [
+        str(oracle_wrapper),
+        "with-env",
+        "bash",
+        "-c",
+        'test -L "$BLENDER_BIN" && test -L "$(command -v oiiotool)"',
+    ],
+    capture_output=True,
+    text=True,
+)
+if environment_probe.returncode != 0:
+    fail(f"oracle with-env shim probe: {environment_probe.stderr.strip()}")
+
+exit_probe = subprocess.run(
+    [str(oracle_wrapper), "with-env", "bash", "-c", "exit 37"],
+    capture_output=True,
+    text=True,
+)
+if exit_probe.returncode != 37:
+    fail(f"oracle with-env did not preserve exit 37 (got {exit_probe.returncode})")
 
 if shutil.which("docker") is None:
     docker_detail = "docker CLI unavailable; static Dockerfile validation completed"

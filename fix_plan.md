@@ -699,6 +699,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-
   library omission and verified all three native tools plus 49 locale catalogs. No hardware
   receipt, result flag, deferral, or promise changed.
+- [x] **M4-LINUX-HOSTTOOL-ORDER [driver]:** the audit's native `shader_tool` rebuild happened
+  after its recorded windowed no-work check and invalidated 3,587 generated-code edges. A locked
+  rebuild restored `blender_browser` (`20260820T150017`, 76 s), the locked dry-run is exact
+  no-work (`20260820T150138`), and OFF-mode product preflight passes. The cold runbook already
+  orders host tools before the product; the recurring ordering invariant is now recorded in
+  `notes/porting-patterns.md`. This restores a coherent development artifact only and binds no
+  M3/M4 hardware profile, receipt, result, or promise.
 - [ ] **AUDIT-20260820-HARNESS [driver/harness]:** make `harness/buildwrap.sh` log allocation
   collision-proof and trim `GATE_RED`'s trailing space, with same-second/concurrent negative
   fixtures. **blocked-by the sanctioned harness lock-lift/reconciliation procedure.**

@@ -90,6 +90,12 @@ Cold rebuild scripts commonly retain `CXX=em++` from the dependency harvest; ove
 explicitly with the recorded host compiler before invoking `scripts/build-hosttools.sh`.
 The native `msgfmt` closure also links the host zlib/zstd libraries even though its headers
 come from `lib/wasm`, so the cold-host package list must provide both development libraries.
+Native host-tool binaries are explicit Ninja inputs to thousands of generated shader/datafile
+edges. Rebuilding `shader_tool` or `datatoc` after a windowed product link therefore makes that
+product stale even when the tools emit byte-identical output: on ornith-lab a later audit rebuild
+of `shader_tool` scheduled 3,587 edges. Always order host-tool construction before product builds;
+after any host-tool rebuild, rebuild the affected product through `scripts/ninja-locked.sh` and
+retain an exact `-n` no-work proof.
 
 ## Class 1 (recurring) — LP64 shift/width assumptions beyond sizeof-asserts
 Not just `static_assert(sizeof==const)`: watch for `size_t(1) << 32` and similar

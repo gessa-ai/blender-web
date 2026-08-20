@@ -274,9 +274,11 @@ BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin" bash scripts/serve-web.sh 816
 # In a second shell with BW_NODE_MODULES, PLAYWRIGHT_BROWSERS_PATH, and
 # BLENDER_WEB_BIN exported as above:
 profile_root="$PWD/sandbox/m8-wasm-split/profile-evidence"
-node sandbox/m8-wasm-split/capture_blender_profile.mjs \
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-wasm-split/capture_blender_profile.mjs --selfcheck
+"$node22" sandbox/m8-wasm-split/capture_blender_profile.mjs \
   --port 8165 --threads 1 --scenario success --run ornith-linux-success-r1
-node sandbox/m8-wasm-split/capture_blender_profile.mjs \
+"$node22" sandbox/m8-wasm-split/capture_blender_profile.mjs \
   --port 8165 --threads 1 --scenario terminal-error --run ornith-linux-terminal-r1
 
 orig_sha="$(sha256sum build-wasm-windowed-opt/bin/blender_browser.wasm.orig | awk '{print $1}')"
@@ -288,6 +290,14 @@ orig_sha="$(sha256sum build-wasm-windowed-opt/bin/blender_browser.wasm.orig | aw
   "$profile_root/ornith-linux-success-r1/profile-hot.data" \
   "$profile_root/ornith-linux-terminal-r1/profile-hot.data"
 ```
+
+The producer itself is the final s7 guard: before allocating either immutable run directory it
+requires exact Node 22.16.0, Playwright 1.61.1 with bundled Chromium 149.0.7827.55, PNGJS 7.0.0,
+Linux WebGPU launch arguments, and a browser-reported non-fallback adapter with non-empty identity
+data. It rejects llvmpipe,
+lavapipe, softpipe, SwiftShader, WARP, CPU/software renderers, and masked adapter information.
+Both the profile union and APPLY finalizer independently recheck that exact adapter/tool receipt;
+an internally inconsistent edit or old-schema macOS capture cannot authorize a Linux shard.
 
 Stop the server before relinking. Convert the same build tree to APPLY using only that exact
 profile union and its generated receipt, then build through the global lock:

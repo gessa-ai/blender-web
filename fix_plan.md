@@ -651,6 +651,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   runbook now reconstructs CAPTURE -> two strict accepted-hardware profiles -> union -> APPLY.
   Focused tests + all split Python self-checks + REUSE are green. Current APPLY preflight exits 5
   because software llvmpipe binds no profile; no shard or receipt was fabricated.
+- [x] **M4-CAPTURE-PROFILE-LINUX-PORTABILITY [driver, producer-only]:** the strict success/
+  terminal-error profile producer derives its checkout, module, binary, and confined immutable
+  output roots; requires Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and bundled Chromium
+  149.0.7827.55; and selects Linux WebGPU arguments. Before evidence allocation it records and
+  requires a non-fallback hardware adapter with unmasked identity. Producer fixtures plus both
+  profile-union and APPLY consumers reject llvmpipe/SwiftShader/CPU/software and 28 receipt
+  mutations. No profile or receipt was produced: s7 remains blocked. See
+  `notes/m4-capture-profile-linux-portability-20260820.md`.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

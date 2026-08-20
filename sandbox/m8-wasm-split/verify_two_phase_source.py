@@ -61,6 +61,8 @@ def main() -> int:
         "single_flight": REPO / "platform_web/split/single-flight.js",
         "profile_export": REPO / "platform_web/split/profile-export.js",
         "capture_driver": REPO / "sandbox/m8-wasm-split/capture_blender_profile.mjs",
+        "capture_adapter_tests": REPO
+        / "sandbox/m8-wasm-split/test_capture_profile_adapter_contract.py",
         "runtime_driver": REPO / "sandbox/m8-wasm-split/verify_blender_split_runtime.mjs",
         "runtime_preflight": REPO / "sandbox/m8-wasm-split/runtime_split_preflight.mjs",
         "runtime_preflight_tests": REPO / "sandbox/m8-wasm-split/test_runtime_split_preflight.mjs",
@@ -430,6 +432,20 @@ def main() -> int:
         if marker not in capture_driver:
             raise RuntimeError(f"{label} absent")
     require(capture_driver, "out-of-order APPLY was not rejected", "capture terminal-error hot path")
+    for marker in (
+        "BW_CAPTURE_PROFILE_SELFCHECK_PASS",
+        "Node ${NODE_VERSION} required",
+        "playwrightVersion: require('playwright/package.json').version",
+        "pngjsVersion: require('pngjs/package.json').version",
+        "Playwright Chromium ${CHROMIUM_VERSION} required",
+        "--enable-unsafe-webgpu",
+        "hardware-webgpu-adapter-v1",
+        "hardware WebGPU adapter required before CAPTURE evidence allocation",
+        "CAPTURE preflight failed before evidence allocation",
+        "adapterReceipt?.status === 'ACCEPTED'",
+    ):
+        if marker not in capture_driver:
+            raise RuntimeError(f"capture portability/adapter contract {marker} absent")
     if capture_driver.count("postApplyProbeCount !== 0") != 2:
         raise RuntimeError("capture must gate zero post-APPLY probes at PAGE_READY and RESUME")
     for marker in (
@@ -614,7 +630,23 @@ def main() -> int:
     profile_union = source["profile_union"]
     require(profile_union, 'capture_scenarios != {"success", "terminal-error"}', "profile exact scenarios")
     require(profile_union, 'controller.get("status") != "PASS"', "profile controller PASS")
+    require(
+        profile_union,
+        "verify_capture_browser(capture, str(capture_receipt_path))",
+        "profile union hardware adapter check",
+    )
     finalizer = source["finalizer"]
+    require(
+        finalizer,
+        "verify_capture_browser(capture, str(capture_path))",
+        "APPLY hardware adapter check",
+    )
+    for marker in (
+        "BW_CAPTURE_PROFILE_ADAPTER_CONTRACT_TEST PASS",
+        "software_{token}",
+        "CONSUMERS = (MERGE.verify_capture_browser, FINALIZER.verify_capture_browser)",
+    ):
+        require(source["capture_adapter_tests"], marker, f"capture adapter test {marker}")
     for marker in (
         "verify_primary_controller_closure_source",
         "return_call_indirect|call_ref|return_call_ref",

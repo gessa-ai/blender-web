@@ -42,6 +42,32 @@ SHARED_MEMORY_GROWABLE_VIEW_GUARD_MARKER = "BW_SPLIT_SHARED_MEMORY_GROWABLE_VIEW
 PTHREAD_MEMORY_RANGE_SYNC_MARKER = "BW_SPLIT_PTHREAD_MEMORY_RANGE_SYNC_V1"
 PTHREAD_STACK_RANGE_SYNC_MARKER = "BW_SPLIT_PTHREAD_STACK_RANGE_SYNC_V1"
 PTHREAD_MAILBOX_RANGE_SYNC_MARKER = "BW_SPLIT_PTHREAD_MAILBOX_RANGE_SYNC_V1"
+ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1"
+CAPTURE_NODE_VERSION = "v22.16.0"
+CAPTURE_PLAYWRIGHT_VERSION = "1.61.1"
+CAPTURE_PNGJS_VERSION = "7.0.0"
+CAPTURE_CHROMIUM_VERSION = "149.0.7827.55"
+SOFTWARE_ADAPTER_TOKENS = (
+    "swiftshader",
+    "llvmpipe",
+    "lavapipe",
+    "softpipe",
+    "software rasterizer",
+    "microsoft basic render",
+    "warp",
+)
+ADAPTER_FIELDS = {
+    "contract",
+    "status",
+    "present",
+    "platform",
+    "powerPreference",
+    "isFallbackAdapter",
+    "info",
+    "softwareMatches",
+    "reason",
+}
+ADAPTER_INFO_FIELDS = {"vendor", "architecture", "device", "description"}
 SPLIT_CONTROLLER_EXPORTS = [
     "BW_web_split_request_park",
     "BW_web_split_request_prepared",
@@ -1397,6 +1423,59 @@ def verify_primary_controller_closure(
     }
 
 
+def verify_capture_browser(capture: object, where: str) -> dict[str, object]:
+    if not isinstance(capture, dict) or not isinstance(capture.get("browser"), dict):
+        raise WasmError(f"{where}: capture browser proof absent")
+    browser = capture["browser"]
+    if (
+        browser.get("nodeVersion") != CAPTURE_NODE_VERSION
+        or browser.get("playwrightVersion") != CAPTURE_PLAYWRIGHT_VERSION
+        or browser.get("pngjsVersion") != CAPTURE_PNGJS_VERSION
+        or browser.get("version") != CAPTURE_CHROMIUM_VERSION
+        or browser.get("headed") is not True
+        or not isinstance(browser.get("playwrightRoot"), str)
+        or not Path(browser["playwrightRoot"]).is_absolute()
+    ):
+        raise WasmError(f"{where}: capture browser tool identity mismatch")
+    adapter = browser.get("adapter")
+    if not isinstance(adapter, dict) or set(adapter) != ADAPTER_FIELDS:
+        raise WasmError(f"{where}: hardware adapter proof fields mismatch")
+    info = adapter.get("info")
+    if (
+        not isinstance(info, dict)
+        or set(info) != ADAPTER_INFO_FIELDS
+        or any(not isinstance(info[key], str) for key in ADAPTER_INFO_FIELDS)
+    ):
+        raise WasmError(f"{where}: hardware adapter info fields mismatch")
+    platform = adapter.get("platform")
+    expected_args = ["--enable-unsafe-webgpu"] + (["--use-angle=metal"] if platform == "darwin" else [])
+    if platform not in {"darwin", "linux"} or browser.get("args") != expected_args:
+        raise WasmError(f"{where}: platform browser arguments mismatch")
+    identity = " ".join(info[key] for key in ("vendor", "architecture", "device", "description"))
+    identity = identity.strip().lower()
+    detail_identity = " ".join(info[key] for key in ("architecture", "device", "description")).strip()
+    matches = [token for token in SOFTWARE_ADAPTER_TOKENS if token in identity]
+    if re.search(r"(^|[^a-z0-9])cpu([^a-z0-9]|$)", identity):
+        matches.append("cpu")
+    fallback = adapter.get("isFallbackAdapter")
+    if fallback is not None and type(fallback) is not bool:
+        raise WasmError(f"{where}: fallback adapter flag has wrong type")
+    if (
+        adapter.get("contract") != ADAPTER_CONTRACT
+        or adapter.get("status") != "ACCEPTED"
+        or adapter.get("present") is not True
+        or adapter.get("powerPreference") != "high-performance"
+        or fallback is True
+        or not identity
+        or not detail_identity
+        or matches
+        or adapter.get("softwareMatches") != []
+        or adapter.get("reason") != "accepted-hardware"
+    ):
+        raise WasmError(f"{where}: capture did not bind an accepted hardware WebGPU adapter")
+    return browser
+
+
 def verify_profile_receipt(args: argparse.Namespace, original: Path) -> dict[str, object]:
     if not args.profile_receipt or not args.profile_receipt.is_file():
         raise WasmError("apply requires an existing --profile-receipt")
@@ -1440,6 +1519,7 @@ def verify_profile_receipt(args: argparse.Namespace, original: Path) -> dict[str
         capture = json.loads(capture_path.read_text(encoding="utf-8"))
         if capture.get("schema") != "blender-web.wasm-split-profile.v1" or capture.get("status") != "PASS":
             raise WasmError(f"source capture is not strict PASS: {capture_path}")
+        verify_capture_browser(capture, str(capture_path))
         scenario = capture.get("scenario")
         if scenario not in {"success", "terminal-error"} or scenario in capture_scenarios:
             raise WasmError(f"source capture scenario invalid or duplicated: {capture_path}")

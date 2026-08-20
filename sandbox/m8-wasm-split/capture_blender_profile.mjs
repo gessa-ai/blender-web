@@ -7,15 +7,39 @@
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
 import {
-  existsSync, mkdirSync, readFileSync, statSync, writeFileSync,
+  existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync,
 } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { validateCaptureProbeGeneratedSource } from './capture_probe_contract.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
-const DEFAULT_MODULES = '/Users/paws/plushly/game-platform/node_modules';
+const DRIVER_PATH = fileURLToPath(import.meta.url);
+const PROFILE_ROOT = join(HERE, 'profile-evidence');
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(REPO, '.m4-node/node_modules'),
+  join(REPO, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+].filter(Boolean).flatMap((entry) => entry.split(delimiter)).filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const NODE_VERSION = 'v22.16.0';
+const PLAYWRIGHT_VERSION = '1.61.1';
+const PNGJS_VERSION = '7.0.0';
+const CHROMIUM_VERSION = '149.0.7827.55';
+const BROWSER_ARGS = Object.freeze([
+  '--enable-unsafe-webgpu',
+  ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
+]);
+const ADAPTER_CONTRACT = 'hardware-webgpu-adapter-v1';
+const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
+  'swiftshader', 'llvmpipe', 'lavapipe', 'softpipe', 'software rasterizer',
+  'microsoft basic render', 'warp',
+]);
 const PROFILE_MARKER = 'BW_SPLIT_PROFILE_EXPORT_V1';
 const FINALIZER = join(REPO, 'scripts/finalize-wasm-split.py');
 
@@ -74,11 +98,12 @@ bpy.app.timers.register(_bwsp_io_poll,first_interval=0.0,persistent=True)
 `.trim();
 
 function parseArgs(argv) {
-  const out = { port: 8165, run: null, outRoot: join(HERE, 'profile-evidence'), timeoutMs: 180000,
-    scenario: null, threads: 1 };
+  const out = { port: 8165, run: null, outRoot: PROFILE_ROOT, timeoutMs: 180000,
+    scenario: null, threads: 1, selfcheck: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
-    if (arg === '--port') out.port = Number(argv[++index]);
+    if (arg === '--selfcheck') out.selfcheck = true;
+    else if (arg === '--port') out.port = Number(argv[++index]);
     else if (arg === '--run') out.run = argv[++index];
     else if (arg === '--out-root') out.outRoot = resolve(argv[++index]);
     else if (arg === '--timeout-ms') out.timeoutMs = Number(argv[++index]);
@@ -86,12 +111,24 @@ function parseArgs(argv) {
     else if (arg === '--threads') out.threads = Number(argv[++index]);
     else throw new Error(`unknown argument: ${arg}`);
   }
-  if (!out.run || !/^[a-z0-9][a-z0-9._-]*$/i.test(out.run)) throw new Error('safe --run required');
+  if (out.selfcheck) {
+    if (argv.length !== 1) throw new Error('--selfcheck cannot be combined with capture options');
+    return out;
+  }
+  if (!out.run || out.run.length > 80 || !/^[a-z0-9][a-z0-9._-]*$/i.test(out.run)) {
+    throw new Error('safe 1..80 byte --run required');
+  }
   if (!['success', 'terminal-error'].includes(out.scenario)) {
     throw new Error('--scenario success|terminal-error required');
   }
   if (out.threads !== 1) throw new Error('two-phase CAPTURE requires exact --threads 1');
   if (!Number.isInteger(out.port) || out.port < 1 || out.port > 65535) throw new Error('bad port');
+  if (!Number.isInteger(out.timeoutMs) || out.timeoutMs < 1000 || out.timeoutMs > 600000) {
+    throw new Error('bad --timeout-ms');
+  }
+  if (out.outRoot !== PROFILE_ROOT) {
+    throw new Error(`--out-root must be the repository profile root: ${PROFILE_ROOT}`);
+  }
   return out;
 }
 
@@ -99,22 +136,112 @@ function shaBytes(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function isDescendant(root, path, allowRoot = false) {
+  const rel = relative(resolve(root), resolve(path));
+  return (allowRoot || rel !== '') && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function requireCanonicalFile(path, description) {
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isFile() || realpathSync(absolute) !== absolute) {
+    throw new Error(`${description} is not a canonical regular file: ${absolute}`);
+  }
+  return absolute;
+}
+
+function requireCanonicalDirectory(path, description) {
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(absolute) !== absolute) {
+    throw new Error(`${description} is not a canonical directory: ${absolute}`);
+  }
+  return absolute;
+}
+
 function fileReceipt(path) {
-  const stat = statSync(path);
-  return { path: path.startsWith(REPO) ? path.slice(REPO.length + 1) : path, bytes: stat.size,
-    sha256: shaBytes(readFileSync(path)) };
+  const absolute = requireCanonicalFile(path, 'receipt input');
+  const stat = statSync(absolute);
+  const rel = relative(REPO, absolute);
+  const recorded = rel && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..' ? rel : absolute;
+  return { path: recorded, bytes: stat.size, sha256: shaBytes(readFileSync(absolute)) };
 }
 
 const occurrences = (source, needle) => source.split(needle).length - 1;
 
-function playwright() {
-  for (const root of [process.env.BW_NODE_MODULES, process.env.NODE_PATH, DEFAULT_MODULES].filter(Boolean)) {
+function requireNodeVersion(version = process.version) {
+  if (version !== NODE_VERSION) throw new Error(`Node ${NODE_VERSION} required, got ${version}`);
+}
+
+function resolveBrowserDependencies(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      playwrightVersion: require('playwright/package.json').version,
+      PNG: require('pngjs').PNG,
+      pngjsVersion: require('pngjs/package.json').version,
+    };
+  },
+) {
+  const errors = [];
+  for (const root of roots) {
     try {
-      const require = createRequire(join(root, 'package.json'));
-      return { chromium: require('playwright').chromium, root };
-    } catch (_) {}
+      const loaded = load(root);
+      if (!loaded?.chromium || !loaded?.PNG) throw new Error('browser dependency exports are absent');
+      if (loaded.playwrightVersion !== PLAYWRIGHT_VERSION || loaded.pngjsVersion !== PNGJS_VERSION) {
+        throw new Error(`versions playwright=${loaded.playwrightVersion} pngjs=${loaded.pngjsVersion}`);
+      }
+      return { ...loaded, root };
+    }
+    catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
   }
-  throw new Error('Playwright unavailable');
+  throw new Error(`cannot resolve exact browser dependencies; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function classifyAdapterProbe(raw, platform = process.platform) {
+  const info = Object.fromEntries(['vendor', 'architecture', 'device', 'description']
+    .map((key) => [key, typeof raw?.info?.[key] === 'string' ? raw.info[key] : '']));
+  const identity = Object.values(info).join(' ').trim().toLowerCase();
+  const detailIdentity = [info.architecture, info.device, info.description].join(' ').trim();
+  const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
+  if (/(^|[^a-z0-9])cpu([^a-z0-9]|$)/.test(identity)) softwareMatches.push('cpu');
+  const present = raw?.present === true;
+  const isFallbackAdapter = typeof raw?.isFallbackAdapter === 'boolean' ? raw.isFallbackAdapter : null;
+  let reason = 'accepted-hardware';
+  if (!present) reason = 'adapter-absent';
+  else if (isFallbackAdapter === true) reason = 'fallback-adapter';
+  else if (!identity || !detailIdentity) reason = 'adapter-info-absent';
+  else if (softwareMatches.length) reason = 'software-adapter';
+  return {
+    contract: ADAPTER_CONTRACT,
+    status: reason === 'accepted-hardware' ? 'ACCEPTED' : 'REJECTED',
+    present,
+    platform,
+    powerPreference: 'high-performance',
+    isFallbackAdapter,
+    info,
+    softwareMatches,
+    reason,
+  };
+}
+
+async function probeAdapter(page) {
+  const raw = await page.evaluate(async () => {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return { present: false, isFallbackAdapter: null, info: null };
+    const info = adapter.info || {};
+    return {
+      present: true,
+      isFallbackAdapter: adapter.isFallbackAdapter ?? null,
+      info: Object.fromEntries(['vendor', 'architecture', 'device', 'description']
+        .map((key) => [key, typeof info[key] === 'string' ? info[key] : ''])),
+    };
+  });
+  return classifyAdapterProbe(raw);
 }
 
 const sleep = (milliseconds) => new Promise((done) => setTimeout(done, milliseconds));
@@ -145,17 +272,135 @@ function pixelProof(PNG, buffer) {
   };
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
+function runSelfcheck() {
+  let positive = 0;
+  let negative = 0;
+  const check = (condition, message) => {
+    if (!condition) throw new Error(`CAPTURE profile self-check: ${message}`);
+    positive++;
+  };
+  const reject = (name, action) => {
+    try { action(); }
+    catch (_) { negative++; return; }
+    throw new Error(`CAPTURE profile self-check false green: ${name}`);
+  };
+
+  check(readFileSync(join(REPO, 'GOAL.md'), 'utf8').length > 0,
+    'repository root is not derived from the producer');
+  check(isDescendant(REPO, PROFILE_ROOT) && dirname(PROFILE_ROOT) === HERE,
+    'profile output root escaped its repository sandbox');
+  check(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    'module roots are not absolute and unique');
+  check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isDescendant(REPO, root)),
+    'repository-local module fallbacks are incomplete');
+  requireNodeVersion();
+  check(true, 'exact Node acceptance');
+  reject('wrong_node', () => requireNodeVersion('v25.1.0'));
+
+  const parsed = parseArgs([
+    '--port', '8165', '--threads', '1', '--scenario', 'success', '--run', 'ornith-r1',
+    '--out-root', PROFILE_ROOT, '--timeout-ms', '180000',
+  ]);
+  check(parsed.port === 8165 && parsed.run === 'ornith-r1' && parsed.outRoot === PROFILE_ROOT &&
+    parsed.timeoutMs === 180000 && parsed.threads === 1 && parsed.scenario === 'success',
+  'capture invocation parser drifted');
+  check(parseArgs(['--selfcheck']).selfcheck === true, 'self-check invocation parser drifted');
+  for (const [name, args] of [
+    ['combined_selfcheck', ['--selfcheck', '--run', 'bad']],
+    ['missing_scenario', ['--run', 'bad']],
+    ['unsafe_run', ['--run', '../bad', '--scenario', 'success']],
+    ['long_run', ['--run', 'a'.repeat(81), '--scenario', 'success']],
+    ['wrong_threads', ['--run', 'bad', '--scenario', 'success', '--threads', '2']],
+    ['bad_port', ['--run', 'bad', '--scenario', 'success', '--port', '65536']],
+    ['bad_timeout', ['--run', 'bad', '--scenario', 'success', '--timeout-ms', '999']],
+    ['escaped_output', ['--run', 'bad', '--scenario', 'success', '--out-root', resolve(REPO, '..')]],
+  ]) reject(name, () => parseArgs(args));
+
+  const chromiumToken = {};
+  const pngToken = {};
+  const synthetic = resolveBrowserDependencies(['/missing', '/fixture/modules'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return { chromium: chromiumToken, PNG: pngToken,
+      playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION };
+  });
+  check(synthetic.chromium === chromiumToken && synthetic.PNG === pngToken &&
+    synthetic.root === '/fixture/modules', 'browser dependency fallback drifted');
+  reject('wrong_playwright', () => resolveBrowserDependencies(['/fixture'], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: '1.61.0', pngjsVersion: PNGJS_VERSION,
+  })));
+  reject('wrong_pngjs', () => resolveBrowserDependencies(['/fixture'], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: '6.0.0',
+  })));
+  reject('missing_exports', () => resolveBrowserDependencies(['/fixture'], () => ({
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION,
+  })));
+
+  for (const raw of [
+    { present: true, isFallbackAdapter: null,
+      info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' } },
+    { present: true, isFallbackAdapter: false,
+      info: { vendor: 'apple', architecture: 'apple m3 max', device: '', description: '' } },
+  ]) {
+    const accepted = classifyAdapterProbe(raw, raw.info.vendor === 'apple' ? 'darwin' : 'linux');
+    check(accepted.status === 'ACCEPTED' && accepted.reason === 'accepted-hardware' &&
+      accepted.softwareMatches.length === 0, 'hardware adapter fixture was rejected');
+  }
+  for (const [name, raw] of [
+    ['absent', { present: false, info: null }],
+    ['fallback', { present: true, isFallbackAdapter: true,
+      info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'RTX', description: '' } }],
+    ['masked', { present: true, isFallbackAdapter: null,
+      info: { vendor: '', architecture: '', device: '', description: '' } }],
+    ['vendor-only', { present: true, isFallbackAdapter: null,
+      info: { vendor: 'Google', architecture: '', device: '', description: '' } }],
+    ['swiftshader', { present: true, info: { vendor: 'Google', architecture: 'SwiftShader' } }],
+    ['llvmpipe', { present: true, info: { vendor: 'Mesa', description: 'llvmpipe LLVM 21.1.8' } }],
+    ['lavapipe', { present: true, info: { vendor: 'Mesa', architecture: 'lavapipe' } }],
+    ['softpipe', { present: true, info: { vendor: 'Mesa', architecture: 'softpipe' } }],
+    ['cpu', { present: true, info: { vendor: 'fixture', description: 'CPU Vulkan adapter' } }],
+    ['warp', { present: true, info: { vendor: 'Microsoft', architecture: 'WARP' } }],
+  ]) reject(`software_${name}`, () => {
+    const classified = classifyAdapterProbe(raw, 'linux');
+    if (classified.status !== 'ACCEPTED') throw new Error(classified.reason);
+  });
+
+  const source = readFileSync(DRIVER_PATH, 'utf8');
+  const retiredCheckout = ['', 'Users', 'paws'].join('/');
+  const retiredModules = ['plushly', 'game-platform'].join('/');
+  check(!source.includes(retiredCheckout) && !source.includes(retiredModules),
+    'retired macOS path remains executable source');
+  check(BROWSER_ARGS.includes('--enable-unsafe-webgpu') &&
+    (process.platform === 'darwin') === BROWSER_ARGS.includes('--use-angle=metal'),
+  'platform WebGPU browser arguments drifted');
+
+  let liveRoot = null;
+  if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
+    const live = resolveBrowserDependencies();
+    check(MODULE_ROOTS.includes(live.root) && live.playwrightVersion === PLAYWRIGHT_VERSION &&
+      live.pngjsVersion === PNGJS_VERSION, 'live browser dependency resolution drifted');
+    liveRoot = live.root;
+  }
+  process.stdout.write(`BW_CAPTURE_PROFILE_SELFCHECK_PASS positive=${positive} negative=${negative} ` +
+    `platform=${process.platform} node=${NODE_VERSION} playwright=${PLAYWRIGHT_VERSION} ` +
+    `pngjs=${PNGJS_VERSION} chromium=${CHROMIUM_VERSION} ` +
+    `live=${liveRoot || 'not-requested'} browser_launches=0\n`);
+}
+
+async function main(options) {
+  requireNodeVersion();
   const outDir = join(options.outRoot, options.run);
   if (existsSync(outDir)) throw new Error(`refusing overwrite: ${outDir}`);
-  mkdirSync(options.outRoot, { recursive: true });
-  mkdirSync(outDir);
+  if (!isDescendant(REPO, options.outRoot) || dirname(outDir) !== options.outRoot) {
+    throw new Error(`profile evidence path escaped the repository: ${outDir}`);
+  }
 
   const bin = resolve(process.env.BLENDER_WEB_BIN || join(REPO, 'build-wasm-windowed-opt/bin'));
+  if (!isDescendant(REPO, bin)) throw new Error(`BLENDER_WEB_BIN must remain in the repository: ${bin}`);
   const paths = Object.fromEntries(['js', 'wasm', 'wasm.orig', 'data', 'split-build.json'].map((suffix) =>
     [suffix, join(bin, `blender_browser.${suffix}`)]));
-  for (const path of Object.values(paths)) if (!existsSync(path)) throw new Error(`missing ${path}`);
+  for (const [name, path] of Object.entries(paths)) requireCanonicalFile(path, `CAPTURE ${name}`);
   const splitBuild = JSON.parse(readFileSync(paths['split-build.json'], 'utf8'));
   const generatedJs = readFileSync(paths.js, 'utf8');
   const currentFinalizer = fileReceipt(FINALIZER);
@@ -316,10 +561,16 @@ async function main() {
   const transitions = [];
   let successCoverageComplete = false;
   let fatal = null;
-  const { chromium, root: playwrightRoot } = playwright();
-  const { PNG } = createRequire(join(playwrightRoot, 'package.json'))('pngjs');
-  const browser = await chromium.launch({ headless: false });
+  let adapterReceipt = null;
+  let evidenceAllocated = false;
+  const dependencies = resolveBrowserDependencies();
+  const { chromium, PNG, root: playwrightRoot, playwrightVersion, pngjsVersion } = dependencies;
+  const browser = await chromium.launch({ headless: false, args: BROWSER_ARGS });
   const browserVersion = browser.version();
+  if (browserVersion !== CHROMIUM_VERSION) {
+    await browser.close();
+    throw new Error(`Playwright Chromium ${CHROMIUM_VERSION} required, got ${browserVersion}`);
+  }
   const started = Date.now();
   let page;
   try {
@@ -360,6 +611,15 @@ async function main() {
     await page.goto(`http://127.0.0.1:${options.port}/windowed.html?gate=1280x720`, {
       waitUntil: 'domcontentloaded', timeout: options.timeoutMs,
     });
+    adapterReceipt = await probeAdapter(page);
+    if (adapterReceipt.status !== 'ACCEPTED') {
+      throw new Error(`hardware WebGPU adapter required before CAPTURE evidence allocation: ${JSON.stringify(adapterReceipt)}`);
+    }
+    mkdirSync(options.outRoot, { recursive: true });
+    requireCanonicalDirectory(options.outRoot, 'CAPTURE profile root');
+    mkdirSync(outDir);
+    requireCanonicalDirectory(outDir, 'CAPTURE immutable run directory');
+    evidenceAllocated = true;
     await page.waitForFunction(() => document.querySelector('#state')?.textContent.includes('main loop (WM_main)'),
       null, { timeout: options.timeoutMs, polling: 100 });
     await page.waitForFunction(() => window.__bwModule?.bwSplitProfileContract?.marker ===
@@ -644,6 +904,9 @@ async function main() {
     if (controller && fatal && controller.status === 'IN_PROGRESS') controller.status = 'FAIL';
     await browser.close();
   }
+  if (!evidenceAllocated) {
+    throw new Error(`CAPTURE preflight failed before evidence allocation: ${fatal || 'unknown failure'}`);
+  }
 
   if (profileBefore) writeFileSync(join(outDir, 'profile-before.data'), profileBefore, { flag: 'wx' });
   if (profileHot) writeFileSync(join(outDir, 'profile-hot.data'), profileHot, { flag: 'wx' });
@@ -661,7 +924,8 @@ async function main() {
   const commonPass = !fatal && pageErrors.length === 0 && external.length === 0 && gpuErrors.length === 0 &&
     profileAfter?.length > splitBuild.facts.total_functions &&
     profileAfter?.length <= splitBuild.reserve_bytes && trustedPass &&
-    initialPixelReceipt?.pass === true && controller?.status === 'PASS';
+    initialPixelReceipt?.pass === true && controller?.status === 'PASS' &&
+    adapterReceipt?.status === 'ACCEPTED';
   const successPass = options.scenario === 'success' && hotChanged > 0 && changed > hotChanged &&
     canvasReceipt?.contract?.marker === PROFILE_MARKER && canvasReceipt?.contract?.sharedMainMemory === true &&
     canvasReceipt?.crossOriginIsolated === true && canvasReceipt?.presents >= 2 &&
@@ -685,7 +949,8 @@ async function main() {
   const receipt = {
     schema: 'blender-web.wasm-split-profile.v1', status: pass ? 'PASS' : 'FAIL', run: options.run,
     scenario: options.scenario,
-    fatal, browser: { version: browserVersion, playwrightRoot, headed: true },
+    fatal, browser: { version: browserVersion, playwrightRoot, playwrightVersion, pngjsVersion,
+      nodeVersion: process.version, args: BROWSER_ARGS, headed: true, adapter: adapterReceipt },
     workload: ['boot-to-decoded-semantic-pixels', 'trusted-middle-mouse-orbit',
       'trusted-Tab-edit', 'trusted-E-extrude-confirm', 'trusted-Tab-object',
       'repeat-orbit-edit-extrude-across-worker-schedule', 'post-interaction-semantic-pixel-settle',
@@ -715,4 +980,10 @@ async function main() {
   if (!pass) process.exitCode = 1;
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+const invocation = parseArgs(process.argv.slice(2));
+if (invocation.selfcheck) {
+  runSelfcheck();
+}
+else {
+  main(invocation).catch((error) => { console.error(error); process.exitCode = 1; });
+}

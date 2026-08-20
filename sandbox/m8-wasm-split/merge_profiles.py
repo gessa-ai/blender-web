@@ -9,6 +9,35 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
+
+
+ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1"
+NODE_VERSION = "v22.16.0"
+PLAYWRIGHT_VERSION = "1.61.1"
+PNGJS_VERSION = "7.0.0"
+CHROMIUM_VERSION = "149.0.7827.55"
+SOFTWARE_ADAPTER_TOKENS = (
+    "swiftshader",
+    "llvmpipe",
+    "lavapipe",
+    "softpipe",
+    "software rasterizer",
+    "microsoft basic render",
+    "warp",
+)
+ADAPTER_FIELDS = {
+    "contract",
+    "status",
+    "present",
+    "platform",
+    "powerPreference",
+    "isFallbackAdapter",
+    "info",
+    "softwareMatches",
+    "reason",
+}
+ADAPTER_INFO_FIELDS = {"vendor", "architecture", "device", "description"}
 
 
 def identity(path: Path) -> dict[str, object]:
@@ -24,6 +53,59 @@ def resolve_receipt_path(value: str, receipt_path: Path) -> Path:
     # walking up from this tool, not from the caller's ambient working directory.
     repo = Path(__file__).resolve().parents[2]
     return (repo / path).resolve()
+
+
+def verify_capture_browser(capture: object, where: str) -> dict[str, object]:
+    if not isinstance(capture, dict) or not isinstance(capture.get("browser"), dict):
+        raise ValueError(f"{where}: capture browser proof absent")
+    browser = capture["browser"]
+    if (
+        browser.get("nodeVersion") != NODE_VERSION
+        or browser.get("playwrightVersion") != PLAYWRIGHT_VERSION
+        or browser.get("pngjsVersion") != PNGJS_VERSION
+        or browser.get("version") != CHROMIUM_VERSION
+        or browser.get("headed") is not True
+        or not isinstance(browser.get("playwrightRoot"), str)
+        or not Path(browser["playwrightRoot"]).is_absolute()
+    ):
+        raise ValueError(f"{where}: capture browser tool identity mismatch")
+    adapter = browser.get("adapter")
+    if not isinstance(adapter, dict) or set(adapter) != ADAPTER_FIELDS:
+        raise ValueError(f"{where}: hardware adapter proof fields mismatch")
+    info = adapter.get("info")
+    if (
+        not isinstance(info, dict)
+        or set(info) != ADAPTER_INFO_FIELDS
+        or any(not isinstance(info[key], str) for key in ADAPTER_INFO_FIELDS)
+    ):
+        raise ValueError(f"{where}: hardware adapter info fields mismatch")
+    platform = adapter.get("platform")
+    expected_args = ["--enable-unsafe-webgpu"] + (["--use-angle=metal"] if platform == "darwin" else [])
+    if platform not in {"darwin", "linux"} or browser.get("args") != expected_args:
+        raise ValueError(f"{where}: platform browser arguments mismatch")
+    identity = " ".join(info[key] for key in ("vendor", "architecture", "device", "description"))
+    identity = identity.strip().lower()
+    detail_identity = " ".join(info[key] for key in ("architecture", "device", "description")).strip()
+    matches = [token for token in SOFTWARE_ADAPTER_TOKENS if token in identity]
+    if re.search(r"(^|[^a-z0-9])cpu([^a-z0-9]|$)", identity):
+        matches.append("cpu")
+    fallback = adapter.get("isFallbackAdapter")
+    if fallback is not None and type(fallback) is not bool:
+        raise ValueError(f"{where}: fallback adapter flag has wrong type")
+    if (
+        adapter.get("contract") != ADAPTER_CONTRACT
+        or adapter.get("status") != "ACCEPTED"
+        or adapter.get("present") is not True
+        or adapter.get("powerPreference") != "high-performance"
+        or fallback is True
+        or not identity
+        or not detail_identity
+        or matches
+        or adapter.get("softwareMatches") != []
+        or adapter.get("reason") != "accepted-hardware"
+    ):
+        raise ValueError(f"{where}: capture did not bind an accepted hardware WebGPU adapter")
+    return browser
 
 
 def main() -> None:
@@ -57,6 +139,10 @@ def main() -> None:
         capture = json.loads(capture_receipt_path.read_text(encoding="utf-8"))
         if capture.get("schema") != "blender-web.wasm-split-profile.v1" or capture.get("status") != "PASS":
             raise SystemExit(f"capture receipt is not strict PASS: {capture_receipt_path}")
+        try:
+            verify_capture_browser(capture, str(capture_receipt_path))
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
         scenario = capture.get("scenario")
         if scenario not in {"success", "terminal-error"} or scenario in capture_scenarios:
             raise SystemExit(f"capture scenario is absent, invalid, or duplicated: {capture_receipt_path}")

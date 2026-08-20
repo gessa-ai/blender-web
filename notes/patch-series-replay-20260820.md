@@ -1,19 +1,21 @@
 <!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# Patch-series replay audit - 2026-08-20
+# Canonical source replay audit - 2026-08-20
 
 ## Outcome
 
-The exact migration reconstruction path is green on ornith-lab. Starting from Blender
-`fbe6228777e7`, the SHA-256-bound `patches/PREVIEW_SNAPSHOT.patch` applies cleanly and
-reproduces every final modified or untracked upstream file byte-for-byte, including file
-modes and symlink targets. The bounded verifier reports 257 concrete file paths; the
-runbook's 210 count is the compact `git status` view in which an untracked directory is one
-entry.
+The exact migration reconstruction path is green and is now explicit in
+`patches/canonical`. Starting from Blender `fbe6228777e7`, its single SHA-256-bound squashed
+patch applies cleanly and reproduces every final modified or untracked upstream file
+byte-for-byte, including file modes and symlink targets. The historical
+`PREVIEW_SNAPSHOT.patch` filename is retained because the final-source freezer independently
+regenerated `canonical-source.patch` with the same 1,530,148 bytes and SHA-256. The bounded
+replayer reports 257 concrete paths; the runbook's older 210 count was the compact `git status`
+view in which an untracked directory is one entry.
 
-The numbered `patches/series` history is not clean-replayable and must not be promoted to
-the current reconstruction authority. Its first failure is active entry 15,
+The numbered `patches/series` history is not clean-replayable and is explicitly retained only
+as development audit history. Its first failure is active entry 15,
 `0016-gpu-webgpu-texture-format-conversion.patch`, at the GPU CMake source list. This is a
 historical overlapping-hunk dependency, not source loss and not a Linux compiler delta.
 
@@ -32,20 +34,22 @@ historical overlapping-hunk dependency, not source loss and not a Linux compiler
 
 The active manifest currently names 125 numbered patches and intentionally retires two
 diagnostic-only artifacts (`0117`, `0125`). Those patches mention 116 final path names;
-the exact preview contains another 141 paths that were never split into numbered patches.
+the exact canonical patch contains another 141 paths that were never split into numbered patches.
 This matches the migration note's explicit contract: numbered patches are useful history,
-while the preview snapshot is the integration-tree authority.
+while the squashed patch named by `patches/canonical` is the integration-tree authority.
 
 ## Evidence and disposition
 
-`sandbox/series-replay/verify.py --preview-only` checks the source pin, preview digest,
-preview/status path-set equality, clean application, and final fingerprints. Receipt:
-`ledger/buildlogs/20260820T155158-2088641.log` (`PREVIEW_REPLAY_PASS`, preview SHA-256
-prefix `4e8233c5302d`, 257/257 paths).
+The stronger `sandbox/final-source-freeze/freeze.py` proof checks the exact pin, pristine real
+index, repository state, initialized submodules, complete 20,258-entry live/replay manifests,
+patch regeneration, and a final live resnapshot. It passed at
+`ledger/buildlogs/20260820T155621-2091828.log`; the normalized receipt is retained at
+`sandbox/series-replay/canonical-freeze-receipt.json`. Both manifests are 3,477,328 bytes with
+SHA-256 `0d8fcd67732563bee9ed60d6329480408c5654524ba71cbb8c08c6dabec1849a`.
 
-Per the two-attempt stop rule, numbered-series repair is blocked rather than normalized
-piecemeal in this iteration. A successor must either regenerate every overlapping
-historical hunk against its true predecessor and prove all 125 sequentially, or introduce
-an explicitly reviewed squashed canonical patch whose postimage equals the accepted preview.
-Until then, reconstruction must continue to use the hash-pinned preview exactly as
-`notes/migration-to-ornith-lab.md` requires.
+`sandbox/series-replay/verify.py` now treats canonical replay as its default green contract: it
+checks the source pin, canonical manifest and digest, source/patch path-set equality, clean
+application, modes, symlinks, and final fingerprints. `--numbered-history` remains a diagnostic
+mode and still fails honestly at the first stale historical preimage. The two-attempt stop rule
+therefore remains binding on piecemeal history repair, while exact source reconstruction is no
+longer blocked on it.

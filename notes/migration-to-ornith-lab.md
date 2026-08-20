@@ -50,12 +50,16 @@ git -C upstream rev-parse HEAD
 git -C upstream apply --check ../patches/PREVIEW_SNAPSHOT.patch
 git -C upstream apply ../patches/PREVIEW_SNAPSHOT.patch
 git -C upstream apply --reverse --check ../patches/PREVIEW_SNAPSHOT.patch
+.host-tools/bin/python3.13 sandbox/series-replay/verify.py
 ```
 
-The preview snapshot SHA-256 is
+`patches/canonical` names this single squashed source-reconstruction patch. The historical
+filename is retained because the stronger canonical freezer regenerated the file byte-for-byte;
+renaming or duplicating the 1.5 MB blob would add no integrity. Its SHA-256 is
 `4e8233c5302d48b147ac01a07dbd90d6fb9e95301388e2a182896728aecfa2d0`. It is the exact
-integration-tree authority, including 210 modified/untracked upstream paths. Do not reconstruct
-the current tree by applying an arbitrary subset of numbered historical patches.
+integration-tree authority, including 257 concrete modified/untracked upstream paths (210 in
+Git's compact status view). Do not reconstruct the current tree by applying an arbitrary subset
+of numbered historical patches.
 
 The shared checkout also contained tracked outer-repository changes owned by other lanes. They
 were not folded into this agent's commit. They are preserved byte-for-byte in
@@ -417,7 +421,7 @@ and the selected M4 evidence were committed. `lib/` is explicitly rebuild-only, 
    `notes/gpu-r26-migration-savepoint.md`, then this file.
 2. Run `harness/status.sh` only after checking out the migration commits; expect historical RED
    rows until new receipts exist.
-3. Verify preview patch SHA and reconstruct upstream.
+3. Verify the canonical patch SHA, reconstruct upstream, and run the canonical replayer.
 4. Install exact emsdk and run `scripts/ci/m0-basic.sh`.
 5. Rebuild `lib/wasm`, windowed Wasm, and M4 browser dependencies.
 6. Reproduce M4 with a fresh label. Stop on a software adapter, artifact mismatch, missing

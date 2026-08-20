@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Exact squashed source-reconstruction authority for Blender fbe6228777e7.
+# The adjacent .sha256 receipt binds this immutable patch.  patches/series is
+# retained only as non-replayable numbered development history.
+
+PREVIEW_SNAPSHOT.patch

@@ -632,18 +632,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   root and resolves Playwright from `BW_NODE_MODULES`, `NODE_PATH`, or local `node_modules`.
   The macOS paths `/Users/paws/plushly/game-platform/node_modules` and
   `~/Library/Caches/ms-playwright` are no longer source assumptions.
-- [x] **Source preservation:** the ignored `upstream/` integration diff is frozen in
-  `patches/PREVIEW_SNAPSHOT.patch` (SHA-256 recorded beside it); `lib/` and every build tree are
-  explicitly rebuild-only. See `notes/gpu-r26-migration-savepoint.md` and
+- [x] **Source preservation:** the ignored `upstream/` integration diff is frozen in the single
+  squashed patch named by `patches/canonical` (SHA-256 recorded beside it); `lib/` and every build
+  tree are explicitly rebuild-only. See `notes/gpu-r26-migration-savepoint.md` and
   `notes/migration-to-ornith-lab.md`.
-- [~] **SOURCE-SERIES-REPLAY [driver]:** exact migration reconstruction is independently GREEN
-  on Linux: the hash-pinned preview applies to `fbe6228777e7` and matches all 257 concrete
-  modified/untracked files byte-for-byte. The 125-entry numbered history is not sequentially
-  replayable: shared-lane CMake patch preimages are mutually dependent beginning at
-  `0016`/`0019`, followed by `0016b`/`0022`; a scratch normalization then exposed `0027`.
-  Blocked after the mandated retry ceiling pending a complete historical-hunk rebase or an
-  explicitly reviewed squashed canonical patch. The preview remains the sole current source
-  authority; see `notes/patch-series-replay-20260820.md`.
+- [x] **SOURCE-SERIES-REPLAY [driver]:** exact migration reconstruction is independently GREEN
+  on Linux. The final-source freezer regenerated a canonical patch and complete 20,258-entry
+  live/replay manifests; the patch is byte-identical to the accepted hash-pinned preview and its
+  clean-pin postimage matches all 257 concrete modified/untracked paths. `patches/canonical` now
+  makes that squashed authority explicit and the verifier's default path is green. The 125-entry
+  numbered list remains non-replayable development history after the mandated retry ceiling
+  (`0016`/`0019`, `0016b`/`0022`, then `0027`); exact reconstruction no longer depends on repairing
+  those stale historical preimages. See `notes/patch-series-replay-20260820.md`.
 - [x] **M4-LINUX-SPLIT-CONTRACT [driver] (a3f4c4b):** the cold rebuild's missing deferred shard
   is root-caused to `BLENDER_WEB_WASM_SPLIT_MODE=OFF`, not an unexplained link failure. A locked
   Emscripten repro proves OFF/CAPTURE output shapes; the new preflight validates OFF, CAPTURE, and

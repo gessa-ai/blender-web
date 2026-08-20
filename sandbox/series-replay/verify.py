@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Verify the numbered patch history and the exact migration source snapshot."""
+"""Verify the canonical source patch and optionally diagnose numbered history."""
 
 from __future__ import annotations
 
@@ -45,14 +45,14 @@ def run(
     return result
 
 
-def active_series(series_path: Path) -> list[str]:
+def active_manifest(manifest_path: Path) -> list[str]:
     entries = [
         line.strip()
-        for line in series_path.read_text(encoding="utf-8").splitlines()
+        for line in manifest_path.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
     if len(entries) != len(set(entries)):
-        raise ReplayError("patches/series contains duplicate active entries")
+        raise ReplayError(f"{manifest_path} contains duplicate active entries")
     return entries
 
 
@@ -136,20 +136,28 @@ def extract_pin(source: Path, destination: Path) -> None:
 
 
 def main() -> int:
-    if sys.argv[1:] not in ([], ["--preview-only"]):
-        raise ReplayError("usage: verify.py [--preview-only]")
-    preview_only = sys.argv[1:] == ["--preview-only"]
+    if sys.argv[1:] not in (
+        [],
+        ["--canonical-only"],
+        ["--preview-only"],
+        ["--numbered-history"],
+    ):
+        raise ReplayError(
+            "usage: verify.py [--canonical-only|--numbered-history]"
+        )
+    verify_numbered_history = sys.argv[1:] == ["--numbered-history"]
 
     root = Path(__file__).resolve().parents[2]
     source = root / "upstream"
     patches = root / "patches"
     series_path = patches / "series"
+    canonical_path = patches / "canonical"
 
     source_head = run(["git", "-C", str(source), "rev-parse", "HEAD"]).stdout.decode().strip()
     if source_head != EXPECTED_PIN:
         raise ReplayError(f"upstream HEAD mismatch: expected {EXPECTED_PIN}, got {source_head}")
 
-    entries = active_series(series_path)
+    entries = active_manifest(series_path)
     active = set(entries)
     numbered = {path.name for path in patches.glob("0*.patch")}
     missing = sorted(active - numbered)
@@ -166,46 +174,57 @@ def main() -> int:
     for entry in entries:
         touched.update(patch_paths(patches / entry))
 
-    source_dirty = dirty_paths(source)
-    preview_patch = patches / "PREVIEW_SNAPSHOT.patch"
-    preview_receipt = patches / "PREVIEW_SNAPSHOT.sha256"
-    receipt_fields = preview_receipt.read_text(encoding="utf-8").split()
-    if len(receipt_fields) != 2 or receipt_fields[1] != preview_patch.name:
-        raise ReplayError("malformed PREVIEW_SNAPSHOT.sha256 receipt")
-    preview_sha256 = hashlib.sha256(preview_patch.read_bytes()).hexdigest()
-    if preview_sha256 != receipt_fields[0]:
+    canonical_entries = active_manifest(canonical_path)
+    if len(canonical_entries) != 1:
         raise ReplayError(
-            f"preview snapshot digest mismatch: expected {receipt_fields[0]}, got {preview_sha256}"
+            f"patches/canonical must name exactly one squashed patch, got {len(canonical_entries)}"
         )
-    preview_paths = patch_paths(preview_patch)
-    if preview_paths != source_dirty:
-        missing_from_preview = sorted(source_dirty - preview_paths)
-        clean_in_source = sorted(preview_paths - source_dirty)
+    canonical_name = canonical_entries[0]
+    if Path(canonical_name).name != canonical_name or not canonical_name.endswith(".patch"):
+        raise ReplayError(f"unsafe canonical patch name: {canonical_name}")
+
+    source_dirty = dirty_paths(source)
+    canonical_patch = patches / canonical_name
+    canonical_receipt = canonical_patch.with_suffix(".sha256")
+    receipt_fields = canonical_receipt.read_text(encoding="utf-8").split()
+    if len(receipt_fields) != 2 or receipt_fields[1] != canonical_patch.name:
+        raise ReplayError(f"malformed {canonical_receipt.name} receipt")
+    canonical_sha256 = hashlib.sha256(canonical_patch.read_bytes()).hexdigest()
+    if canonical_sha256 != receipt_fields[0]:
         raise ReplayError(
-            "preview/source path-set mismatch: "
-            f"dirty_not_preview={missing_from_preview[:12]} preview_not_dirty={clean_in_source[:12]}"
+            "canonical source digest mismatch: "
+            f"expected {receipt_fields[0]}, got {canonical_sha256}"
+        )
+    canonical_paths = patch_paths(canonical_patch)
+    if canonical_paths != source_dirty:
+        missing_from_canonical = sorted(source_dirty - canonical_paths)
+        clean_in_source = sorted(canonical_paths - source_dirty)
+        raise ReplayError(
+            "canonical/source path-set mismatch: "
+            f"dirty_not_canonical={missing_from_canonical[:12]} "
+            f"canonical_not_dirty={clean_in_source[:12]}"
         )
 
-    with tempfile.TemporaryDirectory(prefix="blender-web-series-replay-") as temporary:
-        preview_replay = Path(temporary) / "preview"
-        preview_replay.mkdir()
-        extract_pin(source, preview_replay)
-        run(["git", "apply", "--check", str(preview_patch)], cwd=preview_replay)
-        run(["git", "apply", str(preview_patch)], cwd=preview_replay)
+    with tempfile.TemporaryDirectory(prefix="blender-web-source-replay-") as temporary:
+        canonical_replay = Path(temporary) / "canonical"
+        canonical_replay.mkdir()
+        extract_pin(source, canonical_replay)
+        run(["git", "apply", "--check", str(canonical_patch)], cwd=canonical_replay)
+        run(["git", "apply", str(canonical_patch)], cwd=canonical_replay)
 
         mismatches: list[str] = []
-        for relative in sorted(preview_paths):
+        for relative in sorted(canonical_paths):
             expected = fingerprint(source / relative)
-            actual = fingerprint(preview_replay / relative)
+            actual = fingerprint(canonical_replay / relative)
             if actual != expected:
                 mismatches.append(f"{relative}: replay={actual} frozen={expected}")
         if mismatches:
             raise ReplayError(
-                f"preview replay differs from frozen source on {len(mismatches)} paths\n"
+                f"canonical replay differs from frozen source on {len(mismatches)} paths\n"
                 + "\n".join(mismatches[:12])
             )
 
-        if not preview_only:
+        if verify_numbered_history:
             numbered_replay = Path(temporary) / "numbered"
             numbered_replay.mkdir()
             extract_pin(source, numbered_replay)
@@ -220,13 +239,13 @@ def main() -> int:
                         f"series entry {index}/{len(entries)} {entry}: {error}"
                     ) from error
 
-    preview_only_paths = source_dirty - touched
-    prefix = "PREVIEW_REPLAY_PASS" if sys.argv[1:] else "SOURCE_REPLAY_PASS"
+    canonical_only_paths = source_dirty - touched
     print(
-        f"{prefix} "
+        "CANONICAL_REPLAY_PASS "
         f"pin={EXPECTED_PIN[:12]} patches={len(entries)} retired={len(RETIRED_PATCHES)} "
-        f"numbered_touched={len(touched)} preview_sha256={preview_sha256[:12]} "
-        f"preview_paths={len(preview_paths)} preview_only={len(preview_only_paths)}"
+        f"numbered_touched={len(touched)} canonical_sha256={canonical_sha256[:12]} "
+        f"canonical_paths={len(canonical_paths)} canonical_only={len(canonical_only_paths)} "
+        f"numbered_history={'verified' if verify_numbered_history else 'diagnostic-only'}"
     )
     return 0
 

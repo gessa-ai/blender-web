@@ -782,6 +782,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Sharp and its host-only Linux closure are recorded in `ledger/deps.json`; the established
   greyscale/resize/MAD detector and budgets are unchanged. No browser or receipt was produced;
   s7 hardware plus APPLY remain mandatory. See `notes/m5-latency-linux-portability-20260820.md`.
+- [x] **M7-USD-LINUX-PORTABILITY [driver, producer-only]:** the strict USD browser producer now
+  derives its checkout/product/evidence paths, requires Node 22.16.0 plus Playwright 1.61.1,
+  accepts an explicit canonical source freeze, and confines immutable output to one repository
+  child. Root/descendant self-checks pass 13/13 without dependencies and 14/14 with the live
+  loader, all with zero browser launches. The gate entrypoint and bundle/source checker now
+  reach the honest missing-current-staged/files/APPLY boundary. No receipt was produced; s7
+  hardware remains mandatory. See `notes/m7-usd-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

@@ -30,7 +30,7 @@ import jsonschema
 
 import fallback_contract as fallback_contract
 
-ROOT = pathlib.Path("/Users/paws/blender-web")
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 BUNDLE = ROOT / "sandbox/m8-staged-deploy/bundle-staged"
 STAGED_RECEIPT = ROOT / "sandbox/m8-staged-deploy/artifacts/verify_staged.json"
 FILES_RECEIPT = ROOT / "sandbox/m7-product-gate/verify_files.json"

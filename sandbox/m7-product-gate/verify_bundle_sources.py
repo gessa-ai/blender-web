@@ -10,7 +10,7 @@ import json
 import pathlib
 import sys
 
-ROOT = pathlib.Path("/Users/paws/blender-web")
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "sandbox/m8-staged-deploy"))
 from stage_pack import parse_manifest  # noqa: E402
 

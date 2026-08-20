@@ -2,4 +2,5 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
-exec python3 /Users/paws/blender-web/sandbox/m7-product-gate/verify_m7.py "$@"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+exec python3 "$SCRIPT_DIR/verify_m7.py" "$@"

@@ -62,3 +62,11 @@ two-scenario producer remains stopped at s7: ornith-lab still exposes only softw
 the accepted-hardware check deliberately allocates no profile evidence. Once the RTX-backed
 adapter exists, the unchanged next action is the exact success plus terminal-error CAPTURE pair,
 then union and APPLY.
+
+## Audit correction
+
+The subsequent 25-commit audit found that the intended non-fallback rule still accepted an
+unreported `isFallbackAdapter` value. Commit `deac4ec` requires literal `false` in the producer,
+profile union, and APPLY finalizer. Fresh browser-free evidence is 13/23 for the producer and
+4/29 across both consumers (`ledger/buildlogs/20260820T232116-2638257.log`). No historical
+profile or result changed because no Linux CAPTURE receipt exists.

@@ -47,3 +47,11 @@ machine-global command alias. The host-only dependency decision is recorded in
 No bundle, browser/GPU/APPLY receipt, result promotion, deferral, public-policy assertion, product
 source, harness gate, tolerance, golden, or promise changed. M8 remains RED, and the s7
 software-adapter stop condition still forbids CAPTURE/APPLY or any hardware-bound receipt.
+
+## Audit correction
+
+The subsequent 25-commit audit proved that the producer's recorded REUSE identity was not yet
+consumed by `verify_m8.py`: a forged path/version/size/digest caused zero failures. Commit
+`deac4ec` independently rechecks the exact live executable and adds a digest-tamper fixture.
+The complete consumer self-check is green (`ledger/buildlogs/20260820T232148-2638488.log`);
+the existing compliance receipt remains correctly stale until a complete current M8 candidate.

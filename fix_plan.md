@@ -890,6 +890,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   no longer emits trailing whitespace. M0 remains 6/6 GREEN and regression remains honestly
   RED only on the existing M1-M6 receipt/artifact/hardware/run-label gates. The separate final
   human harness-digest ratification item in `notes/harness-issues.md` remains open.
+- [x] **AUDIT-20260820-R2 [driver] (deac4ec):** adversarial review of `8bc251b..67c5dc4`
+  found 0 critical / 3 major / 0 minor. CAPTURE now requires an explicitly reported
+  non-fallback adapter in its producer plus both consumers, and M8 now independently consumes
+  the recorded REUSE executable identity. All focused self-checks are green; no receipt or pass
+  was promoted. See `reports/audit-20260820-r2.md`.
+- [ ] **AUDIT-20260820-R2-RUNTIME-ADAPTER [driver/harness]:** add one exact shared runtime
+  adapter record to the Linux M5-M8 browser producers and independent consumers so a valid APPLY
+  product cannot yield a lane receipt on llvmpipe/SwiftShader. Browser-free contract and mutation
+  tests are unblocked; live acceptance/receipts are **blocked-by s7 hardware Vulkan/WebGPU**.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

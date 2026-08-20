@@ -105,10 +105,9 @@ directory. The runner hash-binds itself, all three Python tools, both input blen
 both unchanged goldens, and the receipt-bound JS/Wasm pair, then rejects any
 mid-run drift.
 
-## Next unit
+## Closeout
 
-Repair the suite launch sequence so the staged add-on is registered before the
-file load, or execute the exact upstream handler once after a deliberately late
-registration. Then rerun all 27 Cycles rows and the independent verifier. The two
-blacklist entries may be removed only after the unchanged pinned comparator is
-27/27 green and the old entries trip the stale-blacklist control.
+`notes/m6-cycles-load-order-repair-20260820.md` completes this next unit. The
+full pre-removal matrix tripped exactly the two predicted stale entries, and the
+final immutable r5 receipt passes all 27 unchanged pinned comparisons with no
+Cycles blacklist rows.

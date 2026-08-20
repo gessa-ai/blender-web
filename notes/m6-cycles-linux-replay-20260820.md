@@ -3,12 +3,14 @@
 
 # M6 Cycles-CPU Linux replay - 2026-08-20
 
-> **Later correction (2026-08-20):** the two measured SKIPs below came from the
+> **Later closeout (2026-08-20):** the two measured SKIPs below came from the
 > suite registering the staged Cycles add-on after loading these old `.blend`
 > files, which skipped Cycles' file-version handler. The immutable r3 receipt is
-> valid for that runner, but its arithmetic attribution is superseded by
-> `notes/m6-cycles-edge-attribution-20260820.md`. No exclusion is removed until a
-> repaired full-suite receipt passes the stale-blacklist control.
+> valid for that runner, but its arithmetic attribution is superseded. The
+> repaired r5 receipt is 27/27 PASS after the complete matrix tripped exactly
+> those two stale exclusions; see
+> `notes/m6-cycles-load-order-repair-20260820.md`. The remainder of this note is
+> preserved as the historical r3 receipt.
 
 ## Outcome
 

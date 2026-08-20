@@ -11,15 +11,9 @@
 # run_oracle_renders.sh reads this file and reports blacklisted tests as SKIP (not FAIL),
 # exactly as render_report.blend_list drops native BLOCKLIST matches.
 #
-# Cycles' scalar WebAssembly CPU kernel has a reproducible cross-architecture
-# numerical delta on these two 25-sample, high-frequency Principled scenes. Both
-# renders complete successfully and are pixel-identical at one and two threads
-# under an exact 0/0 comparator, but exceed the native-SIMD golden tolerance. A native CPU render explicitly
-# forced to BVH2 still matches the golden, ruling out the missing Embree build as
-# the cause. Keep these scoped exclusions until scalar-wasm/native-SIMD parity is
-# resolved; the other 25 Cycles-CPU rows remain comparator PASSes.
-cycles  principled_bsdf_default\.blend$  # wasm scalar/native SIMD numerical drift: max 0.110, 20.8% over 0.016
-cycles  principled_bsdf_emission_alpha\.blend$  # wasm scalar/native SIMD numerical drift: max 0.686, 11.4% over 0.016
+# Cycles CPU currently has no exclusions. The former two Principled rows were
+# stale runner artifacts: registering the staged add-on before opening each old
+# blend restores the upstream Cycles version migrations and comparator parity.
 
 # Historical product-F12 matrix preview0-final-wb-product-r1 was 20/20
 # functional but only 17/20 strict: aa-single-pass, dof, and in_front_dof were

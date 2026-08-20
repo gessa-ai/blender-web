@@ -57,6 +57,13 @@ CYCLES_ARTIFACTS = {
 OIIOTOOL = shutil.which("oiiotool") or "/opt/homebrew/bin/oiiotool"
 MAX_RE = re.compile(r"Max error\s*=\s*([0-9.eE+-]+)")
 PERCENT_RE = re.compile(r"\(([0-9.]+)%\)\s*over")
+CYCLES_LEGACY_RE = re.compile(
+    r"^M6T_LEGACY_SETTINGS_OK "
+    r"file_version=([0-9]+\.[0-9]+\.[0-9]+) "
+    r"handler_hits=1 addon_handler_preloaded=1 "
+    r"sampling=(TABULATED_SOBOL|NOT_APPLICABLE)$",
+    re.MULTILINE,
+)
 
 
 def fail(message: str) -> None:
@@ -600,7 +607,7 @@ def verify_cycles_suite(entries, manifest_rows) -> tuple[int, int]:
     if CYCLES_SUITE_ROOT is None or not LABEL_RE.fullmatch(CYCLES_SUITE_LABEL):
         fail("M6_CYCLES_RESULTS must select one immutable Cycles suite label")
     provenance = load_json(CYCLES_SUITE_ROOT / "provenance.json")
-    if (provenance.get("schema") != "blender-web.cycles-wasm-suite.v2"
+    if (provenance.get("schema") != "blender-web.cycles-wasm-suite.v3"
             or provenance.get("label") != CYCLES_SUITE_LABEL or provenance.get("immutable") is not True
             or provenance.get("artifactStable") is not True):
         fail("Cycles suite provenance identity failed")
@@ -616,7 +623,8 @@ def verify_cycles_suite(entries, manifest_rows) -> tuple[int, int]:
         reader = csv.DictReader(handle, delimiter="\t")
         expected_fields = [
             "test", "render_s", "node_exit", "diff_exit", "verdict", "max_err", "pct_over", "note",
-            "input_sha256", "golden_sha256", "render_sha256", "threshold", "fail_percent", "comparator_sha256",
+            "file_version", "legacy_settings", "log_sha256", "input_sha256", "golden_sha256",
+            "render_sha256", "threshold", "fail_percent", "comparator_sha256",
         ]
         if reader.fieldnames != expected_fields:
             fail(f"Cycles result schema changed: {reader.fieldnames}")
@@ -634,14 +642,30 @@ def verify_cycles_suite(entries, manifest_rows) -> tuple[int, int]:
         directory, test = key.split("/", 1)
         render_path = CYCLES_SUITE_ROOT / "renders" / directory / f"{test}.png"
         comparator_path = CYCLES_SUITE_ROOT / "comparators" / directory / f"{test}.txt"
+        log_path = CYCLES_SUITE_ROOT / "logs" / directory / f"{test}.log"
         if row["input_sha256"] != sha256(expected["blend"]) or row["golden_sha256"] != sha256(expected["golden"]):
             fail(f"Cycles input/golden hash mismatch: {key}")
-        if row["render_sha256"] != sha256(render_path) or row["comparator_sha256"] != sha256(comparator_path):
-            fail(f"Cycles render/comparator hash mismatch: {key}")
+        if (row["render_sha256"] != sha256(render_path)
+                or row["comparator_sha256"] != sha256(comparator_path)
+                or row["log_sha256"] != sha256(log_path)):
+            fail(f"Cycles render/comparator/log hash mismatch: {key}")
         if row["threshold"] != expected["threshold"] or row["fail_percent"] != expected["failPercent"]:
             fail(f"Cycles threshold drift: {key}")
         if row["node_exit"] != "0":
             fail(f"Cycles node render did not exit 0: {key}")
+        log_text = log_path.read_text(errors="replace")
+        legacy_matches = CYCLES_LEGACY_RE.findall(log_text)
+        if len(legacy_matches) != 1:
+            fail(f"Cycles legacy-settings receipt count is not one: {key}")
+        file_version, legacy_settings = legacy_matches[0]
+        if row["file_version"] != file_version or row["legacy_settings"] != legacy_settings:
+            fail(f"Cycles legacy-settings result/log mismatch: {key}")
+        version = tuple(int(part) for part in file_version.split("."))
+        expected_legacy = "TABULATED_SOBOL" if version <= (4, 2, 52) else "NOT_APPLICABLE"
+        if legacy_settings != expected_legacy:
+            fail(f"Cycles legacy-settings migration mismatch: {key}")
+        if log_text.count("M6T_ENGINE_OK addon-registered-before-load") != 1:
+            fail(f"Cycles staged add-on was not registered exactly once before load: {key}")
         live = live_compare(expected["golden"], render_path, expected["threshold"], expected["failPercent"], rgb=False)
         verify_metrics(row["max_err"], row["pct_over"], live, f"Cycles {key}")
         exclusion = blacklist_entry(entries, "cycles", expected["basename"])
@@ -657,9 +681,9 @@ def verify_cycles_suite(entries, manifest_rows) -> tuple[int, int]:
             skipped += 1
     if seen != expected_keys(manifest_rows, "cycles"):
         fail(f"Cycles exact row set mismatch: missing={expected_keys(manifest_rows, 'cycles') - seen}")
-    if (passed, skipped) != (25, 2):
-        fail(f"Cycles totals {(passed, skipped)} != (25 pass, 2 skip)")
-    if provenance.get("counts") != {"pass": 25, "fail": 0, "skip": 2, "stale": 0, "blocked": 0} or provenance.get("status") != "PASS":
+    if (passed, skipped) != (27, 0):
+        fail(f"Cycles totals {(passed, skipped)} != (27 pass, 0 skip)")
+    if provenance.get("counts") != {"pass": 27, "fail": 0, "skip": 0, "stale": 0, "blocked": 0} or provenance.get("status") != "PASS":
         fail("Cycles suite provenance totals/status mismatch")
     return passed, skipped
 
@@ -751,7 +775,7 @@ def selfcheck() -> int:
     entries = parse_blacklist()
     verify_blacklist_coverage(entries, manifest_rows)
     counts = {engine: sum(entry["engine"] == engine for entry in entries) for engine in ("workbench", "eevee", "cycles")}
-    if counts != {"workbench": 1, "eevee": 17, "cycles": 2}:
+    if counts != {"workbench": 1, "eevee": 17, "cycles": 0}:
         fail(f"blacklist count self-check changed: {counts}")
     if set(SHELL_FILES) != {"index", "windowed", "diagnostics", "boot", "fileBridge", "preinit"}:
         fail("served-shell set self-check changed")
@@ -776,7 +800,7 @@ def selfcheck() -> int:
         pass
     else:
         fail("orphan blacklist negative self-check")
-    print("M6_RENDER_SELFCHECK_PASS rows=20+30+27 blacklist=1+17+2 selectors=workbench,eevee,cycles-smoke,cycles-suite")
+    print("M6_RENDER_SELFCHECK_PASS rows=20+30+27 blacklist=1+17+0 selectors=workbench,eevee,cycles-smoke,cycles-suite legacy_receipts=1")
     return 0
 
 

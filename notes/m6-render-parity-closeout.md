@@ -8,6 +8,12 @@
 > `ledger/results/m6.json` is intentionally RED until the full matrices are
 > rerun and this binding is refreshed. The counts below remain historical
 > evidence, not a claim about the newer bytes.
+>
+> **CPU component refresh (2026-08-20):** immutable
+> `m6-cycles-ornith-linux-20260820-r5` independently verifies 27/27 Cycles-CPU
+> rows with zero exclusions. The Workbench/EEVEE rows and shipping binding below
+> remain historical and keep aggregate M6 RED. See
+> `notes/m6-cycles-load-order-repair-20260820.md`.
 
 M6 is GREEN under the contract in `GOAL.md`: comparator passes plus explicit,
 measured per-test SKIPs. No comparator threshold, golden, or failed row was
@@ -36,7 +42,7 @@ changed pass/skip census.
 |---|---|---:|---:|---:|
 | Workbench | `m6-current-wb-final-r2` | 19 | 1 | 0 |
 | EEVEE | `eevee-final-full-r16` | 13 | 17 | 0 |
-| Cycles CPU | `results-wasm-cycles.tsv` | 25 | 2 | 0 |
+| Cycles CPU | `results-wasm-cycles.tsv` | 27 | 0 | 0 |
 
 Workbench and EEVEE rows use one trusted physical F12 per case. The current
 Cycles product smoke is `m6-current-cycles-f12-r5`; its pinned 64×64, 16-sample
@@ -47,8 +53,8 @@ Every SKIP and its measured maximum/percentage is listed in
 single-pass AA edge resolve. EEVEE exclusions are feature-scoped ray payload,
 transparency-dither, and Principled lobe/transmission fidelity gaps; the passing
 controls include both colorspace rows, blended transparency, all four shadow
-rows, ray attribute/direction, default/zero-coat/metallic/sheen. Cycles' two
-exclusions are reproduced scalar-Wasm/native-SIMD numerical deltas.
+rows, ray attribute/direction, default/zero-coat/metallic/sheen. Cycles CPU has
+no remaining exclusion.
 
 These SKIPs are public renderer limitations, not hidden completion claims. A
 future fix must first make the unchanged comparator pass; the verifier then

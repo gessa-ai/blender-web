@@ -737,12 +737,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   (`20260820T174027-2271099` / `20260820T173718-2262051`); no product source, blacklist,
   threshold, golden, result, or deferral changed. See
   `notes/m6-cycles-edge-attribution-20260820.md`.
-- [ ] **M6-CYCLES-LOAD-ORDER-REPAIR [driver, CPU-only, next unblocked]:** register the staged
-  Cycles add-on before each `.blend` load (preferred) or invoke the exact upstream version
-  handler once after a deliberately late registration; add a legacy-settings assertion, rerun
-  all 27 rows and the independent CPU-only verifier, and remove only the two now-stale blacklist
-  rows if the unchanged pinned comparator is 27/27 green. Do not promote aggregate M6 while its
-  Workbench/EEVEE/APPLY/hardware gates remain blocked.
+- [x] **M6-CYCLES-LOAD-ORDER-REPAIR [driver, CPU-only]:** the staged Cycles add-on and exact
+  version handler now register before each `.blend` open. Receipt schema v3 binds every render,
+  comparator, node log, pre-load handler event, file version, and legacy sampling assertion.
+  The full pre-removal control is exactly 25 PASS / 2 STALE; after retiring only those two
+  Cycles rows, immutable `m6-cycles-ornith-linux-20260820-r5` is 27 PASS / 0 SKIP with stable
+  artifacts and an independently replayed live comparator. Nine old inputs prove Tabulated
+  Sobol migration; eighteen newer inputs prove the handler event without a false legacy
+  expectation. Required M6/regression remain RED on the existing Workbench/current-artifact,
+  strict-manifest, split-product, and s7 hardware gates; no aggregate result was promoted. See
+  `notes/m6-cycles-load-order-repair-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

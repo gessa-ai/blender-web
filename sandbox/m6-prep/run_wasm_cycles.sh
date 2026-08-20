@@ -35,11 +35,11 @@ RUNNER="$ROOT/$MP/run_wasm_cycles.sh"
 if [[ "${1:-}" == "--selfcheck" ]]; then
   rows=$(awk -F '\t' '$1 == "cycles" {count++} END {print count+0}' "$MAN")
   exclusions=$(awk '$1 == "cycles" {count++} END {print count+0}' "$BLK")
-  [[ "$rows" == 27 && "$exclusions" == 2 ]] || {
+  [[ "$rows" == 27 && "$exclusions" == 0 ]] || {
     echo "SELF_CHECK_FAIL rows=$rows exclusions=$exclusions" >&2
     exit 1
   }
-  echo "SELF_CHECK_PASS runner=cycles-wasm-suite immutable=1 rows=27 measured_blacklist=2 retained_comparators=1"
+  echo "SELF_CHECK_PASS runner=cycles-wasm-suite immutable=1 rows=27 measured_blacklist=0 retained_comparators=1 legacy_receipts=1"
   exit 0
 fi
 LABEL="${1:-}"
@@ -122,7 +122,7 @@ if ! mkdir "$RUN_ROOT"; then
 fi
 mkdir "$RENDERS" "$LOGS" "$COMPARATORS"
 
-printf 'test\trender_s\tnode_exit\tdiff_exit\tverdict\tmax_err\tpct_over\tnote\tinput_sha256\tgolden_sha256\trender_sha256\tthreshold\tfail_percent\tcomparator_sha256\n' > "$RESULTS"
+printf 'test\trender_s\tnode_exit\tdiff_exit\tverdict\tmax_err\tpct_over\tnote\tfile_version\tlegacy_settings\tlog_sha256\tinput_sha256\tgolden_sha256\trender_sha256\tthreshold\tfail_percent\tcomparator_sha256\n' > "$RESULTS"
 
 pass=0; fail=0; skip=0; stale=0; blocked=0; n=0
 echo "== M6 wasm Cycles-CPU comparator (threads=$THREADS) =="
@@ -137,7 +137,7 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   is_blacklisted "$engine" "$test" && blacklisted=1
   if ! have_input "$blend"; then
     echo "BLOCKED $dir/$test (LFS pointer/missing)"; blocked=$((blocked+1))
-    printf '%s\t-\t-\t-\tBLOCKED\t-\t-\tinput-not-materialized\t-\t-\t-\t%s\t%s\t-\n' "$dir/$test" "$thr" "$fp" >> "$RESULTS"; continue
+    printf '%s\t-\t-\t-\tBLOCKED\t-\t-\tinput-not-materialized\t-\t-\t-\t-\t-\t-\t%s\t%s\t-\n' "$dir/$test" "$thr" "$fp" >> "$RESULTS"; continue
   fi
 
   mkdir -p "$RENDERS/$dir" "$LOGS/$dir" "$COMPARATORS/$dir"
@@ -147,20 +147,31 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   png="${base}.png"
   rm -f "$png"
   export M6_OUT_BASE="$base"
+  export M6_BLEND="$ROOT/$blend"
 
   t0=$(now)
-  "$NODE" "$BIN" --background --factory-startup "$ROOT/$blend" --python "$DRIVER" > "$log" 2>&1
+  "$NODE" "$BIN" --background --factory-startup --python "$DRIVER" > "$log" 2>&1
   nec=$?
   t1=$(now)
   rt=$(python3 -c "print(f'{$t1-$t0:.1f}')")
 
-  if [ ! -s "$png" ]; then
+  legacy_line=$(grep -aoE 'M6T_LEGACY_SETTINGS_OK file_version=[0-9]+\.[0-9]+\.[0-9]+ handler_hits=1 addon_handler_preloaded=1 sampling=(TABULATED_SOBOL|NOT_APPLICABLE)' "$log" | tail -1)
+  file_version="-"; legacy_settings="-"
+  if [ -n "$legacy_line" ]; then
+    file_version="${legacy_line#*file_version=}"
+    file_version="${file_version%% *}"
+    legacy_settings="${legacy_line##*sampling=}"
+  fi
+
+  if [ "$nec" != 0 ] || [ ! -s "$png" ] || [ -z "$legacy_line" ]; then
     # render failed — extract ONE short reason token (no raw logs)
-    note=$(grep -aoE 'M6T_ENGINE_FAIL|ModuleNotFoundError|MemoryError|Aborted\(|RuntimeError|out of memory|Segmentation|Error: |unable to open|Calling abort' "$log" | head -1)
+    note=$(grep -aoE 'M6T_ENGINE_FAIL|ModuleNotFoundError|MemoryError|AssertionError|Aborted\(|RuntimeError|out of memory|Segmentation|Error: |unable to open|Calling abort' "$log" | head -1)
+    [ -n "$legacy_line" ] || note="legacy-settings-marker"
     [ -n "$note" ] || note="no-png"
     echo "FAIL $dir/$test (render: ${note}) ${rt}s"
-    printf '%s\t%s\t%s\t-\tFAIL\t-\t-\trender:%s\t%s\t%s\t-\t%s\t%s\t-\n' \
-      "$dir/$test" "$rt" "$nec" "$note" "$(sha "$ROOT/$blend")" "$(sha "$ROOT/$golden")" "$thr" "$fp" >> "$RESULTS"
+    printf '%s\t%s\t%s\t-\tFAIL\t-\t-\trender:%s\t%s\t%s\t%s\t%s\t%s\t-\t%s\t%s\t-\n' \
+      "$dir/$test" "$rt" "$nec" "$note" "$file_version" "$legacy_settings" "$(sha "$log")" \
+      "$(sha "$ROOT/$blend")" "$(sha "$ROOT/$golden")" "$thr" "$fp" >> "$RESULTS"
     fail=$((fail+1)); continue
   fi
 
@@ -187,9 +198,10 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
       verdict=FAIL; note=pixel-drift; fail=$((fail+1))
     fi
   fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$dir/$test" "$rt" "$nec" "$dec" "$verdict" "$maxe" "$over" "$note" \
-    "$(sha "$ROOT/$blend")" "$(sha "$ROOT/$golden")" "$(sha "$png")" "$thr" "$fp" "$(sha "$comparator")" >> "$RESULTS"
+    "$file_version" "$legacy_settings" "$(sha "$log")" "$(sha "$ROOT/$blend")" \
+    "$(sha "$ROOT/$golden")" "$(sha "$png")" "$thr" "$fp" "$(sha "$comparator")" >> "$RESULTS"
 done < "$MAN"
 
 artifact_stable=1
@@ -220,7 +232,7 @@ def tree_receipt(path):
     return {"path": str(path), "fileCount": count, "sha256Tree": digest.hexdigest()}
 binary_wasm = binary_js.with_suffix(".wasm")
 payload = {
-    "schema": "blender-web.cycles-wasm-suite.v2",
+    "schema": "blender-web.cycles-wasm-suite.v3",
     "label": label,
     "immutable": True,
     "artifacts": {

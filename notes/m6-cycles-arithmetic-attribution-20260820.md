@@ -7,8 +7,9 @@
 > SIMD selection and relaxed FP flags, but the remaining divergence was not a
 > product arithmetic defect. The Wasm suite registered Cycles after loading the
 > old `.blend`, skipping `cycles.version_update.do_versions`; see
-> `notes/m6-cycles-edge-attribution-20260820.md`. The historical measurements
-> below remain valid for that misconfigured runner.
+> `notes/m6-cycles-edge-attribution-20260820.md`. The repaired 27/27 receipt is
+> recorded in `notes/m6-cycles-load-order-repair-20260820.md`; the historical
+> measurements below remain valid for the misconfigured runner.
 
 ## Outcome
 
@@ -24,13 +25,13 @@ scene/golden inputs:
 | wasm SIMD128 / SSE4.2 | max 0.1098039, 20.8% over | max 0.6862745, 11.4% over | 1 and 13 changed pixels |
 | strict scalar FP | max 0.1098039, 20.8% over | max 0.6862745, 11.4% over | pixel-exact for both |
 
-The earlier `scalar-Wasm/native-SIMD numerical drift` label is therefore too
-specific. The honest remaining blocker is a reproducible wasm32-versus-native
-render divergence on two high-frequency Principled edge cases; its responsible
-scene, sampling, or kernel operation is not yet isolated. The two narrow
-blacklist rows remain measured and stale-failing, but their historical comment
-must be corrected when the next fresh pinned-comparator CPU receipt is sealed.
-No blacklist, tolerance, golden, result flag, or deferral was changed here.
+The earlier `scalar-Wasm/native-SIMD numerical drift` label was therefore too
+specific. At this experiment stage, the honest remaining symptom was a
+reproducible wasm32-versus-native render divergence on two high-frequency
+Principled edge cases. Both narrow blacklist rows remained measured and
+stale-failing here; the later load-order repair made them stale and retired them.
+No blacklist, tolerance, golden, result flag, or deferral was changed by this
+historical experiment itself.
 
 ## SIMD experiment
 

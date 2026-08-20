@@ -57,21 +57,27 @@ if [ ! -f "$LIBWASM_INC/fmt/ranges.h" ] || [ ! -f "$LIBWASM_INC/zstd.h" ]; then
 fi
 "$CXX" -std=c++20 -O2 -DNDEBUG \
   -I "$BL" -I "$GA" -I "$ROOT/upstream/intern/atomic" -I "$ROOT/upstream/intern/eigen" \
-  -I "$SRC/makesdna" -isystem "$LIBWASM_INC" \
+  -I "$SRC/makesdna" -I "$ROOT/upstream/extern/wcwidth" -include cstddef -Wno-conversion -Wno-sign-conversion -isystem "$LIBWASM_INC" \
   "$DEAD_STRIP" \
   -o "$OUT/msgfmt" \
   "$MF/msgfmt.cc" \
-  "$BL/intern/storage.cc" \
-  "$BL/intern/fileops_c.cc" \
   "$BL/intern/string.cc" \
   "$BL/intern/BLI_linklist.cc" \
+  "$BL/intern/storage.cc" \
+  "$BL/intern/fileops_c.cc" \
+  "$BL/intern/path_utils.cc" \
+  "$BL/intern/BLI_assert.cc" \
+  "$BL/intern/string_utils.cc" \
+  "$BL/intern/string_utf8.cc" \
+  "$ROOT/upstream/extern/wcwidth/wcwidth.c" \
   "$BL/intern/BLI_memarena.cc" \
   "$BL/intern/BLI_mempool.cc" \
   "$GA/intern/mallocn.cc" \
   "$GA/intern/mallocn_lockfree_impl.cc" \
   "$GA/intern/mallocn_guarded_impl.cc" \
   "$GA/intern/memory_usage.cc" \
-  "$GA/intern/leak_detector.cc"
+  "$GA/intern/leak_detector.cc" \
+  -lz -lzstd
 
 echo "[build-hosttools] done:"
 ls -la "$OUT/datatoc" "$OUT/shader_tool" "$OUT/msgfmt"

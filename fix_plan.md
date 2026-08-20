@@ -622,10 +622,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `patches/PREVIEW_SNAPSHOT.patch` (SHA-256 recorded beside it); `lib/` and every build tree are
   explicitly rebuild-only. See `notes/gpu-r26-migration-savepoint.md` and
   `notes/migration-to-ornith-lab.md`.
-- [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** install the pinned emsdk and
-  Playwright 1.61.1 browser, rebuild `build-wasm-windowed-opt`, serve with COOP/COEP under WSLg,
-  capture fresh immutable splash/workspace labels at 1280x720 DPR1, bind, run the unchanged
-  comparator, then run `harness/run.sh --scope m4`. Do not adapt the old macOS receipt to the new
+- [x] **M4-LINUX-SPLIT-CONTRACT [driver] (a3f4c4b):** the cold rebuild's missing deferred shard
+  is root-caused to `BLENDER_WEB_WASM_SPLIT_MODE=OFF`, not an unexplained link failure. A locked
+  Emscripten repro proves OFF/CAPTURE output shapes; the new preflight validates OFF, CAPTURE, and
+  exact profile-bound APPLY inventories and rejects stale/symlinked/receipt-drifted shards. The
+  runbook now reconstructs CAPTURE -> two strict accepted-hardware profiles -> union -> APPLY.
+  Focused tests + all split Python self-checks + REUSE are green. Current APPLY preflight exits 5
+  because software llvmpipe binds no profile; no shard or receipt was fabricated.
+- [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
+  hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
+  browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture
+  fresh immutable splash/workspace labels at 1280x720 DPR1, bind, run the unchanged comparator,
+  then run `harness/run.sh --scope m4`. Do not adapt the old macOS receipt or profile to the new
   binary.
 - [~] **M3-LINUX-REPLAY [gpu-backend, before any translation feature work]:** Linux probe
   portability is complete in `68296ec`: Dawn selects Vulkan instead of Metal, both probe

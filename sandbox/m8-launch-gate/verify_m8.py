@@ -29,6 +29,7 @@ SELF = ROOT / "sandbox/m8-launch-gate"
 ART = SELF / "artifacts"
 BUILD = ROOT / "build-wasm-windowed-opt/bin"
 BUNDLE = ROOT / "sandbox/m8-staged-deploy/bundle-staged"
+REUSE_VERSION = "6.2.0"
 
 DARWIN_RUNTIME_SIGNING = {
     "chrome": ("com.google.Chrome", "EQHXZ8M8AV", "Google Chrome.app", "Google Chrome"),
@@ -1319,12 +1320,46 @@ def check_post_receipt(failures: list[str]) -> None:
                         "dashboard differs from a fresh generator output", failures)
 
 
+def check_compliance_tool(receipt: dict, failures: list[str]) -> None:
+    """Revalidate the exact REUSE executable recorded by the producer."""
+    details = receipt.get("details")
+    recorded = details.get("reuse_tool") if isinstance(details, dict) else None
+    require(isinstance(recorded, dict) and
+            set(recorded) == {"path", "version", "bytes", "sha256"},
+            "compliance REUSE tool identity is absent or malformed", failures)
+    if not isinstance(recorded, dict) or \
+            set(recorded) != {"path", "version", "bytes", "sha256"}:
+        return
+    path_text = recorded.get("path")
+    if not isinstance(path_text, str):
+        failures.append("compliance REUSE tool path is absent")
+        return
+    try:
+        current = _exact_runtime_file(path_text, "REUSE executable", executable=True)
+        stdout, _ = _runtime_command([path_text, "--version"])
+    except (OSError, RuntimeError, UnicodeError) as error:
+        failures.append(f"compliance REUSE tool verification failed: {error}")
+        return
+    first_line = stdout.splitlines()[0] if stdout.splitlines() else ""
+    require(first_line == f"reuse, version {REUSE_VERSION}",
+            "compliance REUSE tool version output differs", failures)
+    expected = {
+        "path": path_text,
+        "version": REUSE_VERSION,
+        "bytes": current["bytes"],
+        "sha256": current["sha256"],
+    }
+    require(recorded == expected,
+            "compliance REUSE tool identity differs from current executable", failures)
+
+
 def check_compliance(receipt: dict, failures: list[str]) -> None:
     require(receipt.get("schema") == 1, "compliance receipt schema != 1", failures)
     require(receipt.get("repo_input_digest") == repo_input_digest(),
             "compliance receipt is stale for tracked inputs", failures)
     require(receipt.get("git_history_digest") == git_history_digest(),
             "compliance receipt is stale for git history/metadata", failures)
+    check_compliance_tool(receipt, failures)
     technical_required = (
         "reuse_pass",
         "aggregate_gpl3",
@@ -1722,6 +1757,22 @@ def runtime_consumer_selfcheck() -> None:
                              "snapshot": [{"type": "error"}]},
                             "fixture", diagnostics_failures)
     assert diagnostics_failures
+    with tempfile.TemporaryDirectory(prefix="m8-compliance-consumer-") as temporary:
+        tool = Path(temporary).resolve() / "reuse"
+        tool.write_text("#!/bin/sh\nprintf 'reuse, version 6.2.0\\n'\n", encoding="utf-8")
+        tool.chmod(0o755)
+        tool_identity = {
+            "path": str(tool), "version": REUSE_VERSION,
+            "bytes": tool.stat().st_size, "sha256": sha256(tool),
+        }
+        compliance_fixture = {"details": {"reuse_tool": tool_identity}}
+        compliance_failures: list[str] = []
+        check_compliance_tool(compliance_fixture, compliance_failures)
+        assert not compliance_failures
+        forged = json.loads(json.dumps(compliance_fixture))
+        forged["details"]["reuse_tool"]["sha256"] = "0" * 64
+        check_compliance_tool(forged, compliance_failures)
+        assert compliance_failures
     node = ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"
     assert node.is_file() and subprocess.run(
         [str(node), "--version"], capture_output=True, text=True, check=True).stdout.strip() == "v22.16.0"
@@ -1750,7 +1801,7 @@ def runtime_consumer_selfcheck() -> None:
     linux_positive, linux_negative = linux_runtime_verifier_selfcheck()
     print("M8_RUNTIME_CONSUMER_SELFCHECK_PASS cross_lane=5 negative=identity+diagnostics "
           f"linux={linux_positive}+{linux_negative} composer=strict matrix=exact "
-          "full_stage=deterministic")
+          "compliance_tool=live+tamper full_stage=deterministic")
 
 
 def main() -> int:

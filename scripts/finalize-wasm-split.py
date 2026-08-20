@@ -1458,14 +1458,14 @@ def verify_capture_browser(capture: object, where: str) -> dict[str, object]:
     if re.search(r"(^|[^a-z0-9])cpu([^a-z0-9]|$)", identity):
         matches.append("cpu")
     fallback = adapter.get("isFallbackAdapter")
-    if fallback is not None and type(fallback) is not bool:
+    if type(fallback) is not bool:
         raise WasmError(f"{where}: fallback adapter flag has wrong type")
     if (
         adapter.get("contract") != ADAPTER_CONTRACT
         or adapter.get("status") != "ACCEPTED"
         or adapter.get("present") is not True
         or adapter.get("powerPreference") != "high-performance"
-        or fallback is True
+        or fallback is not False
         or not identity
         or not detail_identity
         or matches

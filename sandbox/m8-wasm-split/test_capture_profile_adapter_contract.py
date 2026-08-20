@@ -44,7 +44,7 @@ def accepted_capture(platform: str = "linux") -> dict[str, object]:
                 "present": True,
                 "platform": platform,
                 "powerPreference": "high-performance",
-                "isFallbackAdapter": None,
+                "isFallbackAdapter": False,
                 "info": {
                     "vendor": "NVIDIA" if platform == "linux" else "apple",
                     "architecture": "Ada" if platform == "linux" else "apple m3 max",
@@ -88,6 +88,8 @@ def main() -> None:
         ("wrong_args", lambda value: value["browser"].update(args=[])),
         ("wrong_platform", lambda value: value["browser"]["adapter"].update(platform="win32")),
         ("fallback", lambda value: value["browser"]["adapter"].update(isFallbackAdapter=True)),
+        ("fallback_status_absent",
+         lambda value: value["browser"]["adapter"].update(isFallbackAdapter=None)),
         ("wrong_fallback_type", lambda value: value["browser"]["adapter"].update(isFallbackAdapter=1)),
         ("absent", lambda value: value["browser"]["adapter"].update(present=False)),
         ("rejected", lambda value: value["browser"]["adapter"].update(status="REJECTED")),

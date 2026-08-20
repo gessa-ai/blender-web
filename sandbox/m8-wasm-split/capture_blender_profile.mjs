@@ -214,6 +214,7 @@ function classifyAdapterProbe(raw, platform = process.platform) {
   let reason = 'accepted-hardware';
   if (!present) reason = 'adapter-absent';
   else if (isFallbackAdapter === true) reason = 'fallback-adapter';
+  else if (isFallbackAdapter !== false) reason = 'fallback-status-absent';
   else if (!identity || !detailIdentity) reason = 'adapter-info-absent';
   else if (softwareMatches.length) reason = 'software-adapter';
   return {
@@ -338,7 +339,7 @@ function runSelfcheck() {
   })));
 
   for (const raw of [
-    { present: true, isFallbackAdapter: null,
+    { present: true, isFallbackAdapter: false,
       info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' } },
     { present: true, isFallbackAdapter: false,
       info: { vendor: 'apple', architecture: 'apple m3 max', device: '', description: '' } },
@@ -350,6 +351,8 @@ function runSelfcheck() {
   for (const [name, raw] of [
     ['absent', { present: false, info: null }],
     ['fallback', { present: true, isFallbackAdapter: true,
+      info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'RTX', description: '' } }],
+    ['fallback-status-absent', { present: true, isFallbackAdapter: null,
       info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'RTX', description: '' } }],
     ['masked', { present: true, isFallbackAdapter: null,
       info: { vendor: '', architecture: '', device: '', description: '' } }],

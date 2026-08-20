@@ -3,7 +3,9 @@
 # threshold/failpercent are Blender's OWN pinned values for that engine+dir,
 # transcribed verbatim from the upstream runners at pin fbe6228777e7:
 #   workbench: render_report.Report default 0.016 / 1   (workbench_render_tests.py)
-#   eevee:     base 4/255=0.0156862745 / 0.08           (eevee_render_tests.py main: set_fail_threshold(4.0/255), set_fail_percent(0.08))
+#   eevee:     base 4/255=0.0156862745 / 0.08; transparency overrides
+#              to 10/255=0.0392156863 / 0.22 and principled_bsdf to / 0.09
+#              (eevee_render_tests.py main)
 #   cycles:    default 0.016 / 1, per-dir overrides      (cycles_render_tests.py main)
 #              colorspace -> 0.05 / 1 (line ~356)
 # Columns: engine <TAB> testdir <TAB> fail_threshold <TAB> fail_percent
@@ -11,10 +13,10 @@
 workbench	workbench	0.016	1
 workbench	colorspace	0.016	1
 eevee	colorspace	0.0156862745	0.08
-eevee	transparency	0.0156862745	0.08
+eevee	transparency	0.0392156863	0.22
 eevee	shadow	0.0156862745	0.08
 eevee	raycast	0.0156862745	0.08
-eevee	principled_bsdf	0.0156862745	0.08
+eevee	principled_bsdf	0.0156862745	0.09
 cycles	colorspace	0.05	1
 cycles	transparency	0.016	1
 cycles	shadow	0.016	1

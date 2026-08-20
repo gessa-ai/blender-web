@@ -707,6 +707,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   honestly RED (`20260820T100436/100444`) because the strict adapter requires one complete
   fresh M0-M3 manifest, still impossible under the named llvmpipe-only M3 hardware-Vulkan
   blocker; no pass flag, deferral, or promise was promoted.
+- [x] **M6-CYCLES-LINUX-REPLAY [driver, CPU-only]:** immutable
+  `m6-cycles-ornith-linux-20260820-r3` renders all 27 rows and independently live-verifies
+  25 PASS / 2 measured SKIP / 0 FAIL / 0 stale / 0 blocked against pinned oiiotool 2.4.17.0.
+  The Release product is exact locked no-work; JS/Wasm SHA-256 begin `f1028f32d168` /
+  `de05586d625b`. Fresh native-BVH2 controls pass both excluded goldens and exact 0/0
+  one-vs-two-thread Wasm comparisons pass, narrowing the blocker to scalar-Wasm/native-SIMD
+  arithmetic drift rather than Embree, OpenSubdiv, or thread determinism. The runner now creates
+  its ignored parent on a clean checkout and the independent verifier has an explicit CPU-only
+  mode; its default aggregate gate is unchanged. This does not promote M6 while Workbench/EEVEE,
+  APPLY, and the strict M0-M3 manifest remain blocked by s7. See
+  `notes/m6-cycles-linux-replay-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

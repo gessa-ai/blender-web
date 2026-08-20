@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Fail-closed, live-comparator M6 render-parity closeout verifier."""
+"""Fail-closed, live-comparator M6 render-parity closeout verifier.
+
+The default remains the complete hardware-bound M6 gate. ``--cycles-only``
+verifies the independently runnable Cycles-CPU component without accepting it
+as a substitute for Workbench, EEVEE, or the browser-render smoke.
+"""
 
 from __future__ import annotations
 
@@ -778,6 +783,23 @@ def selfcheck() -> int:
 def main() -> int:
     if "--selfcheck" in sys.argv[1:]:
         return selfcheck()
+    if "--cycles-only" in sys.argv[1:]:
+        if sys.argv[1:] != ["--cycles-only"]:
+            fail("--cycles-only does not accept additional arguments")
+        if not LABEL_RE.fullmatch(CYCLES_SUITE_LABEL):
+            fail("M6_CYCLES_RESULTS must select one immutable Cycles suite label")
+        entries = parse_blacklist()
+        manifest_rows = load_manifest()
+        verify_blacklist_coverage(entries, manifest_rows)
+        cycles = verify_cycles_suite(entries, manifest_rows)
+        hashes = ",".join(
+            f"{key}={sha256(path)[:12]}" for key, path in CYCLES_ARTIFACTS.items()
+        )
+        print(
+            "M6_CYCLES_CPU_PASS "
+            f"cycles={cycles[0]}pass/{cycles[1]}skip artifacts={hashes}"
+        )
+        return 0
     if (DEFERRED_RE.fullmatch(DEFERRED_WASM_FILENAME) is None
             or DEFERRED_WASM_FILENAME in {"blender_browser.wasm", "blender_browser.wasm.orig"}):
         fail("invalid BW_DEFERRED_WASM_FILENAME")

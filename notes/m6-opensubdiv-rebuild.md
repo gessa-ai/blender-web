@@ -15,23 +15,23 @@ Two proven blockers were closed in one rebuild of the `build-wasm-cycles` tree:
 
 ## What shipped
 
-1. **OpenSubdiv v3_7_0 cross-compiled CPU-only to `lib/wasm`** via new
+1. **OpenSubdiv v3_7_0 cross-compiled without native GPU APIs to `lib/wasm`** via
+   new
    `scripts/deps/opensubdiv.sh` (idempotent; version + MD5 pinned from
    `versions.cmake:232`). Every GPU backend is disabled (no GPU API under Emscripten),
-   leaving Far/Sdc/Vtr/Bfr + the CPU (incl. TBB) evaluators. TBB resolves from the
-   shared prefix via `TBB_DIR`. Compiled clean under emcc 6.0.5.
+   leaving Far/Sdc/Vtr/Bfr + the CPU (incl. TBB) evaluators, plus the
+   API-independent GLSL patch-source data selected by Blender's WebGPU path. TBB
+   resolves from the shared prefix via `TBB_DIR`. Compiled clean under emcc 6.0.5.
    - Harvest: `lib/wasm/lib/libosdCPU.a` (real, 49 objects) + `libosdGPU.a` +
      `lib/wasm/include/opensubdiv`.
-   - **osdGPU is a VALID EMPTY archive.** A CPU-only build emits no GPU object code
-     (`opensubdiv/osd/CMakeLists.txt:404 if(GPU_SOURCE_FILES)` and
-     `opensubdiv/CMakeLists.txt:136 if(OSD_GPU)` are both false), but Blender's
-     `FindOpenSubdiv.cmake` resolves TWO components (osdCPU AND osdGPU) and
-     `dependency_targets.cmake:179` link-injects both, so a missing osdGPU would inject
-     a `-NOTFOUND` token. The empty archive satisfies the two-component find; nothing at
-     runtime references osdGPU symbols (Blender's GPU-subdiv path uses `bf::gpu`).
+   - `osdGPU` is a real archive containing `glslPatchShaderSource.cpp.o`, built
+     with `OSD_PATCH_SHADER_SOURCE_GLSL=ON` while `NO_OPENGL=ON`. The receipt
+     requires the member and defined `GLSLPatchShaderSource` symbol and rejects GL
+     API imports.
    - Self-test (in the script): a Far cube-refine on wasm+node returns the
-     Catmull-Clark level-1 vertex count 26. `ledger/deps.json`: opensubdiv moved
-     `forced_off` to `wasm_built`.
+     Catmull-Clark level-1 vertex count 26, and the linked GLSL source contains
+     `OsdPatchParamIsRegular` and `OsdEvaluatePatchBasis`. `ledger/deps.json`:
+     opensubdiv moved `forced_off` to `wasm_built`.
 
 2. **`patches/blender_web.cmake` flips** (the config is a `-C` initial cache):
    - `WITH_OPENSUBDIV` OFF to ON. Because `platform_wasm.cmake` replaces
@@ -49,9 +49,10 @@ Two proven blockers were closed in one rebuild of the `build-wasm-cycles` tree:
    `#if !defined(__EMSCRIPTEN__)`. Blender 5.2 rewrote this evaluator onto its own
    `gpu::` module: `GpuEvalOutput` is templated purely on Blender `gpu::` types and no
    GL symbol is referenced, so the includes are dead leftovers absent from the
-   CPU-only harvest. Native builds keep them (guard true) and are byte-identical.
-   Reverse-apply verified; `patches/series` updated. This was the only source touch
-   needed; `evaluator_capi.cc` was already correctly guarded on the GPU-backend macros.
+   no-native-GPU-API harvest. Native builds keep them (guard true) and are
+   byte-identical. Reverse-apply verified; `patches/series` updated. Subsequent
+   WebGPU closure propagates `WITH_WEBGPU_BACKEND` into the evaluator and makes
+   `evaluator_capi.cc` select the GLSL patch source by the active backend.
 
 ## RECONFIGURE TRAP (institutional note)
 
@@ -109,17 +110,22 @@ colorspace tests (AgX / ACES 2.0 / Display-P3 / Rec.2020) pass.
 | `principled_bsdf/principled_bsdf_default` | 0.110 | 20.8% | spread, low-amplitude drift on hard silhouette edges |
 | `principled_bsdf/principled_bsdf_emission_alpha` | 0.686 | 11.4% | high-frequency wavy emissive surface; sub-pixel edge sampling |
 
-Both magnitudes are essentially UNCHANGED from the earlier subdivision-confounded
+Both magnitudes are essentially unchanged from the earlier subdivision-confounded
 measurement (0.094 -> 0.110, 0.678 -> 0.686), which proves the residual is **independent
-of OpenSubdiv**. Both are high-frequency-edge scenes - exactly where the wasm build's
-Cycles BVH2 traversal (`WITH_CYCLES_EMBREE=OFF`) diverges most from the oracle's Embree.
-Ruled out: OSL (`WITH_CYCLES_OSL=OFF`, and these are SVM tests), OpenVDB (no volumes),
-denoising (off in the blends), colorspace (both colorspace tests pass). Prime suspect
-confirmed as the standing hypothesis: **BVH2-vs-Embree sub-pixel/edge deltas**.
+of OpenSubdiv**. A fresh pinned-native control on 2026-08-20 forced both scenes to BVH2
+while `_cycles.with_embree` remained true. Both native BVH2 renders still pass their
+goldens with zero pixels over 0.016 (maximum errors 0.0118 and 0.0157), ruling out the
+missing Embree build and BVH layout as the cause. One- and two-thread Wasm renders are
+pixel-identical under an exact 0/0 comparator. Ruled out as well: OSL (these are SVM
+tests), OpenVDB (no volumes), denoising (off in the blends), and colorspace (both
+colorspace tests pass). The remaining named blocker is a reproducible scalar-Wasm vs
+native-SIMD/cross-architecture numerical drift on high-frequency edges; its exact
+arithmetic source is not yet isolated.
 
-Disposition: these are a tier-(c) justified per-adapter blacklist candidate (Blender's
-own idiff tolerance regime allows it), or they close by cross-compiling Embree to wasm
-(a separate build-deps task; may itself be a launch deferral if Embree does not port).
-Not an OpenSubdiv or Cycles-correctness bug. The committed blacklist stays empty.
+Disposition: these are tier-(c) justified, narrowly scoped blacklist entries under
+Blender's own idiff regime until scalar-Wasm/native-SIMD parity is resolved. They are
+not OpenSubdiv, Embree-layout, render-completion, or thread-determinism failures; a
+future arithmetic fix must make the unchanged comparator pass, at which point the
+stale-blacklist check fails closed.
 
 Per-test receipts: `sandbox/m6-prep/results-wasm-cycles.tsv`.

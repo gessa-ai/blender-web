@@ -12,13 +12,13 @@
 #   oiiotool <golden> <wasm.png> --fail <thr> --failpercent <fp> --diff   (exit 0 => within tolerance)
 # Crash isolation is by construction: one OS process per test.
 #
-# Emits one TSV row per test to results-wasm-cycles.tsv (committed):
-#   test  render_s  node_exit  diff_exit  verdict  max_err  pct_over  note
-# Failure render PNGs are copied to wasm-cycles-fails/ (evidence); passes rely on
-# the comparator receipt (no 27-render dump). No raw logs surfaced.
+# Emits one immutable, artifact-bound run tree. Every row is rendered and its
+# PNG/comparator receipt is retained, including blacklist candidates. A measured
+# comparator failure may become SKIP; a blacklisted row that now passes is STALE
+# and fails the run.
 #
 # Usage:
-#   bash sandbox/m6-prep/run_wasm_cycles.sh [--filter <substr>] [--limit N] [--threads N]
+#   bash sandbox/m6-prep/run_wasm_cycles.sh <unique-label> [--filter <substr>] [--limit N] [--threads N]
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 ROOT="$(pwd)"
@@ -31,10 +31,29 @@ DRIVER="$ROOT/$MP/wasm-first-render/render_test.py"
 ADDON_PARENT="$ROOT/$MP/wasm-first-render/addon"
 MAN="$ROOT/$MP/manifest.tsv"
 BLK="$ROOT/$MP/blacklist.txt"
-RESULTS="$ROOT/$MP/results-wasm-cycles.tsv"
-FAILDIR="$ROOT/$MP/wasm-cycles-fails"
-SCR="${TMPDIR:-/tmp}/m6wasm.$$"
-mkdir -p "$SCR"
+RUNNER="$ROOT/$MP/run_wasm_cycles.sh"
+if [[ "${1:-}" == "--selfcheck" ]]; then
+  rows=$(awk -F '\t' '$1 == "cycles" {count++} END {print count+0}' "$MAN")
+  exclusions=$(awk '$1 == "cycles" {count++} END {print count+0}' "$BLK")
+  [[ "$rows" == 27 && "$exclusions" == 2 ]] || {
+    echo "SELF_CHECK_FAIL rows=$rows exclusions=$exclusions" >&2
+    exit 1
+  }
+  echo "SELF_CHECK_PASS runner=cycles-wasm-suite immutable=1 rows=27 measured_blacklist=2 retained_comparators=1"
+  exit 0
+fi
+LABEL="${1:-}"
+if [[ -z "$LABEL" || ! "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "usage: $0 <unique-label> [--filter <substr>] [--limit N] [--threads N]" >&2
+  exit 2
+fi
+shift
+RUNS_ROOT="$ROOT/$MP/cycles-runs"
+RUN_ROOT="$RUNS_ROOT/$LABEL"
+RESULTS="$RUN_ROOT/results.tsv"
+RENDERS="$RUN_ROOT/renders"
+LOGS="$RUN_ROOT/logs"
+COMPARATORS="$RUN_ROOT/comparators"
 
 # Blender source-tree resource env (source tree, not an installed prefix); same
 # as the first-wasm-render invocation (notes/m6-first-wasm-render.md).
@@ -54,6 +73,8 @@ export M6_THREADS="$THREADS"
 
 [ -f "$NODE" ] || { echo "NODE_MISSING $NODE"; exit 2; }
 [ -f "$BIN" ]  || { echo "WASM_BIN_MISSING $BIN"; exit 2; }
+WASM="${BIN%.js}.wasm"
+[ -f "$WASM" ] || { echo "WASM_BINARY_MISSING $WASM"; exit 2; }
 command -v "$OIIO" >/dev/null || { echo "OIIOTOOL_MISSING $OIIO"; exit 2; }
 [ -f "$MAN" ]  || { echo "NO_MANIFEST"; exit 2; }
 
@@ -81,10 +102,29 @@ have_input() { # $1=blend(rel)
 }
 
 now() { python3 -c 'import time;print(time.time())'; }
+sha() { shasum -a 256 "$1" | awk '{print $1}'; }
 
-printf 'test\trender_s\tnode_exit\tdiff_exit\tverdict\tmax_err\tpct_over\tnote\n' > "$RESULTS"
+# Bind the exact executable pair before the first row; the final receipt also
+# rejects any mid-run artifact drift.
+START_JS_SHA=$(sha "$BIN")
+START_JS_BYTES=$(wc -c < "$BIN" | tr -d ' ')
+START_WASM_SHA=$(sha "$WASM")
+START_WASM_BYTES=$(wc -c < "$WASM" | tr -d ' ')
 
-pass=0; fail=0; skip=0; blocked=0; n=0
+mkdir -p "$RUNS_ROOT"
+if [[ -e "$RUN_ROOT" ]]; then
+  echo "refusing to overwrite existing Cycles run: $RUN_ROOT" >&2
+  exit 3
+fi
+if ! mkdir "$RUN_ROOT"; then
+  echo "refusing concurrent/reused Cycles run: $RUN_ROOT" >&2
+  exit 3
+fi
+mkdir "$RENDERS" "$LOGS" "$COMPARATORS"
+
+printf 'test\trender_s\tnode_exit\tdiff_exit\tverdict\tmax_err\tpct_over\tnote\tinput_sha256\tgolden_sha256\trender_sha256\tthreshold\tfail_percent\tcomparator_sha256\n' > "$RESULTS"
+
+pass=0; fail=0; skip=0; stale=0; blocked=0; n=0
 echo "== M6 wasm Cycles-CPU comparator (threads=$THREADS) =="
 while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   case "$engine" in ''|\#*) continue;; esac
@@ -93,17 +133,16 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
   [ "$LIMIT" = 0 ] || [ "$n" -lt "$LIMIT" ] || break
   n=$((n+1))
 
-  if is_blacklisted "$engine" "$test"; then
-    echo "SKIP $dir/$test (blacklist)"; skip=$((skip+1))
-    printf '%s\t-\t-\t-\tSKIP\t-\t-\tblacklist\n' "$dir/$test" >> "$RESULTS"; continue
-  fi
+  blacklisted=0
+  is_blacklisted "$engine" "$test" && blacklisted=1
   if ! have_input "$blend"; then
     echo "BLOCKED $dir/$test (LFS pointer/missing)"; blocked=$((blocked+1))
-    printf '%s\t-\t-\t-\tBLOCKED\t-\t-\tinput-not-materialized\n' "$dir/$test" >> "$RESULTS"; continue
+    printf '%s\t-\t-\t-\tBLOCKED\t-\t-\tinput-not-materialized\t-\t-\t-\t%s\t%s\t-\n' "$dir/$test" "$thr" "$fp" >> "$RESULTS"; continue
   fi
 
-  base="$SCR/${dir}_${test}"
-  log="$SCR/${dir}_${test}.log"
+  mkdir -p "$RENDERS/$dir" "$LOGS/$dir" "$COMPARATORS/$dir"
+  base="$RENDERS/$dir/$test"
+  log="$LOGS/$dir/$test.log"
   # write_still saves render.filepath + ext verbatim (no frame padding) -> <base>.png
   png="${base}.png"
   rm -f "$png"
@@ -120,27 +159,87 @@ while IFS=$'\t' read -r engine dir test blend golden thr fp; do
     note=$(grep -aoE 'M6T_ENGINE_FAIL|ModuleNotFoundError|MemoryError|Aborted\(|RuntimeError|out of memory|Segmentation|Error: |unable to open|Calling abort' "$log" | head -1)
     [ -n "$note" ] || note="no-png"
     echo "FAIL $dir/$test (render: ${note}) ${rt}s"
-    printf '%s\t%s\t%s\t-\tFAIL\t-\t-\trender:%s\n' "$dir/$test" "$rt" "$nec" "$note" >> "$RESULTS"
-    mkdir -p "$FAILDIR/$dir"; cp "$log" "$FAILDIR/$dir/$test.log" 2>/dev/null
+    printf '%s\t%s\t%s\t-\tFAIL\t-\t-\trender:%s\t%s\t%s\t-\t%s\t%s\t-\n' \
+      "$dir/$test" "$rt" "$nec" "$note" "$(sha "$ROOT/$blend")" "$(sha "$ROOT/$golden")" "$thr" "$fp" >> "$RESULTS"
     fail=$((fail+1)); continue
   fi
 
   diffout=$("$OIIO" "$ROOT/$golden" "$png" --fail "$thr" --failpercent "$fp" --diff 2>&1); dec=$?
+  comparator="$COMPARATORS/$dir/$test.txt"
+  printf '%s\n' "$diffout" > "$comparator"
   maxe=$(echo "$diffout" | grep -aoE 'Max error *= *[0-9.e+-]+' | head -1 | grep -aoE '[0-9.e+-]+$')
   over=$(echo "$diffout" | grep -aoE '\([0-9.]+% *\) *over' | grep -aoE '[0-9.]+%' | tail -1)
   [ -n "$maxe" ] || maxe="-"; [ -n "$over" ] || over="-"
   if [ "$dec" = 0 ]; then
-    echo "PASS $dir/$test  max=$maxe over=$over  ${rt}s"
-    printf '%s\t%s\t%s\t%s\tPASS\t%s\t%s\t-\n' "$dir/$test" "$rt" "$nec" "$dec" "$maxe" "$over" >> "$RESULTS"
-    pass=$((pass+1))
+    if [ "$blacklisted" = 1 ]; then
+      echo "STALE $dir/$test (blacklist now passes) max=$maxe over=$over ${rt}s"
+      verdict=STALE; note=blacklist-stale; stale=$((stale+1))
+    else
+      echo "PASS $dir/$test  max=$maxe over=$over  ${rt}s"
+      verdict=PASS; note=-; pass=$((pass+1))
+    fi
   else
-    echo "FAIL $dir/$test  max=$maxe over=$over  ${rt}s (pixel drift)"
-    printf '%s\t%s\t%s\t%s\tFAIL\t%s\t%s\tpixel-drift\n' "$dir/$test" "$rt" "$nec" "$dec" "$maxe" "$over" >> "$RESULTS"
-    mkdir -p "$FAILDIR/$dir"; cp "$png" "$FAILDIR/$dir/$test.png"
-    fail=$((fail+1))
+    if [ "$blacklisted" = 1 ]; then
+      echo "SKIP $dir/$test  max=$maxe over=$over  ${rt}s (measured blacklist)"
+      verdict=SKIP; note=blacklist; skip=$((skip+1))
+    else
+      echo "FAIL $dir/$test  max=$maxe over=$over  ${rt}s (pixel drift)"
+      verdict=FAIL; note=pixel-drift; fail=$((fail+1))
+    fi
   fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$dir/$test" "$rt" "$nec" "$dec" "$verdict" "$maxe" "$over" "$note" \
+    "$(sha "$ROOT/$blend")" "$(sha "$ROOT/$golden")" "$(sha "$png")" "$thr" "$fp" "$(sha "$comparator")" >> "$RESULTS"
 done < "$MAN"
 
-echo "-- summary: PASS=$pass FAIL=$fail SKIP=$skip BLOCKED=$blocked  (results: ${RESULTS#$ROOT/}) --"
-rm -rf "$SCR"
-[ "$fail" = 0 ] && [ "$blocked" = 0 ] && echo "ALL_PASS" || echo "SOME_FAIL"
+artifact_stable=1
+[[ "$(sha "$BIN")" == "$START_JS_SHA" && "$(wc -c < "$BIN" | tr -d ' ')" == "$START_JS_BYTES" \
+   && "$(sha "$WASM")" == "$START_WASM_SHA" && "$(wc -c < "$WASM" | tr -d ' ')" == "$START_WASM_BYTES" ]] \
+  || artifact_stable=0
+
+python3 - "$RUN_ROOT/provenance.json" "$LABEL" "$BIN" "$MAN" "$BLK" "$RUNNER" "$DRIVER" "$ADDON_PARENT" "$RESULTS" \
+  "$START_JS_SHA" "$START_JS_BYTES" "$START_WASM_SHA" "$START_WASM_BYTES" "$artifact_stable" \
+  "$pass" "$fail" "$skip" "$stale" "$blocked" <<'PY'
+import hashlib, json, pathlib, sys
+
+out, label, binary_js, manifest, blacklist, runner, driver, addon, results = map(pathlib.Path, sys.argv[1:10])
+label = str(label)
+start_js_sha, start_js_bytes, start_wasm_sha, start_wasm_bytes = sys.argv[10:14]
+artifact_stable = sys.argv[14] == "1"
+counts = dict(zip(("pass", "fail", "skip", "stale", "blocked"), map(int, sys.argv[15:20])))
+def receipt(path):
+    data = path.read_bytes()
+    return {"path": str(path), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+def tree_receipt(path):
+    digest = hashlib.sha256()
+    count = 0
+    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+        relative = item.relative_to(path).as_posix().encode()
+        digest.update(relative); digest.update(b"\0"); digest.update(item.read_bytes()); digest.update(b"\0")
+        count += 1
+    return {"path": str(path), "fileCount": count, "sha256Tree": digest.hexdigest()}
+binary_wasm = binary_js.with_suffix(".wasm")
+payload = {
+    "schema": "blender-web.cycles-wasm-suite.v2",
+    "label": label,
+    "immutable": True,
+    "artifacts": {
+        "javascript": {"path": str(binary_js), "bytes": int(start_js_bytes), "sha256": start_js_sha},
+        "wasm": {"path": str(binary_wasm), "bytes": int(start_wasm_bytes), "sha256": start_wasm_sha},
+    },
+    "artifactStable": artifact_stable,
+    "sources": {
+        "manifest": receipt(manifest), "blacklist": receipt(blacklist),
+        "runner": receipt(runner), "driver": receipt(driver), "addon": tree_receipt(addon),
+    },
+    "results": receipt(results),
+    "counts": counts,
+    "status": "PASS" if artifact_stable and counts["fail"] == counts["stale"] == counts["blocked"] == 0 else "FAIL",
+}
+with out.open("x") as handle:
+    json.dump(payload, handle, indent=2)
+    handle.write("\n")
+PY
+echo "-- summary: PASS=$pass FAIL=$fail SKIP=$skip STALE=$stale BLOCKED=$blocked  (results: ${RESULTS#$ROOT/}) --"
+[ "$artifact_stable" = 1 ] && [ "$fail" = 0 ] && [ "$stale" = 0 ] && [ "$blocked" = 0 ] \
+  && echo "ALL_PASS" || { echo "SOME_FAIL artifact_stable=$artifact_stable"; exit 1; }

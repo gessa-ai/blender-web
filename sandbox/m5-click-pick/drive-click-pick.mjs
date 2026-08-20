@@ -6,7 +6,9 @@ import { createRequire } from 'module';
 import {
   existsSync, mkdirSync, readFileSync, statSync, writeFileSync,
 } from 'fs';
-import { dirname, join, resolve } from 'path';
+import {
+  basename, delimiter, dirname, isAbsolute, join, relative, resolve,
+} from 'path';
 import { fileURLToPath } from 'url';
 import {
   captureRuntimeArtifactSet, RUNTIME_BINARY_PATHS, RUNTIME_CONTRACT_SOURCE,
@@ -14,7 +16,22 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
-const DEFAULT_MODULES = '/Users/paws/plushly/game-platform/node_modules';
+const DEFAULT_OUT = join(HERE, 'evidence');
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(REPO, '.m4-node/node_modules'),
+  join(REPO, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const PLAYWRIGHT_VERSION = '1.61.1';
+const RUN_LABEL_RE = /^[a-z0-9][a-z0-9._-]*$/i;
 const GOLDEN = join(REPO, 'sandbox/m5-prep/traces/m5_core.object_click_select.trace.txt');
 
 const PY_MONITOR = String.raw`
@@ -56,20 +73,30 @@ bpy.app.timers.register(_m5p_poll,first_interval=0.0,persistent=True)
 `.trim();
 
 function parseArgs(argv) {
-  const options = { port: 8166, run: null, outRoot: join(HERE, 'evidence'), timeoutMs: 120000 };
+  const options = {
+    port: 8166,
+    run: null,
+    outRoot: DEFAULT_OUT,
+    timeoutMs: 120000,
+    selfcheck: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--port') options.port = Number(argv[++i]);
+    if (arg === '--selfcheck') options.selfcheck = true;
+    else if (arg === '--port') options.port = Number(argv[++i]);
     else if (arg === '--run') options.run = argv[++i];
     else if (arg === '--out-root') options.outRoot = resolve(argv[++i]);
     else if (arg === '--timeout-ms') options.timeoutMs = Number(argv[++i]);
     else throw new Error(`unknown argument: ${arg}`);
   }
-  if (!options.run || !/^[a-z0-9][a-z0-9._-]*$/i.test(options.run)) {
+  if (!options.selfcheck && (!options.run || !RUN_LABEL_RE.test(options.run))) {
     throw new Error('--run with a safe immutable label is required');
   }
   if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535) {
     throw new Error(`invalid port: ${options.port}`);
+  }
+  if (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 30000) {
+    throw new Error(`invalid timeout: ${options.timeoutMs}`);
   }
   return options;
 }
@@ -83,14 +110,48 @@ function fileReceipt(path) {
   return { path: path.slice(REPO.length + 1), bytes: stat.size, sha256: sha256File(path) };
 }
 
-function resolvePlaywright() {
-  for (const root of [process.env.BW_NODE_MODULES, process.env.NODE_PATH, DEFAULT_MODULES].filter(Boolean)) {
+function resolvePlaywright(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      version: require('playwright/package.json').version,
+    };
+  },
+) {
+  const errors = [];
+  for (const root of roots) {
     try {
-      const require = createRequire(join(root, 'package.json'));
-      return { chromium: require('playwright').chromium, root };
-    } catch (_) {}
+      const loaded = load(root);
+      if (!loaded?.chromium) throw new Error('playwright export lacks chromium');
+      if (loaded.version !== PLAYWRIGHT_VERSION) {
+        throw new Error(`playwright version ${loaded.version || 'unknown'} != ${PLAYWRIGHT_VERSION}`);
+      }
+      return { chromium: loaded.chromium, root, version: loaded.version };
+    } catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
   }
-  throw new Error('cannot resolve Playwright');
+  throw new Error(`cannot resolve Playwright; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function isRepositoryDescendant(path) {
+  const rel = relative(REPO, resolve(path));
+  return rel !== '' && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function runDirectory(outRoot, run) {
+  const root = resolve(outRoot);
+  if (!isRepositoryDescendant(root)) {
+    throw new Error(`output root must be inside the repository: ${root}`);
+  }
+  if (!RUN_LABEL_RE.test(run)) throw new Error(`unsafe run label: ${run}`);
+  const path = resolve(root, run);
+  if (dirname(path) !== root || basename(path) !== run) {
+    throw new Error(`refusing unsafe evidence directory: ${path}`);
+  }
+  return path;
 }
 
 function sanitizeTrace(lines) {
@@ -116,11 +177,75 @@ function orderedSubsequence(haystack, needle) {
   return { pass: true, positions, missing: null };
 }
 
+function assertSelfcheck(condition, message) {
+  if (!condition) throw new Error(`selfcheck: ${message}`);
+}
+
+function runSelfcheck() {
+  const localRoots = LOCAL_MODULE_ROOTS.map((root) => resolve(root));
+  assertSelfcheck(existsSync(join(REPO, 'GOAL.md')), 'repository root is not derived from the driver');
+  assertSelfcheck(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    'module roots are not absolute and unique');
+  assertSelfcheck(localRoots.every((root) => MODULE_ROOTS.includes(root)),
+    'repo-local module fallback is incomplete');
+  assertSelfcheck(localRoots.every(isRepositoryDescendant),
+    'repo-local module fallback escaped the checkout');
+  assertSelfcheck(runDirectory(DEFAULT_OUT, 'selfcheck') === join(DEFAULT_OUT, 'selfcheck'),
+    'safe evidence directory mismatch');
+  for (const [root, run] of [[REPO, 'root-child'], [DEFAULT_OUT, '../escape']]) {
+    let rejected = false;
+    try { runDirectory(root, run); }
+    catch (_) { rejected = true; }
+    assertSelfcheck(rejected, `unsafe output was accepted: ${root}/${run}`);
+  }
+  const cycle = nativeCycle();
+  assertSelfcheck(JSON.stringify(cycle) === JSON.stringify([
+    "bpy.ops.object.select_all(action='DESELECT')",
+    'bpy.ops.view3d.select(deselect_all=True)',
+  ]), 'native click cycle drift');
+  assertSelfcheck(orderedSubsequence(['before', ...cycle, 'after'], cycle).pass &&
+    !orderedSubsequence(cycle.slice(1), cycle).pass, 'trace subsequence logic drift');
+  const chromiumToken = {};
+  const synthetic = resolvePlaywright(['/missing', '/fixture'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return { chromium: chromiumToken, version: PLAYWRIGHT_VERSION };
+  });
+  assertSelfcheck(synthetic.chromium === chromiumToken && synthetic.root === '/fixture' &&
+    synthetic.version === PLAYWRIGHT_VERSION,
+    'Playwright root fallback drift');
+  let livePlaywrightRoot = null;
+  let livePlaywrightVersion = null;
+  if (process.env.BW_NODE_MODULES) {
+    const live = resolvePlaywright();
+    assertSelfcheck(live.chromium && MODULE_ROOTS.includes(live.root) &&
+      live.version === PLAYWRIGHT_VERSION,
+      'live Playwright resolution drift');
+    livePlaywrightRoot = live.root;
+    livePlaywrightVersion = live.version;
+  }
+  assertSelfcheck(PY_MONITOR.includes('_m5p_emit("READY")') &&
+    PY_MONITOR.includes('_m5p_emit("SELECTED_2")'), 'selection monitor drift');
+  process.stdout.write(JSON.stringify({
+    status: 'PASS',
+    checks: livePlaywrightRoot ? 12 : 11,
+    repositoryRoot: REPO,
+    moduleRoots: MODULE_ROOTS,
+    livePlaywrightRoot,
+    livePlaywrightVersion,
+    browserLaunches: 0,
+    nativeCycle: cycle,
+  }, null, 2) + '\n');
+}
+
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const outDir = join(options.outRoot, options.run);
+  if (options.selfcheck) {
+    runSelfcheck();
+    return;
+  }
+  const outDir = runDirectory(options.outRoot, options.run);
   if (existsSync(outDir)) throw new Error(`refusing to overwrite ${outDir}`);
   const binaryDir = resolve(process.env.BLENDER_WEB_BIN || join(REPO, 'build-wasm-windowed-opt/bin'));
   const { binaryFiles, splitManifest } = captureRuntimeArtifactSet(binaryDir, fileReceipt);
@@ -136,7 +261,7 @@ async function main() {
   let canvasReceipt = null;
   let clickPoint = null;
   let fatal = null;
-  const { chromium, root: playwrightRoot } = resolvePlaywright();
+  const { chromium, root: playwrightRoot, version: playwrightVersion } = resolvePlaywright();
   const browser = await chromium.launch({ headless: false });
   let page;
 
@@ -285,7 +410,7 @@ async function main() {
       externalRequestCount: externalRequests.length, clickPoint, canvas: canvasReceipt,
       finalState: states.find((state) => state.name === 'SELECTED_2') || null,
     },
-    browser: { playwrightRoot, headed: true },
+    browser: { playwrightRoot, playwrightVersion, headed: true },
     provenance: {
       driver: fileReceipt(fileURLToPath(import.meta.url)), nativeGolden: fileReceipt(GOLDEN),
       runtimeContract: fileReceipt(RUNTIME_CONTRACT_SOURCE), splitManifest,

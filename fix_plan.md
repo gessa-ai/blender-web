@@ -762,6 +762,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   with zero browser launches. No matrix or receipt was produced: s7 hardware plus APPLY remain the
   gate, and the optional native-prebake route is separate. See
   `notes/m6-eevee-linux-portability-20260820.md`.
+- [x] **M5-CLICK-PICK-LINUX-PORTABILITY [driver, producer-only]:** the first strict M5 browser
+  producer now derives its checkout and evidence root from its own source, resolves Playwright
+  through explicit and repo-local module roots, rejects output outside one repository-local
+  immutable child, and has a browser/product-free self-check. Root and descendant-cwd checks pass;
+  the live loader resolves Linux Playwright 1.61.1 with zero browser launches. No M5 receipt was
+  produced because s7 hardware plus the APPLY split product remain mandatory. See
+  `notes/m5-click-pick-linux-portability-20260820.md`.
+- [ ] **M5-CANVAS-LINUX-PORTABILITY [driver, producer-only]:** apply the same root/module/output
+  contract to the current keyboard canvas-smoke producer; browser-free self-check only before s7.
+- [ ] **M5-LATENCY-LINUX-PORTABILITY [driver, producer-only]:** port the current ROI-latency
+  producer after its repo-local `sharp` host-tool dependency is pinned and recorded; do not change
+  the established Sharp greyscale/resize detector while making the loader portable.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

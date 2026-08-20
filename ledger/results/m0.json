@@ -1,7 +1,7 @@
 {
   "scope": "m0",
-  "pass": true,
-  "ts": "2026-08-06T11:40:14Z",
+  "pass": false,
+  "ts": "2026-08-20T04:39:05Z",
   "checks": {
     "toolchain": {
       "pass": true,
@@ -16,16 +16,16 @@
       "detail": "emcc --use-port=emdawnwebgpu -c ok"
     },
     "oracle_version": {
-      "pass": true,
-      "detail": "Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:31:22)"
+      "pass": false,
+      "detail": "missing 'Blender 5.2.0' and/or 'fbe6228777e7': oracle not installed yet (M0.3): oracle/blender-5.2.0/Blender.app/Contents/MacOS/Blender missing"
     },
     "oracle_bpy": {
-      "pass": true,
-      "detail": "default objects present: Camera, Cube, Light"
+      "pass": false,
+      "detail": "default objects missing (Camera/Cube/Light)"
     },
     "oiiotool": {
-      "pass": true,
-      "detail": "3.1.16.0"
+      "pass": false,
+      "detail": "oiiotool --version nonzero or not on PATH"
     }
   }
 }

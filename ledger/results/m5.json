@@ -1,11 +1,11 @@
 {
   "scope": "m5",
-  "pass": true,
-  "ts": "2026-08-11T16:20:53Z",
+  "pass": false,
+  "ts": "2026-08-20T04:39:05Z",
   "checks": {
     "interaction_parity": {
-      "pass": true,
-      "detail": "M5_FINAL_PASS parity=7 click=r3 canvas=r5 trusted_latency=r8 wasm=7e7702c4a36904143b802db7e9f0305b9d40eb11dd2bd5a086005c61894b200b"
+      "pass": false,
+      "detail": "M5_FINAL_FAIL missing current binary: build-wasm-windowed-opt/bin/blender_browser.deferred.wasm"
     }
   }
 }

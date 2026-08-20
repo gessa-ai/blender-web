@@ -47,3 +47,12 @@ product still has an independent fail-closed discrepancy: its required
 `blender_browser.deferred.wasm` is absent. See
 `notes/ornith-lab-s6-s7-20260820.md` for the exact artifact and m0 evidence. Neither
 that discrepancy nor a successful rebuild relaxes the hardware-adapter requirement above.
+
+## M3 probe portability update (2026-08-20)
+
+Commit `68296ec` ports the bounded Dawn/Tint probe surface to Linux/Vulkan, removes the stale
+macOS deployment cache key on Linux, and routes its build through the global Ninja lock. Both
+probe targets compile against Dawn `36cf1fae`; the final locked dry-run reports no work. The T1
+and T2 executables each identify llvmpipe as Vulkan adapter type CPU and exit 5 with
+`PROBE_BLOCKED` before device validation. This is a successful fail-closed control, not an M3
+receipt; the exact 197/1,003 replay remains pending a hardware adapter.

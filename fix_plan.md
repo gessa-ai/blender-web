@@ -627,8 +627,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   capture fresh immutable splash/workspace labels at 1280x720 DPR1, bind, run the unchanged
   comparator, then run `harness/run.sh --scope m4`. Do not adapt the old macOS receipt to the new
   binary.
-- [ ] **M3-LINUX-REPLAY [gpu-backend, before any translation feature work]:** configure Dawn
-  `36cf1fae` for Vulkan instead of Metal, rebuild the canonical test target, and require the
+- [~] **M3-LINUX-REPLAY [gpu-backend, before any translation feature work]:** Linux probe
+  portability is complete in `68296ec`: Dawn selects Vulkan instead of Metal, both probe
+  targets build through `scripts/ninja-locked.sh`, and CPU/unknown adapters fail closed with
+  `PROBE_BLOCKED`. Runtime replay remains blocked because ornith-lab exposes only llvmpipe;
+  that software result binds no receipt. Once a hardware Vulkan adapter is available, rebuild
+  the canonical test target against Dawn `36cf1fae` and require the
   checked-in exact 197/1,003 manifests, 197/197, DrawWebGPU 2/2, cold 1,003 MISS/files, warm
   1,003 HIT, zero uncaptured errors, OpenSubdiv proof, and final Ninja no-work. Any platform
   delta is a new named round, not an automatic rebaseline.

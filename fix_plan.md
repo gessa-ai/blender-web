@@ -804,6 +804,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   strict two-browser capture remains deliberately macOS-only because only that host can run real
   Safari; no browser or M7 receipt was produced and no signing/schema requirement changed. See
   `notes/m7-fallback-contract-linux-portability-20260820.md`.
+- [x] **M7-FILES-LINUX-PORTABILITY [driver, producer-only]:** the current trusted-drop/FSA/
+  fallback/OPFS browser producer now derives its checkout, bundle, binary, fixture, output, and
+  module roots; requires Node 22.16.0 plus Playwright 1.61.1; validates a loopback origin and the
+  exact M8-derived bundle identity before launch; and has browser/product-free root and
+  descendant-CWD self-checks. No files receipt was produced: s7 hardware plus the APPLY bundle
+  remain mandatory. See `notes/m7-files-linux-portability-20260820.md`.
 - [x] **M8-BROWSER-IDENTITY-LINUX-PORTABILITY [driver, producer-only]:** the branded Chrome/Edge
   matrix and independent aggregate verifier now bind Linux rows to canonical amd64 PIE ELFs,
   exact package ownership/version/integrity, the vendor APT candidate and archive SHA-256, and

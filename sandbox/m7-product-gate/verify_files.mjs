@@ -5,77 +5,280 @@
 // public staged bundle (dev query hooks disabled), Chrome protocol drag events
 // carrying an actual .blend path, native File System Access API availability +
 // trusted-activation probes, standards-shaped FSA handles, and real fallback
-// upload/download bytes. CI cannot accept a macOS native system dialog; the probe
+// upload/download bytes. Automation cannot accept a native system dialog; the probe
 // fails closed on API absence or a shipped call made after user activation expires.
 
 import {createRequire} from 'module';
 import {createHash} from 'crypto';
-import {readFileSync, writeFileSync, mkdtempSync} from 'fs';
+import {
+  existsSync, lstatSync, readFileSync, realpathSync, writeFileSync, mkdtempSync,
+} from 'fs';
 import {tmpdir} from 'os';
-import {join} from 'path';
+import {
+  delimiter, dirname, isAbsolute, join, relative, resolve,
+} from 'path';
+import {fileURLToPath} from 'url';
 
-const require = createRequire('/Users/paws/plushly/game-platform/node_modules/');
-const {chromium} = require('playwright');
+const DRIVER_PATH = fileURLToPath(import.meta.url);
+const HERE = dirname(DRIVER_PATH);
+const ROOT = resolve(HERE, '..', '..');
+const DEFAULT_BIN = join(ROOT, 'build-wasm-windowed-opt/bin');
+const DEFAULT_BLEND = join(ROOT, 'sandbox/m4-goldens/default_cube.blend');
+const DEFAULT_OUT = join(HERE, 'verify_files.json');
+const DEFAULT_BUNDLE = join(ROOT, 'sandbox/m8-staged-deploy/bundle-staged');
+const DEFAULT_BUNDLE_MANIFEST = join(HERE, 'bundle-identity.json');
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(ROOT, '.m4-node/node_modules'),
+  join(ROOT, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const NODE_VERSION = 'v22.16.0';
+const PLAYWRIGHT_VERSION = '1.61.1';
+const BROWSER_ARGS = Object.freeze([
+  '--enable-unsafe-webgpu',
+  ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
+]);
+const SHA256_RE = /^[0-9a-f]{64}$/;
 
-const BASE = process.env.BW_BASE || 'http://localhost:8165';
-const ROOT = '/Users/paws/blender-web';
-const BLEND = '/Users/paws/blender-web/sandbox/m4-goldens/default_cube.blend';
-const OUT = '/Users/paws/blender-web/sandbox/m7-product-gate/verify_files.json';
-const BUNDLE = '/Users/paws/blender-web/sandbox/m8-staged-deploy/bundle-staged';
-const BUNDLE_MANIFEST = process.env.BW_M7_BUNDLE_IDENTITY ||
-  '/Users/paws/blender-web/sandbox/m7-product-gate/bundle-identity.json';
-const bundleIdentity = JSON.parse(readFileSync(BUNDLE_MANIFEST, 'utf8'));
-if (bundleIdentity.schema !== 'blender-web.m7-bundle-identity.v1' ||
-    !Array.isArray(bundleIdentity.files) || bundleIdentity.files.length === 0) {
-  throw new Error('missing/invalid exact M8-derived bundle identity');
+function rootPath(value) {
+  return resolve(ROOT, value);
 }
-const BUNDLE_FILES = Object.freeze(bundleIdentity.files);
-const bundleIdentityBytes = readFileSync(BUNDLE_MANIFEST);
-const splitManifestPath = `${ROOT}/build-wasm-windowed-opt/bin/blender_browser.split-build.json`;
-const publicSplitManifestPath = `${BUNDLE}/bin/split-build.json`;
-if (createHash('sha256').update(readFileSync(splitManifestPath)).digest('hex') !==
-      bundleIdentity.splitManifestSha256 ||
-    createHash('sha256').update(readFileSync(publicSplitManifestPath)).digest('hex') !==
-      bundleIdentity.publicSplitManifestSha256) {
-  throw new Error('M8-derived bundle identity is stale');
+
+function parseArgs(argv, environment = process.env) {
+  const options = {
+    base: environment.BW_BASE || 'http://127.0.0.1:8165',
+    bin: rootPath(environment.BLENDER_WEB_BIN || 'build-wasm-windowed-opt/bin'),
+    blend: rootPath(environment.BW_M7_BLEND || 'sandbox/m4-goldens/default_cube.blend'),
+    bundle: rootPath(environment.BW_M7_BUNDLE || 'sandbox/m8-staged-deploy/bundle-staged'),
+    bundleManifest: rootPath(environment.BW_M7_BUNDLE_IDENTITY ||
+      'sandbox/m7-product-gate/bundle-identity.json'),
+    out: rootPath(environment.BW_M7_FILES_OUT ||
+      'sandbox/m7-product-gate/verify_files.json'),
+    selfcheck: false,
+  };
+  for (const argument of argv) {
+    if (argument === '--selfcheck') options.selfcheck = true;
+    else throw new Error(`unknown argument: ${argument}`);
+  }
+  const base = new URL(options.base);
+  if (base.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(base.hostname) ||
+      base.username || base.password || (base.pathname !== '/' && base.pathname !== '')) {
+    throw new Error(`BW_BASE must be an uncredentialed loopback HTTP origin: ${options.base}`);
+  }
+  options.base = base.origin;
+  return options;
 }
-const blendBytes = readFileSync(BLEND);
-const blendB64 = blendBytes.toString('base64');
-const receipt = {
-  schema: 'blender-web.m7-files-browser.v2',
-  physical_drop_trusted: false,
-  physical_drop_opened: false,
-  fsa_open_picker_supported: false,
-  fsa_open_trusted_activation: false,
-  fsa_open_acceptance: false,
-  fallback_open_acceptance: false,
-  fsa_save_picker_supported: false,
-  fsa_save_trusted_activation: false,
-  fsa_save_acceptance: false,
-  fallback_save_acceptance: false,
-  opfs_reload_roundtrip: false,
-  external_request_count: -1,
-  gpu_error_count: -1,
-  bundle_artifacts: Object.fromEntries(BUNDLE_FILES.map((relative) => {
-    const path = `${BUNDLE}/${relative}`;
-    const bytes = readFileSync(path);
-    return [relative, {
-      path,
-      bytes: bytes.length,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-    }];
-  })),
-  bundle_identity: {
-    path: BUNDLE_MANIFEST,
-    bytes: bundleIdentityBytes.length,
-    sha256: createHash('sha256').update(bundleIdentityBytes).digest('hex'),
-    split_manifest_sha256: bundleIdentity.splitManifestSha256,
-    public_split_manifest_sha256: bundleIdentity.publicSplitManifestSha256,
+
+function sha256Bytes(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function isRepositoryPath(path, allowRoot = false) {
+  const rel = relative(ROOT, resolve(path));
+  return (allowRoot || rel !== '') && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function requireCanonicalFile(path, description) {
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isFile() || realpathSync(absolute) !== absolute) {
+    throw new Error(`${description} is not a canonical regular file: ${absolute}`);
+  }
+  return absolute;
+}
+
+function safeBundlePath(bundle, relativePath) {
+  if (typeof relativePath !== 'string' || relativePath.length === 0 ||
+      isAbsolute(relativePath)) {
+    throw new Error(`invalid bundle identity path: ${String(relativePath)}`);
+  }
+  const path = resolve(bundle, relativePath);
+  const rel = relative(resolve(bundle), path);
+  if (!rel || isAbsolute(rel) || rel.split(/[\\/]/)[0] === '..') {
+    throw new Error(`bundle identity path escapes the bundle: ${relativePath}`);
+  }
+  return path;
+}
+
+function validateBundleIdentity(bundleIdentity, bundle) {
+  if (bundleIdentity?.schema !== 'blender-web.m7-bundle-identity.v1' ||
+      !Array.isArray(bundleIdentity.files) || bundleIdentity.files.length === 0 ||
+      !SHA256_RE.test(bundleIdentity.splitManifestSha256 || '') ||
+      !SHA256_RE.test(bundleIdentity.publicSplitManifestSha256 || '')) {
+    throw new Error('missing/invalid exact M8-derived bundle identity');
+  }
+  const files = bundleIdentity.files.map((relativePath) => {
+    safeBundlePath(bundle, relativePath);
+    return relativePath;
+  });
+  if (new Set(files).size !== files.length) {
+    throw new Error('duplicate path in exact M8-derived bundle identity');
+  }
+  return Object.freeze(files);
+}
+
+function resolvePlaywright(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      version: require('playwright/package.json').version,
+    };
   },
-};
-const failures = [];
-const fail = (message) => { failures.push(message); console.error('FAIL  ' + message); };
-const pass = (message) => console.log('PASS  ' + message);
+) {
+  const errors = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium) throw new Error('playwright export lacks chromium');
+      if (loaded.version !== PLAYWRIGHT_VERSION) {
+        throw new Error(`playwright version ${loaded.version || 'unknown'} != ${PLAYWRIGHT_VERSION}`);
+      }
+      return {chromium: loaded.chromium, root, version: loaded.version};
+    }
+    catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve pinned Playwright; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function loadProductInputs(options) {
+  if (!isRepositoryPath(options.bin) || !isRepositoryPath(options.blend) ||
+      !isRepositoryPath(options.bundle) || !isRepositoryPath(options.bundleManifest) ||
+      !isRepositoryPath(options.out)) {
+    throw new Error('M7 files paths must remain inside the repository');
+  }
+  if (resolve(options.out) !== DEFAULT_OUT) {
+    throw new Error(`M7 files output must be the gate-owned path: ${DEFAULT_OUT}`);
+  }
+  if (existsSync(options.out)) {
+    const outputInfo = lstatSync(options.out);
+    if (outputInfo.isSymbolicLink() || !outputInfo.isFile() ||
+        realpathSync(options.out) !== options.out) {
+      throw new Error(`M7 files output is indirect or not a regular file: ${options.out}`);
+    }
+  }
+  const blend = requireCanonicalFile(options.blend, 'M7 input blend');
+  const bundleManifest = requireCanonicalFile(options.bundleManifest, 'M7 bundle identity');
+  const bundleIdentityBytes = readFileSync(bundleManifest);
+  const bundleIdentity = JSON.parse(bundleIdentityBytes);
+  const bundleFiles = validateBundleIdentity(bundleIdentity, options.bundle);
+  const splitManifestPath = requireCanonicalFile(
+    join(options.bin, 'blender_browser.split-build.json'), 'M7 split manifest');
+  const publicSplitManifestPath = requireCanonicalFile(
+    join(options.bundle, 'bin/split-build.json'), 'M7 public split manifest');
+  if (sha256Bytes(readFileSync(splitManifestPath)) !== bundleIdentity.splitManifestSha256 ||
+      sha256Bytes(readFileSync(publicSplitManifestPath)) !==
+        bundleIdentity.publicSplitManifestSha256) {
+    throw new Error('M8-derived bundle identity is stale');
+  }
+  const blendBytes = readFileSync(blend);
+  const bundleArtifacts = Object.fromEntries(bundleFiles.map((relativePath) => {
+    const path = requireCanonicalFile(
+      safeBundlePath(options.bundle, relativePath), `M7 bundle artifact ${relativePath}`);
+    const bytes = readFileSync(path);
+    return [relativePath, {path, bytes: bytes.length, sha256: sha256Bytes(bytes)}];
+  }));
+  return {
+    blend, blendBytes, blendB64: blendBytes.toString('base64'), bundleArtifacts,
+    bundleIdentity, bundleIdentityBytes, bundleManifest,
+  };
+}
+
+function assertSelfcheck(condition, message) {
+  if (!condition) throw new Error(`selfcheck: ${message}`);
+}
+
+function runSelfcheck(options) {
+  let checks = 0;
+  const check = (condition, message) => {
+    assertSelfcheck(condition, message);
+    checks++;
+  };
+  check(existsSync(join(ROOT, 'GOAL.md')), 'repository root is not derived from the driver');
+  check(process.version === NODE_VERSION, `node version ${process.version} != ${NODE_VERSION}`);
+  check(parseArgs(['--selfcheck'], {}).base === 'http://127.0.0.1:8165',
+    'default loopback base normalization drift');
+  check([DEFAULT_BIN, DEFAULT_BLEND, DEFAULT_OUT, DEFAULT_BUNDLE, DEFAULT_BUNDLE_MANIFEST]
+    .every(isRepositoryPath), 'default path escaped the checkout');
+  check([options.bin, options.blend, options.out, options.bundle, options.bundleManifest]
+    .every(isRepositoryPath), 'selected path escaped the checkout');
+  check(options.out === DEFAULT_OUT, 'gate-owned output path drift');
+  check(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    'module roots are not absolute and unique');
+  check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root)),
+    'repo-local module fallback is incomplete');
+  const chromiumToken = {};
+  const synthetic = resolvePlaywright(['/missing', '/fixture'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return {chromium: chromiumToken, version: PLAYWRIGHT_VERSION};
+  });
+  check(synthetic.chromium === chromiumToken && synthetic.root === '/fixture',
+    'Playwright root fallback drift');
+  let wrongVersionRejected = false;
+  try {
+    resolvePlaywright(['/wrong'], () => ({chromium: chromiumToken, version: '0.0.0'}));
+  }
+  catch (_) { wrongVersionRejected = true; }
+  check(wrongVersionRejected, 'Playwright version drift was accepted');
+  const hash = '0'.repeat(64);
+  const identity = {
+    schema: 'blender-web.m7-bundle-identity.v1', files: ['bin/a.js', 'bin/a.wasm'],
+    splitManifestSha256: hash, publicSplitManifestSha256: hash,
+  };
+  check(validateBundleIdentity(identity, DEFAULT_BUNDLE).length === 2,
+    'valid bundle identity rejected');
+  for (const [mutate, description] of [
+    [(value) => { value.files = ['../escape']; }, 'bundle path escape'],
+    [(value) => { value.files = ['bin/a.js', 'bin/a.js']; }, 'duplicate bundle path'],
+    [(value) => { value.splitManifestSha256 = '0'; }, 'invalid manifest hash'],
+  ]) {
+    let rejected = false;
+    const fixture = structuredClone(identity);
+    mutate(fixture);
+    try { validateBundleIdentity(fixture, DEFAULT_BUNDLE); }
+    catch (_) { rejected = true; }
+    check(rejected, `${description} was accepted`);
+  }
+  let externalBaseRejected = false;
+  try { parseArgs(['--selfcheck'], {BW_BASE: 'https://example.com'}); }
+  catch (_) { externalBaseRejected = true; }
+  check(externalBaseRejected, 'external base was accepted');
+  const source = readFileSync(DRIVER_PATH, 'utf8');
+  const retiredCheckout = ['', 'Users', 'paws'].join('/');
+  const retiredModuleRoot = ['plushly', 'game-platform'].join('/');
+  check(!source.includes(retiredCheckout) && !source.includes(retiredModuleRoot),
+    'retired macOS path remains executable source');
+  check(BROWSER_ARGS.includes('--enable-unsafe-webgpu') &&
+    (process.platform === 'darwin') === BROWSER_ARGS.includes('--use-angle=metal'),
+  'platform browser arguments drift');
+  let livePlaywrightRoot = null;
+  let livePlaywrightVersion = null;
+  if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
+    const live = resolvePlaywright();
+    check(MODULE_ROOTS.includes(live.root) && live.version === PLAYWRIGHT_VERSION,
+      'live Playwright resolution drift');
+    livePlaywrightRoot = live.root;
+    livePlaywrightVersion = live.version;
+  }
+  process.stdout.write(JSON.stringify({
+    status: 'PASS', checks, repositoryRoot: ROOT, binaryDirectory: options.bin,
+    bundleDirectory: options.bundle, output: options.out, moduleRoots: MODULE_ROOTS,
+    nodeVersion: process.version, expectedPlaywrightVersion: PLAYWRIGHT_VERSION,
+    livePlaywrightRoot, livePlaywrightVersion, browserArgs: BROWSER_ARGS,
+    browserLaunches: 0,
+  }, null, 2) + '\n');
+}
 
 async function waitBoot(page) {
   await page.waitForFunction(() => {
@@ -138,28 +341,66 @@ async function trustedPickerActivation(page, kind) {
   return {supported, active: probe?.active === true, probe};
 }
 
-const browser = await chromium.launch({headless: false});
-const context = await browser.newContext({
-  viewport: {width: 1280, height: 720}, deviceScaleFactor: 1, acceptDownloads: true,
-});
-const page = await context.newPage();
-const cdp = await context.newCDPSession(page);
-const external = [];
-const gpuErrors = [];
-page.on('request', (request) => {
-  try { if (new URL(request.url()).origin !== new URL(BASE).origin) external.push(request.url()); }
-  catch (_) { external.push(request.url()); }
-});
-page.on('console', (message) => {
-  const text = message.text();
-  if (/ValidationError|GPU-ERROR|uncaptured WebGPU error/i.test(text)) gpuErrors.push(text);
-});
-page.on('pageerror', (error) => gpuErrors.push('pageerror: ' + error.message));
+async function runBrowser(options) {
+  if (process.version !== NODE_VERSION) {
+    throw new Error(`node version ${process.version} != ${NODE_VERSION}`);
+  }
+  const {chromium} = resolvePlaywright();
+  const product = loadProductInputs(options);
+  const {blendBytes, blendB64} = product;
+  const receipt = {
+    schema: 'blender-web.m7-files-browser.v2',
+    physical_drop_trusted: false,
+    physical_drop_opened: false,
+    fsa_open_picker_supported: false,
+    fsa_open_trusted_activation: false,
+    fsa_open_acceptance: false,
+    fallback_open_acceptance: false,
+    fsa_save_picker_supported: false,
+    fsa_save_trusted_activation: false,
+    fsa_save_acceptance: false,
+    fallback_save_acceptance: false,
+    opfs_reload_roundtrip: false,
+    external_request_count: -1,
+    gpu_error_count: -1,
+    bundle_artifacts: product.bundleArtifacts,
+    bundle_identity: {
+      path: product.bundleManifest,
+      bytes: product.bundleIdentityBytes.length,
+      sha256: sha256Bytes(product.bundleIdentityBytes),
+      split_manifest_sha256: product.bundleIdentity.splitManifestSha256,
+      public_split_manifest_sha256: product.bundleIdentity.publicSplitManifestSha256,
+    },
+  };
+  const failures = [];
+  const fail = (message) => { failures.push(message); console.error('FAIL  ' + message); };
+  const pass = (message) => console.log('PASS  ' + message);
+  const browser = await chromium.launch({headless: false, args: BROWSER_ARGS});
+  const context = await browser.newContext({
+    viewport: {width: 1280, height: 720}, deviceScaleFactor: 1, acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  const external = [];
+  const gpuErrors = [];
+  page.on('request', (request) => {
+    try {
+      if (new URL(request.url()).origin !== new URL(options.base).origin) {
+        external.push(request.url());
+      }
+    }
+    catch (_) { external.push(request.url()); }
+  });
+  page.on('console', (message) => {
+    const text = message.text();
+    if (/ValidationError|GPU-ERROR|uncaptured WebGPU error/i.test(text)) gpuErrors.push(text);
+  });
+  page.on('pageerror', (error) => gpuErrors.push('pageerror: ' + error.message));
 
-try {
+  try {
   // Product-default boot: deferred Python/addon assets load automatically before
   // file-bridge readiness. `?stage1=manual` would manufacture a daemon timeout.
-  await page.goto(BASE + '/index.html', {waitUntil: 'domcontentloaded', timeout: 240000});
+  await page.goto(options.base + '/index.html', {waitUntil: 'domcontentloaded', timeout: 240000});
   await waitBoot(page);
 
   // 1. Actual Chrome drag pipeline with a real local file path. CDP synthesizes
@@ -170,7 +411,7 @@ try {
   }, {capture: true, once: true}));
   const dragData = {
     items: [{mimeType: 'application/x-blender', data: ''}],
-    files: [BLEND],
+    files: [product.blend],
     dragOperationsMask: 1,
   };
   await cdp.send('Input.dispatchDragEvent', {type: 'dragEnter', x: 640, y: 360, data: dragData});
@@ -186,7 +427,7 @@ try {
     fail('drop was not a trusted browser input event: ' + JSON.stringify(drop));
 
   // 2. Chromium exposes the native picker API and the shipped branch invokes it
-  // synchronously under a trusted click. CDP cannot accept/dismiss a macOS FSA
+  // synchronously under a trusted click. CDP cannot accept/dismiss a native FSA
   // system dialog, so the next test supplies a standards-shaped handle and owns
   // byte acceptance; the real <input> fallback below is driven end-to-end.
   const openActivation = await trustedPickerActivation(page, 'open');
@@ -277,22 +518,37 @@ try {
     (reopened.objects || []).includes('BW_M7_FSA_SAVE');
   receipt.opfs_reload_roundtrip ? pass('OPFS reload/open_store preserved authored object') :
     fail('OPFS reload round-trip failed: ' + JSON.stringify(reopened));
+  }
+  catch (error) {
+    fail('verifier threw: ' + (error?.stack || error));
+  }
+  finally {
+    receipt.external_request_count = external.length;
+    receipt.gpu_error_count = gpuErrors.length;
+    receipt.external_requests = external;
+    receipt.gpu_errors = gpuErrors;
+    if (external.length) fail('external requests escaped bundle: ' + external.join(', '));
+    if (gpuErrors.length) fail('GPU/page errors during M7 file acceptance: ' + gpuErrors[0]);
+    receipt.verdict = failures.length ? 'FAIL' : 'PASS';
+    receipt.failures = failures;
+    writeFileSync(options.out, JSON.stringify(receipt, null, 2) + '\n');
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+    console.log(`M7_FILES_VERDICT ${receipt.verdict} -> ${options.out}`);
+    if (failures.length) process.exitCode = 1;
+  }
 }
-catch (error) {
-  fail('verifier threw: ' + (error?.stack || error));
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.selfcheck) {
+    runSelfcheck(options);
+    return;
+  }
+  await runBrowser(options);
 }
-finally {
-  receipt.external_request_count = external.length;
-  receipt.gpu_error_count = gpuErrors.length;
-  receipt.external_requests = external;
-  receipt.gpu_errors = gpuErrors;
-  if (external.length) fail('external requests escaped bundle: ' + external.join(', '));
-  if (gpuErrors.length) fail('GPU/page errors during M7 file acceptance: ' + gpuErrors[0]);
-  receipt.verdict = failures.length ? 'FAIL' : 'PASS';
-  receipt.failures = failures;
-  writeFileSync(OUT, JSON.stringify(receipt, null, 2) + '\n');
-  await context.close().catch(() => {});
-  await browser.close().catch(() => {});
-  console.log(`M7_FILES_VERDICT ${receipt.verdict} -> ${OUT}`);
-  process.exit(failures.length ? 1 : 0);
-}
+
+main().catch((error) => {
+  process.stderr.write(`${error?.stack || error}\n`);
+  process.exitCode = 1;
+});

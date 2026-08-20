@@ -36,6 +36,8 @@ Browser-free checks:
 ```
 python3 sandbox/m7-product-gate/capture_fallback.py --selfcheck
 python3 sandbox/m7-product-gate/verify_m7.py --selfcheck
+tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m7-product-gate/verify_files.mjs --selfcheck
 ```
 
 These self-checks are checkout- and CWD-independent and do not require `codesign`, installed
@@ -66,6 +68,28 @@ label remains immutable with `INCOMPLETE`/`FAILED.txt`; its selector is never pu
 
 Receipts are accepted by SHA-256 and byte length only. Filesystem modification times are
 never freshness evidence.
+
+The current files-browser producer is checkout- and CWD-independent. It requires Node 22.16.0
+and Playwright 1.61.1, resolving Playwright from `BW_NODE_MODULES`, each `NODE_PATH` entry,
+`.m4-node/node_modules`, then `node_modules`. Its Linux launch enables WebGPU without the
+macOS-only Metal ANGLE argument. `--selfcheck` validates the path, dependency, loopback-origin,
+and exact bundle-identity contracts without reading an APPLY product or opening a browser.
+
+After the s7 hardware-adapter gate is green and the exact APPLY bundle and generated identity
+exist, serve that bundle and run:
+
+```
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+export BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin"
+export BW_BASE=http://127.0.0.1:8165
+tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m7-product-gate/verify_files.mjs
+```
+
+The producer writes only `sandbox/m7-product-gate/verify_files.json`, the path consumed by the
+strict M7 gate. It rejects an external origin, an indirect or escaped input, a mismatched split
+manifest, path/hash drift in the M8-derived bundle identity, and any Node or Playwright version
+substitution before launching Chromium.
 
 Before running `verify_files.mjs`, derive its exact file allowlist from the finalizer-owned
 split manifest via `verify_m8.bundle_files()` and write the generated, immutable

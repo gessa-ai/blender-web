@@ -55,7 +55,7 @@ if [ ! -f "$LIBWASM_INC/fmt/ranges.h" ] || [ ! -f "$LIBWASM_INC/zstd.h" ]; then
   echo "[build-hosttools]        msgfmt needs the same headers the wasm build uses." >&2
   exit 1
 fi
-"$CXX" -std=c++20 -O2 -DNDEBUG \
+"$CXX" -std=c++20 -O2 -DNDEBUG -funsigned-char \
   -I "$BL" -I "$GA" -I "$ROOT/upstream/intern/atomic" -I "$ROOT/upstream/intern/eigen" \
   -I "$SRC/makesdna" -I "$ROOT/upstream/extern/wcwidth" -include cstddef -Wno-conversion -Wno-sign-conversion -isystem "$LIBWASM_INC" \
   "$DEAD_STRIP" \
@@ -69,6 +69,7 @@ fi
   "$BL/intern/BLI_assert.cc" \
   "$BL/intern/string_utils.cc" \
   "$BL/intern/string_utf8.cc" \
+  "$BL/intern/BLI_dynstr.cc" \
   "$ROOT/upstream/extern/wcwidth/wcwidth.c" \
   "$BL/intern/BLI_memarena.cc" \
   "$BL/intern/BLI_mempool.cc" \

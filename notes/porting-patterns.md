@@ -112,3 +112,13 @@ when `main()` runs on a `-sPROXY_TO_PTHREAD` WORKER, that worker can block
 device-ready future is signalled from the browser main thread. A main-thread suspend, if
 ever genuinely needed, must be reached from a promising-wrapped export, never from ctors.
 See `notes/m4-integration.md` T9, `patches/platform_wasm.cmake` (browser arm).
+
+## Class 5 — direct Linux build-tree tests need Blender's bundled-library environment
+Signature: a freshly linked native test exits before enumeration with
+`error while loading shared libraries: libOpenEXR.so.*` (or another transitive
+precompiled dependency), even though its direct RUNPATH is present. Linux
+`DT_RUNPATH` is not transitive. CTest and Blender's code-generator commands apply
+`PLATFORM_ENV_BUILD`; a standalone evidence runner must do the same. Prepend the
+canonical `lib/linux_<arch>/*/lib` package directories to `LD_LIBRARY_PATH`, retain
+the caller's path only as a fallback, and apply that environment to both list and
+run phases. Do not copy libraries into the build tree or substitute system packages.

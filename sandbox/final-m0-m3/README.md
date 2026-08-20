@@ -75,7 +75,10 @@ forward-compatible mode; a schema change requires a reviewed verifier change.
   browser-cache binary still makes REUSE fail closed.
 - Source freeze: the canonical patch, live and replay manifests, byte-exact
   replay checks, exact current upstream path/byte inventory, pristine pinned
-  `HEAD`, and an exact current pin file.
+  `HEAD`, and an exact current pin file. Live verification compares hydrated
+  clean-filtered files such as Git LFS payloads through their canonical index
+  blobs, matching the freeze/replay manifest rather than mistaking hydration
+  for source drift.
 - M1: exact current JS/Wasm/result identities; the complete enumerated blenlib
   suite (never fewer than 1,667 tests) and complete bmesh-core suite with zero
   failed and zero crashed; byte-bound native/Wasm test-name manifest equality;
@@ -368,7 +371,10 @@ census; unequal multiplicity or malformed occurrence numbering fails.
 Run the two large execution lanes serially. They share the Node/Wasm memory
 budget; parallel execution adds failure ambiguity without reducing the critical
 GPU path. Artifact arguments must name the dedicated frozen-source build
-outputs, not historical receipts:
+outputs, not historical receipts. On Linux, the M1 producer mirrors Blender's
+`PLATFORM_ENV_BUILD` contract by prepending the canonical precompiled
+`lib/linux_<arch>/*/lib` directories to `LD_LIBRARY_PATH` for the native gtest
+list and run processes; Linux `DT_RUNPATH` is not transitive:
 
 ```sh
 python3 sandbox/final-m0-m3/run_m1.py \

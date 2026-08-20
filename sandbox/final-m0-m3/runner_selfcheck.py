@@ -554,6 +554,28 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="final-m0-m3-runners-") as temp:
         root = Path(temp)
 
+        linux_libdir = root / "linux-libdir"
+        (linux_libdir / "zeta/lib").mkdir(parents=True)
+        (linux_libdir / "alpha/lib").mkdir(parents=True)
+        library_dirs = m1.linux_bundled_library_dirs(linux_libdir)
+        assert library_dirs == [
+            (linux_libdir / "alpha/lib").resolve(),
+            (linux_libdir / "zeta/lib").resolve(),
+        ]
+        loader_env = m1.environment_with_library_dirs(
+            {"PATH": "/fixture/bin", "LD_LIBRARY_PATH": "/fixture/fallback"},
+            library_dirs,
+        )
+        assert loader_env == {
+            "PATH": "/fixture/bin",
+            "LD_LIBRARY_PATH": os.pathsep.join([
+                os.fspath(library_dirs[0]),
+                os.fspath(library_dirs[1]),
+                "/fixture/fallback",
+            ]),
+        }
+        reject("m1_linux_loader_empty", lambda: m1.environment_with_library_dirs({}, []))
+
         def device_limit_fixture(label: str) -> dict[str, Path]:
             fixture_root = root / label
             fields = m3.WEBGPU_DEVICE_LIMIT_FIELDS
@@ -1191,7 +1213,7 @@ def main() -> int:
                    cache_rows, [cache_rows[0], cache_rows[1] + "x"]))
 
     print(json.dumps({
-        "schema": 1, "verdict": "PASS", "positive": 22,
+        "schema": 1, "verdict": "PASS", "positive": 23,
         "negative": len(negatives), "negative_checks": negatives,
         "m2_suite_count": 75, "m3_gpu_count": m3.GPU_TEST_COUNT,
         "m3_shader_count": m3.STATIC_SHADER_COUNT,

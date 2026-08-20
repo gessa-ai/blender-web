@@ -14,6 +14,7 @@ import argparse
 from collections import Counter
 import datetime as dt
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -530,6 +531,44 @@ def manifest_rows(path: Path, where: str) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def git_index_blob_payloads(
+    source: Path,
+    staged: dict[str, tuple[str, str]],
+    names: list[str],
+) -> dict[str, bytes]:
+    """Read canonical index blobs in one batch for clean-filtered worktree files."""
+    ordered = sorted(names, key=os.fsencode)
+    if not ordered:
+        return {}
+    queries = b"".join(staged[name][1].encode("ascii") + b"\n" for name in ordered)
+    result = subprocess.run(
+        ["git", "-C", os.fspath(source), "cat-file", "--batch"],
+        input=queries,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        fail(f"could not read canonical upstream index blobs: {result.stderr.decode('utf-8', 'replace').strip()}")
+    stream = io.BytesIO(result.stdout)
+    payloads: dict[str, bytes] = {}
+    for name in ordered:
+        header = stream.readline().rstrip(b"\n").split()
+        expected_oid = staged[name][1].encode("ascii")
+        if len(header) != 3 or header[0] != expected_oid or header[1] != b"blob":
+            fail(f"could not parse canonical upstream index blob header: {name}")
+        try:
+            size = int(header[2])
+        except ValueError:
+            fail(f"canonical upstream index blob has invalid size: {name}")
+        payload = stream.read(size)
+        if len(payload) != size or stream.read(1) != b"\n":
+            fail(f"canonical upstream index blob is truncated: {name}")
+        payloads[name] = payload
+    if stream.read(1):
+        fail("canonical upstream index blob stream has trailing data")
+    return payloads
+
+
 def verify_source_freeze(ctx: Context, section: dict[str, Any]) -> None:
     refs = exact(section, {"receipt", "patch", "live_manifest", "replay_manifest"}, "manifest.source_freeze")
     receipt, receipt_hash, receipt_path = ctx.load_ref(refs["receipt"], "manifest.source_freeze.receipt")
@@ -628,6 +667,13 @@ def verify_source_freeze(ctx: Context, section: dict[str, Any]) -> None:
         if stage != b"0":
             fail("current upstream index contains a non-stage-zero entry")
         staged[os.fsdecode(raw_name)] = (mode_raw.decode("ascii"), oid_raw.decode("ascii"))
+    changed_raw = subprocess.run(
+        ["git", "-C", os.fspath(source), "diff", "--name-only", "--no-renames", "-z", "--"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    changed_names = {os.fsdecode(name) for name in changed_raw.split(b"\0") if name}
+    index_fallback: list[str] = []
     for name, row in decoded_live.items():
         path = source / name
         if row["mode"] == "160000":
@@ -648,9 +694,20 @@ def verify_source_freeze(ctx: Context, section: dict[str, Any]) -> None:
             current_mode = "100755" if path.stat().st_mode & 0o111 else "100644"
             if current_mode != row["mode"]:
                 fail(f"current upstream executable mode differs from freeze: {name}")
-            payload = path.read_bytes()
+            if path.stat().st_size != row["size"]:
+                payload = b""
+            else:
+                payload = path.read_bytes()
         if len(payload) != row["size"] or hashlib.sha256(payload).hexdigest() != row["sha256"]:
+            metadata = staged.get(name)
+            if row["mode"] != "120000" and metadata is not None and name not in changed_names:
+                index_fallback.append(name)
+                continue
             fail(f"current upstream bytes differ from freeze: {name}")
+    for name, payload in git_index_blob_payloads(source, staged, index_fallback).items():
+        row = decoded_live[name]
+        if len(payload) != row["size"] or hashlib.sha256(payload).hexdigest() != row["sha256"]:
+            fail(f"current upstream canonical index bytes differ from freeze: {name}")
     head = subprocess.run(["git", "-C", os.fspath(source), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
     if head != BLENDER_COMMIT:
         fail("current upstream HEAD is not the exact Blender pin")

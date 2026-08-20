@@ -16,7 +16,10 @@ while [[ -L "$SCRIPT_SOURCE" ]]; do
     SCRIPT_SOURCE="$SCRIPT_DIR/$LINK_TARGET"
   fi
 done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+SCRIPT_SOURCE="$SCRIPT_DIR/$(basename "$SCRIPT_SOURCE")"
 ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
+WORK_ROOT="$(pwd -P)"
 DOCKERFILE="$ROOT/containers/oracle/Dockerfile"
 IMAGE="${BLENDER_ORACLE_IMAGE:-blender-web/oracle:5.2.0-fbe6228777e7}"
 PLATFORM="linux/amd64"
@@ -70,9 +73,24 @@ run_image() {
     --network none \
     --user "$(id -u):$(id -g)" \
     --env HOME=/tmp \
-    --volume "$PWD:/work" \
+    --volume "$WORK_ROOT:/work" \
     --workdir /work \
     "$@"
+}
+
+translated_args=()
+translate_work_args() {
+  translated_args=()
+  local argument
+  for argument in "$@"; do
+    if [[ "$argument" == "$WORK_ROOT" ]]; then
+      translated_args+=("/work")
+    elif [[ "$argument" == "$WORK_ROOT/"* ]]; then
+      translated_args+=("/work/${argument#"$WORK_ROOT"/}")
+    else
+      translated_args+=("$argument")
+    fi
+  done
 }
 
 case "${0##*/}" in
@@ -111,26 +129,28 @@ case "$command_name" in
     ;;
   blender)
     require_docker
+    translate_work_args "$@"
     exec docker run --rm \
       --platform "$PLATFORM" \
       --network none \
       --user "$(id -u):$(id -g)" \
       --env HOME=/tmp \
-      --volume "$PWD:/work" \
+      --volume "$WORK_ROOT:/work" \
       --workdir /work \
-      "$IMAGE" --background --factory-startup "$@"
+      "$IMAGE" --background --factory-startup "${translated_args[@]}"
     ;;
   oiiotool)
     require_docker
+    translate_work_args "$@"
     exec docker run --rm \
       --platform "$PLATFORM" \
       --network none \
       --user "$(id -u):$(id -g)" \
       --env HOME=/tmp \
-      --volume "$PWD:/work" \
+      --volume "$WORK_ROOT:/work" \
       --workdir /work \
       --entrypoint /usr/bin/oiiotool \
-      "$IMAGE" "$@"
+      "$IMAGE" "${translated_args[@]}"
     ;;
   version)
     run_image "$IMAGE" --version

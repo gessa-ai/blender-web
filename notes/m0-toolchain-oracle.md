@@ -58,7 +58,10 @@ not the native Metal UI/render oracle documented by the M4-M6 lanes.
 `with-env` supplies temporary `BLENDER_BIN` and `oiiotool` command shims that
 route the existing protected M0 harness checks through the same pinned image.
 The shims are removed when the requested command exits, preserve its exit code,
-and do not change `oracle/` or `harness/`.
+and do not change `oracle/` or `harness/`. Relative and absolute wrapper
+invocations canonicalize the same executable source before creating the shims.
+Absolute arguments rooted in the mounted working directory are translated to
+their `/work/...` container paths, including not-yet-created output files.
 
 `scripts/m0-selfcheck.py` validates the Dockerfile, wrapper, exact pins, CI
 workflow, shell syntax, protected `oracle/PIN`, and the live upstream checkout

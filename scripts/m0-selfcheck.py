@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -91,6 +93,9 @@ require_text(
         "M0_ORACLE_CONTAINER_OK",
         "with-env COMMAND [ARGS...]",
         'BLENDER_BIN="$shim_dir/blender-oracle"',
+        'SCRIPT_SOURCE="$SCRIPT_DIR/$(basename "$SCRIPT_SOURCE")"',
+        'translate_work_args "$@"',
+        'translated_args+=("/work/${argument#"$WORK_ROOT"/}")',
     ],
 )
 require_text(
@@ -153,13 +158,81 @@ environment_probe = subprocess.run(
         "with-env",
         "bash",
         "-c",
-        'test -L "$BLENDER_BIN" && test -L "$(command -v oiiotool)"',
+        'test -x "$BLENDER_BIN" && test -x "$(command -v oiiotool)"',
     ],
     capture_output=True,
     text=True,
 )
 if environment_probe.returncode != 0:
     fail(f"oracle with-env shim probe: {environment_probe.stderr.strip()}")
+
+with tempfile.TemporaryDirectory(prefix="m0-oracle-selfcheck-") as temp_name:
+    shim_record = Path(temp_name) / "shim-path"
+    relative_probe = subprocess.run(
+        [
+            "scripts/oracle-container.sh",
+            "with-env",
+            "bash",
+            "-c",
+            'test -x "$BLENDER_BIN" && printf "%s\\n" "$BLENDER_BIN" > "$1"',
+            "m0-relative-probe",
+            str(shim_record),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if relative_probe.returncode != 0 or not shim_record.is_file():
+        fail(f"relative oracle with-env shim probe: {relative_probe.stderr.strip()}")
+    recorded_shim = Path(shim_record.read_text(encoding="utf-8").strip())
+    if recorded_shim.exists() or recorded_shim.parent.exists():
+        fail(f"relative oracle with-env left its shim directory behind: {recorded_shim.parent}")
+
+with tempfile.TemporaryDirectory(prefix="m0-oracle-paths-") as temp_name:
+    fake_bin = Path(temp_name)
+    docker_argv = fake_bin / "docker-argv"
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = info ]; then exit 0; fi\n"
+        "printf '%s\\n' \"$@\" > \"$DOCKER_ARGV_FILE\"\n",
+        encoding="utf-8",
+    )
+    fake_docker.chmod(0o755)
+    source_path = ROOT / "sandbox/corpus-prep/state_dump.py"
+    output_path = ROOT / "sandbox/m0-path-probe-never-created.json"
+    if not source_path.is_file() or output_path.exists():
+        fail("oracle container path-translation fixture is not clean")
+    probe_environment = os.environ.copy()
+    probe_environment.update({
+        "PATH": f"{fake_bin}{os.pathsep}{probe_environment['PATH']}",
+        "DOCKER_ARGV_FILE": str(docker_argv),
+    })
+    path_probe = subprocess.run(
+        [
+            str(oracle_wrapper),
+            "blender",
+            "--python",
+            str(source_path),
+            "--",
+            str(output_path),
+        ],
+        cwd=ROOT,
+        env=probe_environment,
+        capture_output=True,
+        text=True,
+    )
+    if path_probe.returncode != 0 or not docker_argv.is_file():
+        fail(f"oracle container path-translation probe: {path_probe.stderr.strip()}")
+    docker_arguments = docker_argv.read_text(encoding="utf-8").splitlines()
+    expected_paths = {
+        "/work/sandbox/corpus-prep/state_dump.py",
+        "/work/sandbox/m0-path-probe-never-created.json",
+    }
+    if not expected_paths <= set(docker_arguments):
+        fail("oracle container did not translate exact project paths into /work")
+    if str(source_path) in docker_arguments or str(output_path) in docker_arguments:
+        fail("oracle container leaked host project paths into container arguments")
 
 exit_probe = subprocess.run(
     [str(oracle_wrapper), "with-env", "bash", "-c", "exit 37"],

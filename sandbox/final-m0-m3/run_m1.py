@@ -177,6 +177,61 @@ def cmake_configuration(
     }
 
 
+def linux_bundled_library_dirs(libdir: Path) -> list[Path]:
+    """Return Blender's precompiled package library directories deterministically."""
+    if not libdir.is_dir():
+        fail(f"native Linux LIBDIR is missing: {libdir}")
+    directories = sorted({
+        (package / "lib").resolve()
+        for package in libdir.iterdir()
+        if package.is_dir() and (package / "lib").is_dir()
+    }, key=os.fspath)
+    if not directories:
+        fail(f"native Linux LIBDIR has no package library directories: {libdir}")
+    return directories
+
+
+def environment_with_library_dirs(
+    environment: dict[str, str], directories: list[Path]
+) -> dict[str, str]:
+    """Prepend exact library directories while retaining the caller's fallback path."""
+    if not directories:
+        fail("native Linux runtime library directory set is empty")
+    result = dict(environment)
+    prefix = os.pathsep.join(os.fspath(path) for path in directories)
+    inherited = result.get("LD_LIBRARY_PATH", "")
+    result["LD_LIBRARY_PATH"] = prefix + (os.pathsep + inherited if inherited else "")
+    return result
+
+
+def native_gtest_environment(cache: Path) -> dict[str, str] | None:
+    """Mirror PLATFORM_ENV_BUILD for direct Linux test execution."""
+    if sys.platform != "linux":
+        return None
+    machine = os.uname().machine
+    platform_name = {"x86_64": "linux_x64", "aarch64": "linux_arm64"}.get(machine)
+    if platform_name is None:
+        fail(f"unsupported native Linux architecture for M1 runtime: {machine}")
+    expected = ROOT / "lib" / platform_name
+    values = []
+    for raw in cache.read_text(encoding="utf-8").splitlines():
+        if raw.startswith("LIBDIR:") and "=" in raw:
+            values.append(raw.split("=", 1)[1])
+    if len(values) != 1:
+        fail(f"native parity cache must contain one LIBDIR: {cache}")
+    lexical = Path(os.path.normpath(values[0]))
+    try:
+        resolved = lexical.resolve(strict=True)
+        canonical = expected.resolve(strict=True)
+    except OSError as error:
+        fail(f"native Linux LIBDIR cannot be resolved: {error}")
+    if lexical != expected or resolved != canonical:
+        fail(f"native parity cache uses noncanonical Linux LIBDIR: {lexical}")
+    return environment_with_library_dirs(
+        os.environ, linux_bundled_library_dirs(canonical)
+    )
+
+
 def require_parity_build_contract(
     name: str,
     native: Path,
@@ -540,11 +595,17 @@ def run_gtest(
         "native": attest_ninja_no_work(native, name, wasm=False, out=out),
         "wasm": attest_ninja_no_work(wasm_js, name, wasm=True, out=out),
     }
+    native_env = native_gtest_environment(native_cache)
     list_native_out = out / f"{name}-native-list.stdout"
     list_native_err = out / f"{name}-native-list.stderr"
     list_wasm_out = out / f"{name}-wasm-list.stdout"
     list_wasm_err = out / f"{name}-wasm-list.stderr"
-    if capture([str(native), "--gtest_list_tests", *extra], list_native_out, list_native_err) != 0:
+    if capture(
+        [str(native), "--gtest_list_tests", *extra],
+        list_native_out,
+        list_native_err,
+        env=native_env,
+    ) != 0:
         fail(f"native {name} list command failed")
     if capture([str(node), str(wasm_js), "--gtest_list_tests", *extra], list_wasm_out, list_wasm_err) != 0:
         fail(f"Wasm {name} list command failed")
@@ -560,8 +621,12 @@ def run_gtest(
     wasm_json = out / f"{name}-wasm-results.json"
     native_stdout, native_stderr = out / f"{name}-native.stdout", out / f"{name}-native.stderr"
     wasm_stdout, wasm_stderr = out / f"{name}-wasm.stdout", out / f"{name}-wasm.stderr"
-    native_rc = capture([str(native), *extra, f"--gtest_output=json:{native_json}"],
-                        native_stdout, native_stderr)
+    native_rc = capture(
+        [str(native), *extra, f"--gtest_output=json:{native_json}"],
+        native_stdout,
+        native_stderr,
+        env=native_env,
+    )
     wasm_rc = capture([str(node), str(wasm_js), *extra, f"--gtest_output=json:{wasm_json}"],
                       wasm_stdout, wasm_stderr)
     native_total, native_failed, native_rows = parse_gtest_json(native_json)

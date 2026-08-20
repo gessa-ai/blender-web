@@ -796,6 +796,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   freeze and absent `build-native-gpu` controls allocate nothing. No native USD receipt was
   produced, and M7 remains blocked by the existing staged/files/APPLY and s7 browser boundaries.
   See `notes/m7-native-usd-linux-portability-20260820.md`.
+- [x] **M7-FALLBACK-CONTRACT-LINUX-PORTABILITY [driver, selfcheck-only]:** the branded
+  Firefox/Safari producer and aggregate contract self-checks now run from the Linux checkout root
+  or a descendant CWD without installed browsers, WebDrivers, or `codesign`. Exact Apple
+  identifier/team parsing has positive and adversarial fixtures, a missing identity command fails
+  closed, and a real Linux production invocation is rejected before evidence allocation. The
+  strict two-browser capture remains deliberately macOS-only because only that host can run real
+  Safari; no browser or M7 receipt was produced and no signing/schema requirement changed. See
+  `notes/m7-fallback-contract-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

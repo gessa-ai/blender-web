@@ -38,6 +38,12 @@ python3 sandbox/m7-product-gate/capture_fallback.py --selfcheck
 python3 sandbox/m7-product-gate/verify_m7.py --selfcheck
 ```
 
+These self-checks are checkout- and CWD-independent and do not require `codesign`, installed
+browsers, or WebDriver binaries. They validate the exact macOS signing parser with positive and
+adversarial fixtures. A production Firefox + Safari capture remains a macOS-only operation: the
+real preflight still requires both canonical applications and re-runs `codesign` against every
+app and driver before any evidence label is reserved.
+
 Production capture (the exact-tree server must already be listening):
 
 ```
@@ -45,7 +51,7 @@ python3 sandbox/m7-product-gate/capture_fallback.py \
   --label "$RUN_LABEL" \
   --source-freeze "$FINAL_SOURCE_FREEZE/receipt.json" \
   --base http://127.0.0.1:8168 \
-  --geckodriver /Users/paws/blender-web/.m8-browsers/geckodriver-v0.37.1-macos-aarch64/geckodriver
+  --geckodriver "$PWD/.m8-browsers/geckodriver-v0.37.1-macos-aarch64/geckodriver"
 ```
 
 The default Firefox driver is the locally ignored, release-pinned official Mozilla

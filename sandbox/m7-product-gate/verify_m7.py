@@ -1385,6 +1385,8 @@ def main() -> int:
                 and "download" in browser_properties and "errors" in browser_properties,
             schema.get("additionalProperties") is False,
             producer_check.returncode == 0,
+            "M7_FALLBACK_CAPTURE_SELFCHECK_PASS" in producer_check.stdout,
+            "positive=7 negative=10 browser_launches=0" in producer_check.stdout,
             native_producer_check.returncode == 0,
             len(transcript_negatives) == 10,
             len(boundary_negatives) == 9,

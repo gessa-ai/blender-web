@@ -396,7 +396,7 @@ cold-MISS/warm-HIT contract recorded in `notes/gpu-r26-migration-savepoint.md`.
 | `lib/macos_arm64` | Exact `lib/linux_x64` gitlink commit plus rebuilt `lib/wasm`. |
 | `oracle/blender-5.2.0/Blender.app/Contents/MacOS/Blender` | Prefer `scripts/oracle-container.sh`; for `oracle/bpy.sh`, set `BLENDER_BIN` to a verified Linux Blender 5.2.0 executable. |
 | Native golden capture uses a visible macOS Blender window | Do not regenerate for M4 replay. Use tracked goldens. A future Linux golden campaign is a new adapter baseline. |
-| `codesign`, `spctl`, `CFBundleIdentifier`, plist versions in M7/M8 | Not part of M4. For later gates, replace with canonical ELF path/hash plus distro package signature/version checks; do not weaken by marking the macOS fields true. |
+| `codesign`, `spctl`, `CFBundleIdentifier`, plist versions in M7/M8 | Not part of M4. The M7 Firefox/Safari contract self-check is host-independent, but its strict real Safari row remains a macOS capture and still rechecks Apple signatures. For Linux-native browser rows in later gates, replace these fields with canonical ELF path/hash plus distro package signature/version checks; do not weaken by marking the macOS fields true. |
 | `.m8-browsers/Google Chrome.app`, `Microsoft Edge.app`, signed geckodriver | Not transferred. Install exact-current Linux Chrome/Edge packages and Linux geckodriver under a documented local root; port M7/M8 identity verifiers before use. |
 | `/tmp/blender-web-ninja.lock` | `/tmp` exists in WSL; current lock script works unchanged. |
 | `date`, `mktemp`, `stat`, `sed`, Bash behavior in `harness/` | GNU variants satisfy current scripts. `harness/buildwrap.sh`, `harness/run.sh`, and `scripts/serve-web.sh` have no remaining macOS absolute path. |

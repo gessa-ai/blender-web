@@ -127,6 +127,34 @@ def load_json(path: Path, where: str) -> dict[str, Any]:
     return value
 
 
+def run_identity_command(command: list[str], where: str) -> subprocess.CompletedProcess[str]:
+    """Run a host identity probe and turn a missing host tool into a closed failure."""
+    try:
+        return subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+    except OSError as error:
+        raise CaptureError(f"{where} identity command is unavailable: {command[0]}: {error}") \
+            from error
+
+
+def validate_codesign_detail(detail: str, expected_identifier: str,
+                             expected_team: str, where: str) -> None:
+    """Require one exact Apple signing identifier and team in ``codesign`` output."""
+    identifiers = re.findall(r"(?m)^Identifier=(.+)$", detail)
+    teams = re.findall(r"(?m)^TeamIdentifier=(.+)$", detail)
+    if identifiers != [expected_identifier] or teams != [expected_team]:
+        raise CaptureError(f"unexpected signing identity for {where}")
+
+
+def validate_capture_host(system_name: str) -> None:
+    """Keep the two-row branded capture on the host that can run real Safari."""
+    if system_name != "Darwin":
+        raise CaptureError(
+            "production branded Firefox + Safari capture requires macOS; "
+            "use --selfcheck for host-independent contract validation")
+
+
 def validate_source_freeze(path: Path) -> dt.datetime:
     if path.absolute() != contract.CANONICAL_FREEZE_RECEIPT or path.is_symlink():
         raise CaptureError(f"source freeze must be exact canonical receipt: "
@@ -184,19 +212,13 @@ def plist_identity(app: Path, binary: Path, expected_identifier: str,
         raise CaptureError(f"invalid app identity: {app}")
     if identifier != expected_identifier:
         raise CaptureError(f"unexpected app identifier for {app}: {identifier}")
-    verify = subprocess.run(
-        ["codesign", "--verify", "--deep", "--strict", str(app)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    detail = subprocess.run(
-        ["codesign", "-dv", "--verbose=2", str(app)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
+    verify = run_identity_command(
+        ["codesign", "--verify", "--deep", "--strict", str(app)], str(app))
+    detail = run_identity_command(
+        ["codesign", "-dv", "--verbose=2", str(app)], str(app))
     if verify.returncode or detail.returncode:
         raise CaptureError(f"code signature verification failed for {app}: {verify.stdout}{detail.stdout}")
-    if f"Identifier={expected_identifier}" not in detail.stdout or \
-            f"TeamIdentifier={expected_team}" not in detail.stdout:
-        raise CaptureError(f"unexpected signing identity for {app}")
+    validate_codesign_detail(detail.stdout, expected_identifier, expected_team, str(app))
     return {
         "product": product,
         "version": version,
@@ -206,17 +228,11 @@ def plist_identity(app: Path, binary: Path, expected_identifier: str,
 
 
 def signed_driver_identity(path: Path, family: str, app_version: str) -> dict[str, Any]:
-    verify = subprocess.run(
-        ["codesign", "--verify", "--strict", str(path)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    detail = subprocess.run(
-        ["codesign", "-dv", "--verbose=2", str(path)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    version = subprocess.run(
-        [str(path), "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
+    verify = run_identity_command(
+        ["codesign", "--verify", "--strict", str(path)], f"{family} WebDriver")
+    detail = run_identity_command(
+        ["codesign", "-dv", "--verbose=2", str(path)], f"{family} WebDriver")
+    version = run_identity_command([str(path), "--version"], f"{family} WebDriver")
     if verify.returncode or detail.returncode or version.returncode:
         raise CaptureError(f"{family} WebDriver identity probe failed")
     first_line = version.stdout.splitlines()[0].strip() if version.stdout.splitlines() else ""
@@ -229,9 +245,8 @@ def signed_driver_identity(path: Path, family: str, app_version: str) -> dict[st
         if path.resolve() != contract.SAFARIDRIVER.resolve() or \
                 not first_line.startswith(f"Included with Safari {app_version} "):
             raise CaptureError("Safari driver version does not match the canonical Safari app")
-    if f"Identifier={expected_identifier}" not in detail.stdout or \
-            f"TeamIdentifier={expected_team}" not in detail.stdout:
-        raise CaptureError(f"{family} WebDriver signing identity mismatch")
+    validate_codesign_detail(
+        detail.stdout, expected_identifier, expected_team, f"{family} WebDriver")
     return {"artifact": file_record(path), "version": first_line,
             "signing": {"identifier": expected_identifier, "team": expected_team, "valid": True}}
 
@@ -787,24 +802,72 @@ def resolve_driver(value: str | None, default: str | Path, family: str) -> Path:
 
 
 def selfcheck() -> None:
+    positive = 0
+    negative = 0
+    if PRODUCER != Path(__file__).resolve() or ROOT != PRODUCER.parents[2] or \
+            not (ROOT / "GOAL.md").is_file():
+        raise CaptureError("repository root is not derived from the producer path")
+    positive += 1
     schema = load_json(SCHEMA, "fallback receipt schema")
     jsonschema.Draft202012Validator.check_schema(schema)
     assert schema["properties"]["schema"]["const"] == contract.SCHEMA
-    canonical_geckodriver = (
-        ROOT / ".m8-browsers/geckodriver-v0.37.1-macos-aarch64/geckodriver"
-    )
+    positive += 1
+    geckodriver_relative = Path(
+        ".m8-browsers/geckodriver-v0.37.1-macos-aarch64/geckodriver")
+    canonical_geckodriver = ROOT / geckodriver_relative
     assert DEFAULT_GECKODRIVER == canonical_geckodriver
-    live_driver = signed_driver_identity(canonical_geckodriver, "firefox", "")
-    assert live_driver["version"] == contract.GECKODRIVER_VERSION_LINE
+    positive += 1
+    validate_codesign_detail(
+        "Executable=/fixture\nIdentifier=org.mozilla.firefox\n"
+        "TeamIdentifier=43AQ936H96\n",
+        "org.mozilla.firefox", "43AQ936H96", "fixture Firefox")
+    positive += 1
+    validate_codesign_detail(
+        "Executable=/fixture\nIdentifier=com.apple.Safari\nTeamIdentifier=not set\n",
+        "com.apple.Safari", "not set", "fixture Safari")
+    positive += 1
+    validate_capture_host("Darwin")
+    positive += 1
+    for detail in (
+            "Identifier=org.mozilla.firefox\nTeamIdentifier=BADTEAM000\n",
+            "Identifier=org.mozilla.firefox.alias\nTeamIdentifier=43AQ936H96\n",
+            "Identifier=org.mozilla.firefox\nIdentifier=org.mozilla.firefox\n"
+            "TeamIdentifier=43AQ936H96\n",
+            "Identifier=org.mozilla.firefox\n"):
+        try:
+            validate_codesign_detail(
+                detail, "org.mozilla.firefox", "43AQ936H96", "negative fixture")
+        except CaptureError:
+            negative += 1
+        else:
+            raise CaptureError("false-green codesign detail fixture passed")
+    try:
+        run_identity_command(
+            ["__bw_m7_missing_identity_command__", "--version"], "negative fixture")
+    except CaptureError:
+        negative += 1
+    else:
+        raise CaptureError("missing identity command did not fail closed")
+    for system_name in ("Linux", "Windows"):
+        try:
+            validate_capture_host(system_name)
+        except CaptureError:
+            negative += 1
+        else:
+            raise CaptureError(f"unsupported capture host passed: {system_name}")
     assert contract.geckodriver_release_matches(
         contract.GECKODRIVER_SHA256, contract.GECKODRIVER_VERSION_LINE)
+    positive += 1
     assert not contract.geckodriver_release_matches(
         "0" * 64, contract.GECKODRIVER_VERSION_LINE)
+    negative += 1
     assert not contract.geckodriver_release_matches(
         contract.GECKODRIVER_SHA256,
         contract.GECKODRIVER_VERSION_LINE.replace("0.37.1", "0.37.0", 1))
+    negative += 1
     assert not contract.geckodriver_release_matches(
         contract.GECKODRIVER_SHA256, contract.GECKODRIVER_VERSION_LINE + " suffix")
+    negative += 1
     freeze_source = (ROOT / "sandbox/final-source-freeze/freeze_release.py").read_text()
     for relative in CRITICAL_FROZEN_PATHS:
         assert f'"{relative}"' in freeze_source
@@ -848,7 +911,8 @@ def selfcheck() -> None:
     assert stale_nested_driver not in runtime_source
     assert stale_nested_driver not in readme_source
     assert runtime_source.count('ROOT / ".m8-browsers/"') == 1
-    assert str(canonical_geckodriver) in readme_source
+    assert str(geckodriver_relative) in readme_source
+    assert "/Users/paws/blender-web/.m8-browsers" not in readme_source
     assert len(re.findall(r"(?m)^def capture_browser\(", producer_source)) == 1
     for forbidden in ("CAPABILITY_PROBE", "originalClick", "__bwFallbackDownload.blob",
                       "includes('input.blend')", 'openStore(\'input.blend\')'):
@@ -921,9 +985,10 @@ def selfcheck() -> None:
     false_green = json.loads(json.dumps(receipt_fixture))
     false_green["browsers"][0]["download"]["completed"] = False
     assert list(validator.iter_errors(false_green))
-    print("M7_FALLBACK_CAPTURE_SELFCHECK_PASS schema=v4 branded=firefox+safari "
+    print(f"M7_FALLBACK_CAPTURE_SELFCHECK_PASS schema=v4 branded=firefox+safari "
           "source_freeze=full-resnapshot selector=per-label-atomic "
           "driver=canonical-root-level-geckodriver+exact-full-version-line "
+          f"host_root={ROOT} positive={positive} negative={negative} browser_launches=0 "
           "negatives=product-worker+stale-opfs+synthetic-download+stale-nested-driver+"
           "geckodriver-hash+version+suffix")
 
@@ -948,6 +1013,7 @@ def main() -> int:
         return 0
     if not args.label or args.source_freeze is None:
         raise CaptureError("--label and --source-freeze are required")
+    validate_capture_host(platform.system())
     freeze_time = validate_source_freeze(args.source_freeze)
     if freeze_time > dt.datetime.now(dt.timezone.utc):
         raise CaptureError("source freeze is future-dated")

@@ -280,10 +280,36 @@ full 30-minute clock, samples JS heap plus the complete browser-process RSS tree
 fails on missing/zero/discontinuous samples, growth at or above 10%, external
 requests, stalls, GPU errors, or fatal/page failures.
 
+Run the browser-free portability contract first. It derives the checkout and output
+roots from the producer, requires exact Node 22.16.0 plus Playwright 1.61.1/PNGJS
+7.0.0, checks both Darwin and Linux Chrome identity/release selectors, and launches
+no browser:
+
 ```sh
-node sandbox/m8-launch-gate/soak_current.mjs 8168 30 \
-  sandbox/m8-launch-gate/.browsers/Google\ Chrome.app/Contents/MacOS/Google\ Chrome
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-launch-gate/soak_current.mjs --selfcheck
 ```
+
+Then use the same exact Node/module root and an explicit canonical branded Chrome
+executable. On macOS:
+
+```sh
+"$node22" sandbox/m8-launch-gate/soak_current.mjs 8168 30 \
+  "$PWD/sandbox/m8-launch-gate/.browsers/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+On Linux, after installing the authenticated package described above:
+
+```sh
+"$node22" sandbox/m8-launch-gate/soak_current.mjs 8168 30 \
+  /opt/google/chrome/chrome
+```
+
+The Linux row uses the same canonical ELF/dpkg/APT/keyring identity and stable-release
+feed as the performance and Chrome-matrix rows. Its process-tree RSS sampler uses the
+host `ps` command from procps. It still requires the s7-cleared hardware adapter and
+exact APPLY bundle; a software adapter cannot produce this receipt.
 
 Receipt files are generated evidence and are CC0-1.0 through `REUSE.toml`. Never copy
 an older PASS forward: the verifier recalculates the current build and bundle hashes.

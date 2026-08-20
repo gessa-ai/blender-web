@@ -321,6 +321,17 @@ assert.match(producers.performance,
   /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
   "performance producer does not enforce exact browser dependency versions");
 assert.equal((producers.soak.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 1);
+assert.doesNotMatch(producers.soak, /\/Users\/paws/,
+  "soak producer retains the retired macOS checkout/module root");
+assert.equal((producers.soak.match(/browserIdentityContract\("chrome", HOST_PLATFORM\)/g) || []).length, 1,
+  "soak producer does not use exactly one host-specific Chrome identity contract");
+assert.match(producers.soak, /officialChromeVersion\(HOST_PLATFORM\)/,
+  "soak producer does not select the host-specific Chrome stable feed");
+assert.match(producers.soak, /const NODE_VERSION = "v22\.16\.0";/,
+  "soak producer does not pin the receipt Node runtime");
+assert.match(producers.soak,
+  /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
+  "soak producer does not enforce exact browser dependency versions");
 assert.equal((producers.staged.match(/recordEarlyDiagnostics\('/g) || []).length, 3);
 
 rmSync(root, {recursive: true, force: true});

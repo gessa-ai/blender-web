@@ -829,8 +829,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   shared producer/consumer contract remains green. No performance receipt was produced: a real
   Linux-shaped invocation rejects the absent canonical Chrome package before evidence allocation,
   while s7 still blocks the APPLY product. See
-  `notes/m8-performance-linux-portability-20260820.md`. Soak portability is the next unblocked
-  producer-only unit; staged capture follows separately.
+  `notes/m8-performance-linux-portability-20260820.md`. Its soak successor is closed below;
+  staged capture follows separately.
+- [x] **M8-SOAK-LINUX-PORTABILITY [driver, producer-only]:** the strict current-bundle
+  30-minute soak now derives checkout/module/evidence/profile paths, requires Node 22.16.0 plus
+  exact Playwright 1.61.1/PNGJS 7.0.0 and an explicit canonical Chrome executable, and selects
+  the shared Darwin/Linux identity and stable-release feed without changing any duration,
+  cadence, RSS/heap, liveness, pixel, or error bar. Base 14/14 and live root+descendant 15/14
+  self-checks pass with zero launches; shared producer/consumer checks are GREEN. The real
+  package-absent Linux path rejects before profile/receipt allocation. No soak receipt was
+  produced because s7 plus APPLY remain mandatory. See
+  `notes/m8-soak-linux-portability-20260820.md`. Staged capture portability is the next
+  unblocked producer-only unit.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

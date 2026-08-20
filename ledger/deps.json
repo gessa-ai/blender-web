@@ -714,6 +714,16 @@
       "rationale": "Linux-only M8 release-evidence tools. GnuPG proves the exact vendor APT-key primary fingerprint; readelf proves the canonical amd64 PIE executable; dpkg proves package ownership/version and unchanged installed files; APT proves the installed package is the vendor-repository candidate and supplies the archive SHA-256. They are never linked, preloaded, or shipped in the Blender browser product.",
       "source": "Ubuntu host packages on ornith-lab; sandbox/m8-launch-gate/runtime_evidence.mjs and verify_m8.py; notes/m8-browser-identity-linux-portability-20260820.md"
     },
+    "linux_soak_rss_tool": {
+      "version": "procps-ng 4.0.4 (Ubuntu package 2:4.0.4-9ubuntu1 amd64)",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "LGPL-2.1-or-later",
+      "gpl_compatible": true,
+      "rationale": "Linux-only host process census for the strict M8 soak. ps supplies RSS plus command rows used to sum the dedicated branded-Chrome profile's browser, renderer, GPU, and utility processes. It is never linked, preloaded, or shipped in the Blender browser product.",
+      "source": "Ubuntu procps package on ornith-lab; sandbox/m8-launch-gate/soak_current.mjs; notes/m8-soak-linux-portability-20260820.md"
+    },
     "emdawnwebgpu": {
       "version": "port (emscripten 6.0.5; emdawnwebgpu.175430)",
       "build_time": false,

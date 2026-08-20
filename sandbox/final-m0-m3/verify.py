@@ -41,6 +41,7 @@ M0_ARTIFACTS = {
     "deps_ledger": "ledger/deps.json",
     "deferred_ledger": "ledger/deferred.json",
     "m0_selfcheck": "scripts/m0-selfcheck.py",
+    "ninja_locked": "scripts/ninja-locked.sh",
     "oracle_receipt": "scripts/m0-oracle-receipt.py",
     "oracle_dockerfile": "containers/oracle/Dockerfile",
     "oracle_pin": "oracle/PIN",
@@ -49,6 +50,7 @@ M0_ARTIFACTS = {
     "native_oracle": "oracle/bpy.sh",
     "reuse_config": "reuse.toml",
 }
+NINJA_LOCKED_RELATIVE = "../scripts/ninja-locked.sh"
 
 MAIN_CORPUS = {
     "animation",
@@ -671,7 +673,7 @@ def verify_m0(ctx: Context, receipt: dict[str, Any]) -> None:
     artifacts = exact(receipt["artifacts"], set(M0_ARTIFACTS), "m0.artifacts")
     paths = {key: ctx.file_ref(artifacts[key], f"m0.artifacts.{key}", path) for key, path in M0_ARTIFACTS.items()}
     if any(not paths[name].stat().st_mode & 0o111 for name in (
-        "buildwrap", "oracle_wrapper", "native_oracle"
+        "buildwrap", "ninja_locked", "oracle_wrapper", "native_oracle"
     )):
         fail("m0: required wrappers are not executable")
     if BLENDER_COMMIT[:12] not in paths["oracle_pin"].read_text(encoding="utf-8"):
@@ -912,6 +914,11 @@ def verify_gtest_arguments(value: Any, root: Path, suite: str, where: str) -> di
     return arguments
 
 
+def ninja_locked_command(*arguments: str) -> list[str]:
+    """Return the canonical repository-relative locked Ninja invocation."""
+    return [NINJA_LOCKED_RELATIVE, *arguments]
+
+
 def require_ninja_no_work_result(
     command: Any,
     cwd: Path,
@@ -924,7 +931,7 @@ def require_ninja_no_work_result(
     where: str,
 ) -> None:
     """Reject stale, failed, redirected, or noncanonical Ninja dry-runs."""
-    if command != ["ninja", "-n", expected_target]:
+    if command != ninja_locked_command("-n", expected_target):
         fail(f"{where}: Ninja no-work command targets the wrong output")
     if cwd.resolve() != expected_build_root.resolve():
         fail(f"{where}: Ninja no-work command uses the wrong build root")
@@ -965,8 +972,9 @@ def verify_ninja_no_work(
         where=where + ".recorded",
     )
     try:
+        command = ninja_locked_command("-n", target)
         live = subprocess.run(
-            ["ninja", "-n", target],
+            command,
             cwd=build_root,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -976,7 +984,7 @@ def verify_ninja_no_work(
     except (OSError, subprocess.SubprocessError) as error:
         fail(f"{where}: could not independently repeat Ninja dry-run: {error}")
     require_ninja_no_work_result(
-        ["ninja", "-n", target],
+        command,
         build_root,
         live.returncode,
         live.stdout,
@@ -1140,14 +1148,15 @@ def verify_m1_runtime_no_work(ctx: Context, value: Any) -> dict[str, Any]:
         expected_build_root=build_root, expected_target=target, where=where + ".recorded",
     )
     try:
+        command = ninja_locked_command("-n", target)
         live = subprocess.run(
-            ["ninja", "-n", target], cwd=build_root, stdout=subprocess.PIPE,
+            command, cwd=build_root, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, timeout=120, check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
         fail(f"{where}: could not independently repeat Ninja dry-run: {error}")
     require_ninja_no_work_result(
-        ["ninja", "-n", target], build_root, live.returncode, live.stdout, live.stderr,
+        command, build_root, live.returncode, live.stdout, live.stderr,
         expected_build_root=build_root, expected_target=target, where=where + ".live",
     )
     return row
@@ -2709,15 +2718,16 @@ def verify_m3_ninja_no_work(
         where=where + ".recorded",
     )
     try:
+        command = ninja_locked_command("-n", target)
         live = subprocess.run(
-            ["ninja", "-n", target], cwd=build_root,
+            command, cwd=build_root,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             timeout=120, check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
         fail(f"m3: could not independently repeat Ninja dry-run: {error}")
     require_ninja_no_work_result(
-        ["ninja", "-n", target], build_root, live.returncode,
+        command, build_root, live.returncode,
         live.stdout, live.stderr,
         expected_build_root=build_root, expected_target=target,
         where=where + ".live",

@@ -74,6 +74,7 @@ M3_CMAKE_CACHE = M3_BUILD_ROOT / "CMakeCache.txt"
 M3_BUILD_NINJA = M3_BUILD_ROOT / "build.ninja"
 M3_NINJA_TARGET = "blender_test"
 NINJA_NO_WORK_STDOUT = b"ninja: no work to do.\n"
+NINJA_LOCKED_RELATIVE = "../scripts/ninja-locked.sh"
 
 
 class RunError(RuntimeError):
@@ -422,6 +423,11 @@ def require_m3_build_provenance(binary: Path, *, root: Path = ROOT) -> tuple[Pat
     return cache, ninja
 
 
+def ninja_locked_command(*arguments: str) -> list[str]:
+    """Return the only canonical Ninja command for the M3 build root."""
+    return [NINJA_LOCKED_RELATIVE, *arguments]
+
+
 def require_ninja_no_work_result(
     command: list[str],
     cwd: Path,
@@ -432,7 +438,7 @@ def require_ninja_no_work_result(
     expected_build_root: Path,
     expected_target: str,
 ) -> None:
-    if command != ["ninja", "-n", expected_target]:
+    if command != ninja_locked_command("-n", expected_target):
         fail(f"M3 Ninja no-work command targets the wrong output: {command!r}")
     if cwd.resolve() != expected_build_root.resolve():
         fail(f"M3 Ninja no-work command uses the wrong build root: {cwd}")
@@ -449,7 +455,7 @@ def attest_ninja_no_work(
     output: Path, *, root: Path = ROOT, stem: str = "ninja-no-work"
 ) -> dict[str, Any]:
     build_root = root / "build-native-gpu"
-    command = ["ninja", "-n", M3_NINJA_TARGET]
+    command = ninja_locked_command("-n", M3_NINJA_TARGET)
     try:
         result = subprocess.run(
             command, cwd=build_root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

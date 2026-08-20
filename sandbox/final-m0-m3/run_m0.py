@@ -23,6 +23,7 @@ ARTIFACTS = {
     "blender_web_cmake": "patches/blender_web.cmake", "buildwrap": "harness/buildwrap.sh",
     "ci_workflow": ".github/workflows/m0.yml", "deps_ledger": "ledger/deps.json",
     "deferred_ledger": "ledger/deferred.json", "m0_selfcheck": "scripts/m0-selfcheck.py",
+    "ninja_locked": "scripts/ninja-locked.sh",
     "oracle_receipt": "scripts/m0-oracle-receipt.py", "oracle_dockerfile": "containers/oracle/Dockerfile",
     "oracle_pin": "oracle/PIN", "oracle_toolchain": "oracle/TOOLCHAIN",
     "oracle_wrapper": "scripts/oracle-container.sh", "native_oracle": "oracle/bpy.sh",

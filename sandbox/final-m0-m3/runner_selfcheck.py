@@ -879,7 +879,7 @@ def main() -> int:
 
         no_work_root = root / "build-native-m1-parity"
         no_work_target = "bin/tests/BLI_test"
-        no_work_command = ["ninja", "-n", no_work_target]
+        no_work_command = m1.ninja_locked_command("-n", no_work_target)
         m1.require_ninja_no_work_result(
             no_work_command,
             no_work_root,
@@ -892,6 +892,10 @@ def main() -> int:
         reject("ninja_no_work_wrong_cwd", lambda: m1.require_ninja_no_work_result(
             no_work_command, root, 0, m1.NINJA_NO_WORK_STDOUT, b"",
             expected_build_root=no_work_root, expected_target=no_work_target))
+        reject("ninja_no_work_raw_bypass", lambda: m1.require_ninja_no_work_result(
+            ["ninja", "-n", no_work_target], no_work_root, 0,
+            m1.NINJA_NO_WORK_STDOUT, b"", expected_build_root=no_work_root,
+            expected_target=no_work_target))
         reject("ninja_no_work_stale", lambda: m1.require_ninja_no_work_result(
             no_work_command, no_work_root, 0,
             b"[1/1] Linking CXX executable bin/tests/BLI_test\n", b"",
@@ -900,7 +904,7 @@ def main() -> int:
             no_work_command, no_work_root, 1, b"", b"ninja: error: failed\n",
             expected_build_root=no_work_root, expected_target=no_work_target))
         reject("ninja_no_work_wrong_target", lambda: m1.require_ninja_no_work_result(
-            ["ninja", "-n", "bin/tests/blender_test"], no_work_root, 0,
+            m1.ninja_locked_command("-n", "bin/tests/blender_test"), no_work_root, 0,
             m1.NINJA_NO_WORK_STDOUT, b"", expected_build_root=no_work_root,
             expected_target=no_work_target))
         reject("ninja_no_work_wrong_output", lambda: m1.require_ninja_no_work_result(
@@ -913,7 +917,7 @@ def main() -> int:
 
         m3_no_work_root = root / "build-native-gpu"
         m3_no_work_target = "blender_test"
-        m3_no_work_command = ["ninja", "-n", m3_no_work_target]
+        m3_no_work_command = m3.ninja_locked_command("-n", m3_no_work_target)
         m3.require_ninja_no_work_result(
             m3_no_work_command,
             m3_no_work_root,
@@ -934,9 +938,15 @@ def main() -> int:
                    m3_no_work_command, root, 0, m3.NINJA_NO_WORK_STDOUT, b"",
                    expected_build_root=m3_no_work_root,
                    expected_target=m3_no_work_target))
+        reject("m3_ninja_no_work_raw_bypass", lambda:
+               m3.require_ninja_no_work_result(
+                   ["ninja", "-n", m3_no_work_target],
+                   m3_no_work_root, 0, m3.NINJA_NO_WORK_STDOUT, b"",
+                   expected_build_root=m3_no_work_root,
+                   expected_target=m3_no_work_target))
         reject("m3_ninja_no_work_wrong_target", lambda:
                m3.require_ninja_no_work_result(
-                   ["ninja", "-n", "bin/tests/blender_test"],
+                   m3.ninja_locked_command("-n", "bin/tests/blender_test"),
                    m3_no_work_root, 0, m3.NINJA_NO_WORK_STDOUT, b"",
                    expected_build_root=m3_no_work_root,
                    expected_target=m3_no_work_target))

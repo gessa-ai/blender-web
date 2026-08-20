@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 
 HERE = Path(__file__).resolve().parent
+REPOSITORY_ROOT = HERE.parents[1]
 SPEC = importlib.util.spec_from_file_location("final_m0_m3_verify", HERE / "verify.py")
 assert SPEC and SPEC.loader
 verify_module = importlib.util.module_from_spec(SPEC)
@@ -207,6 +208,11 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     )
     write(root / "scripts/m0-oracle-receipt.py", "print('PASS')\n", True)
     write(root / "scripts/m0-selfcheck.py", "print('PASS')\n")
+    write(
+        root / "scripts/ninja-locked.sh",
+        (REPOSITORY_ROOT / "scripts/ninja-locked.sh").read_bytes(),
+        True,
+    )
     write(root / "harness/buildwrap.sh", "#!/bin/sh\nexec \"$@\"\n", True)
     write(
         root / "patches/blender_web.cmake",
@@ -423,7 +429,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
                 raw_dir / f"{name}-{platform}-ninja-no-work.stderr", b""
             )
             no_work[platform] = {
-                "command": ["ninja", "-n", target],
+                "command": verify_module.ninja_locked_command("-n", target),
                 "cwd": build.relative_to(root).as_posix(),
                 "target": target,
                 "returncode": 0,
@@ -492,7 +498,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
         raw_dir / "runtime-blender-ninja-no-work.stderr", b""
     )
     runtime_no_work = {
-        "command": ["ninja", "-n", "blender"],
+        "command": verify_module.ninja_locked_command("-n", "blender"),
         "cwd": "build-wasm-m1-parity", "target": "blender", "returncode": 0,
         "stdout": ref(root, runtime_no_work_stdout),
         "stderr": ref(root, runtime_no_work_stderr),
@@ -524,7 +530,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
         (wasm_build, ("bin/tests/BLI_test.js", "bin/tests/bmesh_core_test.js", "blender")),
     ):
         subprocess.run(
-            ["ninja", *targets], cwd=build, check=True,
+            verify_module.ninja_locked_command(*targets), cwd=build, check=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
     m1 = write_json(receipt_dir / "m1.json", m1_value)
@@ -954,7 +960,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     # Record the fixture command hash without changing the already-created
     # output, so the independently repeated dry-run is literally no-work.
     subprocess.run(
-        ["ninja", "blender_test"], cwd=m3_build, check=True,
+        verify_module.ninja_locked_command("blender_test"), cwd=m3_build, check=True,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     no_work_stdout = write(
@@ -962,7 +968,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     )
     no_work_stderr = write(raw_dir / "m3-ninja-no-work.stderr", b"")
     m3_no_work = {
-        "command": ["ninja", "-n", "blender_test"],
+        "command": verify_module.ninja_locked_command("-n", "blender_test"),
         "cwd": "build-native-gpu",
         "target": "blender_test",
         "returncode": 0,
@@ -974,7 +980,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
     )
     final_no_work_stderr = write(raw_dir / "m3-ninja-final-no-work.stderr", b"")
     m3_final_no_work = {
-        "command": ["ninja", "-n", "blender_test"],
+        "command": verify_module.ninja_locked_command("-n", "blender_test"),
         "cwd": "build-native-gpu",
         "target": "blender_test",
         "returncode": 0,
@@ -1433,6 +1439,12 @@ def main() -> int:
             write(path, b"tampered")
             return [(path, old)]
 
+        def tamper_ninja_locked() -> list[tuple[Path, bytes]]:
+            path = root / "scripts/ninja-locked.sh"
+            old = path.read_bytes()
+            write(path, old + b"# tampered locked runner\n", True)
+            return [(path, old)]
+
         run_ok()
         expected_assets = ["--test-assets-dir", str((root / "upstream/tests/files").resolve())]
         exact_argument_rows = {
@@ -1483,7 +1495,7 @@ def main() -> int:
 
         no_work_root = root / "build-native-m1-parity"
         no_work_target = "bin/tests/BLI_test"
-        no_work_command = ["ninja", "-n", no_work_target]
+        no_work_command = verify_module.ninja_locked_command("-n", no_work_target)
         verify_module.require_ninja_no_work_result(
             no_work_command,
             no_work_root,
@@ -1521,6 +1533,13 @@ def main() -> int:
                 raise AssertionError(f"invalid Ninja no-work result unexpectedly passed: {name}")
 
         reject_no_work_result(
+            "m1_ninja_no_work_raw_bypass",
+            ["ninja", "-n", no_work_target],
+            0,
+            verify_module.NINJA_NO_WORK_STDOUT,
+            b"",
+        )
+        reject_no_work_result(
             "m1_ninja_no_work_wrong_cwd",
             no_work_command,
             0,
@@ -1544,7 +1563,7 @@ def main() -> int:
         )
         reject_no_work_result(
             "m1_ninja_no_work_wrong_target",
-            ["ninja", "-n", "bin/tests/blender_test"],
+            verify_module.ninja_locked_command("-n", "bin/tests/blender_test"),
             0,
             verify_module.NINJA_NO_WORK_STDOUT,
             b"",
@@ -1686,6 +1705,7 @@ def main() -> int:
         finally:
             native_ninja.write_bytes(native_original)
         reject("artifact_digest_tamper", tamper_artifact)
+        reject("m0_ninja_locked_tamper", tamper_ninja_locked)
         def tamper_gtest_manifest() -> list[tuple[Path, bytes]]:
             path = root / "evidence/raw/blenlib-wasm-tests.txt"
             old = path.read_bytes()
@@ -1724,9 +1744,9 @@ def main() -> int:
             raw_old = raw_path.read_bytes()
             raw_value = json.loads(raw_old)
             raw_value["no_work"]["wasm"]["target"] = "bin/tests/BLI_test.js"
-            raw_value["no_work"]["wasm"]["command"] = [
-                "ninja", "-n", "bin/tests/BLI_test.js"
-            ]
+            raw_value["no_work"]["wasm"]["command"] = (
+                verify_module.ninja_locked_command("-n", "bin/tests/BLI_test.js")
+            )
             write_json(raw_path, raw_value)
             row["raw_result"] = ref(root, raw_path)
             write_json(receipt_path, receipt_value)
@@ -1790,9 +1810,12 @@ def main() -> int:
         reject("m1_runtime_ninja_stale", lambda: mutate_receipt(
             "m1", lambda value: value["runtime"]["no_work"].update({
                 "stdout": ref(root, stale_runtime_stdout)})))
+        reject("m1_runtime_ninja_raw_bypass", lambda: mutate_receipt(
+            "m1", lambda value: value["runtime"]["no_work"].update({
+                "command": ["ninja", "-n", "blender"]})))
         def make_m1_runtime_wrong_target(value: dict[str, Any]) -> None:
             value["runtime"]["no_work"].update({
-                "command": ["ninja", "-n", "bin/blender.js"],
+                "command": verify_module.ninja_locked_command("-n", "bin/blender.js"),
                 "target": "bin/blender.js",
             })
         reject("m1_runtime_ninja_wrong_target", lambda: mutate_receipt(
@@ -2913,9 +2936,9 @@ def main() -> int:
             raw_old = raw_path.read_bytes()
             raw_value = json.loads(raw_old)
             raw_value["no_work"]["target"] = "bin/tests/blender_test"
-            raw_value["no_work"]["command"] = [
-                "ninja", "-n", "bin/tests/blender_test"
-            ]
+            raw_value["no_work"]["command"] = verify_module.ninja_locked_command(
+                "-n", "bin/tests/blender_test"
+            )
             write_json(raw_path, raw_value)
             receipt_value["gpu_tests"]["raw_result"] = ref(root, raw_path)
             write_json(receipt_path, receipt_value)
@@ -2930,7 +2953,14 @@ def main() -> int:
         reject("m3_final_ninja_no_work_wrong_target", lambda: mutate_receipt(
             "m3", lambda value: value["final_no_work"].update({
                 "target": "bin/tests/blender_test",
-                "command": ["ninja", "-n", "bin/tests/blender_test"],
+                "command": verify_module.ninja_locked_command(
+                    "-n", "bin/tests/blender_test"
+                ),
+            })
+        ))
+        reject("m3_final_ninja_no_work_raw_bypass", lambda: mutate_receipt(
+            "m3", lambda value: value["final_no_work"].update({
+                "command": ["ninja", "-n", "blender_test"],
             })
         ))
         reject("alternate_unbound_label", lambda: mutate_receipt("m3", lambda value: value.update({"run_label": "alternate-r2"})))

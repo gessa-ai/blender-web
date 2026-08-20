@@ -49,6 +49,7 @@ CONFIG_KEYS = {
     "WITH_TESTS_SINGLE_BINARY", "WITH_TESTS_BMESH_CORE_PARITY",
 }
 NINJA_NO_WORK_STDOUT = b"ninja: no work to do.\n"
+NINJA_LOCKED_RELATIVE = "../scripts/ninja-locked.sh"
 CANONICAL_NATIVE_ORACLE = ROOT / "oracle/bpy.sh"
 CANONICAL_NODE = ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"
 CANONICAL_RUNTIME_JS = ROOT / "build-wasm-m1-parity/bin/blender.js"
@@ -318,6 +319,11 @@ def capture(
     return result.returncode
 
 
+def ninja_locked_command(*arguments: str) -> list[str]:
+    """Return the only canonical Ninja command for a parity build root."""
+    return [NINJA_LOCKED_RELATIVE, *arguments]
+
+
 def require_ninja_no_work_result(
     command: list[str],
     cwd: Path,
@@ -329,7 +335,7 @@ def require_ninja_no_work_result(
     expected_target: str,
 ) -> None:
     """Accept only an exact successful dry-run for one canonical Ninja output."""
-    if command != ["ninja", "-n", expected_target]:
+    if command != ninja_locked_command("-n", expected_target):
         fail(f"Ninja no-work command targets the wrong output: {command!r}")
     if cwd.resolve() != expected_build_root.resolve():
         fail(f"Ninja no-work command uses the wrong build root: {cwd}")
@@ -348,7 +354,7 @@ def attest_ninja_no_work(
     """Run and preserve the canonical dry-run freshness attestation."""
     build_root = ROOT / ("build-wasm-m1-parity" if wasm else "build-native-m1-parity")
     target = artifact.relative_to(build_root).as_posix()
-    command = ["ninja", "-n", target]
+    command = ninja_locked_command("-n", target)
     platform = "wasm" if wasm else "native"
     stdout_path = out / f"{name}-{platform}-ninja-no-work.stdout"
     stderr_path = out / f"{name}-{platform}-ninja-no-work.stderr"
@@ -378,7 +384,7 @@ def attest_runtime_ninja_no_work(out: Path) -> dict[str, Any]:
     """Bind the complete M1 Blender runtime to a current canonical link graph."""
     build_root = ROOT / "build-wasm-m1-parity"
     target = "blender"
-    command = ["ninja", "-n", target]
+    command = ninja_locked_command("-n", target)
     stdout_path = out / "runtime-blender-ninja-no-work.stdout"
     stderr_path = out / "runtime-blender-ninja-no-work.stderr"
     returncode = capture(command, stdout_path, stderr_path, cwd=build_root, timeout=120)

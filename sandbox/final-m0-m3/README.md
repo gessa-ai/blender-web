@@ -66,7 +66,8 @@ forward-compatible mode; a schema change requires a reviewed verifier change.
 ## Enforced contracts
 
 - M0: the exact Blender/emsdk/emcc/oracle pins; the required container, wrapper,
-  CI, cache, build wrapper, configuration, ledger, and REUSE artifacts; a
+  CI, cache, build wrapper, serialized Ninja wrapper, configuration, ledger,
+  and REUSE artifacts; a
   digest-pinned container execution proof; both CI caches; pinned actions; and
   zero REUSE violations. Before creating the receipt, the producer hermetically
   proves that nested final evidence—including extensionless transaction markers
@@ -81,13 +82,15 @@ forward-compatible mode; a schema change requires a reviewed verifier change.
   hash-bound native executables and CMake caches; Release native/Wasm builds
   with `WITH_GMP=OFF`, `WITH_TESTS_SINGLE_BINARY=ON`, and the explicit
   `WITH_TESTS_BMESH_CORE_PARITY=ON` dedicated exact one-test bmesh target;
-  recorded and independently repeated exact `ninja -n` no-work attestations
-  for all four native/Wasm BLI and bmesh outputs;
+  recorded and independently repeated exact
+  `../scripts/ninja-locked.sh -n` no-work attestations for all four native/Wasm
+  BLI and bmesh outputs;
   the exact non-symlink `oracle/bpy.sh` native wrapper, exact non-symlink Node
   22.16.0 executable/version, and canonical
   `build-wasm-m1-parity/bin/blender.{js,wasm}` runtime; plus a separately raw-
-  bound and independently repeated `ninja -n blender` no-work attestation for
-  that complete Blender runtime's CMake cache and Ninja graph;
+  bound and independently repeated
+  `../scripts/ninja-locked.sh -n blender` no-work attestation for that complete
+  Blender runtime's CMake cache and Ninja graph;
   exact 9/9 main-corpus state equality; and exact versioning counters
   of 12 total, 10 pass, 2 matching oracle refusals, 12 equal.
 - M2: CPython 3.13.13 and `import bpy`; the installed-like, cache-pruned base
@@ -161,14 +164,15 @@ forward-compatible mode; a schema change requires a reviewed verifier change.
   `build-native-gpu/bin/tests/blender_test`,
   `build-native-gpu/CMakeCache.txt`, and `build-native-gpu/build.ninja` files.
   Before any runtime test, the producer records the exact
-  `ninja -n blender_test` command in `build-native-gpu`, with exit zero,
-  literal `ninja: no work to do.` stdout, and empty stderr; the verifier repeats
-  that command and requires its bytes to match the receipt and both raw result
-  bindings. M3 also binds and independently reparses the native GHOST context,
-  browser GHOST fallback, and worker preinitialization sources. Each must request
-  the exact same ten adapter-supported WebGPU resource/compute ceilings exactly
-  once, including the sampled-texture and sampler pair. The canonical cache must
-  enable OpenSubdiv and GPU draw tests. All 197 `GPUWebGPUTest` tests must pass
+  `../scripts/ninja-locked.sh -n blender_test` command in `build-native-gpu`,
+  with exit zero, literal `ninja: no work to do.` stdout, and empty stderr; the
+  verifier repeats that command and requires its bytes to match the receipt and
+  both raw result bindings. M3 also binds and independently reparses the native
+  GHOST context, browser GHOST fallback, and worker preinitialization sources.
+  Each must request the exact same ten adapter-supported WebGPU resource/compute
+  ceilings exactly once, including the sampled-texture and sampler pair. The
+  canonical cache must enable OpenSubdiv and GPU draw tests. All 197
+  `GPUWebGPUTest` tests must pass
   with zero fail/crash. Every primary test row binds its complete raw log; the
   verifier requires one exact RUN/OK pair for that identity, no fail/skip, and
   zero uncaptured WebGPU device errors or leaked-memory reports even when the
@@ -307,10 +311,11 @@ technical parity option invokes Blender's existing per-source helper only for
 `bmesh_core_test.cc`; it does not relabel or post-filter `blender_test`. The
 runner hash-binds both executables, both CMake caches, both Ninja graphs, and
 every parsed test-configuration fact. Before enumerating or executing tests it
-also records an exact dry-run for each target; the independent verifier repeats
-all four dry-runs and accepts only exit zero, empty stderr, and the literal
-`ninja: no work to do.` output. Renaming a different binary, passing the
-monolithic `blender_test`, or presenting any stale link is rejected.
+also records an exact locked dry-run for each target; the independent verifier
+repeats all four through `scripts/ninja-locked.sh` and accepts only exit zero,
+empty stderr, and the literal `ninja: no work to do.` output. Renaming a
+different binary, passing the monolithic `blender_test`, or presenting any
+stale link is rejected.
 
 The Wasm BLI target retains the platform `-sMALLOC=mimalloc` setting. The bmesh
 dependency closure also pulls CPython's vendored mimalloc API, so its dedicated

@@ -769,8 +769,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the live loader resolves Linux Playwright 1.61.1 with zero browser launches. No M5 receipt was
   produced because s7 hardware plus the APPLY split product remain mandatory. See
   `notes/m5-click-pick-linux-portability-20260820.md`.
-- [ ] **M5-CANVAS-LINUX-PORTABILITY [driver, producer-only]:** apply the same root/module/output
-  contract to the current keyboard canvas-smoke producer; browser-free self-check only before s7.
+- [x] **M5-CANVAS-LINUX-PORTABILITY [driver, producer-only]:** the trusted-keyboard canvas-smoke
+  producer now derives its checkout and output root, resolves exact Playwright 1.61.1 through
+  explicit/platform-delimited/repository-local module roots, rejects evidence path escapes, and
+  has 17/17 base plus 18/18 live-loader browser-free self-checks from root and descendant cwd.
+  No browser or receipt was produced; s7 hardware plus APPLY remain mandatory. See
+  `notes/m5-canvas-linux-portability-20260820.md`.
 - [ ] **M5-LATENCY-LINUX-PORTABILITY [driver, producer-only]:** port the current ROI-latency
   producer after its repo-local `sharp` host-tool dependency is pinned and recorded; do not change
   the established Sharp greyscale/resize detector while making the loader portable.

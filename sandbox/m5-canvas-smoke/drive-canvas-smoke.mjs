@@ -14,7 +14,9 @@ import { createRequire } from 'module';
 import {
   existsSync, mkdirSync, readFileSync, statSync, writeFileSync,
 } from 'fs';
-import { basename, dirname, join, resolve } from 'path';
+import {
+  basename, delimiter, dirname, isAbsolute, join, relative, resolve,
+} from 'path';
 import { fileURLToPath } from 'url';
 import {
   captureRuntimeArtifactSet, RUNTIME_BINARY_PATHS, RUNTIME_CONTRACT_SOURCE,
@@ -23,7 +25,21 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
 const DEFAULT_OUT = join(HERE, 'evidence');
-const DEFAULT_MODULES = '/Users/paws/plushly/game-platform/node_modules';
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(REPO, '.m4-node/node_modules'),
+  join(REPO, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const PLAYWRIGHT_VERSION = '1.61.1';
+const RUN_LABEL_RE = /^[a-z0-9][a-z0-9._-]*$/i;
 const GOLDEN_EDIT = join(REPO, 'sandbox/m5-prep/traces/m5_core.edit_mode_toggle.trace.txt');
 const GOLDEN_SELECT = join(REPO, 'sandbox/m5-prep/traces/m5_core.object_select_all.trace.txt');
 const WASM_EDIT = join(REPO, 'sandbox/m5-prep/wasm-out/m5_core.edit_mode_toggle.trace.txt');
@@ -93,14 +109,17 @@ function parseArgs(argv) {
     else if (arg === '--timeout-ms') out.timeoutMs = Number(argv[++i]);
     else throw new Error(`unknown argument: ${arg}`);
   }
+  if (!out.selfcheck && (!out.run || !RUN_LABEL_RE.test(out.run))) {
+    throw new Error('--run with a safe immutable label is required');
+  }
+  if (out.run != null && !RUN_LABEL_RE.test(out.run)) {
+    throw new Error(`invalid --run label: ${out.run}`);
+  }
   if (!Number.isInteger(out.port) || out.port < 1 || out.port > 65535) {
     throw new Error(`invalid --port: ${out.port}`);
   }
-  if (!Number.isFinite(out.timeoutMs) || out.timeoutMs < 1000) {
+  if (!Number.isFinite(out.timeoutMs) || out.timeoutMs < 30000) {
     throw new Error(`invalid --timeout-ms: ${out.timeoutMs}`);
-  }
-  if (out.run != null && !/^[a-z0-9][a-z0-9._-]*$/i.test(out.run)) {
-    throw new Error(`invalid --run label: ${out.run}`);
   }
   return out;
 }
@@ -116,6 +135,50 @@ function sha256File(path) {
 function fileReceipt(path) {
   const st = statSync(path);
   return { path: path.slice(REPO.length + 1), bytes: st.size, sha256: sha256File(path) };
+}
+
+function resolvePlaywright(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      version: require('playwright/package.json').version,
+    };
+  },
+) {
+  const errors = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium) throw new Error('playwright export lacks chromium');
+      if (loaded.version !== PLAYWRIGHT_VERSION) {
+        throw new Error(`playwright version ${loaded.version || 'unknown'} != ${PLAYWRIGHT_VERSION}`);
+      }
+      return { chromium: loaded.chromium, root, version: loaded.version };
+    } catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve Playwright; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function isRepositoryDescendant(path) {
+  const rel = relative(REPO, resolve(path));
+  return rel !== '' && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function runDirectory(outRoot, run) {
+  const root = resolve(outRoot);
+  if (!isRepositoryDescendant(root)) {
+    throw new Error(`output root must be inside the repository: ${root}`);
+  }
+  if (!RUN_LABEL_RE.test(run)) throw new Error(`unsafe run label: ${run}`);
+  const path = resolve(root, run);
+  if (dirname(path) !== root || basename(path) !== run) {
+    throw new Error(`refusing unsafe evidence directory: ${path}`);
+  }
+  return path;
 }
 
 function normalizedLines(path) {
@@ -162,7 +225,23 @@ function assertSelfcheck(condition, message) {
 }
 
 function runSelfcheck() {
+  const localRoots = LOCAL_MODULE_ROOTS.map((root) => resolve(root));
   const required = requiredNativeActions();
+  assertSelfcheck(existsSync(join(REPO, 'GOAL.md')), 'repository root is not derived from the driver');
+  assertSelfcheck(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    'module roots are not absolute and unique');
+  assertSelfcheck(localRoots.every((root) => MODULE_ROOTS.includes(root)),
+    'repo-local module fallback is incomplete');
+  assertSelfcheck(localRoots.every(isRepositoryDescendant),
+    'repo-local module fallback escaped the checkout');
+  assertSelfcheck(runDirectory(DEFAULT_OUT, 'selfcheck') === join(DEFAULT_OUT, 'selfcheck'),
+    'safe evidence directory mismatch');
+  for (const [root, run] of [[REPO, 'root-child'], [DEFAULT_OUT, '../escape']]) {
+    let rejected = false;
+    try { runDirectory(root, run); }
+    catch (_) { rejected = true; }
+    assertSelfcheck(rejected, `unsafe output was accepted: ${root}/${run}`);
+  }
   assertSelfcheck(ACTIONS.map((x) => x.expect).join(',') ===
     'EDIT_MODE,OBJECT_AFTER_EDIT,DESELECTED,SELECT_ALL', 'action/state sequence drift');
   assertSelfcheck(PY_MONITOR.includes("_m5_emit('EDIT_MODE')"), 'monitor lacks edit marker');
@@ -177,23 +256,30 @@ function runSelfcheck() {
   assertSelfcheck(normalizedLines(GOLDEN_SELECT).join('\n') === normalizedLines(WASM_SELECT).join('\n'),
     'select native/wasm trace evidence differs');
   assertSelfcheck(EXPECTED_NON_MODIFIER_KEYS[0] === 'Escape', 'shipping splash dismissal drift');
-  process.stdout.write(JSON.stringify({
-    status: 'PASS', checks: 9, actions: ACTIONS, requiredNativeActions: required,
-  }, null, 2) + '\n');
-}
-
-function resolvePlaywright() {
-  const roots = [process.env.BW_NODE_MODULES, process.env.NODE_PATH, DEFAULT_MODULES].filter(Boolean);
-  const errors = [];
-  for (const root of roots) {
-    try {
-      const req = createRequire(join(root, 'package.json'));
-      return { chromium: req('playwright').chromium, root };
-    } catch (error) {
-      errors.push(`${root}: ${error.message}`);
-    }
+  const chromiumToken = {};
+  const synthetic = resolvePlaywright(['/missing', '/fixture'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return { chromium: chromiumToken, version: PLAYWRIGHT_VERSION };
+  });
+  assertSelfcheck(synthetic.chromium === chromiumToken && synthetic.root === '/fixture' &&
+    synthetic.version === PLAYWRIGHT_VERSION,
+    'Playwright root fallback drift');
+  let livePlaywrightRoot = null;
+  let livePlaywrightVersion = null;
+  if (process.env.BW_NODE_MODULES) {
+    const live = resolvePlaywright();
+    assertSelfcheck(live.chromium && MODULE_ROOTS.includes(live.root) &&
+      live.version === PLAYWRIGHT_VERSION,
+      'live Playwright resolution drift');
+    livePlaywrightRoot = live.root;
+    livePlaywrightVersion = live.version;
   }
-  throw new Error(`cannot resolve playwright; set BW_NODE_MODULES\n${errors.join('\n')}`);
+  process.stdout.write(JSON.stringify({
+    status: 'PASS', checks: livePlaywrightRoot ? 18 : 17,
+    repositoryRoot: REPO, moduleRoots: MODULE_ROOTS,
+    livePlaywrightRoot, livePlaywrightVersion, browserLaunches: 0,
+    actions: ACTIONS, requiredNativeActions: required,
+  }, null, 2) + '\n');
 }
 
 function sleep(ms) {
@@ -206,9 +292,7 @@ async function main() {
     runSelfcheck();
     return;
   }
-  if (!options.run) throw new Error('--run is required (e.g. m5-canvas-smoke-r1)');
-
-  const outDir = join(options.outRoot, options.run);
+  const outDir = runDirectory(options.outRoot, options.run);
   if (existsSync(outDir)) {
     throw new Error(`refusing to overwrite existing evidence directory: ${outDir}`);
   }
@@ -226,7 +310,9 @@ async function main() {
   let trustedKeys = [];
   let canvasReceipt = null;
   const required = requiredNativeActions();
-  const { chromium, root: playwrightRoot } = resolvePlaywright();
+  const {
+    chromium, root: playwrightRoot, version: playwrightVersion,
+  } = resolvePlaywright();
   const browser = await chromium.launch({ headless: !options.headed });
   let page;
   let fatal = null;
@@ -398,7 +484,7 @@ async function main() {
       keyPass, externalRequestCount: externalRequests.length,
       canvas: canvasReceipt, actionReceipts,
     },
-    browser: { playwrightRoot, headed: options.headed, trustedKeys },
+    browser: { playwrightRoot, playwrightVersion, headed: options.headed, trustedKeys },
     provenance: {
       driver: fileReceipt(fileURLToPath(import.meta.url)),
       runtimeContract: fileReceipt(RUNTIME_CONTRACT_SOURCE), splitManifest,

@@ -19,22 +19,32 @@ at runtime from the unchanged native trace goldens.
 It intentionally avoids click-picking. Click-picking remains the separate GPU
 readback caller-conversion blocker and must not be hidden by browser-level smoke.
 
+The repository root is derived from the driver. Playwright resolves from
+`BW_NODE_MODULES`, each `NODE_PATH` entry, `.m4-node/node_modules`, then the
+repository's `node_modules`, and must be the pinned 1.61.1 package. Evidence is
+confined to one immutable child of a repository-local output root. `--selfcheck`
+validates those contracts without opening a browser or reading a build product.
+
 ## Run
 
-Serve the shipping shell and the intended binary in one terminal:
+Run the browser/product-free self-check first, then export the documented local
+browser roots and serve the shipping shell in one terminal:
 
 ```sh
-BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed-opt/bin \
-  /Users/paws/blender-web/scripts/serve-web.sh 8127
+node sandbox/m5-canvas-smoke/drive-canvas-smoke.mjs --selfcheck
+
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.m4-browsers"
+export BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin"
+
+bash scripts/serve-web.sh 8127
 ```
 
-Then run the pure selfcheck and one evidence run:
+Then run one evidence capture:
 
 ```sh
-node /Users/paws/blender-web/sandbox/m5-canvas-smoke/drive-canvas-smoke.mjs --selfcheck
-BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed-opt/bin \
-  node /Users/paws/blender-web/sandbox/m5-canvas-smoke/drive-canvas-smoke.mjs \
-    --port 8127 --run m5-canvas-smoke-r1
+node sandbox/m5-canvas-smoke/drive-canvas-smoke.mjs \
+  --port 8127 --run m5-canvas-smoke-r1
 ```
 
 Run labels are immutable: the driver refuses to overwrite an existing evidence
@@ -45,3 +55,7 @@ the request ledger, and a final screenshot.
 The receipt binds exactly JS, primary Wasm, deferred Wasm, and data, plus the
 non-shipping split manifest as provenance. Unexpected or missing shipping roles
 in that manifest fail before the browser is launched.
+
+A real receipt requires the s7-accepted hardware WebGPU adapter and an APPLY
+split product. The self-check is the only supported invocation before that
+gate; a software adapter binds no M5 evidence.

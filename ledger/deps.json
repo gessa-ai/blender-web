@@ -682,6 +682,16 @@
       "source": "npm sharp@0.35.3 and its exact Linux x64 optional packages; sandbox/m5-latency/drive-trusted-latency-roi.mjs; notes/migration-to-ornith-lab.md",
       "notes": "Sharp is Apache-2.0. The prebuilt @img/sharp-libvips-linux-x64 1.3.2 package declares LGPL-3.0-or-later and reports libvips 8.18.3. Direct JS dependencies resolved for this pin are @img/colour 1.1.0 (MIT), detect-libc 2.1.2 (Apache-2.0), and semver 7.8.5 (ISC); all are host-only. The producer rejects Sharp/libvips version drift and its browser-free live self-check exercises the unchanged transform twice for determinism."
     },
+    "linux_browser_identity_tools": {
+      "version": "GnuPG 2.4.8; GNU binutils/readelf 2.46; dpkg 1.23.7; APT 3.2.0",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "GPL-2.0-or-later AND GPL-3.0-or-later",
+      "gpl_compatible": true,
+      "rationale": "Linux-only M8 release-evidence tools. GnuPG proves the exact vendor APT-key primary fingerprint; readelf proves the canonical amd64 PIE executable; dpkg proves package ownership/version and unchanged installed files; APT proves the installed package is the vendor-repository candidate and supplies the archive SHA-256. They are never linked, preloaded, or shipped in the Blender browser product.",
+      "source": "Ubuntu host packages on ornith-lab; sandbox/m8-launch-gate/runtime_evidence.mjs and verify_m8.py; notes/m8-browser-identity-linux-portability-20260820.md"
+    },
     "emdawnwebgpu": {
       "version": "port (emscripten 6.0.5; emdawnwebgpu.175430)",
       "build_time": false,

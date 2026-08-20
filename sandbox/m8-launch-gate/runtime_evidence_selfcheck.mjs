@@ -11,20 +11,20 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {
   bindRuntimeVersion, browserMatrixInvocationPass, browserMatrixRowPass,
-  collectBrowserRuntimeIdentity, requireEmptyEarlyDiagnostics,
+  browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning, requireEmptyEarlyDiagnostics,
   revalidateBrowserRuntimeIdentity,
   validateEarlyDiagnostics, validatePriorBrowserMatrix,
 } from "./runtime_evidence.mjs";
 
 const root = mkdtempSync(join(realpathSync(tmpdir()), "m8-runtime-evidence-"));
-const app = `${root}/Chrome.app`;
-const executable = `${app}/Contents/MacOS/Chrome`;
+const app = `${root}/Google Chrome.app`;
+const executable = `${app}/Contents/MacOS/Google Chrome`;
 mkdirSync(`${app}/Contents/MacOS`, {recursive: true});
 writeFileSync(`${app}/Contents/Info.plist`, "fixture");
 writeFileSync(executable, "fixture browser bytes");
 chmodSync(executable, 0o755);
 
-const expected = {identifier: "com.google.Chrome", team: "EQHXZ8M8AV"};
+const expected = browserIdentityContract("chrome", "darwin");
 function runnerWith(overrides = {}) {
   return (command, args) => {
     const key = `${command} ${args.slice(0, 2).join(" ")}`;
@@ -39,14 +39,18 @@ function runnerWith(overrides = {}) {
   };
 }
 
-const identity = collectBrowserRuntimeIdentity(executable, expected, runnerWith());
+const identity = collectBrowserRuntimeIdentity(executable, expected, runnerWith(), "darwin");
 assert.equal(identity.executable.bytes, 21);
 assert.match(identity.executable.sha256, /^[0-9a-f]{64}$/);
 assert.equal(identity.codesign.deep_strict, true);
 assert.equal(identity.notarization.accepted, true);
 assert.equal(bindRuntimeVersion(identity, "151.0.1.2").version_matches_app, true);
 const boundIdentity = bindRuntimeVersion(identity, "151.0.1.2");
-assert.deepEqual(revalidateBrowserRuntimeIdentity(boundIdentity, expected, runnerWith()), boundIdentity);
+assert.deepEqual(
+  revalidateBrowserRuntimeIdentity(boundIdentity, expected, runnerWith(), "darwin"), boundIdentity);
+assert.deepEqual(legacySigning(boundIdentity), {
+  identifier: "com.google.Chrome", team: "EQHXZ8M8AV", valid: true,
+});
 assert.deepEqual(validateEarlyDiagnostics({schema: 1, preload: true, snapshot: []}),
   {schema: 1, preload: true, snapshot: []});
 
@@ -99,42 +103,43 @@ function reject(name, fn) {
 }
 const alias = `${app}/Contents/MacOS/Alias`;
 symlinkSync(executable, alias);
-reject("executable_symlink", () => collectBrowserRuntimeIdentity(alias, expected, runnerWith()));
+reject("executable_symlink", () =>
+  collectBrowserRuntimeIdentity(alias, expected, runnerWith(), "darwin"));
 chmodSync(executable, 0o644);
 reject("executable_not_executable", () =>
-  collectBrowserRuntimeIdentity(executable, expected, runnerWith()));
+  collectBrowserRuntimeIdentity(executable, expected, runnerWith(), "darwin"));
 chmodSync(executable, 0o755);
 reject("codesign_deep_strict_failure", () => collectBrowserRuntimeIdentity(executable, expected,
-  runnerWith({"codesign --verify --deep": {status: 1, stdout: "", stderr: "rejected"}})));
+  runnerWith({"codesign --verify --deep": {status: 1, stdout: "", stderr: "rejected"}}), "darwin"));
 reject("wrong_team", () => collectBrowserRuntimeIdentity(executable, expected, (command, args) => {
   const result = runnerWith()(command, args);
   if (command === "codesign" && args[0] === "-d") result.stderr = result.stderr.replace("EQHXZ8M8AV", "BADTEAM000");
   return result;
-}));
+}, "darwin"));
 reject("missing_cdhash", () => collectBrowserRuntimeIdentity(executable, expected, (command, args) => {
   const result = runnerWith()(command, args);
   if (command === "codesign" && args[0] === "-d") result.stderr = result.stderr.replace(/^CDHash=.*$/m, "");
   return result;
-}));
+}, "darwin"));
 reject("notarization_rejected", () => collectBrowserRuntimeIdentity(executable, expected, (command, args) => {
   if (command === "spctl") return {status: 1, stdout: "", stderr: `${app}: rejected\nsource=no usable signature\n`};
   return runnerWith()(command, args);
-}));
+}, "darwin"));
 reject("notarization_origin_missing", () => collectBrowserRuntimeIdentity(executable, expected,
   (command, args) => {
     const result = runnerWith()(command, args);
     if (command === "spctl") result.stderr = result.stderr.replace(/^origin=.*$/m, "");
     return result;
-  }));
+  }, "darwin"));
 reject("runtime_version_alias", () => bindRuntimeVersion(identity, "151.0.1.02"));
 const intermediate = `${root}/intermediate`;
 symlinkSync(`${app}/Contents`, intermediate, "dir");
 reject("intermediate_symlink", () => collectBrowserRuntimeIdentity(
-  `${intermediate}/MacOS/Chrome`, expected, runnerWith()));
+  `${intermediate}/MacOS/Google Chrome`, expected, runnerWith(), "darwin"));
 const driftedIdentity = structuredClone(boundIdentity);
 driftedIdentity.executable.sha256 = "f".repeat(64);
 reject("terminal_identity_drift", () =>
-  revalidateBrowserRuntimeIdentity(driftedIdentity, expected, runnerWith()));
+  revalidateBrowserRuntimeIdentity(driftedIdentity, expected, runnerWith(), "darwin"));
 reject("diagnostic_snapshot_nonempty", () =>
   validateEarlyDiagnostics({schema: 1, preload: true, snapshot: [{type: "error"}]}));
 reject("diagnostic_preload_false", () =>
@@ -162,6 +167,115 @@ passVerdictPrior.verdict = "PASS";
 reject("matrix_prior_pass_verdict", () => validatePriorBrowserMatrix(
   passVerdictPrior, "chrome", matrixSourceArtifacts, matrixBundleArtifacts,
   matrixRow.served_bundle_sha256, Object.keys(matrixRow), () => {}));
+
+const linuxRoot = `${root}/linux`;
+const linuxExecutable = `${linuxRoot}/opt/google/chrome/chrome`;
+const linuxSource = `${linuxRoot}/etc/apt/sources.list.d/blender-web-google-chrome.list`;
+const linuxKeyring = `${linuxRoot}/etc/apt/keyrings/blender-web-google-linux.gpg`;
+mkdirSync(`${linuxRoot}/opt/google/chrome`, {recursive: true});
+mkdirSync(`${linuxRoot}/etc/apt/sources.list.d`, {recursive: true});
+mkdirSync(`${linuxRoot}/etc/apt/keyrings`, {recursive: true});
+writeFileSync(linuxExecutable, "fixture Linux ELF bytes");
+chmodSync(linuxExecutable, 0o755);
+writeFileSync(linuxKeyring, "fixture vendor keyring");
+const linuxExpected = {
+  ...browserIdentityContract("chrome", "linux"),
+  executablePath: linuxExecutable,
+  sourceFile: linuxSource,
+  keyringPath: linuxKeyring,
+};
+const linuxSourceLine = `deb [arch=amd64 signed-by=${linuxKeyring}] ` +
+  `https://dl.google.com/linux/chrome/deb/ stable main\n`;
+writeFileSync(linuxSource, linuxSourceLine);
+const packageVersion = "151.0.7922.173-1";
+const packageSha256 = "d".repeat(64);
+const keyFingerprint = linuxExpected.requiredFingerprint;
+const gpgFixture = [
+  "pub:-:4096:1:7721F63BD38B4796:0:0::::::scESC::::::23::0:",
+  ["fpr", "", "", "", "", "", "", "", "", keyFingerprint, ""].join(":"),
+].join("\n");
+const readelfFixture = [
+  "ELF Header:",
+  "  Class:                             ELF64",
+  "  Data:                              2's complement, little endian",
+  "  Type:                              DYN (Position-Independent Executable file)",
+  "  Machine:                           Advanced Micro Devices X86-64",
+].join("\n");
+function linuxRunner(overrides = {}) {
+  return (command, args) => {
+    const key = `${command} ${args[0] || ""}`;
+    if (Object.hasOwn(overrides, key)) return overrides[key];
+    if (command === "gpg") return {status: 0, stdout: gpgFixture, stderr: ""};
+    if (command === "readelf") return {status: 0, stdout: readelfFixture, stderr: ""};
+    if (command === "dpkg-query" && args[0] === "-S") {
+      return {status: 0, stdout: `google-chrome-stable: ${linuxExecutable}\n`, stderr: ""};
+    }
+    if (command === "dpkg-query" && args[0] === "-W") {
+      return {status: 0, stdout: `ii \tgoogle-chrome-stable\t${packageVersion}\tamd64\n`, stderr: ""};
+    }
+    if (command === "apt-cache" && args[0] === "policy") {
+      return {status: 0, stdout: `google-chrome-stable:\n  Installed: ${packageVersion}\n` +
+        `  Candidate: ${packageVersion}\n        500 https://dl.google.com/linux/chrome/deb ` +
+        `stable/main amd64 Packages\n`, stderr: ""};
+    }
+    if (command === "apt-cache" && args[0] === "show") {
+      return {status: 0, stdout: `Package: google-chrome-stable\nVersion: ${packageVersion}\n` +
+        `Architecture: amd64\nFilename: pool/main/g/google-chrome-stable.deb\n` +
+        `SHA256: ${packageSha256}\n`, stderr: ""};
+    }
+    if (command === "dpkg" && args[0] === "--verify") {
+      return {status: 0, stdout: "", stderr: ""};
+    }
+    return {status: 1, stdout: "", stderr: "unexpected Linux identity command"};
+  };
+}
+
+const linuxIdentity = collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner(), "linux");
+assert.equal(linuxIdentity.schema, 2);
+assert.equal(linuxIdentity.platform, "linux");
+assert.equal(linuxIdentity.product.version, "151.0.7922.173");
+assert.equal(linuxIdentity.package.candidate.sha256, packageSha256);
+assert.deepEqual(linuxIdentity.package.keyring.primary_fingerprints, [keyFingerprint]);
+const boundLinuxIdentity = bindRuntimeVersion(linuxIdentity, "151.0.7922.173");
+assert.equal(boundLinuxIdentity.version_matches_product, true);
+assert.deepEqual(revalidateBrowserRuntimeIdentity(
+  boundLinuxIdentity, linuxExpected, linuxRunner(), "linux"), boundLinuxIdentity);
+assert.deepEqual(legacySigning(boundLinuxIdentity), {
+  identifier: "google-chrome-stable", team: keyFingerprint, valid: true,
+});
+
+reject("linux_wrong_elf_machine", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner({"readelf -hW": {
+    status: 0, stdout: readelfFixture.replace("Advanced Micro Devices X86-64", "AArch64"), stderr: "",
+  }}), "linux"));
+reject("linux_wrong_package_owner", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner({"dpkg-query -S": {
+    status: 0, stdout: `chromium: ${linuxExecutable}\n`, stderr: "",
+  }}), "linux"));
+reject("linux_stale_candidate", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner({"apt-cache policy": {
+    status: 0, stdout: `  Installed: ${packageVersion}\n  Candidate: 150.0.0.0-1\n` +
+      `  500 https://dl.google.com/linux/chrome/deb stable/main amd64 Packages\n`, stderr: "",
+  }}), "linux"));
+reject("linux_unaccepted_signer", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner({"gpg --batch": {
+    status: 0, stdout: gpgFixture.replace(keyFingerprint, "A".repeat(40)), stderr: "",
+  }}), "linux"));
+reject("linux_modified_package", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner({"dpkg --verify": {
+    status: 0, stdout: `??5?????? ${linuxExecutable}\n`, stderr: "",
+  }}), "linux"));
+writeFileSync(linuxSource, linuxSourceLine.replace("signed-by=", "trusted=yes signed-by="));
+reject("linux_source_contract_drift", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner(), "linux"));
+writeFileSync(linuxSource, linuxSourceLine);
+reject("linux_contract_host_mismatch", () => collectBrowserRuntimeIdentity(
+  linuxExecutable, linuxExpected, linuxRunner(), "darwin"));
+const driftedLinuxIdentity = structuredClone(boundLinuxIdentity);
+driftedLinuxIdentity.package.candidate.sha256 = "e".repeat(64);
+reject("linux_terminal_identity_drift", () => revalidateBrowserRuntimeIdentity(
+  driftedLinuxIdentity, linuxExpected, linuxRunner(), "linux"));
 
 const fakePage = {evaluate: async () => ({schema: 1, preload: true, snapshot: []})};
 assert.deepEqual(await requireEmptyEarlyDiagnostics(fakePage, "fixture"),

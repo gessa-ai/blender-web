@@ -17,6 +17,7 @@ import json
 import os
 import plistlib
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,33 @@ SELF = ROOT / "sandbox/m8-launch-gate"
 ART = SELF / "artifacts"
 BUILD = ROOT / "build-wasm-windowed-opt/bin"
 BUNDLE = ROOT / "sandbox/m8-staged-deploy/bundle-staged"
+
+DARWIN_RUNTIME_SIGNING = {
+    "chrome": ("com.google.Chrome", "EQHXZ8M8AV", "Google Chrome.app", "Google Chrome"),
+    "edge": ("com.microsoft.edgemac", "UBF8T346G9", "Microsoft Edge.app", "Microsoft Edge"),
+}
+LINUX_RUNTIME_CONTRACTS = {
+    "chrome": {
+        "executable": "/opt/google/chrome/chrome",
+        "package": "google-chrome-stable",
+        "source": "/etc/apt/sources.list.d/blender-web-google-chrome.list",
+        "keyring": "/etc/apt/keyrings/blender-web-google-linux.gpg",
+        "uri": "https://dl.google.com/linux/chrome/deb/",
+        "suite": "stable",
+        "component": "main",
+        "fingerprint": "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796",
+    },
+    "edge": {
+        "executable": "/opt/microsoft/msedge/msedge",
+        "package": "microsoft-edge-stable",
+        "source": "/etc/apt/sources.list.d/blender-web-microsoft-edge.list",
+        "keyring": "/etc/apt/keyrings/blender-web-microsoft-edge.gpg",
+        "uri": "https://packages.microsoft.com/repos/edge",
+        "suite": "stable",
+        "component": "main",
+        "fingerprint": "BC528686B50D79E339D3721CEB3E94ADBE1229CF",
+    },
+}
 
 GENERATED_INPUT_PREFIXES = (
     b"sandbox/m8-launch-gate/artifacts/",
@@ -309,12 +337,217 @@ def check_early_diagnostics(value: object, label: str, failures: list[str]) -> N
             f"{label} early diagnostics are not exact schema-1/preloaded/empty", failures)
 
 
+def _runtime_command(arguments: list[str], runner=subprocess.run) -> tuple[str, str]:
+    try:
+        result = runner(
+            arguments,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "LC_ALL": "C", "LANG": "C"},
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError(f"identity command is unavailable: {arguments[0]}: {error}") from error
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(
+            f"identity command failed: {' '.join(arguments)}" + (f": {detail}" if detail else ""))
+    return result.stdout.strip(), result.stderr.strip()
+
+
+def _exact_runtime_file(path_text: str, kind: str, executable: bool = False) -> dict[str, object]:
+    path = Path(path_text)
+    if not path.is_absolute() or os.path.normpath(path_text) != path_text:
+        raise RuntimeError(f"{kind} path is not absolute and normalized")
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        info = current.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            raise RuntimeError(f"{kind} path contains symlink component: {current}")
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_size <= 0 or path.resolve(strict=True) != path:
+        raise RuntimeError(f"{kind} is not an exact nonempty regular file")
+    if executable and not os.access(path, os.X_OK):
+        raise RuntimeError(f"{kind} is not executable")
+    return {"path": path_text, "bytes": info.st_size, "sha256": sha256(path)}
+
+
+def _primary_fingerprints(colon_text: str) -> list[str]:
+    fingerprints: list[str] = []
+    waiting = False
+    for line in colon_text.splitlines():
+        fields = line.split(":")
+        if fields[0] == "pub":
+            waiting = True
+        elif fields[0] == "fpr" and waiting:
+            fingerprint = fields[9].upper() if len(fields) > 9 else ""
+            if re.fullmatch(r"[0-9A-F]{40}", fingerprint) is None:
+                raise RuntimeError("APT keyring primary fingerprint is noncanonical")
+            fingerprints.append(fingerprint)
+            waiting = False
+    if waiting or not fingerprints or len(fingerprints) != len(set(fingerprints)):
+        raise RuntimeError("APT keyring primary fingerprint inventory is absent or ambiguous")
+    return sorted(fingerprints)
+
+
+def _deb822_fields(text: str) -> dict[str, str]:
+    wanted = {"Package", "Version", "Architecture", "Filename", "SHA256"}
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9-]*):\s*(.*)", line)
+        if match is None or match.group(1) not in wanted:
+            continue
+        if match.group(1) in values:
+            raise RuntimeError(f"APT package metadata duplicates {match.group(1)}")
+        values[match.group(1)] = match.group(2).strip()
+    if set(values) != wanted or any(not value for value in values.values()):
+        raise RuntimeError("APT package metadata is incomplete")
+    return values
+
+
+def _debian_upstream_version(version: str) -> str:
+    without_epoch = re.sub(r"^\d+:", "", version)
+    upstream = without_epoch.rsplit("-", 1)[0] if "-" in without_epoch else without_epoch
+    if re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,4}", upstream) is None:
+        raise RuntimeError(f"browser package version is noncanonical: {version}")
+    return upstream
+
+
+def _collect_linux_runtime_identity(channel: str, executable_text: str,
+                                    runtime_version: str, runner=subprocess.run,
+                                    contract_override: dict[str, str] | None = None
+                                    ) -> dict[str, object]:
+    contract = contract_override or LINUX_RUNTIME_CONTRACTS.get(channel)
+    if contract is None:
+        raise RuntimeError(f"unsupported Linux browser channel: {channel}")
+    if executable_text != contract["executable"]:
+        raise RuntimeError(f"Linux executable is not canonical: {executable_text}")
+    executable = _exact_runtime_file(executable_text, "browser executable", executable=True)
+    executable["requested_path"] = executable_text
+    # Match the producer's exact key order only semantically; JSON object order is irrelevant.
+    executable = {
+        "requested_path": executable["requested_path"], "path": executable["path"],
+        "bytes": executable["bytes"], "sha256": executable["sha256"],
+    }
+    source = _exact_runtime_file(contract["source"], "APT source")
+    keyring = _exact_runtime_file(contract["keyring"], "APT keyring")
+    active_lines = [line.strip() for line in Path(contract["source"]).read_text(
+        encoding="utf-8").splitlines() if line.strip() and not line.strip().startswith("#")]
+    expected_line = (
+        f"deb [arch=amd64 signed-by={contract['keyring']}] {contract['uri']} "
+        f"{contract['suite']} {contract['component']}")
+    if active_lines != [expected_line]:
+        raise RuntimeError("APT source is not the exact signed vendor stable repository")
+
+    gpg, _ = _runtime_command([
+        "gpg", "--batch", "--no-options", "--show-keys", "--with-colons", "--fingerprint",
+        contract["keyring"],
+    ], runner)
+    fingerprints = _primary_fingerprints(gpg)
+    if fingerprints != [contract["fingerprint"]]:
+        raise RuntimeError("APT keyring does not contain only the accepted vendor primary key")
+
+    readelf, _ = _runtime_command(["readelf", "-hW", executable_text], runner)
+    elf_value = lambda name: (re.search(rf"(?m)^\s*{re.escape(name)}:\s*(.+)$", readelf)
+                              .group(1).strip()
+                              if re.search(rf"(?m)^\s*{re.escape(name)}:\s*(.+)$", readelf)
+                              else None)
+    elf = {
+        "class": elf_value("Class"),
+        "data": elf_value("Data"),
+        "type": (elf_value("Type") or "").split()[0] or None,
+        "machine": elf_value("Machine"),
+    }
+    if elf != {"class": "ELF64", "data": "2's complement, little endian", "type": "DYN",
+               "machine": "Advanced Micro Devices X86-64"}:
+        raise RuntimeError(f"browser executable is not the canonical amd64 PIE ELF: {elf}")
+
+    owner, _ = _runtime_command(["dpkg-query", "-S", executable_text], runner)
+    if re.fullmatch(rf"{re.escape(contract['package'])}(?::amd64)?: "
+                    rf"{re.escape(executable_text)}", owner) is None:
+        raise RuntimeError("browser ELF is not uniquely owned by the canonical package")
+    installed_text, _ = _runtime_command([
+        "dpkg-query", "-W",
+        "-f=${db:Status-Abbrev}\\t${binary:Package}\\t${Version}\\t${Architecture}\\n",
+        contract["package"],
+    ], runner)
+    installed = installed_text.split("\t")
+    if len(installed) != 4 or installed[0] != "ii " or \
+            installed[1] not in {contract["package"], f"{contract['package']}:amd64"} or \
+            not installed[2] or installed[3] != "amd64":
+        raise RuntimeError("canonical browser package is not exactly installed for amd64")
+    package_version = installed[2]
+    product_version = _debian_upstream_version(package_version)
+
+    policy, _ = _runtime_command(["apt-cache", "policy", contract["package"]], runner)
+    installed_match = re.search(r"(?m)^\s*Installed:\s*(\S+)\s*$", policy)
+    candidate_match = re.search(r"(?m)^\s*Candidate:\s*(\S+)\s*$", policy)
+    repository_marker = (
+        f"{contract['uri'].rstrip('/')} {contract['suite']}/{contract['component']} "
+        "amd64 Packages")
+    if not installed_match or not candidate_match or \
+            installed_match.group(1) != package_version or \
+            candidate_match.group(1) != package_version or repository_marker not in policy:
+        raise RuntimeError("installed browser is not the exact vendor-repository APT candidate")
+    metadata_text, _ = _runtime_command([
+        "apt-cache", "show", "--no-all-versions", f"{contract['package']}={package_version}"],
+        runner)
+    metadata = _deb822_fields(metadata_text)
+    if metadata["Package"] != contract["package"] or metadata["Version"] != package_version or \
+            metadata["Architecture"] != "amd64" or \
+            re.fullmatch(r"[0-9a-fA-F]{64}", metadata["SHA256"]) is None or \
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9+._/-]*\.deb", metadata["Filename"]) is None or \
+            ".." in metadata["Filename"]:
+        raise RuntimeError("APT candidate archive metadata is not exact")
+    verified_out, verified_err = _runtime_command(
+        ["dpkg", "--verify", contract["package"]], runner)
+    if verified_out or verified_err:
+        raise RuntimeError("dpkg reports modified browser package files")
+    if runtime_version != product_version:
+        raise RuntimeError("runtime version does not match the package upstream version")
+
+    return {
+        "schema": 2,
+        "platform": "linux",
+        "executable": executable,
+        "product": {"channel": channel, "version": product_version,
+                    "package_version": package_version},
+        "elf": elf,
+        "package": {
+            "manager": "dpkg+apt", "name": contract["package"], "status": "ii",
+            "version": package_version, "architecture": "amd64", "owner_verified": True,
+            "files_verified": True,
+            "source": {**source, "uri": contract["uri"], "suite": contract["suite"],
+                       "component": contract["component"], "signed_by": contract["keyring"]},
+            "keyring": {**keyring, "required_fingerprint": contract["fingerprint"],
+                        "primary_fingerprints": fingerprints},
+            "candidate": {"version": metadata["Version"], "filename": metadata["Filename"],
+                          "sha256": metadata["SHA256"].lower()},
+        },
+        "runtime_version": runtime_version,
+        "version_matches_product": True,
+    }
+
+
 def check_runtime_identity(identity_value: object, channel: str, executable_value: object,
                            version_value: object, label: str,
                            failures: list[str]) -> None:
-    """Independently bind a receipt to the current signed macOS executable."""
+    """Independently bind a receipt to current macOS notarization or Linux APT state."""
     if not isinstance(identity_value, dict):
         failures.append(f"{label} runtime identity is absent")
+        return
+    if identity_value.get("schema") == 2 and identity_value.get("platform") == "linux":
+        try:
+            require(isinstance(executable_value, str) and isinstance(version_value, str),
+                    f"{label} Linux runtime path/version is absent", failures)
+            if not isinstance(executable_value, str) or not isinstance(version_value, str):
+                return
+            current = _collect_linux_runtime_identity(channel, executable_value, version_value)
+            require(identity_value == current,
+                    f"{label} current Linux ELF/APT identity differs", failures)
+        except (OSError, RuntimeError, UnicodeError) as error:
+            failures.append(f"{label} Linux runtime identity verification failed: {error}")
         return
     require(set(identity_value) == {"schema", "executable", "app", "codesign",
                                    "notarization", "runtime_version",
@@ -324,10 +557,7 @@ def check_runtime_identity(identity_value: object, channel: str, executable_valu
     app = identity_value.get("app", {})
     signing = identity_value.get("codesign", {})
     notarization = identity_value.get("notarization", {})
-    expected_signing = {
-        "chrome": ("com.google.Chrome", "EQHXZ8M8AV", "Google Chrome.app"),
-        "edge": ("com.microsoft.edgemac", "UBF8T346G9", "Microsoft Edge.app"),
-    }.get(channel)
+    expected_signing = DARWIN_RUNTIME_SIGNING.get(channel)
     require(expected_signing is not None, f"{label} runtime channel is unsupported", failures)
     if expected_signing is None or not all(isinstance(value, dict) for value in (
             executable, app, signing, notarization)):
@@ -351,7 +581,7 @@ def check_runtime_identity(identity_value: object, channel: str, executable_valu
     app_path = Path(app_text)
     require(app_path.name == expected_signing[2]
             and executable_path.parent.parent.parent == app_path
-            and executable_path.name in {"Google Chrome", "Microsoft Edge"},
+            and executable_path.name == expected_signing[3],
             f"{label} runtime executable is not the canonical branded app member", failures)
     try:
         require(not executable_path.is_symlink() and executable_path.is_file()
@@ -403,6 +633,15 @@ def check_runtime_identity(identity_value: object, channel: str, executable_valu
                 f"{label} current notarization identity differs", failures)
     except (OSError, ValueError, plistlib.InvalidFileException) as error:
         failures.append(f"{label} runtime identity verification failed: {error}")
+
+
+def expected_signing_projection(channel: str, runtime_identity: object) -> tuple[str, str] | None:
+    if isinstance(runtime_identity, dict) and runtime_identity.get("schema") == 2 and \
+            runtime_identity.get("platform") == "linux":
+        contract = LINUX_RUNTIME_CONTRACTS.get(channel)
+        return (contract["package"], contract["fingerprint"]) if contract else None
+    contract = DARWIN_RUNTIME_SIGNING.get(channel)
+    return contract[:2] if contract else None
 
 
 def receipt_matches_files(
@@ -905,9 +1144,10 @@ def check_soak(receipt: dict, failures: list[str]) -> None:
     except (KeyError, TypeError, ValueError):
         failures.append("soak Chrome current-version timestamp invalid")
     signing = browser.get("signing", {}) if isinstance(browser.get("signing"), dict) else {}
+    expected_signing = expected_signing_projection("chrome", browser.get("runtime_identity"))
     require(signing.get("valid") is True and
-            (signing.get("identifier"), signing.get("team")) == ("com.google.Chrome", "EQHXZ8M8AV"),
-            "soak Chrome code signature is invalid", failures)
+            (signing.get("identifier"), signing.get("team")) == expected_signing,
+            "soak Chrome executable/package signing identity is invalid", failures)
     require(browser.get("fresh_profile") is True, "soak profile was not fresh", failures)
     require(receipt.get("duration_seconds", 0) >= 1800, "soak shorter than full 30-minute gate", failures)
     require(receipt.get("sample_count", 0) >= 60, "soak has fewer than 60 samples", failures)
@@ -975,8 +1215,7 @@ def check_browsers(receipt: dict, failures: list[str]) -> None:
         row = engines.get(name, {}) if isinstance(engines, dict) else {}
         require(isinstance(row, dict) and set(row) == exact_row_keys,
                 f"{name} browser matrix row keys are not exact", failures)
-        expected = {"chrome": ("com.google.Chrome", "EQHXZ8M8AV"),
-                    "edge": ("com.microsoft.edgemac", "UBF8T346G9")}[name]
+        expected = expected_signing_projection(name, row.get("runtime_identity"))
         require(row.get("channel") == name, f"{name} receipt is not branded {name} channel", failures)
         check_runtime_identity(row.get("runtime_identity"), name,
                                row.get("executable"), row.get("actual_version"),
@@ -997,7 +1236,7 @@ def check_browsers(receipt: dict, failures: list[str]) -> None:
         signing = row.get("signing", {})
         require(signing.get("valid") is True and
                 (signing.get("identifier"), signing.get("team")) == expected,
-                f"{name} branded code signature invalid", failures)
+                f"{name} branded executable/package signing identity invalid", failures)
         require(row.get("wm_main") is True, f"{name} did not reach WM_main", failures)
         require(isinstance(row.get("wm_main_ms"), (int, float)) and row["wm_main_ms"] > 0,
                 f"{name} WM_main timing is absent/invalid", failures)
@@ -1146,8 +1385,8 @@ def check_product_bar(receipt: dict, chrome: dict, failures: list[str]) -> None:
             "30-second product run did not use the matrix's exact Chrome version", failures)
     require(signing.get("valid") is True and
             (signing.get("identifier"), signing.get("team")) ==
-            ("com.google.Chrome", "EQHXZ8M8AV"),
-            "30-second product Chrome code signature is invalid", failures)
+            expected_signing_projection("chrome", browser.get("runtime_identity")),
+            "30-second product Chrome executable/package signing identity is invalid", failures)
     try:
         checked = dt.datetime.fromisoformat(str(receipt["checked_at"]).replace("Z", "+00:00"))
         age = dt.datetime.now(dt.timezone.utc) - checked
@@ -1345,6 +1584,114 @@ def chrome_runtime_identities(staged: dict, soak: dict, product: dict,
     ]
 
 
+def linux_runtime_verifier_selfcheck() -> tuple[int, int]:
+    positive = 0
+    negative = 0
+    fingerprint = LINUX_RUNTIME_CONTRACTS["chrome"]["fingerprint"]
+    package_version = "151.0.7922.173-1"
+    package_sha256 = "d" * 64
+    with tempfile.TemporaryDirectory(prefix="m8-linux-runtime-") as temporary:
+        root = Path(temporary).resolve()
+        executable = root / "opt/google/chrome/chrome"
+        source = root / "etc/apt/sources.list.d/blender-web-google-chrome.list"
+        keyring = root / "etc/apt/keyrings/blender-web-google-linux.gpg"
+        executable.parent.mkdir(parents=True)
+        source.parent.mkdir(parents=True)
+        keyring.parent.mkdir(parents=True)
+        executable.write_bytes(b"fixture Linux ELF bytes")
+        executable.chmod(0o755)
+        keyring.write_bytes(b"fixture vendor keyring")
+        contract = {
+            **LINUX_RUNTIME_CONTRACTS["chrome"],
+            "executable": str(executable), "source": str(source), "keyring": str(keyring),
+        }
+        source_line = (
+            f"deb [arch=amd64 signed-by={keyring}] {contract['uri']} stable main\n")
+        source.write_text(source_line, encoding="utf-8")
+        gpg_fixture = "\n".join((
+            "pub:-:4096:1:7721F63BD38B4796:0:0::::::scESC::::::23::0:",
+            ":".join(("fpr", "", "", "", "", "", "", "", "", fingerprint, "")),
+        ))
+        readelf_fixture = "\n".join((
+            "ELF Header:",
+            "  Class:                             ELF64",
+            "  Data:                              2's complement, little endian",
+            "  Type:                              DYN (Position-Independent Executable file)",
+            "  Machine:                           Advanced Micro Devices X86-64",
+        ))
+
+        def fixture_runner(arguments: list[str], **_kwargs):
+            command = (arguments[0], arguments[1] if len(arguments) > 1 else "")
+            output = ""
+            if command == ("gpg", "--batch"):
+                output = gpg_fixture
+            elif command == ("readelf", "-hW"):
+                output = readelf_fixture
+            elif command == ("dpkg-query", "-S"):
+                output = f"google-chrome-stable: {executable}\n"
+            elif command == ("dpkg-query", "-W"):
+                output = f"ii \tgoogle-chrome-stable\t{package_version}\tamd64\n"
+            elif command == ("apt-cache", "policy"):
+                output = (
+                    f"google-chrome-stable:\n  Installed: {package_version}\n"
+                    f"  Candidate: {package_version}\n"
+                    "        500 https://dl.google.com/linux/chrome/deb "
+                    "stable/main amd64 Packages\n")
+            elif command == ("apt-cache", "show"):
+                output = (
+                    f"Package: google-chrome-stable\nVersion: {package_version}\n"
+                    "Architecture: amd64\n"
+                    "Filename: pool/main/g/google-chrome-stable.deb\n"
+                    f"SHA256: {package_sha256}\n")
+            elif command == ("dpkg", "--verify"):
+                output = ""
+            else:
+                return subprocess.CompletedProcess(arguments, 1, "", "unexpected command")
+            return subprocess.CompletedProcess(arguments, 0, output, "")
+
+        identity_value = _collect_linux_runtime_identity(
+            "chrome", str(executable), "151.0.7922.173", fixture_runner, contract)
+        assert identity_value["schema"] == 2 and identity_value["platform"] == "linux"
+        assert identity_value["package"]["candidate"]["sha256"] == package_sha256
+        assert expected_signing_projection("chrome", identity_value) == \
+            ("google-chrome-stable", fingerprint)
+        positive += 3
+
+        def reject(name: str, runner) -> None:
+            nonlocal negative
+            try:
+                _collect_linux_runtime_identity(
+                    "chrome", str(executable), "151.0.7922.173", runner, contract)
+            except RuntimeError:
+                negative += 1
+                return
+            raise AssertionError(f"Linux runtime verifier false green: {name}")
+
+        def mutate(command_key: tuple[str, str], replacement: str):
+            def runner(arguments: list[str], **kwargs):
+                key = (arguments[0], arguments[1] if len(arguments) > 1 else "")
+                if key == command_key:
+                    return subprocess.CompletedProcess(arguments, 0, replacement, "")
+                return fixture_runner(arguments, **kwargs)
+            return runner
+
+        reject("wrong_machine", mutate(
+            ("readelf", "-hW"), readelf_fixture.replace("Advanced Micro Devices X86-64", "AArch64")))
+        reject("wrong_fingerprint", mutate(
+            ("gpg", "--batch"), gpg_fixture.replace(fingerprint, "A" * 40)))
+        reject("stale_candidate", mutate(
+            ("apt-cache", "policy"),
+            f"  Installed: {package_version}\n  Candidate: 150.0.0.0-1\n"
+            "  500 https://dl.google.com/linux/chrome/deb stable/main amd64 Packages\n"))
+        reject("modified_package", mutate(
+            ("dpkg", "--verify"), f"??5?????? {executable}\n"))
+        source.write_text(source_line.replace("signed-by=", "trusted=yes signed-by="),
+                          encoding="utf-8")
+        reject("source_drift", fixture_runner)
+        source.write_text(source_line, encoding="utf-8")
+    return positive, negative
+
+
 def runtime_consumer_selfcheck() -> None:
     identity_fixture = {
         "schema": 1, "executable": {"requested_path": "/fixture", "path": "/fixture",
@@ -1375,12 +1722,17 @@ def runtime_consumer_selfcheck() -> None:
                              "snapshot": [{"type": "error"}]},
                             "fixture", diagnostics_failures)
     assert diagnostics_failures
+    node = ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"
+    assert node.is_file() and subprocess.run(
+        [str(node), "--version"], capture_output=True, text=True, check=True).stdout.strip() == "v22.16.0"
     for script, marker in (
         (SELF / "runtime_evidence_selfcheck.mjs", "M8_RUNTIME_EVIDENCE_SELFCHECK_PASS"),
+        (SELF / "browser_matrix.mjs", "M8_BROWSER_MATRIX_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/stage_provenance.py",
          "M8_STAGE_PROVENANCE_SELFCHECK_PASS"),
     ):
-        command = ["node", str(script)] if script.suffix == ".mjs" else \
+        command = [str(node), str(script), *(["--selfcheck"] if script.name == "browser_matrix.mjs" else [])] \
+            if script.suffix == ".mjs" else \
             [sys.executable, str(script), "--selfcheck"]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         assert result.returncode == 0 and marker in result.stdout, result.stderr or result.stdout
@@ -1395,8 +1747,10 @@ def runtime_consumer_selfcheck() -> None:
         matrix_source,
     )
     assert "browserMatrixInvocationPass(priorExists, matrixPass, pass)" in matrix_source
+    linux_positive, linux_negative = linux_runtime_verifier_selfcheck()
     print("M8_RUNTIME_CONSUMER_SELFCHECK_PASS cross_lane=5 negative=identity+diagnostics "
-          "composer=strict matrix=exact full_stage=deterministic")
+          f"linux={linux_positive}+{linux_negative} composer=strict matrix=exact "
+          "full_stage=deterministic")
 
 
 def main() -> int:

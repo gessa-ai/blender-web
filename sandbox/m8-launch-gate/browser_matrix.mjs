@@ -7,60 +7,189 @@
 
 import {createRequire} from "module";
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from "fs";
+import {delimiter, dirname, join, resolve} from "path";
+import {fileURLToPath} from "url";
 import {
   canonicalBundleDigest, collectArtifacts, loadArtifactContract, requireServedBundle,
 } from "./bundle_identity.mjs";
 import {
-  bindRuntimeVersion, browserMatrixInvocationPass, browserMatrixRowPass,
+  bindRuntimeVersion, browserIdentityContract, browserMatrixInvocationPass, browserMatrixRowPass,
   collectBrowserRuntimeIdentity, legacySigning,
   requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity, validatePriorBrowserMatrix,
 } from "./runtime_evidence.mjs";
 
-const require = createRequire("/Users/paws/plushly/game-platform/node_modules/");
-const {chromium} = require("playwright");
-const {PNG} = require("pngjs");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "..", "..");
+const OUT = join(HERE, "artifacts/current-browser-matrix.json");
+const NODE_VERSION = "v22.16.0";
+const PLAYWRIGHT_VERSION = "1.61.1";
+const PNGJS_VERSION = "7.0.0";
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  join(ROOT, ".m4-node/node_modules"),
+  join(ROOT, "node_modules"),
+].filter(Boolean).flatMap((entry) => entry.split(delimiter)).filter(Boolean)
+  .map((entry) => resolve(entry)))]);
 
-const ROOT = "/Users/paws/blender-web";
-const OUT = `${ROOT}/sandbox/m8-launch-gate/artifacts/current-browser-matrix.json`;
-mkdirSync(`${ROOT}/sandbox/m8-launch-gate/artifacts`, {recursive: true});
+function requireNodeVersion(version = process.version) {
+  if (version !== NODE_VERSION) throw new Error(`Node ${NODE_VERSION} required, got ${version}`);
+}
+
+function resolveBrowserDependencies(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, "package.json"));
+    return {
+      chromium: require("playwright").chromium,
+      playwrightVersion: require("playwright/package.json").version,
+      PNG: require("pngjs").PNG,
+      pngjsVersion: require("pngjs/package.json").version,
+    };
+  },
+) {
+  const failures = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium || !loaded?.PNG) throw new Error("browser dependency exports are absent");
+      if (loaded.playwrightVersion !== PLAYWRIGHT_VERSION || loaded.pngjsVersion !== PNGJS_VERSION) {
+        throw new Error(`versions playwright=${loaded.playwrightVersion} pngjs=${loaded.pngjsVersion}`);
+      }
+      return {...loaded, root};
+    }
+    catch (error) {
+      failures.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve exact browser dependencies; set BW_NODE_MODULES\n${failures.join("\n")}`);
+}
+
 const PORT = Number.parseInt(process.argv[2] || "8168", 10);
 const CHANNEL = process.argv[3] || "";
 const EXECUTABLE = process.argv[4] || "";
+const SELF_CHECK = process.argv.length === 3 && process.argv[2] === "--selfcheck";
+const HOST_PLATFORM = process.platform;
+if (SELF_CHECK) {
+  await selfcheck();
+  process.exit(0);
+}
+requireNodeVersion();
 if (!new Set(["chrome", "edge"]).has(CHANNEL)) {
-  throw new Error("usage: browser_matrix.mjs PORT chrome|edge /absolute/path/to/Branded.app/Contents/MacOS/executable");
+  throw new Error("usage: browser_matrix.mjs PORT chrome|edge /absolute/path/to/canonical-branded-executable");
 }
 if (!EXECUTABLE) {
-  throw new Error("an explicit branded app executable is required so the matrix can verify its code signature");
+  throw new Error("an explicit canonical branded executable is required for runtime identity verification");
 }
+if (!Number.isSafeInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error(`invalid port: ${PORT}`);
+const {chromium, PNG} = resolveBrowserDependencies();
+const identityContract = browserIdentityContract(CHANNEL, HOST_PLATFORM);
+
+async function officialVersion(channel, platform, fetcher = fetch) {
+  if (channel === "chrome") {
+    const apiPlatform = platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
+    if (!apiPlatform) throw new Error(`unsupported Chrome release platform: ${platform}`);
+    const url = `https://versionhistory.googleapis.com/v1/chrome/platforms/${apiPlatform}/channels/stable/versions?page_size=1`;
+    const response = await fetcher(url);
+    if (!response.ok) throw new Error(`Chrome version lookup ${response.status}`);
+    const body = await response.json();
+    const version = body?.versions?.[0]?.version;
+    if (!/^[0-9]+(?:\.[0-9]+){3}$/.test(version || "")) {
+      throw new Error("Chrome stable API returned no canonical version");
+    }
+    return {version, source: url};
+  }
+  const url = "https://edgeupdates.microsoft.com/api/products?view=enterprise";
+  const response = await fetcher(url);
+  if (!response.ok) throw new Error(`Edge version lookup ${response.status}`);
+  const body = await response.json();
+  const stable = body.find((product) => product.Product === "Stable");
+  const apiPlatform = platform === "darwin" ? "MacOS" : platform === "linux" ? "Linux" : null;
+  if (!apiPlatform) throw new Error(`unsupported Edge release platform: ${platform}`);
+  const releases = stable?.Releases?.filter((release) => release.Platform === apiPlatform)
+    .sort((a, b) => Date.parse(b.PublishedTime) - Date.parse(a.PublishedTime));
+  const version = releases?.[0]?.ProductVersion;
+  if (!/^[0-9]+(?:\.[0-9]+){3}$/.test(version || "")) {
+    throw new Error("Edge stable API returned no canonical platform version");
+  }
+  return {version, source: url};
+}
+
+async function selfcheck() {
+  let positive = 0;
+  let negative = 0;
+  const check = (condition, message) => {
+    if (!condition) throw new Error(`M8 browser matrix self-check: ${message}`);
+    positive++;
+  };
+  const reject = async (name, action) => {
+    try {
+      await action();
+    }
+    catch (_) {
+      negative++;
+      return;
+    }
+    throw new Error(`M8 browser matrix self-check false green: ${name}`);
+  };
+
+  check(resolve(HERE, "..", "..") === ROOT && readFileSync(join(ROOT, "GOAL.md"), "utf8").length > 0,
+    "repository root is not producer-derived");
+  requireNodeVersion(NODE_VERSION);
+  check(true, "exact Node acceptance");
+  await reject("wrong_node", () => requireNodeVersion("v25.1.0"));
+  const dependency = resolveBrowserDependencies(["/fixture/modules"], () => ({
+    chromium: {}, PNG: {}, playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION,
+  }));
+  check(dependency.root === "/fixture/modules", "dependency root mismatch");
+  await reject("wrong_playwright", () => resolveBrowserDependencies(["/fixture/modules"], () => ({
+    chromium: {}, PNG: {}, playwrightVersion: "1.61.0", pngjsVersion: PNGJS_VERSION,
+  })));
+  const chromeContract = browserIdentityContract("chrome", "linux");
+  const edgeContract = browserIdentityContract("edge", "linux");
+  check(chromeContract.executablePath === "/opt/google/chrome/chrome" &&
+    edgeContract.executablePath === "/opt/microsoft/msedge/msedge", "Linux ELF contracts drifted");
+  check(chromeContract.packageName === "google-chrome-stable" &&
+    edgeContract.packageName === "microsoft-edge-stable", "Linux package contracts drifted");
+
+  const urls = [];
+  const fakeFetch = async (url) => {
+    urls.push(url);
+    return url.includes("versionhistory") ?
+      {ok: true, json: async () => ({versions: [{version: "151.0.7922.173"}]})} :
+      {ok: true, json: async () => ([{Product: "Stable", Releases: [
+        {Platform: "MacOS", ProductVersion: "151.0.0.1", PublishedTime: "2026-08-19T00:00:00Z"},
+        {Platform: "Linux", ProductVersion: "151.0.4129.92", PublishedTime: "2026-08-18T00:00:00Z"},
+        {Platform: "Linux", ProductVersion: "151.0.4129.93", PublishedTime: "2026-08-20T00:00:00Z"},
+      ]}])};
+  };
+  const chrome = await officialVersion("chrome", "linux", fakeFetch);
+  const edge = await officialVersion("edge", "linux", fakeFetch);
+  check(chrome.version === "151.0.7922.173" && chrome.source.includes("/platforms/linux/"),
+    "Chrome Linux release selection drifted");
+  check(edge.version === "151.0.4129.93", "Edge newest Linux release selection drifted");
+  check(urls.length === 2 && urls.every((url) => !url.includes("platforms/mac/")),
+    "self-check contacted a macOS release selector");
+  await reject("unsupported_platform", () => officialVersion("chrome", "win32", fakeFetch));
+  await reject("missing_release", () => officialVersion("edge", "linux", async () => ({
+    ok: true, json: async () => [],
+  })));
+  const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
+  check(!source.includes("/Users/" + "paws") &&
+    source.includes("browserIdentityContract(CHANNEL, HOST_PLATFORM)"),
+    "producer retains a macOS root or bypasses the host identity contract");
+  console.log(`M8_BROWSER_MATRIX_SELFCHECK_PASS positive=${positive} negative=${negative} ` +
+    `platforms=darwin+linux node=${NODE_VERSION} playwright=${PLAYWRIGHT_VERSION} pngjs=${PNGJS_VERSION}`);
+}
+
+const collectedRuntimeIdentity = collectBrowserRuntimeIdentity(EXECUTABLE, identityContract);
+const signing = legacySigning(collectedRuntimeIdentity);
+const official = await officialVersion(CHANNEL, HOST_PLATFORM);
 const artifactContract = loadArtifactContract(ROOT);
 const sourceArtifacts = collectArtifacts(artifactContract.buildBase, artifactContract.sourceNames);
 const bundleArtifacts = collectArtifacts(artifactContract.bundleBase, artifactContract.bundleNames);
 const expectedBundleDigest = canonicalBundleDigest(bundleArtifacts);
-
-async function officialVersion(channel) {
-  if (channel === "chrome") {
-    const url = "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions?page_size=1";
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Chrome version lookup ${response.status}`);
-    const body = await response.json();
-    return {version: body.versions[0].version, source: url};
-  }
-  const url = "https://edgeupdates.microsoft.com/api/products?view=enterprise";
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Edge version lookup ${response.status}`);
-  const body = await response.json();
-  const stable = body.find((product) => product.Product === "Stable");
-  const releases = stable.Releases.filter((release) => release.Platform === "MacOS")
-    .sort((a, b) => Date.parse(b.PublishedTime) - Date.parse(a.PublishedTime));
-  return {version: releases[0].ProductVersion, source: url};
-}
-
-const official = await officialVersion(CHANNEL);
-const expectedSigning = CHANNEL === "chrome" ?
-  {identifier: "com.google.Chrome", team: "EQHXZ8M8AV"} :
-  {identifier: "com.microsoft.edgemac", team: "UBF8T346G9"};
-const collectedRuntimeIdentity = collectBrowserRuntimeIdentity(EXECUTABLE, expectedSigning);
-const signing = legacySigning(collectedRuntimeIdentity);
+mkdirSync(join(HERE, "artifacts"), {recursive: true});
 const launchOptions = {headless: false, executablePath: EXECUTABLE};
 const browser = await chromium.launch(launchOptions);
 const actualVersion = browser.version();
@@ -219,7 +348,7 @@ const external = requests.filter((value) => {
 });
 await context.close();
 await browser.close();
-revalidateBrowserRuntimeIdentity(runtimeIdentity, expectedSigning);
+revalidateBrowserRuntimeIdentity(runtimeIdentity, identityContract);
 const checkedAt = new Date().toISOString();
 const row = {
   channel: CHANNEL,
@@ -258,10 +387,7 @@ if (priorExists) {
     validatePriorBrowserMatrix(
       prior, CHANNEL, sourceArtifacts, bundleArtifacts, expectedBundleDigest,
       Object.keys(row), (identity, channel) => {
-      const expected = channel === "chrome" ?
-        {identifier: "com.google.Chrome", team: "EQHXZ8M8AV"} :
-        {identifier: "com.microsoft.edgemac", team: "UBF8T346G9"};
-        revalidateBrowserRuntimeIdentity(identity, expected);
+        revalidateBrowserRuntimeIdentity(identity, browserIdentityContract(channel, HOST_PLATFORM));
       });
     receipt.engines = prior.engines;
   }

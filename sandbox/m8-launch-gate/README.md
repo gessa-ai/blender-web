@@ -85,18 +85,62 @@ python3 sandbox/m8-launch-gate/verify_m8.py --launch
 python3 sandbox/m8-launch-gate/verify_m8.py --launch --post-receipt
 ```
 
-Run the two branded-browser rows against a served current staged bundle. The required
-fourth argument is an official branded executable extracted into the ignored local
-test-tools directory. The runner resolves its containing app bundle and rejects the
-row unless Apple's code-signature check and the expected vendor identifier/team both
-pass.
+The browser-matrix producer supports two strict host identities. On macOS it resolves the
+canonical app bundle and re-runs Apple code-signature, team, CDHash, and notarization checks. On
+Linux amd64 it requires the canonical package-owned PIE ELF, exact `dpkg` ownership/version/full
+package verification, an equal installed APT candidate with archive SHA-256, and a one-line
+`signed-by` vendor repository whose keyring contains only the accepted current vendor primary
+fingerprint. Neither platform accepts a Playwright-bundled Chromium binary as branded Chrome or
+Edge.
+
+Run the browser-free producer and shared producer/verifier contract checks first. They require
+the recorded Node 22.16.0 but do not require a browser, display, package, or GPU:
 
 ```sh
-node sandbox/m8-launch-gate/browser_matrix.mjs 8168 chrome \
+tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m8-launch-gate/browser_matrix.mjs --selfcheck
+tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m8-launch-gate/runtime_evidence_selfcheck.mjs
+.host-tools/bin/python3.13 sandbox/m8-launch-gate/verify_m8.py --selfcheck
+```
+
+The macOS capture commands remain, using the same exact Node and module root:
+
+```sh
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-launch-gate/browser_matrix.mjs 8168 chrome \
   sandbox/m8-launch-gate/.browsers/Google\ Chrome.app/Contents/MacOS/Google\ Chrome
-node sandbox/m8-launch-gate/browser_matrix.mjs 8168 edge \
+"$node22" sandbox/m8-launch-gate/browser_matrix.mjs 8168 edge \
   sandbox/m8-launch-gate/.browsers/Microsoft\ Edge.app/Contents/MacOS/Microsoft\ Edge
 ```
+
+For Linux, configure dedicated keyrings containing only Google's active Linux signing primary
+`EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796` and Microsoft's Edge signing primary
+`BC528686B50D79E339D3721CEB3E94ADBE1229CF`. The exact active APT lines must be:
+
+```text
+deb [arch=amd64 signed-by=/etc/apt/keyrings/blender-web-google-linux.gpg] https://dl.google.com/linux/chrome/deb/ stable main
+deb [arch=amd64 signed-by=/etc/apt/keyrings/blender-web-microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main
+```
+
+Install current `google-chrome-stable` and `microsoft-edge-stable` from those authenticated
+repositories, then run both rows against the same served APPLY bundle with the exact local module
+root and canonical package ELFs:
+
+```sh
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-launch-gate/browser_matrix.mjs 8168 chrome \
+  /opt/google/chrome/chrome
+"$node22" sandbox/m8-launch-gate/browser_matrix.mjs 8168 edge \
+  /opt/microsoft/msedge/msedge
+```
+
+The Linux producer also checks the platform-specific official stable APIs (`linux` for Chrome and
+`Linux` for Edge) and requires the package-derived upstream version, browser runtime version, and
+official stable version to be identical. A software WebGPU adapter still binds no browser row;
+ornith-lab must clear the separate s7 hardware-adapter and APPLY-product gates first.
 
 The retained Edge 151 package can be reproduced from the immutable Microsoft
 enterprise artifact URL/hash recorded in

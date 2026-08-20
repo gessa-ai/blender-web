@@ -7,6 +7,70 @@ Workers record harness defects here instead of editing `harness/**`. The driver 
 them at a milestone boundary by temporarily lifting `.claude/harness.lock`, applying the fix,
 re-running the gate, and re-locking.
 
+## OPEN 2026-08-11 — final owner ratification of accumulated boundary reconciliations
+
+The integration driver committed the accumulated `harness/run.sh` delta in `2bd738f` during a
+sanctioned lock-lift while closing M1 through M8. This makes the exact change reviewable; it is
+not final human ratification of a file that `GOAL.md` declares immutable. Publication must not
+silently treat it as unchanged authority. A human owner must either ratify the exact final
+harness digest at the release boundary or restore the prior harness and provide an equivalent
+externally reviewed gate.
+
+The committed delta registers receipt-only M4-M8 scopes; records artifact hashes in M1/M2
+details; retires only the literal 0117/0125 diagnostic-history patches while asserting their
+payload is absent; removes resolved M2/M3 expected-nonpass mappings; rejects `resolved`
+deferral IDs; and raises M3 census floors to the measured 189/196 tests and 995/1003 shaders.
+It does not lower a pixel tolerance, comparator threshold, suite count, or active failure
+expectation.  Before ratification, run the final frozen-source M0–M7 scopes, `--regress`, a
+clean ordered `patches/series` replay, and bind the resulting `harness/run.sh` SHA-256 in the
+closeout receipt.  Until then, the harness delta is an explicit launch blocker rather than an
+implicit exception to the ground rule.
+
+## OPEN 2026-08-11 — final M0–M3 receipts are weaker than the literal GOAL contract
+
+The final read-only audit found several fail-open or stale-evidence seams that must not be hidden
+behind the current per-scope green status:
+
+- `scope_m0` checks a live local macOS Blender and semantic emcc version only.  It does not prove
+  the promised oracle container, CI workflow, exact emsdk checkout identity, both build caches, or
+  CI `reuse lint` step.
+- `scope_m1` accepts exactly ten BLI failures by total count without checking their identities.
+  A new failure can therefore replace an expected failure without changing the receipt.  Nine
+  expected failures are the fenv family; the `/tmp` versus `/private/tmp` chdir mismatch has no
+  registry entry.  The literal tier-(a) contract says the suites pass identically.  Only one of
+  nine corpus files is live-run by the scope; the other retained dumps are not artifact-bound.
+- `scope_m2b` gates suite exit codes while native normalized state diffs are advisory, and it
+  requires seven named suites to remain failing.  This is weaker than the tier-(b) native-state
+  parity contract and makes an expected improvement turn the scope red.
+- `scope_m3` accepts six test failures, one crash, and eight static shader non-compiles.  Its
+  current green receipt predates both the current `blender_test` and a later CMake reconfigure;
+  a dry run schedules more than one thousand rebuild edges.  The receipt also predates patches
+  0147/0148 and does not bind the test binary, CMake cache, Dawn/Tint/shaderc inputs, or frozen
+  source manifest.
+- A successful single-scope invocation unconditionally removes `harness/GATE_RED`, so
+  `harness/status.sh` can say `gate: green` while other scopes are red.  Only a complete final
+  `--regress` makes the global flag meaningful.
+- The patch checker accepts a dirty target set as `in-development`, which currently masks a
+  non-replayable numbered stack.  Final closeout requires the canonical pristine-pin replay and
+  byte manifest; dirty-tree state is never acceptable evidence.
+
+Resolution boundary: do not lower any expectation in `harness/run.sh`.  Build the missing M0
+artifacts, freeze and replay source, regenerate every M1–M3 artifact, run both corpus families,
+and enforce the literal identities/parity with an external fail-closed closeout verifier.  A human
+owner must then ratify the exact final harness digest or restore an equivalent reviewed oracle.
+The last operation is a complete `--regress`; no intermediate `GATE_RED` state is authoritative.
+
+## RESOLVED 2026-08-20 — audit log allocation and RED-marker hygiene
+
+Commit `2bd738f` reserves build logs with an atomic no-clobber create using a UTC timestamp,
+wrapper PID, and bounded collision suffix. The frozen-clock self-check runs 4 sequential and
+32 concurrent independent wrappers, then sources 16 concurrent wrappers under one Bash PID to
+force the suffix path; all 52 logs remain unique with exact content. The gate scope join now
+uses a delimiter-aware join rather than a trailing-space-producing newline translation.
+The driver followed the reconciliation procedure, restored `.claude/harness.lock`, retained
+M0 at 6/6 GREEN, and left the expected M1-M6 RED blockers unchanged. This resolution does not
+close the final owner-ratification item above.
+
 ## RESOLVED 2026-08-03 (M1 boundary, commit pending)
 
 All three reconciled in `harness/run.sh` v1.1 + `status.sh`; m0 re-verified 6/6 GREEN; lock restored.

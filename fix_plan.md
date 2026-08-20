@@ -711,9 +711,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   orders host tools before the product; the recurring ordering invariant is now recorded in
   `notes/porting-patterns.md`. This restores a coherent development artifact only and binds no
   M3/M4 hardware profile, receipt, result, or promise.
-- [ ] **AUDIT-20260820-HARNESS [driver/harness]:** make `harness/buildwrap.sh` log allocation
-  collision-proof and trim `GATE_RED`'s trailing space, with same-second/concurrent negative
-  fixtures. **blocked-by the sanctioned harness lock-lift/reconciliation procedure.**
+- [x] **AUDIT-20260820-HARNESS [driver/harness] (2bd738f):** the sanctioned lock-lift is
+  complete and the lock is restored. `harness/buildwrap.sh` atomically reserves
+  timestamp/PID/suffix log names; a frozen-clock fixture proves 4 sequential, 32 concurrent,
+  and 16 forced-same-basename invocations preserve 52/52 unique logs. `GATE_RED` scope joining
+  no longer emits trailing whitespace. M0 remains 6/6 GREEN and regression remains honestly
+  RED only on the existing M1-M6 receipt/artifact/hardware/run-label gates. The separate final
+  human harness-digest ratification item in `notes/harness-issues.md` remains open.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

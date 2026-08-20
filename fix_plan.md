@@ -598,9 +598,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
     emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
     4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.
-  - [ ] **GPU-fallback dialog re-triage:** "using OpenGL instead" fires despite WITH_OPENGL/VULKAN
-    _BACKEND=OFF (gpu_context.cc:499-513 backends_to_check=[WEBGPU] cannot set the flag) —
-    G_FLAG_GPU_BACKEND_FALLBACK is set elsewhere; trace it. Non-fatal.
+  - [x] **GPU-fallback dialog re-triage [driver, diagnosis-only]:** the inherited non-Apple
+    `UserDef.gpu_backend` default is OpenGL, and `wm_gpu_backend_override_from_userdef()` inserts
+    it before the compiled-in WebGPU backend. Detection rejects that compiled-out override, sets
+    `G_FLAG_GPU_BACKEND_FALLBACK`, then accepts WebGPU. This is not a pre-device capability race;
+    current `WGPUBackend::is_supported()` is unconditional. Patch 0107 only hides the stale bit.
+    The faithful selection/default/CLI/RNA repair is browser-rebuild work blocked by
+    M4-LINUX-REPLAY. Evidence: `notes/gpu-fallback-retriage-20260820.md` and
+    `sandbox/gpu-fallback-retriage/probe_default.cc`.
   - [x] P2 ghost-web blocker #6 "first composite needs an input event": **FALSIFIED by r50**
     (f108934, diagnosis-only, 0/5 attempts used). The initial expose/size/activate events
     have existed since r19/r22 (GHOST_SystemWeb.cc:595 posts kEventWindowSize at

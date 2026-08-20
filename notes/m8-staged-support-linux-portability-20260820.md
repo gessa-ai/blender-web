@@ -57,3 +57,9 @@ changed.
   runtime-evidence self-checks remain green
   (`20260820T220157-2554257/2554258/2554262`).
 - REUSE 6.2.0 is green for the complete checkout (`20260820T220337-2556444`).
+- Required M8 remains honestly red on the same 43 receipt/APPLY/compliance prerequisites
+  (`20260820T220438-2557317`). The final container-backed run restores M0 6/6 green
+  (`20260820T220559-2559180`) and leaves M1-M8 red only on the existing strict
+  receipt/artifact/split/hardware/run-label gates (`20260820T220605-2559883`). The first
+  regression launcher inherited the pre-enrollment process group and was discarded after the
+  Docker socket rejected it; the valid rerun used the account's already-enrolled `docker` GID.

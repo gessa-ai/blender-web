@@ -333,6 +333,15 @@ assert.match(producers.soak,
   /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
   "soak producer does not enforce exact browser dependency versions");
 assert.equal((producers.staged.match(/recordEarlyDiagnostics\('/g) || []).length, 3);
+assert.doesNotMatch(producers.staged, /\/Users\/paws/,
+  "staged producer retains the retired macOS checkout/module root");
+assert.equal((producers.staged.match(/browserIdentityContract\(['"]chrome['"], HOST_PLATFORM\)/g) || []).length, 1,
+  "staged producer does not use exactly one host-specific Chrome identity contract");
+assert.match(producers.staged, /const NODE_VERSION = ['"]v22\.16\.0['"];/,
+  "staged producer does not pin the receipt Node runtime");
+assert.match(producers.staged,
+  /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
+  "staged producer does not enforce exact browser dependency versions");
 
 rmSync(root, {recursive: true, force: true});
 console.log(`M8_RUNTIME_EVIDENCE_SELFCHECK_PASS ` +

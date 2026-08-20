@@ -839,8 +839,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   self-checks pass with zero launches; shared producer/consumer checks are GREEN. The real
   package-absent Linux path rejects before profile/receipt allocation. No soak receipt was
   produced because s7 plus APPLY remain mandatory. See
-  `notes/m8-soak-linux-portability-20260820.md`. Staged capture portability is the next
-  unblocked producer-only unit.
+  `notes/m8-soak-linux-portability-20260820.md`.
+- [x] **M8-STAGED-CAPTURE-LINUX-PORTABILITY [driver, producer-only]:** the strict three-process
+  staged runtime producer now derives its checkout/module/evidence paths, requires Node 22.16.0
+  plus exact Playwright 1.61.1/PNGJS 7.0.0 and an explicit canonical Chrome executable, and
+  selects the shared Darwin/Linux browser identity without changing its cold/warm/offline,
+  service-worker, PARK..RESUMED, trusted-input, pixel, or receipt contract. Base 10/10 and live
+  root+descendant 11/10 self-checks pass with zero launches; shared identity and independent M8
+  consumer checks are GREEN. A Linux package-absent invocation rejects before product/evidence
+  access. No staged/browser receipt was produced because s7 plus APPLY remain mandatory. See
+  `notes/m8-staged-capture-linux-portability-20260820.md`.
+- [ ] **M8-STAGED-SUPPORT-LINUX-PORTABILITY [driver, browser-free]:** make the adjacent staged
+  assembly/server/update-transition checks derive their roots and let self-check mode run before
+  an APPLY manifest exists. Current exact blockers: `serve_measure.py --selfcheck` eagerly opens
+  the absent `blender_browser.split-build.json`; `verify_update_transition.mjs` opens the retired
+  `/Users/paws` bundle script. Keep the transport/update contracts unchanged; do not create an
+  APPLY artifact or browser receipt on the software adapter.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

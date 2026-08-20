@@ -206,15 +206,17 @@ python3 sandbox/m8-staged-deploy/serve_measure.py 8168 \
 
 With that exact-tree server running, generate both raw runtime inputs before the
 receipt. `make_staged_receipt.py` rejects either input if it is stale for the
-current build or bundle. The performance producer supports Darwin and Linux, but
-requires the exact Node/module versions and an explicit canonical branded Chrome
-executable. Run its browser-free contract check before the live capture.
+current build or bundle. Both producers support Darwin and Linux, require the
+exact Node/module versions and an explicit canonical branded Chrome executable,
+and provide browser-free contract checks to run before the live capture.
 
 ```sh
 export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
 node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-staged-deploy/verify_staged.mjs --selfcheck
 "$node22" sandbox/m8-launch-gate/measure_current.mjs --selfcheck
-node sandbox/m8-staged-deploy/verify_staged.mjs 8168
+"$node22" sandbox/m8-staged-deploy/verify_staged.mjs 8168 \
+  /opt/google/chrome/chrome
 "$node22" sandbox/m8-launch-gate/measure_current.mjs 8168 \
   /opt/google/chrome/chrome 3
 python3 sandbox/m8-launch-gate/make_staged_receipt.py

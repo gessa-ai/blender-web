@@ -115,3 +115,24 @@ The useful runtime logs named during closeout are:
    without a named source-level reason.
 5. Rebuild the windowed Wasm product, install the pinned Playwright browser locally, and create a
    new immutable M4 binding. Keep the old 0.204%/0.505% PASS as history, not current evidence.
+
+## Linux follow-up: M2 verifier self-check closed (2026-08-20)
+
+The specific verifier-validation gap recorded above for commit `484219d` is closed. The exact
+six-ID `blendfile_library_overrides` bijection implementation passed all four hermetic
+positive/adversarial programs under the rebuilt native CPython 3.13.13 host tool:
+
+- `runner_selfcheck.py`: `ledger/buildlogs/20260820T050442.log`
+- `compose_selfcheck.py`: `ledger/buildlogs/20260820T050443.log`
+- `selfcheck.py`: `ledger/buildlogs/20260820T050405.log`
+- `strict_final_adapter_selfcheck.py`: `ledger/buildlogs/20260820T050444.log`
+
+This validates the producer/verifier contract and its tamper controls. It does not promote the
+historical interrupted candidate to a release input: `m2b` still requires a fresh strict Linux
+runtime receipt, and its harness result remains RED until that evidence exists.
+
+Repository-wide REUSE 3.3 compliance is green at 1,893/1,893 files
+(`ledger/buildlogs/20260820T050626.log`). The required `harness/run.sh --scope m2b` and
+`--regress` checks were also run; at `2026-08-20T05:06:39Z` they remain honestly RED for the
+missing fresh strict-final receipts and the already-recorded M4/M5/M6 artifact/hardware gates.
+No receipt, pass flag, deferral status, or promise was changed.

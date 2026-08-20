@@ -644,6 +644,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   checked-in exact 197/1,003 manifests, 197/197, DrawWebGPU 2/2, cold 1,003 MISS/files, warm
   1,003 HIT, zero uncaptured errors, OpenSubdiv proof, and final Ninja no-work. Any platform
   delta is a new named round, not an automatic rebaseline.
+- [x] **M2-FINAL-SELFCHECK [driver]:** the unfinished `484219d` six-ID library-override
+  bijection verifier now passes the complete hermetic positive/adversarial suite on Linux:
+  runner, compose, aggregate verifier, and strict-final-adapter self-checks. This closes the
+  verifier-validation gap only; it does not turn the historical M2 candidate into a fresh
+  Linux receipt or change the strict `m2b` RED state.
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

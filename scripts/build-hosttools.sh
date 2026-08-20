@@ -65,6 +65,8 @@ fi
   "$BL/intern/fileops_c.cc" \
   "$BL/intern/string.cc" \
   "$BL/intern/BLI_linklist.cc" \
+  "$BL/intern/BLI_memarena.cc" \
+  "$BL/intern/BLI_mempool.cc" \
   "$GA/intern/mallocn.cc" \
   "$GA/intern/mallocn_lockfree_impl.cc" \
   "$GA/intern/mallocn_guarded_impl.cc" \

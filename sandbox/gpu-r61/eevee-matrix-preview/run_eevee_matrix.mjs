@@ -20,13 +20,13 @@ import {
   writeSync,
 } from 'fs';
 import { tmpdir } from 'os';
-import { dirname, isAbsolute, join, resolve } from 'path';
+import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const ROOT = '/Users/paws/blender-web';
-const HERE = `${ROOT}/sandbox/gpu-r61/eevee-matrix-preview`;
-const RUNS_ROOT = `${HERE}/runs`;
 const HARNESS_PATH = fileURLToPath(import.meta.url);
+const HERE = dirname(HARNESS_PATH);
+const ROOT = resolve(HERE, '../../..');
+const RUNS_ROOT = `${HERE}/runs`;
 const MANIFEST_PATH = `${ROOT}/sandbox/m6-prep/manifest.tsv`;
 const INPUT_CONTRACT_PATH = `${HERE}/eevee-input-contract.tsv`;
 const UPSTREAM_EEVEE_RUNNER = `${ROOT}/upstream/tests/python/eevee_render_tests.py`;
@@ -46,6 +46,21 @@ const PINNED_OFFICIAL_BLENDER_SHA256 =
 const DEFAULT_PORT = 8151;
 const DEFAULT_RENDER_MS = 300000;
 const DEFAULT_PROCESS_MS = 900000;
+const NODE_MODULE_ROOTS = [...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  `${ROOT}/.m4-node/node_modules`,
+  `${ROOT}/node_modules`,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))];
+const BROWSER_ARGS = Object.freeze([
+  '--enable-unsafe-webgpu',
+  ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
+  '--disable-dev-tools',
+]);
 const CC0 =
   'SPDX-FileCopyrightText: 2026 blender-web contributors\n' +
   'SPDX-License-Identifier: CC0-1.0\n';
@@ -526,6 +541,14 @@ function replaceLiteralOnce(source, before, after, seam) {
   return source.slice(0, first) + after + source.slice(first + before.length);
 }
 
+function replaceLiteralCount(source, before, after, expectedCount, seam) {
+  const count = source.split(before).length - 1;
+  if (count !== expectedCount) {
+    throw new Error(`canonical driver ${seam} seam count changed: ${count}`);
+  }
+  return source.split(before).join(after);
+}
+
 function replaceLineOnce(source, pattern, replacement, seam) {
   const matches = source.match(new RegExp(pattern.source, `${pattern.flags.replace('g', '')}g`)) || [];
   if (matches.length !== 1) {
@@ -536,6 +559,11 @@ function replaceLineOnce(source, pattern, replacement, seam) {
 
 function safeToken(value) {
   return value.replace(/[^A-Za-z0-9._-]+/g, '-');
+}
+
+function validRunRoot(path) {
+  return typeof path === 'string' && dirname(path) === RUNS_ROOT &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(basename(path));
 }
 
 function makeTemporaryDriver(canonicalSource, canonicalInputs, row, rowOutputDir, runLabel) {
@@ -557,7 +585,16 @@ function makeTemporaryDriver(canonicalSource, canonicalInputs, row, rowOutputDir
     outputLabel,
     opfsName,
     manifestSelector: `eevee/${row.directory}/${row.test}`,
+    repositoryRoot: ROOT,
+    nodeModuleRoots: NODE_MODULE_ROOTS,
+    browserArgs: BROWSER_ARGS,
+    servedShellFiles: 6,
   };
+  source = replaceLineOnce(
+    source,
+    /^const ROOT = .*;$/m,
+    `const ROOT = ${JSON.stringify(ROOT)};`,
+    'ROOT');
   source = replaceLineOnce(
     source,
     /^const OUTDIR = .*;$/m,
@@ -603,6 +640,56 @@ function makeTemporaryDriver(canonicalSource, canonicalInputs, row, rowOutputDir
     /^const EXPECTED_COLOR_MODE = .*;$/m,
     `const EXPECTED_COLOR_MODE = ${JSON.stringify(row.expectedColorMode)};`,
     'EXPECTED_COLOR_MODE');
+  source = replaceLineOnce(
+    source,
+    /^const OIIOTOOL = .*;$/m,
+    "const OIIOTOOL = process.env.OIIOTOOL || 'oiiotool';",
+    'OIIOTOOL');
+  source = replaceLiteralOnce(
+    source,
+    "  windowed: `${ROOT}/platform_web/shell/windowed.html`,\n  boot: `${ROOT}/platform_web/shell/boot-windowed.js`,",
+    "  windowed: `${ROOT}/platform_web/shell/windowed.html`,\n  diagnostics: `${ROOT}/platform_web/shell/diagnostics-bootstrap.js`,\n  boot: `${ROOT}/platform_web/shell/boot-windowed.js`,",
+    'diagnostics shell identity');
+  source = replaceLiteralOnce(
+    source,
+    "    const paths = {index: '/index.html', windowed: '/windowed.html', boot: '/boot-windowed.js',\n      fileBridge: '/file-bridge.js', preinit: '/wgpu-preinit-worker.js'};",
+    "    const paths = {index: '/index.html', windowed: '/windowed.html',\n      diagnostics: '/diagnostics-bootstrap.js', boot: '/boot-windowed.js',\n      fileBridge: '/file-bridge.js', preinit: '/wgpu-preinit-worker.js'};",
+    'served diagnostics shell identity');
+  source = replaceLiteralOnce(
+    source,
+    "Object.keys(localShellReceipts()).sort().join(',') === 'boot,fileBridge,index,preinit,windowed'",
+    "Object.keys(localShellReceipts()).sort().join(',') === 'boot,diagnostics,fileBridge,index,preinit,windowed'",
+    'shell self-check identity');
+  const playwrightLoader = [
+    `const __bwModuleRoots = ${JSON.stringify(NODE_MODULE_ROOTS)};`,
+    'let chromium = null;',
+    'let __bwPlaywrightRoot = null;',
+    'for (const moduleRoot of __bwModuleRoots) {',
+    '  try {',
+    "    chromium = createRequire(moduleRoot + '/package.json')('playwright').chromium;",
+    '    __bwPlaywrightRoot = moduleRoot;',
+    '    break;',
+    '  } catch {}',
+    '}',
+    "if (chromium === null) throw new Error('playwright is unavailable; checked module roots: ' + __bwModuleRoots.join(', '));",
+    `const __bwBrowserArgs = ${JSON.stringify(BROWSER_ARGS)};`,
+  ].join('\n');
+  source = replaceLiteralOnce(
+    source,
+    "const require = createRequire('/Users/paws/plushly/game-platform/node_modules/');\nconst { chromium } = require('playwright');",
+    playwrightLoader,
+    'Playwright module root');
+  source = replaceLiteralCount(
+    source,
+    "['--enable-unsafe-webgpu', '--use-angle=metal', '--disable-dev-tools']",
+    '__bwBrowserArgs',
+    2,
+    'browser platform arguments');
+  source = replaceLiteralOnce(
+    source,
+    "    engine: 'playwright-chromium',\n    headed: true,",
+    "    engine: 'playwright-chromium',\n    playwrightRoot: __bwPlaywrightRoot,\n    headed: true,",
+    'Playwright receipt root');
   source = replaceLiteralOnce(
     source,
     "  'eevee-principled-default-f12';",
@@ -730,6 +817,18 @@ function releaseExclusiveGpuLock(lock) {
 }
 
 function selfcheck() {
+  const expectedBrowserArgs = process.platform === 'darwin' ?
+    ['--enable-unsafe-webgpu', '--use-angle=metal', '--disable-dev-tools'] :
+    ['--enable-unsafe-webgpu', '--disable-dev-tools'];
+  if (!existsSync(`${ROOT}/GOAL.md`) || HERE !== dirname(HARNESS_PATH) ||
+      NODE_MODULE_ROOTS.length < 2 || !NODE_MODULE_ROOTS.every(isAbsolute) ||
+      JSON.stringify(BROWSER_ARGS) !== JSON.stringify(expectedBrowserArgs) ||
+      !validRunRoot(`${RUNS_ROOT}/selfcheck`) || validRunRoot(RUNS_ROOT) ||
+      validRunRoot(`${RUNS_ROOT}/nested/child`) ||
+      validRunRoot(`${HERE}/runs-escape/child`))
+  {
+    throw new Error('repository-root/run-directory portability self-check failed');
+  }
   const baseRows = readEeveeRows();
   const oldPrebaked = process.env.BW_EEVEE_MATRIX_PREBAKED_MAP;
   const oldSamples = process.env.BW_EEVEE_MATRIX_SAMPLE_MAP;
@@ -848,6 +947,23 @@ function selfcheck() {
       {
         throw new Error(`comparator substitution mismatch for ${row.key}`);
       }
+      const portabilityChecks = [
+        row.source.includes(`const ROOT = ${JSON.stringify(ROOT)};`),
+        !row.source.includes("const ROOT = '/Users/paws/blender-web';"),
+        row.source.includes('const __bwModuleRoots = '),
+        row.source.includes("createRequire(moduleRoot + '/package.json')('playwright').chromium"),
+        !row.source.includes("const { chromium } = require('playwright');"),
+        row.source.includes(`const __bwBrowserArgs = ${JSON.stringify(BROWSER_ARGS)};`),
+        row.source.includes('diagnostics-bootstrap.js'),
+        row.source.includes("const OIIOTOOL = process.env.OIIOTOOL || 'oiiotool';"),
+        row.substitutions.repositoryRoot === ROOT,
+        JSON.stringify(row.substitutions.nodeModuleRoots) === JSON.stringify(NODE_MODULE_ROOTS),
+        JSON.stringify(row.substitutions.browserArgs) === JSON.stringify(BROWSER_ARGS),
+        row.substitutions.servedShellFiles === 6,
+      ];
+      if (!portabilityChecks.every(Boolean)) {
+        throw new Error(`host-portability substitution mismatch for ${row.key}`);
+      }
     }
     const categoryCounts = Object.fromEntries(
       [...new Set(baseRows.map((row) => row.directory))].map((directory) => [
@@ -860,6 +976,7 @@ function selfcheck() {
       `generated_driver_selfchecks=${generated.plan.length} browser_launches=0 ` +
       `gpu_concurrency=1 setup_coverage=PASS samples=${JSON.stringify(sampleCounts)} ` +
       `view_transforms=${JSON.stringify(viewTransformCounts)} ` +
+      `root=${ROOT} shell_files=6 browser_args=${JSON.stringify(BROWSER_ARGS)} ` +
       `thresholds_sha256=${thresholds.upstreamRunner.sha256} ` +
       `categories=${JSON.stringify(categoryCounts)}`);
   }
@@ -1075,13 +1192,14 @@ function validateRowManifestBinding(row, receipt) {
   const shellPaths = {
     index: `${ROOT}/platform_web/shell/index.html`,
     windowed: `${ROOT}/platform_web/shell/windowed.html`,
+    diagnostics: `${ROOT}/platform_web/shell/diagnostics-bootstrap.js`,
     boot: `${ROOT}/platform_web/shell/boot-windowed.js`,
     fileBridge: `${ROOT}/platform_web/shell/file-bridge.js`,
     preinit: `${ROOT}/platform_web/shell/wgpu-preinit-worker.js`,
   };
   const servedShell = receipt.inputs?.servedShell || {};
   const expectedShell = receipt.inputs?.expectedServedShell || {};
-  const shellKeys = ['boot', 'fileBridge', 'index', 'preinit', 'windowed'];
+  const shellKeys = ['boot', 'diagnostics', 'fileBridge', 'index', 'preinit', 'windowed'];
   if (JSON.stringify(Object.keys(servedShell).sort()) !== JSON.stringify(shellKeys) ||
       JSON.stringify(Object.keys(expectedShell).sort()) !== JSON.stringify(shellKeys) ||
       !shellKeys.every((key) => {
@@ -1093,6 +1211,13 @@ function validateRowManifestBinding(row, receipt) {
       }))
   {
     errors.push('served shell identity');
+  }
+  if (receipt.browser?.engine !== 'playwright-chromium' ||
+      receipt.browser?.headed !== true ||
+      !row.substitutions.nodeModuleRoots.includes(receipt.browser?.playwrightRoot) ||
+      JSON.stringify(receipt.browser?.args) !== JSON.stringify(row.substitutions.browserArgs))
+  {
+    errors.push('browser identity');
   }
   if (receipt.verdict === 'PASS') {
     const requiredAssertions = [
@@ -1230,7 +1355,10 @@ function main() {
   const baseRows = readEeveeRows();
   const resolved = resolveRowInputs(baseRows);
   const selection = selectExactRows(resolved.rows, process.env.BW_EEVEE_MATRIX_KEYS);
-  const runRoot = `${RUNS_ROOT}/${runLabel}`;
+  const runRoot = resolve(RUNS_ROOT, runLabel);
+  if (!validRunRoot(runRoot)) {
+    throw new Error(`refusing unsafe EEVEE run root: ${runRoot}`);
+  }
   if (existsSync(runRoot)) throw new Error(`refusing to overwrite existing run: ${runRoot}`);
 
   let generated = null;

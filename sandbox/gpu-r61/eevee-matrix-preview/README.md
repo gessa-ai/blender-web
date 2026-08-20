@@ -32,7 +32,7 @@ node sandbox/gpu-r61/eevee-matrix-preview/run_eevee_matrix.mjs --selfcheck
 BW_EEVEE_MATRIX_PORT=8151 \
   BW_EEVEE_MATRIX_CANONICAL_PROBES=1 \
   BW_EEVEE_MATRIX_KEYS=principled_bsdf/principled_bsdf_specular \
-  NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
+  BW_NODE_MODULES="$PWD/.m4-node/node_modules" \
   node sandbox/gpu-r61/eevee-matrix-preview/run_eevee_matrix.mjs specular-r1
 ```
 
@@ -75,6 +75,15 @@ also refused; sample expectations come only from the pinned input contract.
 
 Product mode is always forced and diagnostic/sample-override environment
 variables are stripped before each row.
+
+The current matrix producer derives the checkout from its own source location,
+not the caller's working directory. It resolves Playwright from
+`BW_NODE_MODULES`, `NODE_PATH`, `.m4-node/node_modules`, or the checkout's
+`node_modules`, in that order. On macOS it retains the historical Metal ANGLE
+selection; on Linux it omits that platform-only flag and leaves hardware-adapter
+acceptance to the migration s7 preflight. A software adapter still binds no
+matrix receipt. Each row attests the six current served shell files, including
+`diagnostics-bootstrap.js`.
 
 ## Guarded native-prebaked fixture batch
 

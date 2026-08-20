@@ -754,6 +754,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   pass from Linux and from a descendant cwd. No matrix or receipt was produced: the 20-row replay
   remains blocked by s7's hardware-adapter requirement and the resulting APPLY split product.
   See `notes/m6-workbench-linux-portability-20260820.md`.
+- [x] **M6-EEVEE-LINUX-PORTABILITY [driver, producer-only]:** the current 30-row browser-matrix
+  producer derives its checkout and safe run root from `import.meta.url`, replaces the retained
+  one-row driver's macOS root/Playwright/Metal/OIIO/shell seams with exact-count guards, and binds
+  the selected module root, Linux browser arguments, and six served shell files into each row.
+  Root and descendant-cwd self-checks each pass 30 generated syntax + 30 generated-driver checks
+  with zero browser launches. No matrix or receipt was produced: s7 hardware plus APPLY remain the
+  gate, and the optional native-prebake route is separate. See
+  `notes/m6-eevee-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

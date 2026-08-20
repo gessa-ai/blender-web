@@ -651,7 +651,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   runbook now reconstructs CAPTURE -> two strict accepted-hardware profiles -> union -> APPLY.
   Focused tests + all split Python self-checks + REUSE are green. Current APPLY preflight exits 5
   because software llvmpipe binds no profile; no shard or receipt was fabricated.
-- [x] **M4-CAPTURE-PROFILE-LINUX-PORTABILITY [driver, producer-only]:** the strict success/
+- [x] **M4-CAPTURE-PROFILE-LINUX-PORTABILITY [driver, producer-only] (afbd834):** the strict success/
   terminal-error profile producer derives its checkout, module, binary, and confined immutable
   output roots; requires Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and bundled Chromium
   149.0.7827.55; and selects Linux WebGPU arguments. Before evidence allocation it records and

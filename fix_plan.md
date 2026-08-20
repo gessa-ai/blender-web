@@ -27,10 +27,12 @@ deferrable to M2. And **the whole M1 dep build is gated on disk** (see M0.8-CRIT
   build dirs, see reports/disk-block-20260803.md). Human cleared to **18 GiB free** — M1 wave
   unblocked. **Residual: GOAL requires ≥40 GB before M2 (CPython superbuild) — re-page at M2 entry
   if below.** Disk monitor pattern: background `until df -g ...` watch.
-- [ ] **M0-hygiene [harness]** Fold `git -C upstream lfs pull --include "release/datafiles/*"`
-  into the pinned-checkout step so every worker starts with complete data (recon blocker #1:
-  `startup.blend` was a 131 B LFS pointer → `CMakeLists.txt:96` fatal; pulled ad-hoc this round,
-  not yet in the setup script). Harness-locked — reconcile at the M1 boundary.
+- [x] **M0-hygiene [harness] (5cee2c4):** the pinned checkout now runs the exact scoped
+  `git -C upstream lfs pull --include "release/datafiles/*"` hydration step. The cold-state
+  discriminator proves `startup.blend` is a 131-byte stored pointer versus a 121,384-byte
+  hydrated worktree file; the real bootstrap, shell syntax, and REUSE checks pass. Required
+  `m0` and regression gates remain honestly red only on their separately named oracle and
+  strict-receipt boundaries.
 - [ ] **M0.9 [harness]** CI skeleton — deferred until a GitHub repo exists; revisit at M1 exit.
 - Harness registry H-1 (result schema), H-2 (`--regress` missing, highest), H-3 (live emcc probe)
   stay open in `notes/harness-issues.md`; driver reconciles at the M1 boundary (lift lock, fix,

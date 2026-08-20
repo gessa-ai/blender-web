@@ -670,9 +670,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   nonzero contracts remain covered. All four documented self-checks and real M1 native/Wasm
   locked dry-runs pass. The absent canonical `build-native-gpu` tree leaves the separate
   M3-LINUX-REPLAY item unchanged.
-- [ ] **M1-LINUX-STRICT-RECEIPT [driver]:** produce the fresh freeze-bound M1 receipt from the
-  green parity artifacts. **blocked-by pristine reconciliation of the preserved outer
-  worktree and verified Linux oracle access (Docker API currently denied).**
+- [x] **M1-LINUX-STRICT-RECEIPT [driver] (ea7133e):** immutable
+  `m1-ornith-linux-20260820-r5` binds the final source freeze and passes BLI 1,667/1,667,
+  bmesh-core 1/1, the 9/9 main corpus, and all 12 versioning comparisons (10 passes plus two
+  oracle-matching refusals). The independent component verifier rechecks live source,
+  artifacts, raw receipts, corpus/versioning evidence, and exact locked-Ninja no-work
+  (`20260820T064610`); receipt SHA-256 is
+  `b92077470080382c1aaa29c9b8f5c39bfe1b8a791fe59cd5e53ade7bbebaf694`. The aggregate
+  `m1` and regression gates remain honestly RED because the strict adapter requires one
+  complete fresh M0-M3 candidate manifest, which cannot exist until the named llvmpipe-only
+  M3 hardware-Vulkan blocker is cleared; no pass flag, deferral, or promise was promoted.
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

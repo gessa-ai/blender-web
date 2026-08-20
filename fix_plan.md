@@ -649,6 +649,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   runner, compose, aggregate verifier, and strict-final-adapter self-checks. This closes the
   verifier-validation gap only; it does not turn the historical M2 candidate into a fresh
   Linux receipt or change the strict `m2b` RED state.
+- [x] **M1-LINUX-PARITY-PREFLIGHT [driver]:** dedicated Release native/Wasm parity trees build
+  clean through `scripts/ninja-locked.sh`; exact manifests match and fresh execution is BLI
+  1,667/1,667 plus bmesh-core 1/1 on both platforms. Cold-host fixes: hydrate the pinned
+  `lib/linux_x64` LFS payload and install/document `libegl-dev`. This is direct tier-(a)
+  evidence only, not a strict receipt; see `notes/m1-linux-parity-20260820.md`.
+- [ ] **M0-M3-NINJA-LOCK [driver]:** route every producer/verifier/self-check Ninja invocation
+  in `sandbox/final-m0-m3/` through `scripts/ninja-locked.sh`, preserving exact no-work and
+  adversarial contracts. **blocked-by none.** Raw `ninja -n` currently prevents the strict M1
+  runner from being used on ornith-lab.
+- [ ] **M1-LINUX-STRICT-RECEIPT [driver]:** produce the fresh freeze-bound M1 receipt from the
+  green parity artifacts. **blocked-by M0-M3-NINJA-LOCK, pristine reconciliation of the
+  preserved outer worktree, and verified Linux oracle access (Docker API currently denied).**
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

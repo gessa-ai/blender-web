@@ -79,7 +79,14 @@ The Blender Linux precompiled dependency gitlink at this source pin is exact com
 ```bash
 git clone https://projects.blender.org/blender/lib-linux_x64.git lib/linux_x64
 git -C lib/linux_x64 checkout --detach 30d9f881c4b62c52323fd11637eeea56d460e35c
+git -C lib/linux_x64 lfs pull
+git -C lib/linux_x64 lfs fsck
 ```
+
+The explicit LFS pull is required even when `git-lfs` was installed before the clone: a cold
+checkout can otherwise retain pointer text at the correct commit, which is not detected until a
+native link reports that a dependency library has an unrecognized file format. `lfs fsck` must
+report `Git LFS fsck OK` before configuring a native build.
 
 `lib/macos_arm64` is not copied and has no Linux use.
 
@@ -95,6 +102,7 @@ sudo apt-get install -y \
   python3 python3-venv python3-pip ccache pkg-config perl \
   autoconf automake libtool meson nasm yasm \
   clang-17 lld-17 glslang-tools \
+  libegl-dev \
   libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
   libwayland-dev wayland-protocols libxkbcommon-dev \
   libvulkan-dev vulkan-tools mesa-vulkan-drivers

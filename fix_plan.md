@@ -895,10 +895,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   non-fallback adapter in its producer plus both consumers, and M8 now independently consumes
   the recorded REUSE executable identity. All focused self-checks are green; no receipt or pass
   was promoted. See `reports/audit-20260820-r2.md`.
-- [ ] **AUDIT-20260820-R2-RUNTIME-ADAPTER [driver/harness]:** add one exact shared runtime
-  adapter record to the Linux M5-M8 browser producers and independent consumers so a valid APPLY
-  product cannot yield a lane receipt on llvmpipe/SwiftShader. Browser-free contract and mutation
-  tests are unblocked; live acceptance/receipts are **blocked-by s7 hardware Vulkan/WebGPU**.
+- [x] **AUDIT-20260820-R2-RUNTIME-ADAPTER [driver/harness] (a41a35a):** all seven audited
+  Linux M5-M8 browser producers now require one exact shared hardware-WebGPU adapter record before
+  allocating receipt output; the soak also rebinds its persistent context to its pre-allocation
+  probe. Independent M7/M8 consumers reject absent, fallback, masked, software, forged, or
+  cross-lane-drifted adapters. Contract, mutation, producer, consumer, and live software-rejection
+  checks are green; no receipt was created and live acceptance remains **blocked-by s7 hardware
+  Vulkan/WebGPU**. See `notes/runtime-adapter-linux-contract-20260820.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

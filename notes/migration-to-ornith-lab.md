@@ -102,7 +102,7 @@ sudo apt-get install -y \
   python3 python3-venv python3-pip ccache pkg-config perl \
   autoconf automake libtool meson nasm yasm \
   clang-17 lld-17 glslang-tools \
-  libegl-dev \
+  libegl-dev zlib1g-dev libzstd-dev \
   libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
   libwayland-dev wayland-protocols libxkbcommon-dev \
   libvulkan-dev vulkan-tools mesa-vulkan-drivers
@@ -171,12 +171,18 @@ deps=(
 for dep in "${deps[@]}"; do
   harness/buildwrap.sh bash "scripts/deps/${dep}.sh" || exit 1
 done
-bash scripts/build-locale-datafiles.sh
+
+# The dependency loop intentionally leaves CXX=em++. Host-only code generators
+# must use the recorded native compiler after their fmt/zstd headers are harvested.
+harness/buildwrap.sh env CXX=clang++-17 bash scripts/build-hosttools.sh
+harness/buildwrap.sh bash scripts/build-locale-datafiles.sh
 ```
 
 All archives, headers, Python 3.13.13 stdlib/site-packages, shaderc/Tint order manifests,
-OpenSubdiv GLSL source, and OpenUSD core land under `lib/wasm`. `build-deps/` is scratch and may be
-discarded after successful harvest. Do not copy the macOS harvest or relink any macOS archive.
+OpenSubdiv GLSL source, and OpenUSD core land under `lib/wasm`. Native `datatoc`, `shader_tool`,
+and `msgfmt` plus the compiled locale catalogs land under `build-hosttools/`. `build-deps/` is
+scratch and may be discarded after successful harvest. Do not copy the macOS harvest or relink
+any macOS archive.
 
 ## 6. Rebuild the M4 windowed Wasm product (CAPTURE phase)
 

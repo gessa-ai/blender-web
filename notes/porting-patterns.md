@@ -86,6 +86,10 @@ commands at ${BLENDER_WEB_HOST_TOOLS_DIR}/<tool> when cross-compiling (patch 000
 platform_wasm.cmake). ONLY for text codegen — makesdna/makesrna bake target ABI and
 MUST stay wasm-under-node (Class 3). Byte-identity of native-vs-wasm output MUST be
 audited before trusting this (it was: identical wherever the wasm tool functions).
+Cold rebuild scripts commonly retain `CXX=em++` from the dependency harvest; override it
+explicitly with the recorded host compiler before invoking `scripts/build-hosttools.sh`.
+The native `msgfmt` closure also links the host zlib/zstd libraries even though its headers
+come from `lib/wasm`, so the cold-host package list must provide both development libraries.
 
 ## Class 1 (recurring) — LP64 shift/width assumptions beyond sizeof-asserts
 Not just `static_assert(sizeof==const)`: watch for `size_t(1) << 32` and similar

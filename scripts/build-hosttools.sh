@@ -39,10 +39,10 @@ ST="$SRC/gpu/shader_tool"
 # slice of blenlib (file IO + strings + linklist) and guardedalloc, so its TU set is
 # explicit below. Header deps beyond the source tree: BLI_string_ref.hh needs fmt/ (header-
 # only) and blenlib/intern/fileops_c.cc needs <zstd.h>; both live in the repo-local wasm
-# lib bundle (lib/wasm/include, the same headers the real wasm build uses via -isystem),
-# so no host package is required. zstd's compiled symbols are only in BLI_file_zstd_*
-# functions msgfmt never calls; -Wl,-dead_strip drops them, so libzstd is NOT linked.
-# ld64 spells it -dead_strip; GNU ld spells the same intent --gc-sections.
+# lib bundle (lib/wasm/include, the same headers the real wasm build uses via -isystem).
+# The direct native link resolves fileops_c.cc's object-level closure with the host zlib
+# and zstd libraries; the migration runbook installs their development packages. ld64
+# spells dead-code stripping as -dead_strip; GNU ld spells it --gc-sections.
 DEAD_STRIP="-Wl,--gc-sections"
 [ "$(uname -s)" = Darwin ] && DEAD_STRIP="-Wl,-dead_strip"
 echo "[build-hosttools] msgfmt"

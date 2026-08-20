@@ -694,6 +694,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   honestly RED (`20260820T100436/100444`) because the strict adapter requires one complete
   fresh M0-M3 manifest, still impossible under the named llvmpipe-only M3 hardware-Vulkan
   blocker; no pass flag, deferral, or promise was promoted.
+- [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
+  `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
+  four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-
+  library omission and verified all three native tools plus 49 locale catalogs. No hardware
+  receipt, result flag, deferral, or promise changed.
+- [ ] **AUDIT-20260820-HARNESS [driver/harness]:** make `harness/buildwrap.sh` log allocation
+  collision-proof and trim `GATE_RED`'s trailing space, with same-second/concurrent negative
+  fixtures. **blocked-by the sanctioned harness lock-lift/reconciliation procedure.**
+- [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
+  repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
+  `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

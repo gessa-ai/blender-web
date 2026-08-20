@@ -1,0 +1,62 @@
+SPDX-FileCopyrightText: 2011-2022 Blender Foundation
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: Apache-2.0
+Ported for the web from upstream/intern/cycles/ @ fbe6228777e7
+
+diff --git a/intern/cycles/CMakeLists.txt b/intern/cycles/CMakeLists.txt
+index 6a2fe36e3fe..1b27ff586ae 100644
+--- a/intern/cycles/CMakeLists.txt
++++ b/intern/cycles/CMakeLists.txt
+@@ -73,6 +73,18 @@ elseif(SUPPORTS_NEON_BUILD AND SSE2NEON_FOUND)
+   set(CXX_HAS_SSE42 FALSE)
+   set(CXX_HAS_AVX2 FALSE)
+   set(CXX_HAS_F16C FALSE)
++elseif(EMSCRIPTEN)
++  # Emscripten maps SSE1-SSE4.2 intrinsics onto portable wasm SIMD128. Keep
++  # AVX/F16C disabled: the web runtime has only 128-bit vectors, and Cycles'
++  # regular CPU kernel is the native SSE4.2-equivalent path we need here.
++  check_cxx_compiler_flag("-msimd128 -msse4.2" CXX_HAS_WASM_SIMD_SSE42)
++  set(CXX_HAS_SSE42 ${CXX_HAS_WASM_SIMD_SSE42})
++  set(CXX_HAS_AVX2 FALSE)
++  set(CXX_HAS_F16C FALSE)
++  if(CXX_HAS_SSE42)
++    set(CYCLES_SSE42_FLAGS
++      "-msimd128 -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -include immintrin.h")
++  endif()
+ elseif(WIN32 AND MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+   set(CXX_HAS_SSE42 TRUE)
+   set(CXX_HAS_AVX2 TRUE)
+diff --git a/intern/cycles/util/optimization.h b/intern/cycles/util/optimization.h
+index 28baa13fd03..44ee90d7381 100644
+--- a/intern/cycles/util/optimization.h
++++ b/intern/cycles/util/optimization.h
+@@ -31,3 +31,16 @@
++/* WebAssembly SIMD128
++ *
++ * Emscripten's SSE compatibility headers map the same 128-bit Cycles math
++ * path onto wasm SIMD instructions. */
++
++#  elif defined(__wasm_simd128__)
++
++#    define __KERNEL_SSE__
++#    define __KERNEL_SSE2__
++#    define __KERNEL_SSE3__
++#    define __KERNEL_SSSE3__
++#    define __KERNEL_SSE42__
++
+ /* Arm Neon
+  *
+  * Compile a SSE4 kernel emulated with Neon. Most code is shared with
+diff --git a/intern/cycles/util/simd.h b/intern/cycles/util/simd.h
+index ca7d0406a34..a8807b5919e 100644
+--- a/intern/cycles/util/simd.h
++++ b/intern/cycles/util/simd.h
+@@ -21,6 +21,8 @@
+ #  include "util/windows.h"
+ #elif defined(_MSC_VER) && !defined(__KERNEL_NEON__)
+ #  include <intrin.h>
++#elif defined(__wasm_simd128__)
++#  include <immintrin.h>
+ #elif (defined(__x86_64__) || defined(__i386__))
+ #  include <x86intrin.h>
+ #elif defined(__KERNEL_NEON__)

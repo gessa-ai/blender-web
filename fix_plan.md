@@ -712,12 +712,25 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   25 PASS / 2 measured SKIP / 0 FAIL / 0 stale / 0 blocked against pinned oiiotool 2.4.17.0.
   The Release product is exact locked no-work; JS/Wasm SHA-256 begin `f1028f32d168` /
   `de05586d625b`. Fresh native-BVH2 controls pass both excluded goldens and exact 0/0
-  one-vs-two-thread Wasm comparisons pass, narrowing the blocker to scalar-Wasm/native-SIMD
-  arithmetic drift rather than Embree, OpenSubdiv, or thread determinism. The runner now creates
+  one-vs-two-thread Wasm comparisons pass, narrowing the blocker to a wasm32/native edge
+  divergence rather than Embree, OpenSubdiv, or thread determinism. The runner now creates
   its ignored parent on a clean checkout and the independent verifier has an explicit CPU-only
   mode; its default aggregate gate is unchanged. This does not promote M6 while Workbench/EEVEE,
   APPLY, and the strict M0-M3 manifest remain blocked by s7. See
   `notes/m6-cycles-linux-replay-20260820.md`.
+- [x] **M6-CYCLES-ARITHMETIC-ATTRIBUTION [driver, CPU-only]:** full-product SIMD128/SSE4.2
+  and strict-scalar-FP A/Bs falsify both suspected causes without moving either comparator:
+  default stays max 0.1098 / 20.8% over and emission-alpha stays max 0.6863 / 11.4% over.
+  SIMD changes only 1/13 pixels versus scalar; strict reciprocal/signed-zero/contraction-off
+  renders are pixel-exact to scalar. Both preview patches were rejected, upstream restored to
+  exact hashes, and the receipt-bound JS/Wasm pair restored byte-for-byte with locked no-work.
+  No blacklist, threshold, golden, result, or deferral changed. See
+  `notes/m6-cycles-arithmetic-attribution-20260820.md`.
+- [ ] **M6-CYCLES-EDGE-ATTRIBUTION [driver, CPU-only, next unblocked]:** compare native/Wasm
+  float passes and run a one-variable reduction matrix over transparent film/alpha, sampling,
+  camera jitter, shader, and geometry features for the two excluded scenes. Keep inputs,
+  goldens, thresholds, and stale-blacklist behavior unchanged; identify the first divergent
+  pass/operation before proposing source code or a fresh exclusion receipt.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

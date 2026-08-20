@@ -11,8 +11,8 @@ unchanged pinned comparator reports 25 PASS and two measured, justified SKIPs:
 
 | Test | Max error | Pixels over 0.016 | Disposition |
 |---|---:|---:|---|
-| `principled_bsdf_default` | 0.1098039 | 20.8% | scalar-Wasm/native-SIMD numerical drift |
-| `principled_bsdf_emission_alpha` | 0.6862745 | 11.4% | scalar-Wasm/native-SIMD numerical drift |
+| `principled_bsdf_default` | 0.1098039 | 20.8% | wasm32/native edge divergence; exact operation unisolated |
+| `principled_bsdf_emission_alpha` | 0.6862745 | 11.4% | wasm32/native edge divergence; exact operation unisolated |
 
 There are zero render failures, unlisted comparator failures, stale exclusions,
 blocked inputs, or mid-run artifact changes. This is a component result only. It
@@ -74,10 +74,13 @@ the one-thread renders pass in `ledger/buildlogs/20260820T162813-2147790.log` an
 `ledger/buildlogs/20260820T162813-2147795.log`. PNG container hashes differ because
 of metadata, so the claim is pixel identity, not byte identity.
 
-The remaining named blocker is therefore a reproducible scalar-Wasm versus
-native-SIMD/cross-architecture arithmetic drift on two high-frequency Principled
-edge cases. Its exact operation is not yet isolated. The exclusions remain narrow
-and fail stale if a future arithmetic or Wasm-SIMD fix makes either comparator pass.
+The remaining named blocker is therefore a reproducible wasm32-versus-native
+render divergence on two high-frequency Principled edge cases. A subsequent
+full-product attribution round falsified both the scalar-versus-SIMD source path
+and Cycles' relaxed reciprocal/signed-zero/contraction flags: see
+`notes/m6-cycles-arithmetic-attribution-20260820.md`. Its exact scene, sampling,
+or kernel operation is not yet isolated. The exclusions remain narrow and fail
+stale if a future fix makes either comparator pass.
 
 ## Runner portability
 

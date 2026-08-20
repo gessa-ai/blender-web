@@ -1,0 +1,23 @@
+SPDX-FileCopyrightText: 2011-2022 Blender Foundation
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: Apache-2.0
+Ported for the web from upstream/intern/cycles/CMakeLists.txt @ fbe6228777e7
+
+diff --git a/intern/cycles/CMakeLists.txt b/intern/cycles/CMakeLists.txt
+index 6a2fe36e3fe..56022716d72 100644
+--- a/intern/cycles/CMakeLists.txt
++++ b/intern/cycles/CMakeLists.txt
+@@ -176,5 +176,13 @@ elseif((CMAKE_C_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
+   # Let the compiler replace x/y with x*(1/y)
+   list(APPEND CYCLES_MATH_FLAGS "-freciprocal-math")
++
++  if(EMSCRIPTEN)
++    # Diagnostic parity posture: override Cycles' relaxed scalar assumptions
++    # after their normal flags so the wasm A/B retains IEEE division, signed
++    # zero, and unfused expressions.
++    list(APPEND CYCLES_MATH_FLAGS
++      "-fno-reciprocal-math" "-fsigned-zeros" "-ffp-contract=off")
++  endif()
+   # Let the compiler reorder terms to save operations
+   # NOTE: Disabled for now due to problems with bsdf_D for GGX on Linux (#130389)
+   # list(APPEND CYCLES_MATH_FLAGS "-fassociative-math")

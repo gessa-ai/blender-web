@@ -1,7 +1,7 @@
 {
   "scope": "m3",
   "pass": false,
-  "ts": "2026-08-20T18:24:00Z",
+  "ts": "2026-08-20T18:38:31Z",
   "checks": {
     "strict_m3_receipt": {
       "pass": false,

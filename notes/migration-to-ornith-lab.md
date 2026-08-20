@@ -170,9 +170,14 @@ All archives, headers, Python 3.13.13 stdlib/site-packages, shaderc/Tint order m
 OpenSubdiv GLSL source, and OpenUSD core land under `lib/wasm`. `build-deps/` is scratch and may be
 discarded after successful harvest. Do not copy the macOS harvest or relink any macOS archive.
 
-## 6. Rebuild the M4 windowed Wasm product
+## 6. Rebuild the M4 windowed Wasm product (CAPTURE phase)
 
-Use the exact former canonical configure, with paths naturally rooted at the Linux checkout:
+The shipping M4/M5 artifact is an APPLY-mode primary/deferred pair. A cold checkout cannot
+reproduce that pair in one link: APPLY is accepted only with two strict browser profiles bound to
+the exact new Linux `.wasm.orig`. Start in CAPTURE mode; never substitute an OFF-mode monolith or
+copy a profile from the old machine.
+
+Use the canonical configure with paths naturally rooted at the Linux checkout:
 
 ```bash
 source tools/emsdk/emsdk_env.sh
@@ -185,26 +190,32 @@ BLENDER_WEB_WINDOWED=1 cmake -S upstream -B build-wasm-windowed-opt -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="$PWD/tools/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" \
   -DCMAKE_BUILD_TYPE=Release \
   -DWITH_BLENDER_WEB_BROWSER=ON \
+  -DBLENDER_WEB_WASM_SPLIT_MODE=CAPTURE \
   -DCMAKE_EXE_LINKER_FLAGS=-g0
 
 harness/buildwrap.sh scripts/ninja-locked.sh \
   -C build-wasm-windowed-opt blender_browser
 scripts/ninja-locked.sh -C build-wasm-windowed-opt -n blender_browser
+.host-tools/bin/python3.13 scripts/windowed-product-preflight.py --expect capture
 ```
 
 The prior cache had `WITH_WEBGPU_BACKEND=ON`, `WITH_PYTHON=ON`,
 `WITH_INTERNATIONAL=ON`, `WITH_OPENSUBDIV=ON`, `WITH_CYCLES=ON`, Release/Ninja, and the emsdk
-toolchain. Check those values in the new `CMakeCache.txt`. The output set needed by M4 is:
+toolchain. Check those values in the new `CMakeCache.txt`. The CAPTURE-phase output set is:
 
 ```text
 build-wasm-windowed-opt/bin/blender_browser.js
-build-wasm-windowed-opt/bin/blender_browser.wasm
-build-wasm-windowed-opt/bin/blender_browser.deferred.wasm
+build-wasm-windowed-opt/bin/blender_browser.wasm       # instrumented, non-shipping
+build-wasm-windowed-opt/bin/blender_browser.wasm.orig  # exact APPLY input
 build-wasm-windowed-opt/bin/blender_browser.data
+build-wasm-windowed-opt/bin/blender_browser.split-build.json
 ```
 
-Do not reuse the old artifact hashes: Linux host paths and the current source snapshot require a
-fresh binding even when generated Wasm is otherwise deterministic.
+No deferred shard exists yet. `windowed-product-preflight.py` must report `mode=CAPTURE`; its
+default APPLY check must remain blocked at this point. An OFF-mode build emits only JS + monolithic
+Wasm + data and is a developer artifact, not an M4 product. Do not reuse the old artifact hashes:
+Linux host paths and the current source snapshot require a fresh binding even when generated Wasm
+is otherwise deterministic.
 
 ## 7. Reproduce the M4 gate under WSLg
 
@@ -214,7 +225,7 @@ replaces both the old `NODE_PATH=/Users/paws/plushly/game-platform/node_modules`
 
 ```bash
 mkdir -p .m4-node .m4-browsers
-npm install --prefix .m4-node --no-save @playwright/test@1.61.1
+npm install --prefix .m4-node --no-save @playwright/test@1.61.1 pngjs@7.0.0
 PLAYWRIGHT_BROWSERS_PATH="$PWD/.m4-browsers" \
   "$PWD/.m4-node/node_modules/.bin/playwright" install chromium
 
@@ -222,6 +233,55 @@ export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
 export PLAYWRIGHT_BROWSERS_PATH="$PWD/.m4-browsers"
 export BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin"
 ```
+
+Do not produce a CAPTURE profile on llvmpipe or another software/fallback adapter. First satisfy
+the hardware-adapter acceptance in `notes/wsl-vulkan-investigation-20260819.md`, including the
+Chromium-side adapter proof. A software run is useful only for diagnosis and binds no profile,
+split product, or M4 receipt.
+
+With the accepted adapter, serve the CAPTURE build on port 8165 and collect both required
+controller scenarios under distinct immutable labels:
+
+```bash
+BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin" bash scripts/serve-web.sh 8165
+
+# In a second shell with BW_NODE_MODULES, PLAYWRIGHT_BROWSERS_PATH, and
+# BLENDER_WEB_BIN exported as above:
+profile_root="$PWD/sandbox/m8-wasm-split/profile-evidence"
+node sandbox/m8-wasm-split/capture_blender_profile.mjs \
+  --port 8165 --threads 1 --scenario success --run ornith-linux-success-r1
+node sandbox/m8-wasm-split/capture_blender_profile.mjs \
+  --port 8165 --threads 1 --scenario terminal-error --run ornith-linux-terminal-r1
+
+orig_sha="$(sha256sum build-wasm-windowed-opt/bin/blender_browser.wasm.orig | awk '{print $1}')"
+.host-tools/bin/python3.13 sandbox/m8-wasm-split/merge_profiles.py \
+  --output "$profile_root/ornith-linux-union-r1.data" \
+  --capture-receipt "$profile_root/ornith-linux-success-r1/receipt.json" \
+  --capture-receipt "$profile_root/ornith-linux-terminal-r1/receipt.json" \
+  --expected-orig-sha256 "$orig_sha" \
+  "$profile_root/ornith-linux-success-r1/profile-hot.data" \
+  "$profile_root/ornith-linux-terminal-r1/profile-hot.data"
+```
+
+Stop the server before relinking. Convert the same build tree to APPLY using only that exact
+profile union and its generated receipt, then build through the global lock:
+
+```bash
+.host-tools/bin/cmake -S upstream -B build-wasm-windowed-opt \
+  -DBLENDER_WEB_WASM_SPLIT_MODE=APPLY \
+  -DBLENDER_WEB_WASM_SPLIT_PROFILE="$profile_root/ornith-linux-union-r1.data" \
+  -DBLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT="$profile_root/ornith-linux-union-r1.data.receipt.json" \
+  -DBLENDER_WEB_WASM_SPLIT_ORIG_SHA256="$orig_sha"
+harness/buildwrap.sh scripts/ninja-locked.sh \
+  -C build-wasm-windowed-opt blender_browser
+scripts/ninja-locked.sh -C build-wasm-windowed-opt -n blender_browser
+.host-tools/bin/python3.13 scripts/windowed-product-preflight.py --expect apply
+```
+
+The final shipping set is JS, primary Wasm, deferred Wasm, and data. The APPLY build also retains
+the exact `.wasm.orig` and `blender_browser.split-build.json` as build evidence. The preflight
+rejects missing, stale, symlinked, extra, or receipt-mismatched Wasm artifacts before any M4 label
+is allocated.
 
 WSL must expose a headed WSLg session (`DISPLAY` or `WAYLAND_DISPLAY`) and the browser must obtain
 a hardware WebGPU adapter backed by the RTX 4090. A software adapter is not an equivalent replay.

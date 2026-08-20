@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+repo = ../../..
+emcc = $repo/tools/emsdk/upstream/emscripten/emcc
+source = ../probe.c
+
+rule link_off
+  command = $emcc $source -O0 -sMODULARIZE=1 -sEXPORT_NAME=createProbe -o off.js
+  description = LINK OFF split-contract probe
+
+rule link_capture_shape
+  command = $emcc $source -O0 -sMODULARIZE=1 -sEXPORT_NAME=createProbe -sSPLIT_MODULE=1 -o capture.js
+  description = LINK SPLIT_MODULE split-contract probe
+
+build off.js off.wasm: link_off $source
+build capture.js capture.wasm capture.wasm.orig: link_capture_shape $source
+build all: phony off.js off.wasm capture.js capture.wasm capture.wasm.orig
+default all

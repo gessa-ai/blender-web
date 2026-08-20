@@ -56,3 +56,13 @@ probe targets compile against Dawn `36cf1fae`; the final locked dry-run reports 
 and T2 executables each identify llvmpipe as Vulkan adapter type CPU and exit 5 with
 `PROBE_BLOCKED` before device validation. This is a successful fail-closed control, not an M3
 receipt; the exact 197/1,003 replay remains pending a hardware adapter.
+
+## Split-product correction (2026-08-20)
+
+The missing `blender_browser.deferred.wasm` noted above is not an independent linker failure. The
+reconstructed cache is in split mode OFF. The shipping shard can be created only after a CAPTURE
+build produces a new Linux `.wasm.orig`, both strict browser profile scenarios pass on an accepted
+hardware adapter, and that exact profile union drives APPLY. The software-adapter stop therefore
+blocks the split profile as well as the M4 pixel receipt. The corrected cold-start sequence and
+the fail-closed product preflight are in `notes/migration-to-ornith-lab.md` section 6/7 and
+`scripts/windowed-product-preflight.py`.

@@ -100,12 +100,17 @@ if (renderPngProof(encoded(32, 32, false)).pass) throw new Error('black accepted
 if (renderPngProof(encoded(31, 32, true)).pass) throw new Error('wrong dimensions accepted');
 console.log('BW_RUNTIME_RENDER_NODE_ORACLE PASS positive=1 negatives=2');
 """
+    node_modules = (
+        os.environ.get("BW_NODE_MODULES")
+        or os.environ.get("NODE_PATH")
+        or "/Users/paws/plushly/game-platform/node_modules"
+    )
     result = subprocess.run(
         ["node", "-e", script],
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "NODE_PATH": "/Users/paws/plushly/game-platform/node_modules"},
+        env={**os.environ, "NODE_PATH": node_modules},
     )
     assert result.returncode == 0, result.stderr
     assert "BW_RUNTIME_RENDER_NODE_ORACLE PASS positive=1 negatives=2" in result.stdout

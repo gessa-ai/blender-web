@@ -61,3 +61,19 @@ Before a new immutable M4 label is used, restore all four product artifacts, ent
 headed WSLg session, and prove that Chromium obtains the RTX-backed hardware adapter.
 Only then start the COOP/COEP server, capture, bind, verify, and issue the M4 receipt
 through the unchanged harness.
+
+## 2026-08-20 correction: split mode, not an unexplained link omission
+
+The table above observed the bytes correctly, but its interpretation of the missing deferred
+module as an independent link discrepancy is superseded. The reconstructed
+`CMakeCache.txt` has `BLENDER_WEB_WASM_SPLIT_MODE=OFF`; the locked minimal Emscripten repro in
+`sandbox/m4-split-contract/` proves that OFF emits only JS + monolithic Wasm, while
+`SPLIT_MODULE` CAPTURE emits the instrumented Wasm + `.wasm.orig` and still no deferred shard.
+Only the repository's profile-bound APPLY finalizer may emit `blender_browser.deferred.wasm`.
+
+The cold-start sequence is therefore CAPTURE -> two strict accepted-hardware browser profiles ->
+profile union -> APPLY, as corrected in `notes/migration-to-ornith-lab.md`. Because a software
+adapter binds no profile receipt, the missing hardware adapter currently blocks both the APPLY
+reconstruction and the later pixel receipt. `scripts/windowed-product-preflight.py` reports the
+current OFF shape as valid development output but exits 5 when the shipping APPLY shape is
+required. No artifact, receipt, or milestone result was changed by this correction.

@@ -3,6 +3,13 @@
 
 # M6 Cycles-CPU arithmetic attribution - 2026-08-20
 
+> **Later correction (2026-08-20):** the experiment below correctly falsified
+> SIMD selection and relaxed FP flags, but the remaining divergence was not a
+> product arithmetic defect. The Wasm suite registered Cycles after loading the
+> old `.blend`, skipping `cycles.version_update.do_versions`; see
+> `notes/m6-cycles-edge-attribution-20260820.md`. The historical measurements
+> below remain valid for that misconfigured runner.
+
 ## Outcome
 
 The two remaining Cycles-CPU exclusions are **not caused by Cycles selecting

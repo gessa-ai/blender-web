@@ -726,11 +726,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   exact hashes, and the receipt-bound JS/Wasm pair restored byte-for-byte with locked no-work.
   No blacklist, threshold, golden, result, or deferral changed. See
   `notes/m6-cycles-arithmetic-attribution-20260820.md`.
-- [ ] **M6-CYCLES-EDGE-ATTRIBUTION [driver, CPU-only, next unblocked]:** compare native/Wasm
-  float passes and run a one-variable reduction matrix over transparent film/alpha, sampling,
-  camera jitter, shader, and geometry features for the two excluded scenes. Keep inputs,
-  goldens, thresholds, and stale-blacklist behavior unchanged; identify the first divergent
-  pass/operation before proposing source code or a fresh exclusion receipt.
+- [x] **M6-CYCLES-EDGE-ATTRIBUTION [driver, CPU-only]:** the 30-pair native/Wasm float-pass
+  and one-variable reduction matrix overturns the arithmetic attribution. The suite loads the
+  old `.blend` before registering its staged Cycles add-on, so the persistent file-version
+  handler never runs: Wasm uses Automatic/blue-noise + adaptive/light-tree current defaults
+  while native preserves Tabulated Sobol and legacy settings. One-sample Object Index is exact
+  and Position stays below 1.6e-5 while Diffuse Direct already differs on 48.6%/80.4% of pixels.
+  Calling the exact handler makes both native/Wasm and unchanged pinned-golden comparisons pass
+  at 0%/0.0061% over 0.016. Sealed verifier and 30-pair matrix are GREEN
+  (`20260820T174027-2271099` / `20260820T173718-2262051`); no product source, blacklist,
+  threshold, golden, result, or deferral changed. See
+  `notes/m6-cycles-edge-attribution-20260820.md`.
+- [ ] **M6-CYCLES-LOAD-ORDER-REPAIR [driver, CPU-only, next unblocked]:** register the staged
+  Cycles add-on before each `.blend` load (preferred) or invoke the exact upstream version
+  handler once after a deliberately late registration; add a legacy-settings assertion, rerun
+  all 27 rows and the independent CPU-only verifier, and remove only the two now-stale blacklist
+  rows if the unchanged pinned comparator is 27/27 green. Do not promote aggregate M6 while its
+  Workbench/EEVEE/APPLY/hardware gates remain blocked.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

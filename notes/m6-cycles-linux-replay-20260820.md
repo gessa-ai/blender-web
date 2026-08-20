@@ -3,6 +3,13 @@
 
 # M6 Cycles-CPU Linux replay - 2026-08-20
 
+> **Later correction (2026-08-20):** the two measured SKIPs below came from the
+> suite registering the staged Cycles add-on after loading these old `.blend`
+> files, which skipped Cycles' file-version handler. The immutable r3 receipt is
+> valid for that runner, but its arithmetic attribution is superseded by
+> `notes/m6-cycles-edge-attribution-20260820.md`. No exclusion is removed until a
+> repaired full-suite receipt passes the stale-blacklist control.
+
 ## Outcome
 
 The hardware-independent Cycles-CPU component is freshly verified on ornith-lab.

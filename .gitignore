@@ -59,6 +59,7 @@ build-wasm-*/
 /sandbox/gpu-r61/eevee-matrix-preview/runs/*/
 /sandbox/gpu-r61/cycles-windowed/evidence/final-*
 /sandbox/m6-prep/cycles-runs/*/
+/sandbox/m6-cycles-edge-attribution/runs/
 /sandbox/m7-product-gate/fallback-evidence/
 /sandbox/m7-product-gate/verify_files.json
 /sandbox/m7-product-gate/bundle-identity.json

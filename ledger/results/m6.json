@@ -1,11 +1,11 @@
 {
   "scope": "m6",
   "pass": false,
-  "ts": "2026-08-20T16:04:17Z",
+  "ts": "2026-08-20T16:35:41Z",
   "checks": {
     "render_parity": {
       "pass": false,
-      "detail": "M6_RENDER_FAIL unsafe or missing Cycles suite run label: "
+      "detail": "M6_RENDER_FAIL missing Workbench result matrix: /home/pc/gessa/blender-web/sandbox/gpu-r61/workbench-preview/runs/m6-current-wb-final-r2/results.tsv"
     }
   }
 }

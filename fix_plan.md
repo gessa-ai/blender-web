@@ -636,6 +636,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `patches/PREVIEW_SNAPSHOT.patch` (SHA-256 recorded beside it); `lib/` and every build tree are
   explicitly rebuild-only. See `notes/gpu-r26-migration-savepoint.md` and
   `notes/migration-to-ornith-lab.md`.
+- [~] **SOURCE-SERIES-REPLAY [driver]:** exact migration reconstruction is independently GREEN
+  on Linux: the hash-pinned preview applies to `fbe6228777e7` and matches all 257 concrete
+  modified/untracked files byte-for-byte. The 125-entry numbered history is not sequentially
+  replayable: shared-lane CMake patch preimages are mutually dependent beginning at
+  `0016`/`0019`, followed by `0016b`/`0022`; a scratch normalization then exposed `0027`.
+  Blocked after the mandated retry ceiling pending a complete historical-hunk rebase or an
+  explicitly reviewed squashed canonical patch. The preview remains the sole current source
+  authority; see `notes/patch-series-replay-20260820.md`.
 - [x] **M4-LINUX-SPLIT-CONTRACT [driver] (a3f4c4b):** the cold rebuild's missing deferred shard
   is root-caused to `BLENDER_WEB_WASM_SPLIT_MODE=OFF`, not an unexplained link failure. A locked
   Emscripten repro proves OFF/CAPTURE output shapes; the new preflight validates OFF, CAPTURE, and

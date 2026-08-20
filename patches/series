@@ -12,6 +12,11 @@
 #   out below with its evidence source (file:line or commit hash). Comment lines (`#`)
 #   and blank lines are ignored by any consumer.
 #
+#   MIGRATION BOUNDARY (2026-08-18): this remains the ordered audit history for numbered
+#   patches, but it is not the exact current integration-tree authority. The hash-pinned
+#   PREVIEW_SNAPSHOT.patch contains the final source, including work never split into
+#   numbered patches. Reconstruct from that snapshot per notes/migration-to-ornith-lab.md.
+#
 # CONTRACT (what the harness actually enforces vs what this file is for)
 #   The harness does NOT clean-pin replay. harness/run.sh:118-140 runs a per-patch
 #   TRI-STATE check against the LIVE upstream working tree: each patches/0*.patch must
@@ -392,7 +397,10 @@
 # non-uniform after the grid renders). NB: this is the DIAGNOSTIC path only; a
 # caller-facing synchronous/poll readback API for GPU_texture_read/pick-select remains
 # deferred. Used by the r31 gbuffer discriminator (notes/gpu-r31-readback-discriminator.md).
-0117-gpu-webgpu-diag-readback.patch
+# RETIRED HISTORY ONLY: 0117-gpu-webgpu-diag-readback.patch
+# The production owned-readback API superseded this BW_DIAG-only probe.  Keep
+# the patch artifact and the diagnosis above for provenance, but never replay it
+# into a shipping source tree.
 # 0118: the dynamic STENCIL REFERENCE (M4 r33, the last M4 solid-cube defect). WebGPU
 # carries the stencil compare/write masks and ops in the pipeline but the reference is a
 # render-pass dynamic value (renderPassEncoder.setStencilReference), which the backend
@@ -423,7 +431,10 @@
 # 0 GPU errors); revealed the real M6 blockers are render-side (workbench bind-group
 # mismatch, EEVEE-Next storage-texture pipeline failure), NOT readback. See
 # notes/m6-gpu-suite-real-scores.md and notes/gpu-r35-render-result-bridge.md.
-0125-gpu-webgpu-render-result-bridge.patch
+# RETIRED HISTORY ONLY: 0125-gpu-webgpu-render-result-bridge.patch
+# The production Workbench/EEVEE render continuations superseded this bridge.
+# Replaying it would deliberately restore the all-zero RenderResult behavior
+# described above, so it is not part of the canonical source stack.
 # 0119: signed packed-normal (GPU_COMP_I10) vertex format (M4 r37, the workbench solid-
 # shading FLIP). WebGPU has NO signed snorm 10-10-10-2 vertex format, so to_wgpu_vertex_format
 # mapped GPU_COMP_I10 (Blender's signed 2_10_10_10_REV packed mesh normal, INT_TO_FLOAT_UNIT)
@@ -671,3 +682,24 @@
 # with native-parity pixels. EEVEE remains honestly blocked before Film readback by Phase B shader
 # work and this patch makes no EEVEE pixel claim. See notes/gpu-webgpu-texture-view-subresources.md.
 0143-gpu-webgpu-texture-view-subresources.patch
+# 0144: promote WebGPU-incompatible EEVEE storage formats consistently across
+# physical allocation, shader declarations, bind-group metadata, and mipmap
+# generation; final one-output mip dispatch no longer declares/binds a phantom
+# second storage image.  Exact receipts live with the Phase A-prime audit.
+0144-gpu-eevee-storage-format-and-final-mip.patch
+# 0146: make the shadow TileMaps graphics path read-only while preserving the
+# compute writer, closing the WebGPU vertex-stage writable-storage rejection.
+# Exact receipts live with the Phase B0 audit.
+0146-gpu-eevee-shadow-tag-readonly.patch
+# 0147: make optional glTF compression dependencies truly optional. Emscripten
+# intentionally omits `_ctypes`/libffi and native Draco/Meshopt bridges, but
+# uncompressed glTF import/export does not use them. Lazy imports keep ordinary
+# glTF IO functional and dll_exists now returns false for unsupported platforms
+# instead of dereferencing a null path. M7 round-trip coverage owns the receipt.
+0147-gltf-lazy-optional-compression.patch
+# 0148: preserve native OpenUSD defaults while allowing the browser to build a
+# faithful core-only UsdGeom IO path without Imaging or Boost.Python. A stub
+# retains the C++ hook registry API, procedural shapes degrade to transforms,
+# and bounded Emscripten WindowUpdate events invalidate the screen until the
+# second present. Real Web and native USD receipts own the capability proof.
+0148-usd-core-web-capability-and-first-redraw.patch

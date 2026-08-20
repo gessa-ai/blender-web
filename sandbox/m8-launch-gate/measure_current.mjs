@@ -6,42 +6,234 @@
 // diagnostic presentBackbuffer log.
 
 import {createRequire} from "module";
-import {writeFileSync} from "fs";
+import {mkdirSync, readFileSync, writeFileSync} from "fs";
+import {delimiter, dirname, isAbsolute, join, relative, resolve} from "path";
+import {fileURLToPath} from "url";
 import {
   canonicalBundleDigest, collectArtifacts, loadArtifactContract, requireServedBundle,
 } from "./bundle_identity.mjs";
 import {
-  bindRuntimeVersion, collectBrowserRuntimeIdentity, legacySigning,
+  bindRuntimeVersion, browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning,
   requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity,
 } from "./runtime_evidence.mjs";
 
-const require = createRequire("/Users/paws/plushly/game-platform/node_modules/");
-const {chromium} = require("playwright");
-const {PNG} = require("pngjs");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "..", "..");
+const NODE_VERSION = "v22.16.0";
+const PLAYWRIGHT_VERSION = "1.61.1";
+const PNGJS_VERSION = "7.0.0";
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(ROOT, ".m4-node/node_modules"),
+  join(ROOT, "node_modules"),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+].filter(Boolean).flatMap((entry) => entry.split(delimiter)).filter(Boolean)
+  .map((entry) => resolve(entry)))]);
 
-const ROOT = "/Users/paws/blender-web";
-const PORT = Number.parseInt(process.argv[2] || "8168", 10);
-const EXECUTABLE = process.argv[3] || `${ROOT}/sandbox/m8-launch-gate/.browsers/Google Chrome.app/Contents/MacOS/Google Chrome`;
-const RUNS = Number.parseInt(process.argv[4] || "3", 10);
-if (!Number.isSafeInteger(RUNS) || RUNS < 3) throw new Error("at least 3 cold runs are required");
+function requireNodeVersion(version = process.version) {
+  if (version !== NODE_VERSION) throw new Error(`Node ${NODE_VERSION} required, got ${version}`);
+}
+
+function resolveBrowserDependencies(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, "package.json"));
+    return {
+      chromium: require("playwright").chromium,
+      playwrightVersion: require("playwright/package.json").version,
+      PNG: require("pngjs").PNG,
+      pngjsVersion: require("pngjs/package.json").version,
+    };
+  },
+) {
+  const failures = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium || !loaded?.PNG) throw new Error("browser dependency exports are absent");
+      if (loaded.playwrightVersion !== PLAYWRIGHT_VERSION || loaded.pngjsVersion !== PNGJS_VERSION) {
+        throw new Error(`versions playwright=${loaded.playwrightVersion} pngjs=${loaded.pngjsVersion}`);
+      }
+      return {...loaded, root};
+    }
+    catch (error) {
+      failures.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve exact browser dependencies; set BW_NODE_MODULES\n${failures.join("\n")}`);
+}
+
+function isRepositoryDescendant(path) {
+  const rel = relative(ROOT, resolve(path));
+  return rel !== "" && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== "..";
+}
+
+function parseInvocation(argv = process.argv.slice(2)) {
+  if (argv.length === 1 && argv[0] === "--selfcheck") return {selfcheck: true};
+  if (argv.length > 3) throw new Error("too many arguments");
+  const portText = argv[0] || "8168";
+  const executable = argv[1] || "";
+  const runsText = argv[2] || "3";
+  const port = Number.parseInt(portText, 10);
+  const runs = Number.parseInt(runsText, 10);
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535 || String(port) !== portText) {
+    throw new Error(`invalid port: ${portText}`);
+  }
+  if (!executable || !isAbsolute(executable)) {
+    throw new Error("usage: measure_current.mjs PORT /absolute/path/to/canonical-branded-chrome [RUNS]");
+  }
+  if (!Number.isSafeInteger(runs) || runs < 3 || String(runs) !== runsText) {
+    throw new Error("at least 3 integer cold runs are required");
+  }
+  return {selfcheck: false, port, executable, runs};
+}
+
+async function officialChromeVersion(platform, fetcher = fetch) {
+  const apiPlatform = platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
+  if (!apiPlatform) throw new Error(`unsupported Chrome release platform: ${platform}`);
+  const source = `https://versionhistory.googleapis.com/v1/chrome/platforms/${apiPlatform}/channels/stable/versions?page_size=1`;
+  const response = await fetcher(source);
+  if (!response.ok) throw new Error(`Chrome version lookup ${response.status}`);
+  const body = await response.json();
+  const version = body?.versions?.[0]?.version;
+  if (!/^[0-9]+(?:\.[0-9]+){3}$/.test(version || "")) {
+    throw new Error("Chrome stable API returned no canonical version");
+  }
+  return {version, source};
+}
+
+async function runSelfcheck() {
+  let positive = 0;
+  let negative = 0;
+  const check = (condition, message) => {
+    if (!condition) throw new Error(`M8 performance self-check: ${message}`);
+    positive++;
+  };
+  const reject = async (name, action) => {
+    try { await action(); }
+    catch (_) { negative++; return; }
+    throw new Error(`M8 performance self-check false green: ${name}`);
+  };
+
+  check(readFileSync(join(ROOT, "GOAL.md"), "utf8").length > 0,
+    "repository root is not producer-derived");
+  check(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    "module roots are not absolute and unique");
+  check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
+    "repository-local module fallbacks are incomplete or escaped");
+  requireNodeVersion();
+  check(true, "exact Node acceptance");
+  await reject("wrong_node", () => requireNodeVersion("v25.1.0"));
+
+  const chromiumToken = {};
+  const pngToken = {};
+  const synthetic = resolveBrowserDependencies(["/missing", "/fixture/modules"], (root) => {
+    if (root === "/missing") throw new Error("fixture miss");
+    return {chromium: chromiumToken, PNG: pngToken,
+      playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION};
+  });
+  check(synthetic.chromium === chromiumToken && synthetic.PNG === pngToken &&
+    synthetic.root === "/fixture/modules", "dependency fallback drifted");
+  await reject("wrong_playwright", () => resolveBrowserDependencies(["/fixture"], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: "1.61.0", pngjsVersion: PNGJS_VERSION,
+  })));
+  await reject("wrong_pngjs", () => resolveBrowserDependencies(["/fixture"], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: "6.0.0",
+  })));
+  await reject("missing_exports", () => resolveBrowserDependencies(["/fixture"], () => ({
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION,
+  })));
+
+  const linuxContract = browserIdentityContract("chrome", "linux");
+  const darwinContract = browserIdentityContract("chrome", "darwin");
+  check(linuxContract.executablePath === "/opt/google/chrome/chrome" &&
+    linuxContract.packageName === "google-chrome-stable", "Linux Chrome identity contract drifted");
+  check(darwinContract.identifier === "com.google.Chrome" && darwinContract.team === "EQHXZ8M8AV",
+    "Darwin Chrome identity contract drifted");
+
+  const urls = [];
+  const fakeFetch = async (url) => {
+    urls.push(url);
+    return {ok: true, json: async () => ({versions: [{version: "151.0.7922.173"}]})};
+  };
+  const linux = await officialChromeVersion("linux", fakeFetch);
+  const darwin = await officialChromeVersion("darwin", fakeFetch);
+  check(linux.version === darwin.version && linux.source.includes("/platforms/linux/") &&
+    darwin.source.includes("/platforms/mac/"), "platform Chrome release selection drifted");
+  check(urls.length === 2, "release selector request count drifted");
+  await reject("unsupported_platform", () => officialChromeVersion("win32", fakeFetch));
+  await reject("missing_release", () => officialChromeVersion("linux", async () => ({
+    ok: true, json: async () => ({versions: []}),
+  })));
+  await reject("http_failure", () => officialChromeVersion("linux", async () => ({
+    ok: false, status: 503,
+  })));
+
+  const parsed = parseInvocation(["8168", "/fixture/chrome", "4"]);
+  check(parsed.port === 8168 && parsed.executable === "/fixture/chrome" && parsed.runs === 4,
+    "invocation parser drifted");
+  check(parseInvocation(["8168", "/fixture/chrome"]).runs === 3, "default run count drifted");
+  for (const [name, args] of [
+    ["missing_executable", ["8168"]],
+    ["relative_executable", ["8168", "fixture/chrome"]],
+    ["invalid_port", ["8168junk", "/fixture/chrome"]],
+    ["out_of_range_port", ["65536", "/fixture/chrome"]],
+    ["too_few_runs", ["8168", "/fixture/chrome", "2"]],
+    ["invalid_runs", ["8168", "/fixture/chrome", "3junk"]],
+    ["extra_argument", ["8168", "/fixture/chrome", "3", "extra"]],
+  ]) await reject(name, () => parseInvocation(args));
+
+  const artifactRoot = resolve(HERE, "../m8-staged-deploy/artifacts");
+  const output = join(artifactRoot, "measure_staged-4g.json");
+  check(isRepositoryDescendant(artifactRoot) && dirname(output) === artifactRoot,
+    "canonical receipt path escaped the repository");
+  const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
+  check(!source.includes("/Users/" + "paws") &&
+    source.includes("browserIdentityContract(\"chrome\", HOST_PLATFORM)") &&
+    source.includes("officialChromeVersion(HOST_PLATFORM)"),
+  "producer retains the old host root or bypasses a platform contract");
+
+  let liveLibraryRoot = null;
+  if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
+    const live = resolveBrowserDependencies();
+    check(MODULE_ROOTS.includes(live.root) && live.playwrightVersion === PLAYWRIGHT_VERSION &&
+      live.pngjsVersion === PNGJS_VERSION, "live browser dependency resolution drifted");
+    liveLibraryRoot = live.root;
+  }
+  console.log(`M8_PERFORMANCE_SELFCHECK_PASS positive=${positive} negative=${negative} ` +
+    `platforms=darwin+linux node=${NODE_VERSION} playwright=${PLAYWRIGHT_VERSION} ` +
+    `pngjs=${PNGJS_VERSION} live=${liveLibraryRoot || "not-requested"} browser_launches=0`);
+}
+
+const invocation = parseInvocation();
+if (invocation.selfcheck) {
+  await runSelfcheck();
+  process.exit(0);
+}
+requireNodeVersion();
+const {chromium, PNG} = resolveBrowserDependencies();
+const PORT = invocation.port;
+const EXECUTABLE = invocation.executable;
+const RUNS = invocation.runs;
+const HOST_PLATFORM = process.platform;
+const identityContract = browserIdentityContract("chrome", HOST_PLATFORM);
 const BASE = `http://localhost:${PORT}`;
-const OUT = `${ROOT}/sandbox/m8-staged-deploy/artifacts/measure_staged-4g.json`;
+const ART = resolve(HERE, "../m8-staged-deploy/artifacts");
+const OUT = join(ART, "measure_staged-4g.json");
+if (!isRepositoryDescendant(ART) || dirname(OUT) !== ART) {
+  throw new Error(`refusing receipt path outside the repository: ${OUT}`);
+}
+const collectedRuntimeIdentity = collectBrowserRuntimeIdentity(EXECUTABLE, identityContract);
+const signing = legacySigning(collectedRuntimeIdentity);
 const artifactContract = loadArtifactContract(ROOT);
 const sourceArtifacts = collectArtifacts(artifactContract.buildBase, artifactContract.sourceNames);
 const bundleArtifacts = collectArtifacts(artifactContract.bundleBase, artifactContract.bundleNames);
 const expectedBundleDigest = canonicalBundleDigest(bundleArtifacts);
-
-const collectedRuntimeIdentity = collectBrowserRuntimeIdentity(EXECUTABLE,
-  {identifier: "com.google.Chrome", team: "EQHXZ8M8AV"});
-const signing = legacySigning(collectedRuntimeIdentity);
-
-async function officialChromeVersion() {
-  const source = "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions?page_size=1";
-  const response = await fetch(source);
-  if (!response.ok) throw new Error(`Chrome version lookup ${response.status}`);
-  const body = await response.json();
-  return {version: body.versions[0].version, source};
-}
 
 async function pixels(page) {
   const png = PNG.sync.read(await page.locator("#canvas").screenshot());
@@ -106,7 +298,7 @@ async function proveSemanticInteraction(page) {
 const browser = await chromium.launch({executablePath: EXECUTABLE, headless: false});
 const browserVersion = browser.version();
 const runtimeIdentity = bindRuntimeVersion(collectedRuntimeIdentity, browserVersion);
-const official = await officialChromeVersion();
+const official = await officialChromeVersion(HOST_PLATFORM);
 const rows = [];
 const transportUrls = new Set([
   "/bin/blender_browser.js", "/bin/blender_browser.data", ...artifactContract.shippedWasmUrls,
@@ -207,8 +399,7 @@ for (let run = 0; run < RUNS; run++) {
   await context.close();
 }
 await browser.close();
-revalidateBrowserRuntimeIdentity(runtimeIdentity,
-  {identifier: "com.google.Chrome", team: "EQHXZ8M8AV"});
+revalidateBrowserRuntimeIdentity(runtimeIdentity, identityContract);
 
 const median = (values) => {
   const sorted = values.filter((value) => value !== null).sort((a, b) => a - b);
@@ -240,6 +431,7 @@ const summary = {
     },
   },
 };
+mkdirSync(ART, {recursive: true});
 writeFileSync(OUT, JSON.stringify(summary, null, 2) + "\n");
 const pass = signing.valid && browserVersion === official.version && rows.length === RUNS &&
   rows.every((row) => row.fp !== null && row.pixel_proof?.pass === true && row.wire_brotli &&

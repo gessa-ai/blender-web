@@ -311,6 +311,15 @@ assert.match(producers.product, /const NODE_VERSION = "v22\.16\.0";/,
 assert.match(producers.product, /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
   "product producer does not enforce exact browser dependency versions");
 assert.equal((producers.performance.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 1);
+assert.doesNotMatch(producers.performance, /\/Users\/paws/,
+  "performance producer retains the retired macOS checkout/module root");
+assert.equal((producers.performance.match(/browserIdentityContract\("chrome", HOST_PLATFORM\)/g) || []).length, 1,
+  "performance producer does not use exactly one host-specific Chrome identity contract");
+assert.match(producers.performance, /const NODE_VERSION = "v22\.16\.0";/,
+  "performance producer does not pin the receipt Node runtime");
+assert.match(producers.performance,
+  /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
+  "performance producer does not enforce exact browser dependency versions");
 assert.equal((producers.soak.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 1);
 assert.equal((producers.staged.match(/recordEarlyDiagnostics\('/g) || []).length, 3);
 

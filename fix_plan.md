@@ -856,6 +856,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   transport/update contracts and independent M8 consumer/receipt self-checks remain green. No
   bundle, APPLY artifact, browser/GPU receipt, result promotion, or promise was created. See
   `notes/m8-staged-support-linux-portability-20260820.md`.
+- [x] **M8-COMPLIANCE-LINUX-PORTABILITY [compliance, browser-free] (43934f9):** the technical-package producer resolves only exact REUSE 6.2.0 from an explicit, repository-local, or `PATH` executable; binds its path/size/SHA-256; and rejects seven missing/indirect/drifted cases before receipt allocation. All nine technical facts and REUSE 1,931/1,931 are green; M8 drops 43 to 22 failures while four external-policy facts and the existing s7/APPLY boundary remain honest. See `notes/m8-compliance-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

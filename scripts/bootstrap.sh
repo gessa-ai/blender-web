@@ -16,5 +16,6 @@ ACTUAL=$(git rev-parse --short=12 HEAD)
 echo "pinned at: $ACTUAL (want ${PIN_COMMIT})"
 case "$ACTUAL" in "${PIN_COMMIT}"*) echo "PIN OK";; *) echo "PIN MISMATCH — investigate before proceeding" ;; esac
 cd ..
+git -C upstream lfs pull --include "release/datafiles/*"
 du -sh upstream 2>/dev/null
 echo "bootstrap done $(date -u +%FT%TZ)" > scripts/bootstrap.done

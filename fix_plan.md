@@ -789,6 +789,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   loader, all with zero browser launches. The gate entrypoint and bundle/source checker now
   reach the honest missing-current-staged/files/APPLY boundary. No receipt was produced; s7
   hardware remains mandatory. See `notes/m7-usd-linux-portability-20260820.md`.
+- [x] **M7-NATIVE-USD-LINUX-PORTABILITY [driver, producer-only]:** the native USD capability
+  producer now derives its checkout/build/output paths, requires an explicit source freeze,
+  confines immutable output to the repository, and validates all product inputs before evidence
+  allocation. Root and descendant self-checks each pass 5 positive / 7 negative cases; missing
+  freeze and absent `build-native-gpu` controls allocate nothing. No native USD receipt was
+  produced, and M7 remains blocked by the existing staged/files/APPLY and s7 browser boundaries.
+  See `notes/m7-native-usd-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

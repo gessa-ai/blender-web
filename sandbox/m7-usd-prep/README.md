@@ -26,16 +26,19 @@ NODE="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
 "$NODE" sandbox/m7-usd-prep/verify_browser_usd.mjs \
   --label "$FINAL_RUN_LABEL" \
   --source-freeze "$FINAL_SOURCE_FREEZE/receipt.json"
-python3 sandbox/m7-usd-prep/make_native_receipt.py "$FINAL_RUN_LABEL"
+python3 sandbox/m7-usd-prep/make_native_receipt.py \
+  --source-freeze "$FINAL_SOURCE_FREEZE/receipt.json" "$FINAL_RUN_LABEL"
 python3 sandbox/m7-product-gate/verify_m7.py --release-label "$FINAL_RUN_LABEL"
 ```
 
-The browser producer derives the checkout from its own source, requires Node 22.16.0 and
+Both producers derive the checkout from their own source and require an explicit canonical
+source-freeze receipt (`--source-freeze` or `BW_SOURCE_FREEZE`). The browser producer requires
+Node 22.16.0 and
 Playwright 1.61.1, and resolves Playwright from `BW_NODE_MODULES`, `NODE_PATH`, or a repo-local
 install. It requires the exact development bundle to already be served at `BW_BASE` (default
 `http://127.0.0.1:8165`) and an explicit canonical source-freeze receipt. The native producer
-does not build: it refuses publication unless locked `ninja -n bf_io_usd` is already at an
-exact no-work fixed point.
+confines output to its repository-local immutable selector root and does not build: it refuses
+publication unless locked `ninja -n bf_io_usd` is already at an exact no-work fixed point.
 
 ## Decisive result
 

@@ -18,11 +18,11 @@ import subprocess
 import tempfile
 
 
-ROOT = Path("/Users/paws/blender-web")
+SCRIPT_PATH = Path(__file__).resolve()
+ROOT = SCRIPT_PATH.parents[2]
 BUILD = ROOT / "build-native-gpu"
 OUT_ROOT = ROOT / "sandbox/m7-usd-prep/native-capability"
 PRODUCER = ROOT / "sandbox/m7-usd-prep/make_native_receipt.py"
-FREEZE = Path("/Users/paws/blender-web-final-source-freeze/receipt.json")
 SELECTOR_SCHEMA = "blender-web.m7-usd-selector.v1"
 RECEIPT_SCHEMA = "blender-web.m7-usd-native-capability.v2"
 LABEL = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
@@ -60,6 +60,33 @@ def relative_identity(path: Path, label: str) -> dict[str, object]:
     value = real_file(path, label)
     value["path"] = str(path.relative_to(ROOT))
     return value
+
+
+def source_freeze_path(value: str | None) -> Path:
+    if not isinstance(value, str) or not value:
+        raise ReceiptError("--source-freeze (or BW_SOURCE_FREEZE) is required")
+    path = Path(value)
+    if not path.is_absolute():
+        path = ROOT / path
+    return Path(os.path.abspath(path))
+
+
+def receipt_directory(root: Path, label: str) -> Path:
+    if LABEL.fullmatch(label) is None:
+        raise ReceiptError("a safe immutable label is required")
+    root = Path(os.path.abspath(root))
+    if root.resolve() != root:
+        raise ReceiptError(f"native USD receipt root is indirect: {root}")
+    try:
+        relative = root.relative_to(ROOT)
+    except ValueError as error:
+        raise ReceiptError(f"native USD receipt root is outside the repository: {root}") from error
+    if relative == Path("."):
+        raise ReceiptError("native USD receipt root cannot be the repository root")
+    output = root / label
+    if output.parent != root or output.name != label:
+        raise ReceiptError(f"unsafe native USD receipt directory: {output}")
+    return output
 
 
 def git_head(path: Path) -> str:
@@ -166,8 +193,12 @@ def analyze(build: Path) -> dict[str, object]:
     }
 
 
-def ensure_no_selector(root: Path) -> None:
-    root.mkdir(parents=True, exist_ok=True)
+def ensure_no_selector(root: Path, *, create: bool = False) -> None:
+    receipt_directory(root, "validation")
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
+    elif not root.exists():
+        return
     if root.is_symlink() or root.resolve() != root:
         raise ReceiptError(f"USD receipt root is indirect: {root}")
     selectors = []
@@ -198,10 +229,21 @@ def exclusive_json(path: Path, value: object) -> bytes:
 
 
 def producer_selfcheck() -> None:
+    positive = 0
+    negative = 0
+    if SCRIPT_PATH != PRODUCER or not (ROOT / "GOAL.md").is_file():
+        raise ReceiptError("repository root is not derived from the producer path")
+    positive += 1
+    if receipt_directory(OUT_ROOT, "selfcheck") != OUT_ROOT / "selfcheck":
+        raise ReceiptError("safe native USD output path differs")
+    positive += 1
+    if source_freeze_path("sandbox/freeze.json") != ROOT / "sandbox/freeze.json":
+        raise ReceiptError("relative source-freeze path is not repository-rooted")
+    positive += 1
     fixture = """build obj/a.o: CXX /source/a.cc\n  DEFINES = -DWITH_USD -DWITH_USD_IMAGING -DWITH_USD_PYTHON_HOOKS\n\nbuild lib/a.a: LINK obj/a.o\n"""
     assert "WITH_USD_IMAGING" in definitions(ninja_block(fixture, "obj/a.o"))
     assert ninja_block(fixture, "lib/a.a").startswith("build lib/a.a:")
-    rejected = 0
+    positive += 2
     for mutated in (fixture.replace("-DWITH_USD_IMAGING ", ""),
                     fixture + "\nbuild obj/a.o: CXX /other/a.cc\n"):
         try:
@@ -209,9 +251,19 @@ def producer_selfcheck() -> None:
             if not REQUIRED_DEFINITIONS.issubset(definitions(block)):
                 raise ReceiptError("missing definition")
         except ReceiptError:
-            rejected += 1
-    assert rejected == 2
-    with tempfile.TemporaryDirectory(prefix="m7-usd-native-selector-") as temporary:
+            negative += 1
+    for root, label in ((ROOT, "root-child"), (OUT_ROOT, "../escape"),
+                        (ROOT.parent / "outside", "escape")):
+        try:
+            receipt_directory(root, label)
+        except ReceiptError:
+            negative += 1
+    try:
+        source_freeze_path(None)
+    except ReceiptError:
+        negative += 1
+    with tempfile.TemporaryDirectory(
+            prefix=".m7-usd-native-selector-", dir=OUT_ROOT.parent) as temporary:
         root = Path(temporary).resolve()
         ensure_no_selector(root)
         label = root / "label"
@@ -221,14 +273,18 @@ def producer_selfcheck() -> None:
         try:
             ensure_no_selector(root)
         except ReceiptError:
-            rejected += 1
-    assert rejected == 3
-    print("M7_USD_NATIVE_RECEIPT_SELFCHECK_PASS positive=3 negative=3")
+            negative += 1
+    if positive != 5 or negative != 7:
+        raise ReceiptError(
+            f"native USD producer self-check count differs: positive={positive} negative={negative}")
+    print(f"M7_USD_NATIVE_RECEIPT_SELFCHECK_PASS positive={positive} negative={negative} "
+          f"root={ROOT}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("label", nargs="?")
+    parser.add_argument("--source-freeze", default=os.environ.get("BW_SOURCE_FREEZE"))
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
     if args.selfcheck:
@@ -236,11 +292,14 @@ def main() -> int:
         return 0
     if not isinstance(args.label, str) or LABEL.fullmatch(args.label) is None:
         parser.error("a safe immutable label is required")
+    try:
+        source_freeze = source_freeze_path(args.source_freeze)
+        output = receipt_directory(OUT_ROOT, args.label)
+    except ReceiptError as error:
+        parser.error(str(error))
     ensure_no_selector(OUT_ROOT)
-    output = OUT_ROOT / args.label
-    output.mkdir()
     facts = analyze(BUILD)
-    freeze = real_file(FREEZE, "canonical source freeze")
+    freeze = real_file(source_freeze, "canonical source freeze")
     dry = subprocess.run(
         [str(ROOT / "scripts/ninja-locked.sh"), "-C", str(BUILD), "-n", "bf_io_usd"],
         cwd=ROOT, capture_output=True, text=True)
@@ -250,7 +309,7 @@ def main() -> int:
         raise ReceiptError("locked native bf_io_usd graph is not at a no-work fixed point: " + dry_text)
     start = json.dumps(facts, sort_keys=True)
     if json.dumps(analyze(BUILD), sort_keys=True) != start or real_file(
-            FREEZE, "canonical source freeze") != freeze:
+            source_freeze, "canonical source freeze") != freeze:
         raise ReceiptError("native USD inputs changed during receipt composition")
     ninja_version = subprocess.run(
         ["ninja", "--version"], check=True, capture_output=True, text=True).stdout.strip()
@@ -265,6 +324,11 @@ def main() -> int:
         "ninja": {"version": ninja_version, "lockedDryRun": "no work to do"},
         **facts,
     }
+    ensure_no_selector(OUT_ROOT, create=True)
+    try:
+        output.mkdir()
+    except FileExistsError as error:
+        raise ReceiptError(f"native USD receipt label already exists: {output}") from error
     receipt_payload = exclusive_json(output / "receipt.json", receipt)
     selector = {
         "schema": SELECTOR_SCHEMA, "kind": "native", "label": args.label,

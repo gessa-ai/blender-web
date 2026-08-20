@@ -812,6 +812,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   adversarial self-checks pass without browsers; no matrix receipt was produced because the
   s7-cleared hardware adapter and APPLY split product remain mandatory. See
   `notes/m8-browser-identity-linux-portability-20260820.md`.
+- [x] **M8-PRODUCT-BAR-LINUX-PORTABILITY [driver, producer-only]:** the strict 30-second
+  skeptic/own-file/share-route producer now derives its checkout and exact Playwright/PNGJS
+  roots, requires pinned Node 22.16.0 plus an explicit canonical branded Chrome executable,
+  and uses the shared Linux ELF/dpkg/APT/keyring identity without weakening Darwin signing.
+  The two exact host-only dependency decisions are recorded in `ledger/deps.json`.
+  Root/descendant and live-loader self-checks run with zero browser launches; the shared
+  runtime-evidence adversarial check independently rejects the retired macOS roots and identity
+  bypass. No product receipt was produced because s7 hardware plus APPLY remain mandatory. See
+  `notes/m8-product-bar-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

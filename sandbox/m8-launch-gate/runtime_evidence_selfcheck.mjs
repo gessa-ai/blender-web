@@ -302,6 +302,14 @@ assert.match(producers.browser_matrix,
   "browser matrix does not exit on the completed matrix verdict after a prior row");
 assert.equal((producers.browser_matrix.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 2);
 assert.equal((producers.product.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 4);
+assert.doesNotMatch(producers.product, /\/Users\/paws/,
+  "product producer retains the retired macOS checkout/module root");
+assert.equal((producers.product.match(/browserIdentityContract\("chrome", HOST_PLATFORM\)/g) || []).length, 1,
+  "product producer does not use exactly one host-specific Chrome identity contract");
+assert.match(producers.product, /const NODE_VERSION = "v22\.16\.0";/,
+  "product producer does not pin the receipt Node runtime");
+assert.match(producers.product, /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
+  "product producer does not enforce exact browser dependency versions");
 assert.equal((producers.performance.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 1);
 assert.equal((producers.soak.match(/requireEmptyEarlyDiagnostics\(/g) || []).length, 1);
 assert.equal((producers.staged.match(/recordEarlyDiagnostics\('/g) || []).length, 3);

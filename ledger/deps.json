@@ -670,6 +670,28 @@
       "rationale": "GLSL->SPIR-V host tool for the M3 shader probes (glslangValidator; pulled spirv-tools 1.4.357.0 for spirv-val/dis). Build-time host tool only, NOT a runtime/browser dep. Mixed BSD-3-Clause/Apache-2.0/MIT (all GPL-compatible under GPL-2.0-or-later->GPLv3).",
       "source": "notes/gpu-dawn-probe.md \u00a72 (brew install glslang)"
     },
+    "playwright": {
+      "version": "1.61.1",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "integrity": "@playwright/test sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==; playwright sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==; playwright-core sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==",
+      "rationale": "Host-side browser automation for strict headed WebGPU parity and release-evidence producers. Exact package versions are checked before capture; neither the Node packages nor Playwright-managed browser binaries are linked, preloaded, or shipped in the Blender Wasm/browser product.",
+      "source": "npm @playwright/test@1.61.1 (exact closure: playwright@1.61.1 and playwright-core@1.61.1); notes/migration-to-ornith-lab.md; sandbox/m8-launch-gate/verify_product_bar.mjs"
+    },
+    "pngjs": {
+      "version": "7.0.0",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "MIT",
+      "gpl_compatible": true,
+      "integrity": "sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==",
+      "rationale": "Pure-JavaScript host-side PNG decoder for strict browser screenshot pixel proofs. It is exact-version checked before capture and is never linked, preloaded, or shipped in the Blender Wasm/browser product.",
+      "source": "npm pngjs@7.0.0; sandbox/m8-launch-gate/verify_product_bar.mjs; notes/migration-to-ornith-lab.md"
+    },
     "sharp": {
       "version": "0.35.3 (Linux x64 bundle: libvips 8.18.3)",
       "build_time": true,

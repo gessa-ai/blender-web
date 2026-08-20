@@ -148,12 +148,36 @@ enterprise artifact URL/hash recorded in
 is mutable, so its signed local app must be retained until the final run.
 
 Run the exact offline skeptic path, trusted own-file drop, and safe share-route
-negative/positive proofs against that same bundle:
+negative/positive proofs against that same bundle. First run the producer-only
+self-check; it performs no product access or browser launch:
 
 ```sh
-node sandbox/m8-launch-gate/verify_product_bar.mjs 8168 \
-  sandbox/m8-launch-gate/.browsers/Google\ Chrome.app/Contents/MacOS/Google\ Chrome
+tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m8-launch-gate/verify_product_bar.mjs --selfcheck
 ```
+
+Then use the same exact Node/module root and an explicit canonical branded Chrome
+executable. On macOS:
+
+```sh
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-launch-gate/verify_product_bar.mjs 8168 \
+  "$PWD/sandbox/m8-launch-gate/.browsers/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+On Linux, after installing the authenticated package described above:
+
+```sh
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+node22="$PWD/tools/emsdk/node/22.16.0_64bit/bin/node"
+"$node22" sandbox/m8-launch-gate/verify_product_bar.mjs 8168 \
+  /opt/google/chrome/chrome
+```
+
+The Linux row binds the same ELF/dpkg/APT/keyring identity as the Chrome browser-matrix
+row. It still requires the s7-cleared hardware adapter and exact APPLY bundle; a software
+adapter may run diagnostics but cannot produce this receipt.
 
 The only accepted public share selector is `?scene=stress-mixed`. Unknown values,
 paths, and URLs are rejected without a request; the accepted same-origin fixture is

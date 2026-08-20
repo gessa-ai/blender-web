@@ -36,10 +36,20 @@ must expose only the primary/deferred Wasm shipping roles.
 Re-run with a fresh immutable label after starting the shipping server:
 
 ```sh
-BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed-opt/bin \
-  scripts/serve-web.sh 8169
-BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed-opt/bin \
-NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
-  node sandbox/m5-latency/drive-trusted-latency-roi.mjs \
-    --port 8169 --run m5-trusted-latency-NEW
+node --version  # must be v22.16.0
+npm install --prefix .m4-node --no-save \
+  @playwright/test@1.61.1 pngjs@7.0.0 sharp@0.35.3
+export BW_NODE_MODULES="$PWD/.m4-node/node_modules"
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.m4-browsers"
+export BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin"
+bash scripts/serve-web.sh 8169
+
+node sandbox/m5-latency/drive-trusted-latency-roi.mjs --selfcheck
+node sandbox/m5-latency/drive-trusted-latency-roi.mjs \
+  --port 8169 --run m5-trusted-latency-NEW
 ```
+
+The producer accepts only Playwright 1.61.1, Sharp 0.35.3, and the bundled libvips 8.18.3.
+Sharp remains a host-only measurement dependency: the established ROI greyscale/resize/MAD
+detector is unchanged and no Sharp code enters the browser product. A fresh receipt still requires
+the hardware-adapter CAPTURE/APPLY sequence; llvmpipe binds no M5 receipt.

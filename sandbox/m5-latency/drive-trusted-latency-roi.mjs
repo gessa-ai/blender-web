@@ -12,7 +12,9 @@ import { createRequire } from 'module';
 import {
   existsSync, mkdirSync, readFileSync, statSync, writeFileSync,
 } from 'fs';
-import { dirname, join, resolve } from 'path';
+import {
+  basename, delimiter, dirname, isAbsolute, join, relative, resolve,
+} from 'path';
 import { fileURLToPath } from 'url';
 import {
   captureRuntimeArtifactSet, RUNTIME_BINARY_PATHS, RUNTIME_CONTRACT_SOURCE,
@@ -21,7 +23,24 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
 const DEFAULT_OUT = join(HERE, 'evidence');
-const DEFAULT_MODULES = '/Users/paws/plushly/game-platform/node_modules';
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(REPO, '.m4-node/node_modules'),
+  join(REPO, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const NODE_VERSION = 'v22.16.0';
+const PLAYWRIGHT_VERSION = '1.61.1';
+const SHARP_VERSION = '0.35.3';
+const VIPS_VERSION = '8.18.3';
+const RUN_LABEL_RE = /^[a-z0-9][a-z0-9._-]*$/i;
 const N = 10;
 const SPACING_MS = 600;
 const ROI_WIDTH = 200;
@@ -78,23 +97,67 @@ function parseArgs(argv) {
     else if (arg === '--selfcheck') out.selfcheck = true;
     else throw new Error(`unknown argument: ${arg}`);
   }
+  if (!out.selfcheck && (!out.run || !RUN_LABEL_RE.test(out.run))) {
+    throw new Error('--run with a safe immutable label is required');
+  }
+  if (out.run != null && !RUN_LABEL_RE.test(out.run)) throw new Error(`invalid run: ${out.run}`);
   if (!Number.isInteger(out.port) || out.port < 1 || out.port > 65535) throw new Error(`invalid port: ${out.port}`);
   if (!Number.isFinite(out.timeoutMs) || out.timeoutMs < 30000) throw new Error(`invalid timeout: ${out.timeoutMs}`);
-  if (out.run != null && !/^[a-z0-9][a-z0-9._-]*$/i.test(out.run)) throw new Error(`invalid run: ${out.run}`);
   return out;
 }
 
-function resolveLibraries() {
-  const roots = [process.env.BW_NODE_MODULES, process.env.NODE_PATH, DEFAULT_MODULES].filter(Boolean);
+function resolveLibraries(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    const sharp = require('sharp');
+    return {
+      chromium: require('playwright').chromium,
+      playwrightVersion: require('playwright/package.json').version,
+      sharp,
+      sharpVersion: sharp.versions?.sharp,
+      vipsVersion: sharp.versions?.vips,
+    };
+  },
+) {
   const errors = [];
   for (const root of roots) {
     try {
-      const require = createRequire(join(root, 'package.json'));
-      return { chromium: require('playwright').chromium, sharp: require('sharp'), root };
+      const loaded = load(root);
+      if (!loaded?.chromium) throw new Error('playwright export lacks chromium');
+      if (loaded.playwrightVersion !== PLAYWRIGHT_VERSION) {
+        throw new Error(`playwright version ${loaded.playwrightVersion || 'unknown'} != ${PLAYWRIGHT_VERSION}`);
+      }
+      if (typeof loaded.sharp !== 'function') throw new Error('sharp export is not callable');
+      if (loaded.sharpVersion !== SHARP_VERSION) {
+        throw new Error(`sharp version ${loaded.sharpVersion || 'unknown'} != ${SHARP_VERSION}`);
+      }
+      if (loaded.vipsVersion !== VIPS_VERSION) {
+        throw new Error(`libvips version ${loaded.vipsVersion || 'unknown'} != ${VIPS_VERSION}`);
+      }
+      return { ...loaded, root };
     }
     catch (error) { errors.push(`${root}: ${error.message}`); }
   }
-  throw new Error(`cannot resolve Playwright/sharp\n${errors.join('\n')}`);
+  throw new Error(`cannot resolve pinned Playwright/Sharp; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function isRepositoryDescendant(path) {
+  const rel = relative(REPO, resolve(path));
+  return rel !== '' && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function runDirectory(outRoot, run) {
+  const root = resolve(outRoot);
+  if (!isRepositoryDescendant(root)) {
+    throw new Error(`output root must be inside the repository: ${root}`);
+  }
+  if (!RUN_LABEL_RE.test(run)) throw new Error(`unsafe run label: ${run}`);
+  const path = resolve(root, run);
+  if (dirname(path) !== root || basename(path) !== run) {
+    throw new Error(`refusing unsafe evidence directory: ${path}`);
+  }
+  return path;
 }
 
 function sha256File(path) { return createHash('sha256').update(readFileSync(path)).digest('hex'); }
@@ -177,34 +240,110 @@ async function waitConsole(lines, predicate, timeoutMs, label) {
   throw new Error(`timed out waiting for ${label}`);
 }
 
-function runSelfcheck() {
+function assertSelfcheck(condition, message) {
+  if (!condition) throw new Error(`selfcheck: ${message}`);
+}
+
+async function runSelfcheck() {
+  let checks = 0;
+  const check = (condition, message) => {
+    assertSelfcheck(condition, message);
+    checks++;
+  };
   const roi = deriveRoi({ x: 526, y: 383.5, width: 1048, height: 621 }, 720);
-  if (JSON.stringify(roi) !== JSON.stringify({ left: 850, top: 26, width: 200, height: 621 })) {
-    throw new Error(`selfcheck: ROI drift ${JSON.stringify(roi)}`);
-  }
+  check(JSON.stringify(roi) === JSON.stringify({ left: 850, top: 26, width: 200, height: 621 }),
+    `ROI drift ${JSON.stringify(roi)}`);
   const parsed = parseClogStarted('00:17.220 operator | Started bpy.ops.wm.context_toggle()');
-  if (parsed?.operator !== 'bpy.ops.wm.context_toggle' || parsed.relativeSeconds !== 17.22) {
-    throw new Error('selfcheck: CLOG parser drift');
+  check(parsed?.operator === 'bpy.ops.wm.context_toggle' && parsed.relativeSeconds === 17.22,
+    'CLOG parser drift');
+  check(BUDGETS.endToEndMedianMs === 100 && BUDGETS.endToEndP95Ms === 150 &&
+    BUDGETS.keypressToOperatorMedianMs === 33 && BUDGETS.changeThresholdFloor === 5,
+    'budget drift');
+  check(existsSync(join(REPO, 'GOAL.md')), 'repository root is not derived from the driver');
+  check(MODULE_ROOTS.every(isAbsolute) && new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+    'module roots are not absolute and unique');
+  const localRoots = LOCAL_MODULE_ROOTS.map((root) => resolve(root));
+  check(localRoots.every((root) => MODULE_ROOTS.includes(root)),
+    'repo-local module fallback is incomplete');
+  check(localRoots.every(isRepositoryDescendant), 'repo-local module fallback escaped the checkout');
+  check(runDirectory(DEFAULT_OUT, 'selfcheck') === join(DEFAULT_OUT, 'selfcheck'),
+    'safe evidence directory mismatch');
+  for (const [root, run] of [[REPO, 'root-child'], [DEFAULT_OUT, '../escape']]) {
+    let rejected = false;
+    try { runDirectory(root, run); }
+    catch (_) { rejected = true; }
+    check(rejected, `unsafe output was accepted: ${root}/${run}`);
   }
-  if (BUDGETS.endToEndMedianMs !== 100 || BUDGETS.endToEndP95Ms !== 150 ||
-      BUDGETS.keypressToOperatorMedianMs !== 33 || BUDGETS.changeThresholdFloor !== 5) {
-    throw new Error('selfcheck: budget drift');
+  check(process.version === NODE_VERSION,
+    `node version ${process.version} != ${NODE_VERSION}`);
+  const chromiumToken = {};
+  const sharpToken = () => {};
+  const synthetic = resolveLibraries(['/missing', '/fixture'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return {
+      chromium: chromiumToken, playwrightVersion: PLAYWRIGHT_VERSION,
+      sharp: sharpToken, sharpVersion: SHARP_VERSION, vipsVersion: VIPS_VERSION,
+    };
+  });
+  check(synthetic.chromium === chromiumToken && synthetic.sharp === sharpToken &&
+    synthetic.root === '/fixture', 'Playwright/Sharp root fallback drift');
+  for (const [field, value] of [
+    ['playwrightVersion', '0.0.0'], ['sharpVersion', '0.0.0'], ['vipsVersion', '0.0.0'],
+  ]) {
+    let rejected = false;
+    try {
+      resolveLibraries(['/wrong-version'], () => ({
+        chromium: chromiumToken, playwrightVersion: PLAYWRIGHT_VERSION,
+        sharp: sharpToken, sharpVersion: SHARP_VERSION, vipsVersion: VIPS_VERSION,
+        [field]: value,
+      }));
+    }
+    catch (_) { rejected = true; }
+    check(rejected, `${field} drift was accepted`);
   }
-  process.stdout.write(JSON.stringify({ status: 'PASS', checks: 3, samples: N, roi, budgets: BUDGETS }, null, 2) + '\n');
+  let liveLibraryRoot = null;
+  let liveProbeSha256 = null;
+  if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
+    const live = resolveLibraries();
+    check(MODULE_ROOTS.includes(live.root) && live.playwrightVersion === PLAYWRIGHT_VERSION &&
+      live.sharpVersion === SHARP_VERSION && live.vipsVersion === VIPS_VERSION,
+      'live Playwright/Sharp resolution drift');
+    const probePng = await live.sharp({
+      create: { width: 2, height: 2, channels: 3, background: { r: 40, g: 120, b: 200 } },
+    }).png().toBuffer();
+    const first = await signature(live.sharp, probePng);
+    const second = await signature(live.sharp, probePng);
+    liveProbeSha256 = createHash('sha256').update(first).digest('hex');
+    check(first.length === 160 * 90 && Buffer.compare(first, second) === 0,
+      'live Sharp greyscale/resize probe is not deterministic');
+    liveLibraryRoot = live.root;
+  }
+  process.stdout.write(JSON.stringify({
+    status: 'PASS', checks, samples: N, roi, budgets: BUDGETS,
+    repositoryRoot: REPO, moduleRoots: MODULE_ROOTS, nodeVersion: process.version,
+    expectedVersions: {
+      node: NODE_VERSION, playwright: PLAYWRIGHT_VERSION, sharp: SHARP_VERSION, vips: VIPS_VERSION,
+    },
+    liveLibraryRoot, liveProbeSha256, browserLaunches: 0,
+  }, null, 2) + '\n');
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  if (options.selfcheck) { runSelfcheck(); return; }
-  if (!options.run) throw new Error('--run is required');
-  const outDir = join(options.outRoot, options.run);
+  if (options.selfcheck) { await runSelfcheck(); return; }
+  if (process.version !== NODE_VERSION) {
+    throw new Error(`node version ${process.version} != ${NODE_VERSION}`);
+  }
+  const outDir = runDirectory(options.outRoot, options.run);
   if (existsSync(outDir)) throw new Error(`refusing to overwrite evidence: ${outDir}`);
   const binaryDir = resolve(process.env.BLENDER_WEB_BIN || join(REPO, 'build-wasm-windowed-opt/bin'));
   const { binaryFiles, splitManifest } = captureRuntimeArtifactSet(binaryDir, fileReceipt);
   mkdirSync(options.outRoot, { recursive: true });
   mkdirSync(outDir);
 
-  const { chromium, sharp, root: playwrightRoot } = resolveLibraries();
+  const {
+    chromium, sharp, root: playwrightRoot, playwrightVersion, sharpVersion, vipsVersion,
+  } = resolveLibraries();
   const startedAt = new Date().toISOString();
   const consoleLines = [];
   const pageErrors = [];
@@ -478,7 +617,10 @@ async function main() {
       },
       metrics, samples, canvas: canvasReceipt, ready,
     },
-    browser: { headed: options.headed, playwrightRoot, trustedInputs },
+    browser: {
+      headed: options.headed, nodeVersion: process.version, playwrightRoot, playwrightVersion,
+      sharpVersion, vipsVersion, trustedInputs,
+    },
     provenance: {
       driver: fileReceipt(fileURLToPath(import.meta.url)),
       runtimeContract: fileReceipt(RUNTIME_CONTRACT_SOURCE), splitManifest,

@@ -747,6 +747,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   expectation. Required M6/regression remain RED on the existing Workbench/current-artifact,
   strict-manifest, split-product, and s7 hardware gates; no aggregate result was promoted. See
   `notes/m6-cycles-load-order-repair-20260820.md`.
+- [x] **M6-WORKBENCH-LINUX-PORTABILITY [driver, producer-only]:** the Workbench driver and
+  scorer now derive the checkout root, resolve Playwright through the documented local module
+  roots, confine output to one safe immutable-run child, and attest the current six-file shell
+  set including `diagnostics-bootstrap.js`. Driver, scorer, and aggregate-verifier self-checks
+  pass from Linux and from a descendant cwd. No matrix or receipt was produced: the 20-row replay
+  remains blocked by s7's hardware-adapter requirement and the resulting APPLY split product.
+  See `notes/m6-workbench-linux-portability-20260820.md`.
 - [x] **AUDIT-20260820 [driver]:** adversarial last-25 review (`334e734..0ea2cd0`) recorded in
   `reports/audit-20260820.md`: 0 critical / 3 major / 1 minor. Strict M1/M2 receipts and all
   four hermetic verifier suites recheck clean. Fixed the cold-runbook host-tool/compiler/native-

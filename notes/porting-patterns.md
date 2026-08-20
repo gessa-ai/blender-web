@@ -166,3 +166,15 @@ dot/newline bytes only around that block, and require the total dot count to equ
 When one platform moves a progress dot across an exact diagnostic boundary, enumerate the complete
 anchored layout and restore that single dot before comparing streams. Keep platform null-pointer
 spellings as an explicit finite set; do not mask arbitrary pointer-value text.
+
+## Class 8 — current evidence producers must not inherit paths from retained legacy rigs
+
+Signature: a current producer imports or transforms a retained historical rig successfully on its
+original host, but fails before its self-check on a new checkout because source, artifact, output,
+or Node module paths are absolute. Derive the repository root from the producer file, not the
+caller's current directory. Keep the historical rig immutable; replace each load-bearing legacy
+declaration exactly once and fail if its seam drifts. Resolve browser modules through explicit,
+documented local roots and confine evidence output to one validated child of the canonical run
+directory. Self-check mode may use unmistakable non-evidence artifact placeholders so it can run
+before a shipping artifact exists, but a real producer invocation must still open and hash-bind
+every required product artifact before browser launch.

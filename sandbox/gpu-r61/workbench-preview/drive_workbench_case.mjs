@@ -7,20 +7,35 @@
 import { existsSync, readFileSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { createHash as createOuterHash } from 'crypto';
+import { basename, delimiter, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-const sourcePath = '/Users/paws/blender-web/sandbox/gpu-r35/bridge_boot.mjs';
-const driverPath = '/Users/paws/blender-web/sandbox/gpu-r61/workbench-preview/drive_workbench_case.mjs';
-const matrixRunnerPath = '/Users/paws/blender-web/sandbox/gpu-r61/workbench-preview/run_matrix.sh';
-const manifestSourcePath = '/Users/paws/blender-web/sandbox/m6-prep/manifest.tsv';
-const outDir = process.env.BW_WORKBENCH_OUTDIR;
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const sourcePath = resolve(root, 'sandbox/gpu-r35/bridge_boot.mjs');
+const driverPath = fileURLToPath(import.meta.url);
+const matrixRunnerPath = resolve(root, 'sandbox/gpu-r61/workbench-preview/run_matrix.sh');
+const manifestSourcePath = resolve(root, 'sandbox/m6-prep/manifest.tsv');
+const runsRoot = resolve(root, 'sandbox/gpu-r61/workbench-preview/runs');
+const outDir = process.env.BW_WORKBENCH_OUTDIR ? resolve(process.env.BW_WORKBENCH_OUTDIR) : null;
 const outName = process.argv[4] || 'out';
+const selfCheck = process.env.BW_WORKBENCH_SELF_CHECK === '1';
 const productToken = `${outName}-${process.pid}-${Date.now()}`;
 const productSchema = 'bw-workbench-product-v1';
 const productPngGuest = `/tmp/${productToken}-render-result.png`;
 const productDoneGuest = `/tmp/${productToken}-render-result.done.json`;
 const productArmedGuest = `/tmp/${productToken}-render-result.armed.json`;
 const productCaptureFile = 'render_result.png';
-const binDir = process.env.BLENDER_WEB_BIN || '/Users/paws/blender-web/build-wasm-windowed-opt/bin';
+const binDir = resolve(process.env.BLENDER_WEB_BIN || resolve(root, 'build-wasm-windowed-opt/bin'));
+const nodeModuleRoots = [
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  resolve(root, '.m4-node/node_modules'),
+  resolve(root, 'node_modules'),
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry));
 const deferredWasmFilename =
   process.env.BW_DEFERRED_WASM_FILENAME || 'blender_browser.deferred.wasm';
 if (!/^blender_browser(?:\.[A-Za-z0-9_-]+)*\.wasm$/.test(deferredWasmFilename) ||
@@ -34,13 +49,17 @@ const binaryPaths = Object.freeze({
   preload: `${binDir}/blender_browser.data`,
 });
 const shellPaths = Object.freeze({
-  index: '/Users/paws/blender-web/platform_web/shell/index.html',
-  windowed: '/Users/paws/blender-web/platform_web/shell/windowed.html',
-  boot: '/Users/paws/blender-web/platform_web/shell/boot-windowed.js',
-  fileBridge: '/Users/paws/blender-web/platform_web/shell/file-bridge.js',
-  preinit: '/Users/paws/blender-web/platform_web/shell/wgpu-preinit-worker.js',
+  index: resolve(root, 'platform_web/shell/index.html'),
+  windowed: resolve(root, 'platform_web/shell/windowed.html'),
+  diagnostics: resolve(root, 'platform_web/shell/diagnostics-bootstrap.js'),
+  boot: resolve(root, 'platform_web/shell/boot-windowed.js'),
+  fileBridge: resolve(root, 'platform_web/shell/file-bridge.js'),
+  preinit: resolve(root, 'platform_web/shell/wgpu-preinit-worker.js'),
 });
 const shippingBinary = Object.fromEntries(Object.entries(binaryPaths).map(([name, path]) => {
+  if (selfCheck) {
+    return [name, { path, bytes: 1, sha256: '0'.repeat(64) }];
+  }
   const bytes = readFileSync(path);
   return [name, {
     path,
@@ -59,8 +78,9 @@ const expectedServedShell = Object.fromEntries(Object.entries(shellPaths).map(([
 
 async function captureServedShell(page, expected) {
   const served = await page.evaluate(async () => {
-    const paths = {index: '/index.html', windowed: '/windowed.html', boot: '/boot-windowed.js',
-      fileBridge: '/file-bridge.js', preinit: '/wgpu-preinit-worker.js'};
+    const paths = {index: '/index.html', windowed: '/windowed.html',
+      diagnostics: '/diagnostics-bootstrap.js', boot: '/boot-windowed.js', fileBridge: '/file-bridge.js',
+      preinit: '/wgpu-preinit-worker.js'};
     const result = {};
     for (const [name, path] of Object.entries(paths)) {
       const response = await fetch(path, {cache: 'no-store'});
@@ -106,7 +126,12 @@ const hostBlendReceipt = existsSync(hostBlendPath) ? (() => {
   };
 })() : null;
 
-if (!outDir || !outDir.startsWith('/Users/paws/blender-web/sandbox/gpu-r61/workbench-preview/runs/')) {
+function validRunDirectory(path) {
+  return typeof path === 'string' && dirname(path) === runsRoot &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(basename(path));
+}
+
+if (!validRunDirectory(outDir)) {
   throw new Error('BW_WORKBENCH_OUTDIR must name a unique gpu-r61 Workbench run directory');
 }
 if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(outName)) {
@@ -218,10 +243,35 @@ function replaceOnce(needle, replacement, label) {
   source = source.replace(needle, replacement);
 }
 
-replaceOnce(
-  "const OUTDIR = '/Users/paws/blender-web/sandbox/gpu-r35';",
-  `const OUTDIR = '${outDir}';`,
+function replaceRegexOnce(pattern, replacement, label) {
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length !== 1) {
+    throw new Error(`r35 bridge seam drifted (${label})`);
+  }
+  source = source.replace(pattern, replacement);
+}
+
+const outputDeclaration = `const OUTDIR = ${JSON.stringify(outDir)};`;
+replaceRegexOnce(
+  /^const OUTDIR = ['"][^'"\n]+\/sandbox\/gpu-r35['"];$/gm,
+  outputDeclaration,
   'output root',
+);
+const playwrightLoader = [
+  `const __bwModuleRoots = ${JSON.stringify(nodeModuleRoots)};`,
+  'let chromium = null;',
+  'for (const root of __bwModuleRoots) {',
+  '  try {',
+  "    chromium = createRequire(root + '/package.json')('playwright').chromium;",
+  '    break;',
+  '  } catch {}',
+  '}',
+  "if (chromium === null) throw new Error('playwright is unavailable; checked module roots: ' + __bwModuleRoots.join(', '));",
+].join('\n');
+replaceRegexOnce(
+  /^const require = createRequire\([^\n]+\);\nconst \{ chromium \} = require\('playwright'\);$/gm,
+  playwrightLoader,
+  'Playwright module root',
 );
 replaceOnce(
   "import { writeFileSync, readFileSync, mkdirSync } from 'fs';",
@@ -585,9 +635,9 @@ replaceOnce(
   'product gate exit status',
 );
 
-if (process.env.BW_WORKBENCH_SELF_CHECK === '1') {
+if (selfCheck) {
   const engineSource = readFileSync(
-    '/Users/paws/blender-web/upstream/source/blender/draw/engines/workbench/workbench_engine.cc',
+    resolve(root, 'upstream/source/blender/draw/engines/workbench/workbench_engine.cc'),
     'utf8',
   );
   const declarationStart = source.indexOf('const PYEXPR = [');
@@ -641,8 +691,20 @@ if (process.env.BW_WORKBENCH_SELF_CHECK === '1') {
     pageCrashed: false, pageUnresponsive: false, expected,
   });
   const checks = {
-    isolatedOutput: source.includes(`const OUTDIR = '${outDir}';`) &&
-      !source.includes("const OUTDIR = '/Users/paws/blender-web/sandbox/gpu-r35';"),
+    repositoryRoot: existsSync(resolve(root, 'GOAL.md')) &&
+      driverPath === resolve(root, 'sandbox/gpu-r61/workbench-preview/drive_workbench_case.mjs'),
+    isolatedOutput: source.includes(outputDeclaration) &&
+      (source.match(/^const OUTDIR = /gm) || []).length === 1,
+    portablePlaywright: source.includes('const __bwModuleRoots = ') &&
+      source.includes("createRequire(root + '/package.json')('playwright').chromium") &&
+      !source.includes("const { chromium } = require('playwright');"),
+    exactArtifactSet: Object.keys(binaryPaths).join(',') === 'javascript,wasm,deferred,preload',
+    exactShellSet: Object.keys(shellPaths).join(',') ===
+      'index,windowed,diagnostics,boot,fileBridge,preinit',
+    runDirectoryContract: validRunDirectory(outDir) &&
+      !validRunDirectory(runsRoot) &&
+      !validRunDirectory(resolve(runsRoot, 'nested/child')) &&
+      !validRunDirectory(resolve(root, 'sandbox/gpu-r61/workbench-preview/runs-escape/child')),
     exactSetup: source.includes('_scene.display.shading.light = "STUDIO"') &&
       source.includes('_scene.display.shading.color_type = "TEXTURE"') &&
       source.includes('_scene.render.hair_type = "STRIP"') &&

@@ -16,16 +16,17 @@ import importlib.util
 import json
 import math
 import os
+from pathlib import Path
 import struct
 import subprocess
 import sys
 import tempfile
 
 
-ROOT = "/Users/paws/blender-web"
-LEGACY_SCORER = os.path.join(ROOT, "sandbox/gpu-r35/score.py")
-DECODER = os.path.join(ROOT, "sandbox/gpu-r35/decode_readback.py")
-OCIO_CONFIG = os.path.join(ROOT, "upstream/release/datafiles/colormanagement/config.ocio")
+ROOT = Path(__file__).resolve().parents[3]
+LEGACY_SCORER = ROOT / "sandbox/gpu-r35/score.py"
+DECODER = ROOT / "sandbox/gpu-r35/decode_readback.py"
+OCIO_CONFIG = ROOT / "upstream/release/datafiles/colormanagement/config.ocio"
 PRODUCT_SCHEMA = "bw-workbench-product-v1"
 PRODUCT_FILE = "render_result.png"
 
@@ -447,7 +448,7 @@ def main():
             output_png,
         ])
         ocio_env = dict(os.environ)
-        ocio_env["OCIO"] = OCIO_CONFIG
+        ocio_env["OCIO"] = os.fspath(OCIO_CONFIG)
         transform_rc, transform_output = run(command, env=ocio_env)
         if transform_rc != 0:
             raise RuntimeError(transform_output)

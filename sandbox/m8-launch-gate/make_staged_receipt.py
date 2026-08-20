@@ -127,6 +127,8 @@ def main() -> int:
     verify_m8.check_runtime_identity(
         staged_browser.get("runtime_identity"), "chrome", staged_browser.get("executable"),
         staged_browser.get("version"), "staged composer runtime", validation_failures)
+    verify_m8.check_runtime_adapter(
+        staged_browser.get("runtime_adapter"), "staged composer", validation_failures)
     staged_diagnostics = proof.get("early_diagnostics", {})
     require(isinstance(staged_diagnostics, dict) and set(staged_diagnostics) == {
         "cold_online", "online_warm", "offline_cold"},
@@ -161,8 +163,12 @@ def main() -> int:
     verify_m8.check_runtime_identity(
         browser.get("runtime_identity"), "chrome", browser.get("executable"),
         browser.get("version"), "performance composer runtime", validation_failures)
+    verify_m8.check_runtime_adapter(
+        browser.get("runtime_adapter"), "performance composer", validation_failures)
     require(staged_browser.get("runtime_identity") == browser.get("runtime_identity"),
             "staged/performance composer runtime identities differ")
+    require(staged_browser.get("runtime_adapter") == browser.get("runtime_adapter"),
+            "staged/performance composer WebGPU adapters differ")
     try:
         checked = dt.datetime.fromisoformat(str(browser["checked_at"]).replace("Z", "+00:00"))
         age = dt.datetime.now(dt.timezone.utc) - checked

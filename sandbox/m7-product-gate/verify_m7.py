@@ -60,6 +60,7 @@ FALLBACK_FROZEN_PATHS = {
     "sandbox/m7-product-gate/verify_m7.py",
     "sandbox/m8-launch-gate/verify_m8.py",
     "sandbox/m8-launch-gate/bundle_identity.mjs",
+    "sandbox/m8-launch-gate/runtime_evidence.mjs",
     "sandbox/m8-staged-deploy/make_staged_bundle.sh",
     "sandbox/m8-staged-deploy/serve_measure.py",
     "sandbox/m8-staged-deploy/transport_contract.py",
@@ -486,14 +487,15 @@ def verify_usd_receipts(failures: list[str], expected_release_label: str | None 
     verify_usd_pair_label(browser, native, expected_release_label, failures)
     browser_keys = {
         "schema", "verdict", "label", "createdUtc", "driver", "sourceFreeze",
-        "browser_version", "artifacts", "browser_loaded_artifacts", "url",
+        "browser_version", "runtime_adapter", "artifacts", "browser_loaded_artifacts", "url",
         "cross_origin_isolated", "result", "page_errors", "page_crashes",
         "external_requests", "http_errors", "gpu_errors", "console_tail",
     }
     require(set(browser) == browser_keys and browser.get("schema") ==
-            "blender-web.m7-usd-browser.v2",
+            "blender-web.m7-usd-browser.v3",
             "USD browser receipt schema/keys are not exact", failures)
     require(browser.get("verdict") == "PASS", "USD browser receipt is not PASS", failures)
+    verify_m8.check_runtime_adapter(browser.get("runtime_adapter"), "USD browser", failures)
     verify_relative_file_receipt(browser.get("driver"), USD_DRIVER,
                                  "USD browser driver", failures)
     verify_fallback_freeze(browser, failures)
@@ -1422,6 +1424,11 @@ def main() -> int:
     )
     require(staged.get("verdict") == "PASS", "staged browser receipt is not PASS", subset_failures)
     require(files.get("verdict") == "PASS", "files browser receipt is not PASS", subset_failures)
+    staged_browser = staged.get("browser", {}) if isinstance(staged.get("browser"), dict) else {}
+    verify_m8.check_runtime_adapter(
+        staged_browser.get("runtime_adapter"), "M7 staged browser", subset_failures)
+    verify_m8.check_runtime_adapter(
+        files.get("runtime_adapter"), "M7 files browser", subset_failures)
     for key in staged_required:
         require(staged.get(key) is True, f"staged proof missing/false: {key}", subset_failures)
     for key in files_required:
@@ -1429,8 +1436,8 @@ def main() -> int:
     require(staged.get("external_request_count") == 0, "staged runtime made external requests", subset_failures)
     require(files.get("external_request_count") == 0, "file runtime made external requests", subset_failures)
     require(files.get("gpu_error_count") == 0, "file runtime recorded GPU/page errors", subset_failures)
-    require(files.get("schema") == "blender-web.m7-files-browser.v2",
-            "files browser receipt schema is not hash-bound v2", subset_failures)
+    require(files.get("schema") == "blender-web.m7-files-browser.v3",
+            "files browser receipt schema is not hash-bound v3", subset_failures)
     identity = files.get("bundle_identity")
     verify_file_receipt(identity, BUNDLE_IDENTITY, "files browser bundle identity", subset_failures)
     if isinstance(identity, dict):

@@ -18,6 +18,7 @@ import {
   delimiter, dirname, isAbsolute, join, relative, resolve,
 } from 'path';
 import {fileURLToPath} from 'url';
+import {requireHardwareRuntimeAdapter} from '../m8-launch-gate/runtime_evidence.mjs';
 
 const DRIVER_PATH = fileURLToPath(import.meta.url);
 const HERE = dirname(DRIVER_PATH);
@@ -349,7 +350,8 @@ async function runBrowser(options) {
   const product = loadProductInputs(options);
   const {blendBytes, blendB64} = product;
   const receipt = {
-    schema: 'blender-web.m7-files-browser.v2',
+    schema: 'blender-web.m7-files-browser.v3',
+    runtime_adapter: null,
     physical_drop_trusted: false,
     physical_drop_opened: false,
     fsa_open_picker_supported: false,
@@ -379,6 +381,14 @@ async function runBrowser(options) {
   const context = await browser.newContext({
     viewport: {width: 1280, height: 720}, deviceScaleFactor: 1, acceptDownloads: true,
   });
+  try {
+    receipt.runtime_adapter = await requireHardwareRuntimeAdapter(context, process.platform);
+  }
+  catch (error) {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+    throw error;
+  }
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   const external = [];

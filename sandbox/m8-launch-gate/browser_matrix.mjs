@@ -15,7 +15,8 @@ import {
 import {
   bindRuntimeVersion, browserIdentityContract, browserMatrixInvocationPass, browserMatrixRowPass,
   collectBrowserRuntimeIdentity, legacySigning,
-  requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity, validatePriorBrowserMatrix,
+  requireEmptyEarlyDiagnostics, requireHardwareRuntimeAdapter, revalidateBrowserRuntimeIdentity,
+  validatePriorBrowserMatrix,
 } from "./runtime_evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -189,12 +190,21 @@ const artifactContract = loadArtifactContract(ROOT);
 const sourceArtifacts = collectArtifacts(artifactContract.buildBase, artifactContract.sourceNames);
 const bundleArtifacts = collectArtifacts(artifactContract.bundleBase, artifactContract.bundleNames);
 const expectedBundleDigest = canonicalBundleDigest(bundleArtifacts);
-mkdirSync(join(HERE, "artifacts"), {recursive: true});
 const launchOptions = {headless: false, executablePath: EXECUTABLE};
 const browser = await chromium.launch(launchOptions);
 const actualVersion = browser.version();
 const runtimeIdentity = bindRuntimeVersion(collectedRuntimeIdentity, actualVersion);
 const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 1});
+let runtimeAdapter;
+try {
+  runtimeAdapter = await requireHardwareRuntimeAdapter(context, HOST_PLATFORM);
+}
+catch (error) {
+  await context.close().catch(() => {});
+  await browser.close().catch(() => {});
+  throw error;
+}
+mkdirSync(join(HERE, "artifacts"), {recursive: true});
 const page = await context.newPage();
 const errors = [];
 const requests = [];
@@ -358,6 +368,7 @@ const row = {
   official_version_source: official.source,
   signing,
   runtime_identity: runtimeIdentity,
+  runtime_adapter: runtimeAdapter,
   early_diagnostics: {online: onlineDiagnostics, offline_reload: offlineDiagnostics},
   served_bundle_sha256: servedBundleSha256,
   checked_at: checkedAt,

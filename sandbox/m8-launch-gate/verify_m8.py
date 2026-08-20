@@ -57,6 +57,16 @@ LINUX_RUNTIME_CONTRACTS = {
         "fingerprint": "BC528686B50D79E339D3721CEB3E94ADBE1229CF",
     },
 }
+RUNTIME_ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1"
+RUNTIME_ADAPTER_FIELDS = {
+    "contract", "status", "present", "platform", "powerPreference",
+    "isFallbackAdapter", "info", "softwareMatches", "reason",
+}
+RUNTIME_ADAPTER_INFO_FIELDS = {"vendor", "architecture", "device", "description"}
+SOFTWARE_ADAPTER_TOKENS = (
+    "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
+    "microsoft basic render", "warp",
+)
 
 GENERATED_INPUT_PREFIXES = (
     b"sandbox/m8-launch-gate/artifacts/",
@@ -636,6 +646,53 @@ def check_runtime_identity(identity_value: object, channel: str, executable_valu
         failures.append(f"{label} runtime identity verification failed: {error}")
 
 
+def check_runtime_adapter(adapter_value: object, label: str,
+                          failures: list[str]) -> None:
+    """Independently reject absent, masked, fallback, and software WebGPU adapters."""
+    if not isinstance(adapter_value, dict):
+        failures.append(f"{label} runtime adapter is absent")
+        return
+    require(set(adapter_value) == RUNTIME_ADAPTER_FIELDS,
+            f"{label} runtime adapter keys are not exact", failures)
+    info = adapter_value.get("info")
+    require(isinstance(info, dict) and set(info) == RUNTIME_ADAPTER_INFO_FIELDS,
+            f"{label} runtime adapter info keys are not exact", failures)
+    if not isinstance(info, dict):
+        return
+    require(all(type(info.get(key)) is str for key in RUNTIME_ADAPTER_INFO_FIELDS),
+            f"{label} runtime adapter info values are not strings", failures)
+    identity_text = " ".join(
+        info.get(key) if isinstance(info.get(key), str) else ""
+        for key in ("vendor", "architecture", "device", "description")
+    ).strip().lower()
+    detail_identity = " ".join(
+        info.get(key) if isinstance(info.get(key), str) else ""
+        for key in ("architecture", "device", "description")
+    ).strip()
+    software_matches = [token for token in SOFTWARE_ADAPTER_TOKENS
+                        if token in identity_text]
+    if re.search(r"(^|[^a-z0-9])cpu([^a-z0-9]|$)", identity_text):
+        software_matches.append("cpu")
+    expected_platform = "darwin" if sys.platform == "darwin" else \
+        "linux" if sys.platform.startswith("linux") else None
+    require(adapter_value.get("contract") == RUNTIME_ADAPTER_CONTRACT,
+            f"{label} runtime adapter contract differs", failures)
+    require(adapter_value.get("status") == "ACCEPTED"
+            and adapter_value.get("reason") == "accepted-hardware",
+            f"{label} runtime adapter is not accepted hardware", failures)
+    require(adapter_value.get("present") is True
+            and adapter_value.get("powerPreference") == "high-performance",
+            f"{label} runtime adapter presence/preference differs", failures)
+    require(adapter_value.get("platform") == expected_platform,
+            f"{label} runtime adapter platform differs from verifier host", failures)
+    require(adapter_value.get("isFallbackAdapter") is False,
+            f"{label} runtime adapter fallback status is not explicit false", failures)
+    require(bool(identity_text) and bool(detail_identity),
+            f"{label} runtime adapter identity is masked/incomplete", failures)
+    require(not software_matches and adapter_value.get("softwareMatches") == [],
+            f"{label} runtime adapter is software or its match inventory is forged", failures)
+
+
 def expected_signing_projection(channel: str, runtime_identity: object) -> tuple[str, str] | None:
     if isinstance(runtime_identity, dict) and runtime_identity.get("schema") == 2 and \
             runtime_identity.get("platform") == "linux":
@@ -941,6 +998,7 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
                 check_runtime_identity(browser.get("runtime_identity"), "chrome",
                                        browser.get("executable"), browser.get("version"),
                                        "staged", failures)
+                check_runtime_adapter(browser.get("runtime_adapter"), "staged", failures)
             diagnostics = staged_runtime.get("early_diagnostics", {})
             require(isinstance(diagnostics, dict) and set(diagnostics) == {
                 "cold_online", "online_warm", "offline_cold"},
@@ -956,6 +1014,7 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
                 check_runtime_identity(browser.get("runtime_identity"), "chrome",
                                        browser.get("executable"), browser.get("version"),
                                        "performance", failures)
+                check_runtime_adapter(browser.get("runtime_adapter"), "performance", failures)
             diagnostics = performance_runtime.get("early_diagnostics")
             require(isinstance(diagnostics, list)
                     and isinstance(performance_runtime.get("run_count"), int)
@@ -969,6 +1028,9 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
             require(staged_runtime.get("browser", {}).get("runtime_identity") ==
                     performance_runtime.get("browser", {}).get("runtime_identity"),
                     "staged/performance Chrome runtime identities differ", failures)
+            require(staged_runtime.get("browser", {}).get("runtime_adapter") ==
+                    performance_runtime.get("browser", {}).get("runtime_adapter"),
+                    "staged/performance WebGPU adapters differ", failures)
     bundle_digest = current_bundle_digest()
     require(receipt.get("served_bundle_sha256") == bundle_digest,
             "staged runtime was not served from the exact current bundle", failures)
@@ -1131,6 +1193,7 @@ def check_soak(receipt: dict, failures: list[str]) -> None:
     check_runtime_identity(browser.get("runtime_identity"), "chrome",
                            browser.get("executable"), browser.get("version"),
                            "soak", failures)
+    check_runtime_adapter(browser.get("runtime_adapter"), "soak", failures)
     check_early_diagnostics(receipt.get("early_diagnostics"), "soak", failures)
     require(browser.get("engine") == "chrome",
             "soak did not use branded Chrome", failures)
@@ -1206,7 +1269,8 @@ def check_browsers(receipt: dict, failures: list[str]) -> None:
             "browser matrix engine set is not exact chrome+edge", failures)
     exact_row_keys = {
         "channel", "executable", "actual_version", "official_version",
-        "official_version_source", "signing", "runtime_identity", "early_diagnostics",
+        "official_version_source", "signing", "runtime_identity", "runtime_adapter",
+        "early_diagnostics",
         "served_bundle_sha256", "checked_at", "current_at_test", "wm_main", "wm_main_ms",
         "first_pixels", "pixel_proof", "interaction_smoke", "interaction_proof",
         "offline_reload", "query_hooks_disabled", "external_request_count",
@@ -1221,6 +1285,8 @@ def check_browsers(receipt: dict, failures: list[str]) -> None:
         check_runtime_identity(row.get("runtime_identity"), name,
                                row.get("executable"), row.get("actual_version"),
                                f"browser matrix {name}", failures)
+        check_runtime_adapter(row.get("runtime_adapter"),
+                              f"browser matrix {name}", failures)
         diagnostics = row.get("early_diagnostics", {})
         require(isinstance(diagnostics, dict) and set(diagnostics) == {
             "online", "offline_reload"},
@@ -1407,6 +1473,7 @@ def check_product_bar(receipt: dict, chrome: dict, failures: list[str]) -> None:
     check_runtime_identity(browser.get("runtime_identity"), "chrome",
                            browser.get("executable"), browser.get("version"),
                            "30-second product", failures)
+    check_runtime_adapter(browser.get("runtime_adapter"), "30-second product", failures)
     diagnostics = receipt.get("early_diagnostics", {})
     require(isinstance(diagnostics, dict) and set(diagnostics) == {
         "skeptic", "own_blend", "rejected_share", "allowed_share"},
@@ -1619,6 +1686,30 @@ def chrome_runtime_identities(staged: dict, soak: dict, product: dict,
     ]
 
 
+def chrome_runtime_adapters(staged: dict, soak: dict, product: dict,
+                            browsers: dict) -> list[object]:
+    runtime_proofs = staged.get("runtime_proofs", {}) \
+        if isinstance(staged.get("runtime_proofs"), dict) else {}
+    staged_runtime = runtime_proofs.get("staged", {}) \
+        if isinstance(runtime_proofs.get("staged"), dict) else {}
+    performance_runtime = runtime_proofs.get("performance", {}) \
+        if isinstance(runtime_proofs.get("performance"), dict) else {}
+    soak_browser = soak.get("browser", {}) if isinstance(soak.get("browser"), dict) else {}
+    product_browser = product.get("browser", {}) \
+        if isinstance(product.get("browser"), dict) else {}
+    engines = browsers.get("engines", {}) if isinstance(browsers.get("engines"), dict) else {}
+    chrome = engines.get("chrome", {}) if isinstance(engines.get("chrome"), dict) else {}
+    return [
+        staged_runtime.get("browser", {}).get("runtime_adapter")
+            if isinstance(staged_runtime.get("browser"), dict) else None,
+        performance_runtime.get("browser", {}).get("runtime_adapter")
+            if isinstance(performance_runtime.get("browser"), dict) else None,
+        soak_browser.get("runtime_adapter"),
+        product_browser.get("runtime_adapter"),
+        chrome.get("runtime_adapter"),
+    ]
+
+
 def linux_runtime_verifier_selfcheck() -> tuple[int, int]:
     positive = 0
     negative = 0
@@ -1737,18 +1828,62 @@ def runtime_consumer_selfcheck() -> None:
                          "source": "Notarized Developer ID", "origin": "fixture"},
         "runtime_version": "1", "version_matches_app": True,
     }
+    adapter_fixture = {
+        "contract": RUNTIME_ADAPTER_CONTRACT,
+        "status": "ACCEPTED",
+        "present": True,
+        "platform": "darwin" if sys.platform == "darwin" else "linux",
+        "powerPreference": "high-performance",
+        "isFallbackAdapter": False,
+        "info": {"vendor": "NVIDIA", "architecture": "Ada",
+                 "device": "GeForce RTX 4090", "description": ""},
+        "softwareMatches": [],
+        "reason": "accepted-hardware",
+    }
     staged = {"runtime_proofs": {
-        "staged": {"browser": {"runtime_identity": identity_fixture}},
-        "performance": {"browser": {"runtime_identity": identity_fixture}}}}
-    soak = {"browser": {"runtime_identity": identity_fixture}}
-    product = {"browser": {"runtime_identity": identity_fixture}}
-    browsers = {"engines": {"chrome": {"runtime_identity": identity_fixture}}}
+        "staged": {"browser": {"runtime_identity": identity_fixture,
+                                "runtime_adapter": adapter_fixture}},
+        "performance": {"browser": {"runtime_identity": identity_fixture,
+                                     "runtime_adapter": adapter_fixture}}}}
+    soak = {"browser": {"runtime_identity": identity_fixture,
+                        "runtime_adapter": adapter_fixture}}
+    product = {"browser": {"runtime_identity": identity_fixture,
+                           "runtime_adapter": adapter_fixture}}
+    browsers = {"engines": {"chrome": {"runtime_identity": identity_fixture,
+                                        "runtime_adapter": adapter_fixture}}}
     identities = chrome_runtime_identities(staged, soak, product, browsers)
     assert all(identity == identities[0] for identity in identities[1:])
     mutated = json.loads(json.dumps(product))
     mutated["browser"]["runtime_identity"]["executable"]["sha256"] = "f" * 64
     identities = chrome_runtime_identities(staged, soak, mutated, browsers)
     assert not all(identity == identities[0] for identity in identities[1:])
+    adapters = chrome_runtime_adapters(staged, soak, product, browsers)
+    assert all(adapter == adapters[0] for adapter in adapters[1:])
+    adapter_failures: list[str] = []
+    check_runtime_adapter(adapter_fixture, "fixture", adapter_failures)
+    assert not adapter_failures
+    adapter_mutations = (
+        lambda value: value.pop("reason"),
+        lambda value: value.update(status="REJECTED"),
+        lambda value: value.update(present=False),
+        lambda value: value.update(platform="win32"),
+        lambda value: value.update(powerPreference="low-power"),
+        lambda value: value.update(isFallbackAdapter=None),
+        lambda value: value["info"].update(architecture="llvmpipe"),
+        lambda value: value["info"].update(architecture="", device=""),
+        lambda value: value.update(softwareMatches=["fixture"]),
+        lambda value: value.update(extra=True),
+    )
+    for mutate_adapter in adapter_mutations:
+        candidate = json.loads(json.dumps(adapter_fixture))
+        mutate_adapter(candidate)
+        failures: list[str] = []
+        check_runtime_adapter(candidate, "fixture mutation", failures)
+        assert failures
+    mutated_adapter_product = json.loads(json.dumps(product))
+    mutated_adapter_product["browser"]["runtime_adapter"]["info"]["device"] = "other"
+    adapters = chrome_runtime_adapters(staged, soak, mutated_adapter_product, browsers)
+    assert not all(adapter == adapters[0] for adapter in adapters[1:])
     diagnostics_failures: list[str] = []
     check_early_diagnostics({"schema": 1, "preload": True, "snapshot": []},
                             "fixture", diagnostics_failures)
@@ -1789,6 +1924,7 @@ def runtime_consumer_selfcheck() -> None:
         assert result.returncode == 0 and marker in result.stdout, result.stderr or result.stdout
     composer_source = (SELF / "make_staged_receipt.py").read_text(encoding="utf-8")
     assert composer_source.count("check_runtime_identity(") >= 2
+    assert composer_source.count("check_runtime_adapter(") >= 2
     assert composer_source.count("check_early_diagnostics(") >= 2
     matrix_source = (SELF / "browser_matrix.mjs").read_text(encoding="utf-8")
     assert "receipt.verdict = matrixPass ? \"PASS\" : \"INCOMPLETE\"" in matrix_source
@@ -1799,7 +1935,8 @@ def runtime_consumer_selfcheck() -> None:
     )
     assert "browserMatrixInvocationPass(priorExists, matrixPass, pass)" in matrix_source
     linux_positive, linux_negative = linux_runtime_verifier_selfcheck()
-    print("M8_RUNTIME_CONSUMER_SELFCHECK_PASS cross_lane=5 negative=identity+diagnostics "
+    print("M8_RUNTIME_CONSUMER_SELFCHECK_PASS cross_lane=identity5+adapter5 "
+          f"adapter=1+{len(adapter_mutations)} negative=identity+diagnostics "
           f"linux={linux_positive}+{linux_negative} composer=strict matrix=exact "
           "compliance_tool=live+tamper full_stage=deterministic")
 
@@ -1841,6 +1978,11 @@ def main() -> int:
     require(all(isinstance(identity, dict) for identity in chrome_identities)
             and all(identity == chrome_identities[0] for identity in chrome_identities[1:]),
             "Chrome runtime identity differs across staged/performance/soak/product/matrix lanes",
+            technical_failures)
+    chrome_adapters = chrome_runtime_adapters(staged, soak, product, browsers)
+    require(all(isinstance(adapter, dict) for adapter in chrome_adapters)
+            and all(adapter == chrome_adapters[0] for adapter in chrome_adapters[1:]),
+            "WebGPU adapter differs across staged/performance/soak/product/matrix lanes",
             technical_failures)
     require(soak_browser.get("version") == chrome.get("actual_version"),
             "soak Chrome version differs from the signed current-browser receipt", technical_failures)

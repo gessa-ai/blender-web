@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Shared fail-closed runtime identity and first-script diagnostics evidence for
-// M8 browser producers. Darwin binds the canonical notarized app. Linux binds
-// the canonical vendor-owned ELF through dpkg plus signed APT metadata.
+// Shared fail-closed runtime identity, hardware-adapter, and first-script
+// diagnostics evidence for M5-M8 browser producers. Darwin binds the canonical
+// notarized app. Linux binds the canonical vendor-owned ELF through dpkg plus
+// signed APT metadata.
 
 "use strict";
 
@@ -17,6 +18,19 @@ import {isAbsolute, normalize} from "node:path";
 const HEX_SHA256 = /^[0-9a-f]{64}$/;
 const HEX_CDHASH = /^[0-9a-f]{40,64}$/;
 const HEX_FINGERPRINT = /^[0-9A-F]{40}$/;
+const RUNTIME_ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1";
+const RUNTIME_ADAPTER_FIELDS = Object.freeze([
+  "contract", "status", "present", "platform", "powerPreference",
+  "isFallbackAdapter", "info", "softwareMatches", "reason",
+]);
+const RUNTIME_ADAPTER_INFO_FIELDS = Object.freeze([
+  "vendor", "architecture", "device", "description",
+]);
+const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
+  "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
+  "microsoft basic render", "warp",
+]);
+const ADAPTER_PROBE_URL = new URL("../../GOAL.md", import.meta.url).href;
 
 const DARWIN_CONTRACTS = Object.freeze({
   chrome: Object.freeze({
@@ -58,6 +72,87 @@ const LINUX_CONTRACTS = Object.freeze({
 
 function fail(message) {
   throw new Error(`M8 runtime evidence: ${message}`);
+}
+
+export function classifyRuntimeAdapter(raw, platform = process.platform) {
+  const info = Object.fromEntries(RUNTIME_ADAPTER_INFO_FIELDS.map((key) =>
+    [key, typeof raw?.info?.[key] === "string" ? raw.info[key] : ""]));
+  const identity = Object.values(info).join(" ").trim().toLowerCase();
+  const detailIdentity = [info.architecture, info.device, info.description].join(" ").trim();
+  const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
+  if (/(^|[^a-z0-9])cpu([^a-z0-9]|$)/.test(identity)) softwareMatches.push("cpu");
+  const present = raw?.present === true;
+  const isFallbackAdapter = typeof raw?.isFallbackAdapter === "boolean" ?
+    raw.isFallbackAdapter : null;
+  let reason = "accepted-hardware";
+  if (!present) reason = "adapter-absent";
+  else if (isFallbackAdapter === true) reason = "fallback-adapter";
+  else if (isFallbackAdapter !== false) reason = "fallback-status-absent";
+  else if (!identity || !detailIdentity) reason = "adapter-info-absent";
+  else if (softwareMatches.length) reason = "software-adapter";
+  return {
+    contract: RUNTIME_ADAPTER_CONTRACT,
+    status: reason === "accepted-hardware" ? "ACCEPTED" : "REJECTED",
+    present,
+    platform,
+    powerPreference: "high-performance",
+    isFallbackAdapter,
+    info,
+    softwareMatches,
+    reason,
+  };
+}
+
+export function validateRuntimeAdapter(value, platform = process.platform) {
+  const keys = value && typeof value === "object" && !Array.isArray(value) ?
+    Object.keys(value).sort() : [];
+  const info = value?.info;
+  const infoKeys = info && typeof info === "object" && !Array.isArray(info) ?
+    Object.keys(info).sort() : [];
+  const identity = RUNTIME_ADAPTER_INFO_FIELDS.map((key) => info?.[key] || "")
+    .join(" ").trim().toLowerCase();
+  const detailIdentity = [info?.architecture, info?.device, info?.description]
+    .filter((item) => typeof item === "string").join(" ").trim();
+  const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
+  if (/(^|[^a-z0-9])cpu([^a-z0-9]|$)/.test(identity)) softwareMatches.push("cpu");
+  if (JSON.stringify(keys) !== JSON.stringify([...RUNTIME_ADAPTER_FIELDS].sort()) ||
+      JSON.stringify(infoKeys) !== JSON.stringify([...RUNTIME_ADAPTER_INFO_FIELDS].sort()) ||
+      RUNTIME_ADAPTER_INFO_FIELDS.some((key) => typeof info?.[key] !== "string") ||
+      value?.contract !== RUNTIME_ADAPTER_CONTRACT || value?.status !== "ACCEPTED" ||
+      value?.present !== true || !new Set(["darwin", "linux"]).has(platform) ||
+      value?.platform !== platform ||
+      value?.powerPreference !== "high-performance" || value?.isFallbackAdapter !== false ||
+      !identity || !detailIdentity || softwareMatches.length !== 0 ||
+      !Array.isArray(value?.softwareMatches) || value.softwareMatches.length !== 0 ||
+      value?.reason !== "accepted-hardware") {
+    fail(`runtime adapter is not exact accepted hardware: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+export async function requireHardwareRuntimeAdapter(context, platform = process.platform) {
+  if (!context || typeof context.newPage !== "function") {
+    fail("browser context is absent before runtime adapter probe");
+  }
+  const page = await context.newPage();
+  try {
+    await page.goto(ADAPTER_PROBE_URL, {waitUntil: "load", timeout: 30_000});
+    const raw = await page.evaluate(async () => {
+      const adapter = await navigator.gpu?.requestAdapter({powerPreference: "high-performance"});
+      if (!adapter) return {present: false, isFallbackAdapter: null, info: null};
+      const info = adapter.info || {};
+      return {
+        present: true,
+        isFallbackAdapter: adapter.isFallbackAdapter ?? null,
+        info: Object.fromEntries(["vendor", "architecture", "device", "description"]
+          .map((key) => [key, typeof info[key] === "string" ? info[key] : ""])),
+      };
+    });
+    return validateRuntimeAdapter(classifyRuntimeAdapter(raw, platform), platform);
+  }
+  finally {
+    await page.close().catch(() => {});
+  }
 }
 
 function checkedCommand(runner, command, args) {
@@ -410,6 +505,10 @@ export function validateEarlyDiagnostics(value, label = "scenario") {
 
 export function browserMatrixRowPass(row) {
   return Boolean(row && typeof row === "object" && !Array.isArray(row) &&
+    (() => {
+      try { validateRuntimeAdapter(row.runtime_adapter); return true; }
+      catch (_) { return false; }
+    })() &&
     row.current_at_test === true && row.first_pixels === true &&
     row.interaction_smoke === true && row.offline_reload === true &&
     row.query_hooks_disabled === true && row.external_request_count === 0 &&
@@ -452,6 +551,7 @@ export function validatePriorBrowserMatrix(prior, currentChannel, sourceArtifact
   validateEarlyDiagnostics(engine.early_diagnostics?.online, `${opposite}:prior-online`);
   validateEarlyDiagnostics(engine.early_diagnostics?.offline_reload,
     `${opposite}:prior-offline-reload`);
+  validateRuntimeAdapter(engine.runtime_adapter);
   if (typeof revalidateIdentity !== "function") fail("matrix identity revalidator is absent");
   revalidateIdentity(engine.runtime_identity, opposite);
   return engine;

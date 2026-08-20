@@ -15,6 +15,7 @@ import {
   basename, delimiter, dirname, isAbsolute, join, relative, resolve,
 } from 'path';
 import {fileURLToPath} from 'url';
+import {requireHardwareRuntimeAdapter} from '../m8-launch-gate/runtime_evidence.mjs';
 
 const DRIVER_PATH = fileURLToPath(import.meta.url);
 const HERE = dirname(DRIVER_PATH);
@@ -293,7 +294,6 @@ async function runBrowser(options) {
   const artifacts = Object.fromEntries(Object.entries(artifactPaths).map(([key, path]) =>
     [key, repositoryIdentity(path)]));
   const {chromium, root: playwrightRoot, version: playwrightVersion} = resolvePlaywright();
-  reserveReceiptDirectory(outRoot, outDir);
 
   const url = `${options.base}/windowed.html?gate=1280x720&pyexpr=${encodeURIComponent(pyexpr)}`;
   const consoleLines = [
@@ -310,13 +310,23 @@ async function runBrowser(options) {
   let page = null;
   let result = null;
   let browserLoadedArtifacts = null;
+  let runtimeAdapter = null;
   let verdict = 'FAIL';
+  browser = await chromium.launch({headless: false, args: BROWSER_ARGS});
+  browserVersion = browser.version();
+  context = await browser.newContext({
+    viewport: {width: 1280, height: 720}, deviceScaleFactor: 1,
+  });
   try {
-    browser = await chromium.launch({headless: false, args: BROWSER_ARGS});
-    browserVersion = browser.version();
-    context = await browser.newContext({
-      viewport: {width: 1280, height: 720}, deviceScaleFactor: 1,
-    });
+    runtimeAdapter = await requireHardwareRuntimeAdapter(context, process.platform);
+    reserveReceiptDirectory(outRoot, outDir);
+  }
+  catch (error) {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+    throw error;
+  }
+  try {
     page = await context.newPage();
     page.on('console', (message) => {
       const line = `[${message.type()}] ${message.text()}`;
@@ -374,13 +384,14 @@ async function runBrowser(options) {
         JSON.stringify(terminalFreeze) !== JSON.stringify(sourceFreeze) ||
         JSON.stringify(terminalDriver) !== JSON.stringify(driverIdentity)) verdict = 'FAIL';
     const receipt = {
-      schema: 'blender-web.m7-usd-browser.v2',
+      schema: 'blender-web.m7-usd-browser.v3',
       verdict,
       label: options.label,
       createdUtc: new Date().toISOString(),
       driver: driverIdentity,
       sourceFreeze,
       browser_version: browserVersion,
+      runtime_adapter: runtimeAdapter,
       artifacts,
       browser_loaded_artifacts: browserLoadedArtifacts,
       url: `${options.base}/windowed.html?gate=1280x720&pyexpr=<operator-roundtrip>`,

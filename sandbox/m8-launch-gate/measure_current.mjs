@@ -14,7 +14,7 @@ import {
 } from "./bundle_identity.mjs";
 import {
   bindRuntimeVersion, browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning,
-  requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity,
+  requireEmptyEarlyDiagnostics, requireHardwareRuntimeAdapter, revalidateBrowserRuntimeIdentity,
 } from "./runtime_evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -298,6 +298,17 @@ async function proveSemanticInteraction(page) {
 const browser = await chromium.launch({executablePath: EXECUTABLE, headless: false});
 const browserVersion = browser.version();
 const runtimeIdentity = bindRuntimeVersion(collectedRuntimeIdentity, browserVersion);
+const adapterContext = await browser.newContext();
+let runtimeAdapter;
+try {
+  runtimeAdapter = await requireHardwareRuntimeAdapter(adapterContext, HOST_PLATFORM);
+}
+catch (error) {
+  await adapterContext.close().catch(() => {});
+  await browser.close().catch(() => {});
+  throw error;
+}
+await adapterContext.close();
 const official = await officialChromeVersion(HOST_PLATFORM);
 const rows = [];
 const transportUrls = new Set([
@@ -416,7 +427,8 @@ const summary = {
   browser: {channel: "chrome", executable: EXECUTABLE, version: browserVersion,
     official_version: official.version, official_version_source: official.source,
     current_at_test: browserVersion === official.version, signing,
-    runtime_identity: runtimeIdentity, checked_at: new Date().toISOString()},
+    runtime_identity: runtimeIdentity, runtime_adapter: runtimeAdapter,
+    checked_at: new Date().toISOString()},
   source_artifacts: sourceArtifacts,
   bundle_artifacts: bundleArtifacts,
   served_bundle_sha256: expectedBundleDigest,

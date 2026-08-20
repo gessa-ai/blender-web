@@ -16,7 +16,7 @@ import {
 } from "./bundle_identity.mjs";
 import {
   bindRuntimeVersion, browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning,
-  requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity,
+  requireEmptyEarlyDiagnostics, requireHardwareRuntimeAdapter, revalidateBrowserRuntimeIdentity,
 } from "./runtime_evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -270,7 +270,16 @@ const official = await officialChromeVersion(HOST_PLATFORM);
 if (existsSync(PROFILE) && readdirSync(PROFILE).length !== 0) {
   throw new Error(`soak profile must be fresh and empty: ${PROFILE}`);
 }
-mkdirSync(ART, {recursive: true});
+const preflightBrowser = await chromium.launch({headless: false, executablePath: EXECUTABLE});
+const preflightContext = await preflightBrowser.newContext();
+let preflightAdapter;
+try {
+  preflightAdapter = await requireHardwareRuntimeAdapter(preflightContext, HOST_PLATFORM);
+}
+finally {
+  await preflightContext.close().catch(() => {});
+  await preflightBrowser.close().catch(() => {});
+}
 mkdirSync(PROFILE, {recursive: true});
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -342,6 +351,18 @@ const context = await chromium.launchPersistentContext(PROFILE, {
   viewport: {width: 1280, height: 720},
   deviceScaleFactor: 1,
 });
+let runtimeAdapter;
+try {
+  runtimeAdapter = await requireHardwareRuntimeAdapter(context, HOST_PLATFORM);
+  if (JSON.stringify(runtimeAdapter) !== JSON.stringify(preflightAdapter)) {
+    throw new Error("persistent-context WebGPU adapter differs from the pre-allocation probe");
+  }
+}
+catch (error) {
+  await context.close().catch(() => {});
+  throw error;
+}
+mkdirSync(ART, {recursive: true});
 const pages = context.pages();
 const page = pages[0] || await context.newPage();
 const actualVersion = context.browser()?.version() || "unknown";
@@ -349,7 +370,8 @@ const runtimeIdentity = bindRuntimeVersion(collectedRuntimeIdentity, actualVersi
 state.browser = {engine: "chrome", executable: EXECUTABLE, version: actualVersion,
   official_version: official.version, official_version_source: official.source,
   current_at_test: actualVersion === official.version, signing,
-  runtime_identity: runtimeIdentity, checked_at: now(), fresh_profile: true};
+  runtime_identity: runtimeIdentity, runtime_adapter: runtimeAdapter,
+  checked_at: now(), fresh_profile: true};
 
 page.on("console", (message) => {
   const text = message.text();

@@ -27,7 +27,7 @@ import {
 } from '../m8-launch-gate/bundle_identity.mjs';
 import {
   bindRuntimeVersion, browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning,
-  requireEmptyEarlyDiagnostics, revalidateBrowserRuntimeIdentity,
+  requireEmptyEarlyDiagnostics, requireHardwareRuntimeAdapter, revalidateBrowserRuntimeIdentity,
 } from '../m8-launch-gate/runtime_evidence.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
@@ -202,7 +202,6 @@ if (!isRepositoryDescendant(OUTDIR)) {
 }
 const collectedRuntimeIdentity = collectBrowserRuntimeIdentity(EXECUTABLE, identityContract);
 const artifactContract = loadArtifactContract(ROOT);
-fs.mkdirSync(OUTDIR, { recursive: true });
 const OUT = join(OUTDIR, `staged_boot_${W}x${H}.png`);
 const PROBE = '/bw/python/lib/python3.13/asyncio/tasks.py'; // deferred, byte-exact target
 const TRANSPORT_PROOF = '/.well-known/bw-transport-proof';
@@ -266,9 +265,20 @@ const receipt = {
 const browser = await chromium.launch({ headless: false, executablePath: EXECUTABLE });
 const browserVersion = browser.version();
 const runtimeIdentity = bindRuntimeVersion(collectedRuntimeIdentity, browserVersion);
-receipt.browser = {engine: 'chrome', executable: EXECUTABLE, version: browserVersion,
-  signing: legacySigning(runtimeIdentity), runtime_identity: runtimeIdentity};
 const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+let runtimeAdapter;
+try {
+  runtimeAdapter = await requireHardwareRuntimeAdapter(ctx, HOST_PLATFORM);
+}
+catch (error) {
+  await ctx.close().catch(() => {});
+  await browser.close().catch(() => {});
+  throw error;
+}
+fs.mkdirSync(OUTDIR, { recursive: true });
+receipt.browser = {engine: 'chrome', executable: EXECUTABLE, version: browserVersion,
+  signing: legacySigning(runtimeIdentity), runtime_identity: runtimeIdentity,
+  runtime_adapter: runtimeAdapter};
 await ctx.addInitScript(() => {
   window.__BW_STAGE1_MANUAL = true;
   window.__bwM8TrustedInputs = [];

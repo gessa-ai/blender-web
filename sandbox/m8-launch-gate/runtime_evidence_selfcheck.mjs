@@ -11,9 +11,10 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {
   bindRuntimeVersion, browserMatrixInvocationPass, browserMatrixRowPass,
-  browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning, requireEmptyEarlyDiagnostics,
+  browserIdentityContract, classifyRuntimeAdapter, collectBrowserRuntimeIdentity, legacySigning,
+  requireEmptyEarlyDiagnostics, requireHardwareRuntimeAdapter,
   revalidateBrowserRuntimeIdentity,
-  validateEarlyDiagnostics, validatePriorBrowserMatrix,
+  validateEarlyDiagnostics, validatePriorBrowserMatrix, validateRuntimeAdapter,
 } from "./runtime_evidence.mjs";
 
 const root = mkdtempSync(join(realpathSync(tmpdir()), "m8-runtime-evidence-"));
@@ -54,11 +55,32 @@ assert.deepEqual(legacySigning(boundIdentity), {
 assert.deepEqual(validateEarlyDiagnostics({schema: 1, preload: true, snapshot: []}),
   {schema: 1, preload: true, snapshot: []});
 
+const adapterFixture = classifyRuntimeAdapter({
+  present: true,
+  isFallbackAdapter: false,
+  info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: ""},
+}, process.platform);
+assert.deepEqual(validateRuntimeAdapter(adapterFixture), adapterFixture);
+let adapterProbeUrl = null;
+let adapterProbeClosed = false;
+const fakeAdapterContext = {newPage: async () => ({
+  goto: async (url) => { adapterProbeUrl = url; },
+  evaluate: async () => ({
+    present: true, isFallbackAdapter: false,
+    info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: ""},
+  }),
+  close: async () => { adapterProbeClosed = true; },
+})};
+assert.deepEqual(await requireHardwareRuntimeAdapter(fakeAdapterContext), adapterFixture);
+assert.match(adapterProbeUrl, /^file:.*\/GOAL\.md$/);
+assert.equal(adapterProbeClosed, true);
+
 const matrixRow = {
   channel: "edge",
   executable,
   actual_version: "151.0.1.2",
   runtime_identity: boundIdentity,
+  runtime_adapter: adapterFixture,
   early_diagnostics: {
     online: {schema: 1, preload: true, snapshot: []},
     offline_reload: {schema: 1, preload: true, snapshot: []},
@@ -144,6 +166,24 @@ reject("diagnostic_snapshot_nonempty", () =>
   validateEarlyDiagnostics({schema: 1, preload: true, snapshot: [{type: "error"}]}));
 reject("diagnostic_preload_false", () =>
   validateEarlyDiagnostics({schema: 1, preload: false, snapshot: []}));
+for (const [name, mutate] of [
+  ["adapter_missing_reason", (value) => { delete value.reason; }],
+  ["adapter_fallback", (value) => { value.isFallbackAdapter = true; }],
+  ["adapter_fallback_absent", (value) => { value.isFallbackAdapter = null; }],
+  ["adapter_rejected", (value) => { value.status = "REJECTED"; }],
+  ["adapter_wrong_platform", (value) => { value.platform = "win32"; }],
+  ["adapter_masked", (value) => {
+    value.info.architecture = ""; value.info.device = ""; value.info.description = "";
+  }],
+  ["adapter_llvmpipe", (value) => { value.info.architecture = "llvmpipe"; }],
+  ["adapter_cpu", (value) => { value.info.description = "CPU Vulkan adapter"; }],
+  ["adapter_claimed_match", (value) => { value.softwareMatches = ["fixture"]; }],
+  ["adapter_extra_field", (value) => { value.extra = true; }],
+]) reject(name, () => {
+  const candidate = structuredClone(adapterFixture);
+  mutate(candidate);
+  validateRuntimeAdapter(candidate);
+});
 reject("matrix_prior_invalid", () => validatePriorBrowserMatrix(
   {}, "chrome", matrixSourceArtifacts, matrixBundleArtifacts,
   matrixRow.served_bundle_sha256, Object.keys(matrixRow), () => {}));
@@ -297,6 +337,28 @@ for (const [name, source] of Object.entries(producers)) {
   assert.match(source, /requireEmptyEarlyDiagnostics\(/, `${name} omits terminal diagnostics`);
   assert.match(source, /early_diagnostics/, `${name} omits diagnostics from its receipt`);
 }
+const adapterProducers = {
+  ...producers,
+  usd: readFileSync(new URL("../m7-usd-prep/verify_browser_usd.mjs", import.meta.url), "utf8"),
+  files: readFileSync(new URL("../m7-product-gate/verify_files.mjs", import.meta.url), "utf8"),
+};
+const allocationMarkers = {
+  browser_matrix: "mkdirSync(join(HERE, \"artifacts\")",
+  product: "mkdirSync(ART",
+  performance: "mkdirSync(ART",
+  soak: "mkdirSync(PROFILE",
+  staged: "fs.mkdirSync(OUTDIR",
+  usd: "reserveReceiptDirectory(outRoot, outDir);",
+  files: "writeFileSync(options.out",
+};
+for (const [name, source] of Object.entries(adapterProducers)) {
+  const probeIndex = source.indexOf("requireHardwareRuntimeAdapter(");
+  const allocationIndex = source.indexOf(allocationMarkers[name]);
+  assert.ok(probeIndex >= 0, `${name} omits the shared hardware-adapter probe`);
+  assert.match(source, /runtime_adapter/, `${name} omits the adapter from its receipt`);
+  assert.ok(allocationIndex > probeIndex,
+    `${name} allocates receipt evidence before the hardware-adapter gate`);
+}
 assert.match(producers.browser_matrix,
   /process\.exit\(browserMatrixInvocationPass\(priorExists, matrixPass, pass\) \? 0 : 1\)/,
   "browser matrix does not exit on the completed matrix verdict after a prior row");
@@ -332,6 +394,10 @@ assert.match(producers.soak, /const NODE_VERSION = "v22\.16\.0";/,
 assert.match(producers.soak,
   /playwrightVersion !== PLAYWRIGHT_VERSION \|\| loaded\.pngjsVersion !== PNGJS_VERSION/,
   "soak producer does not enforce exact browser dependency versions");
+assert.equal((producers.soak.match(/requireHardwareRuntimeAdapter\(/g) || []).length, 2,
+  "soak producer does not gate before profile allocation and recheck its persistent context");
+assert.match(producers.soak, /JSON\.stringify\(runtimeAdapter\) !== JSON\.stringify\(preflightAdapter\)/,
+  "soak producer does not bind its persistent context to the pre-allocation adapter");
 assert.equal((producers.staged.match(/recordEarlyDiagnostics\('/g) || []).length, 3);
 assert.doesNotMatch(producers.staged, /\/Users\/paws/,
   "staged producer retains the retired macOS checkout/module root");
@@ -346,4 +412,4 @@ assert.match(producers.staged,
 rmSync(root, {recursive: true, force: true});
 console.log(`M8_RUNTIME_EVIDENCE_SELFCHECK_PASS ` +
   `positive=identity+diagnostics+matrix-prior+matrix-exit negative=${negatives.length} ` +
-  `producers=${Object.keys(producers).join(",")} checks=${negatives.join(",")}`);
+  `adapter_producers=${Object.keys(adapterProducers).join(",")} checks=${negatives.join(",")}`);

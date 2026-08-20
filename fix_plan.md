@@ -33,6 +33,13 @@ deferrable to M2. And **the whole M1 dep build is gated on disk** (see M0.8-CRIT
   hydrated worktree file; the real bootstrap, shell syntax, and REUSE checks pass. Required
   `m0` and regression gates remain honestly red only on their separately named oracle and
   strict-receipt boundaries.
+- [x] **M0-LINUX-ORACLE [driver] (10804af):** enrolled the ornith-lab user in the existing
+  Docker group, built and verified the digest-pinned Blender 5.2.0/OIIO 2.4.17.0 image, and
+  added a self-cleaning `with-env` mode that routes the protected M0 Blender and `oiiotool`
+  checks through that network-disabled image without editing `oracle/` or `harness/`. Fresh
+  immutable container proof `m0-oracle-ornith-20260820-r1` passes; `m0` is 6/6 GREEN and
+  `--regress` retains the separately named M1-M6 receipt/artifact/hardware failures. This is
+  runtime oracle evidence, not a fresh strict M0-M3 candidate or milestone promise.
 - [ ] **M0.9 [harness]** CI skeleton — deferred until a GitHub repo exists; revisit at M1 exit.
 - Harness registry H-1 (result schema), H-2 (`--regress` missing, highest), H-3 (live emcc probe)
   stay open in `notes/harness-issues.md`; driver reconciles at the M1 boundary (lift lock, fix,

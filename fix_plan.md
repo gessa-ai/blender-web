@@ -173,16 +173,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   RNA outputs byte-for-byte, and a fresh native shader-tool-to-datatoc chain matches four built
   outputs exactly. This closes stale host-tool accounting only; it does not change product
   source, a receipt, result flag, or milestone promise.
-- [ ] **M1.15b [build-deps]** **The wide grind — PARTITIONED (45ed7ab,
-  notes/m1-wave2-partition.md):** 90 unbuilt archives / 2147 TU, PROVEN compile-independent
-  (object rules order-depend only on codegen, never sibling .a) → **5-way fan-out fires on
-  CODEGEN-GREEN (M1.13a), not blenkernel-green.** P1 gpu/draw/wm/render/imbuf (341 TU,
-  HIGH-novel → strongest worker) | P2 kernel hub incl. blenkernel (453, current worker
-  continues) | P3 bmesh/nodes/modifiers (479, codex candidate) | P4 editor tools (430) |
-  P5 editor spaces (444). Patch ranges reserved P1:0100-0119 … P5:0180-0199. Cross-partition
-  escalations: DNA/RNA-regen fixes → driver-only; ED_*.hh shared-header seam (P4/P5) → P4
-  owns, P5 requests. Driver's serialized tail: SINGLE_BINARY OFF flip + `ninja
-  bmesh_core_test`. **blocked-by M1.13a (tree in use until then).**
+- [x] **M1.15b [build-deps] RECONCILED by `45ed7ab`, `aaa54c9`, `338387a`,
+  `3466022`, `48f04de`, `a3f73b5`, and `db88bd3`:** the five disjoint lanes compiled all
+  90 planned production archives / 2,147 TU after CODEGEN-GREEN. P1, P3, P4, and P5 needed no
+  source fixes; P2 needed only the accepted Python-off `asset_system` guard in patch 0120. The
+  serialized tail linked the standalone `bmesh_core_test` after the accepted patch-0009
+  Python-off fix and passed its complete one-test upstream suite. A fresh Linux audit finds the
+  same 90 targets as nonempty Wasm archives in the current launch-enabled graph, the complete
+  locked target set is no-work, and the canonical Node runtime again passes 1/1. This closes
+  stale wide-grind accounting only; it does not change product source, a receipt, result flag,
+  or milestone promise.
 - [ ] **M1.16 [driver]** M1-boundary harness reconcile: lift lock, register `m1` scope per H-4
   (blenlib assert 1655/10-characterized), add bmesh check once M1.11 lands, re-lock, re-run
   `--scope m0` + `--regress`. **blocked-by M1.11.**

@@ -108,9 +108,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   plumbing, not a product data-generation edge. All seven Wave-2 ledger rows remain licensed and
   GPL-compatible. This closes stale Wave-2 accounting only; it does not promote a strict receipt,
   result flag, or milestone promise.
-- [ ] **M1.7 [build-deps]** TBB threading smoke over emscripten `-pthread` + SharedArrayBuffer
-  (highest-risk mandatory dep, wasm-diff 4). **blocked-by M1.4** (TBB build). Verify a parallel_for
-  runs in a node worker.
+- [x] **M1.7 [build-deps] RECONCILED by `53ed467` and `3482fa0`:** Blender-pinned
+  oneTBB 2022.3.0 is harvested as real static Wasm archives, and a fresh
+  `parallel_for` run under exact emsdk Node 22.16.0 produces the exact arithmetic
+  result across multiple chunks. The smoke now invokes `EMSDK_NODE` instead of the
+  ambient host Node and rejects serial execution, non-shared Wasm memory, or generated
+  glue that does not proxy `main()` to a worker. This closes stale dependency-risk
+  accounting only; it does not promote a strict receipt, result flag, or milestone promise.
 
 ### Real configure → compile → link → run
 

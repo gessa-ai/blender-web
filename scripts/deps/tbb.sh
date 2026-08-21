@@ -24,13 +24,25 @@ source "$ROOT/tools/emsdk/emsdk_env.sh" >/dev/null 2>&1
 
 run_test() {
   local t="$SCRATCH/tbb_smoke.js"
+  local max_concurrency sum expected chunks shared_memories
   em++ -std=c++17 -pthread -fexceptions -I "$PREFIX/include" \
     "$ROOT/sandbox/tbb_smoke.cpp" "$PREFIX/lib/libtbb.a" \
     -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=8 -sEXIT_RUNTIME=1 \
     -sINITIAL_MEMORY=134217728 -sWASM_BIGINT -o "$t"
-  node "$t" | tee "$SCRATCH/tbb_smoke.out"
+  "${EMSDK_NODE:?emsdk_env.sh did not set EMSDK_NODE}" "$t" | tee "$SCRATCH/tbb_smoke.out"
+  max_concurrency="$(sed -n 's/^max_concurrency=//p' "$SCRATCH/tbb_smoke.out")"
+  read -r sum expected chunks < <(
+    sed -n 's/^sum=\([0-9][0-9]*\) expected=\([0-9][0-9]*\) chunks=\([0-9][0-9]*\)$/\1 \2 \3/p' \
+      "$SCRATCH/tbb_smoke.out"
+  )
+  [[ "$max_concurrency" =~ ^[0-9]+$ ]] && [ "$max_concurrency" -gt 1 ]
+  [ "$sum" = "499999500000" ] && [ "$expected" = "$sum" ] && [ "$chunks" -gt 1 ]
+  [ "$(grep -c -x TBB_WASM_OK "$SCRATCH/tbb_smoke.out")" -eq 1 ]
+  grep -q 'SharedArrayBuffer' "$t"
+  grep -q 'var entryFunction = __emscripten_proxy_main;' "$t"
+  shared_memories="$("$ROOT/tools/emsdk/upstream/bin/wasm-dis" "${t%.js}.wasm" | grep -c ' shared')"
+  [ "$shared_memories" -gt 0 ]
   rm -f "$t" "${t%.js}.wasm"
-  grep -q TBB_WASM_OK "$SCRATCH/tbb_smoke.out"
 }
 
 if [ "$FORCE" = 0 ] && [ -f "$PREFIX/lib/libtbb.a" ]; then

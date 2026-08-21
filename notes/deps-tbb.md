@@ -69,7 +69,9 @@ Compile+run recipe (working):
       sandbox/tbb_smoke.cpp lib/wasm/lib/libtbb.a \
       -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=8 -sEXIT_RUNTIME=1 \
       -sINITIAL_MEMORY=134217728 -sWASM_BIGINT -o tbb_smoke.js
-    node tbb_smoke.js
+    "$EMSDK_NODE" tbb_smoke.js
     # -> max_concurrency=14 / sum=499999500000 expected=499999500000 / TBB_WASM_OK
 
 Reproduce via `scripts/deps/tbb.sh` (idempotent; `--test` reruns the smoke test).
+The recipe invokes emsdk's pinned Node directly and rejects a serial result, a
+non-shared Wasm memory, or generated glue that does not proxy `main()` to a worker.

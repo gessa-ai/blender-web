@@ -413,20 +413,16 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   GHOST_ContextWGPUWeb::getSurface() each activate() (~40-60 LOC wgpu_context.{cc,hh} +
   store ghost_context_). Then re-run windowed boot → BLENDER UI PIXELS → screenshot vs M4
   golden (idiff, pinned adapter).
-- [ ] ~~M4.T11-old~~ (superseded by result above) — device await under ADR-006.
-  Port facts (characterized): TimedWaitAny-featured CreateInstance returns NULL without
-  asyncify/JSPI (webgpu.cpp:1643); WaitAny(...,0) asyncify-free = abort(TODO); a blocked
-  worker cannot resolve its own JS promises (Atomics.wait stops that worker's event loop) —
-  so same-thread blocking waits on WebGPU JS objects are structurally impossible without
-  JSPI. **DRIVER DIRECTION: option-(a) family** — device acquired ASYNC where an unblocked
-  event loop exists (main thread pre-main in boot-windowed.js via Module, and/or async-mode
-  instance + ProcessEvents pumping), delivered to the WM worker's GHOST context before
-  initializeDrawingContext needs it; bounded (b)-hybrid acceptable (deferred context
-  finalize) if the port's cross-thread import demands it; (c) JSPI-reversal REJECTED
-  (ADR-006 stands). Worker probes the pinned port's ACTUAL capabilities (cross-thread
-  import? ProcessEvents callback delivery? WebGPU-in-worker table ownership?) and lands the
-  minimal boot path; findings feed ADR-007 (driver writes it from empirical results).
-  NOTE: same knot governs F9-D readbacks — report what the port offers there too.
+- [x] **M4.T11 device-await plan RECONCILED by `d4708b9` and ADR-007:** the pinned-port
+  probes falsified main-thread device handoff and same-thread blocking waits: WebGPU objects
+  are realm-local, while a blocked WM worker cannot resolve its own promise. The accepted
+  path acquires the adapter/device asynchronously on that WM worker before `main()` through
+  the `wgpu-preinit-worker.js` post-js shim, then GHOST imports the stored device with
+  `emscripten_webgpu_get_device()` and a featureless `CreateInstance(nullptr)`. Historical
+  live proof reaches GPU initialization, Python/BPY startup, and the `WM_main` loop without
+  JSPI/Asyncify; later async readback work retains ADR-007's kick-then-consume contract.
+  This closes only the superseded device-await plan. **M4-LINUX-REPLAY** still owns the fresh
+  Linux binding/receipt and remains blocked by s7's llvmpipe-only adapter.
 - [x] **M3.F6 [gpu-backend laneA r10]** DONE (0055-0058, b0c94ce/fd007d8/cc3f34c/7b9ea5a, all
   reverse-apply clean): imm wiring → immediate 2/2; compute_dispatch real (pipeline cached ON
   WGPUShader — pointer-keyed pool rejected as stale-address bug) → push_constants **10/10**;

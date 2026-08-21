@@ -325,16 +325,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   arrival order picking which source hit the always-firing assert first) — data-race item
   CLOSED unless it reproduces post-0060. Evidence: sandbox/gpu-render-harness/evidence/
   intab_gpu_init_shader_finalize.txt.
-- [ ] **M3.F9 [gpu-backend r11-resumed]** Browser-run backend blockers (routed from F5, all
-  characterized with transcript evidence): (A) `WGPUBackend` never calls `platform_init` →
-  GPG.initialized assert (gpu_platform.cc:179) — fix in init_resources; (B) emdawnwebgpu
-  objects are per-thread JS-table — set `GCaps.use_main_context_workaround=true` under
-  `__EMSCRIPTEN__` (Blender's existing mechanism); (C) in-tab immBegin asserts prim_type
-  (gpu_immediate.cc:204) — investigate; (D) sync readback WaitAny cannot block browser main
-  thread → garbage pixels — EXPECTED TO VANISH in the real windowed binary (PROXY_TO_PTHREAD:
-  WM worker can Atomics.wait; device lives on WM worker) — verify at M4 boot, harness keeps
-  workaround. PLUS: npos-class sweep of gpu/intern (13 remaining npos comparisons,
-  wasm-compiled TUs only, same __EMSCRIPTEN__-guard pattern as 0060/0061).
+- [x] **M3.F9 [gpu-backend]** RECONCILED by the accepted successor rounds: patch 0075
+  publishes and clears `GPG`, and selects the Emscripten main-context workaround; patch 0055
+  constructs and activates `WGPUImmediate` (`immediate_*` 2/2); patch 0076 completed the
+  14-site `gpu/intern` wasm32 `npos` sweep. The F9-D prediction that the WM worker could block
+  was falsified at r49: a same-worker wait starves the callback that must settle it. Patches
+  0133/0138 instead provide the heap-owned tick-pumped backend primitive and exact tickets,
+  while public L-B and caller L-C remain honestly registered under the partial M5 deferral
+  `gpu-sync-readback-windowed` with its named structural blocker. This closes the stale F9
+  umbrella accounting only; it makes no synchronous-caller, M5, or fresh Linux runtime claim.
 - [x] **M3-hygiene [driver, boundary]** CLOSED (`5423913` + `904a5a8`, Linux replay
   `20260821T011519-2745630`): `patches/series` records the numbered development-history order,
   including the 0016b/0016c deviation. Because later shared-lane preimages are mutually

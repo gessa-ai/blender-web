@@ -680,6 +680,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   no-allocation cases; the real OFF product assembles without launching a browser. This is not
   the shipping APPLY/staged path and creates no adapter, profile, product, or M8 receipt. See
   `notes/m8-monolithic-deploy-linux-portability-20260821.md`.
+- [x] **STUCK-20260820-S7 [driver, diagnosis-only]:** seven consecutive post-compliance
+  iterations changed no harness suite result because the same llvmpipe-only s7 condition blocks
+  the complete M0-M3 manifest and every APPLY/browser receipt. Fresh `vulkaninfo` still reports
+  exactly one CPU llvmpipe device; current strict producers and consumers already reject it
+  before evidence allocation. The resume path is split into external ICD/session recovery,
+  accepted-adapter proof, M4 CAPTURE/APPLY/rebind, exact M3 replay, then aggregate/live gates.
+  No receipt, profile, result, deferral, or promise changed. See `notes/stuck-2026-08-20.md`.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

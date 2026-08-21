@@ -90,8 +90,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   emitted as a standalone archive, with its installed detail headers and MIT license accounted
   under the OIIO dependency row. The former disk blocker is resolved. This closes stale Wave-0
   accounting only; it does not promote a strict receipt, result flag, or milestone promise.
-- [ ] **M1.5 [build-deps]** Cross-compile Wave-1: OpenEXR (Imath,zlib), libtiff (zlib,jpeg).
-  **blocked-by M1.4.**
+- [x] **M1.5 [build-deps] RECONCILED by `7f5ca60`:** OpenEXR 3.4.10 and libtiff 4.7.1
+  are harvested as static pthread Wasm archives with headers and CMake consumer packages.
+  OpenEXR's pinned closure uses external Imath, libdeflate 1.18, and generic OpenJPH 0.25.2;
+  TIFF binds the prefix's zlib and libjpeg while optional codecs, tools, tests, and docs stay
+  disabled. The exported targets preserve those transitive links, and a fresh downstream Wasm
+  smoke writes and reads a ZIP-compressed EXR plus a DEFLATE TIFF under Node. All four runtime
+  dependencies remain licensed and GPL-compatible in `ledger/deps.json`. This closes stale
+  Wave-1 accounting only; it does not promote a strict receipt, result flag, or milestone promise.
 - [ ] **M1.6 [build-deps]** Cross-compile Wave-2: **OpenImageIO** trimmed to EXR/TIFF/PNG/JPEG
   readers only (deps: EXR,Imath,fmt,robin-map,pugixml,tiff,jpeg,png,zlib,TBB), PLUS build a
   **native host `oiiotool`** (runs at Blender build time for data-gen). **blocked-by M1.5.**

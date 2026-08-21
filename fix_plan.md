@@ -265,17 +265,15 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   130-B LFS pointers). **DRIVER DECIDED: cheap LFS pull APPROVED (38.4 MB/89 files →
   ~doubles suites to ~75; dispatched). Full 0.76 GB pull deferred; render/GPU 447 MB never
   needed for tier-b.**
-- [~] **M2.6-RECONCILE [driver] blocked-by one fresh 75-row confirmation after r7b exact
-  `bl_animation_nla_strip` expected-failure-prefix repair:** r7b used a fresh pinned upstream
-  freeze (receipt sha256:57b9f0e9a504), completed 34 rows, and captured selected row 35 before its
-  passing native combined stream placed exact unittest progress `..x...` before the adjacent
-  allocator/banner and the final `.` after it. Wasm emitted the same `..x....` sequence
-  contiguously. Producer and independent verifier now byte-splice only that exact native prefix
-  for that exact suite; wrong-suite, Wasm, extra-marker, and near-match layouts fail. The captured
-  pair replays identically at 125 bytes, sha256:f63fe0d68b8f; all 75 saved r6+r7b normalized rows
-  replay byte-for-byte; runner 23/192, aggregate 2/156, composer 1/6, and adapter 3/10 adversarial
-  checks are green. Per the repeated-blocker/no-retry rule no r8 ran; producer receipts,
-  deferrals, and pass flags remain unchanged pending one fresh next-iteration replay.
+- [x] **M2.6-RECONCILE [driver] CLOSED by fresh Linux r8:** a new pinned upstream freeze
+  (sha256:c0b961e0498a) and the exact container-oracle/Node 22.16.0 matrix completed all 75 rows
+  without exposing another stream layout. Receipt sha256:7b78f3f26cf9 records 65 exact parity
+  passes, 3 existing pass-with-deferral rows, and 7 existing registry-mapped deferred failures.
+  The independent verifier replayed every raw native/Wasm log and all staged runtime assets;
+  runner, aggregate, composer, and strict-adapter adversarial checks remain green. This closes the
+  stale tier-(b) replay accounting only. Aggregate `m2b` remains honestly RED until the complete
+  M0-M3 strict candidate exists; no product, upstream, harness, result flag, deferral, or milestone
+  promise changed.
 - [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
   JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
   suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS

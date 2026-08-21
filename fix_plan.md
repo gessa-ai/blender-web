@@ -329,9 +329,11 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   WM worker can Atomics.wait; device lives on WM worker) — verify at M4 boot, harness keeps
   workaround. PLUS: npos-class sweep of gpu/intern (13 remaining npos comparisons,
   wasm-compiled TUs only, same __EMSCRIPTEN__-guard pattern as 0060/0061).
-- [ ] **M3-hygiene [driver, boundary]** Audit rec (reports/audit-20260805.md, MINOR): write a
-  `patches/series` apply-order manifest (0016b-after-0019/0021 class is currently only in
-  progress.txt prose); reproducibility-from-patches depends on it.
+- [x] **M3-hygiene [driver, boundary]** CLOSED (`5423913` + `904a5a8`, Linux replay
+  `20260821T011519-2745630`): `patches/series` records the numbered development-history order,
+  including the 0016b/0016c deviation. Because later shared-lane preimages are mutually
+  dependent, `patches/canonical` now names the SHA-256-bound squashed clean-pin authority;
+  the default replayer reproduces all 257 concrete upstream paths byte-for-byte.
 
 ### M4 T9 RESULT (2026-08-05, e48906b) + the new windowed gate
 

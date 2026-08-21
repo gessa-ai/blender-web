@@ -18,6 +18,39 @@ import zlib
 
 
 DRIVER = Path(__file__).with_name("verify_blender_split_runtime.mjs")
+REPO = DRIVER.resolve().parents[2]
+NODE_VERSION = "v22.16.0"
+
+
+def resolve_node_binary() -> Path:
+    candidates = [
+        os.environ.get("BW_NODE_BINARY"),
+        REPO / "tools/emsdk/node/22.16.0_64bit/bin/node",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate).resolve()
+        if path.is_file():
+            version = subprocess.run(
+                [str(path), "--version"], check=False, capture_output=True, text=True
+            )
+            if version.returncode == 0 and version.stdout.strip() == NODE_VERSION:
+                return path
+    raise AssertionError(f"exact Node {NODE_VERSION} executable unavailable")
+
+
+def resolve_node_modules() -> Path:
+    candidates: list[str | Path] = []
+    for variable in ("BW_NODE_MODULES", "NODE_PATH"):
+        if value := os.environ.get(variable):
+            candidates.extend(item for item in value.split(os.pathsep) if item)
+    candidates.extend((REPO / ".m4-node/node_modules", REPO / "node_modules"))
+    for candidate in candidates:
+        path = Path(candidate).resolve()
+        if (path / "pngjs/package.json").is_file():
+            return path
+    raise AssertionError("pngjs module root unavailable; set BW_NODE_MODULES")
 
 
 def png_chunk(kind: bytes, payload: bytes) -> bytes:
@@ -100,17 +133,14 @@ if (renderPngProof(encoded(32, 32, false)).pass) throw new Error('black accepted
 if (renderPngProof(encoded(31, 32, true)).pass) throw new Error('wrong dimensions accepted');
 console.log('BW_RUNTIME_RENDER_NODE_ORACLE PASS positive=1 negatives=2');
 """
-    node_modules = (
-        os.environ.get("BW_NODE_MODULES")
-        or os.environ.get("NODE_PATH")
-        or "/Users/paws/plushly/game-platform/node_modules"
-    )
+    node_binary = resolve_node_binary()
+    node_modules = resolve_node_modules()
     result = subprocess.run(
-        ["node", "-e", script],
+        [str(node_binary), "-e", script],
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "NODE_PATH": node_modules},
+        env={**os.environ, "NODE_PATH": str(node_modules)},
     )
     assert result.returncode == 0, result.stderr
     assert "BW_RUNTIME_RENDER_NODE_ORACLE PASS positive=1 negatives=2" in result.stdout

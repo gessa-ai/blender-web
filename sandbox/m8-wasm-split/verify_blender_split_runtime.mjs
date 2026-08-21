@@ -8,21 +8,44 @@
 
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import {
+  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync,
+  writeFileSync,
+} from 'fs';
+import { tmpdir } from 'os';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import {
   validateMinimumWorkerCensus,
   validateSplitArtifactIdentity,
 } from './runtime_split_preflight.mjs';
+import { requireHardwareRuntimeAdapter } from '../m8-launch-gate/runtime_evidence.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
+const DRIVER_PATH = fileURLToPath(import.meta.url);
 const FINALIZER = join(REPO, 'scripts/finalize-wasm-split.py');
-const MODULES = '/Users/paws/plushly/game-platform/node_modules';
-const require = createRequire(join(process.env.NODE_PATH || MODULES, 'package.json'));
-const { chromium } = require('playwright');
-const { PNG } = require('pngjs');
+const RUNTIME_EVIDENCE = join(REPO, 'sandbox/m8-launch-gate/runtime_evidence.mjs');
+const DEFAULT_OUT_ROOT = join(HERE, 'runtime-evidence');
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(REPO, '.m4-node/node_modules'),
+  join(REPO, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+].filter(Boolean).flatMap((entry) => entry.split(delimiter)).filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const NODE_VERSION = 'v22.16.0';
+const PLAYWRIGHT_VERSION = '1.61.1';
+const PNGJS_VERSION = '7.0.0';
+const CHROMIUM_VERSION = '149.0.7827.55';
+const BROWSER_ARGS = Object.freeze([
+  '--enable-unsafe-webgpu',
+  ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
+]);
+let PNG = null;
 
 const PY_MONITOR = String.raw`
 import bpy,hashlib,json,os,sys,time,traceback
@@ -141,12 +164,110 @@ def _bwsr_poll():
 bpy.app.timers.register(_bwsr_poll,first_interval=0.0,persistent=True)
 `.trim();
 
+function isDescendant(root, path, allowRoot = false) {
+  const rel = relative(resolve(root), resolve(path));
+  return (allowRoot || rel !== '') && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function requireCanonicalFile(path, description) {
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isFile() || realpathSync(absolute) !== absolute) {
+    throw new Error(`${description} is not a canonical regular file: ${absolute}`);
+  }
+  return absolute;
+}
+
+function requireCanonicalDirectory(path, description) {
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(absolute) !== absolute) {
+    throw new Error(`${description} is not a canonical directory: ${absolute}`);
+  }
+  return absolute;
+}
+
+function requireSupportedPlatform(platform = process.platform) {
+  if (!['darwin', 'linux'].includes(platform)) {
+    throw new Error(`split runtime proof supports only darwin/linux, got ${platform}`);
+  }
+}
+
+function requireNodeVersion(version = process.version) {
+  if (version !== NODE_VERSION) throw new Error(`Node ${NODE_VERSION} required, got ${version}`);
+}
+
+function resolveBrowserDependencies(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      playwrightVersion: require('playwright/package.json').version,
+      PNG: require('pngjs').PNG,
+      pngjsVersion: require('pngjs/package.json').version,
+    };
+  },
+) {
+  const errors = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium || !loaded?.PNG) throw new Error('browser dependency exports are absent');
+      if (loaded.playwrightVersion !== PLAYWRIGHT_VERSION || loaded.pngjsVersion !== PNGJS_VERSION) {
+        throw new Error(`versions playwright=${loaded.playwrightVersion} pngjs=${loaded.pngjsVersion}`);
+      }
+      return { ...loaded, root };
+    }
+    catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve exact browser dependencies; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function reserveEvidenceDirectory(outRoot, outDir) {
+  if (!isDescendant(REPO, outRoot) || dirname(outDir) !== outRoot || existsSync(outDir)) {
+    throw new Error(`runtime evidence path is unsafe or already exists: ${outDir}`);
+  }
+  mkdirSync(outRoot, { recursive: true });
+  requireCanonicalDirectory(outRoot, 'runtime evidence root');
+  mkdirSync(outDir);
+  requireCanonicalDirectory(outDir, 'runtime immutable run directory');
+}
+
+async function acceptHardwareThenReserve(
+  context,
+  outRoot,
+  outDir,
+  probe = requireHardwareRuntimeAdapter,
+  reserve = reserveEvidenceDirectory,
+  platform = process.platform,
+) {
+  const adapter = await probe(context, platform);
+  reserve(outRoot, outDir);
+  return adapter;
+}
+
+function cleanupTemporaryProfile(path) {
+  if (!existsSync(path)) return;
+  const absolute = resolve(path);
+  const info = lstatSync(absolute);
+  if (info.isSymbolicLink() || !info.isDirectory() ||
+      realpathSync(dirname(absolute)) !== realpathSync(tmpdir()) ||
+      !basename(absolute).startsWith('bw-split-runtime-')) {
+    throw new Error(`refusing unsafe temporary profile cleanup: ${absolute}`);
+  }
+  rmSync(absolute, { recursive: true });
+}
+
 function parseArgs(argv) {
-  const value = { port: 8165, run: null, outRoot: join(HERE, 'runtime-evidence'), timeoutMs: 240000,
-    serverLog: null, threads: 1, expectedWorkers: 8 };
+  const value = { port: 8165, run: null, outRoot: DEFAULT_OUT_ROOT, timeoutMs: 240000,
+    serverLog: null, threads: 1, expectedWorkers: 8, selfcheck: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--port') value.port = Number(argv[++i]);
+    if (arg === '--selfcheck') value.selfcheck = true;
+    else if (arg === '--port') value.port = Number(argv[++i]);
     else if (arg === '--run') value.run = argv[++i];
     else if (arg === '--out-root') value.outRoot = resolve(argv[++i]);
     else if (arg === '--timeout-ms') value.timeoutMs = Number(argv[++i]);
@@ -155,8 +276,20 @@ function parseArgs(argv) {
     else if (arg === '--expected-workers') value.expectedWorkers = Number(argv[++i]);
     else throw new Error(`unknown arg ${arg}`);
   }
-  if (!value.run || !/^[a-z0-9][a-z0-9._-]*$/i.test(value.run)) throw new Error('safe --run required');
+  if (value.selfcheck) {
+    if (argv.length !== 1) throw new Error('--selfcheck cannot be combined with runtime options');
+    return value;
+  }
+  if (!value.run || value.run.length > 80 || !/^[a-z0-9][a-z0-9._-]*$/i.test(value.run)) {
+    throw new Error('safe 1..80 byte --run required');
+  }
   if (!value.serverLog) throw new Error('--server-log from serve_split.py is required');
+  if (!Number.isSafeInteger(value.port) || value.port < 1 || value.port > 65535) {
+    throw new Error('safe --port in [1,65535] required');
+  }
+  if (!Number.isSafeInteger(value.timeoutMs) || value.timeoutMs < 1000 || value.timeoutMs > 600000) {
+    throw new Error('safe --timeout-ms in [1000,600000] required');
+  }
   if (value.threads !== null && (!Number.isSafeInteger(value.threads) || value.threads < 1 || value.threads > 64)) {
     throw new Error('safe --threads in [1,64] required');
   }
@@ -231,15 +364,134 @@ async function preserveGuestRender(page, producer, hostPath) {
     producer, artifact: fileReceipt(hostPath), ...proof };
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
+async function runSelfcheck() {
+  requireNodeVersion();
+  requireSupportedPlatform();
+  let positive = 0;
+  let negative = 0;
+  const check = (condition, message) => {
+    if (!condition) throw new Error(`selfcheck: ${message}`);
+    positive++;
+  };
+  const reject = (name, callback) => {
+    try { callback(); }
+    catch (_) { negative++; return; }
+    throw new Error(`selfcheck: ${name} was accepted`);
+  };
+  const rejectAsync = async (name, callback) => {
+    try { await callback(); }
+    catch (_) { negative++; return; }
+    throw new Error(`selfcheck: ${name} was accepted`);
+  };
+
+  const parsed = parseArgs([
+    '--port', '8165', '--run', 'ornith-r1', '--out-root', DEFAULT_OUT_ROOT,
+    '--timeout-ms', '240000', '--server-log', join(REPO, 'sandbox/server.jsonl'),
+    '--threads', '1', '--expected-workers', '8',
+  ]);
+  check(parsed.port === 8165 && parsed.run === 'ornith-r1' && parsed.outRoot === DEFAULT_OUT_ROOT &&
+    parsed.timeoutMs === 240000 && parsed.threads === 1 && parsed.expectedWorkers === 8,
+  'runtime invocation parser drifted');
+  check(parseArgs(['--selfcheck']).selfcheck === true, 'self-check parser drifted');
+  for (const [name, args] of [
+    ['combined_selfcheck', ['--selfcheck', '--run', 'bad']],
+    ['missing_run', ['--server-log', join(REPO, 'sandbox/server.jsonl')]],
+    ['unsafe_run', ['--run', '../bad', '--server-log', join(REPO, 'sandbox/server.jsonl')]],
+    ['long_run', ['--run', 'a'.repeat(81), '--server-log', join(REPO, 'sandbox/server.jsonl')]],
+    ['missing_server_log', ['--run', 'bad']],
+    ['bad_port', ['--run', 'bad', '--server-log', join(REPO, 'sandbox/server.jsonl'), '--port', '0']],
+    ['bad_timeout', ['--run', 'bad', '--server-log', join(REPO, 'sandbox/server.jsonl'),
+      '--timeout-ms', '999']],
+    ['bad_threads', ['--run', 'bad', '--server-log', join(REPO, 'sandbox/server.jsonl'),
+      '--threads', '65']],
+    ['bad_workers', ['--run', 'bad', '--server-log', join(REPO, 'sandbox/server.jsonl'),
+      '--expected-workers', '129']],
+  ]) reject(name, () => parseArgs(args));
+
+  const chromiumToken = {};
+  const pngToken = {};
+  const synthetic = resolveBrowserDependencies(['/missing', '/fixture/modules'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return { chromium: chromiumToken, PNG: pngToken,
+      playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION };
+  });
+  check(synthetic.chromium === chromiumToken && synthetic.PNG === pngToken &&
+    synthetic.root === '/fixture/modules', 'browser dependency fallback drifted');
+  reject('wrong_playwright', () => resolveBrowserDependencies(['/fixture'], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: '1.61.0', pngjsVersion: PNGJS_VERSION,
+  })));
+  reject('wrong_pngjs', () => resolveBrowserDependencies(['/fixture'], () => ({
+    chromium: chromiumToken, PNG: pngToken,
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: '6.0.0',
+  })));
+  reject('missing_exports', () => resolveBrowserDependencies(['/fixture'], () => ({
+    playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION,
+  })));
+  reject('unsupported_platform', () => requireSupportedPlatform('win32'));
+  reject('wrong_node', () => requireNodeVersion('v25.0.0'));
+
+  const fakeContext = (raw) => ({
+    async newPage() {
+      return { async goto() {}, async evaluate() { return raw; }, async close() {} };
+    },
+  });
+  let allocationCount = 0;
+  await rejectAsync('software_adapter_before_allocation', () => acceptHardwareThenReserve(
+    fakeContext({
+      present: true,
+      isFallbackAdapter: false,
+      info: { vendor: 'Mesa', architecture: 'llvmpipe', device: 'CPU', description: 'software' },
+    }), '/fixture/out', '/fixture/out/rejected', requireHardwareRuntimeAdapter,
+    () => { allocationCount++; }, 'linux'));
+  check(allocationCount === 0, 'software adapter reached immutable evidence allocation');
+  const accepted = await acceptHardwareThenReserve(fakeContext({
+    present: true,
+    isFallbackAdapter: false,
+    info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' },
+  }), '/fixture/out', '/fixture/out/accepted', requireHardwareRuntimeAdapter,
+  () => { allocationCount++; }, 'linux');
+  check(accepted.status === 'ACCEPTED' && accepted.reason === 'accepted-hardware',
+    'hardware adapter fixture was rejected');
+  check(allocationCount === 1, 'accepted hardware adapter did not allocate exactly once');
+
+  const source = readFileSync(DRIVER_PATH, 'utf8');
+  const retiredCheckout = ['', 'Users', 'paws'].join('/');
+  const retiredModules = ['plushly', 'game-platform'].join('/');
+  check(!source.includes(retiredCheckout) && !source.includes(retiredModules),
+    'retired macOS module path remains executable source');
+  check(BROWSER_ARGS.includes('--enable-unsafe-webgpu') &&
+    (process.platform === 'darwin') === BROWSER_ARGS.includes('--use-angle=metal'),
+  'platform WebGPU browser arguments drifted');
+
+  let liveRoot = null;
+  if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
+    const live = resolveBrowserDependencies();
+    check(MODULE_ROOTS.includes(live.root) && live.playwrightVersion === PLAYWRIGHT_VERSION &&
+      live.pngjsVersion === PNGJS_VERSION, 'live browser dependency resolution drifted');
+    liveRoot = live.root;
+  }
+  process.stdout.write(`BW_SPLIT_RUNTIME_SELFCHECK_PASS positive=${positive} negative=${negative} ` +
+    `platform=${process.platform} node=${NODE_VERSION} playwright=${PLAYWRIGHT_VERSION} ` +
+    `pngjs=${PNGJS_VERSION} chromium=${CHROMIUM_VERSION} ` +
+    `live=${liveRoot || 'not-requested'} browser_launches=0\n`);
+}
+
+async function main(options) {
+  requireNodeVersion();
+  requireSupportedPlatform();
   const outDir = join(options.outRoot, options.run);
-  if (existsSync(outDir)) throw new Error(`refusing overwrite ${outDir}`);
-  if (!existsSync(options.serverLog)) throw new Error(`missing active server log ${options.serverLog}`);
-  mkdirSync(options.outRoot, { recursive: true }); mkdirSync(outDir);
-  const browserProfile = join(outDir, 'chromium-profile'); mkdirSync(browserProfile);
+  if (!isDescendant(REPO, options.outRoot) || dirname(outDir) !== options.outRoot || existsSync(outDir)) {
+    throw new Error(`runtime evidence path is unsafe or already exists: ${outDir}`);
+  }
+  if (!isDescendant(REPO, options.serverLog)) {
+    throw new Error(`active server log must remain inside the repository: ${options.serverLog}`);
+  }
+  requireCanonicalFile(options.serverLog, 'active split server log');
   const bin = resolve(process.env.BLENDER_WEB_BIN || join(REPO, 'build-wasm-windowed-opt/bin'));
+  if (!isDescendant(REPO, bin)) throw new Error(`BLENDER_WEB_BIN must remain in the repository: ${bin}`);
   const splitPath = join(bin, 'blender_browser.split-build.json');
+  requireCanonicalFile(splitPath, 'APPLY split-build receipt');
   const split = JSON.parse(readFileSync(splitPath, 'utf8'));
   const splitArtifactIdentity = validateSplitArtifactIdentity(split, bin);
   const rangeSync = split.pthread_memory_range_sync;
@@ -293,6 +545,33 @@ async function main() {
   const primaryPath = resolve(split.primary.path);
   const jsPath = resolve(split.js.path);
   const dataPath = join(bin, 'blender_browser.data');
+  for (const [name, path] of Object.entries({ shardPath, primaryPath, jsPath, dataPath })) {
+    requireCanonicalFile(path, `APPLY ${name}`);
+  }
+
+  const dependencies = resolveBrowserDependencies();
+  const { chromium, root: moduleRoot, playwrightVersion, pngjsVersion } = dependencies;
+  PNG = dependencies.PNG;
+  const browserProfile = mkdtempSync(join(tmpdir(), 'bw-split-runtime-'));
+  let context = null;
+  let browserVersion = null;
+  let runtimeAdapter = null;
+  try {
+    context = await chromium.launchPersistentContext(browserProfile, {
+      headless: false, viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1,
+      args: BROWSER_ARGS,
+    });
+    browserVersion = context.browser()?.version() || null;
+    if (browserVersion !== CHROMIUM_VERSION) {
+      throw new Error(`Playwright Chromium ${CHROMIUM_VERSION} required, got ${browserVersion}`);
+    }
+    runtimeAdapter = await acceptHardwareThenReserve(context, options.outRoot, outDir);
+  }
+  catch (error) {
+    await context?.close().catch(() => {});
+    cleanupTemporaryProfile(browserProfile);
+    throw new Error(`split runtime preflight failed before evidence allocation: ${error.message}`);
+  }
 
   const started = Date.now(); const requests = []; const responses = []; const consoleLines = [];
   const pageErrors = []; const states = []; const cold = []; const armed = []; const trusted = [];
@@ -310,13 +589,8 @@ async function main() {
   let renderOutputProof = null;
   const transitionTimeline = [];
   const responsePromises = [];
-  let context = null; let browserVersion = null;
   let page;
   try {
-    context = await chromium.launchPersistentContext(browserProfile, {
-      headless: false, viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1,
-    });
-    browserVersion = context.browser()?.version();
     page = context.pages()[0] || await context.newPage();
     const cdpResponses = new Map();
     const cdp = await context.newCDPSession(page);
@@ -634,7 +908,7 @@ async function main() {
   } catch (error) { fatal = error?.stack || String(error); }
   finally {
     try { if (context) await context.close(); }
-    finally { if (existsSync(browserProfile)) rmSync(browserProfile, { recursive: true }); }
+    finally { cleanupTemporaryProfile(browserProfile); }
   }
 
   await Promise.all(responsePromises);
@@ -689,7 +963,10 @@ async function main() {
   if (firstPixels) writeFileSync(join(outDir, 'first-pixels.png.license'),
     'SPDX-FileCopyrightText: 2026 blender-web contributors\nSPDX-License-Identifier: CC0-1.0\n');
   const receipt = { schema: 'blender-web.wasm-split-runtime.v1', status: pass ? 'PASS' : 'FAIL', fatal,
-    browser: { version: browserVersion, headed: true, freshPersistentProfile: true },
+    browser: { version: browserVersion, headed: true, freshPersistentProfile: true,
+      nodeVersion: process.version, playwrightVersion, pngjsVersion, moduleRoot,
+      launchArgs: BROWSER_ARGS },
+    runtime_adapter: runtimeAdapter,
     timing: { firstPixelsMs: firstPixels?.atMs || null, interactionDoneMs,
       preloadStartedMs, preloadCompleteMs,
       firstShardRequestMs: shardRequests[0]?.atMs || null,
@@ -712,7 +989,8 @@ async function main() {
       shardResponseCount: shardResponses.length, shardPass, shardResponses, pageErrors,
       shardServerRows, externalRequestCount: external.length, gpuErrors },
     provenance: { driver: fileReceipt(fileURLToPath(import.meta.url)), splitBuild: fileReceipt(splitPath),
-      finalizer: fileReceipt(FINALIZER), pthreadMemoryRangeSync: rangeSync,
+      finalizer: fileReceipt(FINALIZER), runtimeEvidence: fileReceipt(RUNTIME_EVIDENCE),
+      pthreadMemoryRangeSync: rangeSync,
       controllerClosure, splitArtifactIdentity,
       server: fileReceipt(join(HERE, 'serve_split.py')), serverLog: fileReceipt(join(outDir, 'server.json')),
       primary: fileReceipt(primaryPath), secondary: fileReceipt(shardPath), js: fileReceipt(jsPath), data: fileReceipt(dataPath) },
@@ -722,4 +1000,10 @@ async function main() {
   if (!pass) process.exitCode = 1;
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+const invocation = parseArgs(process.argv.slice(2));
+if (invocation.selfcheck) {
+  runSelfcheck().catch((error) => { console.error(error); process.exitCode = 1; });
+}
+else {
+  main(invocation).catch((error) => { console.error(error); process.exitCode = 1; });
+}

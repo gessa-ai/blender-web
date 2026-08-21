@@ -64,6 +64,7 @@ def main() -> int:
         "capture_adapter_tests": REPO
         / "sandbox/m8-wasm-split/test_capture_profile_adapter_contract.py",
         "runtime_driver": REPO / "sandbox/m8-wasm-split/verify_blender_split_runtime.mjs",
+        "runtime_evidence": REPO / "sandbox/m8-launch-gate/runtime_evidence.mjs",
         "runtime_preflight": REPO / "sandbox/m8-wasm-split/runtime_split_preflight.mjs",
         "runtime_preflight_tests": REPO / "sandbox/m8-wasm-split/test_runtime_split_preflight.mjs",
         "runtime_state_monitor_tests": REPO / "sandbox/m8-wasm-split/test_runtime_state_monitor.py",
@@ -499,6 +500,38 @@ def main() -> int:
     ):
         if marker not in runtime_driver:
             raise RuntimeError(f"runtime controller-closure binding {marker} absent")
+    for marker in (
+        "BW_SPLIT_RUNTIME_SELFCHECK_PASS",
+        "Node ${NODE_VERSION} required",
+        "playwrightVersion: require('playwright/package.json').version",
+        "pngjsVersion: require('pngjs/package.json').version",
+        "Playwright Chromium ${CHROMIUM_VERSION} required",
+        "--enable-unsafe-webgpu",
+        "acceptHardwareThenReserve(context, options.outRoot, outDir)",
+        "runtime_adapter: runtimeAdapter",
+        "runtimeEvidence: fileReceipt(RUNTIME_EVIDENCE)",
+        "split runtime preflight failed before evidence allocation",
+        "software adapter reached immutable evidence allocation",
+    ):
+        if marker not in runtime_driver:
+            raise RuntimeError(f"runtime portability/adapter contract {marker} absent")
+    runtime_adapter_guard = runtime_driver.split(
+        "async function acceptHardwareThenReserve(", 1
+    )[1].split("function cleanupTemporaryProfile", 1)[0]
+    ordered(runtime_adapter_guard, [
+        ("const adapter = await probe(context, platform);",
+         "runtime hardware adapter acceptance"),
+        ("reserve(outRoot, outDir);",
+         "runtime immutable evidence allocation"),
+    ])
+    for marker in (
+        "export async function requireHardwareRuntimeAdapter",
+        "fallback-status-absent",
+        "software-adapter",
+        "adapter-info-absent",
+    ):
+        if marker not in source["runtime_evidence"]:
+            raise RuntimeError(f"shared runtime adapter contract {marker} absent")
     runtime_preflight = source["runtime_preflight"]
     for marker in (
         "exact-served-split-artifact-identity-v1",
@@ -570,9 +603,15 @@ def main() -> int:
         "canonical-cycles-post-apply-override8=1",
         "execute_node_oracle(source)",
         "negatives={negatives}+2",
+        "resolve_node_binary",
+        "tools/emsdk/node/22.16.0_64bit/bin/node",
+        "resolve_node_modules",
+        "BW_NODE_MODULES",
     ):
         if marker not in runtime_render_export_tests:
             raise RuntimeError(f"runtime render-export test {marker} absent")
+    if "/Users/paws" in runtime_render_export_tests:
+        raise RuntimeError("runtime render-export test retains a macOS module path")
 
     capture_late_tests = source["capture_late_tests"]
     for marker in ("rejectPostEntry", "latePreEntryLoadIds", "postApplyProbeCount",

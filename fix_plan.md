@@ -514,16 +514,16 @@ silently (no abort propagation). Also: first-composite-needs-an-input-event (gho
 spurious "using OpenGL instead" dialog despite live device; cattrs missing (python);
 splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 
-- [~] **M4.T15 [gpu-backend r18 — VIEWPORT DRAW ROUND] PARTIAL — UI composites upright, cube+grid still dark.**
-  Patches 0098-0100 (census HELD 148/158 + static_shaders 956/973): 0098 class-1 cross-format
-  region blit (render-pass fallback in WGPUFrameBuffer::blit_to; the dominant black cause) +
-  correct Y-orientation; 0099 Tab createBindGroup null-buffer crash FIXED (create_bind_group_checked
-  guard — WM loop no longer halts on Tab); 0100 class-5 UBO minBindingSize pad (draw-manager
-  view_buf[64] short-bind — was dropping EVERY 3D vertex draw). LFS splash.png + 155 datafiles
-  materialized + datatoc regen. RESULT: full Blender UI renders upright in a Chrome tab (24%
-  non-black; panels/outliner/properties readable). remap-skip attempt REVERTED (regressed 4
-  compute tests; frontend passes dense binding, not create-info slot). Evidence:
-  platform_web/shell/evidence/m4-ui-upright-r18-viewport-dark.png.
+- [x] **M4.T15 viewport-draw umbrella RECONCILED by the accepted successor rounds:** patches
+  0098-0100 retain the cross-format region blit, null-resource bind guard, and 16 KiB UBO
+  allocation that made the full UI composite upright without the Tab crash. The r18 cube/grid
+  darkness was subsequently closed by the kind/depth/layout/dedup, mapped-first load-store,
+  index-range, window-origin, and dynamic-stencil fixes in patches 0101-0103, 0106,
+  0110/0112/0113, 0115, and 0118. The rejected emitter-only remap skip remains absent. The r27
+  evidence is validation-clean with grid/axes, r33 renders the solid cube, and historical D-9
+  passes splash/workspace at 0.204%/0.505% over 0.016. This closes stale r18 accounting only;
+  **M4-LINUX-REPLAY** still owns the fresh Linux receipt and remains blocked by s7's
+  llvmpipe-only adapter.
   - [x] **M4.T16 viewport blockers RECONCILED by the accepted successor rounds:** patches
     0101/0106 enforce buffer-kind correctness and full-range bind deduplication; 0102/0103
     isolate depth sampling and omit Tint-pruned bindings; 0112 gives mapped resources precedence

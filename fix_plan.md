@@ -286,11 +286,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   split) → **T7 must unroll sampler arrays at GLSL codegen**; map is per-element-ready.
   **Integration hazard caught: shaderc's bundled SPIRV-Tools vs Tint's static one must not
   meet in a link — use Blender's shaderc shared dylib.** T7 = wiring, not development.
-- [ ] **M3.T4–T10 [gpu-backend]** Skeleton→context→buffers→shader-pipeline→compute→textures→
-  framebuffer/state/immediate/batch, each gated on Blender's own gpu tests vs native Dawn
-  (full list + verify criteria: notes/gpu-webgpu-architecture.md §7). Gate: full gpu suite
-  green on Dawn → `<promise>M3_GPU_BACKEND</promise>`. T4 in flight; **T9.pre dispatched**
-  (format tables + data conversion standalone, the other development-heavy chunk).
+- [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
+  backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
+  direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and
+  batch paths. The final frozen macOS Dawn/Metal source passed the exact 197/197 GPU manifest,
+  DrawWebGPU 2/2, and exact 1,003/1,003 shader manifest recorded in
+  `notes/gpu-r26-migration-savepoint.md`; current canonical replay reproduces that source and both
+  checked-in identity hashes. This closes the stale implementation-sweep item only. A fresh Linux
+  strict receipt remains separately blocked by the named s7 hardware-adapter condition and must
+  not be inferred from the historical proof.
 
 ### M3 frames-gate rounds 8-9 (2026-08-05, post-handoff resume — driver)
 

@@ -160,6 +160,11 @@ specific per-suite scratch-root mapping first. Arbitrary paths remain visible pa
 The same buffering can prefix progress dots directly onto a later stdout launcher-envelope line.
 Recognize only a dot-only prefix immediately before the exact allocator text and pinned adjacent
 banner, preserve the dots plus their newline, and reject every other prefix.
+A dot-only prefix is not sufficient when that envelope interrupts an unterminated multi-dot run:
+replacing the prefix with `prefix + newline` can turn an otherwise identical `..` into two `.`
+lines. Do not rebaseline or flatten punctuation. First add adversarial fixtures for both a split
+multi-dot run and a split verbose test-status line, then reconstruct only the exact interrupted
+progress grammar while preserving every non-envelope byte.
 For suites that intentionally emit diagnostics during unittest progress, canonicalize only a
 whole-output grammar: bind the exact ordered diagnostics and exact `Ran N tests`/`OK` tail, allow
 dot/newline bytes only around that block, and require the total dot count to equal `N`.

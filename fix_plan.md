@@ -265,6 +265,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   130-B LFS pointers). **DRIVER DECIDED: cheap LFS pull APPROVED (38.4 MB/89 files →
   ~doubles suites to ~75; dispatched). Full 0.76 GB pull deferred; render/GPU 447 MB never
   needed for tier-b.**
+- [~] **M2.6-RECONCILE [driver] blocked-by deterministic combined-stream reconstruction:**
+  two fresh Linux attempts hit the same native allocator/banner interleaving class in different
+  passing suites: r1 reached row 60 before a verbose progress prefix violated the exact envelope,
+  while r2 reached row 16 before the accepted `..` progress line became `.` + `.` around that
+  envelope (`20260821T155402-101911`, `20260821T160219-123779`). The exact r1 suite passes alone
+  (`20260821T160143-122430`), r2 Wasm normalized bytes equal accepted r35, and the runner self-check
+  is green (`20260821T160536-130117`). Producer, verifier, harness, deferrals, and results remain
+  unchanged; add adversarial interrupted-progress fixtures before another full attempt.
 - [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
   JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
   suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS

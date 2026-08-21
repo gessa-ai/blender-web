@@ -433,15 +433,16 @@ windowmanager — latent gap in 0023). Shell: platform_web/shell/windowed.html, 
   gpu_ViewportIndex/gpu_Layer codegen → multi_viewport CRASH→honest FAIL; stretch: gl_PointSize
   redirect → static_shaders **519/973** (point_size bucket 54→0). Blend held 12/12.
   **DRIVER-VERIFIED independent run: immediate 2/2 + push_constants 10/10.**
-- [ ] **M3.F8 [gpu-backend r11 — MERGED lane ownership, single worker]** Remaining gpu-suite
-  gaps (all characterized r10): (a) storage-IMAGE bind path — wgpu_state_manager.cc:47
-  image_bind no-op → compute_direct/compute_indirect FAIL; this is also the handoff's queued
-  "texture/sampler bind-group entries" item (uniform-only-draws gate has fallen) → textured
-  draw families; (b) specialization constants codegen ('float_in' undeclared,
-  gpu_compute_specialization_test:951); (c) framebuffer_subpass_input* CRASH (subpass-input
-  codegen gap — aborts shared-process runs, run per-family); (d) static_shaders tail buckets:
-  uniform-control-flow/fwidth 25 (also blocks multi_viewport widget shader), textureSample
-  ~32-62, extension/capability ~193, shaderc front-end 125. DISPATCHED round 11.
+- [x] **M3.F8 [gpu-backend]** RECONCILED by the accepted successor rounds. Patch 0059 records
+  storage-image binds and the current shared resource assembler consumes them for compute and
+  draw; patches 0077-0079 close the shader-environment and compute-specialization paths, with
+  runtime pipeline variants keyed by exact override values. Patch 0080 changed subpass-input
+  crashes into measurable behavior; `framebuffer_subpass_input_clearops` now passes, while the
+  true input-attachment gap remains honestly registered as `subpass-input-attachment`. Patches
+  0082/0086/0097 and the later gate rounds dispositioned the shader-front-end, integer-sampler,
+  and uniformity tails. The frozen release contract binds exact 197-test and 1,003-shader
+  identity manifests. This closes stale round-11 accounting only; it creates no fresh Linux
+  runtime receipt and does not relax the named WebGPU deferrals or the s7 hardware boundary.
 - [x] **M3.F7 [driver DECISION → r13]** DECIDED 2026-08-05: multi-pass emulation — one render
   pass per viewport rect (single-layer views exist, 0046), vertex's gpu_ViewportIndex carried
   to fragment as flat varying, per-pass discard of non-matching primitives; GL-identical

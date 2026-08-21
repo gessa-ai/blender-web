@@ -274,23 +274,21 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   stale tier-(b) replay accounting only. Aggregate `m2b` remains honestly RED until the complete
   M0-M3 strict candidate exists; no product, upstream, harness, result flag, deferral, or milestone
   promise changed.
-- [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
-  JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
-  suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS
-  baseline). RESIDUAL: emsdk node v22 lacks the new `WebAssembly.Suspending` API → any -sJSPI
-  module aborts at init under node<23; true-JSPI runtime validation = tools-local node≥23
-  (follow-up dispatched) + mandatory M4 browser smoke (Chrome ≥137/Playwright, suspending).
-  Python stays synchronous on the proxied main thread per ADR-001.
-  **REAL-JSPI UPDATE (26025bd): proxy was FALSE-POSITIVE for the B-shape — JS-EH cannot
-  suspend across setjmp frames (SuspendError); Wasm-EH can. EH sub-decision RE-OPENED for
-  M4+ (ADR-001 appendix); M2's no-suspension posture unaffected.**
-- [x] **M2.7c [python-wasm PROBE]** DONE (cb4258c) → **ADR-003 ACCEPTED**: active-try breaks
-  JS-EH suspension (F1/F3), dormant doesn't (F2); mechanism = invoke_* (7-8 vs Wasm-EH 0);
-  CENSUS: libpython static image has ZERO setjmp regions (ctypes/libffi unbuilt), libjpeg's
-  setjmp is app-side. DECISION: keep JS-EH stack-wide + hard invariant (suspends only at
-  top-level async boundaries, never under active try / live jpeg setjmp) + mandatory M4
-  Chrome≥137 topology smoke; Wasm-EH = declared fallback (proven viable, scheduled
-  machine-day if triggered).
+- [x] **M2.7 [python-wasm] RECONCILED against `7c1722f`/`26025bd` and ADR-006:** the
+  sandbox reproducer now derives its checkout from its own path, runs from root or descendant,
+  requires a genuinely JSPI-capable runtime, rejects bundled Node 22.16.0 before compilation,
+  and uses the harvested CPython/expat/stdlib closure when the historical probe tree is absent.
+  Fresh emcc 6.0.5 + Node 25.1.0 runs reproduce A/C/D PASS, exact JS-EH B rejection, and all
+  Wasm-EH/Asyncify controls from both working directories (20260821T180252-413106,
+  20260821T180311-415168; negative 20260821T180311-415170). ADR-006 separately supersedes the
+  old M4 topology residual: the shipping windowed profile has no JSPI and this experiment does
+  not reintroduce it.
+- [x] **M2.7c [python-wasm PROBE] RECONCILED alongside M2.7 against `cb4258c`:** the
+  fail-closed replay preserves F1/F3 `SuspendError`, F2 PASS, every Wasm-EH PASS, exact JS-EH
+  `invoke_*` 7/7/8 versus Wasm-EH 0/0/0, and zero SjLj refs in harvested libpython, libjpeg,
+  and the linked Python image. ADR-003 remains the historical JSPI/exception result; ADR-006's
+  no-JSPI product decision remains current. No product, upstream, gate, result flag, dependency
+  record, deferral, or milestone promise changed.
 - [x] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
   dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
 

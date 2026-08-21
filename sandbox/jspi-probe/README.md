@@ -5,32 +5,31 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 # M2.7 probe — `-sJSPI` × setjmp/longjmp on emcc 6.0.5
 
-GOAL mandates `-sJSPI` for the final Blender link (Chrome 137 floor; avoids Asyncify's
-~50% size tax). Our stack is JS-EH (`-fexceptions`, `SUPPORT_LONGJMP=emscripten` — longjmp
-is implemented as a JS exception). JSPI suspends/resumes wasm frames across JS boundaries.
-This probe characterizes whether setjmp/longjmp survives a suspension, and whether libjpeg's
-setjmp error path and libpython init/run tolerate a JSPI-enabled link.
+This probe was created while the standing architecture used `-sJSPI`. The shipped windowed
+profile now deliberately omits JSPI under ADR-006, but the measured JS-EH/Wasm-EH boundary is
+retained as a regression contract for any future reintroduction. Our stack is JS-EH
+(`-fexceptions`, `SUPPORT_LONGJMP=emscripten` — longjmp is implemented as a JS exception).
+The probe characterizes whether setjmp/longjmp survives a real suspension, and whether
+libjpeg's setjmp error path and libpython init/run tolerate a JSPI-enabled link.
 
-Run: `bash run.sh` (every emcc build goes through `harness/buildwrap.sh`). Full results
-matrix + analysis live in `notes/python-emcc605-probe.md` § "M2.7 JSPI probe".
+Run from any working directory: `bash /path/to/blender-web/sandbox/jspi-probe/run.sh` (every
+emcc build goes through `harness/buildwrap.sh`). Full results matrix + analysis live in
+`notes/python-emcc605-probe.md` § "M2.7 JSPI probe".
 
-## The node blocker (read first)
+## JSPI runtime requirement
 
 `-sJSPI` is `ASYNCIFY=2` internally. emcc 6.0.5's runtime glue instantiates suspending
 imports via **`new WebAssembly.Suspending(...)`** (emscripten `src/preamble.js:534`) — the
-*new* JSPI JS API (Chrome 129+/V8 12.9+/Node ≥23). Every node on this box (emsdk-bundled
-v22.16.0, system v22.15/22.23) exposes only the **old** `WebAssembly.Suspender` API, so
-**any `-sJSPI` module aborts at instantiation** — before `main` — with
-`Aborted(... JSPI not supported by current environment ...)`, with or without
-`--experimental-wasm-jspi`. JSPI *runtime* therefore can only be exercised in a browser
-(Chrome ≥137, GOAL's floor) or Node ≥23. That is the blocker, not a bug in our code.
+*new* JSPI JS API (Chrome 129+/V8 12.9+/Node ≥23). The bundled Node 22.16.0 cannot run the
+real matrix. `run.sh` selects, in order, an explicit `JSPI_NODE`, the historical ignored
+`tools/node24/` installation, or a capable `node` on `PATH`; Node 24 may use
+`--experimental-wasm-jspi`, while newer runtimes can expose the API unflagged. An explicit
+unsupported runtime is rejected before any build. The Asyncify variants remain comparison
+controls because they previously false-positived the JS-EH setjmp shape; they never substitute
+for a real-JSPI run.
 
-Consequence: cases that *suspend* under real JSPI cannot be run here. We (a) prove every
-combo **links**, and (b) run the suspend×setjmp shape under **`-sASYNCIFY` (=1)** as a
-runnable proxy — same "suspend a C frame that holds a live `jmp_buf`, then resume" hazard;
-JSPI (native stack switching) preserves the linear-memory C stack even more transparently
-than Asyncify's instrument-and-rewind, so an Asyncify PASS is a conservative predictor for
-JSPI. The definitive JSPI-native suspend test is a follow-up browser (Playwright) harness.
+The runner fails closed on every expected exit status and verdict, the exact JS-EH
+`invoke_*` counts (7/7/8 versus Wasm-EH 0/0/0), and the zero-SjLj archive/linked-image census.
 
 ## Cases
 
@@ -43,9 +42,10 @@ JSPI. The definitive JSPI-native suspend test is a follow-up browser (Playwright
 | `b.c` (Wasm-EH flags) | E | B-shape rebuilt `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm` — data point for the deferred Wasm-EH-migration ADR |
 | `f_try.cpp` (`-DCASE=1\|2\|3`) | F1/F2/F3 | M2.7c: does C++ try/catch break real JSPI suspension like setjmp? F1 suspend inside an active try; F2 try present but not active at the suspend; F3 active try several plain frames above the suspend. Built JS-EH and Wasm-EH; run.sh also reports invoke_* counts (F5) and a setjmp census. Feeds ADR-003. |
 
-Case D links against the M2.0b CONFIG-A tree (`build-python-probe/build-jseh/`, which carries
-CPython-internal `libmpdec`/`libHacl` sublibs not harvested to `lib/wasm`); `run.sh` skips D
-with a note if that tree is absent (rebuild it via `scripts/deps/python.sh`).
+Case D prefers the retained M2.0b CONFIG-A tree (`build-python-probe/build-jseh/`) when it is
+present. On a migrated/cold checkout it instead links the harvested `libpython3.13.a` and
+`libexpat.a`, preloading the harvested Python 3.13 standard library; the case is never silently
+skipped.
 
 Build artifacts (`*.js *.wasm *.data`) are git-ignored; only sources, `run.sh`, this README,
 and `.gitignore` are committed.

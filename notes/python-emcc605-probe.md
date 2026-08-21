@@ -276,6 +276,22 @@ declared fallback** (F1/F3/F4 prove it removes the constraint entirely: invoke_*
 shapes pass) to switch to iff the suspend surface cannot be confined — that decision is a
 size/perf/dep-rebuild tradeoff, now cleanly separable from JSPI feasibility.
 
+## 2026-08-21 ornith-lab reconciliation
+
+The committed reproducer is now checkout-relative, working-directory independent, and
+fail-closed. It requires a real-JSPI runtime (explicit `JSPI_NODE`, ignored `tools/node24/`, or
+a capable `node` on `PATH`) rather than treating Asyncify as substitute evidence. On a cold
+checkout, case D links the harvested CPython/expat archives and preloads the harvested standard
+library instead of silently skipping the missing historical probe tree.
+
+Fresh emcc 6.0.5 runs from both the repository root and a descendant directory under native
+Node v25.1.0 reproduce the accepted boundary exactly: A/C/D pass, JS-EH B/F1/F3 reject only with
+`SuspendError`, JS-EH F2 passes, every Wasm-EH and Asyncify control passes, JS-EH `invoke_*`
+counts remain 7/7/8 versus Wasm-EH 0/0/0, and the libpython/libjpeg/linked-Python SjLj census
+remains zero (`20260821T180252-413106`, `20260821T180311-415168`). Bundled Node 22.16.0 is
+rejected before compilation (`20260821T180311-415170`). This preserves the experiment; it does
+not reintroduce JSPI into the windowed product, whose no-JSPI posture is accepted in ADR-006.
+
 ---
 
 # M4.python-debt — `_sha3` + `_multiprocessing` for the windowed boot (2026-08-06)

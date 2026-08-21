@@ -2,11 +2,11 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# M3.T3 verify: stage patch 0149 over Blender's current GHOST_ContextWGPU source,
-# compile it against Blender's real GHOST headers inside Dawn's CMake graph, and
-# run a standalone main that requires a hardware device. The source worktree is
-# never modified. A software adapter can only produce the explicit blocked
-# control; it cannot produce a T3 receipt.
+# M3.T3 verify: require patch 0149's integrated GHOST_ContextWGPU postimage,
+# stage the canonical source outside upstream/, compile it against Blender's
+# real GHOST headers inside Dawn's CMake graph, and run a standalone main that
+# requires a hardware device. A software adapter can only produce the explicit
+# blocked control; it cannot produce a T3 receipt.
 #
 #   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh hardware
 #   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh software-blocked
@@ -59,9 +59,10 @@ if [ "$dawn_head" != "$EXPECTED_DAWN" ]; then
   exit 2
 fi
 
-# All allocations happen after both source pins pass. Stage only the two patched
-# files under the ignored build tree, apply the product patch there, and leave
-# upstream/ byte-for-byte untouched.
+# All allocations happen after both source pins pass. Stage only the two
+# canonical files under the ignored build tree and require the exact 0149
+# postimage before compiling. Reverse-checking the patch is a read-only proof;
+# the source worktree remains byte-for-byte untouched.
 mkdir -p "$BUILD"
 stage_tmp="$(mktemp -d "${TMPDIR:-/tmp}/blender-web-t3-ghost.XXXXXX")"
 trap 'rm -rf -- "$stage_tmp"' EXIT
@@ -71,8 +72,7 @@ cp "$UP/$stage_rel/GHOST_ContextWGPU.cc" "$stage_tmp/$stage_rel/"
 cp "$UP/$stage_rel/GHOST_ContextWGPU.hh" "$stage_tmp/$stage_rel/"
 (
   cd "$stage_tmp"
-  git apply --check "$PATCH"
-  git apply "$PATCH"
+  git apply --reverse --check "$PATCH"
 )
 
 stage="$BUILD/bw-ghost-wgpu-source/$stage_rel"

@@ -53,3 +53,13 @@ application, modes, symlinks, and final fingerprints. `--numbered-history` remai
 mode and still fails honestly at the first stale historical preimage. The two-attempt stop rule
 therefore remains binding on piecemeal history repair, while exact source reconstruction is no
 longer blocked on it.
+
+## 2026-08-21 integration follow-up
+
+Verified native-platform correction 0149 is now composed into the canonical snapshot. The
+source freezer again proves exact clean-pin application, byte-identical 20,258-entry live/replay
+manifests, byte-identical patch regeneration, and a stable final resnapshot. The authority remains
+the same 257-path squashed patch but is now 1,530,642 bytes with SHA-256
+`e03f140fe3f3c6448c9bc7bd52bfa572ea0f774fe5354cd98053341ef8d717b2`; the normalized current
+receipt replaces the generic receipt path above. The old hash remains valid only for the dated
+2026-08-20 evidence and migration save point.

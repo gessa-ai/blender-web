@@ -106,10 +106,11 @@ if(DEFINED BW_SHADER_BINDMAP_SMOKE_SOURCE)
   bw_add_shader_smoke(wgpu_shader_bindmap_smoke_native "${BW_SHADER_BINDMAP_SMOKE_SOURCE}")
 endif()
 
-# T3 native GHOST-context verification. The driver stages the exact current
-# Blender source plus patch 0149 outside upstream/, then supplies that directory
-# here. Building it inside Dawn's target graph preserves the platform-specific
-# Vulkan/Metal/system link closure without a handwritten library list.
+# T3 native GHOST-context verification. The driver requires patch 0149's
+# integrated postimage and stages the exact current Blender source outside
+# upstream/, then supplies that directory here. Building it inside Dawn's target
+# graph preserves the platform-specific Vulkan/Metal/system link closure without
+# a handwritten library list.
 if(DEFINED BW_GHOST_WGPU_SOURCE_DIR)
   if(NOT DEFINED BW_UPSTREAM_DIR)
     message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_GHOST_WGPU_SOURCE_DIR")

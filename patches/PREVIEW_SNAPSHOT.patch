@@ -518,10 +518,10 @@ index b7379284272a4ab34b526c367d94e71132f8329b..e99dd55f5ee51b788e1f4cdcc86eb57c
  /** Set "None" as -1 so this can be used as an index. */
 diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..336fa3323aba88d70fd0d0c9787dcdf0804f4db4
+index 0000000000000000000000000000000000000000..e5033c48739353ab842842119a9d71d27f8d9a78
 --- /dev/null
 +++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,206 @@
 +/* SPDX-FileCopyrightText: 2022-2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -549,8 +549,8 @@ index 0000000000000000000000000000000000000000..336fa3323aba88d70fd0d0c9787dcdf0
 +
 +GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
 +{
-+  /* Headless (no surface) native Dawn bring-up on Metal — identical shape to the
-+   * T1 probe (sandbox/dawn-probe/probe.cc), driven synchronously via WaitAny. */
++  /* Headless (no surface) native Dawn bring-up — identical shape to the T1
++   * probe (sandbox/dawn-probe/probe.cc), driven synchronously via WaitAny. */
 +  wgpu::InstanceDescriptor instance_desc = {};
 +  static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
 +  instance_desc.requiredFeatureCount = 1;
@@ -561,7 +561,19 @@ index 0000000000000000000000000000000000000000..336fa3323aba88d70fd0d0c9787dcdf0
 +  }
 +
 +  wgpu::RequestAdapterOptions adapter_opts = {};
++#if defined(__EMSCRIPTEN__)
++  /* The browser build compiles this native sibling but instantiates
++   * GHOST_ContextWGPUWeb instead. Do not select a native backend there. */
++  adapter_opts.backendType = wgpu::BackendType::Undefined;
++#elif defined(__APPLE__)
 +  adapter_opts.backendType = wgpu::BackendType::Metal;
++#elif defined(_WIN32)
++  adapter_opts.backendType = wgpu::BackendType::D3D12;
++#elif defined(__linux__)
++  adapter_opts.backendType = wgpu::BackendType::Vulkan;
++#else
++#  error "GHOST_ContextWGPU has no native Dawn backend for this platform"
++#endif
 +  adapter_opts.featureLevel = wgpu::FeatureLevel::Core;
 +  instance_.WaitAny(
 +      instance_.RequestAdapter(
@@ -718,7 +730,7 @@ index 0000000000000000000000000000000000000000..336fa3323aba88d70fd0d0c9787dcdf0
 +}
 diff --git a/intern/ghost/intern/GHOST_ContextWGPU.hh b/intern/ghost/intern/GHOST_ContextWGPU.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..286a971053d3ba2817ba23171bb16aa7fa88786f
+index 0000000000000000000000000000000000000000..e2ce072a0745c8b7a6274d10652c68dcde611a68
 --- /dev/null
 +++ b/intern/ghost/intern/GHOST_ContextWGPU.hh
 @@ -0,0 +1,82 @@
@@ -732,7 +744,7 @@ index 0000000000000000000000000000000000000000..286a971053d3ba2817ba23171bb16aa7
 +/** \file
 + * \ingroup GHOST
 + *
-+ * Native (this-Mac) offscreen WebGPU drawing context backed by Dawn. Radically
++ * Native offscreen WebGPU drawing context backed by Dawn. Radically
 + * simpler than GHOST_ContextVK: WebGPU's implicit driver model means bring-up is
 + * just instance -> adapter -> device (no surface, headless). This is the M3
 + * vehicle that lets Blender's gpu-module gtests run against a real Dawn device.

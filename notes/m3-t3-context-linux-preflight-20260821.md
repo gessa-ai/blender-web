@@ -44,9 +44,13 @@ output directory.
 - Canonical 257-path migration-snapshot replay: `20260821T190814-474937`, green.
 - Exact REUSE 6.2.0: `20260821T190802-474502`, 1,950/1,950 green.
 
-Patch 0149 is a post-freeze source delta recorded in the numbered development
-history. It is deliberately not written into the read-only `upstream/` tree or
-silently folded into the existing migration snapshot. The next source
-integration freeze must compose it before a fresh native M3 build. Hardware
-context execution, the 197/1,003 suite, strict receipt, result promotion, and
-milestone promise remain blocked by s7.
+Patch 0149 initially remained a post-freeze source delta recorded in the
+numbered development history. The next iteration composed its verified
+postimage into the canonical migration snapshot using the source freezer rather
+than hand-editing Blender source. The canonical patch is now 1,530,642 bytes,
+SHA-256 `e03f140fe3f3c6448c9bc7bd52bfa572ea0f774fe5354cd98053341ef8d717b2`,
+and still spans the exact same 257 paths and 20,258-entry source manifest. The
+T3 verifier now reverse-checks 0149 as an integrated postimage before staging
+and compiling those source bytes. Hardware context execution, the 197/1,003
+suite, strict receipt, result promotion, and milestone promise remain blocked
+by s7.

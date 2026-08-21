@@ -305,11 +305,12 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
 - [x] **M3.F3 [gpu-backend laneA]** DONE r9 (bf67491): 0053 GPU_WEBGPU standard_defines arm +
   0054 NAN_FLT non-foldable guard. static_shaders **481→513/973**, nan bucket 32→0, no new
   buckets. Driver spot-checked artifacts + reverse-applies.
-- [ ] **M3.F4 [gpu-backend laneB]** framebuffer_multi_viewport: attachment_view builds a
-  256-layer view — needs single-layer 2D view (+ characterize multi-viewport emulation, no
-  viewport-array in WebGPU); immediate_* CRASH(139) — WGPUImmediate not GPU_init-safe;
-  push_constants fails on values only (compute dispatch writes nothing — compute path, may
-  defer to T8 proper). DISPATCHED round 8.
+- [x] **M3.F4 [gpu-backend laneB]** CLOSED by successor rounds r8-r13 (patches 0046, 0055,
+  0056, 0083; driver-verified): the attachment view is one layer, immediate mode is wired
+  into the context lifecycle, compute dispatch executes the push-constant path, and faithful
+  multi-pass viewport/layer emulation is implemented. `framebuffer_multi_viewport` passes,
+  `immediate_*` is 2/2, and `push_constants*` is 10/10. This is active-plan reconciliation;
+  the fresh Linux M3 receipt remains blocked by the named s7 hardware-adapter condition.
 - [x] **M3.F5 [driver → worker]** RESULT (863e9b9+c588af3): **GPU_init COMPLETES + a real
   Blender shader COMPILES (full shaderc→Tint chain) in a real WebGPU tab.** Correct pixels
   gated on readback (F9-D). KEY FINDING: handoff's "comments not stripped" was a MISDIAGNOSIS —

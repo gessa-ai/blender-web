@@ -13,10 +13,11 @@ Metal on macOS, Vulkan on Linux, D3D12 on Windows, and no native backend for the
 compiled-but-unused browser sibling.
 
 The patch is verified without modifying `upstream/`. The T3 driver copies the
-two exact current GHOST files into an isolated temporary tree, applies 0149,
-and compiles that postimage against Blender's real GHOST headers inside Dawn's
-pinned CMake target graph. Every build goes through `scripts/ninja-locked.sh`;
-the old direct `clang++` plus Apple-framework link is retired.
+two exact integrated GHOST postimages into an isolated temporary tree,
+reverse-checks 0149 there, and compiles those bytes against Blender's real
+GHOST headers inside Dawn's pinned CMake target graph. Every build goes through
+`scripts/ninja-locked.sh`; the old direct `clang++` plus Apple-framework link is
+retired.
 
 ## Fail-closed adapter boundary
 
@@ -54,3 +55,25 @@ T3 verifier now reverse-checks 0149 as an integrated postimage before staging
 and compiling those source bytes. Hardware context execution, the 197/1,003
 suite, strict receipt, result promotion, and milestone promise remain blocked
 by s7.
+
+## Audit hardening
+
+The latest-25 audit found that the original hardware branch classified a
+separate preflight adapter but did not reclassify the adapter returned by the
+real context's independent `RequestAdapter` call. It also accepted status zero
+without requiring the context's exact adapter and PASS transcript. A mixed-
+adapter host or a hollow zero-return verifier could therefore false-green the
+future hardware proof.
+
+The verifier now checks `ctx.getAdapter()` after context initialization and
+before accepting its device, and the shell accepts hardware mode only with one
+adapter line, one backend-specific PASS line, no blocked marker, and exit zero.
+A device-free parser self-check rejects missing, duplicate, blocked, and
+nonzero mutations. Fresh evidence is:
+
+- parser mutation contract: `20260821T214823-625333`;
+- real postimage compile: `20260821T214826-625459`; and
+- llvmpipe preflight rejection with no hardware PASS: `20260821T214833-625634`.
+
+This closes only verifier false-acceptance. It creates no hardware adapter,
+context receipt, result promotion, or M3 promise.

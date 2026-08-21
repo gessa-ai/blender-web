@@ -10,6 +10,7 @@
 #
 #   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh hardware
 #   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh software-blocked
+#   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh parser-selfcheck
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -25,9 +26,9 @@ EXPECTED_DAWN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 MODE="${1:-hardware}"
 
 case "$MODE" in
-  hardware | software-blocked | build-only) ;;
+  hardware | software-blocked | build-only | parser-selfcheck) ;;
   *)
-    echo "ERROR: usage: build_verify.sh [hardware|software-blocked|build-only]" >&2
+    echo "ERROR: usage: build_verify.sh [hardware|software-blocked|build-only|parser-selfcheck]" >&2
     exit 2
     ;;
 esac
@@ -40,6 +41,55 @@ case "$(uname -s)" in
     exit 2
     ;;
 esac
+
+hardware_transcript_is_exact()
+{
+  local status="$1"
+  local output="$2"
+  local adapter_count
+  local pass_count
+  local blocked_count
+
+  adapter_count="$(printf '%s\n' "$output" | grep -Ec '^GHOST_ContextWGPU adapter: .+$' || true)"
+  pass_count="$(printf '%s\n' "$output" | grep -Fxc \
+    "T3 VERIFY PASS: live WGPUDevice obtained through GHOST_ContextWGPU (offscreen, headless, $backend_name)." || true)"
+  blocked_count="$(printf '%s\n' "$output" | grep -c '^PROBE_BLOCKED:' || true)"
+
+  [ "$status" -eq 0 ] && [ "$adapter_count" -eq 1 ] && [ "$pass_count" -eq 1 ] && \
+    [ "$blocked_count" -eq 0 ]
+}
+
+backend_name="$(case "$(uname -s)" in Darwin) printf Metal ;; Linux) printf Vulkan ;; esac)"
+
+if [ "$MODE" = parser-selfcheck ]; then
+  good_output="GHOST_ContextWGPU adapter: Audit Hardware Adapter
+T3 VERIFY PASS: live WGPUDevice obtained through GHOST_ContextWGPU (offscreen, headless, $backend_name)."
+  if ! hardware_transcript_is_exact 0 "$good_output"; then
+    echo "ERROR: exact hardware transcript was rejected" >&2
+    exit 1
+  fi
+  for mutation in \
+    "GHOST_ContextWGPU adapter: Audit Hardware Adapter" \
+    "$good_output
+T3 VERIFY PASS: live WGPUDevice obtained through GHOST_ContextWGPU (offscreen, headless, $backend_name)." \
+    "$good_output
+PROBE_BLOCKED: synthetic mutation" \
+    "GHOST_ContextWGPU adapter: Audit Hardware Adapter
+GHOST_ContextWGPU adapter: Second Adapter
+T3 VERIFY PASS: live WGPUDevice obtained through GHOST_ContextWGPU (offscreen, headless, $backend_name)."
+  do
+    if hardware_transcript_is_exact 0 "$mutation"; then
+      echo "ERROR: malformed hardware transcript was accepted" >&2
+      exit 1
+    fi
+  done
+  if hardware_transcript_is_exact 1 "$good_output"; then
+    echo "ERROR: nonzero hardware status was accepted" >&2
+    exit 1
+  fi
+  echo "T3 HARDWARE TRANSCRIPT PARSER SELFCHECK PASS cases=6"
+  exit 0
+fi
 
 for required in "$UP" "$DAWN_SRC" "$PATCH" "$CMAKE" "$PYTHON"; do
   if [ ! -e "$required" ]; then
@@ -113,10 +163,15 @@ if [ "$MODE" = software-blocked ]; then
     echo "ERROR: software-blocked control lacks the exact single rejection marker" >&2
     exit 1
   fi
+  if printf '%s\n' "$verify_output" | grep -q '^T3 VERIFY PASS:'; then
+    echo "ERROR: software-blocked control emitted a hardware PASS verdict" >&2
+    exit 1
+  fi
   echo "T3 SOFTWARE ADAPTER REJECTION PASS"
   exit 0
 fi
 
-if [ "$verify_status" -ne 0 ]; then
-  exit "$verify_status"
+if ! hardware_transcript_is_exact "$verify_status" "$verify_output"; then
+  echo "ERROR: hardware run lacks one exact adapter/PASS transcript or contains a blocked marker" >&2
+  exit 1
 fi

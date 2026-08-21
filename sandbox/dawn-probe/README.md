@@ -75,4 +75,7 @@ host exposed only a software/CPU adapter; that result is not a receipt.
 - `ghost-wgpu/build_verify.sh` — requires patch 0149's canonical integrated
   postimage, stages the pinned GHOST context outside `upstream/`, builds it
   through the same locked Dawn graph, and requires either a hardware T3 pass or
-  an explicit software-block control.
+  an explicit software-block control. Hardware mode independently classifies
+  the adapter retained by the real context and requires one exact adapter/PASS
+  transcript; `parser-selfcheck` rejects missing, duplicated, blocked, and
+  nonzero synthetic transcripts without allocating build or GPU state.

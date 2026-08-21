@@ -27,7 +27,29 @@ std::string string_view(wgpu::StringView value)
   return std::string(value.data, value.length);
 }
 
-bool require_hardware_adapter()
+bool require_hardware_adapter(const wgpu::Adapter &adapter, const char *phase)
+{
+  if (adapter == nullptr) {
+    fprintf(stderr, "T3 %s adapter is null\n", phase);
+    return false;
+  }
+
+  wgpu::AdapterInfo info = {};
+  adapter.GetInfo(&info);
+  const std::string device = string_view(info.device);
+  if (!blender_web::dawn_probe::is_hardware_adapter(info)) {
+    fprintf(stderr,
+            "PROBE_BLOCKED: refusing non-hardware %s adapter phase=%s type=%u device=%s\n",
+            blender_web::dawn_probe::kBackendName,
+            phase,
+            unsigned(info.adapterType),
+            device.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool require_hardware_preflight()
 {
   wgpu::InstanceDescriptor instance_desc = {};
   static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
@@ -62,25 +84,14 @@ bool require_hardware_adapter()
     return false;
   }
 
-  wgpu::AdapterInfo info = {};
-  adapter.GetInfo(&info);
-  const std::string device = string_view(info.device);
-  if (!blender_web::dawn_probe::is_hardware_adapter(info)) {
-    fprintf(stderr,
-            "PROBE_BLOCKED: refusing non-hardware %s adapter type=%u device=%s\n",
-            blender_web::dawn_probe::kBackendName,
-            unsigned(info.adapterType),
-            device.c_str());
-    return false;
-  }
-  return true;
+  return require_hardware_adapter(adapter, "preflight");
 }
 
 }  // namespace
 
 int main()
 {
-  if (!require_hardware_adapter()) {
+  if (!require_hardware_preflight()) {
     return 77;
   }
 
@@ -90,6 +101,12 @@ int main()
   if (ctx.initializeDrawingContext() != GHOST_kSuccess) {
     fprintf(stderr, "GHOST_ContextWGPU::initializeDrawingContext FAILED\n");
     return 1;
+  }
+  /* The preflight and context make independent RequestAdapter calls. A host
+   * can expose more than one adapter, so eligibility of the first does not
+   * prove that the device under test came from hardware. */
+  if (!require_hardware_adapter(ctx.getAdapter(), "context")) {
+    return 78;
   }
   printf("GHOST_ContextWGPU adapter: %s\n", ctx.getAdapterName());
 

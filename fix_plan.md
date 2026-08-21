@@ -1131,6 +1131,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   cross-lane-drifted adapters. Contract, mutation, producer, consumer, and live software-rejection
   checks are green; no receipt was created and live acceptance remains **blocked-by s7 hardware
   Vulkan/WebGPU**. See `notes/runtime-adapter-linux-contract-20260820.md`.
+- [x] **AUDIT-20260821-R3 [driver]:** adversarial latest-25 review
+  (`3d6b7de..01eee70`) found 0 critical / 1 major / 0 minor. The T3 hardware verifier had
+  classified a separate preflight adapter and accepted status zero without requiring its exact
+  success transcript. It now reclassifies the adapter retained by the real GHOST context and
+  requires one adapter line, one backend-specific PASS line, no blocked marker, and exit zero;
+  six parser cases, the real postimage build, and llvmpipe rejection are green. All audited
+  device-free contracts replay, canonical source remains exact, and REUSE is 1,983/1,983. No
+  hardware receipt or result was promoted. See `reports/audit-20260821.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

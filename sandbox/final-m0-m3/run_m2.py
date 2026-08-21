@@ -235,14 +235,39 @@ ANIMATION_FCURVES_EULER_MISSING = (
     b"and RNA-Path='rotation_euler'\n"
 )
 ANIMATION_FCURVES_EULER_FILTERED = b"Info: All 5 rotation channels were filtered\n"
-ANIMATION_FCURVES_EULER_CANONICAL = b"".join([
+ANIMATION_FCURVES_EULER_RECORDS = (
     ANIMATION_FCURVES_EULER_READ,
     ANIMATION_FCURVES_EULER_MISSING,
     ANIMATION_FCURVES_EULER_FILTERED,
-    b"." + ANIMATION_FCURVES_EULER_READ,
+    ANIMATION_FCURVES_EULER_READ,
     ANIMATION_FCURVES_EULER_MISSING,
     ANIMATION_FCURVES_EULER_FILTERED,
-])
+)
+
+
+def animation_fcurves_euler_block(
+    dot_offsets: set[int], *, trailing_dot: bool
+) -> bytes:
+    return b"".join(
+        (b"." if index in dot_offsets else b"") + record
+        for index, record in enumerate(ANIMATION_FCURVES_EULER_RECORDS)
+    ) + (b"." if trailing_dot else b"")
+
+
+# Complete combined-stream layouts observed across the retained Linux attempts:
+# one dot may prefix either Missing-Z record or the second read, while the
+# second Euler-test dot normally trails the phase. In r6 that trailing dot
+# moved back to the second Missing-Z record. Bind the whole two-dot phase so a
+# missing, extra, or merely punctuation-similar layout remains visible.
+ANIMATION_FCURVES_EULER_LAYOUTS = (
+    animation_fcurves_euler_block({1}, trailing_dot=True),
+    animation_fcurves_euler_block({3}, trailing_dot=True),
+    animation_fcurves_euler_block({4}, trailing_dot=True),
+    animation_fcurves_euler_block({3, 4}, trailing_dot=False),
+)
+ANIMATION_FCURVES_EULER_CANONICAL = animation_fcurves_euler_block(
+    {3}, trailing_dot=True
+)
 ANIMATION_FCURVES_NO_KEYS_WARNING = (
     b"<LOG_TIME>  reports          | WARNING No keys have been inserted and no "
     b"errors have been reported.\n"
@@ -977,31 +1002,22 @@ def canonicalize_vertex_group_painting_output(payload: bytes) -> bytes:
 
 def canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
     """Bind exact Euler and 300-warning phases while restoring two dots."""
-    lines = payload.splitlines(keepends=True)
-    euler_records = [
-        ANIMATION_FCURVES_EULER_READ,
-        ANIMATION_FCURVES_EULER_MISSING,
-        ANIMATION_FCURVES_EULER_FILTERED,
-        ANIMATION_FCURVES_EULER_READ,
-        ANIMATION_FCURVES_EULER_MISSING,
-        ANIMATION_FCURVES_EULER_FILTERED,
-    ]
-    euler_matches: list[tuple[int, int]] = []
-    for index in range(len(lines) - len(euler_records) + 1):
-        block = lines[index:index + len(euler_records)]
-        if (
-            sum(
-                line == b"." + record
-                for line, record in zip(block, euler_records)
-            ) == 1
-            and all(line in (record, b"." + record)
-                    for line, record in zip(block, euler_records))
-        ):
-            euler_matches.append((index, len(euler_records)))
+    euler_matches: list[tuple[int, bytes]] = []
+    for layout in ANIMATION_FCURVES_EULER_LAYOUTS:
+        start = 0
+        while (index := payload.find(layout, start)) >= 0:
+            after = index + len(layout)
+            if payload[after:after + 1] != b".":
+                euler_matches.append((index, layout))
+            start = index + 1
     if len(euler_matches) != 1:
-        fail("bl_animation_fcurves lacks one exact Euler progress layout")
-    index, length = euler_matches[0]
-    lines[index:index + length] = [ANIMATION_FCURVES_EULER_CANONICAL]
+        fail("bl_animation_fcurves lacks one exact complete Euler progress layout")
+    index, layout = euler_matches[0]
+    payload = (
+        payload[:index] + ANIMATION_FCURVES_EULER_CANONICAL
+        + payload[index + len(layout):]
+    )
+    lines = payload.splitlines(keepends=True)
     warning_layouts = (
         animation_fcurves_warning_block(ANIMATION_FCURVES_NATIVE_DOT_OFFSETS),
         animation_fcurves_warning_block(ANIMATION_FCURVES_WASM_DOT_OFFSETS),

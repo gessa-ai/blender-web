@@ -621,60 +621,71 @@ def main() -> int:
         ),
     )
 
-    fcurves_native_euler = b"".join([
-        m2.ANIMATION_FCURVES_EULER_READ,
-        b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
-        m2.ANIMATION_FCURVES_EULER_FILTERED,
-        m2.ANIMATION_FCURVES_EULER_READ,
-        m2.ANIMATION_FCURVES_EULER_MISSING,
-        m2.ANIMATION_FCURVES_EULER_FILTERED,
-    ])
+    fcurves_between_phases = b"fcurves-between-phases\n"
+
+    def fcurves_fixture(euler: bytes, warnings: bytes) -> bytes:
+        return (
+            b"fcurves-prefix\n" + euler + fcurves_between_phases
+            + warnings + b"fcurves-suffix\n"
+        )
+
     fcurves_native = (
-        b"fcurves-prefix\n" + fcurves_native_euler
-        + b"".join(m2.animation_fcurves_warning_block(
-            m2.ANIMATION_FCURVES_NATIVE_DOT_OFFSETS
-        )) + b"fcurves-suffix\n"
+        fcurves_fixture(
+            m2.ANIMATION_FCURVES_EULER_LAYOUTS[0],
+            b"".join(
+                m2.animation_fcurves_warning_block(
+                    m2.ANIMATION_FCURVES_NATIVE_DOT_OFFSETS
+                )
+            ),
+        )
     )
-    fcurves_wasm = (
-        b"fcurves-prefix\n" + m2.ANIMATION_FCURVES_EULER_CANONICAL
-        + m2.ANIMATION_FCURVES_WARNING_CANONICAL + b"fcurves-suffix\n"
-    )
-    fcurves_late_euler_dot = b"".join([
-        b"fcurves-prefix\n",
-        m2.ANIMATION_FCURVES_EULER_READ,
-        m2.ANIMATION_FCURVES_EULER_MISSING,
-        m2.ANIMATION_FCURVES_EULER_FILTERED,
-        m2.ANIMATION_FCURVES_EULER_READ,
-        b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
-        m2.ANIMATION_FCURVES_EULER_FILTERED,
+    fcurves_canonical = fcurves_fixture(
+        m2.ANIMATION_FCURVES_EULER_CANONICAL,
         m2.ANIMATION_FCURVES_WARNING_CANONICAL,
-        b"fcurves-suffix\n",
-    ])
-    assert m2.canonicalize_animation_fcurves_output(fcurves_native) == fcurves_wasm
-    assert m2.canonicalize_animation_fcurves_output(fcurves_wasm) == fcurves_wasm
+    )
+    assert (
+        m2.ANIMATION_FCURVES_EULER_LAYOUTS
+        == verifier.M2_ANIMATION_FCURVES_EULER_LAYOUTS
+    )
     assert m2.canonicalize_animation_fcurves_output(
-        fcurves_late_euler_dot
-    ) == fcurves_wasm
-    assert verifier.m2_canonicalize_animation_fcurves_output(
-        fcurves_late_euler_dot
-    ) == fcurves_wasm
+        fcurves_native
+    ) == fcurves_canonical
+    for euler_layout in m2.ANIMATION_FCURVES_EULER_LAYOUTS:
+        fixture = fcurves_fixture(
+            euler_layout, m2.ANIMATION_FCURVES_WARNING_CANONICAL
+        )
+        assert m2.canonicalize_animation_fcurves_output(
+            fixture
+        ) == fcurves_canonical
+        assert verifier.m2_canonicalize_animation_fcurves_output(
+            fixture
+        ) == fcurves_canonical
     reject(
         "m2_animation_fcurves_euler_dot_missing",
         lambda: m2.canonicalize_animation_fcurves_output(
-            fcurves_late_euler_dot.replace(
-                b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
-                m2.ANIMATION_FCURVES_EULER_MISSING,
-                1,
+            fcurves_fixture(
+                m2.animation_fcurves_euler_block({3}, trailing_dot=False),
+                m2.ANIMATION_FCURVES_WARNING_CANONICAL,
             )
         ),
     )
     reject(
         "m2_animation_fcurves_euler_dot_duplicate",
         lambda: verifier.m2_canonicalize_animation_fcurves_output(
-            fcurves_late_euler_dot.replace(
-                m2.ANIMATION_FCURVES_EULER_READ,
-                b"." + m2.ANIMATION_FCURVES_EULER_READ,
-                1,
+            fcurves_fixture(
+                m2.animation_fcurves_euler_block(
+                    {3, 4}, trailing_dot=True
+                ),
+                m2.ANIMATION_FCURVES_WARNING_CANONICAL,
+            )
+        ),
+    )
+    reject(
+        "m2_animation_fcurves_euler_unobserved_layout",
+        lambda: m2.canonicalize_animation_fcurves_output(
+            fcurves_fixture(
+                m2.animation_fcurves_euler_block({2}, trailing_dot=True),
+                m2.ANIMATION_FCURVES_WARNING_CANONICAL,
             )
         ),
     )

@@ -316,14 +316,34 @@ M2_ANIMATION_FCURVES_EULER_MISSING = (
     b"and RNA-Path='rotation_euler'\n"
 )
 M2_ANIMATION_FCURVES_EULER_FILTERED = b"Info: All 5 rotation channels were filtered\n"
-M2_ANIMATION_FCURVES_EULER_CANONICAL = b"".join([
+M2_ANIMATION_FCURVES_EULER_RECORDS = (
     M2_ANIMATION_FCURVES_EULER_READ,
     M2_ANIMATION_FCURVES_EULER_MISSING,
     M2_ANIMATION_FCURVES_EULER_FILTERED,
-    b"." + M2_ANIMATION_FCURVES_EULER_READ,
+    M2_ANIMATION_FCURVES_EULER_READ,
     M2_ANIMATION_FCURVES_EULER_MISSING,
     M2_ANIMATION_FCURVES_EULER_FILTERED,
-])
+)
+
+
+def m2_animation_fcurves_euler_block(
+    dot_offsets: set[int], *, trailing_dot: bool
+) -> bytes:
+    return b"".join(
+        (b"." if index in dot_offsets else b"") + record
+        for index, record in enumerate(M2_ANIMATION_FCURVES_EULER_RECORDS)
+    ) + (b"." if trailing_dot else b"")
+
+
+M2_ANIMATION_FCURVES_EULER_LAYOUTS = (
+    m2_animation_fcurves_euler_block({1}, trailing_dot=True),
+    m2_animation_fcurves_euler_block({3}, trailing_dot=True),
+    m2_animation_fcurves_euler_block({4}, trailing_dot=True),
+    m2_animation_fcurves_euler_block({3, 4}, trailing_dot=False),
+)
+M2_ANIMATION_FCURVES_EULER_CANONICAL = m2_animation_fcurves_euler_block(
+    {3}, trailing_dot=True
+)
 M2_ANIMATION_FCURVES_NO_KEYS_WARNING = (
     b"<LOG_TIME>  reports          | WARNING No keys have been inserted and no "
     b"errors have been reported.\n"
@@ -1997,31 +2017,22 @@ def m2_canonicalize_vertex_group_painting_output(payload: bytes) -> bytes:
 
 def m2_canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
     """Independently bind the Euler and exact 300-warning phases."""
-    lines = payload.splitlines(keepends=True)
-    euler_records = [
-        M2_ANIMATION_FCURVES_EULER_READ,
-        M2_ANIMATION_FCURVES_EULER_MISSING,
-        M2_ANIMATION_FCURVES_EULER_FILTERED,
-        M2_ANIMATION_FCURVES_EULER_READ,
-        M2_ANIMATION_FCURVES_EULER_MISSING,
-        M2_ANIMATION_FCURVES_EULER_FILTERED,
-    ]
-    euler_matches: list[tuple[int, int]] = []
-    for index in range(len(lines) - len(euler_records) + 1):
-        block = lines[index:index + len(euler_records)]
-        if (
-            sum(
-                line == b"." + record
-                for line, record in zip(block, euler_records)
-            ) == 1
-            and all(line in (record, b"." + record)
-                    for line, record in zip(block, euler_records))
-        ):
-            euler_matches.append((index, len(euler_records)))
+    euler_matches: list[tuple[int, bytes]] = []
+    for layout in M2_ANIMATION_FCURVES_EULER_LAYOUTS:
+        start = 0
+        while (index := payload.find(layout, start)) >= 0:
+            after = index + len(layout)
+            if payload[after:after + 1] != b".":
+                euler_matches.append((index, layout))
+            start = index + 1
     if len(euler_matches) != 1:
-        fail("m2: bl_animation_fcurves lacks one exact Euler progress layout")
-    index, length = euler_matches[0]
-    lines[index:index + length] = [M2_ANIMATION_FCURVES_EULER_CANONICAL]
+        fail("m2: bl_animation_fcurves lacks one exact complete Euler progress layout")
+    index, layout = euler_matches[0]
+    payload = (
+        payload[:index] + M2_ANIMATION_FCURVES_EULER_CANONICAL
+        + payload[index + len(layout):]
+    )
+    lines = payload.splitlines(keepends=True)
     warning_layouts = (
         m2_animation_fcurves_warning_block(M2_ANIMATION_FCURVES_NATIVE_DOT_OFFSETS),
         m2_animation_fcurves_warning_block(M2_ANIMATION_FCURVES_WASM_DOT_OFFSETS),

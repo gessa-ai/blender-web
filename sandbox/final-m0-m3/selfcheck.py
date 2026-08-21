@@ -842,16 +842,11 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             )
             wasm_body = verify_module.M2_VERTEX_GROUP_PAINTING_CANONICAL
         elif name == verify_module.M2_ANIMATION_FCURVES_SUITE:
-            native_euler = b"".join([
-                verify_module.M2_ANIMATION_FCURVES_EULER_READ,
-                b"." + verify_module.M2_ANIMATION_FCURVES_EULER_MISSING,
-                verify_module.M2_ANIMATION_FCURVES_EULER_FILTERED,
-                verify_module.M2_ANIMATION_FCURVES_EULER_READ,
-                verify_module.M2_ANIMATION_FCURVES_EULER_MISSING,
-                verify_module.M2_ANIMATION_FCURVES_EULER_FILTERED,
-            ])
+            between_phases = b"fcurves-between-phases\n"
             native_body = (
-                b"fcurves-prefix\n" + native_euler
+                b"fcurves-prefix\n"
+                + verify_module.M2_ANIMATION_FCURVES_EULER_LAYOUTS[0]
+                + between_phases
                 + b"".join(verify_module.m2_animation_fcurves_warning_block(
                     verify_module.M2_ANIMATION_FCURVES_NATIVE_DOT_OFFSETS
                 )) + b"fcurves-suffix\n"
@@ -859,6 +854,7 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             wasm_body = (
                 b"fcurves-prefix\n"
                 + verify_module.M2_ANIMATION_FCURVES_EULER_CANONICAL
+                + between_phases
                 + verify_module.M2_ANIMATION_FCURVES_WARNING_CANONICAL
                 + b"fcurves-suffix\n"
             )

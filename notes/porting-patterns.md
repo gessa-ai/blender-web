@@ -176,6 +176,10 @@ records and dot cardinality instead of enumerating incidental offsets. A final d
 flush immediately before or after the exact result tail, or between its exact `Ran N tests` prefix
 and final `OK`. Accept only observed complete layouts, canonicalize them to one order, and reject
 missing, duplicated, near-match, or differently placed diagnostics.
+If a test-completion dot normally trails such a diagnostic phase but can flush back inside it,
+include that trailing boundary in each observed complete layout and preserve the exact total dot
+cardinality. Matching only the diagnostic lines can otherwise mistake a two-dot phase for a
+one-dot phase while leaving an unbound dot attached to the following record.
 
 ## Class 8 — current evidence producers must not inherit paths from retained legacy rigs
 

@@ -180,6 +180,10 @@ If a test-completion dot normally trails such a diagnostic phase but can flush b
 include that trailing boundary in each observed complete layout and preserve the exact total dot
 cardinality. Matching only the diagnostic lines can otherwise mistake a two-dot phase for a
 one-dot phase while leaving an unbound dot attached to the following record.
+Expected-failure progress markers can be interrupted by the launcher envelope too. Bind a marker
+such as `x` only as an exact observed prefix for the named suite and platform, then byte-splice the
+envelope so the complete status sequence must still equal the peer log. Never add `x` to the
+general dot-prefix grammar.
 
 ## Class 8 — current evidence producers must not inherit paths from retained legacy rigs
 

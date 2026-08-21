@@ -165,6 +165,39 @@ def main() -> int:
     ) == (
         b"test_fixture (__main__.FixtureTests.test_fixture) ... ok\nafter\n"
     )
+    nla_interrupted_progress = (
+        m2.NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS
+        + m2.ALLOCATOR_LINE + native_banner + b".\nafter\n"
+    )
+    nla_expected_progress = b"..x....\nafter\n"
+    assert m2.normalized_bytes(
+        nla_interrupted_progress, wasm=False, suite=m2.NLA_STRIP_SUITE
+    ) == nla_expected_progress
+    assert verifier.m2_strip_platform_envelope(
+        nla_interrupted_progress,
+        wasm=False,
+        suite=verifier.M2_NLA_STRIP_SUITE,
+    ) == nla_expected_progress
+    reject("m2_nla_expected_failure_prefix_wrong_suite", lambda: m2.normalized_bytes(
+        nla_interrupted_progress, wasm=False, suite="bl_animation_bake"
+    ))
+    reject(
+        "m2_verifier_nla_expected_failure_prefix_wrong_suite",
+        lambda: verifier.m2_strip_platform_envelope(
+            nla_interrupted_progress, wasm=False, suite="bl_animation_bake"
+        ),
+    )
+    reject("m2_nla_expected_failure_prefix_near_match", lambda: m2.normalized_bytes(
+        nla_interrupted_progress.replace(b"..x...", b"..xx...", 1),
+        wasm=False,
+        suite=m2.NLA_STRIP_SUITE,
+    ))
+    reject("m2_nla_expected_failure_prefix_wasm", lambda: m2.normalized_bytes(
+        m2.NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS
+        + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE + b".\nafter\n",
+        wasm=True,
+        suite=m2.NLA_STRIP_SUITE,
+    ))
     assert m2.normalized_bytes(
         b"before\n" + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
         + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n"

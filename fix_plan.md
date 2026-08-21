@@ -265,17 +265,17 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   130-B LFS pointers). **DRIVER DECIDED: cheap LFS pull APPROVED (38.4 MB/89 files →
   ~doubles suites to ~75; dispatched). Full 0.76 GB pull deferred; render/GPU 447 MB never
   needed for tier-b.**
-- [~] **M2.6-RECONCILE [driver] blocked-by one fresh 75-row confirmation after r6 bounded
-  `bl_animation_fcurves` repair:** r6 used a fresh pinned upstream freeze
-  (receipt sha256:ce99f2f38265), completed 41 rows, and captured selected row 42 before its passing
-  native combined stream moved the second Euler-test progress dot backward across two exact
-  diagnostics. All six diagnostic records, 300 warning records, `Ran 17 tests`, and Wasm bytes
-  were unchanged. Producer and independent verifier now accept only the four complete two-dot
-  layouts observed across all retained Linux attempts; missing, extra, and unobserved placements
-  fail. All 21 retained native/Wasm pairs replay to one exact 30,841-byte
-  sha256:b9d905044ce2 stream, and runner 23/188, aggregate 2/156, composer 1/6, and adapter 3/10
-  adversarial checks are green. Per the repeated-blocker/no-retry rule no r7 ran; producer
-  receipts, deferrals, and pass flags remain unchanged pending one fresh next-iteration replay.
+- [~] **M2.6-RECONCILE [driver] blocked-by one fresh 75-row confirmation after r7b exact
+  `bl_animation_nla_strip` expected-failure-prefix repair:** r7b used a fresh pinned upstream
+  freeze (receipt sha256:57b9f0e9a504), completed 34 rows, and captured selected row 35 before its
+  passing native combined stream placed exact unittest progress `..x...` before the adjacent
+  allocator/banner and the final `.` after it. Wasm emitted the same `..x....` sequence
+  contiguously. Producer and independent verifier now byte-splice only that exact native prefix
+  for that exact suite; wrong-suite, Wasm, extra-marker, and near-match layouts fail. The captured
+  pair replays identically at 125 bytes, sha256:f63fe0d68b8f; all 75 saved r6+r7b normalized rows
+  replay byte-for-byte; runner 23/192, aggregate 2/156, composer 1/6, and adapter 3/10 adversarial
+  checks are green. Per the repeated-blocker/no-retry rule no r8 ran; producer receipts,
+  deferrals, and pass flags remain unchanged pending one fresh next-iteration replay.
 - [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
   JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
   suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS

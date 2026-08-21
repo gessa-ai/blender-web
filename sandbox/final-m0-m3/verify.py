@@ -148,6 +148,8 @@ M2_VERBOSE_UNITTEST_PROGRESS_RE = re.compile(
     rb"(?P<method>test_[A-Za-z0-9_]+) "
     rb"\(__main__\.[A-Za-z_][A-Za-z0-9_.]*\.(?P=method)\) \.\.\. "
 )
+M2_NLA_STRIP_SUITE = "bl_animation_nla_strip"
+M2_NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS = b"..x..."
 M2_WASM_LOCALE_RE = re.compile(
     rb"[0-9]{2}:[0-9]{2}\.[0-9]{3}  translation      \| WARNING "
     rb"'locale' data path for translations not found\n"
@@ -1640,18 +1642,31 @@ def active_deferrals(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, A
     return active, ledger
 
 
-def m2_strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
+def m2_valid_platform_progress_prefix(
+    prefix: bytes, *, wasm: bool, suite: str | None
+) -> bool:
+    return (
+        not (set(prefix) - {ord(".")})
+        or M2_VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(prefix) is not None
+        or (
+            not wasm
+            and suite == M2_NLA_STRIP_SUITE
+            and prefix == M2_NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS
+        )
+    )
+
+
+def m2_strip_platform_envelope(
+    payload: bytes, *, wasm: bool, suite: str | None = None
+) -> bytes:
     """Independently replay the producer's byte-splice envelope policy."""
     lines = payload.splitlines(keepends=True)
     allocator_rows = [
         (index, line[:-len(M2_ALLOCATOR_LINE)])
         for index, line in enumerate(lines[:-1])
         if line.endswith(M2_ALLOCATOR_LINE)
-        and (
-            not (set(line[:-len(M2_ALLOCATOR_LINE)]) - {ord(".")})
-            or M2_VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(
-                line[:-len(M2_ALLOCATOR_LINE)]
-            ) is not None
+        and m2_valid_platform_progress_prefix(
+            line[:-len(M2_ALLOCATOR_LINE)], wasm=wasm, suite=suite
         )
     ]
     if wasm:
@@ -2217,7 +2232,7 @@ def m2_normalized_bytes(
         payload, suite=suite, scratch_root=scratch_root, root=root
     )
     payload = m2_canonicalize_repository_roots(payload, root=root)
-    payload = m2_strip_platform_envelope(payload, wasm=wasm)
+    payload = m2_strip_platform_envelope(payload, wasm=wasm, suite=suite)
     shared = root / "sandbox/tierb-prep/normalize.sed"
     denoise = root / "sandbox/tierb-prep/wasm-denoise.pl"
     key = (
@@ -2843,7 +2858,8 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
     if envelope != {
         "native": (
             "one exact adjacent bounded-progress-prefix allocator + pinned "
-            "native banner, byte-spliced"
+            "native banner, byte-spliced; expected-failure progress is exact "
+            "and suite-scoped"
         ),
         "wasm": (
             "one exact adjacent bounded-progress-prefix allocator + pinned "

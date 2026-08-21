@@ -550,7 +550,8 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
         "platform_envelope": {
             "native": (
                 "one exact adjacent bounded-progress-prefix allocator + pinned "
-                "native banner, byte-spliced"
+                "native banner, byte-spliced; expected-failure progress is exact "
+                "and suite-scoped"
             ),
             "wasm": (
                 "one exact adjacent bounded-progress-prefix allocator + pinned "

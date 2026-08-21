@@ -67,6 +67,8 @@ VERBOSE_UNITTEST_PROGRESS_RE = re.compile(
     rb"(?P<method>test_[A-Za-z0-9_]+) "
     rb"\(__main__\.[A-Za-z_][A-Za-z0-9_.]*\.(?P=method)\) \.\.\. "
 )
+NLA_STRIP_SUITE = "bl_animation_nla_strip"
+NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS = b"..x..."
 WASM_LOCALE_RE = re.compile(
     rb"[0-9]{2}:[0-9]{2}\.[0-9]{3}  translation      \| WARNING "
     rb"'locale' data path for translations not found\n"
@@ -628,7 +630,23 @@ def capture_combined(argv: list[str], output: Path, *, env: dict[str, str] | Non
     return result.returncode
 
 
-def strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
+def valid_platform_progress_prefix(
+    prefix: bytes, *, wasm: bool, suite: str | None
+) -> bool:
+    return (
+        not (set(prefix) - {ord(".")})
+        or VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(prefix) is not None
+        or (
+            not wasm
+            and suite == NLA_STRIP_SUITE
+            and prefix == NLA_STRIP_NATIVE_INTERRUPTED_PROGRESS
+        )
+    )
+
+
+def strip_platform_envelope(
+    payload: bytes, *, wasm: bool, suite: str | None = None
+) -> bytes:
     """Remove only the pinned launcher's structurally located metadata.
 
     Python/C stdout buffering may move the adjacent allocator/banner pair
@@ -642,11 +660,8 @@ def strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
         (index, line[:-len(ALLOCATOR_LINE)])
         for index, line in enumerate(lines[:-1])
         if line.endswith(ALLOCATOR_LINE)
-        and (
-            not (set(line[:-len(ALLOCATOR_LINE)]) - {ord(".")})
-            or VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(
-                line[:-len(ALLOCATOR_LINE)]
-            ) is not None
+        and valid_platform_progress_prefix(
+            line[:-len(ALLOCATOR_LINE)], wasm=wasm, suite=suite
         )
     ]
     if wasm:
@@ -1205,7 +1220,7 @@ def normalized_bytes(
         payload, suite=suite, scratch_root=scratch_root
     )
     payload = canonicalize_repository_roots(payload)
-    payload = strip_platform_envelope(payload, wasm=wasm)
+    payload = strip_platform_envelope(payload, wasm=wasm, suite=suite)
     commands = [["sed", "-f", str(TIERB / "normalize.sed")]]
     if wasm:
         commands.append(["perl", str(TIERB / "wasm-denoise.pl")])
@@ -2026,7 +2041,8 @@ def main(argv: list[str] | None = None) -> int:
             "platform_envelope": {
                 "native": (
                     "one exact adjacent bounded-progress-prefix allocator + pinned "
-                    "native banner, byte-spliced"
+                    "native banner, byte-spliced; expected-failure progress is exact "
+                    "and suite-scoped"
                 ),
                 "wasm": (
                     "one exact adjacent bounded-progress-prefix allocator + pinned "

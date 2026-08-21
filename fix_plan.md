@@ -98,9 +98,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   smoke writes and reads a ZIP-compressed EXR plus a DEFLATE TIFF under Node. All four runtime
   dependencies remain licensed and GPL-compatible in `ledger/deps.json`. This closes stale
   Wave-1 accounting only; it does not promote a strict receipt, result flag, or milestone promise.
-- [ ] **M1.6 [build-deps]** Cross-compile Wave-2: **OpenImageIO** trimmed to EXR/TIFF/PNG/JPEG
-  readers only (deps: EXR,Imath,fmt,robin-map,pugixml,tiff,jpeg,png,zlib,TBB), PLUS build a
-  **native host `oiiotool`** (runs at Blender build time for data-gen). **blocked-by M1.5.**
+- [x] **M1.6 [build-deps] RECONCILED by `5e379cd`, `f7ec391`, `f41a474`, and
+  `f0f93c7`:** OpenImageIO 3.1.13.1 is harvested as static pthread Wasm archives with
+  embedded EXR/TIFF/PNG/JPEG readers, bundled pugixml, and the mandatory OpenColorIO subtree;
+  tools, Python, TBB, SIMD, and unneeded codecs stay disabled inside OIIO. A fresh downstream
+  Wasm consumer writes and reads all four enabled formats under Node. The pinned native Linux
+  dependency package supplies `oiiotool` 3.1.13.1, which generates and inspects an image under
+  the canonical `PLATFORM_ENV_BUILD` library environment. At the source pin it is host-side test
+  plumbing, not a product data-generation edge. All seven Wave-2 ledger rows remain licensed and
+  GPL-compatible. This closes stale Wave-2 accounting only; it does not promote a strict receipt,
+  result flag, or milestone promise.
 - [ ] **M1.7 [build-deps]** TBB threading smoke over emscripten `-pthread` + SharedArrayBuffer
   (highest-risk mandatory dep, wasm-diff 4). **blocked-by M1.4** (TBB build). Verify a parallel_for
   runs in a node worker.

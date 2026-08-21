@@ -383,6 +383,85 @@ static bool push_array_packing_contract()
   return true;
 }
 
+struct Mat3PackingCase {
+  int location;
+  uint32_t offset;
+  const char *create_info;
+  const char *name;
+  std::array<float, 9> values;
+};
+
+static bool push_mat3_packing_contract()
+{
+  static constexpr std::array<Mat3PackingCase, 4> cases = {{
+      {2048,
+       0,
+       "gpu_shader_simple_lighting",
+       "NormalMatrix",
+       {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f}},
+      {2049,
+       48,
+       "gpu_scene_linear_to_rec709_space",
+       "gpu_scene_linear_to_rec709",
+       {11.0f, 12.0f, 13.0f, 14.0f, 15.0f, 16.0f, 17.0f, 18.0f, 19.0f}},
+      {2050,
+       96,
+       "gpu_shader_sequencer_scope_raster",
+       "scope_gamut_to_rec709",
+       {21.0f, 22.0f, 23.0f, 24.0f, 25.0f, 26.0f, 27.0f, 28.0f, 29.0f}},
+      {2051,
+       144,
+       "gpu_shader_sequencer_scope_raster",
+       "scope_yuv_matrix",
+       {31.0f, 32.0f, 33.0f, 34.0f, 35.0f, 36.0f, 37.0f, 38.0f, 39.0f}},
+  }};
+
+  PushPackingHarness shader;
+  for (const Mat3PackingCase &test : cases) {
+    shader.push_constants_.push_back({test.location, test.offset, 48});
+  }
+  shader.push_constants_data_.assign(192, 0);
+  for (const Mat3PackingCase &test : cases) {
+    shader.push_constant_set(test.location, 9, 1, test.values.data());
+  }
+
+  if (shader.push_constants_.size() != cases.size() || !shader.push_constants_dirty_) {
+    std::cerr << "push-mat3 layout census mismatch slots=" << shader.push_constants_.size()
+              << " dirty=" << shader.push_constants_dirty_ << "\n";
+    return false;
+  }
+
+  size_t payload_bytes = 0;
+  size_t padding_bytes = 0;
+  for (const Mat3PackingCase &test : cases) {
+    const uint8_t *source = reinterpret_cast<const uint8_t *>(test.values.data());
+    for (uint32_t column = 0; column < 3; column++) {
+      const uint32_t destination = test.offset + column * 16;
+      if (std::memcmp(shader.push_constants_data_.data() + destination,
+                      source + column * 12,
+                      12) != 0)
+      {
+        std::cerr << "push-mat3 payload mismatch create-info=" << test.create_info
+                  << " name=" << test.name << " column=" << column << "\n";
+        return false;
+      }
+      for (uint32_t byte = destination + 12; byte < destination + 16; byte++) {
+        if (shader.push_constants_data_[byte] != 0) {
+          std::cerr << "push-mat3 padding mismatch create-info=" << test.create_info
+                    << " name=" << test.name << " column=" << column << "\n";
+          return false;
+        }
+      }
+      payload_bytes += 12;
+      padding_bytes += 4;
+    }
+  }
+
+  std::cout << "CONTRACT push-mat3-packing PASS create-infos=4 matrices=4 columns=12 payload="
+            << payload_bytes << " padding=" << padding_bytes << " block=192\n";
+  return true;
+}
+
 static size_t count_occurrences(const std::string &text, const std::string &needle)
 {
   size_t count = 0;
@@ -653,12 +732,12 @@ int main()
 {
   using namespace blender::gpu::webgpu::frontend_test;
   if (!image_type_contract() || !storage_format_contract() || !qualifier_contract() ||
-      !std140_contract() || !push_array_packing_contract() || !buffer_helper_rewrite_contract() ||
-      !integer_sampler_rewrite_contract() || !one_d_array_rewrite_contract() ||
-      !finite_builtin_rewrite_contract())
+      !std140_contract() || !push_array_packing_contract() || !push_mat3_packing_contract() ||
+      !buffer_helper_rewrite_contract() || !integer_sampler_rewrite_contract() ||
+      !one_d_array_rewrite_contract() || !finite_builtin_rewrite_contract())
   {
     return 1;
   }
-  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=9 cases=198\n";
+  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=202\n";
   return 0;
 }

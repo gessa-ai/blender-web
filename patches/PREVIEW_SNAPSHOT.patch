@@ -23935,10 +23935,10 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..da93b99db8b11db59caf862355028c9c078d0a6e
+index 0000000000000000000000000000000000000000..dbca04c9c92b2a728e7113fa58316c69285e7826
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2878 @@
+@@ -0,0 +1,2901 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26737,17 +26737,40 @@ index 0000000000000000000000000000000000000000..da93b99db8b11db59caf862355028c9c
 +    if (slot.location != location) {
 +      continue;
 +    }
-+    /* The frontend hands us the array TIGHTLY packed (`comp_len * 4` bytes per element),
-+     * but the shader block is std140 (`slot.size` reserved by std140_align_size), where an
-+     * array element's stride is rounded UP to 16 bytes. So a `float[9]` / `int[]` / vec2[] /
-+     * vec3[] array is 16-strided in the block while the source is 4/8/12-strided. Copying the
-+     * source as one contiguous blob lands element i at byte i*src_stride instead of the block's
-+     * i*16, so only element 0 is read correctly and the rest are shuffled/zeroed (the workbench
-+     * TAA `samplesWeights[9]` bug: 6 of 9 neighbourhood weights read as 0, the accumulation is
-+     * still normalised by the full weight sum -> a value-dependent darkening of every
-+     * TAA-resolved pixel). Mirror Vulkan's std140 push-constant buffer (VKPushConstants::Layout,
-+     * vk_push_constants) by writing each element at its std140 stride. Scalars, single vectors
-+     * and vec4/mat4 arrays (stride == src) fall through to the fast contiguous copy. */
++    /* A float3x3 arrives as nine tightly packed floats, but std140 stores it as three float3
++     * columns with a 16-byte column stride. Mirror Vulkan's inner-row padding before handling
++     * ordinary arrays: a single matrix still needs 12 padding bytes. */
++    if (comp_len == 9) {
++      constexpr uint32_t source_column_size = 3u * sizeof(float);
++      constexpr uint32_t destination_column_stride = 4u * sizeof(float);
++      constexpr uint32_t column_count = 3;
++      constexpr uint32_t source_matrix_size = column_count * source_column_size;
++      constexpr uint32_t destination_matrix_stride = column_count * destination_column_stride;
++      const uint32_t matrix_count = uint32_t(std::max(array_size, 1));
++      const uint32_t destination_size = matrix_count * destination_matrix_stride;
++      if (destination_size <= slot.size &&
++          slot.offset + destination_size <= push_constants_data_.size())
++      {
++        const uint8_t *src = static_cast<const uint8_t *>(data);
++        for (uint32_t matrix = 0; matrix < matrix_count; matrix++) {
++          for (uint32_t column = 0; column < column_count; column++) {
++            std::memcpy(push_constants_data_.data() + slot.offset +
++                            matrix * destination_matrix_stride +
++                            column * destination_column_stride,
++                        src + matrix * source_matrix_size + column * source_column_size,
++                        source_column_size);
++          }
++        }
++        push_constants_dirty_ = true;
++      }
++      return;
++    }
++
++    /* The frontend hands us arrays tightly packed (`comp_len * 4` bytes per element), but the
++     * shader block is std140 (`slot.size` reserved by std140_align_size), where an array element's
++     * stride is rounded up to 16 bytes. Mirror Vulkan's std140 push-constant buffer by writing
++     * each element at that stride. Scalars, single vectors, and vec4/mat4 arrays (stride == src)
++     * fall through to the fast contiguous copy. */
 +    const uint32_t src_stride = uint32_t(comp_len) * 4u;
 +    /* std140 array-element stride: the element size rounded up to 16 (matches
 +     * std140_align_size). vec4/mat4 arrays already satisfy this (stride == src). */

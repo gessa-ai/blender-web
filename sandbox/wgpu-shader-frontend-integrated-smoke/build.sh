@@ -68,6 +68,9 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_shader_interface_map.hh
     source/blender/gpu/intern/gpu_shader_create_info.hh
     source/blender/gpu/intern/gpu_shader_private.hh
+    source/blender/gpu/shaders/infos/gpu_shader_sequencer_infos.hh
+    source/blender/gpu/shaders/infos/gpu_shader_simple_lighting_infos.hh
+    source/blender/gpu/shaders/infos/gpu_srgb_to_framebuffer_space_infos.hh
     source/blender/gpu/GPU_common_types.hh
     source/blender/gpu/GPU_texture.hh
     source/blender/blenlib/BLI_map.hh
@@ -108,6 +111,9 @@ done
 for source_path in \
   source/blender/gpu/intern/gpu_shader_create_info.hh \
   source/blender/gpu/intern/gpu_shader_private.hh \
+  source/blender/gpu/shaders/infos/gpu_shader_sequencer_infos.hh \
+  source/blender/gpu/shaders/infos/gpu_shader_simple_lighting_infos.hh \
+  source/blender/gpu/shaders/infos/gpu_srgb_to_framebuffer_space_infos.hh \
   source/blender/gpu/GPU_common_types.hh \
   source/blender/gpu/GPU_texture.hh \
   source/blender/blenlib/BLI_map.hh \
@@ -122,6 +128,17 @@ for source_path in \
 do
   require_file "$ROOT/upstream/$source_path"
 done
+EXPECTED_MAT3_CREATE_INFOS='source/blender/gpu/shaders/infos/gpu_shader_sequencer_infos.hh:PUSH_CONSTANT(float3x3, scope_gamut_to_rec709)
+source/blender/gpu/shaders/infos/gpu_shader_sequencer_infos.hh:PUSH_CONSTANT(float3x3, scope_yuv_matrix)
+source/blender/gpu/shaders/infos/gpu_shader_simple_lighting_infos.hh:PUSH_CONSTANT(float3x3, NormalMatrix)
+source/blender/gpu/shaders/infos/gpu_srgb_to_framebuffer_space_infos.hh:PUSH_CONSTANT(float3x3, gpu_scene_linear_to_rec709)'
+ACTUAL_MAT3_CREATE_INFOS="$(grep -RH '^PUSH_CONSTANT(float3x3, ' \
+  "$ROOT/upstream/source/blender/gpu/shaders/infos" | \
+  sed "s#^$ROOT/upstream/##" | LC_ALL=C sort)"
+if [ "$ACTUAL_MAT3_CREATE_INFOS" != "$EXPECTED_MAT3_CREATE_INFOS" ]; then
+  echo "ERROR: pinned float3x3 push-constant create-info census differs" >&2
+  exit 1
+fi
 require_file "$NATIVE_FMT_INCLUDE/fmt/ranges.h"
 require_file "$WASM_INCLUDE/fmt/ranges.h"
 if ! cmp -s "$NATIVE_FMT_INCLUDE/fmt/ranges.h" "$WASM_INCLUDE/fmt/ranges.h"; then
@@ -223,7 +240,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_shader_frontend.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 10 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 11 ] ||
      ! grep -qx \
        'CONTRACT image-types PASS cases=39 bindings=78 signed-atomic-array=1' "$stdout_file" ||
      ! grep -qx \
@@ -234,6 +251,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT push-array-packing PASS arrays=5 elements=19 payload=148 padding=156 block=304' \
        "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT push-mat3-packing PASS create-infos=4 matrices=4 columns=12 payload=144 padding=48 block=192' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT buffer-helper-rewrite PASS cases=3 nested-passes=1' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT integer-sampler-rewrite PASS cases=9 rewritten=7 controls=2' "$stdout_file" ||
@@ -241,7 +261,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=9 cases=198' "$stdout_file"
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=202' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1

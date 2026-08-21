@@ -76,3 +76,9 @@ Patch 0151's finite-builtin token-boundary correction was then composed without 
 `22621d7ee011737258e63193a7bfb7c5bd28a81173435e647e4fa2db73eda196`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `1d0c7f68521b25e9b295c7f031ded880d869326d954d8d10aaf830fda23cb903`.
+
+Patch 0152's float3x3 std140 column-packing correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,532,106 bytes with SHA-256
+`3045050329c55f3d269c24b8441a209b0e1c0113bf11445d9b45534a4bf1aa71`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`dec961c47e21e5df934641525f20f5ba682ab1bd7075aa705767878d7bf1c21c`.

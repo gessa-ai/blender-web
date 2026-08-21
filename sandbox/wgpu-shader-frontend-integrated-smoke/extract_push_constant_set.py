@@ -29,6 +29,9 @@ def main() -> int:
     method = source[start:end].rstrip() + "\n"
     required = (
         "for (const PushConstantSlot &slot : push_constants_)",
+        "if (comp_len == 9) {",
+        "constexpr uint32_t destination_column_stride = 4u * sizeof(float);",
+        "matrix * destination_matrix_stride +",
         "const uint32_t dst_stride = (src_stride + 15u) & ~15u;",
         "push_constants_dirty_ = true;",
     )

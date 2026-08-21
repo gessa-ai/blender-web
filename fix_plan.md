@@ -441,10 +441,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   locked-Ninja no-work. It creates no adapter/device/buffer or receipt and does not claim the
   separately found mat3 gap. Evidence:
   `notes/m3-t7-push-array-integrated-linux-reconcile-20260821.md`.
-- [ ] **M3.T7.mat3-packing [gpu-backend]:** blocked-by: none. Fix the canonical WebGPU
-  push-constant writer to insert std140 padding after each `float3x3` column, mirroring
-  `vk_push_constants.hh:242-251`; extend the extracted native/Wasm contract over the four pinned
-  mat3 create-infos before composing a new numbered patch into the canonical source snapshot.
+- [x] **M3.T7.mat3-packing [gpu-backend]** COMPLETE (patch 0152): the canonical writer now packs
+  each float3x3 as three 12-byte columns at a 16-byte std140 stride, matching Vulkan. The extracted
+  native/Wasm contract binds all four pinned matrix declarations and every payload/padding byte;
+  malformed array/matrix methods fail before evidence allocation. The 257-path canonical freeze,
+  windowed rebuild/no-work, and exact receipts are recorded in
+  `notes/m3-t7-mat3-packing-integrated-linux-20260821.md`. Fresh M3 receipt ownership remains with
+  M3-LINUX-REPLAY under the live s7 hardware blocker.
 - [x] **M3.T6.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree common-buffer and
   readback-registry postimages directly. Five contracts cover the exact 32-case usage matrix,

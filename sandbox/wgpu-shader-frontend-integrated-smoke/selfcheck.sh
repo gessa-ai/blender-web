@@ -23,6 +23,7 @@ trap cleanup EXIT
 WRONG_DAWN_OUT="$SELFCHECK_DIR/wrong-dawn-out"
 WRONG_NODE_OUT="$SELFCHECK_DIR/wrong-node-out"
 WRONG_METHOD_OUT="$SELFCHECK_DIR/wrong-method.inc"
+WRONG_MAT3_METHOD_OUT="$SELFCHECK_DIR/wrong-mat3-method.inc"
 WRONG_NODE="$SELFCHECK_DIR/wrong-node"
 printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' v99.0.0" >"$WRONG_NODE"
 chmod +x "$WRONG_NODE"
@@ -50,6 +51,32 @@ if [ -s "$SELFCHECK_DIR/wrong-method.stdout" ] ||
      "$SELFCHECK_DIR/wrong-method.stderr"
 then
   echo "ERROR: malformed push-constant rejection diagnostic differs" >&2
+  exit 1
+fi
+
+sed \
+  's/if (comp_len == 9) {/if (comp_len == 8) {/' \
+  "$ROOT/upstream/source/blender/gpu/webgpu/wgpu_shader.cc" \
+  >"$SELFCHECK_DIR/wrong-mat3-method.cc"
+if "$ROOT/.host-tools/bin/python3.13" "$HERE/extract_push_constant_set.py" \
+  --source "$SELFCHECK_DIR/wrong-mat3-method.cc" \
+  --output "$WRONG_MAT3_METHOD_OUT" \
+  >"$SELFCHECK_DIR/wrong-mat3-method.stdout" \
+  2>"$SELFCHECK_DIR/wrong-mat3-method.stderr"
+then
+  echo "ERROR: malformed mat3 push-constant method was accepted" >&2
+  exit 1
+fi
+if [ -e "$WRONG_MAT3_METHOD_OUT" ]; then
+  echo "ERROR: malformed mat3 push-constant method allocated generated output" >&2
+  exit 1
+fi
+if [ -s "$SELFCHECK_DIR/wrong-mat3-method.stdout" ] ||
+   ! grep -Fqx \
+     "PUSH_CONSTANT_EXTRACT_FAIL canonical method lost required structure: ['if (comp_len == 9) {']" \
+     "$SELFCHECK_DIR/wrong-mat3-method.stderr"
+then
+  echo "ERROR: malformed mat3 push-constant rejection diagnostic differs" >&2
   exit 1
 fi
 
@@ -92,4 +119,4 @@ then
   exit 1
 fi
 
-echo "SHADER_FRONTEND_INTEGRATED_SELFCHECK_PASS wrong_method=zero-allocation wrong_dawn=zero-allocation wrong_node=zero-allocation"
+echo "SHADER_FRONTEND_INTEGRATED_SELFCHECK_PASS wrong_methods=2-zero-allocation wrong_dawn=zero-allocation wrong_node=zero-allocation"

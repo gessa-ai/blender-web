@@ -69,36 +69,39 @@ add_executable(dawn_bindmap_probe probe_bindmap.cc)
 target_include_directories(dawn_bindmap_probe PRIVATE ${DAWN_SRC_DIR})
 target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})
 
-# Optional device-free native half of the cross-compiled shader-chain parity
-# smoke. Keeping it in this project reuses Dawn's exact generated Tint target
-# graph instead of rediscovering or manually ordering native archives. The
-# standalone driver enables it only when all three explicit inputs are present.
-if(DEFINED BW_SHADER_CHAIN_SMOKE_SOURCE)
-  foreach(_required_var
-      BW_SHADER_CHAIN_SMOKE_SOURCE
-      BW_SHADERC_INCLUDE_DIR
-      BW_SHADERC_LIBRARY)
-    if(NOT IS_ABSOLUTE "${${_required_var}}")
-      message(FATAL_ERROR "${_required_var} must be an absolute path")
+# Optional device-free native halves of the cross-compiled shader-chain parity
+# smokes. Keeping them in this project reuses Dawn's exact generated Tint target
+# graph instead of rediscovering or manually ordering native archives.
+function(bw_add_shader_smoke target source)
+  foreach(_required_path "${source}" "${BW_SHADERC_INCLUDE_DIR}" "${BW_SHADERC_LIBRARY}")
+    if(NOT IS_ABSOLUTE "${_required_path}")
+      message(FATAL_ERROR "shader-smoke input must be an absolute path: ${_required_path}")
     endif()
-    if(NOT EXISTS "${${_required_var}}")
-      message(FATAL_ERROR "${_required_var} does not exist: ${${_required_var}}")
+    if(NOT EXISTS "${_required_path}")
+      message(FATAL_ERROR "shader-smoke input does not exist: ${_required_path}")
     endif()
   endforeach()
 
-  add_executable(wgpu_shader_chain_smoke_native "${BW_SHADER_CHAIN_SMOKE_SOURCE}")
-  target_include_directories(wgpu_shader_chain_smoke_native PRIVATE
+  add_executable(${target} "${source}")
+  target_include_directories(${target} PRIVATE
     "${DAWN_SRC_DIR}"
     "${BW_SHADERC_INCLUDE_DIR}"
   )
-  target_link_libraries(wgpu_shader_chain_smoke_native PRIVATE
+  target_link_libraries(${target} PRIVATE
     tint_lang_spirv_reader
     tint_lang_wgsl_writer
     tint_api
     "${BW_SHADERC_LIBRARY}"
   )
   get_filename_component(_bw_shaderc_library_dir "${BW_SHADERC_LIBRARY}" DIRECTORY)
-  set_target_properties(wgpu_shader_chain_smoke_native PROPERTIES
+  set_target_properties(${target} PROPERTIES
     BUILD_RPATH "${_bw_shaderc_library_dir}"
   )
+endfunction()
+
+if(DEFINED BW_SHADER_CHAIN_SMOKE_SOURCE)
+  bw_add_shader_smoke(wgpu_shader_chain_smoke_native "${BW_SHADER_CHAIN_SMOKE_SOURCE}")
+endif()
+if(DEFINED BW_SHADER_BINDMAP_SMOKE_SOURCE)
+  bw_add_shader_smoke(wgpu_shader_bindmap_smoke_native "${BW_SHADER_BINDMAP_SMOKE_SOURCE}")
 endif()

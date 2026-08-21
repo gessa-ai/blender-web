@@ -354,6 +354,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   pipeline creation PASSES with explicit BGL. **T7 HARD RULE: non-empty map disables the
   conflict pass — EVERY combined sampler must be mapped.** Open for T7: sampler arrays
   (probe first), SAMPLER_BASE policy, sampler/texture type inference for BGL.
+  **Linux device-free mapping RECONCILED:** identical native and Wasm shaderc v2025.4 +
+  Dawn/Tint `36cf1fae` executions now assert the complete two-stage resource census for both
+  default Tint and `{0,1}->{0,257}, {0,2}->{0,258}`. Their complete 6,911-byte evidence is
+  byte-identical (`sha256:26e1351ee716`). The build is checkout-relative, exact-pin and
+  locked-Ninja only; wrong Dawn rejects before allocation. The historical C1 rejection/C2
+  pipeline acceptance still requires an accepted hardware adapter for a fresh Linux replay;
+  current llvmpipe stops at `PROBE_BLOCKED` and creates no receipt. Evidence:
+  `notes/m3-t2-bindmap-linux-reconcile-20260821.md`.
 - [x] **M3.T3 [gpu-backend]** **DEVICE-LIVE PROVEN** (66500f0 patch 0011 + 8607fac sandbox
   proof): GHOST_ContextWGPU (130 LOC — half the estimate, WebGPU implicit model) brings up a
   live WGPUDevice+queue on Dawn/Metal via the same createOffscreenContext path; patch 0011 =

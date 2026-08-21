@@ -2,9 +2,9 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Device-free native/Wasm parity smoke for the pinned shader translation chain:
-# shaderc GLSL -> SPIR-V 1.3 -> Tint IR -> WGSL. Both binaries compile the
-# identical smoke.cc and their WGSL must match byte-for-byte.
+# Device-free native/Wasm parity smokes for the pinned shader translation chain
+# and M3.T2 binding map: shaderc GLSL -> SPIR-V 1.3 -> Tint IR -> WGSL. Each
+# native/Wasm source pair must emit byte-identical WGSL.
 #
 # Run through the harness so logs stay off-context:
 #   harness/buildwrap.sh bash sandbox/wgpu-shader-wasm-smoke/build.sh
@@ -140,6 +140,10 @@ WGSL_NATIVE="$OUT/wgsl_native.txt"
 WGSL_WASM="$OUT/wgsl_wasm.txt"
 NATIVE_STDERR="$OUT/native.stderr"
 WASM_STDERR="$OUT/wasm.stderr"
+BINDMAP_NATIVE="$OUT/bindmap_native.txt"
+BINDMAP_WASM="$OUT/bindmap_wasm.txt"
+BINDMAP_NATIVE_STDERR="$OUT/bindmap_native.stderr"
+BINDMAP_WASM_STDERR="$OUT/bindmap_wasm.stderr"
 
 CCACHE_ARGS=()
 if command -v ccache >/dev/null 2>&1; then
@@ -172,10 +176,14 @@ echo "== [2/4] native reference through Dawn's pinned Tint target graph =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DPython3_EXECUTABLE="$ROOT/.host-tools/bin/python3.13" \
   -DBW_SHADER_CHAIN_SMOKE_SOURCE="$HERE/smoke.cc" \
+  -DBW_SHADER_BINDMAP_SMOKE_SOURCE="$HERE/bindmap_smoke.cc" \
   -DBW_SHADERC_INCLUDE_DIR="$SHADERC_SRC/libshaderc/include" \
   -DBW_SHADERC_LIBRARY="$SHADERC_LIBRARY"
-"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_shader_chain_smoke_native
+"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" \
+  wgpu_shader_chain_smoke_native wgpu_shader_bindmap_smoke_native
 "$NATIVE_BUILD/wgpu_shader_chain_smoke_native" >"$WGSL_NATIVE" 2>"$NATIVE_STDERR"
+"$NATIVE_BUILD/wgpu_shader_bindmap_smoke_native" \
+  >"$BINDMAP_NATIVE" 2>"$BINDMAP_NATIVE_STDERR"
 
 echo "== [3/4] Wasm chain through the harvested single-SPIRV-Tools closure =="
 "$EMSDK/upstream/emscripten/emcmake" "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$WASM_BUILD" \
@@ -184,8 +192,10 @@ echo "== [3/4] Wasm chain through the harvested single-SPIRV-Tools closure =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DSHADERC_PREFIX="$ROOT/lib/wasm/shaderc" \
   -DTINT_PREFIX="$ROOT/lib/wasm/tint"
-"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_shader_chain_smoke
+"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" \
+  wgpu_shader_chain_smoke wgpu_shader_bindmap_smoke
 "$NODE" "$WASM_BUILD/smoke.js" >"$WGSL_WASM" 2>"$WASM_STDERR"
+"$NODE" "$WASM_BUILD/bindmap_smoke.js" >"$BINDMAP_WASM" 2>"$BINDMAP_WASM_STDERR"
 
 echo "== [4/4] exact output assertions =="
 for output in "$WGSL_NATIVE" "$WGSL_WASM"; do
@@ -206,12 +216,33 @@ if [ -s "$WASM_STDERR" ]; then
   echo "ERROR: Wasm smoke wrote unexpected stderr: $WASM_STDERR" >&2
   exit 1
 fi
+for output in "$BINDMAP_NATIVE" "$BINDMAP_WASM"; do
+  if ! grep -qx 'BINDMAP_SEMANTICS_PASS' "$output"; then
+    echo "ERROR: bindmap output lacks its exact semantic verdict: $output" >&2
+    exit 1
+  fi
+done
+if [ -s "$BINDMAP_NATIVE_STDERR" ]; then
+  echo "ERROR: native bindmap smoke wrote unexpected stderr: $BINDMAP_NATIVE_STDERR" >&2
+  exit 1
+fi
+if [ -s "$BINDMAP_WASM_STDERR" ]; then
+  echo "ERROR: Wasm bindmap smoke wrote unexpected stderr: $BINDMAP_WASM_STDERR" >&2
+  exit 1
+fi
 if ! cmp -s "$WGSL_NATIVE" "$WGSL_WASM"; then
   echo "ERROR: native and Wasm WGSL differ" >&2
   diff -u "$WGSL_NATIVE" "$WGSL_WASM" | head -n 40 >&2
   exit 1
 fi
+if ! cmp -s "$BINDMAP_NATIVE" "$BINDMAP_WASM"; then
+  echo "ERROR: native and Wasm binding-map evidence differs" >&2
+  diff -u "$BINDMAP_NATIVE" "$BINDMAP_WASM" | head -n 40 >&2
+  exit 1
+fi
 
 WGSL_BYTES="$(wc -c <"$WGSL_WASM" | tr -d ' ')"
 WGSL_SHA256="$(sha256_file "$WGSL_WASM")"
-echo "PASS shader-chain native/wasm parity bytes=$WGSL_BYTES sha256=$WGSL_SHA256 dawn=$DAWN_PIN emcc=$EMCC_VERSION node=$NODE_VERSION"
+BINDMAP_BYTES="$(wc -c <"$BINDMAP_WASM" | tr -d ' ')"
+BINDMAP_SHA256="$(sha256_file "$BINDMAP_WASM")"
+echo "PASS shader-chain native/wasm parity bytes=$WGSL_BYTES sha256=$WGSL_SHA256 bindmap_bytes=$BINDMAP_BYTES bindmap_sha256=$BINDMAP_SHA256 dawn=$DAWN_PIN emcc=$EMCC_VERSION node=$NODE_VERSION"

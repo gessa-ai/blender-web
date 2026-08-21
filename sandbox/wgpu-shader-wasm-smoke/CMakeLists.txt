@@ -53,36 +53,43 @@ read_archive_manifest(
   63
   _tint_archives)
 
+function(configure_shader_smoke target output_name)
+  set_target_properties(${target} PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    OUTPUT_NAME "${output_name}"
+    SUFFIX ".js"
+  )
+  target_include_directories(${target} PRIVATE
+    "${SHADERC_PREFIX}/include"
+    "${DAWN_SRC_DIR}"
+  )
+  target_compile_options(${target} PRIVATE
+    -pthread
+    -fexceptions
+  )
+  target_link_options(${target} PRIVATE
+    -pthread
+    -fexceptions
+    "-sENVIRONMENT=node"
+    "-sEXIT_RUNTIME=1"
+    "-sSTACK_SIZE=33554432"
+    "-sINITIAL_MEMORY=536870912"
+    "-sPTHREAD_POOL_SIZE=4"
+    "-sALLOW_MEMORY_GROWTH=1"
+  )
+  # shaderc/glslang and Tint/SPIRV-Tools retain cross-archive cycles. The two
+  # checked manifests deliberately carry the single-SPIRV-Tools link closure.
+  target_link_libraries(${target} PRIVATE
+    "-Wl,--start-group"
+    ${_shaderc_archives}
+    ${_tint_archives}
+    "-Wl,--end-group"
+  )
+endfunction()
+
 add_executable(wgpu_shader_chain_smoke smoke.cc)
-set_target_properties(wgpu_shader_chain_smoke PROPERTIES
-  CXX_STANDARD 20
-  CXX_STANDARD_REQUIRED ON
-  OUTPUT_NAME smoke
-  SUFFIX ".js"
-)
-target_include_directories(wgpu_shader_chain_smoke PRIVATE
-  "${SHADERC_PREFIX}/include"
-  "${DAWN_SRC_DIR}"
-)
-target_compile_options(wgpu_shader_chain_smoke PRIVATE
-  -pthread
-  -fexceptions
-)
-target_link_options(wgpu_shader_chain_smoke PRIVATE
-  -pthread
-  -fexceptions
-  "-sENVIRONMENT=node"
-  "-sEXIT_RUNTIME=1"
-  "-sSTACK_SIZE=33554432"
-  "-sINITIAL_MEMORY=536870912"
-  "-sPTHREAD_POOL_SIZE=4"
-  "-sALLOW_MEMORY_GROWTH=1"
-)
-# shaderc/glslang and Tint/SPIRV-Tools retain cross-archive cycles. The two
-# checked manifests deliberately carry the single-SPIRV-Tools link closure.
-target_link_libraries(wgpu_shader_chain_smoke PRIVATE
-  "-Wl,--start-group"
-  ${_shaderc_archives}
-  ${_tint_archives}
-  "-Wl,--end-group"
-)
+configure_shader_smoke(wgpu_shader_chain_smoke smoke)
+
+add_executable(wgpu_shader_bindmap_smoke bindmap_smoke.cc)
+configure_shader_smoke(wgpu_shader_bindmap_smoke bindmap_smoke)

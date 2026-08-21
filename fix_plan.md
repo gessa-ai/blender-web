@@ -64,10 +64,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   retains that exact branch and the canonical clean-pin replayer reproduces it from
   `fbe6228777e7`. This closes stale bring-up accounting only; it does not promote a strict
   receipt, result flag, or milestone promise.
-- [ ] **M1.2 [build-deps]** In `platform_wasm.cmake`: drop `find_package(Epoxy REQUIRED)` (no GL
-  consumer in a WebGPU build); gate `Vulkan`/`ShaderC` `find_package` **OFF for headless M1**
-  (shader chain is M3, no GPU in tier-a); set C++ exceptions posture globally (`-fexceptions` —
-  OIIO/CPython need it). Verify configure passes the Epoxy/Vulkan stage with no libs present.
+- [x] **M1.2 [build-deps] RECONCILED by `87ada67`:** the canonical platform layer forces
+  `WITH_OPENGL_BACKEND=OFF` and `WITH_VULKAN_BACKEND=OFF`, leaves the Epoxy include/library
+  variables empty, and applies `-fexceptions` uniformly to C, C++, and platform compile flags.
+  The historical pre-library configure reached `Configuring done` + `Generating done` without
+  Epoxy/Vulkan discovery; the current product cache and emitted Ninja flags retain that contract.
+  ShaderC's later M3 WebGPU role does not re-enable Blender's Vulkan backend. This closes stale
+  M1 headless accounting only; it does not promote a strict receipt, result flag, or promise.
 - [ ] **M1.3 [build-deps]** In `blender_web.cmake` force **`WITH_CYCLES OFF`** for M1 core-boots
   (avoid Embree/OSL find drag through empty LIBDIR; revisit at M6) AND **`WITH_PYTHON OFF`**
   (verified: Python is NOT on the tier-(a) gtest link path — this keeps CPython + the emcc-version

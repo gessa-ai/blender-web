@@ -228,3 +228,12 @@ Blender's `BLI_assert_unreachable()` still prints in Release builds even though 
 so an intentionally exercised fail-visible fallback must link the canonical `BLI_assert.cc` and
 bind the exact native/Wasm diagnostic instead of suppressing stderr. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+When the needed pure helper has internal linkage, include its canonical shipping `.cc` exactly
+once from the shared test translation unit; do not copy the helper or add a test-only production
+API. Link the real dependent translation units, then section-collect the uncalled device half.
+Modern enum wrappers can still collapse through a legacy accessor: vertex `SNORM_10_10_10_2` and
+`UNORM_10_10_10_2` both report normalized `GPU_COMP_I10`, while the pinned vertex call sites and
+all established backends use that legacy arm for signed packed normals. Check the pinned call-site
+census before assigning semantics from the newer enum spelling. See
+`sandbox/wgpu-vertex-integrated-smoke/`.

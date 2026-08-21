@@ -80,11 +80,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   therefore correctly keeps Python and Cycles-CPU ON. This closes stale milestone-scoped
   accounting only; it does not change a build profile, product, receipt, result flag, or promise.
 
-### Dep superbuild (BLOCKED-BY M0.8-CRIT disk)
+### Dep superbuild (historical sequence; M0.8-CRIT disk blocker resolved)
 
-- [ ] **M1.4 [build-deps]** Cross-compile Wave-0 leaves → `lib/wasm`: zlib, zstd, fmt, Imath,
-  Eigen(hdr), robin-map(hdr), pugixml, libjpeg-turbo (`WITH_SIMD=OFF`), libpng, TBB. Harvest via
-  `-DHARVEST_TARGET`. **blocked-by M0.8-CRIT.** Verify each `.a` + headers land under `lib/wasm`.
+- [x] **M1.4 [build-deps] RECONCILED by `79eca04`, `4d55843`, `7c87f6e`, `53ed467`,
+  and `5e379cd`:** zlib, zstd, fmt, Imath, libjpeg-turbo (`WITH_SIMD=OFF`), libpng,
+  and oneTBB are harvested as real static Wasm archives with headers and consumer configs;
+  Eigen and robin-map are correctly header-only. The TBB `parallel_for` smoke runs on Wasm
+  threads. Pugixml is deliberately bundled by OIIO (`USE_EXTERNAL_PUGIXML=OFF`) rather than
+  emitted as a standalone archive, with its installed detail headers and MIT license accounted
+  under the OIIO dependency row. The former disk blocker is resolved. This closes stale Wave-0
+  accounting only; it does not promote a strict receipt, result flag, or milestone promise.
 - [ ] **M1.5 [build-deps]** Cross-compile Wave-1: OpenEXR (Imath,zlib), libtiff (zlib,jpeg).
   **blocked-by M1.4.**
 - [ ] **M1.6 [build-deps]** Cross-compile Wave-2: **OpenImageIO** trimmed to EXR/TIFF/PNG/JPEG

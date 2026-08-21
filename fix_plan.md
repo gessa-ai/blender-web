@@ -673,6 +673,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   cases with zero launches; software reaches zero allocations, accepted hardware exactly one, and
   missing APPLY allocates nothing. No browser or receipt was produced; s7 remains live. See
   `notes/m8-split-runtime-linux-portability-20260821.md`.
+- [x] **M8-MONOLITHIC-DEPLOY-LINUX-PORTABILITY [driver, browser-free] (75b4902):** the retained
+  OFF-mode deployment diagnostic now derives its checkout and exact Playwright root, copies the
+  current shell set, emits portable metadata, and confines replacement to `bundle`/`bundle-*`.
+  External fake-checkout fixtures pass five root/descendant, copy/symlink, confinement, and
+  no-allocation cases; the real OFF product assembles without launching a browser. This is not
+  the shipping APPLY/staged path and creates no adapter, profile, product, or M8 receipt. See
+  `notes/m8-monolithic-deploy-linux-portability-20260821.md`.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

@@ -71,11 +71,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   Epoxy/Vulkan discovery; the current product cache and emitted Ninja flags retain that contract.
   ShaderC's later M3 WebGPU role does not re-enable Blender's Vulkan backend. This closes stale
   M1 headless accounting only; it does not promote a strict receipt, result flag, or promise.
-- [ ] **M1.3 [build-deps]** In `blender_web.cmake` force **`WITH_CYCLES OFF`** for M1 core-boots
-  (avoid Embree/OSL find drag through empty LIBDIR; revisit at M6) AND **`WITH_PYTHON OFF`**
-  (verified: Python is NOT on the tier-(a) gtest link path — this keeps CPython + the emcc-version
-  toolchain decision off the M1 critical path entirely; re-enabled in M2.3). Verify configure
-  reaches neither Embree nor `Python.h` checks.
+- [x] **M1.3 [build-deps] RECONCILED by `87ada67`, `02de79e`, and `96e3a0f`:** the
+  historical M1 initial cache forced both `WITH_CYCLES` and `WITH_PYTHON` OFF, and its
+  dependency-placeholder configure reached `Configuring done` + `Generating done` without
+  entering either discovery path. M2.3 deliberately restored Python after the wasm CPython
+  harvest; the M6 compile probe later closed the Cycles revisit by building the scalar CPU
+  closure with Embree, OSL, path guiding, and GPU devices disabled. The current launch profile
+  therefore correctly keeps Python and Cycles-CPU ON. This closes stale milestone-scoped
+  accounting only; it does not change a build profile, product, receipt, result flag, or promise.
 
 ### Dep superbuild (BLOCKED-BY M0.8-CRIT disk)
 

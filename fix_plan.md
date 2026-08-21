@@ -289,8 +289,19 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   and the linked Python image. ADR-003 remains the historical JSPI/exception result; ADR-006's
   no-JSPI product decision remains current. No product, upstream, gate, result flag, dependency
   record, deferral, or milestone promise changed.
-- [x] **M2.8 [compliance]** `ledger/deps.json` complete: license + rationale for every harvested
-  dep, runtime deps GPL-compatible only. **blocked-by M1.6, M2.3.**
+- [~] **M2.8 [compliance] TECHNICAL INVENTORY RECONCILED; EXTERNAL POLICY BLOCKED:** fresh
+  strict Linux evidence `m2-8-reconcile-20260821-r1` binds the current 37-row
+  `wasm_built` ledger and canonical inventory to source freeze
+  `c0b961e0498a`, enumerates 111 unique artifacts with zero missing/unlisted,
+  passes exact REUSE 6.2.0, and reports 35 runtime-linked dependencies. Its
+  external-policy verdict is honestly false for exactly one row: OpenSubdiv
+  3.7.0 is recorded as `LicenseRef-OpenSubdiv-TOST-1.0` with compatibility and
+  sufficiency unresolved. GOAL's runtime-deps-compatible contract therefore
+  remains unsatisfied until the named GPL-literate lawyer review in
+  `notes/m8-technical-closeout.md` records a disposition; never restore the old
+  Apache-2.0 label or mark this item complete from machine inference. The old
+  M1.6/M2.3 technical blockers are resolved. Evidence and rationale:
+  `notes/m2-dependency-compliance-reconcile-20260821.md`.
 
 ---
 

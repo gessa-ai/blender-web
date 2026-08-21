@@ -196,3 +196,13 @@ documented local roots and confine evidence output to one validated child of the
 directory. Self-check mode may use unmistakable non-evidence artifact placeholders so it can run
 before a shipping artifact exists, but a real producer invocation must still open and hash-bind
 every required product artifact before browser launch.
+
+## Class 9 — Emscripten WebGPU value types must come from the emdawnwebgpu port
+
+Signature: a device-free Wasm target includes Dawn's native `include/webgpu/webgpu_cpp.h`, reaches
+the generated `dawn/webgpu_cpp.h`, and fails with “Do not include this header. Use the headers
+provided by Emdawnwebgpu instead.” Native Dawn deliberately rejects those generated headers under
+`__EMSCRIPTEN__`, even when the target only constructs bind-group descriptor values and never
+requests a device. Pass `--use-port=emdawnwebgpu` to both compile and link so Emscripten supplies
+the matching C/C++ header set; do not add a native Dawn generated-include directory to the Wasm
+target. See `sandbox/wgpu-shader-integrated-smoke/`.

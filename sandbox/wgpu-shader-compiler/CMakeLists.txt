@@ -86,3 +86,44 @@ target_link_libraries(wgpu_shader_compiler_test PRIVATE wgpu_shader_compiler_mod
 get_filename_component(_shaderc_library_dir "${SHADERC_LIBRARY}" DIRECTORY)
 set_target_properties(wgpu_shader_compiler_test PROPERTIES
   BUILD_RPATH "${_shaderc_library_dir}")
+
+# Optional device-free contract for the canonical in-tree compiler module. The
+# standalone T7.pre sources above remain an immutable design probe; this target
+# compiles the evolved shipping postimage (cache + reflection included) without
+# creating a Dawn device.
+if(DEFINED BW_INTEGRATED_SOURCE_DIR)
+  set(_bw_integrated_sources
+    wgpu_shader_interface_map.cc
+    wgpu_shader_interface_map.hh
+    wgpu_shader_compiler.cc
+    wgpu_shader_compiler.hh
+    wgpu_shader_cache.cc
+    wgpu_shader_cache.hh
+  )
+  foreach(_bw_source IN LISTS _bw_integrated_sources)
+    set(_bw_source_path "${BW_INTEGRATED_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU compiler input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+
+  add_executable(wgpu_shader_integrated_test
+    tests/wgpu_shader_integrated_test.cc
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_interface_map.cc"
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_compiler.cc"
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_cache.cc"
+  )
+  target_include_directories(wgpu_shader_integrated_test PRIVATE
+    "${BW_INTEGRATED_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${DAWN_SRC_DIR}"
+    "${SHADERC_INCLUDE_DIR}"
+  )
+  target_link_libraries(wgpu_shader_integrated_test PRIVATE
+    ${_dawn_libs}
+    "${SHADERC_LIBRARY}"
+  )
+  set_target_properties(wgpu_shader_integrated_test PROPERTIES
+    BUILD_RPATH "${_shaderc_library_dir}")
+endif()

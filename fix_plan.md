@@ -402,6 +402,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   device creation, so no pipeline or M3 receipt is claimed. Historical Metal 4/4 remains the
   live proof; **M3-LINUX-REPLAY** still requires accepted hardware. Evidence:
   `notes/m3-t7pre-linux-reconcile-20260821.md`.
+- [x] **M3.T7.integrated [gpu-backend]** RECONCILED on Linux: the canonical in-tree compiler
+  postimage (interface map, shaderc/Tint compiler, cache, and six exact source/header inputs) now
+  builds through the existing locked native and Wasm graphs and runs five device-free contracts
+  for cold/warm cache identity, entry-point reflection, compute atomics, storage visibility, and
+  17-sampler compaction. Native and Node 22.16.0 emit identical 469-byte evidence and four
+  byte-identical cache entries against shaderc v2025.4 plus Dawn/Tint `36cf1fae`; source is bound
+  to the canonical clean-pin replay before evidence allocation, and wrong Dawn rejects with zero
+  allocations. This is CPU translation/layout proof only: no adapter/device or receipt is created,
+  and **M3-LINUX-REPLAY** remains blocked by s7. Evidence:
+  `notes/m3-t7-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

@@ -159,7 +159,7 @@ require_file "$SHADERC_LIBRARY"
 
 echo "== [2/4] configure + build T7.pre through pinned Dawn/Tint =="
 "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$BUILD" \
-  -U LIBDIR -U SHADERC_DIR -U SHADERC_LIB \
+  -U LIBDIR -U SHADERC_DIR -U SHADERC_LIB -U BW_INTEGRATED_SOURCE_DIR \
   -DCMAKE_BUILD_TYPE=Release \
   "${CMAKE_HOST_ARGS[@]}" \
   "${CCACHE_ARGS[@]}" \

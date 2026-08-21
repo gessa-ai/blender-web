@@ -93,3 +93,45 @@ configure_shader_smoke(wgpu_shader_chain_smoke smoke)
 
 add_executable(wgpu_shader_bindmap_smoke bindmap_smoke.cc)
 configure_shader_smoke(wgpu_shader_bindmap_smoke bindmap_smoke)
+
+# Optional Wasm leg for the canonical in-tree compiler module. It links the
+# harvested CPU translation closure plus emdawnwebgpu's matching value types,
+# but never creates a WebGPU adapter or device.
+if(DEFINED BW_INTEGRATED_SOURCE_DIR)
+  set(_bw_integrated_sources
+    wgpu_shader_interface_map.cc
+    wgpu_shader_interface_map.hh
+    wgpu_shader_compiler.cc
+    wgpu_shader_compiler.hh
+    wgpu_shader_cache.cc
+    wgpu_shader_cache.hh
+  )
+  foreach(_bw_source IN LISTS _bw_integrated_sources)
+    set(_bw_source_path "${BW_INTEGRATED_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU compiler input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+
+  add_executable(wgpu_shader_integrated_smoke
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-shader-compiler/tests/wgpu_shader_integrated_test.cc"
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_interface_map.cc"
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_compiler.cc"
+    "${BW_INTEGRATED_SOURCE_DIR}/wgpu_shader_cache.cc"
+  )
+  target_include_directories(wgpu_shader_integrated_smoke PRIVATE
+    "${BW_INTEGRATED_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-shader-compiler"
+  )
+  configure_shader_smoke(wgpu_shader_integrated_smoke integrated_smoke)
+  # Native Dawn's generated headers deliberately reject __EMSCRIPTEN__. The
+  # shipping product gets its matching C/C++ headers from this exact port flag;
+  # use the same route for both compilation and link instead of smuggling native
+  # generated headers into the Wasm target.
+  target_compile_options(wgpu_shader_integrated_smoke PRIVATE
+    "--use-port=emdawnwebgpu")
+  target_link_options(wgpu_shader_integrated_smoke PRIVATE
+    "--use-port=emdawnwebgpu"
+    "-sNODERAWFS=1")
+endif()

@@ -187,6 +187,7 @@ echo "== [2/4] native reference through Dawn's pinned Tint target graph =="
 
 echo "== [3/4] Wasm chain through the harvested single-SPIRV-Tools closure =="
 "$EMSDK/upstream/emscripten/emcmake" "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$WASM_BUILD" \
+  -U BW_INTEGRATED_SOURCE_DIR \
   -DCMAKE_BUILD_TYPE=Release \
   "${CCACHE_ARGS[@]}" \
   -DDAWN_SRC_DIR="$DAWN_SRC" \

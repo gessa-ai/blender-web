@@ -259,16 +259,282 @@ static bool std140_contract()
   return true;
 }
 
+static size_t count_occurrences(const std::string &text, const std::string &needle)
+{
+  size_t count = 0;
+  size_t position = 0;
+  while ((position = text.find(needle, position)) != std::string::npos) {
+    count++;
+    position += needle.size();
+  }
+  return count;
+}
+
+static bool buffer_helper_rewrite_contract()
+{
+  std::string no_buffer = "float keep(float value) { return value + 1.0; }\n";
+  const std::string no_buffer_expected = no_buffer;
+  inline_buffer_param_helpers(no_buffer);
+  if (no_buffer != no_buffer_expected) {
+    std::cerr << "buffer-helper rewrote a source with no texel-buffer type\n";
+    return false;
+  }
+
+  std::string simple =
+      "float read_value(int index, const samplerBuffer values) { return texelFetch(values, "
+      "index).x; }\n"
+      "float result = read_value(3 + 4, global_values);\n";
+  inline_buffer_param_helpers(simple);
+  if (simple.find("read_value") != std::string::npos ||
+      simple.find("texelFetch(global_values, (3 + 4)).x") == std::string::npos)
+  {
+    std::cerr << "single texel-buffer helper did not inline faithfully\n" << simple;
+    return false;
+  }
+
+  std::string nested =
+      "float inner(const isamplerBuffer values, int index) { return texelFetch(values, "
+      "index).x; }\n"
+      "float outer(int index, const isamplerBuffer values) { return inner(values, index + 1); "
+      "}\n"
+      "float result = outer(7, global_values);\n";
+  inline_buffer_param_helpers(nested);
+  if (nested.find("inner") != std::string::npos || nested.find("outer") != std::string::npos ||
+      count_occurrences(nested, "texelFetch(global_values") != 1)
+  {
+    std::cerr << "nested texel-buffer helpers did not fully inline\n" << nested;
+    return false;
+  }
+
+  std::cout << "CONTRACT buffer-helper-rewrite PASS cases=3 nested-passes=1\n";
+  return true;
+}
+
+static bool integer_sampler_rewrite_contract()
+{
+  std::string source =
+      "uniform usampler1D u1;\n"
+      "uniform isampler2D i2;\n"
+      "uniform usampler3D u3;\n"
+      "uniform usampler1DArray ua;\n"
+      "uniform sampler2D color_tex;\n"
+      "uvec4 a = texture(u1, x);\n"
+      "ivec4 b = textureLod(i2, uv, mip);\n"
+      "uvec4 c = textureOffset(u3, uvw, off3);\n"
+      "ivec4 d = textureLodOffset(i2, uv, mip, off2);\n"
+      "uvec4 e = textureGrad(u3, uvw, dx3, dy3);\n"
+      "ivec4 f = textureGradOffset(i2, uv, dx2, dy2, off2);\n"
+      "uvec4 g = texture(ua, array_uv);\n"
+      "vec4 h = texture(color_tex, uv);\n"
+      "uvec4 i = mytexture(u1, x);\n";
+  rewrite_integer_sampler_sampling(source);
+
+  if (count_occurrences(source, "texelFetch(") != 7 ||
+      count_occurrences(source, "int(mip)") != 4 ||
+      source.find("textureSize(u1, 0)") == std::string::npos ||
+      source.find("textureSize(i2, int(mip))") == std::string::npos ||
+      source.find("textureSize(u3, 0)") == std::string::npos ||
+      source.find("textureSize(ua, 0)") == std::string::npos ||
+      source.find("clamp(int(floor((array_uv).y + 0.5)), 0, (textureSize(ua, 0)).y - 1)") ==
+          std::string::npos ||
+      source.find("texture(color_tex, uv)") == std::string::npos ||
+      source.find("mytexture(u1, x)") == std::string::npos)
+  {
+    std::cerr << "integer-sampler rewrite contract mismatch\n" << source;
+    return false;
+  }
+  for (const char *rewritten : {"textureLod(i2",
+                                "textureOffset(u3",
+                                "textureLodOffset(i2",
+                                "textureGrad(u3",
+                                "textureGradOffset(i2",
+                                "= texture(u1",
+                                "= texture(ua"})
+  {
+    if (source.find(rewritten) != std::string::npos) {
+      std::cerr << "integer-sampler call survived rewrite: " << rewritten << "\n";
+      return false;
+    }
+  }
+
+  std::cout << "CONTRACT integer-sampler-rewrite PASS cases=9 rewritten=7 controls=2\n";
+  return true;
+}
+
+struct RewriteCase {
+  const char *input;
+  const char *expected;
+};
+
+static bool one_d_array_rewrite_contract()
+{
+  static constexpr std::array<RewriteCase, 10> sampled_cases = {{
+      {"uniform sampler1DArray tex;\nvec4 r = texture(tex, uv);",
+       "uniform sampler2DArray tex;\nvec4 r = texture(tex, vec3((uv).x, 0.5, (uv).y));"},
+      {"uniform sampler1DArray tex;\nvec4 r = textureLod(tex, uv, level);",
+       "uniform sampler2DArray tex;\nvec4 r = textureLod(tex, vec3((uv).x, 0.5, "
+       "(uv).y), level);"},
+      {"uniform sampler1DArray tex;\nvec4 r = textureLodOffset(tex, uv, level, offset);",
+       "uniform sampler2DArray tex;\nvec4 r = textureLodOffset(tex, vec3((uv).x, 0.5, "
+       "(uv).y), level, ivec2(offset, 0));"},
+      {"uniform sampler1DArray tex;\nvec4 r = textureGrad(tex, uv, dx, dy);",
+       "uniform sampler2DArray tex;\nvec4 r = textureGrad(tex, vec3((uv).x, 0.5, "
+       "(uv).y), vec2(dx, 0.0), vec2(dy, 0.0));"},
+      {"uniform sampler1DArray tex;\nvec4 r = textureOffset(tex, uv, offset);",
+       "uniform sampler2DArray tex;\nvec4 r = textureOffset(tex, vec3((uv).x, 0.5, "
+       "(uv).y), ivec2(offset, 0));"},
+      {"uniform sampler1DArray tex;\nvec4 r = textureGradOffset(tex, uv, dx, dy, offset);",
+       "uniform sampler2DArray tex;\nvec4 r = textureGradOffset(tex, vec3((uv).x, 0.5, "
+       "(uv).y), vec2(dx, 0.0), vec2(dy, 0.0), ivec2(offset, 0));"},
+      {"uniform sampler1DArray tex;\nvec2 r = textureQueryLod(tex, coord);",
+       "uniform sampler2DArray tex;\nvec2 r = textureQueryLod(tex, vec2(coord, 0.5));"},
+      {"uniform sampler1DArray tex;\nvec4 r = texelFetch(tex, point, level);",
+       "uniform sampler2DArray tex;\nvec4 r = texelFetch(tex, ivec3((point).x, 0, "
+       "(point).y), level);"},
+      {"uniform sampler1DArray tex;\nvec4 r = texelFetchOffset(tex, point, level, offset);",
+       "uniform sampler2DArray tex;\nvec4 r = texelFetchOffset(tex, ivec3((point).x, 0, "
+       "(point).y), level, ivec2(offset, 0));"},
+      {"uniform sampler1DArray tex;\nivec2 r = textureSize(tex, level);",
+       "uniform sampler2DArray tex;\nivec2 r = textureSize(tex, level).xz;"},
+  }};
+  for (size_t index = 0; index < sampled_cases.size(); index++) {
+    std::string actual = sampled_cases[index].input;
+    rewrite_1d_array_samplers(actual);
+    if (actual != sampled_cases[index].expected) {
+      std::cerr << "1D-array sampled rewrite mismatch case=" << index
+                << "\nexpected: " << sampled_cases[index].expected << "\nactual: " << actual
+                << "\n";
+      return false;
+    }
+  }
+
+  static constexpr std::array<RewriteCase, 3> image_cases = {{
+      {"uniform iimage1DArray img;\nivec4 r = imageLoad(img, point);",
+       "uniform iimage2DArray img;\nivec4 r = imageLoad(img, ivec3((point).x, 0, "
+       "(point).y));"},
+      {"uniform image1DArray img;\nimageStore(img, point, value);",
+       "uniform image2DArray img;\nimageStore(img, ivec3((point).x, 0, (point).y), value);"},
+      {"uniform image1DArray img;\nivec2 r = imageSize(img);",
+       "uniform image2DArray img;\nivec2 r = imageSize(img).xz;"},
+  }};
+  for (size_t index = 0; index < image_cases.size(); index++) {
+    std::string actual = image_cases[index].input;
+    rewrite_1d_array_samplers(actual);
+    if (actual != image_cases[index].expected) {
+      std::cerr << "1D-array image rewrite mismatch case=" << index
+                << "\nexpected: " << image_cases[index].expected << "\nactual: " << actual << "\n";
+      return false;
+    }
+  }
+
+  static constexpr std::array<const char *, 8> atomic_functions = {
+      "imageAtomicAdd",
+      "imageAtomicMin",
+      "imageAtomicMax",
+      "imageAtomicAnd",
+      "imageAtomicXor",
+      "imageAtomicOr",
+      "imageAtomicExchange",
+      "imageAtomicCompSwap",
+  };
+  for (const char *function : atomic_functions) {
+    const bool compare_swap = std::string(function) == "imageAtomicCompSwap";
+    std::string actual = "uniform uimage1DArray img;\nuint r = " + std::string(function) +
+                         "(img, point, " + (compare_swap ? "compare, value);" : "value);");
+    const std::string expected = "uniform uimage2DArray img;\nuint r = " + std::string(function) +
+                                 "(img, ivec3((point).x, 0, (point).y), " +
+                                 (compare_swap ? "compare, value);" : "value);");
+    rewrite_1d_array_samplers(actual);
+    if (actual != expected) {
+      std::cerr << "1D-array atomic rewrite mismatch function=" << function
+                << "\nexpected: " << expected << "\nactual: " << actual << "\n";
+      return false;
+    }
+  }
+
+  std::string type_census =
+      "sampler1DArray a; isampler1DArray b; usampler1DArray c; image1DArray d; "
+      "iimage1DArray e; uimage1DArray f;";
+  rewrite_1d_array_samplers(type_census);
+  if (type_census !=
+      "sampler2DArray a; isampler2DArray b; usampler2DArray c; image2DArray d; "
+      "iimage2DArray e; uimage2DArray f;")
+  {
+    std::cerr << "1D-array type census mismatch\n" << type_census << "\n";
+    return false;
+  }
+
+  std::string control = "uniform sampler2DArray tex;\nvec4 r = texture(tex, uv);";
+  const std::string control_expected = control;
+  rewrite_1d_array_samplers(control);
+  if (control != control_expected) {
+    std::cerr << "1D-array rewrite changed a 2D-array control\n";
+    return false;
+  }
+
+  std::cout << "CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2\n";
+  return true;
+}
+
+static bool finite_builtin_rewrite_contract()
+{
+  std::string no_builtin = "#version 450\nvoid main() { float y = abs(x); }\n";
+  const std::string no_builtin_expected = no_builtin;
+  rewrite_isnan_isinf(no_builtin);
+  if (no_builtin != no_builtin_expected) {
+    std::cerr << "finite-builtin rewrite changed a source without target calls\n";
+    return false;
+  }
+
+  std::string longer_identifiers =
+      "#version 450\nbool myisnan(float x) { return false; }\n"
+      "bool myisinf(float x) { return false; }\n";
+  const std::string longer_identifiers_expected = longer_identifiers;
+  rewrite_isnan_isinf(longer_identifiers);
+  if (longer_identifiers != longer_identifiers_expected) {
+    std::cerr << "finite-builtin rewrite matched longer identifiers\n";
+    return false;
+  }
+
+  std::string scalar =
+      "#version 450\nvoid main() { bool a = isnan(value); bool b = isinf(value); }\n";
+  rewrite_isnan_isinf(scalar);
+  if (scalar.rfind("#version 450\n\nbool wgpu_isnan(float x)", 0) != 0 ||
+      scalar.find("bool a = wgpu_isnan(value)") == std::string::npos ||
+      scalar.find("bool b = wgpu_isinf(value)") == std::string::npos ||
+      count_occurrences(scalar, "bool wgpu_isnan(float x)") != 1 ||
+      count_occurrences(scalar, "bool wgpu_isinf(float x)") != 1)
+  {
+    std::cerr << "scalar finite-builtin rewrite mismatch\n" << scalar;
+    return false;
+  }
+
+  std::string vector = "void main() { bvec3 a = isnan(values); bvec4 b = isinf(values4); }\n";
+  rewrite_isnan_isinf(vector);
+  if (vector.rfind("\nbool wgpu_isnan(float x)", 0) != 0 ||
+      vector.find("bvec3 a = wgpu_isnan(values)") == std::string::npos ||
+      vector.find("bvec4 b = wgpu_isinf(values4)") == std::string::npos)
+  {
+    std::cerr << "vector finite-builtin rewrite mismatch\n" << vector;
+    return false;
+  }
+
+  std::cout << "CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2\n";
+  return true;
+}
+
 }  // namespace blender::gpu::webgpu::frontend_test
 
 int main()
 {
   using namespace blender::gpu::webgpu::frontend_test;
   if (!image_type_contract() || !storage_format_contract() || !qualifier_contract() ||
-      !std140_contract())
+      !std140_contract() || !buffer_helper_rewrite_contract() ||
+      !integer_sampler_rewrite_contract() || !one_d_array_rewrite_contract() ||
+      !finite_builtin_rewrite_contract())
   {
     return 1;
   }
-  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=4 cases=140\n";
+  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=8 cases=179\n";
   return 0;
 }

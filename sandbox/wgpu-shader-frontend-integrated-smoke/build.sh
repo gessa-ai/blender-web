@@ -213,7 +213,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_shader_frontend.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 5 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 9 ] ||
      ! grep -qx \
        'CONTRACT image-types PASS cases=39 bindings=78 signed-atomic-array=1' "$stdout_file" ||
      ! grep -qx \
@@ -221,7 +221,14 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT qualifiers PASS bit-patterns=8 outputs=16 writeonly-promoted=1' "$stdout_file" ||
      ! grep -qx 'CONTRACT std140 PASS cases=30 scalars=15 arrays=15' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=4 cases=140' "$stdout_file"
+     ! grep -qx 'CONTRACT buffer-helper-rewrite PASS cases=3 nested-passes=1' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT integer-sampler-rewrite PASS cases=9 rewritten=7 controls=2' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=8 cases=179' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1

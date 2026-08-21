@@ -70,3 +70,9 @@ freezer. The authority still spans exactly 257 paths and 20,258 manifest entries
 `c0b3b32291fd0d680785c53c4f668d7130b90dd6391d726234db1162313a9684`. The current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `ce8b0bc4ae8d9fa253ac3e191b22c989fe24603ba08c7823cd706e2e3f0da3ce`.
+
+Patch 0151's finite-builtin token-boundary correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,531,126 bytes with SHA-256
+`22621d7ee011737258e63193a7bfb7c5bd28a81173435e647e4fa2db73eda196`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`1d0c7f68521b25e9b295c7f031ded880d869326d954d8d10aaf830fda23cb903`.

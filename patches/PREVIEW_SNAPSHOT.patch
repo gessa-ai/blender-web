@@ -23935,10 +23935,10 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..285554fc9cef045211460959196913d104a35e92
+index 0000000000000000000000000000000000000000..da93b99db8b11db59caf862355028c9c078d0a6e
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2865 @@
+@@ -0,0 +1,2878 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26055,7 +26055,21 @@ index 0000000000000000000000000000000000000000..285554fc9cef045211460959196913d1
 + * (patch 0054). */
 +static void rewrite_isnan_isinf(std::string &src)
 +{
-+  if (src.find("isnan(") == std::string::npos && src.find("isinf(") == std::string::npos) {
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  auto has_builtin_call = [&](const char *needle) {
++    size_t position = 0;
++    while ((position = src.find(needle, position)) != std::string::npos) {
++      if (position == 0 || !is_ident(src[position - 1])) {
++        return true;
++      }
++      position += std::strlen(needle);
++    }
++    return false;
++  };
++
++  /* A longer identifier such as `myisnan` is not the GLSL builtin and must not
++   * inject the helper block or perturb the shader-cache input. */
++  if (!has_builtin_call("isnan(") && !has_builtin_call("isinf(")) {
 +    return;
 +  }
 +  static const char *kHelpers =
@@ -26080,7 +26094,6 @@ index 0000000000000000000000000000000000000000..285554fc9cef045211460959196913d1
 +  }
 +  src.insert(ins, kHelpers);
 +
-+  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
 +  for (const char *fn : {"isnan(", "isinf("}) {
 +    const std::string needle = fn;
 +    const std::string repl = std::string("wgpu_") + fn;

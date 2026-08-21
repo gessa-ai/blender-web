@@ -1,0 +1,34 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2114,7 +2114,21 @@ static void rewrite_1d_array_samplers(std::string &src)
+  * (patch 0054). */
+ static void rewrite_isnan_isinf(std::string &src)
+ {
+-  if (src.find("isnan(") == std::string::npos && src.find("isinf(") == std::string::npos) {
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  auto has_builtin_call = [&](const char *needle) {
++    size_t position = 0;
++    while ((position = src.find(needle, position)) != std::string::npos) {
++      if (position == 0 || !is_ident(src[position - 1])) {
++        return true;
++      }
++      position += std::strlen(needle);
++    }
++    return false;
++  };
++
++  /* A longer identifier such as `myisnan` is not the GLSL builtin and must not
++   * inject the helper block or perturb the shader-cache input. */
++  if (!has_builtin_call("isnan(") && !has_builtin_call("isinf(")) {
+     return;
+   }
+   static const char *kHelpers =
+@@ -2148,7 +2162,6 @@ static void rewrite_isnan_isinf(std::string &src)
+   }
+   src.insert(ins, kHelpers);
+ 
+-  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
+   for (const char *fn : {"isnan(", "isinf("}) {
+     const std::string needle = fn;
+     const std::string repl = std::string("wgpu_") + fn;

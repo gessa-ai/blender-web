@@ -422,6 +422,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   reject before evidence. It creates no instance, adapter, device, shader module, pipeline, or
   receipt; live shader validation remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t7-frontend-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T7.rewrite.integrated [gpu-backend]** RECONCILED on Linux: the canonical in-tree
+  post-preprocessor shader transforms now run in the existing checkout-relative, device-free
+  native/wasm32 frontend contract. Four added families cover nested texel-buffer helper inlining,
+  seven integer-sampler calls plus controls, all physical 1D-array sampled/storage operations,
+  and finite-builtin lowering. The unchanged oracle caught longer `myisnan(`/`myisinf(`
+  identifiers injecting unused helpers; patch 0151 now requires a builtin identifier boundary.
+  Root and descendant runs emit identical 581-byte evidence against exact source/tool identities. No
+  adapter, device, shader module, pipeline, or receipt is created; live validation remains owned
+  by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t7-rewrite-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T6.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree common-buffer and
   readback-registry postimages directly. Five contracts cover the exact 32-case usage matrix,

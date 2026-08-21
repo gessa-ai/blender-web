@@ -242,3 +242,12 @@ all established backends use that legacy arm for signed packed normals. Check th
 census before assigning semantics from the newer enum spelling. See
 `sandbox/wgpu-vertex-integrated-smoke/` and
 `sandbox/wgpu-shader-frontend-integrated-smoke/`.
+
+## Class 12 — shader text fast paths need the same token boundary as their rewrite
+
+Signature: a GLSL source rewriter correctly protects its replacement loop from longer identifiers,
+but its earlier `find()`-based fast path still treats `myisnan(` as `isnan(` and injects otherwise
+unused declarations. Require the identifier boundary before deciding that a rewrite is needed;
+then reuse that discriminator for the actual replacement. This keeps unrelated source and cache
+keys byte-identical and makes the no-op control explicit in the native/Wasm contract. See
+`sandbox/wgpu-shader-frontend-integrated-smoke/`.

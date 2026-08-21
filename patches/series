@@ -712,3 +712,7 @@
 # sampler/image types in WebGPU GLSL. The device-free native/Wasm frontend
 # census covers all 39 ImageType values and catches the former iimage2D output.
 0150-gpu-webgpu-signed-atomic-array-type.patch
+# 0151: require the GLSL builtin's identifier boundary before injecting the isnan/isinf
+# lowering helpers. Longer identifiers remain byte-identical and do not perturb
+# the shader-cache input; the native/Wasm rewrite census owns the contract.
+0151-gpu-webgpu-finite-builtin-token-boundary.patch

@@ -118,9 +118,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ### Real configure → compile → link → run
 
-- [ ] **M1.8 [build-deps]** Point `platform_wasm.cmake` `find_package()`s at the populated
-  `lib/wasm`; run `emcmake cmake … -C patches/blender_web.cmake` to **Configuring done +
-  Generating done with REAL deps (zero placeholder targets)**. **blocked-by M1.6, M1.2, M1.3.**
+- [x] **M1.8 [build-deps] RECONCILED by `25ad33a`:** `platform_wasm.cmake` resolves the
+  populated `lib/wasm` prefix through real package targets and archives, including the mandatory
+  OIIO/OCIO/OpenEXR/Imath/fmt/TBB/Eigen/JPEG/PNG/TIFF/zlib/zstd/Freetype/Brotli closure. A fresh
+  Linux headless configure under emcc 6.0.5 and host CPython 3.13.13 reaches `Configuring done` +
+  `Generating done`; its cache keeps `WITH_LIBS_PRECOMPILED=ON`, its generated graph binds 30
+  nonempty Wasm archives with zero fallback-placeholder paths, and a locked `bf_blenlib` dry-run
+  succeeds. This closes stale real-configure accounting only; it does not promote a strict
+  receipt, result flag, or milestone promise.
 - [ ] **M1.9 [build-deps]** `ninja` the headless core (blenlib, bmesh, intern/*, extern/*, DNA/RNA,
   blenkernel, depsgraph; GPU/UI stubbed) to wasm; fix compile errors at root cause, log recurring
   fixes in `notes/porting-patterns.md`. **blocked-by M1.8.**

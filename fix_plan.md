@@ -245,7 +245,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   (M1.6, commit 5e379cd), freetype+brotli forced by no-off-switch (M1.8, 25ad33a). Verified
   present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/
   libyaml-cpp/libexpat/libpystring/libminizip.
-- [ ] **M2.5 [python-wasm]** `import bpy` headless in node/worker (tier-(b) entry). **blocked-by M2.3, M2.4.**
+- [x] **M2.5 [python-wasm] RECONCILED by `02de79e`, `a37bcab`, and `d0c0a8f`:** the
+  current Release headless product retains `WITH_PYTHON=ON`, the direct `lib/wasm` CPython
+  binding, CPython's enabled Emscripten call trampoline, and the Node-only guarded `fstat`
+  pre-js seam. A fresh pinned native-oracle probe and the exact Node 22.16.0 Wasm worker each
+  assert Blender 5.2.0 LTS, the factory Camera/Cube/Light set, and a successful
+  `primitive_cube_add` result with four objects; the locked `blender` target is exact no-work.
+  This closes stale tier-(b) entry accounting only; it does not change product or upstream
+  source, a strict receipt, result flag, deferral, or milestone promise.
 - [x] **M2.6 [harness]** **TIER-(b) GATE GREEN — M2 COMPLETE** (2026-08-05): scope_m2b installed
   (harness v1.4) → 4/4 GREEN: 75 CORE rows, **64/64 must-pass exit-0** (ESSENTIALS_LANDED=1,
   NUMPY_HARVESTED=1), deferral_consistency enforced (10 raw-fails ALL registry-mapped: 3 ULP,

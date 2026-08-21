@@ -126,9 +126,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   nonempty Wasm archives with zero fallback-placeholder paths, and a locked `bf_blenlib` dry-run
   succeeds. This closes stale real-configure accounting only; it does not promote a strict
   receipt, result flag, or milestone promise.
-- [ ] **M1.9 [build-deps]** `ninja` the headless core (blenlib, bmesh, intern/*, extern/*, DNA/RNA,
-  blenkernel, depsgraph; GPU/UI stubbed) to wasm; fix compile errors at root cause, log recurring
-  fixes in `notes/porting-patterns.md`. **blocked-by M1.8.**
+- [x] **M1.9 [build-deps] RECONCILED by `b0be2bf`, `01ddce3`, `aaa54c9`,
+  `338387a`, `a3f73b5`, `48f04de`, `3466022`, and `db88bd3`:** the accepted
+  headless Wasm path compiles DNA/RNA, blenlib/bmesh, intern/extern, blenkernel, depsgraph,
+  and the complete standalone tier-(a) link closure. Its root-cause fixes remain in the
+  canonical frozen source and the recurring wasm32/libc/host-codegen patterns are recorded in
+  `notes/porting-patterns.md`. A fresh Linux locked rebuild of `BLI_test`, `bmesh_core_test`,
+  and `blender` completes the full graph and reproduces the documented artifact hashes; the
+  Release parity cache keeps `WITH_HEADLESS=ON` and WebGPU/OpenGL/Vulkan backends OFF. This
+  closes stale core-compilation accounting only; it does not promote a strict receipt, result
+  flag, or milestone promise.
 - [x] **M1.10 [harness]** blenlib gtests GREEN on wasm/node: **1655/1665**, 10 non-passes all
   characterized non-faithfulness (9 fenv deferral + 1 macOS-host chdir). `ledger/results/m1.json`.
   Harness `m1` scope registration deferred to the M1-boundary reconcile (H-4).

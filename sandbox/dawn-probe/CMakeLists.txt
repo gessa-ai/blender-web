@@ -188,3 +188,50 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     Threads::Threads
   )
 endif()
+
+# Optional device-free contract for the canonical in-tree texture-format table
+# and RGB-to-RGBA conversion module. This compiles the shipping postimages
+# directly, including Blender's real TextureFormat enum, but deliberately never
+# creates a WebGPU instance, adapter, device, or texture at runtime.
+if(DEFINED BW_INTEGRATED_TEXTURE_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_INTEGRATED_TEXTURE_SOURCE_DIR")
+  endif()
+  set(_bw_integrated_texture_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-texture-integrated-smoke/integrated_texture_test.cc"
+  )
+  set(_bw_integrated_texture_sources
+    wgpu_texture_format.cc
+    wgpu_texture_format.hh
+    wgpu_texture_format_list.h
+    wgpu_data_conversion.cc
+    wgpu_data_conversion.hh
+  )
+  foreach(_bw_source IN LISTS _bw_integrated_texture_sources)
+    set(_bw_source_path "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU texture input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  foreach(_bw_source
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_format.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
+      "${_bw_integrated_texture_test}")
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR "integrated WebGPU texture dependency is missing: ${_bw_source}")
+    endif()
+  endforeach()
+
+  add_executable(wgpu_texture_integrated_test
+    "${_bw_integrated_texture_test}"
+    "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_texture_format.cc"
+    "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_data_conversion.cc"
+  )
+  target_include_directories(wgpu_texture_integrated_test PRIVATE
+    "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+  )
+  target_link_libraries(wgpu_texture_integrated_test PRIVATE dawn::webgpu_dawn)
+endif()

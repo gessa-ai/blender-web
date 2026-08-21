@@ -422,6 +422,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   It creates no adapter/device or receipt; the historical live 5/5 buffer replay remains owned
   by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t6-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T9.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
+  device-free native/Wasm contract now compiles the canonical in-tree texture-format and
+  RGB-to-RGBA conversion postimages against Blender's real `TextureFormat` enum. Five contracts
+  cover all 63 format rows, capability classification, five bidirectional linear/sRGB view
+  pairs, every byte of all 13 promotion paths, and invalid/boundary behavior. Native and Node
+  22.16.0 emit identical 426-byte evidence against Dawn `36cf1fae` and emcc 6.0.5; canonical
+  replay is bound before evidence, wrong Dawn/Node identities allocate nothing, and both targets
+  end at locked-Ninja no-work. It creates no instance, adapter, device, texture, or receipt; the
+  historical live T9 creation/upload/readback proof remains owned by **M3-LINUX-REPLAY** and
+  blocked by s7. Evidence: `notes/m3-t9-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

@@ -60,6 +60,13 @@ Verified native-platform correction 0149 is now composed into the canonical snap
 source freezer again proves exact clean-pin application, byte-identical 20,258-entry live/replay
 manifests, byte-identical patch regeneration, and a stable final resnapshot. The authority remains
 the same 257-path squashed patch but is now 1,530,642 bytes with SHA-256
-`e03f140fe3f3c6448c9bc7bd52bfa572ea0f774fe5354cd98053341ef8d717b2`; the normalized current
-receipt replaces the generic receipt path above. The old hash remains valid only for the dated
+`e03f140fe3f3c6448c9bc7bd52bfa572ea0f774fe5354cd98053341ef8d717b2`; the normalized receipt at
+that point replaced the generic receipt path above. The old hash remains valid only for the dated
 2026-08-20 evidence and migration save point.
+
+Patch 0150's signed atomic 2D-array spelling correction was subsequently composed by the same
+freezer. The authority still spans exactly 257 paths and 20,258 manifest entries; it is now
+1,530,681 bytes with SHA-256
+`c0b3b32291fd0d680785c53c4f668d7130b90dd6391d726234db1162313a9684`. The current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`ce8b0bc4ae8d9fa253ac3e191b22c989fe24603ba08c7823cd706e2e3f0da3ce`.

@@ -708,3 +708,7 @@
 # the browser-only sibling remains unselected. The strict T3 verifier separately
 # rejects CPU/software adapters before any receipt can be claimed.
 0149-ghost-webgpu-native-platform-backend.patch
+# 0150: preserve the array dimension when spelling signed atomic 2D-array
+# sampler/image types in WebGPU GLSL. The device-free native/Wasm frontend
+# census covers all 39 ImageType values and catches the former iimage2D output.
+0150-gpu-webgpu-signed-atomic-array-type.patch

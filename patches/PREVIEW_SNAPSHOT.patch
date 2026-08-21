@@ -23935,10 +23935,10 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2ee89c48a3c99e0e0454151f176f868a61643449
+index 0000000000000000000000000000000000000000..285554fc9cef045211460959196913d104a35e92
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2864 @@
+@@ -0,0 +1,2865 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -24273,6 +24273,7 @@ index 0000000000000000000000000000000000000000..2ee89c48a3c99e0e0454151f176f868a
 +    case ImageType::ShadowCubeArray:
 +    case ImageType::Depth2DArray:
 +    case ImageType::DepthCubeArray:
++    case ImageType::AtomicInt2DArray:
 +    case ImageType::AtomicUint2DArray:
 +      os << "Array";
 +      break;

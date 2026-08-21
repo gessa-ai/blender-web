@@ -1,0 +1,11 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -332,6 +332,7 @@ static void print_image_type(std::ostream &os,
+     case ImageType::ShadowCubeArray:
+     case ImageType::Depth2DArray:
+     case ImageType::DepthCubeArray:
++    case ImageType::AtomicInt2DArray:
+     case ImageType::AtomicUint2DArray:
+       os << "Array";
+       break;

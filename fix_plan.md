@@ -412,6 +412,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   allocations. This is CPU translation/layout proof only: no adapter/device or receipt is created,
   and **M3-LINUX-REPLAY** remains blocked by s7. Evidence:
   `notes/m3-t7-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T7.frontend.integrated [gpu-backend]** RECONCILED on Linux: the canonical in-tree
+  shader frontend now has a checkout-relative, device-free native/Wasm contract covering all 39
+  distinct image types, all 63 texture formats, all eight qualifier patterns, and 30 std140
+  layouts. Its unchanged pre-fix oracle caught `AtomicInt2DArray` losing the `Array` suffix;
+  patch 0150 restores `isampler2DArray`/`iimage2DArray`, and the source freezer composes that
+  postimage into the exact 257-path canonical snapshot. Root and descendant runs emit identical
+  313-byte evidence against pinned Dawn, emcc, Node, and byte-identical fmt inputs; wrong identities
+  reject before evidence. It creates no instance, adapter, device, shader module, pipeline, or
+  receipt; live shader validation remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t7-frontend-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T6.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree common-buffer and
   readback-registry postimages directly. Five contracts cover the exact 32-case usage matrix,

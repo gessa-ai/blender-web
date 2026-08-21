@@ -443,3 +443,84 @@ if(DEFINED BW_INTEGRATED_VERTEX_SOURCE_DIR)
   target_link_options(wgpu_vertex_integrated_test PRIVATE -Wl,--gc-sections)
   target_link_libraries(wgpu_vertex_integrated_test PRIVATE dawn::webgpu_dawn)
 endif()
+
+# Optional device-free contract for the canonical in-tree shader frontend. The
+# test includes the shipping translation unit so its private GLSL type/format
+# helpers are exercised directly; all live-device sections are collected at
+# link and no WebGPU object is created at runtime.
+if(DEFINED BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR
+      "BW_UPSTREAM_DIR is required with BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR")
+  endif()
+  if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
+     NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
+     NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
+    message(FATAL_ERROR
+      "BW_NATIVE_FMT_INCLUDE_DIR must name the pinned native fmt include root")
+  endif()
+  set(_bw_integrated_shader_frontend_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-shader-frontend-integrated-smoke/integrated_shader_frontend_test.cc"
+  )
+  foreach(_bw_source wgpu_shader.cc wgpu_shader.hh wgpu_texture_format.hh)
+    set(_bw_source_path "${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU shader-frontend input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  if(NOT IS_ABSOLUTE "${_bw_integrated_shader_frontend_test}" OR
+     NOT EXISTS "${_bw_integrated_shader_frontend_test}")
+    message(FATAL_ERROR
+      "integrated WebGPU shader-frontend test is missing: ${_bw_integrated_shader_frontend_test}")
+  endif()
+  set(_bw_shader_frontend_guardedalloc_sources
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/leak_detector.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn_guarded_impl.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn_lockfree_impl.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/memory_usage.cc"
+  )
+  foreach(_bw_source
+      "${BW_UPSTREAM_DIR}/intern/clog/clog.cc"
+      ${_bw_shader_frontend_guardedalloc_sources})
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR
+        "integrated WebGPU shader-frontend runtime input is missing: ${_bw_source}")
+    endif()
+  endforeach()
+
+  find_package(Threads REQUIRED)
+  add_executable(wgpu_shader_frontend_integrated_test
+    "${_bw_integrated_shader_frontend_test}"
+    "${BW_UPSTREAM_DIR}/intern/clog/clog.cc"
+    ${_bw_shader_frontend_guardedalloc_sources}
+  )
+  target_compile_definitions(wgpu_shader_frontend_integrated_test PRIVATE
+    BW_WGPU_SHADER_SOURCE="${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}/wgpu_shader.cc"
+    WITH_CLOG_PTHREADS
+  )
+  target_include_directories(wgpu_shader_frontend_integrated_test PRIVATE
+    "${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/intern"
+    "${BW_UPSTREAM_DIR}/source/blender/blenkernel"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+    "${BW_UPSTREAM_DIR}/source/blender/makesdna"
+    "${BW_UPSTREAM_DIR}/source/blender/makesrna"
+    "${BW_UPSTREAM_DIR}/intern/atomic"
+    "${BW_UPSTREAM_DIR}/intern/clog"
+    "${BW_UPSTREAM_DIR}/intern/ghost"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc"
+    "${BW_NATIVE_FMT_INCLUDE_DIR}"
+  )
+  target_compile_options(wgpu_shader_frontend_integrated_test PRIVATE
+    -ffunction-sections
+    -fdata-sections
+  )
+  target_link_options(wgpu_shader_frontend_integrated_test PRIVATE -Wl,--gc-sections)
+  target_link_libraries(wgpu_shader_frontend_integrated_test PRIVATE
+    dawn::webgpu_dawn
+    Threads::Threads
+  )
+endif()

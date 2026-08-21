@@ -412,6 +412,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   allocations. This is CPU translation/layout proof only: no adapter/device or receipt is created,
   and **M3-LINUX-REPLAY** remains blocked by s7. Evidence:
   `notes/m3-t7-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T6.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
+  device-free native/Wasm contract now compiles the canonical in-tree common-buffer and
+  readback-registry postimages directly. Five contracts cover the exact 32-case usage matrix,
+  alignment/index helpers, invalid-buffer behavior, move lifetime, and real invalid-readback
+  ticket lifecycle. Native and Node 22.16.0 emit identical 348-byte evidence against clean Dawn
+  `36cf1fae` and emcc 6.0.5; the driver binds canonical clean-pin replay before evidence,
+  rejects a wrong Dawn with zero allocations, and ends both targets at locked-Ninja no-work.
+  It creates no adapter/device or receipt; the historical live 5/5 buffer replay remains owned
+  by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t6-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

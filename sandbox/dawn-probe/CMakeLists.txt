@@ -145,3 +145,46 @@ if(DEFINED BW_GHOST_WGPU_SOURCE_DIR)
   )
   target_link_libraries(ghost_wgpu_verify PRIVATE dawn::webgpu_dawn)
 endif()
+
+# Optional device-free contract for the canonical in-tree buffer wrapper and
+# readback registry. This compiles the shipping postimages directly and reuses
+# Dawn's native target graph, but deliberately never creates an instance,
+# adapter, or device at runtime.
+if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
+  set(_bw_integrated_buffer_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_test.cc"
+  )
+  set(_bw_integrated_buffer_sources
+    wgpu_buffer.cc
+    wgpu_buffer.hh
+    wgpu_common.hh
+    wgpu_readback.cc
+    wgpu_readback.hh
+  )
+  foreach(_bw_source IN LISTS _bw_integrated_buffer_sources)
+    set(_bw_source_path "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU buffer input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  if(NOT IS_ABSOLUTE "${_bw_integrated_buffer_test}" OR
+     NOT EXISTS "${_bw_integrated_buffer_test}")
+    message(FATAL_ERROR
+      "integrated WebGPU buffer test is missing: ${_bw_integrated_buffer_test}")
+  endif()
+
+  find_package(Threads REQUIRED)
+  add_executable(wgpu_buffer_integrated_test
+    "${_bw_integrated_buffer_test}"
+    "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
+    "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_readback.cc"
+  )
+  target_include_directories(wgpu_buffer_integrated_test PRIVATE
+    "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"
+  )
+  target_link_libraries(wgpu_buffer_integrated_test PRIVATE
+    dawn::webgpu_dawn
+    Threads::Threads
+  )
+endif()

@@ -504,6 +504,17 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   query set, or receipt; a real async result path remains an M5 caller redesign and live proof stays
   owned by **M3-LINUX-REPLAY**, blocked by s7. Evidence:
   `notes/m3-t10-query-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.bindspace.integrated [gpu-backend]** RECONCILED on Linux: a
+  checkout-relative, device-free native/Wasm contract now compiles the canonical in-tree
+  state manager plus Blender's real base `StateManager` constructor. Four contracts cover
+  default immutable/mutable state, last-bind-wins texture/image maps, namespace isolation,
+  resource-wide and all-bind cleanup, implicit state/barrier preservation, and the reusable
+  signal/wait fence lifecycle. Root and Node 22.16.0 output is byte-identical at 300 bytes
+  (`sha256:2112ce5e5dcc`); wrong Dawn/Node/fmt identities allocate no evidence, canonical
+  replay is bound before allocation, and both targets end locked-Ninja no-work. It creates no
+  instance, adapter, device, bind group, command, or receipt; live assembly/ordering remains
+  owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t10-bindspace-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

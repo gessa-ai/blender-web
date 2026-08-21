@@ -271,12 +271,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   upstream untouched), native headless configure 11s. Dawn link = monolithic libwebgpu_dawn.a
   + 7 frameworks; **Tint NOT needed until T7**; C++20 native (no shim). Remaining half folded
   into T4 (notes/gpu-t3-harness.md has the cited edit list + DAWN_ROOT mechanism).
-- [ ] **M3.T4 [gpu-backend]** Backend registration + skeleton + NATIVE gpu-suite link:
-  GPU_BACKEND_WEBGPU (1<<2 + DNA userpref mirror), gpu_context.cc 7 switch arms, gpu/webgpu/
-  WGPUBackend (21 pure-virtual stubs, context_alloc → real WGPUContext holding the GHOST
-  device) + WGPUContext, gpu/CMakeLists WITH_WEBGPU block, configure build-native-gpu with
-  -DWITH_WEBGPU_BACKEND=ON, link the `gpu` suite binary; VERIFY selection_set(WEBGPU) →
-  SetUpTestSuite reaches a live context. **DISPATCHED (same worker).**
+- [x] **M3.T4 [gpu-backend]** CLOSED (`212e1a4`, patch 0012; driver acceptance
+  `ef4ff73`): `GPU_BACKEND_WEBGPU` and its DNA mirror are registered, all seven
+  `gpu_context.cc` dispatch points select WebGPU, the CMake source block builds
+  `WGPUBackend`/`WGPUContext`, and the native Dawn/Metal full-closure verifier reached a live
+  context through `GPU_backend_type_selection_set(WEBGPU)` and `GPU_context_create`. Later
+  GPU-suite rounds replace every skeleton allocator. This is active-plan reconciliation;
+  the fresh Linux M3 receipt remains blocked by the named s7 hardware-adapter condition.
 - [x] **M3.T7.pre [gpu-backend]** COMPLETE (4f36210, notes/gpu-t7pre-findings.md): shader-
   compiler module standalone-proven 4/4 on live Dawn (bindmap re-validated; type-inference
   table COMPLETE + live-validated for Float/Shadow/Uint arms; compute+SSBO+atomic pipeline

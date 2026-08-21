@@ -165,9 +165,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   convenient), 0 target-dependence. Fixes: 1 LP64 shift (image.cc 1<<32, patch 0008) + host
   PYTHON_EXECUTABLE for discover_nodes.py (Class-3b, porting-patterns.md). Series 0001-0008.
   makesrna first-execution confirmed. **→ CODEGEN-GREEN: wave-2 fan-out FIRED.**
-- [ ] **M1.15 [build-deps]** Host tools verified under node on the real path: makesrna executes
-  (first verification — forced by bf_rna before blenkernel) + datatoc/shader_tool two-half fixes
-  (exact lines in notes/m1-closure-recon.md). (In worker scope when hit during M1.13/14.)
+- [x] **M1.15 [build-deps] RECONCILED by `2ebb9ff` and `01ddce3`:** the ABI-producing
+  `makesrna` remains a Wasm host tool executed under Node, while target-independent `datatoc`
+  and `shader_tool` use native host binaries per ADR-002. The current M1 graph contains one
+  Node `makesrna` command, 909/907 native `datatoc`/`shader_tool` commands, and zero Wasm
+  text-tool commands. Fresh graph-selected and pinned-emsdk Node executions regenerate all 79
+  RNA outputs byte-for-byte, and a fresh native shader-tool-to-datatoc chain matches four built
+  outputs exactly. This closes stale host-tool accounting only; it does not change product
+  source, a receipt, result flag, or milestone promise.
 - [ ] **M1.15b [build-deps]** **The wide grind — PARTITIONED (45ed7ab,
   notes/m1-wave2-partition.md):** 90 unbuilt archives / 2147 TU, PROVEN compile-independent
   (object rules order-depend only on codegen, never sibling .a) → **5-way fan-out fires on

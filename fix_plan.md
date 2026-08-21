@@ -666,6 +666,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and the retired absolute module root fail closed. No capture or receipt was produced: the live
   tripwire remains blocked by s7 and the APPLY product, and its native golden, comparator, threshold,
   and historical artifact are unchanged.
+- [x] **M8-SPLIT-RUNTIME-LINUX-PORTABILITY [driver, browser-free] (9c2410f):** the strict APPLY
+  runtime proof now derives exact Node 22.16.0/Playwright 1.61.1/PNGJS 7.0.0 roots, pins Chromium
+  149.0.7827.55, selects Linux WebGPU arguments, and binds the shared accepted-hardware adapter
+  before immutable evidence allocation. Root/descendant fixtures prove 9 positive/15 adversarial
+  cases with zero launches; software reaches zero allocations, accepted hardware exactly one, and
+  missing APPLY allocates nothing. No browser or receipt was produced; s7 remains live. See
+  `notes/m8-split-runtime-linux-portability-20260821.md`.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

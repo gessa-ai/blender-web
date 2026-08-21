@@ -183,9 +183,17 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   locked target set is no-work, and the canonical Node runtime again passes 1/1. This closes
   stale wide-grind accounting only; it does not change product source, a receipt, result flag,
   or milestone promise.
-- [ ] **M1.16 [driver]** M1-boundary harness reconcile: lift lock, register `m1` scope per H-4
-  (blenlib assert 1655/10-characterized), add bmesh check once M1.11 lands, re-lock, re-run
-  `--scope m0` + `--regress`. **blocked-by M1.11.**
+- [x] **M1.16 [driver] RECONCILED by `b8828a9`, `488679e`, `00bc5f5`,
+  `2bd738f`, and `ea7133e`:** the historical boundary fixed H-1/H-2/H-3, registered the
+  JSON-counted BLI and complete bmesh-core checks after M1.11, added corpus parity, restored the
+  lock, and ran M0 plus full regression green. The current harness preserves `m1` and
+  `--regress` but upgrades the mutable direct scope to the fail-closed strict-final adapter.
+  Fresh Linux component evidence bound to a new clean-pin freeze passes BLI 1,667/1,667,
+  bmesh-core 1/1, main corpus 9/9, and versioning 12/12 under the authoritative verifier.
+  Aggregate `m1` remains honestly RED because its current adapter requires the unavailable
+  complete M0-M3 manifest; s7's software-only Vulkan adapter still blocks that manifest. This
+  closes stale boundary accounting only; it does not change harness source, a result flag,
+  deferral, or milestone promise.
 
 ---
 

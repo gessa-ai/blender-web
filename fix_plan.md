@@ -971,19 +971,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   bytes across all 30 scenes. The exact residual split is recorded above; the census holds
   149 PASS / 7 FAIL / 2 CRASH and static_shaders 956/973.
 
-- [ ] **M3-GATE [driver, at r16 exit]:** register 5 deferrals in ledger/deferred.json;
-  write blacklist doc; harness m3 scope via the lock-lift reconcile procedure (census table
-  = expected state); patches/series manifest (orders now recorded); full --regress;
-  **`<promise>M3_GPU_BACKEND</promise>` with receipts.** blocked-by r16 (uniformity-5). (a) MEDIUM tail 26: rewrite
-  samplerBuffer function-params at codegen (globalize/inline per call-site — WGSL forbids
-  buffer fn-params); (b) R32F per decision (2); (c) switch-fallthrough per decision (1);
-  (d) uniform-CF 5: investigate (0077 set allow_non_uniform_derivatives — these are
-  different quad/subgroup ops? characterize exactly); (e) subdiv 4 + census artifact 1:
-  root-cause inclusion, characterize; (f) **FULL-SUITE CENSUS: `--gtest_list_tests` the
-  entire GPUWebGPUTest suite, run EVERY family (incl. ones never run: state/matrix/
-  primitives/whatever exists), produce the complete pass/fail table = the actual
-  M3_GPU_BACKEND gate measurement + the deferral-registry candidate list.**
-  DISPATCHED (patches 0089-0095).
+- [x] **M3-GATE [driver, technical-contract reconciliation]:** the accepted successor rounds
+  closed the stale r16 shader/family queue and froze the literal release contract: exact
+  checked-in 197-test and 1,003-shader identities, 197/197 plus DrawWebGPU 2/2 and cold/warm
+  1,003/1,003 historical Dawn/Metal proof, raw-evidence and no-work verification, and canonical
+  clean-pin source reconstruction. `ledger/deferred.json` records the five named census
+  dispositions (four active, signed-I10 resolved), `notes/gpu-gate-blacklist.md` separately
+  justifies the three blacklist groups, `patches/series` retains the ordered development history,
+  and `harness/run.sh` routes M3 through the fail-closed strict-final adapter. This closes only the
+  obsolete implementation/accounting queue. The existing **M3-LINUX-REPLAY** item owns the fresh
+  Dawn/Vulkan exact-identity receipt, aggregate run, and `<promise>M3_GPU_BACKEND</promise>`;
+  those remain blocked by s7's llvmpipe-only adapter and must not be inferred from this checkbox.
 - [x] **M3-boundary [driver]** CLOSED (`d7dcebf`, current accounting reverified): all five
   census dispositions are registered in `ledger/deferred.json` with named blockers, impacts,
   revisit conditions, and evidence: storage-texture atomics, vertex-stage read-write storage,

@@ -659,6 +659,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   profile-union and APPLY consumers reject llvmpipe/SwiftShader/CPU/software and 28 receipt
   mutations. No profile or receipt was produced: s7 remains blocked. See
   `notes/m4-capture-profile-linux-portability-20260820.md`.
+- [x] **M4-FULLSCREEN-LINUX-PORTABILITY [driver, browser-free] (a29dd65):** the active full-window
+  parity tripwire now derives its checkout, exact artifact directory, and deduplicated module roots;
+  requires Node 22.16.0 plus Playwright 1.61.1; and selects Linux WebGPU arguments without Metal
+  ANGLE. Base and live root/descendant self-checks pass with zero browser launches, while Node 25
+  and the retired absolute module root fail closed. No capture or receipt was produced: the live
+  tripwire remains blocked by s7 and the APPLY product, and its native golden, comparator, threshold,
+  and historical artifact are unchanged.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

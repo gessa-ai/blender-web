@@ -217,3 +217,14 @@ do not mask the product dependency with a test-only allocator symbol. Private GP
 reach fmt through `BLI_string_ref.hh`, so bind the pinned native and Wasm fmt include roots and
 require their directly consumed headers to be byte-identical. See
 `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 11 — device-free functions can share a translation unit with live-device code
+
+Signature: a parity test needs pure enum/layout helpers from a shipping backend `.cc`, but linking
+that object also reports unresolved shader, cache, or device methods that the test never calls.
+Compile the canonical translation unit with function/data sections and link with section garbage
+collection; do not copy the helpers into a test module or satisfy the live half with fake symbols.
+Blender's `BLI_assert_unreachable()` still prints in Release builds even though it does not abort,
+so an intentionally exercised fail-visible fallback must link the canonical `BLI_assert.cc` and
+bind the exact native/Wasm diagnostic instead of suppressing stderr. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

@@ -453,6 +453,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   no-work. It creates no instance, adapter, device, pipeline, or receipt; historical live T10
   pipeline/pixel proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t10-state-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.pipeline.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
+  device-free native/Wasm contract now compiles the canonical in-tree render-pipeline postimage
+  directly. Four contracts cover all 11 primitive rows and all 96 component/length/fetch
+  combinations, including normalized signed-I10 to `Snorm8x4` and the fail-visible triangle-fan
+  fallback. Native and Node 22.16.0 emit byte-identical 232-byte stdout plus byte-identical exact
+  diagnostics against clean Dawn `36cf1fae` and emcc 6.0.5; canonical replay is bound before
+  evidence, wrong Dawn/Node identities allocate nothing, and both targets end at locked-Ninja
+  no-work. It creates no instance, adapter, device, render pipeline, or receipt; historical live
+  T10 proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t10-pipeline-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

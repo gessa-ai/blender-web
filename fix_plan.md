@@ -56,12 +56,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 
 ### Platform CMake layer (parallel, no dep build needed)
 
-- [ ] **M1.1 [build-deps]** Make `patches/0001-platform-wasm.patch` (an `if(EMSCRIPTEN)` branch
-  placed *before* the `UNIX AND NOT APPLE` branch at `CMakeLists.txt:~1541`, → `include(platform_wasm)`)
-  + `patches/platform_wasm.cmake` the **canonical** shim; **retire the throwaway
-  `patches/cmake_wasm/platform_unix.cmake` shadow-stub** (two competing mechanisms exist from
-  round 1 — keep the auditable patch, delete the shadow). Verify `git apply --check
-  --directory=upstream` clean + upstream `status --porcelain` empty.
+- [x] **M1.1 [build-deps] RECONCILED by `ee412de` + `87ada67`:**
+  `patches/0001-platform-wasm.patch` inserts the Emscripten branch before
+  `UNIX AND NOT APPLE`, adds the port directory to `CMAKE_MODULE_PATH`, and includes the
+  canonical `patches/platform_wasm.cmake`; the temporary
+  `patches/cmake_wasm/platform_unix.cmake` shadow was deleted. The current integration source
+  retains that exact branch and the canonical clean-pin replayer reproduces it from
+  `fbe6228777e7`. This closes stale bring-up accounting only; it does not promote a strict
+  receipt, result flag, or milestone promise.
 - [ ] **M1.2 [build-deps]** In `platform_wasm.cmake`: drop `find_package(Epoxy REQUIRED)` (no GL
   consumer in a WebGPU build); gate `Vulkan`/`ShaderC` `find_package` **OFF for headless M1**
   (shader chain is M3, no GPU in tier-a); set C++ exceptions posture globally (`-fexceptions` —

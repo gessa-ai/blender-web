@@ -524,12 +524,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   non-black; panels/outliner/properties readable). remap-skip attempt REVERTED (regressed 4
   compute tests; frontend passes dense binding, not create-info slot). Evidence:
   platform_web/shell/evidence/m4-ui-upright-r18-viewport-dark.png.
-  - [ ] **M4.T16 remaining cube+grid blockers (next gpu round):** (a) class-2 UBO-bound-to-Storage-slot
-    + class-3 binding collision on specific workbench/overlay shaders (non-universal); (b) NEW
-    depth-stencil aspect: Depth32FloatStencil8 all-aspects TextureView bound to a Float sampled
-    slot → wgpu_texture.cc sampled_view must force DepthOnly aspect (in-lane); (c) class-4 remap
-    GAP (Tint prunes a declared+bound resource) characterized, non-fatal; (d) topbar strip
-    dst_offset_y placement (blitted region at window bottom). Then the M4 cube+grid golden.
+  - [x] **M4.T16 viewport blockers RECONCILED by the accepted successor rounds:** patches
+    0101/0106 enforce buffer-kind correctness and full-range bind deduplication; 0102/0103
+    isolate depth sampling and omit Tint-pruned bindings; 0112 gives mapped resources precedence
+    over stale identity fallbacks; and 0115 converts the window-backbuffer destination Y origin.
+    The r27 proof renders grid/axes with zero validation errors, 0118 restores the solid shaded
+    cube, and the later historical D-9 gate passes splash/workspace at 0.204%/0.505% over 0.016.
+    This closes only the stale r19 blocker list. **M4-LINUX-REPLAY** remains the sole owner of a
+    fresh Linux binding/receipt and is still blocked by s7's llvmpipe-only adapter.
   - [x] **M4.T22 r25 [driver, 2026-08-07]: urllib3-shim merge + gate re-measure — boot-payload
     regression CLOSED, gate 100%→33.4%.** 7c1cda2 cherry-picked (06feea1), shim verified in the
     .data payload, clean boots: NO ModuleNotFoundError, zero Dawn errors, full UI stable; comparator

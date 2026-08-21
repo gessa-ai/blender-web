@@ -241,6 +241,16 @@
       "evidence": "notes/gpu-r31-readback-discriminator.md (Stage 1 + toolchain finding); notes/gpu-r35-render-result-bridge.md + notes/m6-gpu-suite-real-scores.md (r35 bridge + real suite scores); notes/gpu-r25-shim-boot-restored-viewport-isolated.md sections 2-3; ADR-007"
     },
     {
+      "id": "webgpu-sync-occlusion-query",
+      "status": "deferred",
+      "milestone": "M3 (gate)",
+      "revisit": "M5 gizmo interaction parity: convert the legacy sample-query selection caller to an encode/resolve/poll continuation, or route browser gizmo picking through the asynchronous Select-Next path",
+      "blocker": "WebGPU occlusion results require resolving a query set and asynchronously mapping a result buffer. Blender's legacy gpu_select_sample_query path calls QueryPool::get_occlusion_result synchronously inside GPU_select_end(), while ADR-006 forbids blocking the browser WM worker on the callback needed to complete that map.",
+      "impact": "WGPUQueryPool intentionally reports zero hits. Normal View3D object selection uses GPU_select_begin_next and is unaffected, but the legacy query-backed gizmo-map path cannot report a browser hit and therefore cannot faithfully select gizmos through this route.",
+      "workaround": "Use the Select-Next/object-ID path for ordinary viewport object selection. There is no faithful synchronous workaround for legacy gizmo queries; the caller must become asynchronous before real WebGPU query results can ship.",
+      "evidence": "source/blender/gpu/webgpu/wgpu_query.{cc,hh}; source/blender/gpu/intern/gpu_select_sample_query.cc synchronous result consumption; source/blender/windowmanager/gizmo/intern/wm_gizmo_map.cc legacy caller; sandbox/final-m0-m3/gpu_webgpu_tests.txt conservative fallback identity; notes/m3-t10-query-integrated-linux-reconcile-20260821.md"
+    },
+    {
       "id": "m8-wasm-15mb-bar",
       "status": "partial",
       "milestone": "M8",

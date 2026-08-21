@@ -524,3 +524,45 @@ if(DEFINED BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR)
     Threads::Threads
   )
 endif()
+
+# Optional device-free contract for the canonical in-tree conservative
+# occlusion-query fallback. This compiles the shipping implementation directly
+# and exercises only its CPU state machine; no WebGPU object is created.
+if(DEFINED BW_INTEGRATED_QUERY_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_INTEGRATED_QUERY_SOURCE_DIR")
+  endif()
+  set(_bw_integrated_query_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-query-integrated-smoke/integrated_query_test.cc"
+  )
+  foreach(_bw_source wgpu_query.cc wgpu_query.hh)
+    set(_bw_source_path "${BW_INTEGRATED_QUERY_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU query input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  foreach(_bw_source
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_query.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/blenlib/BLI_assert.h"
+      "${BW_UPSTREAM_DIR}/source/blender/blenlib/BLI_span.hh")
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR "integrated WebGPU query dependency is missing: ${_bw_source}")
+    endif()
+  endforeach()
+  if(NOT IS_ABSOLUTE "${_bw_integrated_query_test}" OR
+     NOT EXISTS "${_bw_integrated_query_test}")
+    message(FATAL_ERROR
+      "integrated WebGPU query test is missing: ${_bw_integrated_query_test}")
+  endif()
+
+  add_executable(wgpu_query_integrated_test
+    "${_bw_integrated_query_test}"
+    "${BW_INTEGRATED_QUERY_SOURCE_DIR}/wgpu_query.cc"
+  )
+  target_include_directories(wgpu_query_integrated_test PRIVATE
+    "${BW_INTEGRATED_QUERY_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/intern"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+  )
+endif()

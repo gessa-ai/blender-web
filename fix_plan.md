@@ -493,6 +493,17 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   no-work. It creates no instance, adapter, device, render pipeline, or receipt; historical live
   T10 proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t10-pipeline-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.query.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
+  device-free native/Wasm contract now compiles the canonical in-tree conservative occlusion-query
+  implementation directly and verifies initial state, five valid begin/end transitions, guarded
+  duplicate transitions, and seven exact zero-hit results. Root and descendant runs emit identical
+  252-byte evidence against clean Dawn `36cf1fae`, emcc 6.0.5, and Node 22.16.0; wrong Dawn/Node
+  identities allocate no evidence and both targets end at locked-Ninja no-work. The audit also
+  registers `webgpu-sync-occlusion-query`: the existing conservative-fallback GPU test is an honest
+  implementation test, not browser gizmo-selection parity. It creates no instance, adapter, device,
+  query set, or receipt; a real async result path remains an M5 caller redesign and live proof stays
+  owned by **M3-LINUX-REPLAY**, blocked by s7. Evidence:
+  `notes/m3-t10-query-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

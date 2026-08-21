@@ -27,6 +27,7 @@ m1 = module("run_m1")
 m2 = module("run_m2")
 m2deps = module("run_m2_deps")
 m3 = module("run_m3")
+verifier = module("verify")
 
 
 def main() -> int:
@@ -35,7 +36,13 @@ def main() -> int:
     def reject(name: str, operation) -> None:
         try:
             operation()
-        except (m1.RunError, m2.RunError, m2deps.RunError, m3.RunError):
+        except (
+            m1.RunError,
+            m2.RunError,
+            m2deps.RunError,
+            m3.RunError,
+            verifier.VerificationError,
+        ):
             negatives.append(name)
         else:
             raise AssertionError(f"negative parser fixture unexpectedly passed: {name}")
@@ -135,18 +142,38 @@ def main() -> int:
     assert m2.normalized_bytes(
         b"before\n" + m2.ALLOCATOR_LINE + native_banner + b"after\n", wasm=False
     ) == b"before\nafter\n"
+    split_dot_progress = (
+        b"before\n." + m2.ALLOCATOR_LINE + native_banner + b".\nafter\n"
+    )
     assert m2.normalized_bytes(
-        b"before\n..." + m2.ALLOCATOR_LINE + native_banner + b"after\n", wasm=False
-    ) == b"before\n...\nafter\n"
+        split_dot_progress, wasm=False
+    ) == b"before\n..\nafter\n"
+    assert verifier.m2_strip_platform_envelope(
+        split_dot_progress, wasm=False
+    ) == b"before\n..\nafter\n"
+    verbose_progress = (
+        b"test_fixture (__main__.FixtureTests.test_fixture) ... "
+        + m2.ALLOCATOR_LINE + native_banner + b"ok\nafter\n"
+    )
+    assert m2.normalized_bytes(
+        verbose_progress, wasm=False
+    ) == (
+        b"test_fixture (__main__.FixtureTests.test_fixture) ... ok\nafter\n"
+    )
+    assert verifier.m2_strip_platform_envelope(
+        verbose_progress, wasm=False
+    ) == (
+        b"test_fixture (__main__.FixtureTests.test_fixture) ... ok\nafter\n"
+    )
     assert m2.normalized_bytes(
         b"before\n" + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
         + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n"
         + b"after\n", wasm=True
     ) == b"before\nafter\n"
     assert m2.normalized_bytes(
-        b".." + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
+        b"." + m2.ALLOCATOR_LINE + m2.WASM_BANNER_LINE
         + b"00:10.327  translation      | WARNING 'locale' data path for translations not found\n"
-        + b"after\n", wasm=True
+        + b".\nafter\n", wasm=True
     ) == b"..\nafter\n"
     # Normalization may remove only the exact, position-bound runtime envelope.
     # Failure signatures and unknown/near-match warnings remain byte-visible.
@@ -612,8 +639,45 @@ def main() -> int:
         b"fcurves-prefix\n" + m2.ANIMATION_FCURVES_EULER_CANONICAL
         + m2.ANIMATION_FCURVES_WARNING_CANONICAL + b"fcurves-suffix\n"
     )
+    fcurves_late_euler_dot = b"".join([
+        b"fcurves-prefix\n",
+        m2.ANIMATION_FCURVES_EULER_READ,
+        m2.ANIMATION_FCURVES_EULER_MISSING,
+        m2.ANIMATION_FCURVES_EULER_FILTERED,
+        m2.ANIMATION_FCURVES_EULER_READ,
+        b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
+        m2.ANIMATION_FCURVES_EULER_FILTERED,
+        m2.ANIMATION_FCURVES_WARNING_CANONICAL,
+        b"fcurves-suffix\n",
+    ])
     assert m2.canonicalize_animation_fcurves_output(fcurves_native) == fcurves_wasm
     assert m2.canonicalize_animation_fcurves_output(fcurves_wasm) == fcurves_wasm
+    assert m2.canonicalize_animation_fcurves_output(
+        fcurves_late_euler_dot
+    ) == fcurves_wasm
+    assert verifier.m2_canonicalize_animation_fcurves_output(
+        fcurves_late_euler_dot
+    ) == fcurves_wasm
+    reject(
+        "m2_animation_fcurves_euler_dot_missing",
+        lambda: m2.canonicalize_animation_fcurves_output(
+            fcurves_late_euler_dot.replace(
+                b"." + m2.ANIMATION_FCURVES_EULER_MISSING,
+                m2.ANIMATION_FCURVES_EULER_MISSING,
+                1,
+            )
+        ),
+    )
+    reject(
+        "m2_animation_fcurves_euler_dot_duplicate",
+        lambda: verifier.m2_canonicalize_animation_fcurves_output(
+            fcurves_late_euler_dot.replace(
+                m2.ANIMATION_FCURVES_EULER_READ,
+                b"." + m2.ANIMATION_FCURVES_EULER_READ,
+                1,
+            )
+        ),
+    )
     reject(
         "m2_animation_fcurves_warning_row_missing",
         lambda: m2.canonicalize_animation_fcurves_output(
@@ -627,14 +691,30 @@ def main() -> int:
         ),
     )
 
+    mesh_validate_mdisp_read = (
+        b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+        b'sculpting/invalid_mdisp_cube.blend"\n'
+    )
+    mesh_validate_mdisp_error = (
+        b"<LOG_TIME>  geom.mesh        | ERROR Multires displacement has invalid "
+        b"values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23\n"
+    )
+    mesh_validate_result_tail = (
+        b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\nOK\n"
+    )
     mesh_validate_native = b"".join([
         b"mesh-prefix\n",
         *m2.MESH_VALIDATE_PROGRESS_ERRORS[:-1],
         b"....." + m2.MESH_VALIDATE_PROGRESS_ERRORS[-1],
+        mesh_validate_mdisp_read,
+        mesh_validate_result_tail,
+        mesh_validate_mdisp_error,
         b"mesh-suffix\n",
     ])
     mesh_validate_wasm = (
         b"mesh-prefix\n" + m2.MESH_VALIDATE_PROGRESS_CANONICAL
+        + mesh_validate_mdisp_read + mesh_validate_mdisp_error
+        + mesh_validate_result_tail
         + b"mesh-suffix\n"
     )
     assert m2.canonicalize_mesh_validate_progress(
@@ -643,10 +723,29 @@ def main() -> int:
     assert m2.canonicalize_mesh_validate_progress(
         mesh_validate_wasm
     ) == mesh_validate_wasm
+    assert verifier.m2_canonicalize_mesh_validate_progress(
+        mesh_validate_native
+    ) == mesh_validate_wasm
     reject(
         "m2_mesh_validate_wrong_dot_count",
         lambda: m2.canonicalize_mesh_validate_progress(
             mesh_validate_native.replace(b".....", b"....", 1)
+        ),
+    )
+    reject(
+        "m2_mesh_validate_mdisp_error_missing",
+        lambda: m2.canonicalize_mesh_validate_progress(
+            mesh_validate_native.replace(mesh_validate_mdisp_error, b"", 1)
+        ),
+    )
+    reject(
+        "m2_mesh_validate_mdisp_error_duplicate",
+        lambda: verifier.m2_canonicalize_mesh_validate_progress(
+            mesh_validate_wasm.replace(
+                mesh_validate_mdisp_error,
+                mesh_validate_mdisp_error * 2,
+                1,
+            )
         ),
     )
     reject(

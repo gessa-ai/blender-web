@@ -548,8 +548,14 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
             ],
         },
         "platform_envelope": {
-            "native": "one exact adjacent optional-dot-prefix allocator + pinned native banner",
-            "wasm": "one exact adjacent optional-dot-prefix allocator + pinned Wasm banner",
+            "native": (
+                "one exact adjacent bounded-progress-prefix allocator + pinned "
+                "native banner, byte-spliced"
+            ),
+            "wasm": (
+                "one exact adjacent bounded-progress-prefix allocator + pinned "
+                "Wasm banner, byte-spliced"
+            ),
             "wasm_optional": [
                 "exact immediately-following locale startup warning",
             ],
@@ -861,10 +867,14 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
                 b"mesh-prefix\n",
                 *verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[:-1],
                 b"....." + verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[-1],
+                verify_module.M2_MESH_VALIDATE_MDISP_READ,
+                verify_module.M2_MESH_VALIDATE_RESULT_TAIL,
+                verify_module.M2_MESH_VALIDATE_MDISP_ERROR,
                 b"mesh-suffix\n",
             ])
             wasm_body = (
                 b"mesh-prefix\n" + verify_module.M2_MESH_VALIDATE_PROGRESS_CANONICAL
+                + verify_module.M2_MESH_VALIDATE_END_CANONICAL
                 + b"mesh-suffix\n"
             )
         elif name == verify_module.M2_SCULPT_FACE_SET_SUITE:

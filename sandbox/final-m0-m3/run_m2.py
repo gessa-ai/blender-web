@@ -63,6 +63,10 @@ NATIVE_BANNER_RE = re.compile(
     rb"Blender 5\.2\.0 LTS \(hash fbe6228777e7 built "
     rb"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\)\n"
 )
+VERBOSE_UNITTEST_PROGRESS_RE = re.compile(
+    rb"(?P<method>test_[A-Za-z0-9_]+) "
+    rb"\(__main__\.[A-Za-z_][A-Za-z0-9_.]*\.(?P=method)\) \.\.\. "
+)
 WASM_LOCALE_RE = re.compile(
     rb"[0-9]{2}:[0-9]{2}\.[0-9]{3}  translation      \| WARNING "
     rb"'locale' data path for translations not found\n"
@@ -270,6 +274,22 @@ MESH_VALIDATE_PROGRESS_ERRORS = [
 ]
 MESH_VALIDATE_PROGRESS_CANONICAL = b"".join(
     b"." + line for line in MESH_VALIDATE_PROGRESS_ERRORS
+)
+MESH_VALIDATE_MDISP_READ = (
+    b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'sculpting/invalid_mdisp_cube.blend"\n'
+)
+MESH_VALIDATE_MDISP_ERROR = (
+    b"<LOG_TIME>  geom.mesh        | ERROR Multires displacement has invalid "
+    b"values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23\n"
+)
+MESH_VALIDATE_RESULT_TAIL = (
+    b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\nOK\n"
+)
+MESH_VALIDATE_END_CANONICAL = (
+    MESH_VALIDATE_MDISP_READ
+    + MESH_VALIDATE_MDISP_ERROR
+    + MESH_VALIDATE_RESULT_TAIL
 )
 SCULPT_FACE_SET_SUITE = "bl_sculpt_face_set"
 SCULPT_FACE_SET_READ = (
@@ -570,15 +590,22 @@ def strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
     """Remove only the pinned launcher's structurally located metadata.
 
     Python/C stdout buffering may move the adjacent allocator/banner pair
-    relative to test output. Requiring exactly one adjacent, version-pinned
-    pair avoids a broad line filter that could erase test messages.
+    into an unfinished progress write. Requiring exactly one adjacent,
+    version-pinned pair and a bounded progress prefix avoids a broad line
+    filter; deleting only the envelope bytes splices every surrounding byte
+    back into its original progress record.
     """
     lines = payload.splitlines(keepends=True)
     allocator_rows = [
         (index, line[:-len(ALLOCATOR_LINE)])
         for index, line in enumerate(lines[:-1])
         if line.endswith(ALLOCATOR_LINE)
-        and not (set(line[:-len(ALLOCATOR_LINE)]) - {ord(".")})
+        and (
+            not (set(line[:-len(ALLOCATOR_LINE)]) - {ord(".")})
+            or VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(
+                line[:-len(ALLOCATOR_LINE)]
+            ) is not None
+        )
     ]
     if wasm:
         pair_indexes = [
@@ -596,7 +623,7 @@ def strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
                 fail("Wasm locale startup warning is duplicated or outside its envelope")
         consumed = 3 if locale_indexes else 2
         lines[pair_index:pair_index + consumed] = (
-            [progress_prefix + b"\n"] if progress_prefix else []
+            [progress_prefix] if progress_prefix else []
         )
     else:
         pair_indexes = [
@@ -607,7 +634,7 @@ def strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
             fail("native log lacks one exact adjacent allocator/banner envelope")
         pair_index, progress_prefix = pair_indexes[0]
         lines[pair_index:pair_index + 2] = (
-            [progress_prefix + b"\n"] if progress_prefix else []
+            [progress_prefix] if progress_prefix else []
         )
     return b"".join(lines)
 
@@ -934,22 +961,26 @@ def canonicalize_vertex_group_painting_output(payload: bytes) -> bytes:
 def canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
     """Bind exact Euler and 300-warning phases while restoring two dots."""
     lines = payload.splitlines(keepends=True)
-    euler_layouts = (
-        [ANIMATION_FCURVES_EULER_READ,
-         b"." + ANIMATION_FCURVES_EULER_MISSING,
-         ANIMATION_FCURVES_EULER_FILTERED,
-         ANIMATION_FCURVES_EULER_READ,
-         ANIMATION_FCURVES_EULER_MISSING,
-         ANIMATION_FCURVES_EULER_FILTERED],
-        ANIMATION_FCURVES_EULER_CANONICAL.splitlines(keepends=True),
-    )
+    euler_records = [
+        ANIMATION_FCURVES_EULER_READ,
+        ANIMATION_FCURVES_EULER_MISSING,
+        ANIMATION_FCURVES_EULER_FILTERED,
+        ANIMATION_FCURVES_EULER_READ,
+        ANIMATION_FCURVES_EULER_MISSING,
+        ANIMATION_FCURVES_EULER_FILTERED,
+    ]
     euler_matches: list[tuple[int, int]] = []
-    for layout in euler_layouts:
-        euler_matches.extend(
-            (index, len(layout))
-            for index in range(len(lines) - len(layout) + 1)
-            if lines[index:index + len(layout)] == layout
-        )
+    for index in range(len(lines) - len(euler_records) + 1):
+        block = lines[index:index + len(euler_records)]
+        if (
+            sum(
+                line == b"." + record
+                for line, record in zip(block, euler_records)
+            ) == 1
+            and all(line in (record, b"." + record)
+                    for line, record in zip(block, euler_records))
+        ):
+            euler_matches.append((index, len(euler_records)))
     if len(euler_matches) != 1:
         fail("bl_animation_fcurves lacks one exact Euler progress layout")
     index, length = euler_matches[0]
@@ -973,7 +1004,7 @@ def canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
 
 
 def canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
-    """Restore five dots across the exact ordered mesh-error phase."""
+    """Restore exact progress and final diagnostic flush ordering."""
     lines = payload.splitlines(keepends=True)
     layouts = (
         [*MESH_VALIDATE_PROGRESS_ERRORS[:-1],
@@ -991,7 +1022,16 @@ def canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
         fail("mesh_validate lacks one exact five-error progress layout")
     index, length = matches[0]
     lines[index:index + length] = [MESH_VALIDATE_PROGRESS_CANONICAL]
-    return b"".join(lines)
+    payload = b"".join(lines)
+    end_layouts = (
+        MESH_VALIDATE_MDISP_READ + MESH_VALIDATE_RESULT_TAIL
+        + MESH_VALIDATE_MDISP_ERROR,
+        MESH_VALIDATE_END_CANONICAL,
+    )
+    end_matches = [layout for layout in end_layouts if payload.count(layout) == 1]
+    if len(end_matches) != 1:
+        fail("mesh_validate lacks one exact final diagnostic/result layout")
+    return payload.replace(end_matches[0], MESH_VALIDATE_END_CANONICAL, 1)
 
 
 def canonicalize_sculpt_face_set_output(payload: bytes) -> bytes:
@@ -1928,8 +1968,14 @@ def main(argv: list[str] | None = None) -> int:
                          ref(TIERB / "wasm-denoise.pl")],
             },
             "platform_envelope": {
-                "native": "one exact adjacent optional-dot-prefix allocator + pinned native banner",
-                "wasm": "one exact adjacent optional-dot-prefix allocator + pinned Wasm banner",
+                "native": (
+                    "one exact adjacent bounded-progress-prefix allocator + pinned "
+                    "native banner, byte-spliced"
+                ),
+                "wasm": (
+                    "one exact adjacent bounded-progress-prefix allocator + pinned "
+                    "Wasm banner, byte-spliced"
+                ),
                 "wasm_optional": [
                     "exact immediately-following locale startup warning",
                 ],

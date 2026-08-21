@@ -144,6 +144,10 @@ M2_NATIVE_BANNER_RE = re.compile(
     rb"Blender 5\.2\.0 LTS \(hash fbe6228777e7 built "
     rb"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\)\n"
 )
+M2_VERBOSE_UNITTEST_PROGRESS_RE = re.compile(
+    rb"(?P<method>test_[A-Za-z0-9_]+) "
+    rb"\(__main__\.[A-Za-z_][A-Za-z0-9_.]*\.(?P=method)\) \.\.\. "
+)
 M2_WASM_LOCALE_RE = re.compile(
     rb"[0-9]{2}:[0-9]{2}\.[0-9]{3}  translation      \| WARNING "
     rb"'locale' data path for translations not found\n"
@@ -351,6 +355,22 @@ M2_MESH_VALIDATE_PROGRESS_ERRORS = [
 ]
 M2_MESH_VALIDATE_PROGRESS_CANONICAL = b"".join(
     b"." + line for line in M2_MESH_VALIDATE_PROGRESS_ERRORS
+)
+M2_MESH_VALIDATE_MDISP_READ = (
+    b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
+    b'sculpting/invalid_mdisp_cube.blend"\n'
+)
+M2_MESH_VALIDATE_MDISP_ERROR = (
+    b"<LOG_TIME>  geom.mesh        | ERROR Multires displacement has invalid "
+    b"values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23\n"
+)
+M2_MESH_VALIDATE_RESULT_TAIL = (
+    b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\nOK\n"
+)
+M2_MESH_VALIDATE_END_CANONICAL = (
+    M2_MESH_VALIDATE_MDISP_READ
+    + M2_MESH_VALIDATE_MDISP_ERROR
+    + M2_MESH_VALIDATE_RESULT_TAIL
 )
 M2_SCULPT_FACE_SET_SUITE = "bl_sculpt_face_set"
 M2_SCULPT_FACE_SET_READ = (
@@ -1584,13 +1604,18 @@ def active_deferrals(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, A
 
 
 def m2_strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
-    """Independently replay the producer's narrow platform-envelope policy."""
+    """Independently replay the producer's byte-splice envelope policy."""
     lines = payload.splitlines(keepends=True)
     allocator_rows = [
         (index, line[:-len(M2_ALLOCATOR_LINE)])
         for index, line in enumerate(lines[:-1])
         if line.endswith(M2_ALLOCATOR_LINE)
-        and not (set(line[:-len(M2_ALLOCATOR_LINE)]) - {ord(".")})
+        and (
+            not (set(line[:-len(M2_ALLOCATOR_LINE)]) - {ord(".")})
+            or M2_VERBOSE_UNITTEST_PROGRESS_RE.fullmatch(
+                line[:-len(M2_ALLOCATOR_LINE)]
+            ) is not None
+        )
     ]
     if wasm:
         pair_indexes = [
@@ -1609,7 +1634,7 @@ def m2_strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
                 fail("m2: Wasm locale warning is duplicated or outside its envelope")
         consumed = 3 if locale_indexes else 2
         lines[pair_index:pair_index + consumed] = (
-            [progress_prefix + b"\n"] if progress_prefix else []
+            [progress_prefix] if progress_prefix else []
         )
     else:
         pair_indexes = [
@@ -1620,7 +1645,7 @@ def m2_strip_platform_envelope(payload: bytes, *, wasm: bool) -> bytes:
             fail("m2: native log lacks one exact adjacent allocator/banner envelope")
         pair_index, progress_prefix = pair_indexes[0]
         lines[pair_index:pair_index + 2] = (
-            [progress_prefix + b"\n"] if progress_prefix else []
+            [progress_prefix] if progress_prefix else []
         )
     return b"".join(lines)
 
@@ -1956,22 +1981,26 @@ def m2_canonicalize_vertex_group_painting_output(payload: bytes) -> bytes:
 def m2_canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
     """Independently bind the Euler and exact 300-warning phases."""
     lines = payload.splitlines(keepends=True)
-    euler_layouts = (
-        [M2_ANIMATION_FCURVES_EULER_READ,
-         b"." + M2_ANIMATION_FCURVES_EULER_MISSING,
-         M2_ANIMATION_FCURVES_EULER_FILTERED,
-         M2_ANIMATION_FCURVES_EULER_READ,
-         M2_ANIMATION_FCURVES_EULER_MISSING,
-         M2_ANIMATION_FCURVES_EULER_FILTERED],
-        M2_ANIMATION_FCURVES_EULER_CANONICAL.splitlines(keepends=True),
-    )
+    euler_records = [
+        M2_ANIMATION_FCURVES_EULER_READ,
+        M2_ANIMATION_FCURVES_EULER_MISSING,
+        M2_ANIMATION_FCURVES_EULER_FILTERED,
+        M2_ANIMATION_FCURVES_EULER_READ,
+        M2_ANIMATION_FCURVES_EULER_MISSING,
+        M2_ANIMATION_FCURVES_EULER_FILTERED,
+    ]
     euler_matches: list[tuple[int, int]] = []
-    for layout in euler_layouts:
-        euler_matches.extend(
-            (index, len(layout))
-            for index in range(len(lines) - len(layout) + 1)
-            if lines[index:index + len(layout)] == layout
-        )
+    for index in range(len(lines) - len(euler_records) + 1):
+        block = lines[index:index + len(euler_records)]
+        if (
+            sum(
+                line == b"." + record
+                for line, record in zip(block, euler_records)
+            ) == 1
+            and all(line in (record, b"." + record)
+                    for line, record in zip(block, euler_records))
+        ):
+            euler_matches.append((index, len(euler_records)))
     if len(euler_matches) != 1:
         fail("m2: bl_animation_fcurves lacks one exact Euler progress layout")
     index, length = euler_matches[0]
@@ -1995,7 +2024,7 @@ def m2_canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
 
 
 def m2_canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
-    """Independently restore the exact five-error progress phase."""
+    """Independently restore progress and final diagnostic ordering."""
     lines = payload.splitlines(keepends=True)
     layouts = (
         [*M2_MESH_VALIDATE_PROGRESS_ERRORS[:-1],
@@ -2013,7 +2042,18 @@ def m2_canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
         fail("m2: mesh_validate lacks one exact five-error progress layout")
     index, length = matches[0]
     lines[index:index + length] = [M2_MESH_VALIDATE_PROGRESS_CANONICAL]
-    return b"".join(lines)
+    payload = b"".join(lines)
+    end_layouts = (
+        M2_MESH_VALIDATE_MDISP_READ + M2_MESH_VALIDATE_RESULT_TAIL
+        + M2_MESH_VALIDATE_MDISP_ERROR,
+        M2_MESH_VALIDATE_END_CANONICAL,
+    )
+    end_matches = [layout for layout in end_layouts if payload.count(layout) == 1]
+    if len(end_matches) != 1:
+        fail("m2: mesh_validate lacks one exact final diagnostic/result layout")
+    return payload.replace(
+        end_matches[0], M2_MESH_VALIDATE_END_CANONICAL, 1
+    )
 
 
 def m2_canonicalize_sculpt_face_set_output(payload: bytes) -> bytes:
@@ -2750,8 +2790,14 @@ def verify_m2(ctx: Context, receipt: dict[str, Any]) -> None:
         "m2.normalization_policy.platform_envelope",
     )
     if envelope != {
-        "native": "one exact adjacent optional-dot-prefix allocator + pinned native banner",
-        "wasm": "one exact adjacent optional-dot-prefix allocator + pinned Wasm banner",
+        "native": (
+            "one exact adjacent bounded-progress-prefix allocator + pinned "
+            "native banner, byte-spliced"
+        ),
+        "wasm": (
+            "one exact adjacent bounded-progress-prefix allocator + pinned "
+            "Wasm banner, byte-spliced"
+        ),
         "wasm_optional": [
             "exact immediately-following locale startup warning",
         ],

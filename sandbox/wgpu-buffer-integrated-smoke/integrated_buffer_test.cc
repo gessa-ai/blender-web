@@ -4,8 +4,9 @@
 
 /** \file
  * Device-free native/Wasm parity contract for the canonical in-tree WebGPU
- * buffer wrapper and readback registry. No instance, adapter, or device is
- * created; live buffer copies remain part of the hardware-gated M3 replay. */
+ * buffer wrapper, pixel-upload buffer, and readback registry. No instance,
+ * adapter, or device is created; live buffer copies remain part of the
+ * hardware-gated M3 replay. */
 
 #include <array>
 #include <cstdint>
@@ -13,6 +14,7 @@
 #include <utility>
 
 #include "wgpu_buffer.hh"
+#include "wgpu_pixel_buffer.hh"
 #include "wgpu_readback.hh"
 
 namespace bw = blender::gpu::webgpu;
@@ -179,6 +181,70 @@ bool move_lifetime_contract()
   return true;
 }
 
+bool pixel_buffer_contract()
+{
+  constexpr std::array<size_t, 7> sizes = {0, 1, 4, 255, 256, 257, 4096};
+  uint64_t digest = 1469598103934665603ull;
+  size_t bytes_checked = 0;
+  size_t remaps = 0;
+
+  for (const size_t size : sizes) {
+    blender::gpu::WGPUPixelBuffer buffer(size);
+    const blender::GPUPixelBufferNativeHandle native_handle = buffer.get_native_handle();
+    if (!require(buffer.get_size() == size, "pixel buffer size") ||
+        !require(native_handle.handle == 0 && native_handle.size == 0,
+                 "pixel buffer native handle is empty"))
+    {
+      return false;
+    }
+
+    auto *mapped = static_cast<uint8_t *>(buffer.map());
+    if (!require(size == 0 || mapped != nullptr, "non-empty pixel buffer maps") ||
+        !require(buffer.map() == nullptr, "pixel buffer rejects a second map") ||
+        !require(buffer.data_for_upload(size) == nullptr,
+                 "mapped pixel buffer rejects upload"))
+    {
+      return false;
+    }
+
+    for (size_t i = 0; i < size; i++) {
+      mapped[i] = uint8_t((i * 29u + size * 17u + 11u) & 0xffu);
+    }
+    buffer.unmap();
+
+    const auto *upload = static_cast<const uint8_t *>(buffer.data_for_upload(size));
+    if (!require(size == 0 || upload == mapped, "upload view preserves mapped storage") ||
+        !require(buffer.data_for_upload(size + 1) == nullptr,
+                 "oversized pixel upload is rejected"))
+    {
+      return false;
+    }
+    for (size_t i = 0; i < size; i++) {
+      const uint8_t expected = uint8_t((i * 29u + size * 17u + 11u) & 0xffu);
+      if (!require(upload[i] == expected, "pixel upload preserves every byte")) {
+        return false;
+      }
+      digest ^= upload[i];
+      digest *= 1099511628211ull;
+      bytes_checked++;
+    }
+
+    auto *remapped = static_cast<uint8_t *>(buffer.map());
+    if (!require(size == 0 || remapped == mapped, "pixel buffer remap is stable")) {
+      return false;
+    }
+    buffer.unmap();
+    remaps++;
+  }
+
+  std::printf("CONTRACT pixel-buffer PASS cases=%zu bytes=%zu remaps=%zu digest=%016llx\n",
+              sizes.size(),
+              bytes_checked,
+              remaps,
+              static_cast<unsigned long long>(digest));
+  return bytes_checked == 4869 && remaps == sizes.size();
+}
+
 bool invalid_readback_contract()
 {
   int source_identity = 0;
@@ -234,10 +300,10 @@ bool invalid_readback_contract()
 int main()
 {
   if (!common_contract() || !usage_contract() || !invalid_buffer_contract() ||
-      !move_lifetime_contract() || !invalid_readback_contract())
+      !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract())
   {
     return 1;
   }
-  std::printf("INTEGRATED_BUFFER_PASS contracts=5 usage_cases=32\n");
+  std::printf("INTEGRATED_BUFFER_PASS contracts=6 usage_cases=32 pixel_cases=7\n");
   return 0;
 }

@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# buffer wrapper and readback registry. Invoke through harness/buildwrap.sh.
+# buffer wrapper, pixel-upload buffer, and readback registry. Invoke through
+# harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -18,13 +19,16 @@ EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
 HOST_CMAKE="${HOST_CMAKE:-$ROOT/.host-tools/bin/cmake}"
+WASM_INCLUDE="$ROOT/lib/wasm/include"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
     CMAKE_HOST_ARGS=(-U CMAKE_OSX_DEPLOYMENT_TARGET)
+    NATIVE_FMT_INCLUDE="$ROOT/lib/linux_x64/fmt/include"
     ;;
   Darwin:arm64)
     CMAKE_HOST_ARGS=(-DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.2}")
+    NATIVE_FMT_INCLUDE="$ROOT/lib/macos_arm64/fmt/include"
     ;;
   *)
     echo "ERROR: supported hosts are Linux x86_64 and macOS arm64" >&2
@@ -54,11 +58,27 @@ sha256_file()
 
 source_digest()
 {
-  local files=(wgpu_buffer.cc wgpu_buffer.hh wgpu_common.hh wgpu_readback.cc wgpu_readback.hh)
+  local files=(
+    source/blender/gpu/webgpu/wgpu_buffer.cc
+    source/blender/gpu/webgpu/wgpu_buffer.hh
+    source/blender/gpu/webgpu/wgpu_common.hh
+    source/blender/gpu/webgpu/wgpu_pixel_buffer.cc
+    source/blender/gpu/webgpu/wgpu_pixel_buffer.hh
+    source/blender/gpu/webgpu/wgpu_readback.cc
+    source/blender/gpu/webgpu/wgpu_readback.hh
+    source/blender/gpu/intern/gpu_texture_private.hh
+    source/blender/gpu/GPU_texture.hh
+    intern/guardedalloc/MEM_guardedalloc.h
+    intern/guardedalloc/intern/leak_detector.cc
+    intern/guardedalloc/intern/mallocn.cc
+    intern/guardedalloc/intern/mallocn_guarded_impl.cc
+    intern/guardedalloc/intern/mallocn_lockfree_impl.cc
+    intern/guardedalloc/intern/memory_usage.cc
+  )
   if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$WEBGPU_SOURCE" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
+    (cd "$ROOT/upstream" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
   else
-    (cd "$WEBGPU_SOURCE" && shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')
+    (cd "$ROOT/upstream" && shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')
   fi
 }
 
@@ -71,9 +91,36 @@ require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
-for source_name in wgpu_buffer.cc wgpu_buffer.hh wgpu_common.hh wgpu_readback.cc wgpu_readback.hh; do
+for source_name in \
+  wgpu_buffer.cc \
+  wgpu_buffer.hh \
+  wgpu_common.hh \
+  wgpu_pixel_buffer.cc \
+  wgpu_pixel_buffer.hh \
+  wgpu_readback.cc \
+  wgpu_readback.hh
+do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
+require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/intern/guardedalloc/MEM_guardedalloc.h"
+for source_name in \
+  leak_detector.cc \
+  mallocn.cc \
+  mallocn_guarded_impl.cc \
+  mallocn_lockfree_impl.cc \
+  memory_usage.cc
+do
+  require_file "$ROOT/upstream/intern/guardedalloc/intern/$source_name"
+done
+require_file "$NATIVE_FMT_INCLUDE/fmt/ranges.h"
+require_file "$WASM_INCLUDE/fmt/ranges.h"
+if ! cmp -s "$NATIVE_FMT_INCLUDE/fmt/ranges.h" "$WASM_INCLUDE/fmt/ranges.h"; then
+  echo "ERROR: native and Wasm fmt/ranges.h inputs differ" >&2
+  exit 1
+fi
+FMT_SHA256="$(sha256_file "$WASM_INCLUDE/fmt/ranges.h")"
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -136,6 +183,8 @@ echo "== [1/3] canonical native buffer/readback module =="
   "${CMAKE_HOST_ARGS[@]}" \
   "${CCACHE_ARGS[@]}" \
   -DDAWN_SRC_DIR="$DAWN_SRC" \
+  -DBW_UPSTREAM_DIR="$ROOT/upstream" \
+  -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
@@ -145,6 +194,8 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -S "$ROOT/sandbox/wgpu-buffer-wasm-smoke" -B "$WASM_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   "${CCACHE_ARGS[@]}" \
+  -DBW_UPSTREAM_DIR="$ROOT/upstream" \
+  -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
@@ -163,11 +214,11 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if ! grep -qx 'INTEGRATED_BUFFER_PASS contracts=5 usage_cases=32' "$stdout_file"; then
+  if ! grep -qx 'INTEGRATED_BUFFER_PASS contracts=6 usage_cases=32 pixel_cases=7' "$stdout_file"; then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi
@@ -184,4 +235,4 @@ fi
 OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(source_digest)"
-echo "PASS integrated-buffer native/wasm bytes=$OUTPUT_BYTES sha256=$OUTPUT_SHA256 source_sha256=$SOURCE_SHA256 dawn=$DAWN_PIN emcc=$EMCC_VERSION node=$NODE_VERSION"
+echo "PASS integrated-buffer native/wasm bytes=$OUTPUT_BYTES sha256=$OUTPUT_SHA256 source_sha256=$SOURCE_SHA256 fmt_sha256=$FMT_SHA256 dawn=$DAWN_PIN emcc=$EMCC_VERSION node=$NODE_VERSION"

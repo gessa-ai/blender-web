@@ -422,6 +422,17 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   It creates no adapter/device or receipt; the historical live 5/5 buffer replay remains owned
   by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t6-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T6.pixel.integrated [gpu-backend]** RECONCILED on Linux: the existing
+  device-free buffer contract now also compiles the canonical CPU-backed pixel-upload buffer and
+  its real guardedalloc closure in both native and Wasm graphs. A sixth contract covers seven
+  allocation sizes, exact size/native-handle semantics, duplicate-map and mapped/oversized-upload
+  rejection, 4,869 preserved bytes, and stable remapping. Native and Node 22.16.0 emit identical
+  441-byte evidence against clean Dawn `36cf1fae`, emcc 6.0.5, byte-identical fmt headers, and 15
+  exact source inputs; canonical replay is bound before evidence, wrong Dawn/Node identities
+  allocate nothing, and both targets end at locked-Ninja no-work. It creates no instance, adapter,
+  device, GPU buffer, texture, upload, or receipt; live pixel upload remains owned by
+  **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t6-pixel-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T9.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree texture-format and
   RGB-to-RGBA conversion postimages against Blender's real `TextureFormat` enum. Five contracts

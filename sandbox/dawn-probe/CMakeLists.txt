@@ -146,11 +146,20 @@ if(DEFINED BW_GHOST_WGPU_SOURCE_DIR)
   target_link_libraries(ghost_wgpu_verify PRIVATE dawn::webgpu_dawn)
 endif()
 
-# Optional device-free contract for the canonical in-tree buffer wrapper and
-# readback registry. This compiles the shipping postimages directly and reuses
-# Dawn's native target graph, but deliberately never creates an instance,
-# adapter, or device at runtime.
+# Optional device-free contract for the canonical in-tree buffer wrapper,
+# pixel-upload buffer, and readback registry. This compiles the shipping
+# postimages directly and reuses Dawn's native target graph, but deliberately
+# never creates an instance, adapter, or device at runtime.
 if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_INTEGRATED_BUFFER_SOURCE_DIR")
+  endif()
+  if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
+     NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
+     NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
+    message(FATAL_ERROR
+      "BW_NATIVE_FMT_INCLUDE_DIR must name the pinned native fmt include root")
+  endif()
   set(_bw_integrated_buffer_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_test.cc"
   )
@@ -158,6 +167,8 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     wgpu_buffer.cc
     wgpu_buffer.hh
     wgpu_common.hh
+    wgpu_pixel_buffer.cc
+    wgpu_pixel_buffer.hh
     wgpu_readback.cc
     wgpu_readback.hh
   )
@@ -166,6 +177,28 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
       message(FATAL_ERROR
         "integrated WebGPU buffer input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  foreach(_bw_source
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_texture_private.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
+      "${BW_UPSTREAM_DIR}/intern/guardedalloc/MEM_guardedalloc.h")
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR
+        "integrated WebGPU pixel-buffer dependency is missing: ${_bw_source}")
+    endif()
+  endforeach()
+  set(_bw_buffer_guardedalloc_sources
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/leak_detector.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn_guarded_impl.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/mallocn_lockfree_impl.cc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/memory_usage.cc"
+  )
+  foreach(_bw_source IN LISTS _bw_buffer_guardedalloc_sources)
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR
+        "integrated WebGPU pixel-buffer allocator input is missing: ${_bw_source}")
     endif()
   endforeach()
   if(NOT IS_ABSOLUTE "${_bw_integrated_buffer_test}" OR
@@ -178,10 +211,19 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   add_executable(wgpu_buffer_integrated_test
     "${_bw_integrated_buffer_test}"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
+    "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_pixel_buffer.cc"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_readback.cc"
+    ${_bw_buffer_guardedalloc_sources}
   )
   target_include_directories(wgpu_buffer_integrated_test PRIVATE
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/intern"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern"
+    "${BW_UPSTREAM_DIR}/intern/atomic"
+    "${BW_NATIVE_FMT_INCLUDE_DIR}"
   )
   target_link_libraries(wgpu_buffer_integrated_test PRIVATE
     dawn::webgpu_dawn

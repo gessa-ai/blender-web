@@ -206,3 +206,14 @@ provided by Emdawnwebgpu instead.” Native Dawn deliberately rejects those gene
 requests a device. Pass `--use-port=emdawnwebgpu` to both compile and link so Emscripten supplies
 the matching C/C++ header set; do not add a native Dawn generated-include directory to the Wasm
 target. See `sandbox/wgpu-shader-integrated-smoke/`.
+
+## Class 10 — device-free backend objects can still require Blender's allocator closure
+
+Signature: a device-free test stack-constructs a backend class and links fail only at its virtual
+deleting destructor with unresolved `mem_guarded::internal::mem_freeN_ex`. A class carrying
+`MEM_CXX_CLASS_ALLOC_FUNCS` emits allocator-backed deleting/new paths even when the test never
+heap-allocates it. Link the canonical guardedalloc source closure in both native and Wasm legs;
+do not mask the product dependency with a test-only allocator symbol. Private GPU headers can also
+reach fmt through `BLI_string_ref.hh`, so bind the pinned native and Wasm fmt include roots and
+require their directly consumed headers to be byte-identical. See
+`sandbox/wgpu-buffer-integrated-smoke/`.

@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# fix_plan.md — active milestones: M3 WEBGPU BACKEND (gate-census done, boundary reconcile pending) + M4 FIRST PIXELS (UI renders in-tab, polish rounds)
+# fix_plan.md — active milestones: M3 WEBGPU BACKEND (technical contract frozen; fresh Linux receipt blocked by s7) + M4 FIRST PIXELS (UI renders in-tab, polish rounds)
 
 Driver-owned. Workers claim a task via `claimed_by:` on its line (atomic write) and
 report results; they never rewrite this file. Task grammar: one line, independently
@@ -984,10 +984,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   primitives/whatever exists), produce the complete pass/fail table = the actual
   M3_GPU_BACKEND gate measurement + the deferral-registry candidate list.**
   DISPATCHED (patches 0089-0095).
-- [ ] **M3-boundary [driver]** Deferral registry entries due (ledger/deferred.json, GOAL
-  format, named blockers): vertex-stage read_write SSBO (2 shaders + specialization_
-  constants_graphic — WebGPU forbids vertex RW storage); depth-aspect buffer→texture upload
-  (2 texture tests — WebGPU forbids; clear+read work). Register at M3 gate, not before.
+- [x] **M3-boundary [driver]** CLOSED (`d7dcebf`, current accounting reverified): all five
+  census dispositions are registered in `ledger/deferred.json` with named blockers, impacts,
+  revisit conditions, and evidence: storage-texture atomics, vertex-stage read-write storage,
+  depth-aspect buffer uploads, signed I10 vertex data, and subpass inputs. Patch 0119 later
+  resolved I10 and its ledger row remains as an explicit resolved audit trail; the other four
+  remain deferred. `notes/gpu-gate-blacklist.md` separately justifies the R32F, runtime-generated
+  OpenSubdiv, and Metal-only census exclusions. This closes stale boundary accounting only; a
+  fresh Linux M3 receipt remains blocked by the named s7 hardware-adapter condition.
 - Remaining shader-coverage tail after 0050 (492 fail): Tint env/capability buckets 100+93,
   gl_PointSize 54, textureSample 32, nan-f32 30 (=F3b), uniform-control-flow 25. Lane A queue.
 

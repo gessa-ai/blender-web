@@ -565,14 +565,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     pixels. The remaining bottom-region mass is a mismatched capture state (Timeline active
     outline plus web-only Pan/Options hints), not a rendering patch target; future cleanup
     must align native and web pointer/event state before comparison.
-  - [ ] **M4.T23 r26 SUPERSEDED-TEXT (kept for history): engine output never reaches the canvas.**
-    Post-compile, post-interaction, the viewport interior stays background-only, SILENT (no
-    validation errors). Instrument the DRW→GPUViewport→GPU_viewport_draw_to_screen chain:
-    (a) DrawEngine::draw() submission + per-pass drawcall counts to stderr; (b) magenta
-    force-clear of the GPUViewport color texture pre-engine-draw (magenta on canvas ⇒ composite
-    OK/render empty; none ⇒ composite/wrap broken); (c) log the texture ID the region composite
-    samples vs the viewport's. Latent (non-gate): full-graph ninja fails at the makesdna TESTS
-    genrule (missing emulator prefix + no +x on makesdna.js) — fix when the wasm gtest lane runs.
+  - [x] **M4.T23 r26 diagnostic queue RECONCILED by the accepted r26/r27 results:** the planned
+    draw, texture-identity, compute, and magenta probes all ran and proved that draws submitted and
+    the viewport transport reached the canvas. They isolated stale context-wide resources colliding
+    with legitimate dense bindings; patches 0110/0112/0113 retain the load-store, mapped-first bind
+    assembly, and indexed-subrange repairs after all temporary instrumentation was removed. The r26
+    capture shows first viewport geometry, r27 is validation-clean with grid/axes, and the later D-9
+    gate passes. The historical makesdna TESTS side-note is separately superseded by the strict M1
+    native/Wasm gtest receipt. This closes stale diagnosis text only; **M4-LINUX-REPLAY** still owns
+    the fresh Linux receipt and remains blocked by s7's llvmpipe-only adapter.
   - [x] **M4.T27 i18n restoration [r45 Phase 1 + r47 Phase 2, D-10]: LANDED** (c5e465b +
     422b488, driver-verified). Language row restored; splash 17.8% -> 4.54%; workspace
     2.05% -> 1.11%; real Noto CJK ja_JP switch proven (Add menu renders translated) with

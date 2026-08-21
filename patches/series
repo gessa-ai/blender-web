@@ -703,3 +703,8 @@
 # and bounded Emscripten WindowUpdate events invalidate the screen until the
 # second present. Real Web and native USD receipts own the capability proof.
 0148-usd-core-web-capability-and-first-redraw.patch
+# 0149: select the native Dawn backend by host platform instead of hardcoding
+# Metal. Linux M3 uses Vulkan, macOS retains Metal, Windows selects D3D12, and
+# the browser-only sibling remains unselected. The strict T3 verifier separately
+# rejects CPU/software adapters before any receipt can be claimed.
+0149-ghost-webgpu-native-platform-backend.patch

@@ -368,8 +368,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   context class + enum + SystemHeadless case + ghost CMake + WITH_WEBGPU_BACKEND option
   (default OFF). Native harness VIABLE: lib/macos_arm64 at pin SHA 5a140a8 out-of-tree (2.4GB,
   upstream untouched), native headless configure 11s. Dawn link = monolithic libwebgpu_dawn.a
-  + 7 frameworks; **Tint NOT needed until T7**; C++20 native (no shim). Remaining half folded
-  into T4 (notes/gpu-t3-harness.md has the cited edit list + DAWN_ROOT mechanism).
+  + 7 frameworks; **Tint NOT needed until T7**; C++20 native (no shim). The Linux preflight
+  found that the frozen native context still selected Metal unconditionally. Patch 0149 is the
+  verified post-freeze correction (Metal/macOS, Vulkan/Linux, D3D12/Windows, no native browser
+  selection): the checkout-relative driver stages it outside read-only `upstream/`, compiles the
+  exact postimage through pinned Dawn's locked CMake graph, and rejects the current llvmpipe
+  adapter before the context path or receipt allocation. Root/descendant controls and final
+  no-work are green; the next source integration freeze must compose 0149 before the hardware
+  replay. Remaining implementation half folded into T4. See `notes/gpu-t3-harness.md` and
+  `notes/m3-t3-context-linux-preflight-20260821.md`.
 - [x] **M3.T4 [gpu-backend]** CLOSED (`212e1a4`, patch 0012; driver acceptance
   `ef4ff73`): `GPU_BACKEND_WEBGPU` and its DNA mirror are registered, all seven
   `gpu_context.cc` dispatch points select WebGPU, the CMake source block builds

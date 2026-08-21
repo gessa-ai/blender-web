@@ -72,3 +72,6 @@ host exposed only a software/CPU adapter; that result is not a receipt.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.
+- `ghost-wgpu/build_verify.sh` — stages the current pinned GHOST context plus
+  patch 0149 outside `upstream/`, builds it through the same locked Dawn graph,
+  and requires either a hardware T3 pass or an explicit software-block control.

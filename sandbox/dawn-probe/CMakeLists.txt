@@ -105,3 +105,42 @@ endif()
 if(DEFINED BW_SHADER_BINDMAP_SMOKE_SOURCE)
   bw_add_shader_smoke(wgpu_shader_bindmap_smoke_native "${BW_SHADER_BINDMAP_SMOKE_SOURCE}")
 endif()
+
+# T3 native GHOST-context verification. The driver stages the exact current
+# Blender source plus patch 0149 outside upstream/, then supplies that directory
+# here. Building it inside Dawn's target graph preserves the platform-specific
+# Vulkan/Metal/system link closure without a handwritten library list.
+if(DEFINED BW_GHOST_WGPU_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_GHOST_WGPU_SOURCE_DIR")
+  endif()
+  foreach(_required_path
+      "${BW_GHOST_WGPU_SOURCE_DIR}/GHOST_ContextWGPU.cc"
+      "${BW_GHOST_WGPU_SOURCE_DIR}/GHOST_ContextWGPU.hh"
+      "${BW_UPSTREAM_DIR}/intern/ghost/intern/GHOST_Context.hh"
+      "${CMAKE_CURRENT_SOURCE_DIR}/ghost-wgpu/verify_main.cc")
+    if(NOT IS_ABSOLUTE "${_required_path}" OR NOT EXISTS "${_required_path}")
+      message(FATAL_ERROR "T3 GHOST verify input is missing or non-absolute: ${_required_path}")
+    endif()
+  endforeach()
+
+  file(GLOB _bw_guardedalloc_sources
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern/*.cc"
+  )
+  add_executable(ghost_wgpu_verify
+    "${BW_GHOST_WGPU_SOURCE_DIR}/GHOST_ContextWGPU.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ghost-wgpu/verify_main.cc"
+    ${_bw_guardedalloc_sources}
+  )
+  target_compile_definitions(ghost_wgpu_verify PRIVATE WITH_WEBGPU_BACKEND)
+  target_include_directories(ghost_wgpu_verify PRIVATE
+    "${BW_GHOST_WGPU_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/intern/ghost/intern"
+    "${BW_UPSTREAM_DIR}/intern/ghost"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc"
+    "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern"
+    "${BW_UPSTREAM_DIR}/intern/atomic"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  target_link_libraries(ghost_wgpu_verify PRIVATE dawn::webgpu_dawn)
+endif()

@@ -687,6 +687,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   before evidence allocation. The resume path is split into external ICD/session recovery,
   accepted-adapter proof, M4 CAPTURE/APPLY/rebind, exact M3 replay, then aggregate/live gates.
   No receipt, profile, result, deferral, or promise changed. See `notes/stuck-2026-08-20.md`.
+- [x] **M0-ORACLE-GROUP-RECOVERY [driver, environment-only]:** the account's existing Docker
+  enrollment was absent only from the inherited process group list. A preauthorized group-scoped
+  subprocess verified the digest-pinned, network-disabled oracle and routed the unchanged harness
+  through its committed container shims, restoring M0 to 6/6 GREEN. Full regression retains the
+  existing M1-M8 strict-manifest/APPLY/browser/run-label/hardware failures. No source, harness,
+  oracle, receipt, result expectation, deferral, or promise changed. See
+  `notes/m0-oracle-group-recovery-20260821.md`.
 - [ ] **M4-LINUX-REPLAY [driver, first ornith-lab browser task]:** blocked-by the named WSL
   hardware-Vulkan/Chromium adapter condition. Once cleared, install the pinned Playwright 1.61.1
   browser, execute the strict CAPTURE -> APPLY sequence, serve with COOP/COEP under WSLg, capture

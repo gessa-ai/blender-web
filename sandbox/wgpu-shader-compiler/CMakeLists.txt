@@ -6,12 +6,12 @@
 # checkout via add_subdirectory (minimal target set, EXCLUDE_FROM_ALL) and the
 # SAME Dawn/Tint link libs, then adds:
 #   - the module (wgpu_shader_compiler + wgpu_shader_interface_map)
-#   - libshaderc (Blender's OWN precompiled shaderc from lib/<platform>) for the
-#     in-process GLSL->SPIR-V(1.3) step — the same lib the in-tree backend links.
+#   - exact pinned libshaderc for the in-process GLSL->SPIR-V(1.3) step — the
+#     same shaderc version the in-tree backend links.
 #   - the end-to-end test driver.
 #
-# Pass -DDAWN_SRC_DIR=<pinned Dawn checkout> and (optionally) -DLIBDIR=<blender
-# precompiled libs> (default: <repo>/lib/macos_arm64). See build.sh / README.md.
+# Pass the exact Dawn checkout, shaderc include directory, and shared library.
+# See build.sh / README.md.
 
 cmake_minimum_required(VERSION 3.16)
 project(wgpu_shader_compiler CXX C)
@@ -23,31 +23,34 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT DEFINED DAWN_SRC_DIR)
   message(FATAL_ERROR "Pass -DDAWN_SRC_DIR=/path/to/dawn (the pinned checkout)")
 endif()
-if(NOT DEFINED LIBDIR)
-  set(LIBDIR "${CMAKE_CURRENT_SOURCE_DIR}/../../lib/macos_arm64")
-endif()
-
-set(SHADERC_DIR "${LIBDIR}/shaderc")
-if(NOT EXISTS "${SHADERC_DIR}/include/shaderc/shaderc.hpp")
-  message(FATAL_ERROR "shaderc headers not found at ${SHADERC_DIR}/include (set -DLIBDIR)")
-endif()
-# Blender ships several shaderc archives; the shared dylib keeps its bundled
-# glslang/SPIRV-Tools symbols PRIVATE, so they cannot clash with Tint's static
-# SPIRV-Tools on the same link line (a real T7 integration hazard — see notes).
-find_library(SHADERC_LIB NAMES shaderc_shared PATHS "${SHADERC_DIR}/lib" NO_DEFAULT_PATH)
-if(NOT SHADERC_LIB)
-  message(FATAL_ERROR "libshaderc_shared not found in ${SHADERC_DIR}/lib")
+foreach(_shaderc_input SHADERC_INCLUDE_DIR SHADERC_LIBRARY)
+  if(NOT DEFINED ${_shaderc_input})
+    message(FATAL_ERROR "Pass -D${_shaderc_input}=<exact pinned path>")
+  endif()
+  if(NOT IS_ABSOLUTE "${${_shaderc_input}}" OR NOT EXISTS "${${_shaderc_input}}")
+    message(FATAL_ERROR "${_shaderc_input} is missing or non-absolute: ${${_shaderc_input}}")
+  endif()
+endforeach()
+if(NOT EXISTS "${SHADERC_INCLUDE_DIR}/shaderc/shaderc.hpp")
+  message(FATAL_ERROR "shaderc.hpp not found under ${SHADERC_INCLUDE_DIR}")
 endif()
 
 # --- Dawn build options: identical to the dawn-probe baseline -----------------
 set(DAWN_FETCH_DEPENDENCIES ON  CACHE BOOL "" FORCE)
 set(TINT_BUILD_SPV_READER   ON  CACHE BOOL "" FORCE)
 set(TINT_BUILD_WGSL_WRITER  ON  CACHE BOOL "" FORCE)
-set(DAWN_ENABLE_METAL       ON  CACHE BOOL "" FORCE)
 set(DAWN_BUILD_SAMPLES      OFF CACHE BOOL "" FORCE)
 set(TINT_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
 set(TINT_BUILD_CMD_TOOLS    OFF CACHE BOOL "" FORCE)
-set(DAWN_ENABLE_VULKAN      OFF CACHE BOOL "" FORCE)
+if(APPLE)
+  set(DAWN_ENABLE_METAL     ON  CACHE BOOL "" FORCE)
+  set(DAWN_ENABLE_VULKAN    OFF CACHE BOOL "" FORCE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(DAWN_ENABLE_METAL     OFF CACHE BOOL "" FORCE)
+  set(DAWN_ENABLE_VULKAN    ON  CACHE BOOL "" FORCE)
+else()
+  message(FATAL_ERROR "wgpu_shader_compiler supports macOS/Metal or Linux/Vulkan only")
+endif()
 set(DAWN_ENABLE_OPENGLES    OFF CACHE BOOL "" FORCE)
 set(DAWN_ENABLE_DESKTOP_GL  OFF CACHE BOOL "" FORCE)
 set(DAWN_USE_GLFW           OFF CACHE BOOL "" FORCE)
@@ -70,13 +73,16 @@ add_library(wgpu_shader_compiler_mod STATIC
 target_include_directories(wgpu_shader_compiler_mod PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${DAWN_SRC_DIR}                 # Tint "src/tint/..." headers
-  ${SHADERC_DIR}/include
+  ${SHADERC_INCLUDE_DIR}
 )
-target_link_libraries(wgpu_shader_compiler_mod PUBLIC ${_dawn_libs} ${SHADERC_LIB})
+target_link_libraries(wgpu_shader_compiler_mod PUBLIC ${_dawn_libs} ${SHADERC_LIBRARY})
 
 # --- End-to-end harness -------------------------------------------------------
 add_executable(wgpu_shader_compiler_test tests/wgpu_shader_compiler_test.cc)
+target_include_directories(wgpu_shader_compiler_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../dawn-probe
+)
 target_link_libraries(wgpu_shader_compiler_test PRIVATE wgpu_shader_compiler_mod)
-# libshaderc_shared's install name is @rpath/libshaderc_shared.1.dylib.
+get_filename_component(_shaderc_library_dir "${SHADERC_LIBRARY}" DIRECTORY)
 set_target_properties(wgpu_shader_compiler_test PROPERTIES
-  BUILD_RPATH "${SHADERC_DIR}/lib")
+  BUILD_RPATH "${_shaderc_library_dir}")

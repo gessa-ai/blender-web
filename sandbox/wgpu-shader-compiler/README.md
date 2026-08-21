@@ -22,24 +22,42 @@ GLSL (per stage)
   `sampler_mappings` ({0,N}→{0,256+N}) + BGL entries + Sampler/Texture binding-type
   inference (`notes/gpu-binding-map-spec.md`, open-question-3). No device needed.
 - `wgpu_shader_compiler.{hh,cc}` — the chain above, in one `compile_shader()` call.
-- `tests/wgpu_shader_compiler_test.cc` + `tests/test_shaders.hh` — end-to-end harness:
-  compile realistic shaders, build BGLs, create LIVE Dawn pipelines.
+- `tests/wgpu_shader_compiler_test.cc` + `tests/test_shaders.hh` — device-free
+  compiler/interface contract plus end-to-end harness: compile realistic shaders,
+  build BGLs, and, on an accepted adapter, create live Dawn pipelines.
 - `CMakeLists.txt` / `build.sh` — extend the dawn-probe build (same pinned Dawn
-  checkout + link recipe) and link Blender's own `lib/<platform>/shaderc`.
+  checkout + link recipe) and build/link exact shaderc v2025.4 from its
+  checksum-bound source archive.
 
 ## Build & run
 
 ```sh
-# Reuses the dawn-probe checkout (build-dawn/dawn) and Blender's libs (lib/macos_arm64/shaderc).
+# Accepted hardware adapter: compile-only contract, then live pipelines.
 harness/buildwrap.sh bash sandbox/wgpu-shader-compiler/build.sh
+
+# Known software-only host: compile-only contract, then require exact rc=5 and
+# PROBE_BLOCKED before device creation. This is evidence, never a live receipt.
+BW_T7_EXPECT_ADAPTER=blocked \
+  harness/buildwrap.sh bash sandbox/wgpu-shader-compiler/build.sh
 ```
 
-Exit 0 iff all 4 gated cases (bindmap · types · compute_ssbo_atomic · negative-control)
-meet expectation on a live Dawn/Metal device. The sampler-array case is a
-characterization probe (see `notes/gpu-t7pre-findings.md` §5). Build tree is under
-`build-dawn/t7pre-build` (gitignored).
+The driver first runs six deterministic device-free contracts: mapped bindmap,
+qualifier types, compute/SSBO atomic lowering, default-Tint negative semantics,
+the exact sampler-array rejection, and interface bounds/type inference. Live mode
+then requires all four pipeline cases (bindmap · types · compute_ssbo_atomic ·
+negative-control) on a hardware Metal or Vulkan adapter. `blocked` mode succeeds
+only when the live executable returns exactly 5 with one non-hardware rejection
+and no live PASS. Direct `--compile-only` execution is available for diagnostics,
+but the build driver always enforces either the accepted-hardware or
+expected-blocked live boundary. The build tree is under
+`build-dawn/t7pre-build`; device-free output is under `build-deps/t7pre/evidence`
+(both gitignored).
 
 ## Result
 
-4/4 gated PASS on "Apple M4 Pro". Findings + the qualifier→BindingType table + the
-sampler-array verdict: `notes/gpu-t7pre-findings.md`.
+Historical live result: 4/4 gated PASS on "Apple M4 Pro". Fresh Linux result:
+6/6 device-free contracts PASS through exact shaderc v2025.4 and Dawn/Tint
+`36cf1fae`, while llvmpipe is rejected before device creation and binds no
+receipt. Findings + the qualifier→BindingType table + the sampler-array verdict:
+`notes/gpu-t7pre-findings.md`; Linux reconciliation:
+`notes/m3-t7pre-linux-reconcile-20260821.md`.

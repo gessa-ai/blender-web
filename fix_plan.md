@@ -392,7 +392,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   Tint's reader itself** ("arrays of handle types are not supported", parser.cc:200, pre-
   split) → **T7 must unroll sampler arrays at GLSL codegen**; map is per-element-ready.
   **Integration hazard caught: shaderc's bundled SPIRV-Tools vs Tint's static one must not
-  meet in a link — use Blender's shaderc shared dylib.** T7 = wiring, not development.
+  meet in a link — use Blender's shaderc shared library.** T7 = wiring, not development.
+  **Linux device-free contract RECONCILED:** the checkout-relative driver now checksum-binds
+  exact shaderc v2025.4 and Dawn/Tint `36cf1fae`, selects Vulkan on Linux, uses only locked
+  Ninja builds, and proves six compiler/interface contracts before any live-device request.
+  Root and descendant runs emit identical 249-byte evidence
+  (`sha256:db4b0c2fe03e`); wrong pins and invalid modes reject before output allocation. The
+  live path independently identifies llvmpipe and exits 5 with one `PROBE_BLOCKED` before
+  device creation, so no pipeline or M3 receipt is claimed. Historical Metal 4/4 remains the
+  live proof; **M3-LINUX-REPLAY** still requires accepted hardware. Evidence:
+  `notes/m3-t7pre-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

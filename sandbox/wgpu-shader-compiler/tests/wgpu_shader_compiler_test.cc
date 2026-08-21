@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later */
 
 /** \file
- * M3.T7.pre end-to-end harness. Drives the standalone wgpu_shader_compiler
- * module against a LIVE native Dawn/Metal device:
+ * M3.T7.pre compiler/interface contract plus end-to-end harness. The
+ * device-free mode proves the complete translation and binding semantics on
+ * every host; live mode additionally drives the generated modules/layouts
+ * through an accepted native Dawn Metal or Vulkan device:
  *
  *   for each realistic create-info-shaped shader:
  *     GLSL --module--> WGSL + BGL entries  (shaderc 1.3 -> Tint -> spec map)
@@ -18,8 +20,10 @@
  * meets its expectation. */
 
 #include <cstdint>
+#include <initializer_list>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "webgpu/webgpu_cpp.h"
@@ -27,6 +31,7 @@
 
 #include "wgpu_shader_compiler.hh"
 #include "wgpu_shader_interface_map.hh"
+#include "probe_platform.hh"
 #include "tests/test_shaders.hh"
 
 namespace bw = blender::gpu::webgpu;
@@ -40,23 +45,26 @@ std::string ToStr(wgpu::StringView s) {
   return std::string(s.data, s.length);
 }
 
-/* ---- Live Dawn device (headless Metal, mirrors dawn-probe) ----------------- */
+/* ---- Live Dawn device (headless host backend, mirrors dawn-probe) ---------- */
 
 struct Dawn {
   wgpu::Instance instance;
   wgpu::Adapter adapter;
   wgpu::Device device;
 
-  bool init() {
+  int init() {
     wgpu::InstanceDescriptor idesc = {};
     static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
     idesc.requiredFeatureCount = 1;
     idesc.requiredFeatures = &kTimedWaitAny;
     instance = wgpu::CreateInstance(&idesc);
-    if (instance == nullptr) { std::cerr << "CreateInstance failed\n"; return false; }
+    if (instance == nullptr) {
+      std::cerr << "CreateInstance failed\n";
+      return 4;
+    }
 
     wgpu::RequestAdapterOptions aopts = {};
-    aopts.backendType = wgpu::BackendType::Metal;
+    aopts.backendType = blender_web::dawn_probe::kBackendType;
     aopts.featureLevel = wgpu::FeatureLevel::Core;
     instance.WaitAny(instance.RequestAdapter(
                          &aopts, wgpu::CallbackMode::WaitAnyOnly,
@@ -68,7 +76,22 @@ struct Dawn {
                            adapter = std::move(a);
                          }),
                      UINT64_MAX);
-    if (adapter == nullptr) { std::cerr << "no adapter\n"; return false; }
+    if (adapter == nullptr) {
+      std::cerr << "no adapter\n";
+      return 5;
+    }
+
+    wgpu::AdapterInfo info;
+    adapter.GetInfo(&info);
+    std::cout << "Dawn adapter: \"" << ToStr(info.device) << "\" backend="
+              << blender_web::dawn_probe::kBackendName
+              << " adapter_type=" << static_cast<int>(info.adapterType) << "\n\n";
+    if (!blender_web::dawn_probe::is_hardware_adapter(info)) {
+      std::cerr << "PROBE_BLOCKED: refusing non-hardware "
+                << blender_web::dawn_probe::kBackendName << " adapter \""
+                << ToStr(info.device) << "\"\n";
+      return 5;
+    }
 
     wgpu::DeviceDescriptor ddesc = {};
     ddesc.SetUncapturedErrorCallback(
@@ -85,11 +108,11 @@ struct Dawn {
                            device = std::move(d);
                          }),
                      UINT64_MAX);
-    if (device == nullptr) { std::cerr << "no device\n"; return false; }
-    wgpu::AdapterInfo info;
-    adapter.GetInfo(&info);
-    std::cout << "Dawn adapter: \"" << ToStr(info.device) << "\" backend=Metal\n\n";
-    return true;
+    if (device == nullptr) {
+      std::cerr << "no device\n";
+      return 6;
+    }
+    return 0;
   }
 
   /* Pop the current validation error scope; returns whether it was clean. */
@@ -275,6 +298,142 @@ void print_map(const bw::InterfaceMap& m) {
   std::cout << "\n";
 }
 
+/* ---- Device-free compiler/interface contract ----------------------------- */
+
+bool has_all(const std::string& text, std::initializer_list<const char*> needles) {
+  for (const char* needle : needles) {
+    if (text.find(needle) == std::string::npos) return false;
+  }
+  return true;
+}
+
+bool has_bindings(const bw::InterfaceMap& map, std::initializer_list<uint32_t> bindings) {
+  if (map.entries.size() != bindings.size()) return false;
+  size_t index = 0;
+  for (uint32_t binding : bindings) {
+    if (map.entries[index++].binding != binding) return false;
+  }
+  return true;
+}
+
+bool has_remaps(const bw::InterfaceMap& map,
+                std::initializer_list<std::pair<uint32_t, uint32_t>> remaps) {
+  if (map.sampler_mappings.size() != remaps.size()) return false;
+  size_t index = 0;
+  for (const auto& [from, to] : remaps) {
+    const bw::SamplerRemap& actual = map.sampler_mappings[index++];
+    if (actual.from.group != 0 || actual.to.group != 0 || actual.from.binding != from ||
+        actual.to.binding != to) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool run_compile_only_contracts() {
+  int passed = 0;
+  int total = 0;
+  auto gate = [&](const char* name, bool ok) {
+    total++;
+    if (ok) {
+      passed++;
+      std::cout << "COMPILE_ONLY " << name << " PASS\n";
+    }
+    else {
+      std::cerr << "COMPILE_ONLY " << name << " FAIL\n";
+    }
+  };
+
+  bw::ShaderStageSources bind_sources;
+  bind_sources.vertex = sh::kBindmapVert;
+  bind_sources.fragment = sh::kBindmapFrag;
+  bind_sources.name = "bindmap";
+  const bw::CompileResult bind = bw::compile_shader(bind_sources, bindmap_resources());
+  gate("bindmap",
+       bind.ok && bind.interface.sampler_base == bw::kSamplerBindingBaseFixed &&
+           has_bindings(bind.interface, {0, 1, 257, 2, 258, 3, 4, 5}) &&
+           has_remaps(bind.interface, {{1, 257}, {2, 258}}) &&
+           has_all(bind.vertex_wgsl, {"@binding(0u)", "@binding(5u)"}) &&
+           has_all(bind.fragment_wgsl,
+                   {"@binding(0u)", "@binding(1u)", "@binding(257u)",
+                    "@binding(2u)", "@binding(258u)", "@binding(3u)",
+                    "@binding(4u)", "@binding(5u)"}));
+
+  bw::ShaderStageSources type_sources;
+  type_sources.vertex = sh::kSimpleVert;
+  type_sources.fragment = sh::kTypesFrag;
+  type_sources.name = "types";
+  const bw::CompileResult types = bw::compile_shader(type_sources, types_resources());
+  gate("types",
+       types.ok && has_bindings(types.interface, {0, 1, 257, 2, 258, 3, 259}) &&
+           has_remaps(types.interface, {{1, 257}, {2, 258}, {3, 259}}) &&
+           has_all(types.fragment_wgsl,
+                   {"texture_2d<f32>", "texture_depth_2d", "sampler_comparison",
+                    "texture_2d<u32>", "@binding(257u)", "@binding(258u)",
+                    "@binding(259u)"}));
+
+  bw::ShaderStageSources compute_sources;
+  compute_sources.compute = sh::kComputeAtomic;
+  compute_sources.name = "compute_ssbo_atomic";
+  const bw::CompileResult compute = bw::compile_shader(compute_sources, compute_resources());
+  gate("compute_ssbo_atomic",
+       compute.ok && has_bindings(compute.interface, {0, 1, 2}) &&
+           compute.interface.sampler_mappings.empty() &&
+           has_all(compute.compute_wgsl,
+                   {"atomic<u32>", "var<storage, read_write>", "var<storage, read>"}));
+
+  std::string error;
+  const std::vector<uint32_t> default_spirv = bw::compile_glsl_to_spirv(
+      sh::kBindmapFrag, shaderc_fragment_shader, "default_tint", false, error);
+  std::string default_wgsl;
+  const bool default_translated = !default_spirv.empty() &&
+                                  bw::translate_spirv_to_wgsl(default_spirv, {}, default_wgsl, error);
+  gate("default_tint_negative",
+       default_translated && default_wgsl != bind.fragment_wgsl &&
+           has_all(default_wgsl, {"@binding(6u)", "@binding(7u)"}) &&
+           default_wgsl.find("@binding(257u)") == std::string::npos);
+
+  const std::vector<uint32_t> array_spirv = bw::compile_glsl_to_spirv(
+      sh::kSamplerArrayFrag, shaderc_fragment_shader, "sampler_array", false, error);
+  const bw::InterfaceMap array_map = bw::build_interface_map(
+      {{bw::ResourceKind::Sampler, 0, bw::STAGE_FRAGMENT, bw::TexelClass::Float,
+        bw::TexDim::e2D, true, 4, {}, {}, {}, "tex"}});
+  auto array_rejects = [&](const std::vector<bw::SamplerRemap>& remaps) {
+    std::string wgsl;
+    std::string array_error;
+    return !bw::translate_spirv_to_wgsl(array_spirv, remaps, wgsl, array_error) &&
+           array_error.find("arrays of handle types are not supported") != std::string::npos;
+  };
+  gate("sampler_array_rejection",
+       !array_spirv.empty() && has_bindings(array_map, {0, 256, 1, 257, 2, 258, 3, 259}) &&
+           has_remaps(array_map, {{0, 256}, {1, 257}, {2, 258}, {3, 259}}) &&
+           array_rejects(array_map.sampler_mappings) &&
+           array_rejects({{{0, 0}, {0, 256}}}) && array_rejects({}));
+
+  const bw::InterfaceMap colliding_base = bw::build_interface_map(bindmap_resources(), 5);
+  const bw::InterfaceMap limit_overflow = bw::build_interface_map(
+      {{bw::ResourceKind::Sampler, 100, bw::STAGE_FRAGMENT, bw::TexelClass::Float,
+        bw::TexDim::e2D, true, 1, {}, {}, {}, "limit"}},
+      900);
+  gate("interface_boundaries",
+       !colliding_base.ok && !limit_overflow.ok &&
+           bw::infer_sample_type(bw::TexelClass::Shadow, false) ==
+               wgpu::TextureSampleType::Depth &&
+           bw::infer_sampler_type(bw::TexelClass::Shadow, false) ==
+               wgpu::SamplerBindingType::Comparison &&
+           bw::infer_sampler_type(bw::TexelClass::Uint, true) ==
+               wgpu::SamplerBindingType::NonFiltering &&
+           bw::infer_view_dimension(bw::TexDim::CubeArray) ==
+               wgpu::TextureViewDimension::CubeArray);
+
+  if (passed == total && total == 6) {
+    std::cout << "T7.PRE COMPILE_ONLY PASS: 6/6 contracts\n";
+    return true;
+  }
+  std::cerr << "T7.PRE COMPILE_ONLY FAIL: " << passed << "/" << total << " contracts\n";
+  return false;
+}
+
 /* ---- Cases ---------------------------------------------------------------- */
 
 bool run_graphics_case(Dawn& d, const char* name, const char* vert, const char* frag,
@@ -408,9 +567,18 @@ void run_sampler_array_probe(Dawn& d) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--compile-only") {
+    return run_compile_only_contracts() ? 0 : 1;
+  }
+  if (argc > 2 || (argc == 2 && std::string(argv[1]) != "--live")) {
+    std::cerr << "usage: " << argv[0] << " [--compile-only|--live]\n";
+    return 64;
+  }
+
   Dawn d;
-  if (!d.init()) return 2;
+  const int init_result = d.init();
+  if (init_result != 0) return init_result;
 
   int passed = 0, total = 0;
   auto gate = [&](bool ok) { total++; if (ok) passed++; };

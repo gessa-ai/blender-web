@@ -453,6 +453,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   device, GPU buffer, texture, upload, or receipt; live pixel upload remains owned by
   **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t6-pixel-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T6.readback-capacity.integrated [gpu-backend]** RECONCILED on Linux: the real
+  readback registry's exact terminal-record limit now runs in the existing device-free
+  native/Wasm buffer contract. The seventh contract fills all 256 slots, proves overflow is
+  fail-closed, retires and replaces exactly 128 records, restores the cap, and proves complete
+  reuse with zero pending GPU work. Root and descendant runs emit identical 529-byte evidence;
+  canonical replay, locked windowed no-work, and REUSE 2,004/2,004 are green. It creates no
+  instance, adapter, device, GPU buffer, callback, or receipt; live completion/ordering remains
+  owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t6-readback-capacity-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T6.vertex.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract includes the canonical in-tree vertex-buffer translation unit
   directly and exercises its private CPU helpers without copying them. Six contracts exhaust all

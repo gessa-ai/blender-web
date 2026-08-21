@@ -10,8 +10,10 @@ This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 WebAssembly. It checks the exact buffer-usage matrix, alignment and index
 helpers, invalid-buffer behavior, move lifetime, the CPU-backed pixel-upload
 buffer's map/unmap and byte-preservation lifecycle, and the real readback
-registry's invalid-request lifecycle, then requires byte-identical native/Node
-evidence.
+registry's invalid-request lifecycle. It also fills the 256-record exact-ticket
+cap with terminal failures, proves overflow is fail-closed, retires half the
+records, refills the released capacity, and proves full reuse before requiring
+byte-identical native/Node evidence.
 
 Run it only through the build wrapper:
 

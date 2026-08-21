@@ -214,11 +214,14 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if ! grep -qx 'INTEGRATED_BUFFER_PASS contracts=6 usage_cases=32 pixel_cases=7' "$stdout_file"; then
+  if ! grep -qx \
+    'INTEGRATED_BUFFER_PASS contracts=7 usage_cases=32 pixel_cases=7 exact_cap=256' \
+    "$stdout_file"
+  then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 7 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

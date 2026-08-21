@@ -295,15 +295,140 @@ bool invalid_readback_contract()
   return true;
 }
 
+bool failed_ticket_capacity_contract()
+{
+  constexpr size_t exact_record_capacity = 256;
+  constexpr size_t retired_records = exact_record_capacity / 2;
+  std::array<readback::Ticket, exact_record_capacity> tickets = {};
+  std::array<readback::Ticket, retired_records> replacements = {};
+  int source_identity = 0;
+  wgpu::Device device;
+  wgpu::Queue queue;
+  wgpu::Buffer handle;
+
+  for (size_t i = 0; i < tickets.size(); i++) {
+    readback::SourceKey key;
+    key.kind = readback::SourceKind::Buffer;
+    key.obj = &source_identity;
+    key.sub = i;
+    key.span = 4;
+    tickets[i] = readback::kick_buffer(
+        device, queue, handle, key, 0, 4, 4, readback::RequestMode::Exact);
+    if (!require(tickets[i] != readback::kInvalidTicket, "exact failed-ticket capacity") ||
+        !require(readback::ticket_status(tickets[i]) == readback::TicketStatus::Failed,
+                 "exact capacity ticket status") ||
+        !require(readback::ticket_error(tickets[i]) == readback::TicketError::InvalidArgument,
+                 "exact capacity ticket error") ||
+        !require(readback::ticket_size(tickets[i]) == 0, "exact capacity ticket size"))
+    {
+      return false;
+    }
+  }
+
+  readback::SourceKey overflow_key;
+  overflow_key.kind = readback::SourceKind::Buffer;
+  overflow_key.obj = &source_identity;
+  overflow_key.sub = exact_record_capacity;
+  overflow_key.span = 4;
+  if (!require(readback::kick_buffer(device,
+                                     queue,
+                                     handle,
+                                     overflow_key,
+                                     0,
+                                     4,
+                                     4,
+                                     readback::RequestMode::Exact) ==
+                   readback::kInvalidTicket,
+               "exact failed-ticket cap is fail-closed") ||
+      !require(readback::pending_count() == 0, "failed tickets allocate no pending work"))
+  {
+    return false;
+  }
+
+  readback::forget_source(readback::SourceKind::Buffer, &source_identity);
+  for (const readback::Ticket ticket : tickets) {
+    if (!require(readback::ticket_status(ticket) == readback::TicketStatus::Failed,
+                 "forget_source preserves exact failed tickets"))
+    {
+      return false;
+    }
+  }
+
+  for (size_t i = 0; i < tickets.size(); i += 2) {
+    readback::free_ticket(tickets[i]);
+    if (!require(readback::ticket_status(tickets[i]) == readback::TicketStatus::Invalid,
+                 "freed exact ticket retires immediately"))
+    {
+      return false;
+    }
+  }
+
+  for (size_t i = 0; i < replacements.size(); i++) {
+    readback::SourceKey key = overflow_key;
+    key.sub += 1 + i;
+    replacements[i] = readback::kick_buffer(
+        device, queue, handle, key, 0, 4, 4, readback::RequestMode::Exact);
+    if (!require(replacements[i] != readback::kInvalidTicket,
+                 "retired exact record capacity is reusable") ||
+        !require(readback::ticket_status(replacements[i]) == readback::TicketStatus::Failed,
+                 "replacement ticket status"))
+    {
+      return false;
+    }
+  }
+  if (!require(readback::kick_buffer(device,
+                                     queue,
+                                     handle,
+                                     overflow_key,
+                                     0,
+                                     4,
+                                     4,
+                                     readback::RequestMode::Exact) ==
+                   readback::kInvalidTicket,
+               "replacement tickets restore exact cap"))
+  {
+    return false;
+  }
+
+  for (size_t i = 1; i < tickets.size(); i += 2) {
+    readback::free_ticket(tickets[i]);
+  }
+  for (const readback::Ticket ticket : replacements) {
+    readback::free_ticket(ticket);
+  }
+
+  const readback::Ticket final_ticket = readback::kick_buffer(
+      device, queue, handle, overflow_key, 0, 4, 4, readback::RequestMode::Exact);
+  if (!require(final_ticket != readback::kInvalidTicket, "fully retired registry is reusable") ||
+      !require(!readback::cancel_ticket(final_ticket), "failed exact ticket cannot be canceled") ||
+      !require(readback::pending_count() == 0, "capacity exercise leaves no pending work"))
+  {
+    return false;
+  }
+  readback::free_ticket(final_ticket);
+  if (!require(readback::ticket_status(final_ticket) == readback::TicketStatus::Invalid,
+               "final exact ticket retires"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT failed-ticket-capacity PASS cap=%zu retired=%zu replacements=%zu\n",
+              exact_record_capacity,
+              retired_records,
+              replacements.size());
+  return true;
+}
+
 }  // namespace
 
 int main()
 {
   if (!common_contract() || !usage_contract() || !invalid_buffer_contract() ||
-      !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract())
+      !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
+      !failed_ticket_capacity_contract())
   {
     return 1;
   }
-  std::printf("INTEGRATED_BUFFER_PASS contracts=6 usage_cases=32 pixel_cases=7\n");
+  std::printf("INTEGRATED_BUFFER_PASS contracts=7 usage_cases=32 pixel_cases=7 exact_cap=256\n");
   return 0;
 }

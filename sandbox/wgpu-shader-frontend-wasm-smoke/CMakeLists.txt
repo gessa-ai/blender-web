@@ -23,6 +23,12 @@ if(NOT DEFINED BW_WASM_INCLUDE_DIR OR
    NOT EXISTS "${BW_WASM_INCLUDE_DIR}/fmt/ranges.h")
   message(FATAL_ERROR "BW_WASM_INCLUDE_DIR must name the harvested Wasm include root")
 endif()
+if(NOT DEFINED BW_WGPU_PUSH_CONSTANT_SET_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_PUSH_CONSTANT_SET_SOURCE must name the extracted canonical method")
+endif()
 
 foreach(_bw_source wgpu_shader.cc wgpu_shader.hh wgpu_texture_format.hh)
   set(_bw_source_path "${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}/${_bw_source}")
@@ -68,6 +74,7 @@ set_target_properties(wgpu_shader_frontend_integrated_smoke PROPERTIES
 )
 target_compile_definitions(wgpu_shader_frontend_integrated_smoke PRIVATE
   BW_WGPU_SHADER_SOURCE="${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}/wgpu_shader.cc"
+  BW_WGPU_PUSH_CONSTANT_SET_SOURCE="${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}"
   WITH_CLOG_PTHREADS
 )
 target_include_directories(wgpu_shader_frontend_integrated_smoke PRIVATE

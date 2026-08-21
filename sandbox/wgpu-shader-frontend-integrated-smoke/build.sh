@@ -14,6 +14,8 @@ DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/t7-frontend-integrated/wasm-build}"
 OUT="${OUT:-$ROOT/build-deps/t7-frontend-integrated/evidence}"
+GENERATED_DIR="${GENERATED_DIR:-$ROOT/build-deps/t7-frontend-integrated/generated}"
+PUSH_CONSTANT_SET_SOURCE="$GENERATED_DIR/wgpu_push_constant_set.inc"
 EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
@@ -91,6 +93,7 @@ require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/harness/buildwrap.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_shader_frontend_test.cc"
+require_file "$HERE/extract_push_constant_set.py"
 require_file "$ROOT/sandbox/wgpu-shader-frontend-wasm-smoke/CMakeLists.txt"
 for source_name in \
   wgpu_shader.cc \
@@ -160,6 +163,11 @@ case "$SOURCE_PROOF" in
     ;;
 esac
 
+"$PYBIN" "$HERE/extract_push_constant_set.py" \
+  --source "$WEBGPU_SOURCE/wgpu_shader.cc" \
+  --output "$PUSH_CONSTANT_SET_SOURCE"
+require_file "$PUSH_CONSTANT_SET_SOURCE"
+
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
   echo "ERROR: expected Node v22.16.0, got $NODE_VERSION" >&2
@@ -190,6 +198,7 @@ echo "== [1/3] canonical native shader-frontend contract =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_PUSH_CONSTANT_SET_SOURCE="$PUSH_CONSTANT_SET_SOURCE" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_shader_frontend_integrated_test
@@ -201,6 +210,7 @@ echo "== [2/3] canonical Wasm shader-frontend contract =="
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_PUSH_CONSTANT_SET_SOURCE="$PUSH_CONSTANT_SET_SOURCE" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_shader_frontend_integrated_smoke
 
@@ -213,7 +223,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_shader_frontend.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 9 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 10 ] ||
      ! grep -qx \
        'CONTRACT image-types PASS cases=39 bindings=78 signed-atomic-array=1' "$stdout_file" ||
      ! grep -qx \
@@ -221,6 +231,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT qualifiers PASS bit-patterns=8 outputs=16 writeonly-promoted=1' "$stdout_file" ||
      ! grep -qx 'CONTRACT std140 PASS cases=30 scalars=15 arrays=15' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT push-array-packing PASS arrays=5 elements=19 payload=148 padding=156 block=304' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT buffer-helper-rewrite PASS cases=3 nested-passes=1' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT integer-sampler-rewrite PASS cases=9 rewritten=7 controls=2' "$stdout_file" ||
@@ -228,7 +241,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=8 cases=179' "$stdout_file"
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=9 cases=198' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1
@@ -253,6 +266,7 @@ fi
 OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(source_digest)"
-printf 'PASS integrated-shader-frontend native/wasm bytes=%s sha256=%s source_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
-  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$FMT_SHA256" \
+PACKING_SHA256="$(sha256_file "$PUSH_CONSTANT_SET_SOURCE")"
+printf 'PASS integrated-shader-frontend native/wasm bytes=%s sha256=%s source_sha256=%s packing_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
+  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$PACKING_SHA256" "$FMT_SHA256" \
   "$DAWN_PIN" "$EMCC_VERSION" "$NODE_VERSION"

@@ -8,14 +8,47 @@
  */
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifndef BW_WGPU_SHADER_SOURCE
 #  error "BW_WGPU_SHADER_SOURCE must name the canonical wgpu_shader.cc"
 #endif
+#ifndef BW_WGPU_PUSH_CONSTANT_SET_SOURCE
+#  error "BW_WGPU_PUSH_CONSTANT_SET_SOURCE must name the extracted shipping method"
+#endif
+
+namespace blender::gpu {
+
+/* The build driver extracts WGPUShader::push_constant_set byte-for-byte from
+ * the canonical translation unit. Renaming only its class qualifier lets this
+ * device-free harness execute the shipping method without constructing the
+ * full polymorphic shader and retaining its live-device vtable. */
+class PushPackingHarness {
+ public:
+  struct PushConstantSlot {
+    int32_t location;
+    uint32_t offset;
+    uint32_t size;
+  };
+
+  std::vector<PushConstantSlot> push_constants_;
+  std::vector<uint8_t> push_constants_data_;
+  bool push_constants_dirty_ = false;
+
+  void push_constant_set(int location, int comp_len, int array_size, const void *data);
+};
+
+#define WGPUShader PushPackingHarness
+#include BW_WGPU_PUSH_CONSTANT_SET_SOURCE
+#undef WGPUShader
+
+}  // namespace blender::gpu
 
 /* Include the shipping translation unit exactly once so the private helpers are
  * exercised rather than copied into the test. Uncalled live-device sections are
@@ -256,6 +289,97 @@ static bool std140_contract()
     }
   }
   std::cout << "CONTRACT std140 PASS cases=30 scalars=15 arrays=15\n";
+  return true;
+}
+
+static bool push_array_packing_contract()
+{
+  PushPackingHarness shader;
+  shader.push_constants_ = {
+      {1024, 0, 80}, {1025, 80, 48}, {1026, 128, 48}, {1027, 176, 48}, {1028, 224, 80}};
+  shader.push_constants_data_.assign(304, 0);
+
+  static constexpr std::array<float, 5> float_values = {1.25f, -2.5f, 3.75f, -4.0f, 5.5f};
+  static constexpr std::array<float, 6> float2_values = {
+      11.0f, 12.0f, 21.0f, 22.0f, 31.0f, 32.0f};
+  static constexpr std::array<float, 9> float3_values = {
+      101.0f, 102.0f, 103.0f, 201.0f, 202.0f, 203.0f, 301.0f, 302.0f, 303.0f};
+  static constexpr std::array<float, 12> float4_values = {1001.0f,
+                                                          1002.0f,
+                                                          1003.0f,
+                                                          1004.0f,
+                                                          2001.0f,
+                                                          2002.0f,
+                                                          2003.0f,
+                                                          2004.0f,
+                                                          3001.0f,
+                                                          3002.0f,
+                                                          3003.0f,
+                                                          3004.0f};
+  static constexpr std::array<int, 5> int_values = {7, -11, 13, -17, 19};
+
+  shader.push_constant_set(1024, 1, int(float_values.size()), float_values.data());
+  shader.push_constant_set(1025, 2, 3, float2_values.data());
+  shader.push_constant_set(1026, 3, 3, float3_values.data());
+  shader.push_constant_set(1027, 4, 3, float4_values.data());
+  shader.push_constant_set(1028, 1, int(int_values.size()), int_values.data());
+
+  if (shader.push_constants_.size() != 5 || !shader.push_constants_dirty_) {
+    std::cerr << "push-array layout census mismatch slots=" << shader.push_constants_.size()
+              << " dirty="
+              << shader.push_constants_dirty_ << "\n";
+    return false;
+  }
+
+  const auto bytes_equal = [&](uint32_t offset, const void *expected, size_t size) {
+    return offset + size <= shader.push_constants_data_.size() &&
+           std::memcmp(shader.push_constants_data_.data() + offset, expected, size) == 0;
+  };
+  const auto padding_zero = [&](uint32_t offset, size_t size) {
+    if (offset + size > shader.push_constants_data_.size()) {
+      return false;
+    }
+    for (size_t index = 0; index < size; index++) {
+      if (shader.push_constants_data_[offset + index] != 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  size_t payload_bytes = 0;
+  size_t padding_bytes = 0;
+  const auto check_strided = [&](uint32_t base,
+                                 const void *source,
+                                 uint32_t source_stride,
+                                 uint32_t count) {
+    const uint8_t *source_bytes = static_cast<const uint8_t *>(source);
+    for (uint32_t index = 0; index < count; index++) {
+      const uint32_t destination = base + index * 16;
+      if (!bytes_equal(destination, source_bytes + index * source_stride, source_stride) ||
+          !padding_zero(destination + source_stride, 16 - source_stride))
+      {
+        return false;
+      }
+      payload_bytes += source_stride;
+      padding_bytes += 16 - source_stride;
+    }
+    return true;
+  };
+
+  if (!check_strided(0, float_values.data(), 4, 5) ||
+      !check_strided(80, float2_values.data(), 8, 3) ||
+      !check_strided(128, float3_values.data(), 12, 3) ||
+      !bytes_equal(176, float4_values.data(), sizeof(float4_values)) ||
+      !check_strided(224, int_values.data(), 4, 5))
+  {
+    std::cerr << "push-array std140 payload/padding mismatch\n";
+    return false;
+  }
+  payload_bytes += sizeof(float4_values);
+
+  std::cout << "CONTRACT push-array-packing PASS arrays=5 elements=19 payload="
+            << payload_bytes << " padding=" << padding_bytes << " block=304\n";
   return true;
 }
 
@@ -529,12 +653,12 @@ int main()
 {
   using namespace blender::gpu::webgpu::frontend_test;
   if (!image_type_contract() || !storage_format_contract() || !qualifier_contract() ||
-      !std140_contract() || !buffer_helper_rewrite_contract() ||
+      !std140_contract() || !push_array_packing_contract() || !buffer_helper_rewrite_contract() ||
       !integer_sampler_rewrite_contract() || !one_d_array_rewrite_contract() ||
       !finite_builtin_rewrite_contract())
   {
     return 1;
   }
-  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=8 cases=179\n";
+  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=9 cases=198\n";
   return 0;
 }

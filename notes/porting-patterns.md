@@ -251,3 +251,14 @@ unused declarations. Require the identifier boundary before deciding that a rewr
 then reuse that discriminator for the actual replacement. This keeps unrelated source and cache
 keys byte-identical and makes the no-op control explicit in the native/Wasm contract. See
 `sandbox/wgpu-shader-frontend-integrated-smoke/`.
+
+## Class 13 — constructing a polymorphic backend object retains its live-device vtable
+
+Signature: a device-free test includes a backend translation unit successfully, but the first
+stack construction of its polymorphic class retains every virtual entry and exposes unresolved
+device/compiler edges that section garbage collection previously removed. Do not satisfy those
+dead paths with test stubs. When the contract needs one non-virtual member method, extract that
+method byte-for-byte from the canonical source with unique, fail-closed boundaries, rename only
+the class qualifier, and compile it against a minimal state carrier. Bind the canonical replay and
+the extracted payload digest, and add a malformed-source zero-allocation control. See
+`sandbox/wgpu-shader-frontend-integrated-smoke/`.

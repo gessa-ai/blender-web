@@ -459,6 +459,12 @@ if(DEFINED BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_NATIVE_FMT_INCLUDE_DIR must name the pinned native fmt include root")
   endif()
+  if(NOT DEFINED BW_WGPU_PUSH_CONSTANT_SET_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_PUSH_CONSTANT_SET_SOURCE must name the extracted canonical method")
+  endif()
   set(_bw_integrated_shader_frontend_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-shader-frontend-integrated-smoke/integrated_shader_frontend_test.cc"
   )
@@ -498,6 +504,7 @@ if(DEFINED BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR)
   )
   target_compile_definitions(wgpu_shader_frontend_integrated_test PRIVATE
     BW_WGPU_SHADER_SOURCE="${BW_INTEGRATED_SHADER_FRONTEND_SOURCE_DIR}/wgpu_shader.cc"
+    BW_WGPU_PUSH_CONSTANT_SET_SOURCE="${BW_WGPU_PUSH_CONSTANT_SET_SOURCE}"
     WITH_CLOG_PTHREADS
   )
   target_include_directories(wgpu_shader_frontend_integrated_test PRIVATE

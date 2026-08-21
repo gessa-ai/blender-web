@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# fix_plan.md — active milestones: M3 WEBGPU BACKEND (technical contract frozen; fresh Linux receipt blocked by s7) + M4 FIRST PIXELS (UI renders in-tab, polish rounds)
+# fix_plan.md — active milestones: M3 WEBGPU BACKEND (manifest frozen; device-free audits active; fresh Linux receipt blocked by s7) + M4 FIRST PIXELS (UI renders in-tab, polish rounds)
 
 Driver-owned. Workers claim a task via `claimed_by:` on its line (atomic write) and
 report results; they never rewrite this file. Task grammar: one line, independently
@@ -432,6 +432,19 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   adapter, device, shader module, pipeline, or receipt is created; live validation remains owned
   by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t7-rewrite-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T7.push-array.integrated [gpu-backend]** RECONCILED on Linux: the canonical
+  `WGPUShader::push_constant_set` body is extracted byte-for-byte with unique fail-closed
+  boundaries and compiled into the existing device-free native/Wasm frontend contract. Five
+  scalar/vector arrays cover 19 elements, all 148 payload bytes, and all 156 std140 padding bytes;
+  native and Node 22.16.0 output is byte-identical at 669 bytes. A malformed-method control allocates
+  no generated output, canonical replay is bound before extraction, and both targets end at
+  locked-Ninja no-work. It creates no adapter/device/buffer or receipt and does not claim the
+  separately found mat3 gap. Evidence:
+  `notes/m3-t7-push-array-integrated-linux-reconcile-20260821.md`.
+- [ ] **M3.T7.mat3-packing [gpu-backend]:** blocked-by: none. Fix the canonical WebGPU
+  push-constant writer to insert std140 padding after each `float3x3` column, mirroring
+  `vk_push_constants.hh:242-251`; extend the extracted native/Wasm contract over the four pinned
+  mat3 create-infos before composing a new numbered patch into the canonical source snapshot.
 - [x] **M3.T6.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree common-buffer and
   readback-registry postimages directly. Five contracts cover the exact 32-case usage matrix,

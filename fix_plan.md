@@ -432,6 +432,16 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   end at locked-Ninja no-work. It creates no instance, adapter, device, texture, or receipt; the
   historical live T9 creation/upload/readback proof remains owned by **M3-LINUX-REPLAY** and
   blocked by s7. Evidence: `notes/m3-t9-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.state.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
+  device-free native/Wasm contract now compiles the canonical in-tree fixed-function state table
+  directly against Blender's real GPU enums. Four exhaustive contracts cover all 16 blend rows,
+  seven depth modes, 16 stencil test/operation pairs, three cull modes, front-face and provoking-
+  vertex behavior, and all 64 write masks. Native and Node 22.16.0 emit identical 372-byte
+  evidence against clean Dawn `36cf1fae` and emcc 6.0.5; canonical replay is bound before
+  evidence, wrong Dawn/Node identities allocate nothing, and both targets end at locked-Ninja
+  no-work. It creates no instance, adapter, device, pipeline, or receipt; historical live T10
+  pipeline/pixel proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
+  `notes/m3-t10-state-integrated-linux-reconcile-20260821.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

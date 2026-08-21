@@ -235,3 +235,43 @@ if(DEFINED BW_INTEGRATED_TEXTURE_SOURCE_DIR)
   )
   target_link_libraries(wgpu_texture_integrated_test PRIVATE dawn::webgpu_dawn)
 endif()
+
+# Optional device-free contract for the canonical in-tree fixed-function state
+# table. This compiles the shipping postimage directly against Blender's real
+# GPU state enums, but deliberately never creates an instance, adapter, device,
+# or render pipeline at runtime.
+if(DEFINED BW_INTEGRATED_STATE_SOURCE_DIR)
+  if(NOT DEFINED BW_UPSTREAM_DIR)
+    message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_INTEGRATED_STATE_SOURCE_DIR")
+  endif()
+  set(_bw_integrated_state_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-state-integrated-smoke/integrated_state_test.cc"
+  )
+  foreach(_bw_source wgpu_state_table.cc wgpu_state_table.hh)
+    set(_bw_source_path "${BW_INTEGRATED_STATE_SOURCE_DIR}/${_bw_source}")
+    if(NOT IS_ABSOLUTE "${_bw_source_path}" OR NOT EXISTS "${_bw_source_path}")
+      message(FATAL_ERROR
+        "integrated WebGPU state input is missing or non-absolute: ${_bw_source_path}")
+    endif()
+  endforeach()
+  foreach(_bw_source
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_state.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/blenlib/BLI_enum_flags.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/blenlib/BLI_sys_types.h"
+      "${_bw_integrated_state_test}")
+    if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
+      message(FATAL_ERROR "integrated WebGPU state dependency is missing: ${_bw_source}")
+    endif()
+  endforeach()
+
+  add_executable(wgpu_state_integrated_test
+    "${_bw_integrated_state_test}"
+    "${BW_INTEGRATED_STATE_SOURCE_DIR}/wgpu_state_table.cc"
+  )
+  target_include_directories(wgpu_state_integrated_test PRIVATE
+    "${BW_INTEGRATED_STATE_SOURCE_DIR}"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+  )
+  target_link_libraries(wgpu_state_integrated_test PRIVATE dawn::webgpu_dawn)
+endif()

@@ -110,15 +110,18 @@ cross-references resolve order-independently.
 UBO → shaderc (env vulkan_1_1 → SPIR-V 1.3) → Tint → WGSL, the SAME source built two
 ways:
 
-- **native reference:** Blender's precompiled shaderc dylib + native Tint archives →
-  498 bytes WGSL.
+- **native reference:** exact cached shaderc v2025.4 source built as a shared library
+  through locked Ninja + Dawn's pinned native Tint target graph → 498 bytes WGSL.
 - **wasm:** the harvested archives in one `--start-group`, `-sSTACK_SIZE=32MB`, run
-  under node → 498 bytes WGSL, contains `@group(0u) @binding(0u) var<uniform> ubo`.
+  under pinned Node 22.16.0 → 498 bytes WGSL, contains
+  `@group(0u) @binding(0u) var<uniform> ubo`.
 - **`diff` = 0: the wasm WGSL is BYTE-IDENTICAL to the native chain.** No divergence.
 
-(Same shaderc *version* both sides — v2025.4 — and the same Dawn/Tint pin; the wasm
-side's glslang differs from Blender's precompiled shaderc's glslang, yet the emitted
-SPIR-V→WGSL matched byte-for-byte for this shader.)
+The native and Wasm legs use shaderc v2025.4 and Dawn/Tint `36cf1fae`. On
+ornith-lab, Blender's retained `lib/linux_x64` shaderc reports v2023.8 and emits a
+different homogeneous position constant for this source, so it is not a valid
+v2025.4 reference. The smoke builds the cached, checksum-bound v2025.4 source instead.
+See `notes/m3-t1-shader-chain-linux-reconcile-20260821.md`.
 
 ## Build posture (both bundles)
 

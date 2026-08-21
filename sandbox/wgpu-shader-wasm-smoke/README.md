@@ -1,0 +1,28 @@
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+-->
+
+# Device-free shader-chain parity smoke
+
+This probe compiles one source file twice: once natively against the exact cached
+shaderc v2025.4 source and Dawn's pinned Tint target graph, and once to WebAssembly
+against the harvested shaderc/Tint archive manifests. Both executions translate
+the same GLSL vertex shader through SPIR-V 1.3 to WGSL. Success requires nonempty
+WGSL with the expected group-0 binding and byte-identical native/Wasm output.
+
+The probe is deliberately device-free. It verifies the CPU translation portion
+of M3.T1 on hosts where the separate Dawn validation probe correctly stops at
+`PROBE_BLOCKED` because no hardware adapter is available. It does not create or
+replace an M3 receipt.
+
+Run it through the bounded build logger:
+
+```sh
+harness/buildwrap.sh bash sandbox/wgpu-shader-wasm-smoke/build.sh
+```
+
+Both native and WebAssembly targets build only through
+`scripts/ninja-locked.sh`. The driver requires Dawn
+`36cf1fae0cd8a81a4fb4580751648b80b2e6255c`, emcc 6.0.5, and the bundled Node
+22.16.0 before allocating its ignored build outputs.

@@ -339,6 +339,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   build.sh pins 3.13). **R1 characterized AND controllable**: sampler split invents a sampler
   binding that bumps subsequent UBO bindings (deterministic); spirv::reader::Options::
   sampler_mappings controls it → T2 = mapping exercise, not open risk.
+  **Linux device-free chain RECONCILED:** the checkout-relative locked-Ninja smoke now builds
+  exact native shaderc v2025.4 plus the harvested Wasm closure against the same Dawn/Tint pin;
+  Node 22.16.0 produces 498 byte-identical WGSL bytes (`sha256:2516371cb532`). The retained
+  Linux precompiled shaderc identifies as v2023.8 and is intentionally not an oracle (it changed
+  the homogeneous position constant). Wrong Dawn pins fail before output allocation. Live Dawn
+  validation still rejects llvmpipe with `PROBE_BLOCKED`, so this reconciliation creates no M3
+  receipt and leaves **M3-LINUX-REPLAY** blocked by s7. Evidence:
+  `notes/m3-t1-shader-chain-linux-reconcile-20260821.md`.
 - [x] **M3.T2 [gpu-backend]** **PASS** (4671835, notes/gpu-binding-map-spec.md = NORMATIVE for
   T7): Blender's scheme = single set-0, dense sequential bindings (vk_shader_interface.cc:205).
   Default Tint per-stage renumbering BREAKS cross-stage layouts (negative control: Dawn REJECTS

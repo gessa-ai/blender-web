@@ -4,12 +4,12 @@
 
 /** \file
  * M2.x link-smoke: prove shaderc + Tint link and run TOGETHER in one binary,
- * for BOTH the native reference chain and the cross-compiled wasm chain.
+ * for BOTH the pinned native reference chain and the cross-compiled wasm chain.
  *
  * Chain: GLSL vert -> shaderc(SPIR-V 1.3, env vulkan_1_1) -> Tint(ReadIR ->
  * ProgramFromIR -> Generate) -> WGSL. Writes the WGSL verbatim to stdout so the
- * native and wasm outputs can be byte-compared (build.sh). Identical source on
- * both sides; the only variable is which shaderc/Tint archives the linker sees.
+ * native and wasm outputs can be byte-compared (build.sh). Identical source and
+ * exact shaderc/Tint pins run on both sides; only the target ABI differs.
  *
  * env vulkan_1_1 (SPIR-V 1.3) is mandatory: Tint's IR SPIR-V reader hardcodes
  * SPV_ENV_VULKAN_1_1 and rejects >1.3 (notes/gpu-dawn-probe.md §4a). */

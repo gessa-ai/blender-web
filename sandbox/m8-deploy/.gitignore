@@ -6,4 +6,5 @@
 # verify artifacts are regenerable. Only the scripts, _headers, audit and README
 # are committed.
 bundle/
+bundle-*/
 artifacts/

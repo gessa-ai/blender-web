@@ -3,12 +3,15 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# M8 deploy bundle (prepare-only)
+# M8 monolithic deploy diagnostic (prepare-only)
 
-Assembles and locally verifies a static-hosting bundle for the blender-web windowed
-gate build. **Prepare-only:** nothing here deploys, pushes, or names anything
-public. The public brand is undecided and human-owned (D-7); the shell `<title>` and
-comments still carry the local working name and MUST be swapped before any publish.
+Assembles and locally verifies a monolithic static-hosting bundle for the blender-web
+windowed development build. **Prepare-only:** nothing here deploys, pushes, names
+anything public, or produces an M8 receipt. The shipping APPLY/staged bundle is owned
+by `sandbox/m8-staged-deploy/`; this older monolithic path remains useful for transport
+and shell diagnostics against an OFF-mode build. The public brand is undecided and
+human-owned (D-7); the shell `<title>` and comments still carry the local working name
+and MUST be swapped before any publish.
 
 ## Files
 
@@ -18,6 +21,7 @@ comments still carry the local working name and MUST be swapped before any publi
 | `_headers`        | Cloudflare-Pages COOP/COEP/CORP + MIME + cache (template) | yes |
 | `serve_bundle.py` | COOP/COEP static server for local verify (port 8130) | yes |
 | `verify_boot.mjs` | headed-Playwright boot -> isolate -> WM_main -> present -> capture | yes |
+| `test_portability.py` | root/descendant, fixture assembly, confinement, and zero-browser checks | yes |
 | `LAUNCH_AUDIT.md` | per-box LAUNCH.md close-out audit | yes |
 | `bundle/`         | assembled output (wasm/data symlinked by default) | **no** (gitignored) |
 | `artifacts/`      | verify captures + logs | **no** (gitignored) |
@@ -25,6 +29,13 @@ comments still carry the local working name and MUST be swapped before any publi
 ## Quick start
 
 ```
+# 0. browser/product-free checks (safe before APPLY and on an s7-blocked host)
+sandbox/m8-deploy/make_bundle.sh --selfcheck
+.host-tools/bin/python3.13 sandbox/m8-deploy/test_portability.py
+BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+  tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m8-deploy/verify_boot.mjs --selfcheck
+
 # 1. assemble (symlink payload; fast, local-serve only)
 sandbox/m8-deploy/make_bundle.sh
 #    or a self-contained, uploadable bundle with real file copies:
@@ -33,9 +44,10 @@ sandbox/m8-deploy/make_bundle.sh --copy
 # 2. serve with cross-origin isolation on port 8130
 python3 sandbox/m8-deploy/serve_bundle.py 8130 sandbox/m8-deploy/bundle
 
-# 3. boot-verify in headed Chromium (Playwright lives in game-platform)
-NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
-  node sandbox/m8-deploy/verify_boot.mjs 1280x720 8130
+# 3. boot-verify in headed Chromium using the pinned local toolchain
+BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+  tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m8-deploy/verify_boot.mjs 1280x720 8130
 ```
 
 `make_bundle.sh` reads the gate build from `build-wasm-windowed-opt/bin` (override
@@ -43,12 +55,18 @@ with `--bin DIR` or `$BLENDER_WEB_BIN`). It writes `bundle/BUNDLE_MANIFEST.txt` 
 exact sizes + mtimes of whatever build was current at assembly time. Pass `--brotli`
 to also measure brotli-q11 wire sizes (slow; and unreliable if a build lane is
 relinking the binary - cite `sandbox/m8-dce-ranking/RANKING.md` for stable numbers).
+The assembler derives its checkout from its own path, accepts caller-relative input
+paths, and permits replacement only at `sandbox/m8-deploy/bundle` or a `bundle-*`
+test/run path; this confines its intentional output-tree removal away from sources
+and evidence.
 
 ## Bundle layout (docroot = the bundle dir)
 
 ```
 index.html                 <- platform_web/shell/windowed.html, verbatim
+diagnostics-bootstrap.js   <- current shell's early diagnostic capture
 boot-windowed.js           <- shell boot; loads /bin/blender_browser.js, sets BIN_PREFIX=/bin/
+file-bridge.js             <- current trusted file/open/save bridge
 wgpu-preinit-worker.js     <- PROVENANCE COPY ONLY (baked into blender_browser.js; not fetched)
 _headers                   <- COOP/COEP/CORP + MIME + cache
 bin/blender_browser.js     <- Emscripten glue (has the WebGPU preinit post-js compiled in)
@@ -66,7 +84,7 @@ it at runtime (confirmed: the verify run served `index.html`, `boot-windowed.js`
 `bin/blender_browser.{js,wasm,data}` and nothing else, plus the browser's automatic
 `/favicon.ico` -> 404, which is harmless and intentional; see "Favicon" below).
 
-## Payload size + what staged-loading will change
+## Payload size + the shipping staged path
 
 The bundle references the binary by **symlink** by default (so the ~200 MiB payload
 is not copied on every assembly). `--copy` makes a real self-contained bundle you
@@ -80,13 +98,10 @@ relink the binary continuously):
 | `bin/blender_browser.js`   | ~0.59 MB | Emscripten glue + baked post-js |
 
 The **wire** size (brotli) is what LAUNCH.md gates on, not raw. See
-`LAUNCH_AUDIT.md` for the honest wire math (wasm alone 20.13 MB brotli, stage-0
-wire-to-interactive 24.71 MB, vs the 15 MB bar). **Staged-loading integration will
-change this bundle:** the single `.data` splits into a stage-0 (served first) + a
-lazy stage-1 fetched into cache after first pixels; the wasm later splits under JSPI;
-a service worker precaches; and content-hashed filenames let `_headers` flip `bin/*`
-to `Cache-Control: immutable`. `make_bundle.sh`/`_headers` are shaped so those are
-additive (a stage manifest + hashed names + a `/sw.js` rule), not a rewrite.
+`LAUNCH_AUDIT.md` for the historical wire math. The required staged loading and
+primary/deferred Wasm APPLY inventory now live in `sandbox/m8-staged-deploy/`; they
+are deliberately not approximated by this monolithic diagnostic. A PASS here never
+substitutes for the staged-product, accepted-hardware, or M8 receipts.
 
 ## MIME + brotli (hosting expectations)
 
@@ -145,7 +160,7 @@ chosen.
 
 ## Boot verdict (local verification)
 
-Run 2026-08-08, HEAD `5750083`, gate build `build-wasm-windowed-opt/bin`, headed
+Historical run 2026-08-08, HEAD `5750083`, gate build `build-wasm-windowed-opt/bin`, headed
 bundled Chromium via Playwright, bundle served COOP/COEP on port 8130:
 
 ```
@@ -161,7 +176,9 @@ VERDICT: PASS - bundle served COOP/COEP-isolated, booted to WM_main,
 **PASS on bundle mechanics:** the COOP/COEP server + `index.html` + `boot-windowed.js`
 + `bin/*` boot the `-pthread` module in a crossOriginIsolated tab, reach WM_main,
 expose `window.__bwModule`, honor the `?gate=WxH` exact-size contract, and execute the
-present path (`presentBackbuffer`).
+present path (`presentBackbuffer`). This historical diagnostic is not a current
+artifact binding. On ornith-lab, s7 still requires an accepted hardware adapter before
+any profile or gate receipt; llvmpipe may be used only for diagnosis.
 
 **Caveat - the captured frame is black.** The current gate binary is an actively
 relinked r29 in-flight build (it carries `[bw-r29-name]` printf instrumentation and

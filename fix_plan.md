@@ -265,17 +265,18 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   130-B LFS pointers). **DRIVER DECIDED: cheap LFS pull APPROVED (38.4 MB/89 files →
   ~doubles suites to ~75; dispatched). Full 0.76 GB pull deferred; render/GPU 447 MB never
   needed for tier-b.**
-- [~] **M2.6-RECONCILE [driver] blocked-by fresh 75-row confirmation after deterministic
-  combined-stream repair:** the producer and independent verifier now byte-splice only an exact
-  allocator/banner envelope with an empty, dot-only, or bound verbose-unittest prefix. Adversarial
-  split-dot/verbose fixtures and exact r1/r2 raw replay are green. Post-repair r3 then exposed one
-  later valid Euler-dot boundary; r4 crossed that point, completed 74 rows, and exposed the final
-  `mesh_validate` diagnostic flushing on opposite sides of the exact `Ran 15 tests`/`OK` tail
-  (`20260821T161809-146482`, `20260821T162400-165405`). Both new raw pairs now replay identically
-  through producer and verifier with strict ordered-record/cardinality fixtures
-  (`20260821T162303-160729`, `20260821T163314-211813`). Per the two-attempt rule no r5 ran;
-  producer receipts, harness results, deferrals, and pass flags remain unchanged pending one fresh
-  next-iteration full replay.
+- [~] **M2.6-RECONCILE [driver] blocked-by one fresh 75-row confirmation after r5 deterministic
+  `mesh_validate` stream repair:** r5 used a fresh pinned upstream freeze, crossed every earlier
+  repaired boundary, and reached selected row 74 before its passing native combined stream moved
+  one progress dot across an exact three-diagnostic sequence and flushed the final multires
+  diagnostic between the exact `Ran 15 tests` prefix and `OK` (`20260821T164443-229454`). The
+  producer and independent verifier now enumerate only those complete observed layouts, retain
+  every diagnostic byte and dot cardinality, and replay the exact r5 native/Wasm pair to one
+  1,686-byte sha256:002d921ab94e stream (`20260821T165947-279756`). Adversarial runner, aggregate,
+  composer, and adapter checks are green (`20260821T165938-279622`, `20260821T170020-280073`,
+  `20260821T170035-284150`, `20260821T170037-284202`). Per the repeated-blocker/no-retry rule no
+  r6 ran; producer receipts, harness results, deferrals, and pass flags remain unchanged pending
+  one fresh next-iteration full replay.
 - [x] **M2.7 [python-wasm]** DONE 2026-08-03 (7c1722f, notes/python-emcc605-probe.md §M2.7):
   JSPI links clean with BOTH EH models (no emcc refusals); setjmp/longjmp survives
   suspend/resume under the Asyncify proxy in both (libjpeg error path + libpython embed PASS

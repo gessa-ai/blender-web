@@ -865,6 +865,9 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
         elif name == verify_module.M2_MESH_VALIDATE_SUITE:
             native_body = b"".join([
                 b"mesh-prefix\n",
+                b"." + verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[3],
+                verify_module.M2_MESH_VALIDATE_EARLY_MISSING_EDGE,
+                verify_module.M2_MESH_VALIDATE_EARLY_OFFSETS_START,
                 *verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[:-1],
                 b"....." + verify_module.M2_MESH_VALIDATE_PROGRESS_ERRORS[-1],
                 verify_module.M2_MESH_VALIDATE_MDISP_READ,
@@ -873,7 +876,8 @@ def build_fixture(root: Path, now: dt.datetime) -> Path:
                 b"mesh-suffix\n",
             ])
             wasm_body = (
-                b"mesh-prefix\n" + verify_module.M2_MESH_VALIDATE_PROGRESS_CANONICAL
+                b"mesh-prefix\n" + verify_module.M2_MESH_VALIDATE_EARLY_CANONICAL
+                + verify_module.M2_MESH_VALIDATE_PROGRESS_CANONICAL
                 + verify_module.M2_MESH_VALIDATE_END_CANONICAL
                 + b"mesh-suffix\n"
             )

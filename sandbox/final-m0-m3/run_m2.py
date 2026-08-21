@@ -275,6 +275,19 @@ MESH_VALIDATE_PROGRESS_ERRORS = [
 MESH_VALIDATE_PROGRESS_CANONICAL = b"".join(
     b"." + line for line in MESH_VALIDATE_PROGRESS_ERRORS
 )
+MESH_VALIDATE_EARLY_MISSING_EDGE = (
+    b"<LOG_TIME>  geom.mesh        | ERROR Face 0 has missing edge (0, 3)\n"
+)
+MESH_VALIDATE_EARLY_OFFSETS_START = (
+    b"<LOG_TIME>  geom.mesh        | ERROR Faces offsets do not start at 0. "
+    b"Considering all faces invalid\n"
+)
+MESH_VALIDATE_EARLY_CANONICAL = (
+    MESH_VALIDATE_PROGRESS_ERRORS[3]
+    + MESH_VALIDATE_EARLY_MISSING_EDGE
+    + b"."
+    + MESH_VALIDATE_EARLY_OFFSETS_START
+)
 MESH_VALIDATE_MDISP_READ = (
     b'.<LOG_TIME>  blend            | Read blend: "<REPO>/upstream/tests/files/'
     b'sculpting/invalid_mdisp_cube.blend"\n'
@@ -283,8 +296,12 @@ MESH_VALIDATE_MDISP_ERROR = (
     b"<LOG_TIME>  geom.mesh        | ERROR Multires displacement has invalid "
     b"values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23\n"
 )
+MESH_VALIDATE_RESULT_PREFIX = (
+    b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\n"
+)
+MESH_VALIDATE_RESULT_OK = b"OK\n"
 MESH_VALIDATE_RESULT_TAIL = (
-    b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\nOK\n"
+    MESH_VALIDATE_RESULT_PREFIX + MESH_VALIDATE_RESULT_OK
 )
 MESH_VALIDATE_END_CANONICAL = (
     MESH_VALIDATE_MDISP_READ
@@ -1006,6 +1023,27 @@ def canonicalize_animation_fcurves_output(payload: bytes) -> bytes:
 def canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
     """Restore exact progress and final diagnostic flush ordering."""
     lines = payload.splitlines(keepends=True)
+    early_layouts = (
+        [b"." + MESH_VALIDATE_PROGRESS_ERRORS[3],
+         MESH_VALIDATE_EARLY_MISSING_EDGE,
+         MESH_VALIDATE_EARLY_OFFSETS_START],
+        [MESH_VALIDATE_PROGRESS_ERRORS[3],
+         MESH_VALIDATE_EARLY_MISSING_EDGE,
+         b"." + MESH_VALIDATE_EARLY_OFFSETS_START],
+    )
+    early_matches: list[tuple[int, int]] = []
+    for layout in early_layouts:
+        early_matches.extend(
+            (index, len(layout))
+            for index in range(len(lines) - len(layout) + 1)
+            if lines[index:index + len(layout)] == layout
+        )
+    if len(early_matches) != 1:
+        fail("mesh_validate lacks one exact three-error progress layout")
+    early_index, early_length = early_matches[0]
+    lines[early_index:early_index + early_length] = [
+        MESH_VALIDATE_EARLY_CANONICAL
+    ]
     layouts = (
         [*MESH_VALIDATE_PROGRESS_ERRORS[:-1],
          b"....." + MESH_VALIDATE_PROGRESS_ERRORS[-1]],
@@ -1026,6 +1064,8 @@ def canonicalize_mesh_validate_progress(payload: bytes) -> bytes:
     end_layouts = (
         MESH_VALIDATE_MDISP_READ + MESH_VALIDATE_RESULT_TAIL
         + MESH_VALIDATE_MDISP_ERROR,
+        MESH_VALIDATE_MDISP_READ + MESH_VALIDATE_RESULT_PREFIX
+        + MESH_VALIDATE_MDISP_ERROR + MESH_VALIDATE_RESULT_OK,
         MESH_VALIDATE_END_CANONICAL,
     )
     end_matches = [layout for layout in end_layouts if payload.count(layout) == 1]

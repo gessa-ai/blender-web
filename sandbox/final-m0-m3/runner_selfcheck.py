@@ -699,11 +699,21 @@ def main() -> int:
         b"<LOG_TIME>  geom.mesh        | ERROR Multires displacement has invalid "
         b"values at indices: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23\n"
     )
+    mesh_validate_result_prefix = (
+        b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\n"
+    )
+    mesh_validate_result_ok = b"OK\n"
     mesh_validate_result_tail = (
-        b".\n" + b"-" * 70 + b"\nRan 15 tests in <T>s\n\nOK\n"
+        mesh_validate_result_prefix + mesh_validate_result_ok
+    )
+    mesh_validate_early_native = (
+        b"." + m2.MESH_VALIDATE_PROGRESS_ERRORS[3]
+        + m2.MESH_VALIDATE_EARLY_MISSING_EDGE
+        + m2.MESH_VALIDATE_EARLY_OFFSETS_START
     )
     mesh_validate_native = b"".join([
         b"mesh-prefix\n",
+        mesh_validate_early_native,
         *m2.MESH_VALIDATE_PROGRESS_ERRORS[:-1],
         b"....." + m2.MESH_VALIDATE_PROGRESS_ERRORS[-1],
         mesh_validate_mdisp_read,
@@ -712,9 +722,17 @@ def main() -> int:
         b"mesh-suffix\n",
     ])
     mesh_validate_wasm = (
-        b"mesh-prefix\n" + m2.MESH_VALIDATE_PROGRESS_CANONICAL
+        b"mesh-prefix\n" + m2.MESH_VALIDATE_EARLY_CANONICAL
+        + m2.MESH_VALIDATE_PROGRESS_CANONICAL
         + mesh_validate_mdisp_read + mesh_validate_mdisp_error
         + mesh_validate_result_tail
+        + b"mesh-suffix\n"
+    )
+    mesh_validate_mid_result = (
+        b"mesh-prefix\n" + m2.MESH_VALIDATE_EARLY_CANONICAL
+        + m2.MESH_VALIDATE_PROGRESS_CANONICAL
+        + mesh_validate_mdisp_read + mesh_validate_result_prefix
+        + mesh_validate_mdisp_error + mesh_validate_result_ok
         + b"mesh-suffix\n"
     )
     assert m2.canonicalize_mesh_validate_progress(
@@ -726,10 +744,26 @@ def main() -> int:
     assert verifier.m2_canonicalize_mesh_validate_progress(
         mesh_validate_native
     ) == mesh_validate_wasm
+    assert m2.canonicalize_mesh_validate_progress(
+        mesh_validate_mid_result
+    ) == mesh_validate_wasm
+    assert verifier.m2_canonicalize_mesh_validate_progress(
+        mesh_validate_mid_result
+    ) == mesh_validate_wasm
     reject(
         "m2_mesh_validate_wrong_dot_count",
         lambda: m2.canonicalize_mesh_validate_progress(
             mesh_validate_native.replace(b".....", b"....", 1)
+        ),
+    )
+    reject(
+        "m2_mesh_validate_early_dot_missing",
+        lambda: m2.canonicalize_mesh_validate_progress(
+            mesh_validate_native.replace(
+                b"." + m2.MESH_VALIDATE_PROGRESS_ERRORS[3],
+                m2.MESH_VALIDATE_PROGRESS_ERRORS[3],
+                1,
+            )
         ),
     )
     reject(
@@ -752,6 +786,14 @@ def main() -> int:
         "m2_mesh_validate_error_near_match",
         lambda: m2.canonicalize_mesh_validate_progress(
             mesh_validate_native.replace(b"Face 1", b"Face 2", 1)
+        ),
+    )
+    reject(
+        "m2_mesh_validate_mid_result_near_layout",
+        lambda: verifier.m2_canonicalize_mesh_validate_progress(
+            mesh_validate_mid_result.replace(
+                b"Ran 15 tests in <T>s\n\n", b"Ran 15 tests in <T>s\n", 1
+            )
         ),
     )
 

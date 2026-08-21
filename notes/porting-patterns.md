@@ -173,8 +173,9 @@ anchored layout and restore that single dot before comparing streams. Keep platf
 spellings as an explicit finite set; do not mask arbitrary pointer-value text.
 If a dot can land at any boundary inside a short, exact ordered diagnostic sequence, bind the
 records and dot cardinality instead of enumerating incidental offsets. A final diagnostic may also
-flush immediately before or after the exact result tail; accept only those two complete layouts,
-canonicalize them to one order, and reject missing, duplicated, or near-match diagnostics.
+flush immediately before or after the exact result tail, or between its exact `Ran N tests` prefix
+and final `OK`. Accept only observed complete layouts, canonicalize them to one order, and reject
+missing, duplicated, near-match, or differently placed diagnostics.
 
 ## Class 8 — current evidence producers must not inherit paths from retained legacy rigs
 

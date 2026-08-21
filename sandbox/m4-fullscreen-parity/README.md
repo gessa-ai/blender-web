@@ -29,7 +29,9 @@ are avoided entirely here.
 - `capture_web.mjs` - WEB side: headed bundled-Chromium Playwright rig; boots the
   windowed wasm build in `?gate=1600x900` mode, drives the workspace render
   (`?pyexpr=` show_splash=False + a 1 s VIEW_3D `tag_redraw` kick timer), settles
-  60 s, and CDP-captures the canvas at EXACTLY 1600x900.
+  60 s, and CDP-captures the canvas at EXACTLY 1600x900. It derives the checkout
+  from `import.meta.url`, accepts only Node 22.16.0 + Playwright 1.61.1, and has a
+  browser-free `--selfcheck` mode.
 - `compare_fullscreen.sh` - the comparator. Mirrors `m4-golden-prep/compare_m4.sh`
   verbatim on threshold discipline (exit-code primary, `--ch R,G,B` normalize,
   size mismatch = FAIL). Subcommands: default verdict, `--selftest` (identity PASS
@@ -58,10 +60,16 @@ are avoided entirely here.
 bash sandbox/m4-fullscreen-parity/capture_fullscreen_golden.sh          # workspace 1600x900
 
 # WEB capture (serve first on this lane's port 8129):
-BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed/bin \
+BLENDER_WEB_BIN=$PWD/build-wasm-windowed-opt/bin \
   bash scripts/serve-web.sh 8129 &
-NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
-  node sandbox/m4-fullscreen-parity/capture_web.mjs 1600x900 8129 60000
+BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+  tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m4-fullscreen-parity/capture_web.mjs 1600x900 8129 60000
+
+# Browser-free root/module/platform check (safe under the s7 software-adapter stop):
+BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+  tools/emsdk/node/22.16.0_64bit/bin/node \
+  sandbox/m4-fullscreen-parity/capture_web.mjs --selfcheck
 
 # COMPARE + side-by-side + per-region + teeth:
 bash sandbox/m4-fullscreen-parity/compare_fullscreen.sh \
@@ -76,4 +84,6 @@ bash sandbox/m4-fullscreen-parity/compare_fullscreen.sh --selftest
 Exit 0 = within Blender's tier-c tolerance; 1 = FAIL; 2 = usage/missing input.
 This harness MEASURES the other lanes' in-progress work (solid cube, gizmo ball,
 menu backgrounds, and - as of this build - a full-window chrome flip); it never
-massages the numbers to pass.
+massages the numbers to pass. Live capture still requires the accepted hardware
+WebGPU adapter from migration runbook s7; `--selfcheck` launches no browser and
+creates no artifact or receipt.

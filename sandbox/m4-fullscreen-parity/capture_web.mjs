@@ -21,28 +21,185 @@
 // also decoded as an independent size receipt.
 //
 // Serve first (PORT 8129 is this lane's):
-//   BLENDER_WEB_BIN=/Users/paws/blender-web/build-wasm-windowed/bin \
-//     bash scripts/serve-web.sh 8129
-// Then:
-//   NODE_PATH=/Users/paws/plushly/game-platform/node_modules \
-//     node sandbox/m4-fullscreen-parity/capture_web.mjs [WxH] [port] [settleMs]
+//   BLENDER_WEB_BIN=$PWD/build-wasm-windowed-opt/bin bash scripts/serve-web.sh 8129
+// Then use the pinned repository-local Node and Playwright install:
+//   BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+//     tools/emsdk/node/22.16.0_64bit/bin/node \
+//     sandbox/m4-fullscreen-parity/capture_web.mjs [WxH] [port] [settleMs]
+// Browser-free portability check:
+//   BW_NODE_MODULES=$PWD/.m4-node/node_modules \
+//     tools/emsdk/node/22.16.0_64bit/bin/node \
+//     sandbox/m4-fullscreen-parity/capture_web.mjs --selfcheck
 //
 // The binary may be rebuilt mid-session by another lane; if a boot aborts, retry
 // in ~5 min (GOAL / task note).
 
+import { existsSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
-const require = createRequire('/Users/paws/plushly/game-platform/node_modules/');
-const { chromium } = require('playwright');
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+const DRIVER_PATH = fileURLToPath(import.meta.url);
+const HERE = dirname(DRIVER_PATH);
+const ROOT = resolve(HERE, '../..');
+const OUTDIR = join(HERE, 'artifacts');
+const LOCAL_MODULE_ROOTS = Object.freeze([
+  join(ROOT, '.m4-node/node_modules'),
+  join(ROOT, 'node_modules'),
+]);
+const MODULE_ROOTS = Object.freeze([...new Set([
+  process.env.BW_NODE_MODULES,
+  process.env.NODE_PATH,
+  ...LOCAL_MODULE_ROOTS,
+]
+  .filter(Boolean)
+  .flatMap((entry) => entry.split(delimiter))
+  .filter(Boolean)
+  .map((entry) => resolve(entry)))]);
+const NODE_VERSION = 'v22.16.0';
+const PLAYWRIGHT_VERSION = '1.61.1';
+const BROWSER_ARGS = Object.freeze([
+  '--enable-unsafe-webgpu',
+  ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
+]);
+
+function resolvePlaywright(
+  roots = MODULE_ROOTS,
+  load = (root) => {
+    const require = createRequire(join(root, 'package.json'));
+    return {
+      chromium: require('playwright').chromium,
+      version: require('playwright/package.json').version,
+    };
+  },
+) {
+  const errors = [];
+  for (const root of roots) {
+    try {
+      const loaded = load(root);
+      if (!loaded?.chromium) throw new Error('playwright export lacks chromium');
+      if (loaded.version !== PLAYWRIGHT_VERSION) {
+        throw new Error(
+          `playwright version ${loaded.version || 'unknown'} != ${PLAYWRIGHT_VERSION}`);
+      }
+      return { chromium: loaded.chromium, root, version: loaded.version };
+    }
+    catch (error) {
+      errors.push(`${root}: ${error.message}`);
+    }
+  }
+  throw new Error(`cannot resolve Playwright; set BW_NODE_MODULES\n${errors.join('\n')}`);
+}
+
+function isRepositoryDescendant(path) {
+  const rel = relative(ROOT, resolve(path));
+  return rel !== '' && !isAbsolute(rel) && rel.split(/[\\/]/)[0] !== '..';
+}
+
+function parseSize(raw) {
+  const match = /^(\d+)x(\d+)$/.exec(raw.trim());
+  if (!match) throw new Error(`bad size "${raw}" - want WxH`);
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) {
+    throw new Error(`bad size "${raw}" - dimensions must be positive safe integers`);
+  }
+  return { width, height };
+}
+
+function parseInteger(raw, label, minimum, maximum) {
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`bad ${label} "${raw}" - want integer ${minimum}..${maximum}`);
+  }
+  return value;
+}
+
+function assertSelfcheck(condition, message) {
+  if (!condition) throw new Error(`selfcheck: ${message}`);
+}
+
+function runSelfcheck() {
+  assertSelfcheck(process.version === NODE_VERSION,
+    `node version ${process.version} != ${NODE_VERSION}`);
+  assertSelfcheck(existsSync(join(ROOT, 'GOAL.md')) && HERE === dirname(DRIVER_PATH),
+    'repository root is not derived from the driver');
+  assertSelfcheck(MODULE_ROOTS.every(isAbsolute) &&
+    new Set(MODULE_ROOTS).size === MODULE_ROOTS.length,
+  'module roots are not absolute and unique');
+  assertSelfcheck(LOCAL_MODULE_ROOTS.every((root) =>
+    MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
+  'repository-local module fallback is incomplete or escaped');
+  assertSelfcheck(OUTDIR === join(ROOT, 'sandbox/m4-fullscreen-parity/artifacts') &&
+    isRepositoryDescendant(OUTDIR),
+  'capture output is not confined to the repository artifact directory');
+  assertSelfcheck(JSON.stringify(parseSize('1600x900')) ===
+    JSON.stringify({ width: 1600, height: 900 }),
+  'size parser drift');
+  for (const value of ['1600X900', '0x900', '1600x0', '1600x900junk']) {
+    let rejected = false;
+    try { parseSize(value); }
+    catch (_) { rejected = true; }
+    assertSelfcheck(rejected, `unsafe size was accepted: ${value}`);
+  }
+  assertSelfcheck(parseInteger('8129', 'port', 1, 65535) === 8129,
+    'port parser drift');
+  const expectedBrowserArgs = process.platform === 'darwin' ?
+    ['--enable-unsafe-webgpu', '--use-angle=metal'] : ['--enable-unsafe-webgpu'];
+  assertSelfcheck(JSON.stringify(BROWSER_ARGS) === JSON.stringify(expectedBrowserArgs),
+    'platform browser arguments drift');
+  const chromiumToken = {};
+  const synthetic = resolvePlaywright(['/missing', '/fixture'], (root) => {
+    if (root === '/missing') throw new Error('fixture miss');
+    return { chromium: chromiumToken, version: PLAYWRIGHT_VERSION };
+  });
+  assertSelfcheck(synthetic.chromium === chromiumToken && synthetic.root === '/fixture' &&
+    synthetic.version === PLAYWRIGHT_VERSION,
+  'Playwright fallback resolution drift');
+  let versionRejected = false;
+  try {
+    resolvePlaywright(['/fixture'], () => ({ chromium: chromiumToken, version: '0.0.0' }));
+  }
+  catch (error) {
+    versionRejected = String(error).includes(`!= ${PLAYWRIGHT_VERSION}`);
+  }
+  assertSelfcheck(versionRejected, 'Playwright version drift was accepted');
+  let livePlaywrightRoot = null;
+  if (process.env.BW_NODE_MODULES) {
+    const live = resolvePlaywright();
+    assertSelfcheck(live.chromium && MODULE_ROOTS.includes(live.root) &&
+      live.version === PLAYWRIGHT_VERSION,
+    'live Playwright resolution drift');
+    livePlaywrightRoot = live.root;
+  }
+  const source = readFileSync(DRIVER_PATH, 'utf8');
+  assertSelfcheck(!source.includes('/Users/' + 'paws') &&
+    !source.includes('/opt/' + 'homebrew'),
+  'retired macOS path remains in the active producer');
+  console.log(
+    `SELF_CHECK_PASS root=${ROOT} output=sandbox/m4-fullscreen-parity/artifacts ` +
+    `node=${NODE_VERSION} playwright=${PLAYWRIGHT_VERSION} ` +
+    `live_playwright=${livePlaywrightRoot || 'not-requested'} ` +
+    `browser_args=${JSON.stringify(BROWSER_ARGS)} browser_launches=0`);
+}
+
+if (process.argv[2] === '--selfcheck') {
+  runSelfcheck();
+  process.exit(0);
+}
+
+if (process.version !== NODE_VERSION) {
+  throw new Error(`node version ${process.version} != ${NODE_VERSION}`);
+}
+const { chromium, root: playwrightRoot, version: playwrightVersion } = resolvePlaywright();
 
 const SIZE = (process.argv[2] || '1600x900').trim();
-const PORT = parseInt(process.argv[3] || '8129', 10);
-const SETTLE_MS = parseInt(process.argv[4] || '60000', 10);
-const m = /^(\d+)x(\d+)$/.exec(SIZE);
-if (!m) { console.error(`bad size "${SIZE}" - want WxH`); process.exit(2); }
-const W = parseInt(m[1], 10), H = parseInt(m[2], 10);
+const { width: W, height: H } = parseSize(SIZE);
+const PORT = parseInteger(process.argv[3] || '8129', 'port', 1, 65535);
+const SETTLE_MS = parseInteger(
+  process.argv[4] || '60000', 'settle milliseconds', 0, 3600000);
 
-const BASE = `http://localhost:${PORT}`;
-const OUTDIR = '/Users/paws/blender-web/sandbox/m4-fullscreen-parity/artifacts';
+const BASE = `http://127.0.0.1:${PORT}`;
 const OUT = `${OUTDIR}/web_${W}x${H}.png`;
 const BOOT_MS = 240000; // 926 MB wasm + 133 MB data over localhost - be generous.
 
@@ -72,7 +229,10 @@ const url = `${BASE}/windowed.html?gate=${W}x${H}&pyexpr=${encodeURIComponent(PY
 function ts() { return new Date().toISOString().replace('T', ' ').replace('Z', ''); }
 function log(s) { console.log(`[${ts()}] ${s}`); }
 
-const browser = await chromium.launch({ headless: false });
+log(
+  `runtime Node ${process.version}, Playwright ${playwrightVersion} at ${playwrightRoot}, ` +
+  `browser args ${JSON.stringify(BROWSER_ARGS)}`);
+const browser = await chromium.launch({ headless: false, args: BROWSER_ARGS });
 // deviceScaleFactor:1 so a CDP clip in CSS px == device px == exact WxH.
 // Viewport strictly larger than the canvas so gate's place-items:center leaves the
 // full canvas on-screen (black margin trimmed by the clip).

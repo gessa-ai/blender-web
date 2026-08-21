@@ -231,13 +231,16 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   divergent struct in the whole SDNA (Scene, 17/51 members) — but reconstructed on every .blend
   open. ListBaseT hypothesis disproven. dna_verify gap explained: it certifies write-side tables,
   never the runtime accumulation — remains trustworthy for what it certifies.
-- [ ] **M2.5b [DRIVER-DECIDED FIX, dispatched]** Single-source-of-truth: reconstruct consumes
-  makesdna's verified padded offsets (check generated dna_type_offsets.h first — may already
-  carry them) instead of re-accumulating, `__EMSCRIPTEN__`-guarded, native byte-identical.
-  REJECTED: duplicating the alignment model in dna_genfile (model duplication caused this);
-  Scene special-case (forbidden); wasm64 flip (invalidates the built world). Patch **0014**.
-  Verify: full-table runtime-vs-compiled scan → 0 divergence incl. Scene; boot smoke → BPY_OK;
-  corpus load regression once bpy is up.
+- [x] **M2.5b [driver] RECONCILED by `a37bcab`:** patch 0014 keeps the target-side
+  reconstruction on makesdna's emitted wasm32-padded member offsets instead of duplicating the
+  layout model in `dna_genfile.cc`; every production change remains `__EMSCRIPTEN__`-guarded and
+  the Scene special-case remains absent. A fresh generated-table audit matches all 9,831 runtime
+  offsets to all 9,831 compiled `offsetof` assertions across 993 SDNA structs, including
+  `Scene.customdata_mask=5016` and `Scene.master_collection=5408`. Pinned native and Wasm startup
+  probes both expose Blender 5.2.0 LTS, three default objects, and the valid `Scene Collection`;
+  the locked `bf_dna`/`blender` closure is exact no-work. This closes stale DNA-reconstruction
+  accounting only; it does not change product or upstream source, a receipt, result flag,
+  deferral, or milestone promise.
 - [x] **M2.4 [build-deps]** Already done during M1: OCIO subtree forced by OIIO 3.x hard-dep
   (M1.6, commit 5e379cd), freetype+brotli forced by no-off-switch (M1.8, 25ad33a). Verified
   present in lib/wasm/lib (driver, 2026-08-03): libOpenColorIO/libfreetype/libbrotli*/

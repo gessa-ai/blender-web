@@ -145,15 +145,15 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   one TEST_F, BMVertCreate). One link fix: patch 0009 (unguarded WITH_PYTHON=OFF BPY_ call
   sites in interface_handlers.cc — latent upstream bug). m1.json 5/5, gate green. Warts
   recorded: OIIO physical_memory assert-print, OCIO fallback (both environmental, non-fatal).
-- [ ] **M1.12 [harness]** `.blend` corpus loads with state-dump parity vs the native oracle →
-  completes **`<promise>M1_CORE_BOOTS</promise>`**. **blocked-by M1.11.** ORACLE-SIDE DONE
-  (0121ea3): 9-file corpus (LFS corpus is ALL pointer stubs — 1965 files; only startup.blend
-  real; corpus self-authored via oracle), deterministic dumps (floats quantized out, 9/9
-  two-process byte-identical), compare tool self-tested; candidates staged sandbox/corpus-prep/
-  (tests/golden install = driver, at boundary, + reuse dep5 entries for fixtures). SEQUENCING
-  DECIDED: wasm-side runs the SAME bpy dump under wasm right after M2.3's WITH_PYTHON flip
-  (no duplicate C++ dumper); LFS corpus pull = post-gate coverage extension (versioning/GP3/
-  physics), boundary decision.
+- [x] **M1.12 [harness] RECONCILED by `0121ea3`, `ba34e75`, `00bc5f5`, and
+  `b63ae5f`:** the deterministic nine-file corpus runs the same float-free bpy state dumper on
+  the pinned native oracle and wasm32 product, covering startup plus authored mesh, modifier,
+  animation, node, curve/text, armature, collection/instancing, and mixed-stress files. The
+  accepted Wasm run and historical M1 harness were 9/9 byte-identical at exact tolerance zero;
+  immutable Linux receipt `m1-ornith-linux-20260820-r5` later rebound all nine native/Wasm
+  dumps to the canonical product and source freeze. A fresh Linux replay again produces 9/9
+  exact equality. This closes stale corpus accounting only; it does not reissue the historical
+  M1 promise or promote the currently RED strict receipt, result flag, or milestone gate.
 
 ### M1 remainder — port the core libs bmesh needs (dispatched 2026-08-03, post-disk-clear)
 

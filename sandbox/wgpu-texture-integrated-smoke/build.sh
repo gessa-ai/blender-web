@@ -75,6 +75,7 @@ source_digest()
     webgpu/wgpu_framebuffer.hh
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
+    shaders/gpu_shader_2D_update_mipmaps.bsl.hh
     vulkan/vk_data_conversion.hh
     vulkan/tests/vk_data_conversion_test.cc
     intern/gpu_texture.cc
@@ -103,6 +104,7 @@ require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture.cc"
+require_file "$ROOT/upstream/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh"
 require_file "$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
 require_file "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_renderbuffers.cc"
 require_file "$ROOT/upstream/source/blender/editors/sculpt_paint/paint_cursor.cc"
@@ -173,6 +175,20 @@ COMMON_HEADER="$WEBGPU_SOURCE/wgpu_common.hh"
 FRAMEBUFFER_SOURCE="$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 FRAMEBUFFER_HEADER="$WEBGPU_SOURCE/wgpu_framebuffer.hh"
 TEXTURE_HEADER="$WEBGPU_SOURCE/wgpu_texture.hh"
+MIPMAP_ORACLE="$ROOT/upstream/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh"
+if [ "$(grep -Fc 'inline bool mipmap_axis_plan(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline const char *mipmap_float_shader_source()' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'wgsl_source = mipmap_float_shader_source();' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'return 2u | (input_size & 1u);' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc '1.0 / f32(2u * output_size + 1u)' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'int2 kernel_size_from_input_size(int2 input_size)' "$MIPMAP_ORACLE")" -ne 1 ] ||
+   [ "$(grep -Fc 'float rcp = 1.0f / (2 * num_dst_pixels + 1);' "$MIPMAP_ORACLE")" -ne 1 ] ||
+   [ "$(grep -Fc 'float w2 = 1.0f - w0 - w1;' "$MIPMAP_ORACLE")" -ne 1 ] ||
+   grep -Fq 'odd edges clamp exactly as native blit fallbacks do' "$RGB9E5_TEXTURE_SOURCE"
+then
+  echo "ERROR: canonical odd-dimension mipmap kernel wiring differs" >&2
+  exit 1
+fi
 if [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!format_creation_supported(fi.gate, format_features)) {' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
@@ -520,13 +536,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=21 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=22 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 21 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 22 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

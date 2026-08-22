@@ -24,6 +24,11 @@
 #include "wgpu_data_conversion.hh"
 #include "wgpu_texture_format.hh"
 
+#ifndef __EMSCRIPTEN__
+#  include "src/tint/lang/wgsl/reader/reader.h"
+#  include "src/tint/utils/diagnostic/source.h"
+#endif
+
 namespace bw = blender::gpu::webgpu;
 namespace gpu = blender::gpu;
 
@@ -1827,6 +1832,120 @@ bool framebuffer_load_clear_scope_contract()
   return true;
 }
 
+bool mipmap_odd_kernel_contract()
+{
+  struct Case {
+    uint32_t input_size;
+    uint32_t output_coordinate;
+    uint32_t tap_count;
+    float weights[3];
+  };
+  const std::array<Case, 11> cases = {{
+      {1, 0, 1, {1.0f, 0.0f, 0.0f}},
+      {2, 0, 2, {0.5f, 0.5f, 0.0f}},
+      {3, 0, 3, {1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f}},
+      {4, 0, 2, {0.5f, 0.5f, 0.0f}},
+      {4, 1, 2, {0.5f, 0.5f, 0.0f}},
+      {5, 0, 3, {2.0f / 5.0f, 2.0f / 5.0f, 1.0f / 5.0f}},
+      {5, 1, 3, {1.0f / 5.0f, 2.0f / 5.0f, 2.0f / 5.0f}},
+      {7, 0, 3, {3.0f / 7.0f, 3.0f / 7.0f, 1.0f / 7.0f}},
+      {7, 1, 3, {2.0f / 7.0f, 3.0f / 7.0f, 2.0f / 7.0f}},
+      {7, 2, 3, {1.0f / 7.0f, 3.0f / 7.0f, 3.0f / 7.0f}},
+      {8, 3, 2, {0.5f, 0.5f, 0.0f}},
+  }};
+
+  const auto near = [](const float lhs, const float rhs) {
+    return std::abs(lhs - rhs) <= 1.0e-6f;
+  };
+  for (const Case &item : cases) {
+    bw::MipmapAxisPlan plan;
+    if (!require(bw::mipmap_axis_plan(item.input_size, item.output_coordinate, plan),
+                 "mipmap axis accepted") ||
+        !require(plan.tap_count == item.tap_count, "mipmap tap count"))
+    {
+      return false;
+    }
+    float weight_sum = 0.0f;
+    for (uint32_t index = 0; index < 3; index++) {
+      if (!require(near(plan.weights[index], item.weights[index]), "mipmap axis weight")) {
+        return false;
+      }
+      weight_sum += plan.weights[index];
+    }
+    if (!require(near(weight_sum, 1.0f), "mipmap weight sum")) {
+      return false;
+    }
+  }
+
+  const bw::MipmapAxisPlan sentinel = {9, {7.0f, 8.0f, 9.0f}};
+  for (const std::array<uint32_t, 2> invalid :
+       {std::array<uint32_t, 2>{0, 0}, {1, 1}, {5, 2}})
+  {
+    bw::MipmapAxisPlan plan = sentinel;
+    if (!require(!bw::mipmap_axis_plan(invalid[0], invalid[1], plan),
+                 "mipmap axis rejected") ||
+        !require(plan.tap_count == sentinel.tap_count &&
+                     near(plan.weights[0], sentinel.weights[0]) &&
+                     near(plan.weights[1], sentinel.weights[1]) &&
+                     near(plan.weights[2], sentinel.weights[2]),
+                 "mipmap rejection is atomic"))
+    {
+      return false;
+    }
+  }
+
+  const std::array<float, 5> ramp = {0.0f, 10.0f, 20.0f, 30.0f, 40.0f};
+  std::array<float, 2> reduced = {};
+  for (uint32_t output = 0; output < reduced.size(); output++) {
+    bw::MipmapAxisPlan plan;
+    if (!bw::mipmap_axis_plan(uint32_t(ramp.size()), output, plan)) {
+      return false;
+    }
+    for (uint32_t tap = 0; tap < plan.tap_count; tap++) {
+      reduced[output] += ramp[output * 2 + tap] * plan.weights[tap];
+    }
+  }
+  if (!require(near(reduced[0], 8.0f) && near(reduced[1], 32.0f),
+               "five-to-two native reduction"))
+  {
+    return false;
+  }
+
+  const char *shader = bw::mipmap_float_shader_source();
+  if (!require(std::strstr(shader, "return 2u | (input_size & 1u);") != nullptr,
+               "shader odd tap count") ||
+      !require(std::strstr(shader, "1.0 / f32(2u * output_size + 1u)") != nullptr,
+               "shader native denominator") ||
+      !require(std::strstr(shader, "1.0 - w0 - w1") != nullptr,
+               "shader trailing weight") ||
+      !require(std::strstr(shader, "weights_x[x] *") != nullptr,
+               "shader separable reduction") ||
+      !require(std::strstr(shader, "texture_2d<f32>") != nullptr,
+               "shader float texture binding"))
+  {
+    return false;
+  }
+
+#ifndef __EMSCRIPTEN__
+  tint::Source::File shader_file("mipmap_float_shader.wgsl", shader);
+  tint::Program program = tint::wgsl::reader::Parse(&shader_file);
+  if (!program.IsValid()) {
+    std::fprintf(stderr, "FAIL mipmap WGSL parse: %s\n", program.Diagnostics().Str().c_str());
+    return false;
+  }
+#endif
+
+  const uint64_t shader_hash = fnv_string(UINT64_C(14695981039346656037), shader);
+  if (!require(shader_hash == UINT64_C(0xcc8680d08265ba8a), "mipmap shader identity")) {
+    return false;
+  }
+  std::printf("CONTRACT mipmap-odd-kernel PASS cases=%zu rejected=3 ramp=8,32 "
+              "shader=%016" PRIx64 "\n",
+              cases.size(),
+              shader_hash);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -1841,12 +1960,13 @@ int main()
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
-      !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract())
+      !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract() ||
+      !mipmap_odd_kernel_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=21 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=22 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "srgb_clear=12 "
       "readback_layouts=15 "

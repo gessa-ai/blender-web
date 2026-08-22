@@ -875,3 +875,6 @@
 # 0190: preserve signed multi-viewport transforms while intersecting their
 # unsigned WebGPU scissors with the render area before direct or indirect pass work.
 0190-gpu-webgpu-multiviewport-scissor.patch
+# 0191: match Blender's native weighted 1/2/3-tap mipmap kernel for normalized
+# and float fallback textures so odd source axes retain their final texel.
+0191-gpu-webgpu-mipmap-odd-kernel.patch

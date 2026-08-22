@@ -312,3 +312,9 @@ Patch 0190's multi-viewport scissor intersection was then composed without chang
 `462e17b59733c30b665317a140332c0d067741fd286b39695c2e19d191bca4cd`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `7060a4003e8b0b91095a1c4eb65a546b3fa31129ba156de936fc3fe44ccec4d6`.
+
+Patch 0191's odd-dimension mipmap reduction kernel was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,611,271 bytes with SHA-256
+`f96a3b883108bf382479b5d392d2d8d42db493d766b091620d841af0214f5cde`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`f647b717e08b0aef66d1a32580ed7295d072aa0d8abe89750b39aae324ad7893`.

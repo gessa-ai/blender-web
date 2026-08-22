@@ -18443,10 +18443,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..59f3c82ec83f31da444e09a81e9af18c9cbda74f
+index 0000000000000000000000000000000000000000..665a6a7278069acc77dd7157312377a5b09fdbf1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,763 @@
+@@ -0,0 +1,859 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18682,6 +18682,102 @@ index 0000000000000000000000000000000000000000..59f3c82ec83f31da444e09a81e9af18c
 +{
 +  return (offset % kCopyAlignment) == 0 && offset <= buffer_size &&
 +         kComputeIndirectCommandSize <= buffer_size - offset;
++}
++
++/** One axis of Blender's native mipmap reduction kernel. */
++struct MipmapAxisPlan {
++  uint32_t tap_count = 0;
++  float weights[3] = {0.0f, 0.0f, 0.0f};
++};
++
++/** Derive the pinned native mipmap kernel for one source axis and destination coordinate.
++ * Even axes average two texels. Odd axes use three position-dependent weights so their final
++ * source texel contributes instead of being discarded. Failure leaves `result` unchanged. */
++inline bool mipmap_axis_plan(uint32_t input_size,
++                             uint32_t output_coordinate,
++                             MipmapAxisPlan &result)
++{
++  if (input_size == 0) {
++    return false;
++  }
++  const uint32_t output_size = input_size == 1 ? 1 : input_size / 2;
++  if (output_coordinate >= output_size) {
++    return false;
++  }
++
++  MipmapAxisPlan candidate;
++  if (input_size == 1) {
++    candidate.tap_count = 1;
++    candidate.weights[0] = 1.0f;
++  }
++  else if ((input_size & 1u) == 0) {
++    candidate.tap_count = 2;
++    candidate.weights[0] = 0.5f;
++    candidate.weights[1] = 0.5f;
++  }
++  else {
++    candidate.tap_count = 3;
++    const float reciprocal = 1.0f / float(2u * output_size + 1u);
++    candidate.weights[0] = reciprocal * float(output_size - output_coordinate);
++    candidate.weights[1] = reciprocal * float(output_size);
++    candidate.weights[2] = 1.0f - candidate.weights[0] - candidate.weights[1];
++  }
++  result = candidate;
++  return true;
++}
++
++/** Complete shipping WGSL for normalized/float render-fallback mipmap generation. The 1/2/3-tap
++ * separable kernel is equivalent to `gpu_shader_2D_update_mipmaps.bsl.hh` at the pinned source. */
++inline const char *mipmap_float_shader_source()
++{
++  return R"WGSL(struct VOut { @builtin(position) pos : vec4f, };
++@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {
++  var o : VOut;
++  let x = f32((vid << 1u) & 2u);
++  let y = f32(vid & 2u);
++  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);
++  return o;
++}
++@group(0) @binding(0) var src_tex : texture_2d<f32>;
++
++fn mip_axis_tap_count(input_size : u32) -> u32 {
++  if (input_size == 1u) {
++    return 1u;
++  }
++  return 2u | (input_size & 1u);
++}
++
++fn mip_axis_weights(input_size : u32, output_coordinate : u32) -> vec3f {
++  if (input_size == 1u) {
++    return vec3f(1.0, 0.0, 0.0);
++  }
++  if ((input_size & 1u) == 0u) {
++    return vec3f(0.5, 0.5, 0.0);
++  }
++  let output_size = input_size / 2u;
++  let reciprocal = 1.0 / f32(2u * output_size + 1u);
++  let w0 = reciprocal * f32(output_size - output_coordinate);
++  let w1 = reciprocal * f32(output_size);
++  return vec3f(w0, w1, 1.0 - w0 - w1);
++}
++
++@fragment fn fs_main(i : VOut) -> @location(0) vec4f {
++  let dims = textureDimensions(src_tex);
++  let output_coordinate = vec2u(i.pos.xy);
++  let source_origin = output_coordinate * 2u;
++  let tap_count = vec2u(mip_axis_tap_count(dims.x), mip_axis_tap_count(dims.y));
++  let weights_x = mip_axis_weights(dims.x, output_coordinate.x);
++  let weights_y = mip_axis_weights(dims.y, output_coordinate.y);
++  var result = vec4f(0.0);
++  for (var y = 0u; y < tap_count.y; y += 1u) {
++    for (var x = 0u; x < tap_count.x; x += 1u) {
++      result += textureLoad(src_tex, vec2i(source_origin + vec2u(x, y)), 0) * weights_x[x] *
++                weights_y[y];
++    }
++  }
++  return result;
++}
++)WGSL";
 +}
 +
 +/** Validate one texture allocation against the live device's dimension, array-layer, and
@@ -30703,10 +30799,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..54b0bbe102d0e28ca92489988dfa4ce987349f42
+index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed41f2ff7d7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2632 @@
+@@ -0,0 +1,2635 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -33226,36 +33322,39 @@ index 0000000000000000000000000000000000000000..54b0bbe102d0e28ca92489988dfa4ce9
 +    return;
 +  }
 +
-+  /* WebGPU has no GenerateMipmap command. Render a native box-filter chain, one
-+   * exact mip/layer view at a time. The source view exposes one mip, so textureLoad
-+   * always addresses level zero; odd edges clamp exactly as native blit fallbacks do. */
++  /* WebGPU has no GenerateMipmap command. Render one exact mip/layer view at a time. The source
++   * view exposes one mip, so textureLoad always addresses level zero. Normalized and float
++   * textures use Blender's native 1/2/3-tap separable kernel so odd edges are not discarded. */
 +  const bool integer = (format_flag_ & GPU_FORMAT_INTEGER) != 0 || snorm16_emulated_;
-+  const bool signed_integer = integer && (format_flag_ & GPU_FORMAT_SIGNED) != 0 &&
-+                              !snorm16_emulated_;
-+  const char *sample_type = signed_integer ? "i32" : (integer ? "u32" : "f32");
-+  const char *vec_type = signed_integer ? "vec4i" : (integer ? "vec4u" : "vec4f");
-+  const char *quarter = signed_integer ? "4" : (integer ? "4u" : "4.0");
-+  std::string wgsl_source =
-+      "struct VOut { @builtin(position) pos : vec4f, };\n"
-+      "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
-+      "  var o : VOut;\n"
-+      "  let x = f32((vid << 1u) & 2u);\n"
-+      "  let y = f32(vid & 2u);\n"
-+      "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
-+      "  return o;\n"
-+      "}\n@group(0) @binding(0) var src_tex : texture_2d<" +
-+      std::string(sample_type) + ">;\n@fragment fn fs_main(i : VOut) -> @location(0) " +
-+      vec_type +
-+      " {\n"
-+      "  let dims = textureDimensions(src_tex);\n"
-+      "  let p = vec2u(i.pos.xy) * 2u;\n"
-+      "  let hi = dims - vec2u(1u);\n"
-+      "  let a = textureLoad(src_tex, vec2i(min(p, hi)), 0);\n"
-+      "  let b = textureLoad(src_tex, vec2i(min(p + vec2u(1u, 0u), hi)), 0);\n"
-+      "  let c = textureLoad(src_tex, vec2i(min(p + vec2u(0u, 1u), hi)), 0);\n"
-+      "  let d = textureLoad(src_tex, vec2i(min(p + vec2u(1u, 1u), hi)), 0);\n"
-+      "  return (a + b + c + d) / " + quarter +
-+      ";\n}\n";
++  std::string wgsl_source;
++  if (!integer) {
++    wgsl_source = mipmap_float_shader_source();
++  }
++  else {
++    const bool signed_integer = (format_flag_ & GPU_FORMAT_SIGNED) != 0 && !snorm16_emulated_;
++    const char *sample_type = signed_integer ? "i32" : "u32";
++    const char *vec_type = signed_integer ? "vec4i" : "vec4u";
++    const char *quarter = signed_integer ? "4" : "4u";
++    wgsl_source =
++        "struct VOut { @builtin(position) pos : vec4f, };\n"
++        "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
++        "  var o : VOut;\n"
++        "  let x = f32((vid << 1u) & 2u);\n"
++        "  let y = f32(vid & 2u);\n"
++        "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++        "  return o;\n"
++        "}\n@group(0) @binding(0) var src_tex : texture_2d<" +
++        std::string(sample_type) + ">;\n@fragment fn fs_main(i : VOut) -> @location(0) " + vec_type +
++        " {\n"
++        "  let dims = textureDimensions(src_tex);\n"
++        "  let p = vec2u(i.pos.xy) * 2u;\n"
++        "  let hi = dims - vec2u(1u);\n"
++        "  let a = textureLoad(src_tex, vec2i(min(p, hi)), 0);\n"
++        "  let b = textureLoad(src_tex, vec2i(min(p + vec2u(1u, 0u), hi)), 0);\n"
++        "  let c = textureLoad(src_tex, vec2i(min(p + vec2u(0u, 1u), hi)), 0);\n"
++        "  let d = textureLoad(src_tex, vec2i(min(p + vec2u(1u, 1u), hi)), 0);\n"
++        "  return (a + b + c + d) / " + quarter + ";\n}\n";
++  }
 +
 +  wgpu::ShaderSourceWGSL source = {};
 +  source.code = wgsl_source.c_str();

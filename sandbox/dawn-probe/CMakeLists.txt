@@ -323,6 +323,7 @@ if(DEFINED BW_INTEGRATED_TEXTURE_SOURCE_DIR)
     "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_data_conversion.cc"
   )
   target_include_directories(wgpu_texture_integrated_test PRIVATE
+    "${DAWN_SRC_DIR}"
     "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}"
     "${BW_UPSTREAM_DIR}/source/blender/gpu"
     "${BW_UPSTREAM_DIR}/source/blender/blenlib"
@@ -330,7 +331,10 @@ if(DEFINED BW_INTEGRATED_TEXTURE_SOURCE_DIR)
     "${BW_UPSTREAM_DIR}/intern/guardedalloc"
     "${BW_NATIVE_FMT_INCLUDE_DIR}"
   )
-  target_link_libraries(wgpu_texture_integrated_test PRIVATE dawn::webgpu_dawn)
+  target_link_libraries(wgpu_texture_integrated_test PRIVATE
+    dawn::webgpu_dawn
+    tint_lang_wgsl_reader
+  )
 endif()
 
 # Optional device-free contract for the canonical in-tree fixed-function state

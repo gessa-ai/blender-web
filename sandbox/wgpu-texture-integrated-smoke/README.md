@@ -15,6 +15,8 @@ F32/F11/F10 policy, the 16-case feature-aware render-attachment matrix (includin
 Grease Pencil's `UNORM_16` render mask), 26 exact texture dimension/array/mip limit
 decisions, 14 checked uncompressed-upload layouts, 13 physical copy-region boundaries,
 six non-renderable clear layouts covering exact byte geometry and overflow rejection,
+eleven native-parity 1/2/3-tap mipmap axis plans (including the odd 5-to-2 edge kernel),
+plus a pinned-Tint parse of the exact float/normalized WGSL consumed by `WGPUTexture`,
 15 checked readback layouts covering padded staging, host-size, and device-limit boundaries,
 six strided-upload host-texel cases that
 separate packed 32-bit rows from scalar-component rows, seven BC1/2/3 physical-block and
@@ -29,7 +31,7 @@ harness/buildwrap.sh bash sandbox/wgpu-texture-integrated-smoke/build.sh
 ```
 
 The driver checksum-binds Dawn `36cf1fae`, emcc 6.0.5, Node 22.16.0, Blender's
-canonical clean-pin replay, and the nineteen exact table/conversion/texture/enum/assert/oracle
+canonical clean-pin replay, and the twenty exact table/conversion/texture/enum/assert/oracle
 inputs before evidence allocation. It also requires the exact RGB9E5 format classification;
 the exact RGB9E5, RG11B10, and Blender DDS compressed-upload call-site censuses; the sampled-view
 swizzle descriptor and native adapter-guarded feature request; three launch-tier Blender swizzle

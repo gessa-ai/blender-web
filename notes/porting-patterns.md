@@ -392,3 +392,14 @@ or device-limit-invalid rectangles before allocating a pass. Exercise negative a
 complete clipping, exact bounds, device limits, and `INT_MIN`/`INT_MAX` atomically in native and
 wasm32. Apply the same plan to direct and indirect multi-viewport paths. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 25 — clamped 2x2 mip kernels discard odd-axis edge texels
+
+Signature: a render fallback downsamples every mip with a fixed 2x2 box and clamps each load to
+the source bounds. For an odd source axis, the destination has floor(size/2) pixels, so no
+destination footprint reaches the final texel; clamping never repairs the omission. Match
+Blender's pinned native separable kernel instead: one tap for size one, two equal taps for even
+sizes, and three position-dependent weights over odd sizes. Keep the complete production WGSL in
+one callable helper, compile its axis plan for native and wasm32, and parse the exact shader with
+the pinned Tint reader. Exercise first/middle/last odd footprints and a ramp whose final texel
+changes the result. See `sandbox/wgpu-texture-integrated-smoke/`.

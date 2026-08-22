@@ -16,7 +16,10 @@ constant for arbitrary vertex and instance ranges. The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip
 topology at `Undefined`, matching pinned Dawn validation. This also includes the
-resolved normalized signed-I10 mapping to `Snorm8x4`.
+resolved normalized signed-I10 mapping to `Snorm8x4`. A cache-key contract builds
+two real vertex formats whose distinct two-alias lists concatenate to the same raw
+bytes and requires length-framed hashing to keep their shader-location layouts
+separate.
 
 Run only through the build wrapper:
 
@@ -31,9 +34,9 @@ byte-identical.
 
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline and
 draw-range validation), emcc 6.0.5, Node 22.16.0, matching
-native/Wasm fmt headers, Blender's canonical clean-pin replay, and the 15 direct
-pipeline/batch/enum/assert inputs before evidence allocation. It also requires
-both shipping direct and indirect batch paths to call the tested strip-format
+native/Wasm fmt headers, Blender's canonical clean-pin replay, and the 18 direct
+pipeline/batch/vertex-format/enum/assert inputs before evidence allocation. It also
+requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish
 with exact no-work checks.
 

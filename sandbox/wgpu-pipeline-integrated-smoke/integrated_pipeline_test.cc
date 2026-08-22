@@ -345,6 +345,65 @@ bool shader_lifetime_cache_contract()
   return true;
 }
 
+bool vertex_alias_cache_key_contract()
+{
+  /* Attribute aliases participate in shader-location matching. Distinct valid alias
+   * sequences must therefore remain distinct in the render-pipeline cache key, even
+   * when their bytes concatenate to the same undelimited string. */
+  blender::GPUVertFormat split_after_first{};
+  blender::GPU_vertformat_clear(&split_after_first);
+  blender::GPU_vertformat_attr_add(
+      &split_after_first, "a", blender::gpu::VertAttrType::SFLOAT_32);
+  blender::GPU_vertformat_alias_add(&split_after_first, "bc");
+  split_after_first.pack();
+
+  blender::GPUVertFormat split_after_second{};
+  blender::GPU_vertformat_clear(&split_after_second);
+  blender::GPU_vertformat_attr_add(
+      &split_after_second, "ab", blender::gpu::VertAttrType::SFLOAT_32);
+  blender::GPU_vertformat_alias_add(&split_after_second, "c");
+  split_after_second.pack();
+
+  auto *shader = reinterpret_cast<blender::gpu::WGPUShader *>(uintptr_t{0x2000});
+  bw::PipelineInfo first(shader, 1);
+  first.vertex_formats[0] = &split_after_first;
+  first.vertex_lens[0] = 1;
+  first.vertex_formats_len = 1;
+  bw::PipelineInfo second(shader, 1);
+  second.vertex_formats[0] = &split_after_second;
+  second.vertex_lens[0] = 1;
+  second.vertex_formats_len = 1;
+
+  const blender::GPUVertAttr &first_attr = split_after_first.attrs[0];
+  const blender::GPUVertAttr &second_attr = split_after_second.attrs[0];
+  const char *first_name = blender::GPU_vertformat_attr_name_get(
+      &split_after_first, &first_attr, 0);
+  const char *first_alias = blender::GPU_vertformat_attr_name_get(
+      &split_after_first, &first_attr, 1);
+  const char *second_name = blender::GPU_vertformat_attr_name_get(
+      &split_after_second, &second_attr, 0);
+  const char *second_alias = blender::GPU_vertformat_attr_name_get(
+      &split_after_second, &second_attr, 1);
+  if (!require(split_after_first.attrs[0].name_len == 2 &&
+                   split_after_second.attrs[0].name_len == 2,
+               "vertex alias-list census") ||
+      !require(first_attr.type.format == second_attr.type.format &&
+                   first_attr.offset == second_attr.offset &&
+                   split_after_first.stride == split_after_second.stride,
+               "vertex alias layouts otherwise match") ||
+      !require(std::strcmp(first_name, "a") == 0 && std::strcmp(first_alias, "bc") == 0 &&
+                   std::strcmp(second_name, "ab") == 0 && std::strcmp(second_alias, "c") == 0,
+               "vertex alias collision inputs") ||
+      !require(bw::pipeline_hash(first) != bw::pipeline_hash(second),
+               "vertex alias-list cache separation"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2");
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -352,12 +411,12 @@ int main()
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
-      !shader_lifetime_cache_contract())
+      !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
   {
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=7 primitives=11 strip_cases=33 formats=96 i10=12 "
-      "dummy=32 shader_lifetimes=4096");
+      "INTEGRATED_PIPELINE_PASS contracts=8 primitives=11 strip_cases=33 formats=96 i10=12 "
+      "dummy=32 shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

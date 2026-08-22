@@ -573,6 +573,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   links the changed shader/pipeline/batch/immediate paths. No instance, adapter, device, pipeline,
   draw, or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
   `notes/m3-t10-render-pipeline-identity-20260821.md`.
+- [x] **M3.T10.pipeline-alias-key [gpu-backend] COMPLETE (patch 0161):** the render-pipeline
+  key now length-frames every vertex-attribute alias, separating valid alias sequences whose
+  undelimited bytes concatenate identically but whose shader-location matches can differ. Two
+  real `GPUVertFormat` collision inputs run byte-identically in native/wasm32, and the real
+  windowed product compiles and links the corrected cache path. No instance, adapter, device,
+  pipeline, draw, or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under
+  s7. Evidence: `notes/m3-t10-pipeline-alias-key-20260821.md`.
 - [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
   indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
   format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former

@@ -82,6 +82,8 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_state_table.hh
     source/blender/gpu/intern/gpu_shader_interface.hh
     source/blender/gpu/intern/gpu_state_private.hh
+    source/blender/gpu/intern/gpu_vertex_format.cc
+    source/blender/gpu/intern/gpu_vertex_format_private.hh
     source/blender/gpu/GPU_batch.hh
     source/blender/gpu/GPU_common_types.hh
     source/blender/gpu/GPU_primitive.hh
@@ -122,6 +124,8 @@ done
 for source_path in \
   source/blender/gpu/intern/gpu_shader_interface.hh \
   source/blender/gpu/intern/gpu_state_private.hh \
+  source/blender/gpu/intern/gpu_vertex_format.cc \
+  source/blender/gpu/intern/gpu_vertex_format_private.hh \
   source/blender/gpu/GPU_batch.hh \
   source/blender/gpu/GPU_common_types.hh \
   source/blender/gpu/GPU_primitive.hh \
@@ -166,6 +170,13 @@ require_fixed_count 1 \
   'hash_shader_identity(h, info.shader, info.shader_cache_identity);' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
 require_fixed_count 1 'static void hash_shader_identity(' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'hash_bytes(h, &a.name_len, sizeof(a.name_len));' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'const uint32_t name_length = nm != nullptr ? uint32_t(std::strlen(nm)) : UINT32_MAX;' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'hash_bytes(h, &name_length, sizeof(name_length));' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
 require_fixed_count 1 \
   'BLI_assert(info.shader_cache_identity == info.shader->pipeline_cache_identity());' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
@@ -264,7 +275,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 8 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 9 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
@@ -272,8 +283,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
      ! grep -qx 'CONTRACT dummy_vertex PASS cases=32 stride=0 step=vertex' "$stdout_file" ||
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
+     ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=7 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32 shader_lifetimes=4096' \
+       'INTEGRATED_PIPELINE_PASS contracts=8 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

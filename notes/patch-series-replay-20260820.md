@@ -130,3 +130,9 @@ Patch 0160's render-pipeline shader-lifetime identity was then composed without 
 `ce2a91ec82cf62f5115f2bf20267b4d655abf16a0726335114630195bd838048`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `135586370ee0cff7523b9a6881ce15b4aabea5e4ecaaefddfa767827752713c4`.
+
+Patch 0161's vertex-alias cache-key framing was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,544,330 bytes with SHA-256
+`2b32dfed7921b565c3f17c2e5a32429d724790e4f743681d742134b5d2c9418f`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`79e9e8df23b24e625ae2652ae7449c487726378c4683b347d6a939702fdfeb51`.

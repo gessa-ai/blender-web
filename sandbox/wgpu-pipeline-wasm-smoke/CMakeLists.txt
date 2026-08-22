@@ -48,6 +48,7 @@ endif()
 add_executable(wgpu_pipeline_integrated_smoke
   "${_bw_integrated_pipeline_test}"
   "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern/BLI_assert.cc"
+  "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_vertex_format.cc"
 )
 target_compile_definitions(wgpu_pipeline_integrated_smoke PRIVATE
   BW_WGPU_PIPELINE_SOURCE="${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/wgpu_pipeline.cc"

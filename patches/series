@@ -758,3 +758,7 @@
 # cache key. Guardedalloc may reuse a raw shader address while old pipelines remain retained;
 # the native/Wasm contract proves 4,096 generations at one address remain distinct.
 0160-gpu-webgpu-render-pipeline-shader-identity.patch
+# 0161: length-frame every vertex-attribute alias in the render-pipeline cache key.
+# Distinct valid alias sequences can concatenate to identical raw bytes while matching
+# different shader locations; the native/Wasm contract proves those keys stay separate.
+0161-gpu-webgpu-pipeline-vertex-alias-key.patch

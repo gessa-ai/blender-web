@@ -22067,10 +22067,10 @@ index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7d470dd485a4b679f730b0f22599b51ee6a15310
+index 0000000000000000000000000000000000000000..41f1f3bf659a6c0a01973812f495c83642295ed6
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,551 @@
+@@ -0,0 +1,554 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -22260,10 +22260,13 @@ index 0000000000000000000000000000000000000000..7d470dd485a4b679f730b0f22599b51e
 +                        uint8_t(a.type.fetch_mode())};
 +      hash_bytes(h, sig, sizeof(sig));
 +      hash_bytes(h, &off, sizeof(off));
++      hash_bytes(h, &a.name_len, sizeof(a.name_len));
 +      for (uint nidx = 0; nidx < a.name_len; nidx++) {
 +        const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
++        const uint32_t name_length = nm != nullptr ? uint32_t(std::strlen(nm)) : UINT32_MAX;
++        hash_bytes(h, &name_length, sizeof(name_length));
 +        if (nm != nullptr) {
-+          hash_bytes(h, nm, std::strlen(nm));
++          hash_bytes(h, nm, name_length);
 +        }
 +      }
 +    }

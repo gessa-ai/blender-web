@@ -770,3 +770,7 @@
 # The exact shipping reader's native/Wasm contract substitutes one valid entry at
 # another key's path and requires a miss with unchanged caller outputs.
 0163-gpu-webgpu-shader-cache-key-binding.patch
+# 0164: preserve Blender's mip-gated 2x/4x/8x/16x anisotropic sampler request.
+# Dawn requires all three filters to be linear when maxAnisotropy exceeds one;
+# the device-free native/Wasm descriptor contract exhausts the four sample counts.
+0164-gpu-webgpu-sampler-anisotropy.patch

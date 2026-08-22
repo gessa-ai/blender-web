@@ -13,6 +13,49 @@
 
 #include "wgpu_state_manager.hh"
 
+#ifndef BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE
+#  error "BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE must name the extracted shipping policy"
+#endif
+
+namespace wgpu {
+
+enum class AddressMode : uint8_t {
+  ClampToEdge,
+  Repeat,
+  MirrorRepeat,
+};
+enum class FilterMode : uint8_t {
+  Nearest,
+  Linear,
+};
+enum class MipmapFilterMode : uint8_t {
+  Nearest,
+  Linear,
+};
+enum class CompareFunction : uint8_t {
+  Undefined,
+  LessEqual,
+};
+
+struct SamplerDescriptor {
+  AddressMode addressModeU = AddressMode::ClampToEdge;
+  AddressMode addressModeV = AddressMode::ClampToEdge;
+  AddressMode addressModeW = AddressMode::ClampToEdge;
+  FilterMode magFilter = FilterMode::Nearest;
+  FilterMode minFilter = FilterMode::Nearest;
+  MipmapFilterMode mipmapFilter = MipmapFilterMode::Nearest;
+  float lodMinClamp = 0.0f;
+  float lodMaxClamp = 32.0f;
+  CompareFunction compare = CompareFunction::Undefined;
+  uint16_t maxAnisotropy = 1;
+};
+
+}  // namespace wgpu
+
+namespace blender::gpu {
+#include BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE
+}  // namespace blender::gpu
+
 namespace {
 
 using blender::GPUSamplerState;
@@ -188,6 +231,110 @@ bool image_bind_space_contract()
   return true;
 }
 
+bool sampler_descriptor_contract()
+{
+  struct AnisotropyCase {
+    blender::GPUSamplerFiltering flag;
+    uint16_t samples;
+  };
+  static constexpr std::array<AnisotropyCase, 4> anisotropy_cases = {{
+      {blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_2, 2},
+      {blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_4, 4},
+      {blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_8, 8},
+      {blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_16, 16},
+  }};
+
+  for (const AnisotropyCase &test : anisotropy_cases) {
+    GPUSamplerState state = GPUSamplerState::default_sampler();
+    state.filtering = blender::GPUSamplerFiltering(
+        int(blender::GPU_SAMPLER_FILTERING_LINEAR) |
+        int(blender::GPU_SAMPLER_FILTERING_MIPMAP) | int(test.flag));
+    const wgpu::SamplerDescriptor descriptor =
+        blender::gpu::sampler_descriptor_for_test(state);
+    if (!require(descriptor.maxAnisotropy == test.samples, "anisotropy sample count") ||
+        !require(descriptor.magFilter == wgpu::FilterMode::Linear,
+                 "anisotropy magnitude filter") ||
+        !require(descriptor.minFilter == wgpu::FilterMode::Linear,
+                 "anisotropy minimum filter") ||
+        !require(descriptor.mipmapFilter == wgpu::MipmapFilterMode::Linear,
+                 "anisotropy mipmap filter") ||
+        !require(descriptor.lodMaxClamp == 1000.0f, "anisotropy mipmap LOD range"))
+    {
+      return false;
+    }
+  }
+
+  GPUSamplerState nearest_anisotropic = GPUSamplerState::default_sampler();
+  nearest_anisotropic.filtering = blender::GPUSamplerFiltering(
+      int(blender::GPU_SAMPLER_FILTERING_MIPMAP) |
+      int(blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_4));
+  const wgpu::SamplerDescriptor nearest_descriptor =
+      blender::gpu::sampler_descriptor_for_test(nearest_anisotropic);
+  if (!require(nearest_descriptor.maxAnisotropy == 4,
+               "anisotropy survives a nearest-filter request") ||
+      !require(nearest_descriptor.magFilter == wgpu::FilterMode::Linear &&
+                   nearest_descriptor.minFilter == wgpu::FilterMode::Linear &&
+                   nearest_descriptor.mipmapFilter == wgpu::MipmapFilterMode::Linear,
+               "Dawn-valid anisotropy forces linear filters"))
+  {
+    return false;
+  }
+
+  GPUSamplerState gated = GPUSamplerState::default_sampler();
+  gated.filtering = blender::GPU_SAMPLER_FILTERING_ANISOTROPIC_16;
+  if (!require(blender::gpu::sampler_descriptor_for_test(gated).maxAnisotropy == 1,
+               "anisotropy requires mipmapping"))
+  {
+    return false;
+  }
+
+  const wgpu::SamplerDescriptor icon =
+      blender::gpu::sampler_descriptor_for_test(GPUSamplerState::icon_sampler());
+  const wgpu::SamplerDescriptor compare =
+      blender::gpu::sampler_descriptor_for_test(GPUSamplerState::compare_sampler());
+  if (!require(icon.magFilter == wgpu::FilterMode::Linear &&
+                   icon.minFilter == wgpu::FilterMode::Linear && icon.lodMaxClamp == 1.0f &&
+                   icon.maxAnisotropy == 1,
+               "icon sampler policy") ||
+      !require(compare.magFilter == wgpu::FilterMode::Linear &&
+                   compare.minFilter == wgpu::FilterMode::Linear &&
+                   compare.compare == wgpu::CompareFunction::LessEqual &&
+                   compare.maxAnisotropy == 1,
+               "comparison sampler policy"))
+  {
+    return false;
+  }
+
+  struct AddressCase {
+    blender::GPUSamplerExtendMode mode;
+    wgpu::AddressMode expected;
+  };
+  static constexpr std::array<AddressCase, 4> address_cases = {{
+      {blender::GPU_SAMPLER_EXTEND_MODE_EXTEND, wgpu::AddressMode::ClampToEdge},
+      {blender::GPU_SAMPLER_EXTEND_MODE_REPEAT, wgpu::AddressMode::Repeat},
+      {blender::GPU_SAMPLER_EXTEND_MODE_MIRRORED_REPEAT, wgpu::AddressMode::MirrorRepeat},
+      {blender::GPU_SAMPLER_EXTEND_MODE_CLAMP_TO_BORDER, wgpu::AddressMode::ClampToEdge},
+  }};
+  for (const AddressCase &test : address_cases) {
+    GPUSamplerState state = GPUSamplerState::default_sampler();
+    state.extend_x = test.mode;
+    state.extend_yz = test.mode;
+    const wgpu::SamplerDescriptor descriptor =
+        blender::gpu::sampler_descriptor_for_test(state);
+    if (!require(descriptor.addressModeU == test.expected &&
+                     descriptor.addressModeV == test.expected &&
+                     descriptor.addressModeW == test.expected,
+                 "sampler address mode"))
+    {
+      return false;
+    }
+  }
+
+  std::printf(
+      "CONTRACT sampler-descriptors PASS anisotropy=2,4,8,16 gated=1 custom=2 address=4\n");
+  return true;
+}
+
 bool no_op_and_fence_contract()
 {
   WGPUStateManager manager;
@@ -242,10 +389,11 @@ bool no_op_and_fence_contract()
 int main()
 {
   if (!default_state_contract() || !texture_bind_space_contract() ||
-      !image_bind_space_contract() || !no_op_and_fence_contract())
+      !image_bind_space_contract() || !sampler_descriptor_contract() ||
+      !no_op_and_fence_contract())
   {
     return 1;
   }
-  std::printf("INTEGRATED_BINDSPACE_PASS contracts=4 texture_binds=5 image_binds=5\n");
+  std::printf("INTEGRATED_BINDSPACE_PASS contracts=5 texture_binds=5 image_binds=5\n");
   return 0;
 }

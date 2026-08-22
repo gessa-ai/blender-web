@@ -14,6 +14,7 @@ trap 'rm -rf "$BINDSPACE_SELFCHECK_DIR"' EXIT
 WRONG_DAWN_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-dawn-out"
 WRONG_NODE_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-node-out"
 WRONG_FMT_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-fmt-out"
+WRONG_SAMPLER_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-sampler.inc"
 WRONG_NODE="$BINDSPACE_SELFCHECK_DIR/wrong-node"
 WRONG_FMT="$BINDSPACE_SELFCHECK_DIR/wrong-fmt/include"
 case "$(uname -s):$(uname -m)" in
@@ -29,6 +30,32 @@ printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' v99.0.0" >"$WRONG_NODE"
 chmod +x "$WRONG_NODE"
 cp "$SOURCE_FMT" "$WRONG_FMT/fmt/ranges.h"
 printf '\n// identity drift\n' >>"$WRONG_FMT/fmt/ranges.h"
+
+sed \
+  's/GPU_SAMPLER_FILTERING_ANISOTROPIC_ENABLE/GPU_SAMPLER_FILTERING_ANISOTROPIC_MASK/' \
+  "$ROOT/upstream/source/blender/gpu/webgpu/wgpu_context.cc" \
+  >"$BINDSPACE_SELFCHECK_DIR/wrong-sampler.cc"
+if "$ROOT/.host-tools/bin/python3.13" "$HERE/extract_sampler_descriptor.py" \
+  --source "$BINDSPACE_SELFCHECK_DIR/wrong-sampler.cc" \
+  --output "$WRONG_SAMPLER_OUT" \
+  >"$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stdout" \
+  2>"$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stderr"
+then
+  echo "ERROR: malformed sampler policy was accepted" >&2
+  exit 1
+fi
+if [ -e "$WRONG_SAMPLER_OUT" ]; then
+  echo "ERROR: malformed sampler policy allocated generated output" >&2
+  exit 1
+fi
+if [ -s "$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stdout" ] ||
+   ! grep -Fqx \
+     "SAMPLER_DESCRIPTOR_EXTRACT_FAIL canonical sampler policy lost required structure: ['state.filtering & GPU_SAMPLER_FILTERING_ANISOTROPIC_ENABLE']" \
+     "$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stderr"
+then
+  echo "ERROR: malformed sampler rejection diagnostic differs" >&2
+  exit 1
+fi
 
 if OUT="$WRONG_DAWN_OUT" DAWN_SRC="$ROOT" bash "$HERE/build.sh" \
   >"$BINDSPACE_SELFCHECK_DIR/wrong-dawn.stdout" \
@@ -88,4 +115,4 @@ then
   exit 1
 fi
 
-echo "BINDSPACE_INTEGRATED_SELFCHECK_PASS wrong_dawn=zero-allocation wrong_node=zero-allocation wrong_fmt=zero-allocation"
+echo "BINDSPACE_INTEGRATED_SELFCHECK_PASS wrong_sampler=zero-allocation wrong_dawn=zero-allocation wrong_node=zero-allocation wrong_fmt=zero-allocation"

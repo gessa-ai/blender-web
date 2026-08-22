@@ -148,3 +148,9 @@ Patch 0163's WGSL-cache key binding was then composed without changing the 257-p
 `e30a29148fcef0487583c97a49322e44fe1e4888845456cd887f97939be9e428`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `17c999a3e9f8e1e5e51446c5dc222781bebf79f98f90da21018086867b2caceb`.
+
+Patch 0164's anisotropic sampler mapping was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,545,787 bytes with SHA-256
+`68c9422ec2204a17348f6a0ab42f0fac3b5eeb012cba9c8eb5d5481b7f937e9d`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`434c9c0e2c0100b54bf19c12b424bf8c96720da958c1bfb9b3e666b10197c81b`.

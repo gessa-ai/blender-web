@@ -15,6 +15,8 @@ DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/t10-bindspace-integrated/wasm-build}"
 OUT="${OUT:-$ROOT/build-deps/t10-bindspace-integrated/evidence}"
+GENERATED_DIR="${GENERATED_DIR:-$ROOT/build-deps/t10-bindspace-integrated/generated}"
+SAMPLER_DESCRIPTOR_SOURCE="$GENERATED_DIR/wgpu_sampler_descriptor.inc"
 EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
@@ -61,6 +63,7 @@ source_digest()
   local files=(
     source/blender/gpu/webgpu/wgpu_state_manager.cc
     source/blender/gpu/webgpu/wgpu_state_manager.hh
+    source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/intern/gpu_state.cc
     source/blender/gpu/intern/gpu_state_private.hh
     source/blender/gpu/intern/gpu_texture_private.hh
@@ -79,13 +82,14 @@ require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_bindspace_test.cc"
+require_file "$HERE/extract_sampler_descriptor.py"
 require_file "$ROOT/sandbox/wgpu-bindspace-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
 require_file "$NATIVE_FMT_INCLUDE/fmt/ranges.h"
 require_file "$WASM_INCLUDE/fmt/ranges.h"
-for source_name in wgpu_state_manager.cc wgpu_state_manager.hh; do
+for source_name in wgpu_state_manager.cc wgpu_state_manager.hh wgpu_context.cc; do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
 for source_path in \
@@ -137,6 +141,11 @@ case "$SOURCE_PROOF" in
     ;;
 esac
 
+"$PYBIN" "$HERE/extract_sampler_descriptor.py" \
+  --source "$WEBGPU_SOURCE/wgpu_context.cc" \
+  --output "$SAMPLER_DESCRIPTOR_SOURCE"
+require_file "$SAMPLER_DESCRIPTOR_SOURCE"
+
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
   echo "ERROR: expected Node v22.16.0, got $NODE_VERSION" >&2
@@ -168,6 +177,7 @@ echo "== [1/3] canonical native WebGPU bind spaces =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_BINDSPACE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="$SAMPLER_DESCRIPTOR_SOURCE" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_bindspace_integrated_test
@@ -179,6 +189,7 @@ echo "== [2/3] canonical Wasm WebGPU bind spaces =="
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_BINDSPACE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="$SAMPLER_DESCRIPTOR_SOURCE" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_bindspace_integrated_smoke
 
@@ -198,13 +209,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BINDSPACE_PASS contracts=4 texture_binds=5 image_binds=5' \
+    'INTEGRATED_BINDSPACE_PASS contracts=5 texture_binds=5 image_binds=5' \
     "$stdout_file"
   then
     echo "ERROR: integrated bind-space PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 4 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ]; then
     echo "ERROR: integrated bind-space evidence census differs: $stdout_file" >&2
     exit 1
   fi
@@ -221,6 +232,7 @@ fi
 OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(source_digest)"
-printf 'PASS integrated-bindspace native/wasm bytes=%s sha256=%s source_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
-  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$FMT_SHA256" \
+SAMPLER_SHA256="$(sha256_file "$SAMPLER_DESCRIPTOR_SOURCE")"
+printf 'PASS integrated-bindspace native/wasm bytes=%s sha256=%s source_sha256=%s sampler_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
+  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$SAMPLER_SHA256" "$FMT_SHA256" \
   "$DAWN_PIN" "$EMCC_VERSION" "$NODE_VERSION"

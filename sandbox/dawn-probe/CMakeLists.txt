@@ -608,9 +608,9 @@ if(DEFINED BW_INTEGRATED_QUERY_SOURCE_DIR)
 endif()
 
 # Optional device-free contract for the canonical in-tree state-manager bind
-# spaces and queue-ordered fence lifecycle. The real base StateManager
-# constructor is retained from gpu_state.cc while its unrelated frontend/device
-# sections are collected at link.
+# spaces, sampler-descriptor policy, and queue-ordered fence lifecycle. The real
+# base StateManager constructor is retained from gpu_state.cc while its unrelated
+# frontend/device sections are collected at link.
 if(DEFINED BW_INTEGRATED_BINDSPACE_SOURCE_DIR)
   if(NOT DEFINED BW_UPSTREAM_DIR)
     message(FATAL_ERROR
@@ -621,6 +621,12 @@ if(DEFINED BW_INTEGRATED_BINDSPACE_SOURCE_DIR)
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
     message(FATAL_ERROR
       "BW_NATIVE_FMT_INCLUDE_DIR must name the pinned native fmt include root")
+  endif()
+  if(NOT DEFINED BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE must name the extracted canonical policy")
   endif()
   set(_bw_integrated_bindspace_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-bindspace-integrated-smoke/integrated_bindspace_test.cc"
@@ -654,7 +660,10 @@ if(DEFINED BW_INTEGRATED_BINDSPACE_SOURCE_DIR)
     "${BW_INTEGRATED_BINDSPACE_SOURCE_DIR}/wgpu_state_manager.cc"
     "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_state.cc"
   )
-  target_compile_definitions(wgpu_bindspace_integrated_test PRIVATE GPU_STANDALONE)
+  target_compile_definitions(wgpu_bindspace_integrated_test PRIVATE
+    GPU_STANDALONE
+    BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="${BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE}"
+  )
   target_include_directories(wgpu_bindspace_integrated_test PRIVATE
     "${BW_INTEGRATED_BINDSPACE_SOURCE_DIR}"
     "${BW_UPSTREAM_DIR}/source/blender/blenkernel"

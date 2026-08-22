@@ -1,0 +1,20 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -293,5 +293,16 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
+     if (state.filtering & GPU_SAMPLER_FILTERING_MIPMAP) {
+       d.mipmapFilter = wgpu::MipmapFilterMode::Linear;
+       d.lodMaxClamp = 1000.0f;
++      if (state.filtering & GPU_SAMPLER_FILTERING_ANISOTROPIC_ENABLE) {
++        /* Blender's anisotropy contract is gated by mipmapping and carries one of the exact
++         * 2x/4x/8x/16x sample counts. WebGPU exposes that same range directly, but Dawn
++         * requires minification, magnification, and mip filtering all be linear whenever
++         * maxAnisotropy is greater than one. Preserve the requested anisotropy and make the
++         * descriptor valid even when the independent LINEAR bit was not set. */
++        d.magFilter = wgpu::FilterMode::Linear;
++        d.minFilter = wgpu::FilterMode::Linear;
++        d.mipmapFilter = wgpu::MipmapFilterMode::Linear;
++        d.maxAnisotropy = uint16_t(GPU_anisotropic_samples_get(state.filtering));
++      }
+     }
+   }

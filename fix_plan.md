@@ -1526,6 +1526,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   contract, exact four-shader Tint parse, canonical replay, product rebuild/no-work check, and
   OFF preflight are green. Required M3 remains red for the absent strict candidate; s7 still
   blocks live WebGPU pixel proof. See `notes/m3-t10-framebuffer-scissored-clear-20260822.md`.
+- [x] **M3.T6-BUFFER-READ-OFFSET-ALIGNMENT [gpu-backend] (d186fef):** patch 0195 routes
+  `Buffer::read()` through the existing checked `CopyBufferToBuffer` span validator after size
+  alignment, rejecting a contained but misaligned source offset before native encoding or browser
+  ticket work. The fail-first source guard, nine-case copy-range matrix inside 13 byte-identical
+  native/wasm32 contracts, canonical replay/reverse check, real windowed rebuild/no-work check,
+  OFF preflight, and REUSE are green. Required M3 remains red for the absent strict candidate and
+  s7 still blocks live hardware readback proof. See
+  `notes/m3-t6-buffer-read-offset-alignment-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

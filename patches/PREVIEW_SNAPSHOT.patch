@@ -18367,10 +18367,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..af179a2b34e7336e4593ce1a6f451ade601175b1
+index 0000000000000000000000000000000000000000..7ec6c884d08d535b27290d45a7f7b360fe5ea3cc
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,99 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18452,6 +18452,21 @@ index 0000000000000000000000000000000000000000..af179a2b34e7336e4593ce1a6f451ade
 +inline bool range_fits(size_t offset, size_t size, size_t capacity)
 +{
 +  return offset <= capacity && size <= capacity - offset;
++}
++
++/** Validate a CopyBufferToBuffer span against WebGPU's alignment and allocation
++ * requirements. A zero-sized copy is an intentional no-op and is rejected here
++ * before allocating an encoder. */
++inline bool buffer_copy_range_valid(size_t source_offset,
++                                    size_t destination_offset,
++                                    size_t size,
++                                    size_t source_capacity,
++                                    size_t destination_capacity)
++{
++  return size != 0 && (source_offset % kCopyAlignment) == 0 &&
++         (destination_offset % kCopyAlignment) == 0 && (size % kCopyAlignment) == 0 &&
++         range_fits(source_offset, size, source_capacity) &&
++         range_fits(destination_offset, size, destination_capacity);
 +}
 +
 +}  // namespace blender::gpu::webgpu
@@ -29337,10 +29352,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1dc71bf3a937fa5cd36ffefa6c30e05714c67e58
+index 0000000000000000000000000000000000000000..e82818ec174686fbadb1c66e64d28d806f63036f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,287 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -29530,6 +29545,18 @@ index 0000000000000000000000000000000000000000..1dc71bf3a937fa5cd36ffefa6c30e057
 +  src_vbo->upload();
 +  const webgpu::Buffer &src_buffer = src_vbo->buffer();
 +  if (!src_buffer.valid()) {
++    return;
++  }
++
++  /* CopyBufferToBuffer requires all three byte values to be four-aligned. Validate both
++   * half-open ranges before creating an encoder so malformed frontend input cannot submit a
++   * Dawn validation error or wrap an end offset. */
++  if (!webgpu::buffer_copy_range_valid(src_offset,
++                                       dst_offset,
++                                       copy_size,
++                                       src_buffer.size(),
++                                       buffer_.size()))
++  {
 +    return;
 +  }
 +

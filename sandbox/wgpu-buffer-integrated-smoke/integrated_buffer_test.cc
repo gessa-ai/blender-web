@@ -130,6 +130,47 @@ bool checked_arithmetic_contract()
   return true;
 }
 
+bool copy_range_contract()
+{
+  struct CopyCase {
+    size_t source_offset;
+    size_t destination_offset;
+    size_t size;
+    size_t source_capacity;
+    size_t destination_capacity;
+    bool expected;
+  };
+  constexpr size_t size_max = std::numeric_limits<size_t>::max();
+  constexpr std::array<CopyCase, 9> cases = {{{0, 0, 4, 4, 4, true},
+                                              {4, 8, 8, 12, 16, true},
+                                              {0, 0, 0, 4, 4, false},
+                                              {2, 0, 4, 8, 8, false},
+                                              {0, 2, 4, 8, 8, false},
+                                              {0, 0, 2, 8, 8, false},
+                                              {8, 0, 8, 12, 16, false},
+                                              {0, 12, 8, 16, 16, false},
+                                              {size_max - 3, 0, 8, size_max, 16, false}}};
+
+  size_t accepted = 0;
+  for (const CopyCase &test : cases) {
+    const bool actual = bw::buffer_copy_range_valid(test.source_offset,
+                                                    test.destination_offset,
+                                                    test.size,
+                                                    test.source_capacity,
+                                                    test.destination_capacity);
+    if (!require(actual == test.expected, "buffer copy range decision")) {
+      return false;
+    }
+    accepted += actual;
+  }
+
+  std::printf("CONTRACT copy-range PASS cases=%zu accepted=%zu rejected=%zu\n",
+              cases.size(),
+              accepted,
+              cases.size() - accepted);
+  return accepted == 2;
+}
+
 bool usage_contract()
 {
   constexpr std::array<bw::BufferKind, 4> kinds = {bw::BufferKind::Vertex,
@@ -461,7 +502,8 @@ bool failed_ticket_capacity_contract()
 
 int main()
 {
-  if (!common_contract() || !checked_arithmetic_contract() || !usage_contract() ||
+  if (!common_contract() || !checked_arithmetic_contract() || !copy_range_contract() ||
+      !usage_contract() ||
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
@@ -469,6 +511,6 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=10 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
+      "INTEGRATED_BUFFER_PASS contracts=11 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
   return 0;
 }

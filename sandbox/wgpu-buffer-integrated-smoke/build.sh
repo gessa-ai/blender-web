@@ -70,6 +70,8 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_pixel_buffer.hh
     source/blender/gpu/webgpu/wgpu_readback.cc
     source/blender/gpu/webgpu/wgpu_readback.hh
+    source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+    source/blender/gpu/webgpu/wgpu_storage_buffer.hh
     source/blender/gpu/webgpu/wgpu_index_buffer.cc
     source/blender/gpu/webgpu/wgpu_index_buffer.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
@@ -116,6 +118,8 @@ for source_name in \
   wgpu_pixel_buffer.hh \
   wgpu_readback.cc \
   wgpu_readback.hh \
+  wgpu_storage_buffer.cc \
+  wgpu_storage_buffer.hh \
   wgpu_index_buffer.cc \
   wgpu_index_buffer.hh \
   wgpu_batch.cc
@@ -199,6 +203,12 @@ require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
 require_fixed_count 1 \
   'if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  'inline bool buffer_copy_range_valid(size_t source_offset,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'if (!webgpu::buffer_copy_range_valid(src_offset,' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -318,7 +328,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=10 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
+    'INTEGRATED_BUFFER_PASS contracts=11 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -330,7 +340,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 10 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 11 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

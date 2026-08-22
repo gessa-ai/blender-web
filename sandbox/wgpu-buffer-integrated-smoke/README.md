@@ -11,7 +11,8 @@ WebAssembly. It also extracts `WGPUIndexBuffer::strip_restart_indices` byte-for-
 and executes it through Blender's real `IndexBuf::init()` without retaining the
 live-device index-buffer vtable. The same translation unit includes the canonical
 `index_binding_plan()` header helper used by `WGPUBatch`. It checks the exact buffer-usage
-matrix, ordinary and checked alignment/range helpers, invalid-buffer behavior, move lifetime,
+matrix, ordinary and checked alignment/range helpers, storage-copy source/destination bounds,
+invalid-buffer behavior, move lifetime,
 the CPU-backed pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real
 readback registry's invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
 wide u32 indices, rebased u16 squeezing, build-on-device metadata, and both u16 and
@@ -27,7 +28,8 @@ retire half the records, refill the released capacity, and prove full reuse befo
 requiring byte-identical native/Node evidence.
 The arithmetic cases reach `SIZE_MAX`, reject alignment overflow without mutating the
 output sentinel, and prove that a wrapped `offset + size` cannot pass allocation bounds.
-Exact source checks bind those helpers to buffer creation, updates, and readback.
+Exact source checks bind those helpers to buffer creation, updates, readback, and the shipping
+vertex-to-storage copy path.
 
 Run it only through the build wrapper:
 

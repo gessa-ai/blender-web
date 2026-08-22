@@ -814,3 +814,7 @@
 # creating, updating, or reading a WebGPU buffer. The device-free native/Wasm
 # contract covers seven alignment and four range boundary cases through SIZE_MAX.
 0174-gpu-webgpu-buffer-range-overflow.patch
+# 0175: validate vertex-to-storage buffer copies against WebGPU's 4-byte
+# alignment and both allocation ranges before creating a command encoder.
+# The device-free native/Wasm contract covers nine boundary cases through SIZE_MAX.
+0175-gpu-webgpu-storage-copy-ranges.patch

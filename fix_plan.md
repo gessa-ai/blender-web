@@ -684,6 +684,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   and the real windowed product rebuilds and ends locked-Ninja no-work. No adapter, device,
   buffer operation, browser receipt, or result promotion is created. Evidence:
   `notes/m3-t6-buffer-range-overflow-20260822.md`.
+- [x] **M3.T6.storage-copy-ranges [gpu-backend] COMPLETE (patch 0175):** the
+  vertex-to-storage copy path now rejects zero-size, misaligned, and out-of-allocation source or
+  destination spans before creating a Dawn command encoder. Nine boundary cases through
+  `SIZE_MAX` pass byte-identically in native/wasm32; canonical replay is exact, and the real
+  windowed product rebuilds and ends locked-Ninja no-work. No adapter, device, buffer command,
+  browser receipt, or result promotion is created. Evidence:
+  `notes/m3-t6-storage-copy-ranges-20260822.md`.
 - [x] **M3.T9.bc-upload [gpu-backend] COMPLETE (patch 0170):** Blender's existing BC1/2/3
   DDS mip blocks now reach `Queue::WriteTexture` with Dawn's physical 4x4 extent, exact block-row
   stride, edge, layer, and overflow validation. Unsupported texture types or devices without

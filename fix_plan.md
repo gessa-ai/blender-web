@@ -1550,6 +1550,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red
   for the absent strict candidate and s7 still blocks live hardware upload proof. See
   `notes/m3-t6-index-upload-commit-20260822.md`.
+- [x] **M3.T6-BUFFER-STAGING-MAP [gpu-backend] (c63ec78):** patch 0198 checks the
+  mapped-at-creation staging range before a large buffer update copies, unmaps, encodes, or
+  submits. The fail-first source guard plus nine-case exact extracted state machine cover invalid
+  inputs, direct-write threshold, allocation failure, map failure with zero later work, and
+  successful exact-byte staging on native/wasm32. Canonical replay/reverse check, the real
+  windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for
+  the absent strict candidate and s7 still blocks live hardware upload proof. See
+  `notes/m3-t6-buffer-staging-map-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

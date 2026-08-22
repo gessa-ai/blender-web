@@ -1,0 +1,16 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -170,7 +170,11 @@ bool Buffer::update_sub(const wgpu::Device &device,
+   if (staging == nullptr) {
+     return false;
+   }
+-  std::memcpy(staging.GetMappedRange(0, size), data, size);
++  void *mapped = staging.GetMappedRange(0, size);
++  if (mapped == nullptr) {
++    return false;
++  }
++  std::memcpy(mapped, data, size);
+   staging.Unmap();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   enc.CopyBufferToBuffer(staging, 0, handle_, offset, size);

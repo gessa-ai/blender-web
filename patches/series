@@ -896,3 +896,6 @@
 # 0197: retain initial index-buffer host data and uncommitted upload state
 # unless mapped-at-creation allocation succeeds, permitting a later retry.
 0197-gpu-webgpu-index-upload-commit.patch
+# 0198: reject a missing mapped range before copying or submitting a large
+# buffer-update staging transfer.
+0198-gpu-webgpu-buffer-staging-map.patch

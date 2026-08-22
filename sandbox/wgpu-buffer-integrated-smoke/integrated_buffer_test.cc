@@ -25,6 +25,10 @@ namespace blender::gpu {
 bool run_integrated_index_contracts();
 }
 
+namespace blender::gpu::webgpu {
+bool run_integrated_buffer_update_contracts();
+}
+
 namespace {
 
 bool require(const bool condition, const char *message)
@@ -640,12 +644,14 @@ int main()
       !update_payload_contract() || !copy_range_contract() || !usage_contract() ||
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
-      !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
+      !failed_ticket_capacity_contract() ||
+      !blender::gpu::webgpu::run_integrated_buffer_update_contracts() ||
+      !blender::gpu::run_integrated_index_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=14 usage_cases=32 pixel_cases=7 exact_cap=256 "
-      "index_cases=4 index_upload_cases=6\n");
+      "INTEGRATED_BUFFER_PASS contracts=15 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "buffer_update_cases=9 index_cases=4 index_upload_cases=6\n");
   return 0;
 }

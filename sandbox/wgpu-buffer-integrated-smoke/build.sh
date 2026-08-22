@@ -25,6 +25,7 @@ HOST_CMAKE="${HOST_CMAKE:-$ROOT/.host-tools/bin/cmake}"
 WASM_INCLUDE="$ROOT/lib/wasm/include"
 INDEX_STRIP_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_strip.inc"
 INDEX_UPLOAD_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_upload.inc"
+BUFFER_UPDATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_update.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -108,6 +109,8 @@ require_file "$HERE/integrated_buffer_test.cc"
 require_file "$HERE/integrated_index_test.cc"
 require_file "$HERE/extract_index_strip.py"
 require_file "$HERE/extract_index_upload.py"
+require_file "$HERE/extract_buffer_update.py"
+require_file "$HERE/integrated_buffer_update_test.cc"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -260,6 +263,26 @@ then
 fi
 require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'void *mapped = staging.GetMappedRange(0, size);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'if (mapped == nullptr) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'std::memcpy(mapped, data, size);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+STAGING_MAP_LINE="$(grep -nF 'void *mapped = staging.GetMappedRange(0, size);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+STAGING_MAP_GUARD_LINE="$(grep -nF 'if (mapped == nullptr) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+STAGING_COPY_LINE="$(grep -nF 'std::memcpy(mapped, data, size);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+if [ -z "$STAGING_MAP_LINE" ] || [ -z "$STAGING_MAP_GUARD_LINE" ] ||
+   [ -z "$STAGING_COPY_LINE" ] ||
+   [ "$STAGING_MAP_LINE" -ge "$STAGING_MAP_GUARD_LINE" ] ||
+   [ "$STAGING_MAP_GUARD_LINE" -ge "$STAGING_COPY_LINE" ]
+then
+  echo "ERROR: staging mapped range is not checked before the large update copy" >&2
+  exit 1
+fi
 require_fixed_count 1 \
   'if (!checked_align_up(size, kCopyAlignment, copy) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
@@ -360,6 +383,26 @@ fi
   --source "$WEBGPU_SOURCE/wgpu_index_buffer.cc" \
   --output "$INDEX_UPLOAD_SOURCE"
 require_file "$INDEX_UPLOAD_SOURCE"
+
+BUFFER_UPDATE_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/buffer-update.inc"
+if BUFFER_UPDATE_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_buffer_update.py" \
+  --source "$WEBGPU_SOURCE/wgpu_buffer.hh" \
+  --output "$BUFFER_UPDATE_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed buffer-update source was accepted" >&2
+  exit 1
+fi
+if [ "$BUFFER_UPDATE_NEGATIVE_MESSAGE" != \
+     "BUFFER_UPDATE_EXTRACT_FAIL canonical buffer-update method boundaries are not unique" ] ||
+   [ -e "$BUFFER_UPDATE_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed buffer-update rejection differs" >&2
+  exit 1
+fi
+"$PYBIN" "$HERE/extract_buffer_update.py" \
+  --source "$WEBGPU_SOURCE/wgpu_buffer.cc" \
+  --output "$BUFFER_UPDATE_SOURCE"
+require_file "$BUFFER_UPDATE_SOURCE"
 rmdir "$INDEX_NEGATIVE_DIR"
 
 NODE_VERSION="$("$NODE" --version)"
@@ -395,6 +438,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
+  -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
 
@@ -407,7 +451,8 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
-  -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE"
+  -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
+  -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
 echo "== [3/3] exact native/Wasm parity =="
@@ -426,7 +471,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=14 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4 index_upload_cases=6' \
+    'INTEGRATED_BUFFER_PASS contracts=15 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -436,12 +481,15 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-upload-commit PASS cases=6 creates=4 failure=retain retry=commit bytes=6' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT buffer-staging-map PASS cases=9 large_bytes=65540 map_failure=reject writes=1 submits=1' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 14 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 15 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

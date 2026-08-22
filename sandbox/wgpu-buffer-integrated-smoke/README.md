@@ -7,8 +7,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 `wgpu_pixel_buffer`, and `wgpu_readback` postimages directly for native Dawn and
-WebAssembly. It also extracts `WGPUIndexBuffer::strip_restart_indices` and
-`WGPUIndexBuffer::upload_data` byte-for-byte. The restart method executes through
+WebAssembly. It also extracts `Buffer::update_sub`,
+`WGPUIndexBuffer::strip_restart_indices`, and `WGPUIndexBuffer::upload_data`
+byte-for-byte. The buffer method executes against deterministic WebGPU value fakes
+that reject a missing large-staging mapped range before memcpy, command encoding, or
+submission. The restart method executes through
 Blender's real `IndexBuf::init()` without retaining the live-device index-buffer
 vtable; the upload method executes against a deterministic creation seam that proves
 failed allocation retains the host payload and successful retry commits ownership.

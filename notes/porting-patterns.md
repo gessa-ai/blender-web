@@ -468,3 +468,14 @@ Treat resource creation and ownership transfer as one transaction: return on fai
 the host pointer/uploaded state only after success. Exercise the exact shipping state machine with
 a deterministic failure followed by retry, plus subrange, existing-resource, no-context, and
 device-built branches on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 31 — a non-null error handle does not prove a mapped range
+
+Signature: a mapped-at-creation staging buffer is checked for a null handle, but its
+`GetMappedRange()` result is passed directly to `memcpy`. WebGPU implementations can retain an
+error handle while exposing no mapped range, turning a recoverable update failure into a null
+write before command validation can report it. Store and check the mapped pointer before copying,
+unmapping, allocating an encoder, or submitting; return failure so callers retain retryable state.
+Exercise the exact extracted shipping method with deterministic allocation failure, map failure,
+the direct-write threshold, successful byte preservation, and exact operation ordering on native
+and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.

@@ -179,6 +179,12 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_WGPU_INDEX_UPLOAD_SOURCE must name the extracted canonical method")
   endif()
+  if(NOT DEFINED BW_WGPU_BUFFER_UPDATE_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_BUFFER_UPDATE_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_BUFFER_UPDATE_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_BUFFER_UPDATE_SOURCE must name the extracted canonical method")
+  endif()
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -190,6 +196,9 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   )
   set(_bw_integrated_index_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_index_test.cc"
+  )
+  set(_bw_integrated_buffer_update_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_update_test.cc"
   )
   set(_bw_integrated_buffer_sources
     wgpu_buffer.cc
@@ -215,7 +224,8 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
       "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_index_buffer.hh"
       "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
       "${BW_UPSTREAM_DIR}/intern/guardedalloc/MEM_guardedalloc.h"
-      "${_bw_integrated_index_test}")
+      "${_bw_integrated_index_test}"
+      "${_bw_integrated_buffer_update_test}")
     if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
       message(FATAL_ERROR
         "integrated WebGPU buffer dependency is missing: ${_bw_source}")
@@ -244,6 +254,7 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   add_executable(wgpu_buffer_integrated_test
     "${_bw_integrated_buffer_test}"
     "${_bw_integrated_index_test}"
+    "${_bw_integrated_buffer_update_test}"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_pixel_buffer.cc"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_readback.cc"
@@ -253,6 +264,7 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   target_compile_definitions(wgpu_buffer_integrated_test PRIVATE
     BW_WGPU_INDEX_STRIP_SOURCE="${BW_WGPU_INDEX_STRIP_SOURCE}"
     BW_WGPU_INDEX_UPLOAD_SOURCE="${BW_WGPU_INDEX_UPLOAD_SOURCE}"
+    BW_WGPU_BUFFER_UPDATE_SOURCE="${BW_WGPU_BUFFER_UPDATE_SOURCE}"
   )
   target_include_directories(wgpu_buffer_integrated_test PRIVATE
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

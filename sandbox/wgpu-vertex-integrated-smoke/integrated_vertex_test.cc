@@ -453,18 +453,77 @@ bool usage_contract()
   return true;
 }
 
+bool upload_padding_contract()
+{
+  size_t logical_bytes = 0;
+  size_t transfer_bytes = 0;
+  size_t padded_bytes = 0;
+  for (size_t logical = 1; logical <= 8; logical++) {
+    std::vector<uint8_t> source(logical);
+    for (size_t index = 0; index < logical; index++) {
+      source[index] = uint8_t(0x20u + logical * 8u + index);
+    }
+    const size_t allocation = webgpu::align_up(logical, webgpu::kCopyAlignment);
+    webgpu::BufferUpdatePayload payload;
+    if (!require(webgpu::buffer_update_payload(
+                     source.data(), logical, allocation, payload),
+                 "vertex upload payload accepted") ||
+        !require(payload.transfer_size == allocation, "vertex upload transfer alignment") ||
+        !require(std::memcmp(payload.data(source.data()), source.data(), logical) == 0,
+                 "vertex upload logical bytes preserved"))
+    {
+      return false;
+    }
+    const uint8_t *transfer = static_cast<const uint8_t *>(payload.data(source.data()));
+    for (size_t index = logical; index < allocation; index++) {
+      if (!require(transfer[index] == 0, "vertex upload padding is zero-filled")) {
+        return false;
+      }
+    }
+    if (!require((logical % webgpu::kCopyAlignment) != 0 ||
+                     payload.data(source.data()) == source.data(),
+                 "aligned vertex upload retains caller pointer"))
+    {
+      return false;
+    }
+    logical_bytes += logical;
+    transfer_bytes += allocation;
+    padded_bytes += allocation - logical;
+  }
+
+  webgpu::BufferUpdatePayload sentinel;
+  sentinel.transfer_size = 77;
+  sentinel.padded = {1, 2, 3};
+  const webgpu::BufferUpdatePayload before = sentinel;
+  const uint8_t byte = 0xa5;
+  if (!require(!webgpu::buffer_update_payload(&byte, 3, 3, sentinel),
+               "undersized vertex allocation rejected") ||
+      !require(sentinel.transfer_size == before.transfer_size && sentinel.padded == before.padded,
+               "rejected vertex upload leaves payload unchanged"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT upload_padding PASS cases=9 logical=%zu transfer=%zu padded=%zu\n",
+              logical_bytes,
+              transfer_bytes,
+              padded_bytes);
+  return true;
+}
+
 }  // namespace
 
 int run_integrated_vertex_contracts()
 {
   if (!component_contract() || !detection_contract() || !interleaved_contract() ||
       !deinterleaved_contract() || !bounds_contract() || !subrange_contract() ||
-      !usage_contract())
+      !usage_contract() || !upload_padding_contract())
   {
     return 1;
   }
   std::puts(
-      "INTEGRATED_VERTEX_PASS contracts=7 components=1024 vertices=1041 fields=1080 usage=8");
+      "INTEGRATED_VERTEX_PASS contracts=8 components=1024 vertices=1041 fields=1080 usage=8 "
+      "upload_cases=9");
   return 0;
 }
 

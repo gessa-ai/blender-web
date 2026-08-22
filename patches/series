@@ -890,3 +890,6 @@
 # 0195: reject misaligned buffer-read source offsets before native Dawn's
 # CopyBufferToBuffer encoder and the browser asynchronous readback registry.
 0195-gpu-webgpu-buffer-read-offset-alignment.patch
+# 0196: zero-pad non-four-byte initial vertex uploads and retain the host
+# payload plus dirty state unless the complete aligned transfer succeeds.
+0196-gpu-webgpu-vertex-upload-padding.patch

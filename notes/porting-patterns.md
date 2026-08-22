@@ -328,8 +328,10 @@ still be valid while the final one to three transfer bytes lie beyond the caller
 payload. Validate the aligned size against the device allocation, retain the original pointer for
 already aligned data, and otherwise copy only the logical bytes into owned zero-filled transfer
 storage. Exercise native/wasm32 boundary parity and an ASan odd-size caller; do not infer source
-padding from destination alignment. See `sandbox/wgpu-storage-update-padding-repro/` and
-`sandbox/wgpu-buffer-integrated-smoke/`.
+padding from destination alignment. Callers must also branch on the transfer result before
+freeing a static host payload or clearing dirty state; otherwise a rejected upload becomes
+permanent silent data loss. See `sandbox/wgpu-storage-update-padding-repro/`,
+`sandbox/wgpu-buffer-integrated-smoke/`, and `sandbox/wgpu-vertex-integrated-smoke/`.
 
 ## Class 20 — raw sRGB uploads do not perform render-attachment encoding
 

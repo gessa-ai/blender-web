@@ -161,6 +161,30 @@ if [ "$EMCC_VERSION" != "6.0.5" ]; then
   exit 1
 fi
 
+# A logical VBO payload is not guaranteed to end on WebGPU's four-byte transfer
+# boundary. Bind the tested zero-padding helper to the shipping initial-upload
+# seam and require a failed transfer to return before host-data/state cleanup.
+if [ "$(grep -Fc 'webgpu::BufferUpdatePayload payload;' \
+       "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (!webgpu::buffer_update_payload(' \
+       "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc")" -ne 1 ] ||
+   [ "$(grep -Fc 'payload.data(upload_data),' \
+       "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc")" -ne 1 ]
+then
+  echo "ERROR: canonical vertex upload does not use the aligned owned-payload helper" >&2
+  exit 1
+fi
+VERTEX_UPLOAD_GUARD_LINE="$(grep -nF 'if (!webgpu::buffer_update_payload(' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | cut -d: -f1)"
+VERTEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE(data_);' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | head -n 1 | cut -d: -f1)"
+if [ -z "$VERTEX_UPLOAD_GUARD_LINE" ] || [ -z "$VERTEX_UPLOAD_CLEANUP_LINE" ] ||
+   [ "$VERTEX_UPLOAD_GUARD_LINE" -ge "$VERTEX_UPLOAD_CLEANUP_LINE" ]
+then
+  echo "ERROR: vertex upload guard does not precede host-data cleanup" >&2
+  exit 1
+fi
+
 mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 
@@ -200,7 +224,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_vertex.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 8 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 9 ] ||
      ! grep -qx 'CONTRACT component PASS cases=1024 range=-127:127' "$stdout_file" ||
      ! grep -qx 'CONTRACT detection PASS cases=19 slots=16 legacy-alias=1' "$stdout_file" ||
      ! grep -qx \
@@ -213,7 +237,10 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx 'CONTRACT usage PASS cases=8 masked-flags=4' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_VERTEX_PASS contracts=7 components=1024 vertices=1041 fields=1080 usage=8' \
+       'CONTRACT upload_padding PASS cases=9 logical=36 transfer=48 padded=12' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'INTEGRATED_VERTEX_PASS contracts=8 components=1024 vertices=1041 fields=1080 usage=8 upload_cases=9' \
        "$stdout_file"
   then
     echo "ERROR: integrated vertex evidence differs: $stdout_file" >&2

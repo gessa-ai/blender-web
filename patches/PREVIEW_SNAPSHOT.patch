@@ -35373,10 +35373,10 @@ index 0000000000000000000000000000000000000000..7310d7f3ae34a3b335f8541ee916e623
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6b23f2ca7824b12dafbb9ef57f3e94e2a90358cb
+index 0000000000000000000000000000000000000000..3ca9db529a655d3db4d5c4b54f657a01ca7166df
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
-@@ -0,0 +1,547 @@
+@@ -0,0 +1,563 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -35716,16 +35716,32 @@ index 0000000000000000000000000000000000000000..6b23f2ca7824b12dafbb9ef57f3e94e2
 +    const size_t used = size_used_get();
 +    if (data_ != nullptr && used > 0) {
 +      WGPUContext *ctx = active_context();
++      if (ctx == nullptr) {
++        return;
++      }
 +      /* Signed packed normals (GPU_COMP_I10) have no native WebGPU vertex format; transcode
 +       * them to Snorm8x4 in a scratch copy so `data_` (which DYNAMIC/STREAM buffers keep and
 +       * re-upload) is never mutated. See transcode_i10_attrs. */
++      const void *upload_data = data_;
++      std::vector<uint8_t> scratch;
 +      if (format_has_norm_i10(format)) {
-+        std::vector<uint8_t> scratch(data_, data_ + used);
++        scratch.assign(data_, data_ + used);
 +        transcode_i10_attrs(scratch.data(), used, format, vertex_len);
-+        buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, scratch.data(), used);
++        upload_data = scratch.data();
 +      }
-+      else {
-+        buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data_, used);
++
++      /* GPUVertFormat::pack() does not guarantee that the final logical byte count is
++       * four-aligned. Preserve exactly those caller-owned bytes and zero-fill only the
++       * transfer tail; do not discard the host copy or dirty state if the upload fails. */
++      webgpu::BufferUpdatePayload payload;
++      if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload) ||
++          !buffer_.update_sub(ctx->device_get(),
++                              ctx->queue_get(),
++                              0,
++                              payload.data(upload_data),
++                              payload.transfer_size))
++      {
++        return;
 +      }
 +    }
 +    if ((usage_ & 0x3) == GPU_USAGE_STATIC) {

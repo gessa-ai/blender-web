@@ -13,7 +13,10 @@ signed-normal blocks, truncated-input safety, signed-I10 subrange updates, and
 all four usage modes with and without the buffer-texture flag. The subrange
 contract compares 21 converted fields with the full-upload result, rejects four
 partial/overflowing ranges atomically, and proves a one-field update remains
-bounded even when the declared vertex census is `UINT32_MAX`.
+bounded even when the declared vertex census is `UINT32_MAX`. The initial-upload
+contract exhausts logical sizes one through eight, checks every payload and
+zero-filled tail byte, and requires a failed transfer to return before static host
+data or dirty/uploaded state is discarded.
 
 Run only through the build wrapper:
 

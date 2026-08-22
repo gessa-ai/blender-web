@@ -854,3 +854,7 @@
 # before a WebGPU draw pass can consume the action on only its first layer.
 # The native oracle and device-free scope contract bind fixed, single, and all-layer behavior.
 0184-gpu-webgpu-framebuffer-layered-load-clear.patch
+# 0185: zero-pad storage-buffer update prefixes to WebGPU's four-byte transfer
+# size without reading beyond Blender's caller-owned logical payload.
+# The device-free native/Wasm contract covers aligned, padded, and rejected boundaries.
+0185-gpu-webgpu-storage-update-padding.patch

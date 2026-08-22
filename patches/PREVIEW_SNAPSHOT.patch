@@ -18370,10 +18370,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..1d7ebbd98542593dd0ebbd733938aaae6f2d6eb0
+index 0000000000000000000000000000000000000000..acd7befd2204e1c06686e737c5d44415a2746071
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,580 @@
+@@ -0,0 +1,624 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18397,6 +18397,8 @@ index 0000000000000000000000000000000000000000..1d7ebbd98542593dd0ebbd733938aaae
 +#include <cstdint>
 +#include <cstring>
 +#include <limits>
++#include <utility>
++#include <vector>
 +
 +#include "webgpu/webgpu_cpp.h"
 +
@@ -18936,6 +18938,48 @@ index 0000000000000000000000000000000000000000..1d7ebbd98542593dd0ebbd733938aaae
 +inline bool range_fits(size_t offset, size_t size, size_t capacity)
 +{
 +  return offset <= capacity && size <= capacity - offset;
++}
++
++/** Host payload for one WebGPU buffer update. Aligned payloads retain the caller pointer;
++ * unaligned payloads own an aligned copy whose tail is zero-filled. */
++struct BufferUpdatePayload {
++  size_t transfer_size = 0;
++  std::vector<uint8_t> padded;
++
++  const void *data(const void *source) const
++  {
++    return padded.empty() ? source : padded.data();
++  }
++};
++
++/** Prepare a caller-owned byte range for Queue::WriteBuffer or a staging copy without reading
++ * beyond its logical extent. WebGPU requires a four-byte transfer size, while Blender's
++ * `StorageBuf::usage_size_set()` may select an arbitrary prefix of the allocation. Failure is
++ * atomic and leaves `result` unchanged. */
++inline bool buffer_update_payload(const void *data,
++                                  size_t logical_size,
++                                  size_t allocation_size,
++                                  BufferUpdatePayload &result)
++{
++  if (data == nullptr || logical_size == 0) {
++    return false;
++  }
++
++  size_t transfer_size;
++  if (!checked_align_up(logical_size, kCopyAlignment, transfer_size) ||
++      !range_fits(0, transfer_size, allocation_size))
++  {
++    return false;
++  }
++
++  BufferUpdatePayload candidate;
++  candidate.transfer_size = transfer_size;
++  if (transfer_size != logical_size) {
++    candidate.padded.assign(transfer_size, uint8_t(0));
++    std::memcpy(candidate.padded.data(), data, logical_size);
++  }
++  result = std::move(candidate);
++  return true;
 +}
 +
 +/** Validate a CopyBufferToBuffer span against WebGPU's alignment and allocation
@@ -29997,10 +30041,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e82818ec174686fbadb1c66e64d28d806f63036f
+index 0000000000000000000000000000000000000000..e3e176c153d3bd1fcdba98fd78342f3d6e31fc35
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,293 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30160,8 +30204,14 @@ index 0000000000000000000000000000000000000000..e82818ec174686fbadb1c66e64d28d80
 +    return;
 +  }
 +  WGPUContext *ctx = active_context();
-+  const size_t n = webgpu::align_up(usage_size_in_bytes_, webgpu::kCopyAlignment);
-+  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data, n);
++  webgpu::BufferUpdatePayload payload;
++  if (!webgpu::buffer_update_payload(
++          data, usage_size_in_bytes_, buffer_.size(), payload))
++  {
++    return;
++  }
++  buffer_.update_sub(
++      ctx->device_get(), ctx->queue_get(), 0, payload.data(data), payload.transfer_size);
 +}
 +
 +void WGPUStorageBuffer::clear(uint32_t clear_value)

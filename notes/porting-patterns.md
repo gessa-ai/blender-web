@@ -319,3 +319,14 @@ backend's complete layered-clear path and consume them only after that operation
 whole pending set before clearing any attachment. Exercise fixed, all-layer, invalid, and signed
 boundary scopes in native and wasm32. See `sandbox/wgpu-framebuffer-loadclear-oracle/` and
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 19 — transfer alignment does not enlarge caller-owned payloads
+
+Signature: a WebGPU buffer update rounds its byte count to the required four-byte transfer
+alignment and passes that larger count with the original frontend pointer. Allocation bounds can
+still be valid while the final one to three transfer bytes lie beyond the caller's logical
+payload. Validate the aligned size against the device allocation, retain the original pointer for
+already aligned data, and otherwise copy only the logical bytes into owned zero-filled transfer
+storage. Exercise native/wasm32 boundary parity and an ASan odd-size caller; do not infer source
+padding from destination alignment. See `sandbox/wgpu-storage-update-padding-repro/` and
+`sandbox/wgpu-buffer-integrated-smoke/`.

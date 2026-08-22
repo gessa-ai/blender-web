@@ -12,7 +12,7 @@ and executes it through Blender's real `IndexBuf::init()` without retaining the
 live-device index-buffer vtable. The same translation unit includes the canonical
 `index_binding_plan()` header helper used by `WGPUBatch`. It checks the exact buffer-usage
 matrix, ordinary and checked alignment/range helpers, live allocation-limit decisions,
-storage-copy source/destination bounds,
+storage-update padding and storage-copy source/destination bounds,
 invalid-buffer behavior, move lifetime,
 the CPU-backed pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real
 readback registry's invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
@@ -29,8 +29,10 @@ retire half the records, refill the released capacity, and prove full reuse befo
 requiring byte-identical native/Node evidence.
 The arithmetic cases reach `SIZE_MAX`, reject alignment overflow without mutating the
 output sentinel, reject aligned allocations above `maxBufferSize`, and prove that a wrapped
-`offset + size` cannot pass allocation bounds. Exact source checks bind those helpers to
-limit-aware buffer creation, updates, readback, and the shipping vertex-to-storage copy path.
+`offset + size` cannot pass allocation bounds. Update cases preserve the caller pointer for
+aligned payloads and copy only unaligned payloads into zero-filled four-byte transfer storage.
+Exact source checks bind those helpers to limit-aware buffer creation, updates, readback, and
+the shipping vertex-to-storage copy path.
 
 Run it only through the build wrapper:
 

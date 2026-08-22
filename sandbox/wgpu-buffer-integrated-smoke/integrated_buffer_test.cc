@@ -179,6 +179,91 @@ bool allocation_limit_contract()
   return accepted == 5;
 }
 
+bool update_payload_contract()
+{
+  struct UpdateCase {
+    size_t logical_size;
+    size_t allocation_size;
+    bool accepted;
+  };
+  constexpr size_t size_max = std::numeric_limits<size_t>::max();
+  constexpr std::array<UpdateCase, 9> cases = {{{0, 4, false},
+                                                {1, 4, true},
+                                                {2, 4, true},
+                                                {3, 4, true},
+                                                {4, 4, true},
+                                                {5, 8, true},
+                                                {5, 7, false},
+                                                {8, 8, true},
+                                                {size_max, size_max, false}}};
+  const std::array<uint8_t, 8> source = {0x11, 0x22, 0x33, 0x44,
+                                          0x55, 0x66, 0x77, 0x88};
+
+  size_t aligned = 0;
+  size_t padded = 0;
+  size_t rejected = 0;
+  size_t checked_bytes = 0;
+  for (const UpdateCase &test : cases) {
+    bw::BufferUpdatePayload payload;
+    payload.transfer_size = 37;
+    payload.padded = {0xa5};
+    const bool actual = bw::buffer_update_payload(
+        source.data(), test.logical_size, test.allocation_size, payload);
+    if (!require(actual == test.accepted, "buffer update payload decision")) {
+      return false;
+    }
+    if (!actual) {
+      if (!require(payload.transfer_size == 37 && payload.padded.size() == 1 &&
+                       payload.padded[0] == 0xa5,
+                   "rejected update preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+
+    const size_t expected_size = bw::align_up(test.logical_size, bw::kCopyAlignment);
+    const auto *transfer = static_cast<const uint8_t *>(payload.data(source.data()));
+    if (!require(payload.transfer_size == expected_size, "update transfer size") ||
+        !require((payload.padded.empty() && transfer == source.data()) ||
+                     (!payload.padded.empty() && transfer == payload.padded.data()),
+                 "update transfer storage"))
+    {
+      return false;
+    }
+    for (size_t index = 0; index < expected_size; index++) {
+      const uint8_t expected = index < test.logical_size ? source[index] : 0;
+      if (!require(transfer[index] == expected, "update payload byte")) {
+        return false;
+      }
+      checked_bytes++;
+    }
+    if (expected_size == test.logical_size) {
+      aligned++;
+    }
+    else {
+      padded++;
+    }
+  }
+
+  bw::BufferUpdatePayload null_payload;
+  if (!require(!bw::buffer_update_payload(nullptr, 3, 4, null_payload),
+               "null update source is rejected"))
+  {
+    return false;
+  }
+  rejected++;
+
+  std::printf(
+      "CONTRACT update-payload PASS cases=10 aligned=%zu padded=%zu rejected=%zu bytes=%zu\n",
+      aligned,
+      padded,
+      rejected,
+      checked_bytes);
+  return aligned == 2 && padded == 4 && rejected == 4 && checked_bytes == 32;
+}
+
 bool copy_range_contract()
 {
   struct CopyCase {
@@ -552,7 +637,7 @@ bool failed_ticket_capacity_contract()
 int main()
 {
   if (!common_contract() || !checked_arithmetic_contract() || !allocation_limit_contract() ||
-      !copy_range_contract() || !usage_contract() ||
+      !update_payload_contract() || !copy_range_contract() || !usage_contract() ||
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
@@ -560,6 +645,6 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=12 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
+      "INTEGRATED_BUFFER_PASS contracts=13 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
   return 0;
 }

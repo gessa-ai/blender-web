@@ -204,6 +204,34 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   '!buffer_allocation_size(size, limits.maxBufferSize, allocated_size))' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  'struct BufferUpdatePayload {' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool buffer_update_payload(const void *data,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'if (!webgpu::buffer_update_payload(' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 1 \
+  'payload.data(data),' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+if grep -Fq 'align_up(usage_size_in_bytes_, webgpu::kCopyAlignment)' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+then
+  echo "ERROR: storage update still rounds beyond caller-owned payload" >&2
+  exit 1
+fi
+STORAGE_UPDATE_GUARD_LINE="$(grep -nF 'if (!webgpu::buffer_update_payload(' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc" | cut -d: -f1)"
+STORAGE_UPDATE_TRANSFER_LINE="$(grep -nF 'payload.data(data),' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc" | cut -d: -f1)"
+if [ -z "$STORAGE_UPDATE_GUARD_LINE" ] || [ -z "$STORAGE_UPDATE_TRANSFER_LINE" ] ||
+   [ "$STORAGE_UPDATE_GUARD_LINE" -ge "$STORAGE_UPDATE_TRANSFER_LINE" ]
+then
+  echo "ERROR: storage update payload guard does not precede transfer" >&2
+  exit 1
+fi
 ALLOCATION_GUARD_LINE="$(grep -nF 'if (device == nullptr || !device.GetLimits(&limits) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 STATE_MUTATION_LINE="$(grep -nF 'requested_ = size;' \
@@ -349,7 +377,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=12 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
+    'INTEGRATED_BUFFER_PASS contracts=13 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -361,7 +389,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 12 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 13 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

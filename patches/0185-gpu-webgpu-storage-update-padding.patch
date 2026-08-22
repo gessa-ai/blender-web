@@ -1,0 +1,81 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -21,6 +21,8 @@
+ #include <cstdint>
+ #include <cstring>
+ #include <limits>
++#include <utility>
++#include <vector>
+
+ #include "webgpu/webgpu_cpp.h"
+
+@@ -562,6 +564,48 @@ inline bool range_fits(size_t offset, size_t size, size_t capacity)
+   return offset <= capacity && size <= capacity - offset;
+ }
+
++/** Host payload for one WebGPU buffer update. Aligned payloads retain the caller pointer;
++ * unaligned payloads own an aligned copy whose tail is zero-filled. */
++struct BufferUpdatePayload {
++  size_t transfer_size = 0;
++  std::vector<uint8_t> padded;
++
++  const void *data(const void *source) const
++  {
++    return padded.empty() ? source : padded.data();
++  }
++};
++
++/** Prepare a caller-owned byte range for Queue::WriteBuffer or a staging copy without reading
++ * beyond its logical extent. WebGPU requires a four-byte transfer size, while Blender's
++ * `StorageBuf::usage_size_set()` may select an arbitrary prefix of the allocation. Failure is
++ * atomic and leaves `result` unchanged. */
++inline bool buffer_update_payload(const void *data,
++                                  size_t logical_size,
++                                  size_t allocation_size,
++                                  BufferUpdatePayload &result)
++{
++  if (data == nullptr || logical_size == 0) {
++    return false;
++  }
++
++  size_t transfer_size;
++  if (!checked_align_up(logical_size, kCopyAlignment, transfer_size) ||
++      !range_fits(0, transfer_size, allocation_size))
++  {
++    return false;
++  }
++
++  BufferUpdatePayload candidate;
++  candidate.transfer_size = transfer_size;
++  if (transfer_size != logical_size) {
++    candidate.padded.assign(transfer_size, uint8_t(0));
++    std::memcpy(candidate.padded.data(), data, logical_size);
++  }
++  result = std::move(candidate);
++  return true;
++}
++
+ /** Validate a CopyBufferToBuffer span against WebGPU's alignment and allocation
+  * requirements. A zero-sized copy is an intentional no-op and is rejected here
+  * before allocating an encoder. */
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -157,8 +157,14 @@ void WGPUStorageBuffer::update(const void *data)
+     return;
+   }
+   WGPUContext *ctx = active_context();
+-  const size_t n = webgpu::align_up(usage_size_in_bytes_, webgpu::kCopyAlignment);
+-  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data, n);
++  webgpu::BufferUpdatePayload payload;
++  if (!webgpu::buffer_update_payload(
++          data, usage_size_in_bytes_, buffer_.size(), payload))
++  {
++    return;
++  }
++  buffer_.update_sub(
++      ctx->device_get(), ctx->queue_get(), 0, payload.data(data), payload.transfer_size);
+ }
+
+ void WGPUStorageBuffer::clear(uint32_t clear_value)

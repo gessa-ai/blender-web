@@ -830,3 +830,7 @@
 # products before allocating or reading caller data. The native/Wasm contract
 # covers strided layouts, uint32/size_t overflow, and physical copy boundaries.
 0178-gpu-webgpu-texture-upload-layout.patch
+# 0179: preflight tight/padded readback rows, host products, and the live
+# maxBufferSize before either synchronous or asynchronous texture-readback allocation.
+# The device-free native/Wasm contract covers exact limits and overflow boundaries.
+0179-gpu-webgpu-texture-readback-layout.patch

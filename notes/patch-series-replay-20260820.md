@@ -240,3 +240,9 @@ changing the 257-path / 20,258-entry authority. The patch is now 1,574,038 bytes
 `9bdf18537414991749e88d1e86738c234914e19e6f3cbc59cd37fd4c538d9a74`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `2a29bdb087d4792af08819eed932a2c20cae1b821aafda3bed0a56416d46395b`.
+
+Patch 0179's fail-closed texture readback-layout validation was then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,575,705 bytes with SHA-256
+`cd182d11abd926430dae921a21422f191f59e897267ad25d78172de64bb749b0`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`9917405e1a50fc752a0f1e9b21558b83dc53fa28c89679dfd9bc6533e04cfc26`.

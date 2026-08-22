@@ -1038,6 +1038,114 @@ bool packed_row_stride_contract()
   return packed == 3 && row_bytes == 252;
 }
 
+bool readback_layout_contract()
+{
+  struct LayoutCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t device_texel_bytes;
+    size_t host_texel_bytes;
+    uint64_t max_staging_size;
+    size_t sample_count;
+    size_t device_data_size;
+    size_t staging_size;
+    size_t host_data_size;
+    uint32_t row_bytes;
+    uint32_t bytes_per_row;
+    size_t row_count;
+  };
+  const std::array<LayoutCase, 5> accepted_cases = {{
+      {1, 1, 1, 4, 4, 256, 1, 4, 256, 4, 4, 256, 1},
+      {2, 3, 4, 4, 8, 3072, 24, 96, 3072, 192, 8, 256, 12},
+      {65, 3, 2, 4, 8, 3072, 390, 1560, 3072, 3120, 260, 512, 6},
+      {257, 2, 1, 16, 12, 8704, 514, 8224, 8704, 6168, 4112, 4352, 2},
+      {64, 64, 64, 4, 4, 1048576, 262144, 1048576, 1048576, 1048576, 256, 256, 4096},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const LayoutCase &test : accepted_cases) {
+    bw::TextureReadbackLayout actual;
+    if (!require(bw::texture_readback_layout(test.width,
+                                             test.height,
+                                             test.depth,
+                                             test.device_texel_bytes,
+                                             test.host_texel_bytes,
+                                             test.max_staging_size,
+                                             actual),
+                 "valid texture readback layout rejected") ||
+        !require(actual.sample_count == test.sample_count, "readback sample count") ||
+        !require(actual.device_data_size == test.device_data_size, "readback device size") ||
+        !require(actual.staging_size == test.staging_size, "readback staging size") ||
+        !require(actual.host_data_size == test.host_data_size, "readback host size") ||
+        !require(actual.row_bytes == test.row_bytes, "readback row bytes") ||
+        !require(actual.bytes_per_row == test.bytes_per_row, "readback padded row bytes") ||
+        !require(actual.row_count == test.row_count, "readback row count"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, actual.sample_count);
+    hash = fnv_u64(hash, actual.device_data_size);
+    hash = fnv_u64(hash, actual.staging_size);
+    hash = fnv_u64(hash, actual.host_data_size);
+    hash = fnv_u64(hash, actual.row_bytes);
+    hash = fnv_u64(hash, actual.bytes_per_row);
+    hash = fnv_u64(hash, actual.row_count);
+  }
+
+  struct RejectedCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t device_texel_bytes;
+    size_t host_texel_bytes;
+    uint64_t max_staging_size;
+  };
+  const std::array<RejectedCase, 10> rejected_cases = {{
+      {0, 1, 1, 1, 1, 256},
+      {1, 0, 1, 1, 1, 256},
+      {1, 1, 0, 1, 1, 256},
+      {1, 1, 1, 0, 1, 256},
+      {1, 1, 1, 1, 0, 256},
+      {1, 1, 1, 1, 1, 0},
+      {1, 1, 1, 4, 4, 255},
+      {UINT32_MAX, 1, 1, 1, 1, UINT64_MAX},
+      {1, UINT32_MAX, UINT32_MAX, 1, 1, UINT64_MAX},
+      {1, 2, 1, 1, std::numeric_limits<size_t>::max(), UINT64_MAX},
+  }};
+  const bw::TextureReadbackLayout sentinel = {11, 12, 13, 14, 15, 16, 17};
+  for (const RejectedCase &test : rejected_cases) {
+    bw::TextureReadbackLayout actual = sentinel;
+    if (!require(!bw::texture_readback_layout(test.width,
+                                              test.height,
+                                              test.depth,
+                                              test.device_texel_bytes,
+                                              test.host_texel_bytes,
+                                              test.max_staging_size,
+                                              actual),
+                 "invalid texture readback layout accepted") ||
+        !require(actual.sample_count == sentinel.sample_count &&
+                     actual.device_data_size == sentinel.device_data_size &&
+                     actual.staging_size == sentinel.staging_size &&
+                     actual.host_data_size == sentinel.host_data_size &&
+                     actual.row_bytes == sentinel.row_bytes &&
+                     actual.bytes_per_row == sentinel.bytes_per_row &&
+                     actual.row_count == sentinel.row_count,
+                 "readback layout rejection is atomic"))
+    {
+      return false;
+    }
+  }
+
+  std::printf("CONTRACT readback-layout PASS layouts=%zu accepted=%zu rejected=%zu "
+              "digest=%016" PRIx64 "\n",
+              accepted_cases.size() + rejected_cases.size(),
+              accepted_cases.size(),
+              rejected_cases.size(),
+              hash);
+  return true;
+}
+
 bool compressed_upload_layout_contract()
 {
   struct Case {
@@ -1192,14 +1300,16 @@ int main()
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
       !allocation_limit_contract() || !upload_layout_contract() || !packed_row_stride_contract() ||
+      !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=14 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=15 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 "
+      "readback_layouts=15 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

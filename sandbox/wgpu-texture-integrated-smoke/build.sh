@@ -151,7 +151,7 @@ then
   exit 1
 fi
 
-if [ "$(grep -Fc 'to_bytesize(format_, format)' "$RGB9E5_TEXTURE_SOURCE")" -ne 3 ] ||
+if [ "$(grep -Fc 'to_bytesize(format_, format)' "$RGB9E5_TEXTURE_SOURCE")" -ne 4 ] ||
    grep -Fq 'const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);' \
      "$RGB9E5_TEXTURE_SOURCE"
 then
@@ -188,6 +188,37 @@ if [ "$(grep -Fc 'inline bool texture_upload_layout(' "$COMMON_HEADER")" -ne 1 ]
    [ "$(grep -Fc 'texture_region_fits(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical texture upload-layout wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'inline bool texture_readback_layout(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'texture_readback_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ]
+then
+  echo "ERROR: canonical texture readback-layout wiring differs" >&2
+  exit 1
+fi
+
+mapfile -t READBACK_LAYOUT_LINES < <(
+  grep -nF 'texture_readback_layout(' "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1
+)
+ASYNC_READBACK_KICK_LINE="$(grep -nF \
+  'const readback::Ticket ticket = readback::kick_texture(' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+SYNC_READBACK_ALLOCATION_LINE="$(grep -nF \
+  'std::vector<uint8_t> device_data(layout.device_data_size);' \
+  "$RGB9E5_TEXTURE_SOURCE" | tail -n 2 | head -n 1 | cut -d: -f1)"
+NATIVE_STAGING_ALLOCATION_LINE="$(grep -nF \
+  'wgpu::Buffer staging = device.CreateBuffer(&bd);' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+if [ "${#READBACK_LAYOUT_LINES[@]}" -ne 2 ] ||
+   [ -z "$ASYNC_READBACK_KICK_LINE" ] ||
+   [ -z "$SYNC_READBACK_ALLOCATION_LINE" ] ||
+   [ -z "$NATIVE_STAGING_ALLOCATION_LINE" ] ||
+   [ "${READBACK_LAYOUT_LINES[0]}" -ge "$ASYNC_READBACK_KICK_LINE" ] ||
+   [ "${READBACK_LAYOUT_LINES[1]}" -ge "$SYNC_READBACK_ALLOCATION_LINE" ] ||
+   [ "${READBACK_LAYOUT_LINES[1]}" -ge "$NATIVE_STAGING_ALLOCATION_LINE" ]
+then
+  echo "ERROR: texture readback sizing is not fail-closed before allocation" >&2
   exit 1
 fi
 
@@ -376,13 +407,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=14 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=15 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 readback_layouts=15 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 14 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 15 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

@@ -713,6 +713,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   canonical replay is exact and the real windowed product rebuilds then ends locked-Ninja
   no-work. No adapter, device, texture, upload, browser receipt, or result promotion is created.
   Evidence: `notes/m3-t9-texture-upload-layout-20260822.md`.
+- [x] **M3.T9.texture-readback-layout [gpu-backend] COMPLETE (patch 0179):** synchronous and
+  asynchronous texture readbacks now preflight tight and 256-byte-padded rows, every native/
+  wasm32 host product, and the live device `maxBufferSize` before allocating a host or WebGPU
+  buffer. Five exact-limit layouts and ten zero/overflow/over-limit cases pass byte-identically;
+  canonical replay is exact and the real windowed product rebuilds then ends locked-Ninja
+  no-work. No adapter, device, texture, readback, browser receipt, or result promotion is created.
+  Evidence: `notes/m3-t9-texture-readback-layout-20260822.md`.
 - [x] **M3.T9.bc-upload [gpu-backend] COMPLETE (patch 0170):** Blender's existing BC1/2/3
   DDS mip blocks now reach `Queue::WriteTexture` with Dawn's physical 4x4 extent, exact block-row
   stride, edge, layer, and overflow validation. Unsupported texture types or devices without

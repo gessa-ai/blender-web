@@ -50,15 +50,32 @@ endforeach()
 set(_bw_integrated_texture_test
   "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-texture-integrated-smoke/integrated_texture_test.cc"
 )
+set(_bw_integrated_mipmap_transaction_test
+  "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-texture-integrated-smoke/integrated_mipmap_transaction_test.cc"
+)
 if(NOT EXISTS "${_bw_integrated_texture_test}")
   message(FATAL_ERROR "integrated WebGPU texture test is missing: ${_bw_integrated_texture_test}")
+endif()
+if(NOT EXISTS "${_bw_integrated_mipmap_transaction_test}")
+  message(FATAL_ERROR
+    "integrated WebGPU mipmap test is missing: ${_bw_integrated_mipmap_transaction_test}")
+endif()
+if(NOT DEFINED BW_WGPU_MIPMAP_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_MIPMAP_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_MIPMAP_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_MIPMAP_SOURCE must name the extracted canonical mipmap method")
 endif()
 
 add_executable(wgpu_texture_integrated_smoke
   "${_bw_integrated_texture_test}"
+  "${_bw_integrated_mipmap_transaction_test}"
   "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern/BLI_assert.cc"
   "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_texture_format.cc"
   "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_data_conversion.cc"
+)
+target_compile_definitions(wgpu_texture_integrated_smoke PRIVATE
+  BW_WGPU_MIPMAP_SOURCE="${BW_WGPU_MIPMAP_SOURCE}"
 )
 set_target_properties(wgpu_texture_integrated_smoke PROPERTIES
   CXX_STANDARD 20

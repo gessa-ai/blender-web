@@ -25,7 +25,9 @@ Four real format-flag cases distinguish normalized RGB10A2 and RGBA8
 from unsigned RGB10A2 and signed RGBA8 before pinned-Tint parsing of the exact float, uint, sint,
 and depth fullscreen-clear WGSL variants,
 eleven native-parity 1/2/3-tap mipmap axis plans (including the odd 5-to-2 edge kernel),
-plus a pinned-Tint parse of the exact float/normalized WGSL consumed by `WGPUTexture`,
+plus a pinned-Tint parse of the exact float/normalized WGSL consumed by `WGPUTexture` and an
+exact-method nine-case resource transaction that rejects every fallible mipmap handle before
+dependent work or queue submission,
 15 checked readback layouts covering padded staging, host-size, and device-limit boundaries,
 six strided-upload host-texel cases that
 separate packed 32-bit rows from scalar-component rows, seven BC1/2/3 physical-block and

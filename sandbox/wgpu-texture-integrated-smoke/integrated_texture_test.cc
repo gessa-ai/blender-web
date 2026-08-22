@@ -32,6 +32,8 @@
 namespace bw = blender::gpu::webgpu;
 namespace gpu = blender::gpu;
 
+bool run_integrated_mipmap_resource_contracts();
+
 namespace {
 
 bool require(const bool condition, const char *message)
@@ -2180,19 +2182,19 @@ int main()
       !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
       !framebuffer_scissored_clear_plan_contract() ||
       !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract() ||
-      !mipmap_odd_kernel_contract())
+      !mipmap_odd_kernel_contract() || !run_integrated_mipmap_resource_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=23 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=24 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "srgb_clear=12 "
       "readback_layouts=15 "
       "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 "
       "framebuffer_clear_formats=4 "
       "framebuffer_scissored_layers=4 framebuffer_draw_cases=16 "
-      "framebuffer_load_clear_cases=10 "
+      "framebuffer_load_clear_cases=10 mipmap_resource_cases=9 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

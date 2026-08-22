@@ -923,3 +923,6 @@
 # 0206: stop the cross-format color-blit fallback after shader-module,
 # uniform-buffer, or bind-group creation fails, before queue or pass work.
 0206-gpu-webgpu-color-blit-resource-guards.patch
+# 0207: abort mipmap generation before submission when any shader, encoder,
+# subresource view, bind group, render pass, or command-buffer handle fails.
+0207-gpu-webgpu-mipmap-resource-transaction.patch

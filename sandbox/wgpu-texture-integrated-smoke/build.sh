@@ -15,6 +15,7 @@ DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/t9-integrated/wasm-build}"
 OUT="${OUT:-$ROOT/build-deps/t9-integrated/evidence}"
+MIPMAP_SOURCE="$ROOT/build-deps/t9-integrated/generated/wgpu_mipmap_transaction.inc"
 EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
@@ -97,6 +98,8 @@ require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_texture_test.cc"
+require_file "$HERE/integrated_mipmap_transaction_test.cc"
+require_file "$HERE/extract_mipmap_transaction.py"
 require_file "$ROOT/sandbox/wgpu-texture-wasm-smoke/CMakeLists.txt"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
@@ -545,6 +548,28 @@ case "$SOURCE_PROOF" in
     ;;
 esac
 
+MIPMAP_NEGATIVE_DIR="$(mktemp -d /tmp/blender-web-mipmap-extract.XXXXXX)"
+MIPMAP_NEGATIVE_OUTPUT="$MIPMAP_NEGATIVE_DIR/generated.inc"
+if MIPMAP_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_mipmap_transaction.py" \
+  --source "$WEBGPU_SOURCE/wgpu_texture.hh" \
+  --output "$MIPMAP_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed mipmap source was accepted" >&2
+  exit 1
+fi
+if [ "$MIPMAP_NEGATIVE_MESSAGE" != \
+     "MIPMAP_TRANSACTION_EXTRACT_FAIL canonical mipmap method boundaries are not unique" ] ||
+   [ -e "$MIPMAP_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed mipmap-source rejection differs" >&2
+  exit 1
+fi
+"$PYBIN" "$HERE/extract_mipmap_transaction.py" \
+  --source "$WEBGPU_SOURCE/wgpu_texture.cc" \
+  --output "$MIPMAP_SOURCE"
+require_file "$MIPMAP_SOURCE"
+rmdir "$MIPMAP_NEGATIVE_DIR"
+
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
   echo "ERROR: expected Node v22.16.0, got $NODE_VERSION" >&2
@@ -575,6 +600,7 @@ echo "== [1/3] canonical native texture-format/conversion module =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_TEXTURE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_MIPMAP_SOURCE="$MIPMAP_SOURCE" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_texture_integrated_test
@@ -586,7 +612,8 @@ echo "== [2/3] canonical Wasm texture-format/conversion module =="
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
-  -DBW_INTEGRATED_TEXTURE_SOURCE_DIR="$WEBGPU_SOURCE"
+  -DBW_INTEGRATED_TEXTURE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_MIPMAP_SOURCE="$MIPMAP_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_texture_integrated_smoke
 
 echo "== [3/3] exact native/Wasm parity =="
@@ -605,13 +632,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=23 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 framebuffer_clear_formats=4 framebuffer_scissored_layers=4 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=24 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 framebuffer_clear_formats=4 framebuffer_scissored_layers=4 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 mipmap_resource_cases=9 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 23 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 24 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

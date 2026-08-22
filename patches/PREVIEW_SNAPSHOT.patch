@@ -31820,10 +31820,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed41f2ff7d7
+index 0000000000000000000000000000000000000000..a29b70298f5f717034a621f38624443c3702d3bd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2635 @@
+@@ -0,0 +1,2650 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -34383,6 +34383,9 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +  module_desc.nextInChain = &source;
 +  wgpu::Device device = ctx->device_get();
 +  wgpu::ShaderModule module = device.CreateShaderModule(&module_desc);
++  if (module == nullptr) {
++    return;
++  }
 +
 +  wgpu::ColorTargetState target = {};
 +  target.format = subresources_.view_format;
@@ -34404,6 +34407,9 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +  }
 +
 +  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
 +  const uint32_t layers = ELEM(type_,
 +                               GPU_TEXTURE_1D_ARRAY,
 +                               GPU_TEXTURE_2D_ARRAY,
@@ -34416,7 +34422,7 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +      wgpu::TextureView src_view = sampled_attachment_view(int(mip - 1), int(layer));
 +      wgpu::TextureView dst_view = attachment_view(int(mip), int(layer));
 +      if (src_view == nullptr || dst_view == nullptr) {
-+        continue;
++        return;
 +      }
 +      wgpu::BindGroupEntry entry = {};
 +      entry.binding = 0;
@@ -34426,6 +34432,9 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +      bind_desc.entryCount = 1;
 +      bind_desc.entries = &entry;
 +      wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_desc);
++      if (bind_group == nullptr) {
++        return;
++      }
 +
 +      wgpu::RenderPassColorAttachment color = {};
 +      color.view = dst_view;
@@ -34435,6 +34444,9 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +      pass_desc.colorAttachmentCount = 1;
 +      pass_desc.colorAttachments = &color;
 +      wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&pass_desc);
++      if (pass == nullptr) {
++        return;
++      }
 +      pass.SetPipeline(pipeline);
 +      pass.SetBindGroup(0, bind_group);
 +      pass.Draw(3, 1, 0, 0);
@@ -34442,6 +34454,9 @@ index 0000000000000000000000000000000000000000..3b2809001541786e533ff30eb8ce9ed4
 +    }
 +  }
 +  wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
 +  ctx->queue_get().Submit(1, &cb);
 +}
 +

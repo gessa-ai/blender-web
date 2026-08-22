@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# render-pipeline enum mappings, dummy-attribute binding plan, and shader-lifetime
-# cache separation. Invoke through harness/buildwrap.sh.
+# render-pipeline enum mappings, indirect-draw spans, dummy-attribute binding plan,
+# and shader-lifetime cache separation. Invoke through harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -105,7 +105,9 @@ require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_pipeline_test.cc"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
+require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
+require_file "$DAWN_SRC/src/dawn/native/RenderEncoderBase.cpp"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -160,6 +162,17 @@ require_fixed_count 1 'TEST_F(VertexStateTest, StrideZero)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_fixed_count 2 'if (arrayStride == 0) {' \
   "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
+require_fixed_count 1 'TEST_F(DrawIndirectValidationTest, DrawIndirectOffsetBounds)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
+require_fixed_count 1 'TEST_F(DrawIndirectValidationTest, DrawIndexedIndirectOffsetBounds)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
+require_fixed_count 4 'Indirect offset (%u) is not a multiple of 4.' \
+  "$DAWN_SRC/src/dawn/native/RenderEncoderBase.cpp"
+require_fixed_count 1 'struct IndirectDrawSpan {' "$WEBGPU_SOURCE/wgpu_pipeline.hh"
+require_fixed_count 1 'bool indirect_draw_span(' "$WEBGPU_SOURCE/wgpu_pipeline.hh"
+require_fixed_count 1 'bool indirect_draw_span(' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'if (!webgpu::indirect_draw_span(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 'static VertexBinding dummy_vertex_binding(' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
 require_fixed_count 1 'binding.array_stride = 0;' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
@@ -275,9 +288,12 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 9 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 10 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT indirect_draw_span PASS cases=19 accepted=7 rejected=12 first_sum=36 stride_sum=144 end_sum=380' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
@@ -285,7 +301,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=8 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=9 primitives=11 strip_cases=33 indirect_spans=19 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

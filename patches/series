@@ -862,3 +862,7 @@
 # Queue::WriteTexture for non-renderable 1D textures; keep alpha linear.
 # Native 1D sampling oracle and device-free native/Wasm contract bind exact bytes.
 0186-gpu-webgpu-texture-1d-srgb-clear.patch
+# 0187: preflight every emulated multi-draw indirect command span against
+# signed input, GL's tightly-packed zero stride, Dawn's four-byte alignment,
+# 16/20-byte command shapes, overflow, and the allocated indirect buffer.
+0187-gpu-webgpu-indirect-draw-ranges.patch

@@ -288,3 +288,9 @@ Patch 0186's non-renderable 1D sRGB clear encoding was then composed without cha
 `30009e228d9c70fd49168ac239e736ab8d3fe1df3502b23abc317235ce16718e`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `4c5fe58ad4c0f19040fa5ef52b4fa103b0fa8403f1a9f164434c03bc37a4a940`.
+
+Patch 0187's fail-closed indirect-draw span validation was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,599,381 bytes with SHA-256
+`ae6cc793258976707513f3a1fce12306f58e1e98167ab02107b77ecce8b832f5`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`7f01714887853e0d5bafa626778c1f6867c42bf6ca8654b9dc7a22f82b805023`.

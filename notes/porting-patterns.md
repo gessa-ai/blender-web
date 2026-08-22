@@ -341,3 +341,16 @@ RGB components before quantization on the raw-copy path; alpha stays linear. Bin
 bytes and a native clear-then-sample round trip, because either check alone can miss a transfer
 direction error. See `sandbox/wgpu-texture-srgb-clear-oracle/` and
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 21 — emulated multi-draw needs one atomic indirect byte span
+
+Signature: a backend expands one signed multi-draw request into individual WebGPU indirect calls
+and computes `offset + i * stride` inside the active render pass. Negative frontend values become
+large unsigned offsets, zero stride repeats one command instead of selecting tightly packed
+commands, and a late range or multiplication failure is discovered only after earlier calls were
+issued. Before pipeline or pass work, normalize zero stride to the indexed/non-indexed command
+size, require four-byte alignment, reserve the final command, and bound the remaining
+`(count - 1) * stride` with subtraction and division. Feed every call from that single proven span
+and leave the result untouched on rejection. Exercise both 16/20-byte shapes, overlapping legal
+strides, signed boundaries, alignment, exact-fit and one-byte-short allocations, and large-count
+arithmetic in native and wasm32. See `sandbox/wgpu-pipeline-integrated-smoke/`.

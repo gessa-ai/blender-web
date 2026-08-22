@@ -7,7 +7,11 @@ SPDX-License-Identifier: CC0-1.0
 
 This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
-primitive, index-format, component, and fetch enums. The shared test covers all
+primitive, index-format, component, and fetch enums. The shared test also covers
+19 exact indirect-draw span decisions: signed input rejection, four-byte alignment,
+16-byte array commands, 20-byte indexed commands, tightly-packed zero stride,
+overlapping-but-aligned explicit stride, allocation bounds, and arithmetic overflow.
+It covers all
 11 primitive rows, all 33 primitive/index-format combinations, and all 96
 combinations of eight vertex component types, four valid component lengths, and
 three fetch modes. It also covers every one of the 32 shader input types in the
@@ -33,7 +37,7 @@ before returning `TriangleList`. Native and Wasm stdout and stderr must be
 byte-identical.
 
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline and
-draw-range validation), emcc 6.0.5, Node 22.16.0, matching
+16/20-byte indirect draw-range validation), emcc 6.0.5, Node 22.16.0, matching
 native/Wasm fmt headers, Blender's canonical clean-pin replay, and the 18 direct
 pipeline/batch/vertex-format/enum/assert inputs before evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format

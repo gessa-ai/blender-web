@@ -17140,10 +17140,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..30edf6d2f695a124fae5394e69ecf6719049a415
+index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed2414b903c1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,820 @@
+@@ -0,0 +1,831 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17775,6 +17775,16 @@ index 0000000000000000000000000000000000000000..30edf6d2f695a124fae5394e69ecf671
 +  const webgpu::IndexBindingPlan index_binding =
 +      indexed ? webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Indirect) :
 +                webgpu::IndexBindingPlan{};
++  webgpu::IndirectDrawSpan indirect_span;
++  if (!webgpu::indirect_draw_span(count,
++                                   offset,
++                                   stride,
++                                   indexed,
++                                   indirect_gpu.size(),
++                                   indirect_span))
++  {
++    return;
++  }
 +
 +  webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());
 +  if (const shader::SpecializationConstants *constants =
@@ -17838,7 +17848,8 @@ index 0000000000000000000000000000000000000000..30edf6d2f695a124fae5394e69ecf671
 +
 +  auto issue_indirect_draws = [&](wgpu::RenderPassEncoder &render_pass) {
 +    for (int i = 0; i < count; i++) {
-+      const uint64_t byte_offset = uint64_t(offset) + uint64_t(i) * uint64_t(stride);
++      const uint64_t byte_offset = indirect_span.first_offset +
++                                   uint64_t(i) * indirect_span.command_stride;
 +      if (indexed) {
 +        render_pass.DrawIndexedIndirect(indirect_gpu.handle(), byte_offset);
 +      }
@@ -22845,10 +22856,10 @@ index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..41f1f3bf659a6c0a01973812f495c83642295ed6
+index 0000000000000000000000000000000000000000..8397e5349c17e6054adb9e8085a546cecd429b35
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,554 @@
+@@ -0,0 +1,593 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -22918,6 +22929,45 @@ index 0000000000000000000000000000000000000000..41f1f3bf659a6c0a01973812f495c836
 +      /* Dawn requires Undefined for every non-strip topology. */
 +      return wgpu::IndexFormat::Undefined;
 +  }
++}
++
++bool indirect_draw_span(const int count,
++                        const intptr_t offset,
++                        const intptr_t stride,
++                        const bool indexed,
++                        const uint64_t buffer_size,
++                        IndirectDrawSpan &r_span)
++{
++  if (count <= 0 || offset < 0 || stride < 0) {
++    return false;
++  }
++
++  IndirectDrawSpan candidate;
++  candidate.first_offset = uint64_t(offset);
++  candidate.command_size = indexed ? 5u * sizeof(uint32_t) : 4u * sizeof(uint32_t);
++  /* Blender's API follows glMultiDraw*Indirect: zero means tightly packed. */
++  candidate.command_stride = (stride == 0) ? candidate.command_size : uint64_t(stride);
++  if ((candidate.first_offset & 3u) != 0 || (candidate.command_stride & 3u) != 0) {
++    return false;
++  }
++
++  /* First reserve the final command's fixed byte span inside the allocation. The
++   * remaining quotient then bounds (count - 1) * stride without overflowing. */
++  if (candidate.command_size > buffer_size ||
++      candidate.first_offset > buffer_size - candidate.command_size)
++  {
++    return false;
++  }
++  const uint64_t last_start_capacity =
++      buffer_size - candidate.command_size - candidate.first_offset;
++  const uint64_t steps = uint64_t(count - 1);
++  if (steps > last_start_capacity / candidate.command_stride) {
++    return false;
++  }
++  candidate.end_offset = candidate.first_offset + steps * candidate.command_stride +
++                         candidate.command_size;
++  r_span = candidate;
++  return true;
 +}
 +
 +/** Map a Blender vertex component (type, count, fetch) to the WGSL vertex format.
@@ -23405,10 +23455,10 @@ index 0000000000000000000000000000000000000000..41f1f3bf659a6c0a01973812f495c836
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..09f546106af1fdd2eed895243b48d05f2a73b07a
+index 0000000000000000000000000000000000000000..5f0c8ef51adfe7ae389f1f8aa35be80e50477181
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,144 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23522,6 +23572,25 @@ index 0000000000000000000000000000000000000000..09f546106af1fdd2eed895243b48d05f
 +wgpu::VertexFormat to_wgpu_vertex_format(GPUVertCompType comp_type,
 +                                         int comp_len,
 +                                         GPUVertFetchMode fetch);
++
++/** Exact byte geometry for Blender's emulated multi-draw loop. Every generated
++ * DrawIndirect/DrawIndexedIndirect call addresses one fixed-size command. */
++struct IndirectDrawSpan {
++  uint64_t first_offset = 0;
++  uint64_t command_stride = 0;
++  uint64_t command_size = 0;
++  uint64_t end_offset = 0;
++};
++
++/** Validate signed frontend inputs, normalize GL's tightly-packed zero stride,
++ * and prove every 16-byte array or 20-byte indexed command fits the allocation.
++ * Rejection leaves `r_span` unchanged. */
++bool indirect_draw_span(int count,
++                        intptr_t offset,
++                        intptr_t stride,
++                        bool indexed,
++                        uint64_t buffer_size,
++                        IndirectDrawSpan &r_span);
 +
 +/** Resolve the shader's vertex inputs against the bound vertex buffers, producing one
 + * VertexBinding per WebGPU slot (matched attributes grouped by source VBO, plus a dummy

@@ -1463,6 +1463,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   replay, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3
   remains red for the absent strict candidate and s7 still blocks live WebGPU clear proof. See
   `notes/m3-t9-texture-1d-srgb-clear-20260822.md`.
+- [x] **M3.T10-INDIRECT-DRAW-RANGES [gpu-backend]:** patch 0187 resolves one atomic byte span
+  before pipeline or render-pass work: signed inputs, tightly-packed zero stride, four-byte
+  alignment, 16/20-byte command shapes, multiplication overflow, and the indirect allocation are
+  all fail-closed. Nineteen native/wasm32 cases are byte-identical, including seven accepted and
+  twelve rejected ranges with unchanged rejection output. Canonical replay, the real windowed
+  rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for the absent
+  strict candidate and s7 still blocks live WebGPU draw proof. See
+  `notes/m3-t10-indirect-draw-ranges-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdio>
+#include <limits>
 #include <unordered_set>
 
 #ifndef BW_WGPU_PIPELINE_SOURCE
@@ -106,6 +107,103 @@ bool strip_index_format_contract()
     return false;
   }
   std::puts("CONTRACT strip_index_format PASS cases=33 selected=6");
+  return true;
+}
+
+bool indirect_draw_span_contract()
+{
+  struct Case {
+    int count;
+    intptr_t offset;
+    intptr_t stride;
+    bool indexed;
+    uint64_t buffer_size;
+    bool accepted;
+    uint64_t first_offset;
+    uint64_t command_stride;
+    uint64_t command_size;
+    uint64_t end_offset;
+  };
+  constexpr intptr_t aligned_intptr_max =
+      std::numeric_limits<intptr_t>::max() & ~intptr_t(3);
+  constexpr std::array<Case, 19> cases = {{
+      {1, 0, 0, false, 16, true, 0, 16, 16, 16},
+      {1, 4, 0, true, 24, true, 4, 20, 20, 24},
+      {3, 8, 0, false, 56, true, 8, 16, 16, 56},
+      {3, 4, 32, true, 88, true, 4, 32, 20, 88},
+      {2, 4, 4, false, 24, true, 4, 4, 16, 24},
+      {2, 0, 24, true, 44, true, 0, 24, 20, 44},
+      {4, 16, 32, false, 128, true, 16, 32, 16, 128},
+      {0, 0, 0, false, 16, false, 0, 0, 0, 0},
+      {-1, 0, 0, false, 16, false, 0, 0, 0, 0},
+      {1, -4, 0, false, 16, false, 0, 0, 0, 0},
+      {2, 0, -4, false, 32, false, 0, 0, 0, 0},
+      {1, 2, 0, false, 32, false, 0, 0, 0, 0},
+      {2, 0, 2, false, 32, false, 0, 0, 0, 0},
+      {1, 0, 0, false, 15, false, 0, 0, 0, 0},
+      {1, 0, 0, true, 19, false, 0, 0, 0, 0},
+      {1, 4, 0, false, 16, false, 0, 0, 0, 0},
+      {2, 0, 0, false, 31, false, 0, 0, 0, 0},
+      {2, 0, 24, true, 43, false, 0, 0, 0, 0},
+      {std::numeric_limits<int>::max(),
+       aligned_intptr_max,
+       aligned_intptr_max,
+       false,
+       1024,
+       false,
+       0,
+       0,
+       0,
+       0},
+  }};
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  uint64_t first_sum = 0;
+  uint64_t stride_sum = 0;
+  uint64_t end_sum = 0;
+  for (const Case &test : cases) {
+    bw::IndirectDrawSpan actual = {11, 12, 13, 14};
+    const bw::IndirectDrawSpan sentinel = actual;
+    const bool result = bw::indirect_draw_span(
+        test.count, test.offset, test.stride, test.indexed, test.buffer_size, actual);
+    if (!require(result == test.accepted, "indirect draw span decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(actual.first_offset == sentinel.first_offset &&
+                       actual.command_stride == sentinel.command_stride &&
+                       actual.command_size == sentinel.command_size &&
+                       actual.end_offset == sentinel.end_offset,
+                   "rejected indirect draw span preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+    if (!require(actual.first_offset == test.first_offset &&
+                     actual.command_stride == test.command_stride &&
+                     actual.command_size == test.command_size &&
+                     actual.end_offset == test.end_offset,
+                 "accepted indirect draw span geometry"))
+    {
+      return false;
+    }
+    accepted++;
+    first_sum += actual.first_offset;
+    stride_sum += actual.command_stride;
+    end_sum += actual.end_offset;
+  }
+
+  if (!require(accepted == 7 && rejected == 12, "indirect draw span census") ||
+      !require(first_sum == 36 && stride_sum == 144 && end_sum == 380,
+               "indirect draw span aggregate"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT indirect_draw_span PASS cases=19 accepted=7 rejected=12 "
+            "first_sum=36 stride_sum=144 end_sum=380");
   return true;
 }
 
@@ -409,6 +507,7 @@ bool vertex_alias_cache_key_contract()
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
+      !indirect_draw_span_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -416,7 +515,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=8 primitives=11 strip_cases=33 formats=96 i10=12 "
-      "dummy=32 shader_lifetimes=4096 alias_keys=2");
+      "INTEGRATED_PIPELINE_PASS contracts=9 primitives=11 strip_cases=33 indirect_spans=19 "
+      "formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

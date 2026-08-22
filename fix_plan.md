@@ -1501,6 +1501,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains
   red for the absent strict candidate and s7 still blocks live WebGPU sampling proof. See
   `notes/m3-t9-mipmap-odd-kernel-20260822.md`.
+- [x] **M3.T10-WINDOW-VIEWPORT-SCISSOR [gpu-backend]:** patch 0192 preserves the signed
+  window-backbuffer viewport while converting its bottom-origin Y in widened arithmetic and
+  clips an enabled frontend scissor independently. Both rectangles now validate before layered
+  clears or render-pass allocation. The 32-case native/wasm32 contract covers partial, outside,
+  device-limit, disabled-scissor, oversized-scissor, null, and integer-boundary inputs atomically.
+  Canonical replay, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green.
+  Required M3 remains red for the absent strict candidate and s7 still blocks live window proof.
+  See `notes/m3-t10-window-viewport-scissor-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

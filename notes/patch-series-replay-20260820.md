@@ -318,3 +318,9 @@ Patch 0191's odd-dimension mipmap reduction kernel was then composed without cha
 `f96a3b883108bf382479b5d392d2d8d42db493d766b091620d841af0214f5cde`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `f647b717e08b0aef66d1a32580ed7295d072aa0d8abe89750b39aae324ad7893`.
+
+Patch 0192's bottom-origin window viewport/scissor preflight was then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,614,748 bytes with SHA-256
+`a2c0e04eee74611d05032f496368bd72bf0213a8f0ce900cc8e0910244f192ce`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`f28cd079d729ceac9ba7a5a4fcd1a9781f926e4fd31ac8af70194b39ef6432b4`.

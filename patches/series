@@ -878,3 +878,6 @@
 # 0191: match Blender's native weighted 1/2/3-tap mipmap kernel for normalized
 # and float fallback textures so odd source axes retain their final texel.
 0191-gpu-webgpu-mipmap-odd-kernel.patch
+# 0192: preserve the signed window-backbuffer viewport while converting its
+# bottom-origin Y and independent scissor atomically before render-pass work.
+0192-gpu-webgpu-window-viewport-scissor.patch

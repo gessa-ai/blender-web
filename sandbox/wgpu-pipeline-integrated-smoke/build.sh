@@ -4,8 +4,8 @@
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
-# multi-viewport scissors, dummy-attribute binding plan, and shader-lifetime cache
-# separation. Invoke through buildwrap.sh.
+# multi-viewport/window-backbuffer rectangles, dummy-attribute binding plan, and
+# shader-lifetime cache separation. Invoke through buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -80,6 +80,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_context.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
+    source/blender/gpu/webgpu/wgpu_framebuffer.cc
     source/blender/gpu/webgpu/wgpu_shader.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
     source/blender/gpu/webgpu/wgpu_state_table.hh
@@ -127,6 +128,7 @@ for source_name in \
   wgpu_context.cc \
   wgpu_context.hh \
   wgpu_batch.cc \
+  wgpu_framebuffer.cc \
   wgpu_shader.cc \
   wgpu_shader.hh \
   wgpu_state_table.hh
@@ -224,6 +226,31 @@ require_fixed_count 1 'struct ViewportScissorPlan {' "$WEBGPU_SOURCE/wgpu_common
 require_fixed_count 1 'inline bool viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 \
   'if (!webgpu::viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'struct WindowViewportPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'if (!webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 0 'std::clamp(vp[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 0 'std::clamp(sc[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 \
+  'pass.SetViewport(float(window_viewport.viewport.viewport_x),' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 \
+  'pass.SetScissorRect(window_viewport.scissor_x,' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+WINDOW_PLAN_LINE="$(grep -nF 'if (!webgpu::window_viewport_scissor_plan(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
+LAYERED_CLEAR_LINE="$(grep -nF 'if (!materialize_layered_loadstore_clears())' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
+BEGIN_PASS_LINE="$(grep -nF 'wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
+if [ -z "$WINDOW_PLAN_LINE" ] || [ -z "$LAYERED_CLEAR_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||
+   [ "$WINDOW_PLAN_LINE" -ge "$LAYERED_CLEAR_LINE" ] ||
+   [ "$LAYERED_CLEAR_LINE" -ge "$BEGIN_PASS_LINE" ]
+then
+  echo "ERROR: window viewport preflight no longer precedes layered clears and pass allocation" >&2
+  exit 1
+fi
 require_fixed_count 0 'uint32_t(rect[0])' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 'uint32_t(rect[1])' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 'uint32_t(rect[2])' "$WEBGPU_SOURCE/wgpu_batch.cc"
@@ -352,7 +379,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 13 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 14 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -365,6 +392,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT viewport_scissor_plan PASS cases=28 accepted=11 rejected=17 area=616503' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT window_viewport_scissor_plan PASS cases=32 accepted=14 rejected=18 viewport_sum=9794 scissor_area=1764' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 indirect_cases=13 accepted=5 rejected=8 group_sum=40' \
        "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
@@ -374,7 +404,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=12 primitives=11 strip_cases=33 indirect_spans=19 direct_draws=16 viewport_scissors=28 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=13 primitives=11 strip_cases=33 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

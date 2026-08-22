@@ -403,3 +403,17 @@ sizes, and three position-dependent weights over odd sizes. Keep the complete pr
 one callable helper, compile its axis plan for native and wasm32, and parse the exact shader with
 the pinned Tint reader. Exercise first/middle/last odd footprints and a ramp whose final texel
 changes the result. See `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 26 — bottom-origin window rectangles must preflight before a render pass
+
+Signature: a window-backbuffer path converts `H - (y + height)` in signed `int`, clips the
+viewport itself, and opens the render pass before deciding whether the rectangle is usable.
+Negative origins then change the raster transform when clamped, integer-boundary state can
+overflow during Y conversion, and skipping `SetViewport` after pass creation silently selects
+WebGPU's whole-target default. Convert the bottom-origin coordinate with widened arithmetic,
+preserve the signed viewport under Dawn's published bounds, and clip an enabled frontend scissor
+independently into unsigned framebuffer space. Validate both rectangles atomically before any
+layered clear or pass allocation; a disabled scissor must remain disabled. Exercise partially
+visible edges, fully clipped rectangles, target/device limits, oversized-but-clippable scissors,
+null input, and `INT_MIN`/`INT_MAX` on native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

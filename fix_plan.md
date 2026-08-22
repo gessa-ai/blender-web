@@ -587,6 +587,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   the real windowed product compiles and links the corrected cache path. No instance, adapter,
   device, shader module, pipeline, browser receipt, or result promotion is created. Evidence:
   `notes/m3-t7-cache-envelope-20260821.md`.
+- [x] **M3.T7.cache-key-binding [gpu-backend] COMPLETE (patch 0163):** each v3 WGSL cache
+  envelope now stores and verifies the requested 128-bit content key before reading stage lengths
+  or allocating outputs, so a valid entry copied under another key fails closed. The exact
+  shipping reader's native/wasm32 contract proves substitution rejection with unchanged caller
+  sentinels, and the real windowed product compiles and links the corrected cache path. No
+  instance, adapter, device, shader module, pipeline, browser receipt, or result promotion is
+  created. Evidence: `notes/m3-t7-cache-key-binding-20260821.md`.
 - [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
   indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
   format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former

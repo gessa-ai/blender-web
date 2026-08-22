@@ -86,6 +86,46 @@ size_t line_count_with(const std::string &text, const std::string &needle)
   return count;
 }
 
+std::string cache_file_path(const char *cache_dir, const bw::ShaderCacheKey &key)
+{
+  char filename[48];
+  std::snprintf(filename,
+                sizeof(filename),
+                "%016llx%016llx.wgslc",
+                static_cast<unsigned long long>(key.hi),
+                static_cast<unsigned long long>(key.lo));
+  return std::string(cache_dir) + "/" + filename;
+}
+
+bool copy_file(const std::string &source_path, const std::string &target_path)
+{
+  FILE *source = std::fopen(source_path.c_str(), "rb");
+  if (source == nullptr) {
+    return false;
+  }
+  FILE *target = std::fopen(target_path.c_str(), "wb");
+  if (target == nullptr) {
+    std::fclose(source);
+    return false;
+  }
+
+  bool ok = true;
+  char buffer[4096];
+  while (ok) {
+    const size_t bytes_read = std::fread(buffer, 1, sizeof(buffer), source);
+    if (bytes_read != 0 && std::fwrite(buffer, 1, bytes_read, target) != bytes_read) {
+      ok = false;
+    }
+    if (bytes_read != sizeof(buffer)) {
+      ok = ok && std::feof(source) != 0 && std::ferror(source) == 0;
+      break;
+    }
+  }
+  ok = std::fclose(source) == 0 && ok;
+  ok = std::fclose(target) == 0 && ok;
+  return ok;
+}
+
 std::string binding_list(const std::vector<uint32_t> &bindings)
 {
   std::ostringstream output;
@@ -302,13 +342,7 @@ bool cache_envelope_contract()
   }
 
   const bw::ShaderCacheKey key{0x454e56454c4f5045ull, 0x545241494c494e47ull};
-  char filename[48];
-  std::snprintf(filename,
-                sizeof(filename),
-                "%016llx%016llx.wgslc",
-                static_cast<unsigned long long>(key.hi),
-                static_cast<unsigned long long>(key.lo));
-  const std::string path = std::string(cache_dir) + "/" + filename;
+  const std::string path = cache_file_path(cache_dir, key);
   const std::string expected_vertex = "vertex-envelope";
   const std::string expected_fragment = "fragment-envelope";
   const std::string expected_compute = "compute-envelope";
@@ -334,6 +368,33 @@ bool cache_envelope_contract()
                                  compute == "compute-sentinel";
   const bool removed = std::remove(path.c_str()) == 0;
   return clean_hit && appended && closed && trailing_rejected && removed;
+}
+
+bool cache_key_binding_contract()
+{
+  const char *cache_dir = std::getenv("BW_SHADER_CACHE_DIR");
+  if (cache_dir == nullptr || cache_dir[0] == '\0') {
+    return false;
+  }
+
+  const bw::ShaderCacheKey source_key{0x4b455942494e4441ull, 0x534f555243452d31ull};
+  const bw::ShaderCacheKey target_key{0x4b455942494e4442ull, 0x5441524745542d32ull};
+  const std::string source_path = cache_file_path(cache_dir, source_key);
+  const std::string target_path = cache_file_path(cache_dir, target_key);
+  bw::cache_store(source_key, "source-vertex", "source-fragment", "source-compute");
+  bw::cache_store(target_key, "target-vertex", "target-fragment", "target-compute");
+
+  const bool substituted = copy_file(source_path, target_path);
+  std::string vertex = "vertex-sentinel";
+  std::string fragment = "fragment-sentinel";
+  std::string compute = "compute-sentinel";
+  const bool substitution_rejected = !bw::cache_lookup(target_key, vertex, fragment, compute) &&
+                                     vertex == "vertex-sentinel" &&
+                                     fragment == "fragment-sentinel" &&
+                                     compute == "compute-sentinel";
+  const bool source_removed = std::remove(source_path.c_str()) == 0;
+  const bool target_removed = std::remove(target_path.c_str()) == 0;
+  return substituted && substitution_rejected && source_removed && target_removed;
 }
 
 bool type_reflection_contract()
@@ -554,13 +615,14 @@ int main()
 
   gate("bindmap_cache_reflection", bindmap_cache_reflection_contract());
   gate("cache_envelope", cache_envelope_contract());
+  gate("cache_key_binding", cache_key_binding_contract());
   gate("type_reflection", type_reflection_contract());
   gate("compute_reflection", compute_reflection_contract());
   gate("binding_policy", binding_policy_contract());
   gate("sampler_compaction", sampler_compaction_contract());
 
-  if (passed == 6 && total == 6) {
-    std::cout << "INTEGRATED_SHADER_COMPILER_PASS contracts=6 cache_entries=4\n";
+  if (passed == 7 && total == 7) {
+    std::cout << "INTEGRATED_SHADER_COMPILER_PASS contracts=7 cache_entries=4\n";
     return 0;
   }
   std::cerr << "INTEGRATED_SHADER_COMPILER_FAIL contracts=" << passed << "/" << total << "\n";

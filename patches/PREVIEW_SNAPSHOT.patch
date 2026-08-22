@@ -27455,10 +27455,10 @@ index 0000000000000000000000000000000000000000..ed04ac626e2506b9319e6a04b18d8073
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.cc b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04acdc107a6b
+index 0000000000000000000000000000000000000000..977e423ca78856ab11a6e5ca38fee3d8b23dd381
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,274 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later */
@@ -27501,10 +27501,10 @@ index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04ac
 + * emitted by the previous toolchain. Bump the policy suffix when writer options
 + * or binding transforms change without a dependency-pin change. */
 +constexpr const char *kSalt =
-+    "BWSC-v2|shaderc-v2025.4|tint-dawn-36cf1fae|spv1.3-vk1.1|"
++    "BWSC-v3|shaderc-v2025.4|tint-dawn-36cf1fae|spv1.3-vk1.1|"
 +    "tint-ir-wgsl|clipdist+dualsrc+nonunif+noopt|sampler-compact-v1";
 +
-+constexpr uint32_t kFormatVersion = 2u;
++constexpr uint32_t kFormatVersion = 3u;
 +constexpr char kMagic[4] = {'B', 'W', 'S', 'C'};
 +constexpr uint32_t kMaxStageBytes = 16u * 1024u * 1024u;
 +
@@ -27631,6 +27631,7 @@ index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04ac
 +    char magic[4];
 +    uint32_t fmt = 0;
 +    uint64_t salt = 0;
++    uint64_t stored_key_hi = 0, stored_key_lo = 0;
 +    uint32_t vlen = 0, flen = 0, clen = 0;
 +    uint64_t expected_payload_hash = 0;
 +    if (!read_exact(f, magic, sizeof(magic)) || std::memcmp(magic, kMagic, 4) != 0) {
@@ -27640,6 +27641,12 @@ index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04ac
 +      break;
 +    }
 +    if (!read_exact(f, &salt, sizeof(salt)) || salt != salt_hash()) {
++      break;
++    }
++    if (!read_exact(f, &stored_key_hi, sizeof(stored_key_hi)) ||
++        !read_exact(f, &stored_key_lo, sizeof(stored_key_lo)) || stored_key_hi != key.hi ||
++        stored_key_lo != key.lo)
++    {
 +      break;
 +    }
 +    if (!read_exact(f, &vlen, sizeof(vlen)) || !read_exact(f, &flen, sizeof(flen)) ||
@@ -27686,9 +27693,9 @@ index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04ac
 +  }
 +  /* Direct write (no temp+rename): WasmFS-OPFS rename support is not relied upon,
 +   * and a torn write is self-healing - cache_lookup validates the header, bounded
-+   * lengths, payload checksum, and every read, then treats any failure as a miss.
-+   * compile_shader is serial on the single WM worker, so there is no intra-process
-+   * concurrent access to the same key. */
++   * lengths, requested key, payload checksum, and every read, then treats any
++   * failure as a miss. compile_shader is serial on the single WM worker, so
++   * there is no intra-process concurrent access to the same key. */
 +  const std::string final_path = key_path(key);
 +  FILE *f = std::fopen(final_path.c_str(), "wb");
 +  if (f == nullptr) {
@@ -27709,6 +27716,8 @@ index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04ac
 +  bool ok = std::fwrite(kMagic, 1, sizeof(kMagic), f) == sizeof(kMagic) &&
 +            std::fwrite(&kFormatVersion, 1, sizeof(kFormatVersion), f) == sizeof(kFormatVersion) &&
 +            std::fwrite(&salt, 1, sizeof(salt), f) == sizeof(salt) &&
++            std::fwrite(&key.hi, 1, sizeof(key.hi), f) == sizeof(key.hi) &&
++            std::fwrite(&key.lo, 1, sizeof(key.lo), f) == sizeof(key.lo) &&
 +            std::fwrite(&vlen, 1, sizeof(vlen), f) == sizeof(vlen) &&
 +            std::fwrite(&flen, 1, sizeof(flen), f) == sizeof(flen) &&
 +            std::fwrite(&clen, 1, sizeof(clen), f) == sizeof(clen) &&

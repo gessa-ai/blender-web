@@ -280,11 +280,11 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if ! grep -qx 'INTEGRATED_SHADER_COMPILER_PASS contracts=6 cache_entries=4' "$stdout_file"; then
+  if ! grep -qx 'INTEGRATED_SHADER_COMPILER_PASS contracts=7 cache_entries=4' "$stdout_file"; then
     echo "ERROR: integrated compiler PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS$' "$stdout_file")" -ne 6 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS$' "$stdout_file")" -ne 7 ] ||
      [ "$(grep -c '^BW_SHADER_CACHE_RESULT MISS ' "$stdout_file")" -ne 4 ] ||
      [ "$(grep -c '^BW_SHADER_CACHE_RESULT HIT bindmap_integrated$' "$stdout_file")" -ne 1 ]; then
     echo "ERROR: integrated compiler evidence census differs: $stdout_file" >&2

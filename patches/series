@@ -766,3 +766,7 @@
 # The exact shipping reader's native/Wasm contract proves a clean hit, an appended-byte
 # miss, unchanged output sentinels, and cleanup without creating a WebGPU device.
 0162-gpu-webgpu-shader-cache-envelope.patch
+# 0163: bind each WGSL cache envelope to the requested 128-bit content key.
+# The exact shipping reader's native/Wasm contract substitutes one valid entry at
+# another key's path and requires a miss with unchanged caller outputs.
+0163-gpu-webgpu-shader-cache-key-binding.patch

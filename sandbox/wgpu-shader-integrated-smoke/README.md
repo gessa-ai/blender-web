@@ -14,10 +14,11 @@ point reflection, sampler compaction, and current bind-group visibility policy.
 Before allocating evidence, the driver requires the clean-pin canonical replay,
 shaderc v2025.4's checksum-bound source, Dawn/Tint `36cf1fae`, emcc 6.0.5, and
 Node 22.16.0. Both targets build only through `scripts/ninja-locked.sh`. The
-native and Wasm executions must emit identical six-contract evidence and four
+native and Wasm executions must emit identical seven-contract evidence and four
 byte-identical cold-cache files; the second bind-map compilation must be a warm
-cache hit with unchanged WGSL and reflection, and an appended cache byte must
-invalidate the otherwise checksummed envelope without changing caller outputs.
+cache hit with unchanged WGSL and reflection. An appended cache byte and a valid
+entry copied under another cache key must each invalidate the otherwise
+checksummed envelope without changing caller outputs.
 
 Run the bounded logger from any checkout descendant:
 

@@ -1,0 +1,46 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -74,6 +74,25 @@ inline bool checked_align_up(size_t v, size_t a, size_t &result)
+   return true;
+ }
+-
++
++/** Resolve the aligned WebGPU allocation size without exceeding the device limit.
++ * A zero-byte Blender buffer keeps the existing four-byte sentinel allocation.
++ * Failure leaves `result` unchanged. */
++inline bool buffer_allocation_size(size_t requested_size,
++                                   uint64_t max_buffer_size,
++                                   size_t &result)
++{
++  size_t candidate;
++  if (!checked_align_up(requested_size == 0 ? kCopyAlignment : requested_size,
++                        kCopyAlignment,
++                        candidate) ||
++      uint64_t(candidate) > max_buffer_size)
++  {
++    return false;
++  }
++  result = candidate;
++  return true;
++}
++
+ /** True when the half-open byte range [offset, offset + size) is contained in
+  * an allocation of `capacity` bytes. The subtraction form cannot overflow. */
+ inline bool range_fits(size_t offset, size_t size, size_t capacity)
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -103,8 +103,11 @@ bool Buffer::create(const wgpu::Device &device,
+                     bool readable,
+                     const char *label)
+ {
++  wgpu::Limits limits = {};
+   size_t allocated_size;
+-  if (!checked_align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment, allocated_size)) {
++  if (device == nullptr || !device.GetLimits(&limits) ||
++      !buffer_allocation_size(size, limits.maxBufferSize, allocated_size))
++  {
+     return false;
+   }
+   readback::forget_source(readback::SourceKind::Buffer, this);

@@ -818,3 +818,7 @@
 # alignment and both allocation ranges before creating a command encoder.
 # The device-free native/Wasm contract covers nine boundary cases through SIZE_MAX.
 0175-gpu-webgpu-storage-copy-ranges.patch
+# 0176: reject aligned buffer allocations above the live device's maxBufferSize
+# before Dawn can return a non-null error buffer. The device-free native/Wasm
+# contract covers ten zero, exact-limit, over-limit, and SIZE_MAX boundary cases.
+0176-gpu-webgpu-buffer-allocation-limit.patch

@@ -18012,10 +18012,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..4b4667f9e47600c3ac046c1a16ecccbf84a57710
+index 0000000000000000000000000000000000000000..381c2495f1b6848ac238848e70441a2088516a0d
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,248 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18121,8 +18121,11 @@ index 0000000000000000000000000000000000000000..4b4667f9e47600c3ac046c1a16ecccbf
 +                    bool readable,
 +                    const char *label)
 +{
++  wgpu::Limits limits = {};
 +  size_t allocated_size;
-+  if (!checked_align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment, allocated_size)) {
++  if (device == nullptr || !device.GetLimits(&limits) ||
++      !buffer_allocation_size(size, limits.maxBufferSize, allocated_size))
++  {
 +    return false;
 +  }
 +  readback::forget_source(readback::SourceKind::Buffer, this);
@@ -18367,10 +18370,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..7ec6c884d08d535b27290d45a7f7b360fe5ea3cc
+index 0000000000000000000000000000000000000000..5851c156a191e82f5aac8c0569e1caea0b9da552
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,118 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18444,6 +18447,25 @@ index 0000000000000000000000000000000000000000..7ec6c884d08d535b27290d45a7f7b360
 +    return false;
 +  }
 +  result = (v + (a - 1)) & ~(a - 1);
++  return true;
++}
++
++/** Resolve the aligned WebGPU allocation size without exceeding the device limit.
++ * A zero-byte Blender buffer keeps the existing four-byte sentinel allocation.
++ * Failure leaves `result` unchanged. */
++inline bool buffer_allocation_size(size_t requested_size,
++                                   uint64_t max_buffer_size,
++                                   size_t &result)
++{
++  size_t candidate;
++  if (!checked_align_up(requested_size == 0 ? kCopyAlignment : requested_size,
++                        kCopyAlignment,
++                        candidate) ||
++      uint64_t(candidate) > max_buffer_size)
++  {
++    return false;
++  }
++  result = candidate;
 +  return true;
 +}
 +

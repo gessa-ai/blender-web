@@ -130,6 +130,55 @@ bool checked_arithmetic_contract()
   return true;
 }
 
+bool allocation_limit_contract()
+{
+  struct AllocationCase {
+    size_t requested;
+    uint64_t limit;
+    size_t expected;
+    bool accepted;
+  };
+  constexpr size_t size_max = std::numeric_limits<size_t>::max();
+  constexpr std::array<AllocationCase, 10> cases = {{{0, 4, 4, true},
+                                                      {1, 4, 4, true},
+                                                      {4, 4, 4, true},
+                                                      {5, 8, 8, true},
+                                                      {5, 7, 0, false},
+                                                      {8, 7, 0, false},
+                                                      {8, 0, 0, false},
+                                                      {size_max - 3,
+                                                       uint64_t(size_max),
+                                                       size_max - 3,
+                                                       true},
+                                                      {size_max - 2,
+                                                       uint64_t(size_max),
+                                                       0,
+                                                       false},
+                                                      {size_max,
+                                                       uint64_t(size_max),
+                                                       0,
+                                                       false}}};
+
+  size_t accepted = 0;
+  for (const AllocationCase &test : cases) {
+    size_t allocation = 37;
+    const bool actual = bw::buffer_allocation_size(test.requested, test.limit, allocation);
+    if (!require(actual == test.accepted, "buffer allocation limit decision") ||
+        !require(actual ? allocation == test.expected : allocation == 37,
+                 "rejected allocation preserves output"))
+    {
+      return false;
+    }
+    accepted += actual;
+  }
+
+  std::printf("CONTRACT allocation-limit PASS cases=%zu accepted=%zu rejected=%zu\n",
+              cases.size(),
+              accepted,
+              cases.size() - accepted);
+  return accepted == 5;
+}
+
 bool copy_range_contract()
 {
   struct CopyCase {
@@ -502,8 +551,8 @@ bool failed_ticket_capacity_contract()
 
 int main()
 {
-  if (!common_contract() || !checked_arithmetic_contract() || !copy_range_contract() ||
-      !usage_contract() ||
+  if (!common_contract() || !checked_arithmetic_contract() || !allocation_limit_contract() ||
+      !copy_range_contract() || !usage_contract() ||
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
@@ -511,6 +560,6 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=11 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
+      "INTEGRATED_BUFFER_PASS contracts=12 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
   return 0;
 }

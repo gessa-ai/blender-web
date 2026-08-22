@@ -221,3 +221,9 @@ Patch 0175's fail-closed vertex-to-storage copy validation was then composed wit
 `1afab3a4d7580eed99f3e116aba85c19329db1e142558130045f1652135a4ece`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `7dd618da9d864ec352165ec5bd1856f99046f7d47e3310c5002b367c734f1f4f`.
+
+Patch 0176's fail-closed buffer allocation-limit validation was then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,567,504 bytes with SHA-256
+`886eea5052e492eac6c0658d44872389fd60bf420e89b3aeab7d61138a3253bf`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`7ff47d3453e57907bf3143f83b08debd324230c6d37f494b81b1cd68c9d82f67`.

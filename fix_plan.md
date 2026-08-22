@@ -1565,6 +1565,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Canonical replay/reverse check, real windowed rebuild/no-work check, OFF preflight, and REUSE are
   green. Required M3 remains red for the absent strict candidate and s7 still blocks live hardware
   upload/pixel proof. See `notes/m3-t9-depth-upload-mapped-ranges-20260822.md`.
+- [x] **M3.T10-MULTIVIEWPORT-UNIFORM-ALLOCATION [gpu-backend] (f699b30):** patch 0200 makes
+  the shared 16-byte `{layer, viewport}` buffer creation atomic and guards both direct and indirect
+  multi-viewport paths before state flush, queue, pass, or draw work. The fail-first source guard
+  plus two-case native/wasm32 transaction contract prove exact descriptor fields, unchanged output
+  on allocation failure, and successful publication byte-identically. Canonical replay, patch
+  reversal, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required
+  M3 remains red for the absent strict candidate and s7 still blocks live hardware draw proof. See
+  `notes/m3-t10-multiview-uniform-allocation-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

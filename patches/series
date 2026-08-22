@@ -899,3 +899,6 @@
 # 0198: reject a missing mapped range before copying or submitting a large
 # buffer-update staging transfer.
 0198-gpu-webgpu-buffer-staging-map.patch
+# 0199: reject missing mapped ranges before copying either buffer in the
+# depth-texture upload transaction.
+0199-gpu-webgpu-depth-upload-mapped-ranges.patch

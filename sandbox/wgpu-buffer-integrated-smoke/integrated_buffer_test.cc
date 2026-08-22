@@ -8,6 +8,7 @@
  * adapter, or device is created; live buffer copies remain part of the
  * hardware-gated M3 replay. */
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -131,6 +132,120 @@ bool checked_arithmetic_contract()
   }
 
   std::printf("CONTRACT checked-arithmetic PASS align_cases=7 range_cases=4\n");
+  return true;
+}
+
+class MappedBufferProbe {
+ public:
+  explicit MappedBufferProbe(const bool map_success) : map_success_(map_success)
+  {
+    bytes_.fill(0xa5);
+  }
+
+  void *GetMappedRange(const size_t offset, const size_t size)
+  {
+    map_calls_++;
+    mapped_offset_ = offset;
+    mapped_size_ = size;
+    return map_success_ && offset <= bytes_.size() && size <= bytes_.size() - offset ?
+               bytes_.data() + offset :
+               nullptr;
+  }
+
+  void Unmap()
+  {
+    unmap_calls_++;
+  }
+
+  const std::array<uint8_t, 16> &bytes() const
+  {
+    return bytes_;
+  }
+
+  size_t map_calls() const
+  {
+    return map_calls_;
+  }
+
+  size_t unmap_calls() const
+  {
+    return unmap_calls_;
+  }
+
+  size_t mapped_offset() const
+  {
+    return mapped_offset_;
+  }
+
+  size_t mapped_size() const
+  {
+    return mapped_size_;
+  }
+
+ private:
+  bool map_success_ = false;
+  std::array<uint8_t, 16> bytes_ = {};
+  size_t map_calls_ = 0;
+  size_t unmap_calls_ = 0;
+  size_t mapped_offset_ = 0;
+  size_t mapped_size_ = 0;
+};
+
+bool mapped_buffer_write_contract()
+{
+  const std::array<uint8_t, 8> source = {0x03, 0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f};
+  const std::array<uint8_t, 16> untouched = {
+      0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5,
+      0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5};
+
+  MappedBufferProbe null_source(true);
+  if (!require(!bw::mapped_buffer_write(null_source, nullptr, source.size()),
+               "null mapped-buffer source is rejected") ||
+      !require(null_source.map_calls() == 0 && null_source.unmap_calls() == 0 &&
+                   null_source.bytes() == untouched,
+               "null source performs no mapping work"))
+  {
+    return false;
+  }
+
+  MappedBufferProbe empty_source(true);
+  if (!require(!bw::mapped_buffer_write(empty_source, source.data(), 0),
+               "empty mapped-buffer write is rejected") ||
+      !require(empty_source.map_calls() == 0 && empty_source.unmap_calls() == 0 &&
+                   empty_source.bytes() == untouched,
+               "empty source performs no mapping work"))
+  {
+    return false;
+  }
+
+  MappedBufferProbe failed_map(false);
+  if (!require(!bw::mapped_buffer_write(failed_map, source.data(), source.size()),
+               "missing mapped range is rejected") ||
+      !require(failed_map.map_calls() == 1 && failed_map.unmap_calls() == 0 &&
+                   failed_map.mapped_offset() == 0 &&
+                   failed_map.mapped_size() == source.size() && failed_map.bytes() == untouched,
+               "map failure performs no copy or unmap"))
+  {
+    return false;
+  }
+
+  MappedBufferProbe success(true);
+  if (!require(bw::mapped_buffer_write(success, source.data(), source.size()),
+               "mapped-buffer write succeeds") ||
+      !require(success.map_calls() == 1 && success.unmap_calls() == 1 &&
+                   success.mapped_offset() == 0 && success.mapped_size() == source.size(),
+               "successful mapped-buffer write maps and unmaps exactly once") ||
+      !require(std::equal(source.begin(), source.end(), success.bytes().begin()) &&
+                   std::equal(success.bytes().begin() + source.size(),
+                              success.bytes().end(),
+                              untouched.begin() + source.size()),
+               "successful mapped-buffer write preserves exact bytes and tail"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT mapped-buffer-write PASS cases=4 copied=%zu map_failure=reject\n",
+              source.size());
   return true;
 }
 
@@ -640,8 +755,9 @@ bool failed_ticket_capacity_contract()
 
 int main()
 {
-  if (!common_contract() || !checked_arithmetic_contract() || !allocation_limit_contract() ||
-      !update_payload_contract() || !copy_range_contract() || !usage_contract() ||
+  if (!common_contract() || !checked_arithmetic_contract() || !mapped_buffer_write_contract() ||
+      !allocation_limit_contract() || !update_payload_contract() || !copy_range_contract() ||
+      !usage_contract() ||
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() ||
@@ -651,7 +767,7 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=15 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "INTEGRATED_BUFFER_PASS contracts=16 usage_cases=32 pixel_cases=7 exact_cap=256 "
       "buffer_update_cases=9 index_cases=4 index_upload_cases=6\n");
   return 0;
 }

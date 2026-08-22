@@ -37,8 +37,11 @@ The arithmetic cases reach `SIZE_MAX`, reject alignment overflow without mutatin
 output sentinel, reject aligned allocations above `maxBufferSize`, and prove that a wrapped
 `offset + size` cannot pass allocation bounds. Update cases preserve the caller pointer for
 aligned payloads and copy only unaligned payloads into zero-filled four-byte transfer storage.
-Exact source checks bind those helpers to limit-aware buffer creation, updates, readback, and
-the shipping vertex-to-storage copy path.
+The mapped-buffer cases reject null/empty sources and a missing mapped range before copying or
+unmapping, then preserve exact payload and tail bytes on success. Exact source checks bind that
+helper to both mapped buffers in the shipping depth-texture upload transaction, and bind the
+other helpers to limit-aware buffer creation, updates, readback, and the shipping
+vertex-to-storage copy path.
 
 Run it only through the build wrapper:
 

@@ -18449,10 +18449,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9c87327a261ed4ae8349b35030524cc419624cd3
+index 0000000000000000000000000000000000000000..125ba8efee23359f94d0dc1118fab9eeac711314
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1141 @@
+@@ -0,0 +1,1159 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19548,6 +19548,24 @@ index 0000000000000000000000000000000000000000..9c87327a261ed4ae8349b35030524cc4
 +  }
 +};
 +
++/** Copy one complete caller-owned payload into a mapped-at-creation buffer. Mapping can fail
++ * even when WebGPU returns a non-null error buffer; reject that state before touching memory or
++ * unmapping. Templated so the device-free contract can exercise the exact state transition. */
++template<typename BufferT>
++inline bool mapped_buffer_write(BufferT &buffer, const void *data, size_t size)
++{
++  if (data == nullptr || size == 0) {
++    return false;
++  }
++  void *mapped = buffer.GetMappedRange(0, size);
++  if (mapped == nullptr) {
++    return false;
++  }
++  std::memcpy(mapped, data, size);
++  buffer.Unmap();
++  return true;
++}
++
 +/** Prepare a caller-owned byte range for Queue::WriteBuffer or a staging copy without reading
 + * beyond its logical extent. WebGPU requires a four-byte transfer size, while Blender's
 + * `StorageBuf::usage_size_set()` may select an arbitrary prefix of the allocation. Failure is
@@ -19596,10 +19614,10 @@ index 0000000000000000000000000000000000000000..9c87327a261ed4ae8349b35030524cc4
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5eeb24f73d4f790306fd08ea12209350d7159053
+index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad0bb6dfc0
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1275 @@
+@@ -0,0 +1,1277 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20363,8 +20381,9 @@ index 0000000000000000000000000000000000000000..5eeb24f73d4f790306fd08ea12209350
 +  if (values_buffer == nullptr) {
 +    return false;
 +  }
-+  std::memcpy(values_buffer.GetMappedRange(0, value_bytes), values, value_bytes);
-+  values_buffer.Unmap();
++  if (!webgpu::mapped_buffer_write(values_buffer, values, value_bytes)) {
++    return false;
++  }
 +
 +  const uint32_t params[4] = {dst_x, dst_y, w, h};
 +  wgpu::BufferDescriptor params_desc = {};
@@ -20375,8 +20394,9 @@ index 0000000000000000000000000000000000000000..5eeb24f73d4f790306fd08ea12209350
 +  if (params_buffer == nullptr) {
 +    return false;
 +  }
-+  std::memcpy(params_buffer.GetMappedRange(0, sizeof(params)), params, sizeof(params));
-+  params_buffer.Unmap();
++  if (!webgpu::mapped_buffer_write(params_buffer, params, sizeof(params))) {
++    return false;
++  }
 +
 +  wgpu::BindGroupEntry entries[2] = {};
 +  entries[0].binding = 0;

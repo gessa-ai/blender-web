@@ -68,6 +68,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_buffer.cc
     source/blender/gpu/webgpu/wgpu_buffer.hh
     source/blender/gpu/webgpu/wgpu_common.hh
+    source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_pixel_buffer.cc
     source/blender/gpu/webgpu/wgpu_pixel_buffer.hh
     source/blender/gpu/webgpu/wgpu_readback.cc
@@ -119,6 +120,7 @@ for source_name in \
   wgpu_buffer.cc \
   wgpu_buffer.hh \
   wgpu_common.hh \
+  wgpu_context.cc \
   wgpu_pixel_buffer.cc \
   wgpu_pixel_buffer.hh \
   wgpu_readback.cc \
@@ -269,6 +271,12 @@ require_fixed_count 1 'if (mapped == nullptr) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'std::memcpy(mapped, data, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'inline bool mapped_buffer_write(' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 'if (!webgpu::mapped_buffer_write(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 0 '.GetMappedRange(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
 STAGING_MAP_LINE="$(grep -nF 'void *mapped = staging.GetMappedRange(0, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 STAGING_MAP_GUARD_LINE="$(grep -nF 'if (mapped == nullptr) {' \
@@ -471,7 +479,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=15 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
+    'INTEGRATED_BUFFER_PASS contracts=16 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -484,12 +492,15 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT buffer-staging-map PASS cases=9 large_bytes=65540 map_failure=reject writes=1 submits=1' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 15 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 16 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

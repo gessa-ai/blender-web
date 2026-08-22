@@ -173,6 +173,12 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted canonical method")
   endif()
+  if(NOT DEFINED BW_WGPU_INDEX_UPLOAD_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_INDEX_UPLOAD_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_INDEX_UPLOAD_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_INDEX_UPLOAD_SOURCE must name the extracted canonical method")
+  endif()
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -246,6 +252,7 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   )
   target_compile_definitions(wgpu_buffer_integrated_test PRIVATE
     BW_WGPU_INDEX_STRIP_SOURCE="${BW_WGPU_INDEX_STRIP_SOURCE}"
+    BW_WGPU_INDEX_UPLOAD_SOURCE="${BW_WGPU_INDEX_UPLOAD_SOURCE}"
   )
   target_include_directories(wgpu_buffer_integrated_test PRIVATE
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

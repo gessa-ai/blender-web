@@ -24,6 +24,7 @@ PYBIN="$ROOT/.host-tools/bin/python3.13"
 HOST_CMAKE="${HOST_CMAKE:-$ROOT/.host-tools/bin/cmake}"
 WASM_INCLUDE="$ROOT/lib/wasm/include"
 INDEX_STRIP_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_strip.inc"
+INDEX_UPLOAD_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_upload.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -106,6 +107,7 @@ require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_buffer_test.cc"
 require_file "$HERE/integrated_index_test.cc"
 require_file "$HERE/extract_index_strip.py"
+require_file "$HERE/extract_index_upload.py"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -236,15 +238,24 @@ ALLOCATION_GUARD_LINE="$(grep -nF 'if (device == nullptr || !device.GetLimits(&l
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 STATE_MUTATION_LINE="$(grep -nF 'requested_ = size;' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-CREATE_BUFFER_LINE="$(grep -nF 'handle_ = device.CreateBuffer(&bd);' \
+CREATE_BUFFER_LINE="$(grep -nF 'wgpu::Buffer handle = device.CreateBuffer(&bd);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+UNMAP_BUFFER_LINE="$(grep -nF 'handle.Unmap();' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+PUBLISH_BUFFER_LINE="$(grep -nF 'handle_ = std::move(handle);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 if [ -z "$ALLOCATION_GUARD_LINE" ] || [ -z "$STATE_MUTATION_LINE" ] ||
-   [ -z "$CREATE_BUFFER_LINE" ] || [ "$ALLOCATION_GUARD_LINE" -ge "$STATE_MUTATION_LINE" ] ||
+   [ -z "$CREATE_BUFFER_LINE" ] || [ -z "$UNMAP_BUFFER_LINE" ] ||
+   [ -z "$PUBLISH_BUFFER_LINE" ] ||
+   [ "$ALLOCATION_GUARD_LINE" -ge "$STATE_MUTATION_LINE" ] ||
    [ "$ALLOCATION_GUARD_LINE" -ge "$CREATE_BUFFER_LINE" ] ||
+   [ "$CREATE_BUFFER_LINE" -ge "$UNMAP_BUFFER_LINE" ] ||
+   [ "$UNMAP_BUFFER_LINE" -ge "$STATE_MUTATION_LINE" ] ||
+   [ "$STATE_MUTATION_LINE" -ge "$PUBLISH_BUFFER_LINE" ] ||
    [ "$(sed -n "$((STATE_MUTATION_LINE - 1))p" "$WEBGPU_SOURCE/wgpu_buffer.cc")" != \
      '  readback::forget_source(readback::SourceKind::Buffer, this);' ]
 then
-  echo "ERROR: allocation-limit guard is not fail-closed before buffer state mutation" >&2
+  echo "ERROR: buffer creation is not fail-closed before state/handle publication" >&2
   exit 1
 fi
 require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
@@ -261,6 +272,19 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'if (!webgpu::buffer_copy_range_valid(src_offset,' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 1 \
+  'if (!buffer_.create(ctx->device_get(),' \
+  "$WEBGPU_SOURCE/wgpu_index_buffer.cc"
+INDEX_UPLOAD_GUARD_LINE="$(grep -nF 'if (!buffer_.create(ctx->device_get(),' \
+  "$WEBGPU_SOURCE/wgpu_index_buffer.cc" | cut -d: -f1)"
+INDEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE_VOID(data_);' \
+  "$WEBGPU_SOURCE/wgpu_index_buffer.cc" | cut -d: -f1)"
+if [ -z "$INDEX_UPLOAD_GUARD_LINE" ] || [ -z "$INDEX_UPLOAD_CLEANUP_LINE" ] ||
+   [ "$INDEX_UPLOAD_GUARD_LINE" -ge "$INDEX_UPLOAD_CLEANUP_LINE" ]
+then
+  echo "ERROR: index upload does not guard host-data cleanup on create success" >&2
+  exit 1
+fi
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -311,12 +335,32 @@ then
   echo "ERROR: malformed index-strip rejection differs" >&2
   exit 1
 fi
-rmdir "$INDEX_NEGATIVE_DIR"
-
 "$PYBIN" "$HERE/extract_index_strip.py" \
   --source "$WEBGPU_SOURCE/wgpu_index_buffer.cc" \
   --output "$INDEX_STRIP_SOURCE"
 require_file "$INDEX_STRIP_SOURCE"
+
+INDEX_UPLOAD_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/upload.inc"
+if INDEX_UPLOAD_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_index_upload.py" \
+  --source "$WEBGPU_SOURCE/wgpu_index_buffer.hh" \
+  --output "$INDEX_UPLOAD_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed index-upload source was accepted" >&2
+  exit 1
+fi
+if [ "$INDEX_UPLOAD_NEGATIVE_MESSAGE" != \
+     "INDEX_UPLOAD_EXTRACT_FAIL canonical index-upload method boundaries are not unique" ] ||
+   [ -e "$INDEX_UPLOAD_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed index-upload rejection differs" >&2
+  exit 1
+fi
+
+"$PYBIN" "$HERE/extract_index_upload.py" \
+  --source "$WEBGPU_SOURCE/wgpu_index_buffer.cc" \
+  --output "$INDEX_UPLOAD_SOURCE"
+require_file "$INDEX_UPLOAD_SOURCE"
+rmdir "$INDEX_NEGATIVE_DIR"
 
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
@@ -350,6 +394,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
+  -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
 
@@ -361,7 +406,8 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
-  -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE"
+  -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
+  -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
 echo "== [3/3] exact native/Wasm parity =="
@@ -380,19 +426,22 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=13 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
+    'INTEGRATED_BUFFER_PASS contracts=14 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4 index_upload_cases=6' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-metadata PASS subranges=2 direct=u16@2+65536/u32@12+0 indirect=u16@0+65536/u32@0+0 device-u32=17' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT index-upload-commit PASS cases=6 creates=4 failure=retain retry=commit bytes=6' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 13 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 14 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

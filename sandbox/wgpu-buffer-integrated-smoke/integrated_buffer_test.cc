@@ -645,6 +645,7 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=13 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
+      "INTEGRATED_BUFFER_PASS contracts=14 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "index_cases=4 index_upload_cases=6\n");
   return 0;
 }

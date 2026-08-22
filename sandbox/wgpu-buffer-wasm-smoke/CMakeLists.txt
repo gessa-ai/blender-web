@@ -29,6 +29,12 @@ if(NOT DEFINED BW_WGPU_INDEX_STRIP_SOURCE OR
   message(FATAL_ERROR
     "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted canonical method")
 endif()
+if(NOT DEFINED BW_WGPU_INDEX_UPLOAD_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_INDEX_UPLOAD_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_INDEX_UPLOAD_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_INDEX_UPLOAD_SOURCE must name the extracted canonical method")
+endif()
 
 set(_bw_integrated_buffer_sources
   wgpu_buffer.cc
@@ -100,6 +106,7 @@ set_target_properties(wgpu_buffer_integrated_smoke PROPERTIES
 )
 target_compile_definitions(wgpu_buffer_integrated_smoke PRIVATE
   BW_WGPU_INDEX_STRIP_SOURCE="${BW_WGPU_INDEX_STRIP_SOURCE}"
+  BW_WGPU_INDEX_UPLOAD_SOURCE="${BW_WGPU_INDEX_UPLOAD_SOURCE}"
 )
 target_include_directories(wgpu_buffer_integrated_smoke PRIVATE
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

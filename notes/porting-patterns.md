@@ -458,3 +458,13 @@ command encoder. Use one checked copy-span decision after size alignment: requir
 size, aligned source and destination offsets, and subtraction-form containment for both buffers.
 Bind the pure misalignment case to the shipping read seam before any encoder or asynchronous
 ticket work. See `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 30 — fallible creation must precede ownership commit
+
+Signature: a backend creates a device resource with caller-owned initial data, ignores the
+creation result, then frees the only host payload and marks the resource uploaded. An allocation
+or mapped-range failure therefore becomes permanent data loss instead of a retryable condition.
+Treat resource creation and ownership transfer as one transaction: return on failure, and mutate
+the host pointer/uploaded state only after success. Exercise the exact shipping state machine with
+a deterministic failure followed by retry, plus subrange, existing-resource, no-context, and
+device-built branches on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.

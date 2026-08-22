@@ -1,0 +1,71 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -66,11 +66,14 @@ void WGPUIndexBuffer::upload_data()
+   /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
+    * still copies exactly. readable=true so read() can stage it back. */
+-  buffer_.create(ctx->device_get(),
+-                 webgpu::BufferKind::Index,
+-                 webgpu::UsageType::Static,
+-                 size_get(),
+-                 data_,
+-                 true);
++  if (!buffer_.create(ctx->device_get(),
++                      webgpu::BufferKind::Index,
++                      webgpu::UsageType::Static,
++                      size_get(),
++                      data_,
++                      true))
++  {
++    return;
++  }
+-
++
+   /* Ownership of the index data was transferred to this IndexBuf; free it now
+    * (and null it) so the base destructor does not double-free. */
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -110,29 +110,29 @@ bool Buffer::create(const wgpu::Device &device,
+   {
+     return false;
+   }
+-  readback::forget_source(readback::SourceKind::Buffer, this);
+-  requested_ = size;
+-  size_ = allocated_size;
+-  kind_ = kind;
+-  readable_ = readable;
+-
+   wgpu::BufferDescriptor bd = {};
+   if (label != nullptr) {
+     bd.label = label;
+   }
+-  bd.size = size_;
++  bd.size = allocated_size;
+   bd.usage = usage_flags(kind, usage, readable);
+   bd.mappedAtCreation = (initial_data != nullptr);
+-  handle_ = device.CreateBuffer(&bd);
+-  if (handle_ == nullptr) {
++  wgpu::Buffer handle = device.CreateBuffer(&bd);
++  if (handle == nullptr) {
+     return false;
+   }
+   if (initial_data != nullptr) {
+-    void *p = handle_.GetMappedRange(0, size_);
++    void *p = handle.GetMappedRange(0, allocated_size);
+     if (p == nullptr) {
+       return false;
+     }
+-    std::memcpy(p, initial_data, requested_);
+-    handle_.Unmap();
++    std::memcpy(p, initial_data, size);
++    handle.Unmap();
+   }
++  readback::forget_source(readback::SourceKind::Buffer, this);
++  requested_ = size;
++  size_ = allocated_size;
++  kind_ = kind;
++  readable_ = readable;
++  handle_ = std::move(handle);
+   return true;
+ }

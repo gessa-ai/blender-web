@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include "MEM_guardedalloc.h"
 
@@ -18,6 +19,9 @@
 
 #ifndef BW_WGPU_INDEX_STRIP_SOURCE
 #  error "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted shipping method"
+#endif
+#ifndef BW_WGPU_INDEX_UPLOAD_SOURCE
+#  error "BW_WGPU_INDEX_UPLOAD_SOURCE must name the extracted shipping method"
 #endif
 
 namespace blender::gpu {
@@ -59,6 +63,183 @@ class IndexStripHarness : public IndexBuf {
 #define WGPUIndexBuffer IndexStripHarness
 #include BW_WGPU_INDEX_STRIP_SOURCE
 #undef WGPUIndexBuffer
+
+namespace {
+
+struct IndexUploadDevice {};
+
+class IndexUploadContext {
+ public:
+  const IndexUploadDevice &device_get() const
+  {
+    return device_;
+  }
+
+ private:
+  IndexUploadDevice device_;
+};
+
+static IndexUploadContext *index_upload_context = nullptr;
+
+static IndexUploadContext *active_context()
+{
+  return index_upload_context;
+}
+
+class IndexUploadBuffer {
+ public:
+  bool valid() const
+  {
+    return valid_;
+  }
+
+  template<typename Device>
+  bool create(const Device & /*device*/,
+              const webgpu::BufferKind kind,
+              const webgpu::UsageType usage,
+              const size_t size,
+              const void *initial_data,
+              const bool readable)
+  {
+    create_calls_++;
+    last_kind_ = kind;
+    last_usage_ = usage;
+    last_readable_ = readable;
+    last_payload_.assign(static_cast<const uint8_t *>(initial_data),
+                         static_cast<const uint8_t *>(initial_data) + size);
+    valid_ = create_result_;
+    return create_result_;
+  }
+
+  void set_valid(const bool valid)
+  {
+    valid_ = valid;
+  }
+  void set_create_result(const bool result)
+  {
+    create_result_ = result;
+  }
+  size_t create_calls() const
+  {
+    return create_calls_;
+  }
+  webgpu::BufferKind last_kind() const
+  {
+    return last_kind_;
+  }
+  webgpu::UsageType last_usage() const
+  {
+    return last_usage_;
+  }
+  bool last_readable() const
+  {
+    return last_readable_;
+  }
+  const std::vector<uint8_t> &last_payload() const
+  {
+    return last_payload_;
+  }
+
+ private:
+  bool valid_ = false;
+  bool create_result_ = true;
+  size_t create_calls_ = 0;
+  webgpu::BufferKind last_kind_ = webgpu::BufferKind::Vertex;
+  webgpu::UsageType last_usage_ = webgpu::UsageType::Dynamic;
+  bool last_readable_ = false;
+  std::vector<uint8_t> last_payload_;
+};
+
+class IndexUploadHarness {
+ public:
+  ~IndexUploadHarness()
+  {
+    MEM_SAFE_DELETE_VOID(data_);
+  }
+
+  void upload_data();
+
+  void seed_data(const std::array<uint8_t, 6> &bytes)
+  {
+    MEM_SAFE_DELETE_VOID(data_);
+    auto *owned = MEM_new_array_uninitialized<uint8_t>(bytes.size(), __func__);
+    std::memcpy(owned, bytes.data(), bytes.size());
+    data_ = owned;
+    size_ = bytes.size();
+  }
+
+  void make_subrange(IndexUploadHarness &source)
+  {
+    is_subrange_ = true;
+    src_ = &source;
+  }
+  void set_buffer_valid(const bool valid)
+  {
+    buffer_.set_valid(valid);
+  }
+  void set_create_result(const bool result)
+  {
+    buffer_.set_create_result(result);
+  }
+  void set_allocate_result(const bool result)
+  {
+    allocate_result_ = result;
+  }
+  bool has_data() const
+  {
+    return data_ != nullptr;
+  }
+  bool uploaded() const
+  {
+    return data_uploaded_;
+  }
+  bool buffer_valid() const
+  {
+    return buffer_.valid();
+  }
+  size_t create_calls() const
+  {
+    return buffer_.create_calls();
+  }
+  size_t allocate_calls() const
+  {
+    return allocate_calls_;
+  }
+  const IndexUploadBuffer &mock_buffer() const
+  {
+    return buffer_;
+  }
+
+ private:
+  size_t size_get() const
+  {
+    return size_;
+  }
+  void allocate()
+  {
+    allocate_calls_++;
+    buffer_.set_valid(allocate_result_);
+  }
+
+  bool is_subrange_ = false;
+  IndexUploadHarness *src_ = nullptr;
+  void *data_ = nullptr;
+  size_t size_ = 0;
+  IndexUploadBuffer buffer_;
+  bool data_uploaded_ = false;
+  bool allocate_result_ = true;
+  size_t allocate_calls_ = 0;
+};
+
+/* Execute the shipping upload state machine with a deterministic allocation
+ * seam. Only the class and context type tokens are substituted. */
+#define WGPUIndexBuffer IndexUploadHarness
+#define WGPUContext IndexUploadContext
+#include BW_WGPU_INDEX_UPLOAD_SOURCE
+#undef WGPUContext
+#undef WGPUIndexBuffer
+
+}  // namespace
 
 namespace {
 
@@ -232,11 +413,125 @@ bool index_metadata_contract()
   return true;
 }
 
+bool index_upload_commit_contract()
+{
+  constexpr std::array<uint8_t, 6> payload = {0x10, 0x21, 0x32, 0x43, 0x54, 0x65};
+  IndexUploadContext context;
+  size_t create_calls = 0;
+
+  {
+    IndexUploadHarness source;
+    source.seed_data(payload);
+    IndexUploadHarness subrange;
+    subrange.make_subrange(source);
+    index_upload_context = &context;
+    subrange.upload_data();
+    if (!require(source.uploaded() && !source.has_data() && source.buffer_valid(),
+                 "subrange delegates upload to its source") ||
+        !require(subrange.create_calls() == 0, "subrange does not allocate itself"))
+    {
+      return false;
+    }
+    create_calls += source.create_calls();
+  }
+
+  {
+    IndexUploadHarness existing;
+    existing.seed_data(payload);
+    existing.set_buffer_valid(true);
+    existing.upload_data();
+    if (!require(existing.has_data() && !existing.uploaded(),
+                 "existing device buffer leaves pending host data untouched") ||
+        !require(existing.create_calls() == 0, "existing device buffer skips create"))
+    {
+      return false;
+    }
+  }
+
+  {
+    IndexUploadHarness no_context;
+    no_context.seed_data(payload);
+    index_upload_context = nullptr;
+    no_context.upload_data();
+    if (!require(no_context.has_data() && !no_context.uploaded(),
+                 "missing context preserves host data") ||
+        !require(no_context.create_calls() == 0, "missing context skips create"))
+    {
+      return false;
+    }
+  }
+
+  {
+    IndexUploadHarness device_built;
+    device_built.set_allocate_result(true);
+    index_upload_context = &context;
+    device_built.upload_data();
+    if (!require(device_built.allocate_calls() == 1 && device_built.buffer_valid(),
+                 "device-built index buffer allocates empty storage") ||
+        !require(!device_built.uploaded() && device_built.create_calls() == 0,
+                 "device-built allocation is not a host upload"))
+    {
+      return false;
+    }
+  }
+
+  {
+    IndexUploadHarness retry;
+    retry.seed_data(payload);
+    retry.set_create_result(false);
+    index_upload_context = &context;
+    retry.upload_data();
+    if (!require(retry.has_data() && !retry.uploaded() && !retry.buffer_valid(),
+                 "failed create preserves retryable host data and state") ||
+        !require(retry.create_calls() == 1, "failed create attempted exactly once"))
+    {
+      return false;
+    }
+    retry.set_create_result(true);
+    retry.upload_data();
+    if (!require(!retry.has_data() && retry.uploaded() && retry.buffer_valid(),
+                 "successful retry commits upload state") ||
+        !require(retry.create_calls() == 2, "successful retry creates once more") ||
+        !require(retry.mock_buffer().last_kind() == webgpu::BufferKind::Index &&
+                     retry.mock_buffer().last_usage() == webgpu::UsageType::Static &&
+                     retry.mock_buffer().last_readable(),
+                 "index upload preserves buffer kind usage and readability") ||
+        !require(retry.mock_buffer().last_payload() ==
+                     std::vector<uint8_t>(payload.begin(), payload.end()),
+                 "successful retry preserves all initial bytes"))
+    {
+      return false;
+    }
+    create_calls += retry.create_calls();
+  }
+
+  {
+    IndexUploadHarness success;
+    success.seed_data(payload);
+    success.set_create_result(true);
+    success.upload_data();
+    if (!require(!success.has_data() && success.uploaded() && success.buffer_valid(),
+                 "first successful create commits upload state") ||
+        !require(success.create_calls() == 1, "first successful create count"))
+    {
+      return false;
+    }
+    create_calls += success.create_calls();
+  }
+
+  index_upload_context = nullptr;
+  std::printf(
+      "CONTRACT index-upload-commit PASS cases=6 creates=%zu failure=retain retry=commit bytes=%zu\n",
+      create_calls,
+      payload.size());
+  return create_calls == 4;
+}
+
 }  // namespace
 
 bool run_integrated_index_contracts()
 {
-  return point_restart_contract() && index_metadata_contract();
+  return point_restart_contract() && index_metadata_contract() && index_upload_commit_contract();
 }
 
 }  // namespace blender::gpu

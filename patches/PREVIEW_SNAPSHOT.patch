@@ -18085,7 +18085,7 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..45b6284ecd07023cd3703f319760d35893e01ced
+index 0000000000000000000000000000000000000000..df16750afc781107c7b66baa5cd4ed5f2f3328ed
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
 @@ -0,0 +1,250 @@
@@ -18201,31 +18201,31 @@ index 0000000000000000000000000000000000000000..45b6284ecd07023cd3703f319760d358
 +  {
 +    return false;
 +  }
++  wgpu::BufferDescriptor bd = {};
++  if (label != nullptr) {
++    bd.label = label;
++  }
++  bd.size = allocated_size;
++  bd.usage = usage_flags(kind, usage, readable);
++  bd.mappedAtCreation = (initial_data != nullptr);
++  wgpu::Buffer handle = device.CreateBuffer(&bd);
++  if (handle == nullptr) {
++    return false;
++  }
++  if (initial_data != nullptr) {
++    void *p = handle.GetMappedRange(0, allocated_size);
++    if (p == nullptr) {
++      return false;
++    }
++    std::memcpy(p, initial_data, size);
++    handle.Unmap();
++  }
 +  readback::forget_source(readback::SourceKind::Buffer, this);
 +  requested_ = size;
 +  size_ = allocated_size;
 +  kind_ = kind;
 +  readable_ = readable;
-+
-+  wgpu::BufferDescriptor bd = {};
-+  if (label != nullptr) {
-+    bd.label = label;
-+  }
-+  bd.size = size_;
-+  bd.usage = usage_flags(kind, usage, readable);
-+  bd.mappedAtCreation = (initial_data != nullptr);
-+  handle_ = device.CreateBuffer(&bd);
-+  if (handle_ == nullptr) {
-+    return false;
-+  }
-+  if (initial_data != nullptr) {
-+    void *p = handle_.GetMappedRange(0, size_);
-+    if (p == nullptr) {
-+      return false;
-+    }
-+    std::memcpy(p, initial_data, requested_);
-+    handle_.Unmap();
-+  }
++  handle_ = std::move(handle);
 +  return true;
 +}
 +
@@ -23740,10 +23740,10 @@ index 0000000000000000000000000000000000000000..fb405f61591c478d5a8772a203921ee0
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..4632448aa08d5e91c4287c43f583ff37d8bbb36b
+index 0000000000000000000000000000000000000000..8ae8e4d788862f56fb427906a936ddd8223b49c8
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,160 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23812,12 +23812,15 @@ index 0000000000000000000000000000000000000000..4632448aa08d5e91c4287c43f583ff37
 +
 +  /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
 +   * still copies exactly. readable=true so read() can stage it back. */
-+  buffer_.create(ctx->device_get(),
-+                 webgpu::BufferKind::Index,
-+                 webgpu::UsageType::Static,
-+                 size_get(),
-+                 data_,
-+                 true);
++  if (!buffer_.create(ctx->device_get(),
++                      webgpu::BufferKind::Index,
++                      webgpu::UsageType::Static,
++                      size_get(),
++                      data_,
++                      true))
++  {
++    return;
++  }
 +
 +  /* Ownership of the index data was transferred to this IndexBuf; free it now
 +   * (and null it) so the base destructor does not double-free. */

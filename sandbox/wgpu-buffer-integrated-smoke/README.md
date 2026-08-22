@@ -7,17 +7,20 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 `wgpu_pixel_buffer`, and `wgpu_readback` postimages directly for native Dawn and
-WebAssembly. It also extracts `WGPUIndexBuffer::strip_restart_indices` byte-for-byte
-and executes it through Blender's real `IndexBuf::init()` without retaining the
-live-device index-buffer vtable. The same translation unit includes the canonical
+WebAssembly. It also extracts `WGPUIndexBuffer::strip_restart_indices` and
+`WGPUIndexBuffer::upload_data` byte-for-byte. The restart method executes through
+Blender's real `IndexBuf::init()` without retaining the live-device index-buffer
+vtable; the upload method executes against a deterministic creation seam that proves
+failed allocation retains the host payload and successful retry commits ownership.
+The same translation unit includes the canonical
 `index_binding_plan()` header helper used by `WGPUBatch`. It checks the exact buffer-usage
 matrix, ordinary and checked alignment/range helpers, live allocation-limit decisions,
 storage-update padding and storage-copy source/destination bounds,
 invalid-buffer behavior, move lifetime,
 the CPU-backed pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real
 readback registry's invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
-wide u32 indices, rebased u16 squeezing, build-on-device metadata, and both u16 and
-u32 subrange binding plans (byte offset plus base vertex). Direct plans bind the
+wide u32 indices, rebased u16 squeezing, build-on-device metadata, allocation failure
+and retry, and both u16 and u32 subrange binding plans (byte offset plus base vertex). Direct plans bind the
 subrange byte window; indirect plans bind offset zero because Blender's generated
 `DrawCommandIndexed` already contains the absolute first index and base vertex.
 Exact source checks bind both modes to the shipping draw arms and to the command

@@ -172,3 +172,9 @@ Patch 0167's guarded native `Float32Filterable` request was then composed withou
 `0b4aa138e5b81f791c4336da87f28343d3609501ec9e872b053aafb7603e2b41`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `780ae03f7f03ac4d45ab0bdd5cef18024e8bd084ad2dd2143e0ec53406e9d4cd`.
+
+Patch 0168's packed strided-upload row-size correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,548,277 bytes with SHA-256
+`f7240244a1971f87399010bbf2afe64e145837172cafa67ae9ead6cfa028a5d9`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`a690ef64439b3e8df49b2cf9034e728931481bbb0832825bec4089be797cfe4a`.

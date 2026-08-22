@@ -1,0 +1,12 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1395,7 +1395,7 @@ void WGPUTexture::update_sub(int mip,
+    * source rows are strided (the caller uploads a window of a larger image): gather
+    * `ex` texels per row from the wider source stride. Matches vk_texture.cc. */
+   if (unpack_row_length != 0u && int(unpack_row_length) != ex) {
+-    const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);
++    const size_t host_texel = to_bytesize(format_, format);
+     const size_t src_row_stride = size_t(unpack_row_length) * host_texel;
+     const size_t dst_row_bytes = size_t(ex) * texel_bytes;
+     const int rows = ey * ez;

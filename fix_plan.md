@@ -662,6 +662,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   compiles, links, and ends locked-Ninja no-work. The live control still rejects llvmpipe and
   creates no hardware receipt. Evidence:
   `notes/m3-t3-native-float32-filterable-20260822.md`.
+- [x] **M3.T9.packed-upload-row-stride [gpu-backend] COMPLETE (patch 0168):** strided
+  texture uploads now size each source row with Blender's whole-texel helper, so compact
+  RGB10A2 and R11G11B10 host rows remain four bytes per texel instead of being multiplied by
+  their logical component count. The exact call site and six helper cases pass byte-identically
+  in native/wasm32, canonical replay is exact, and the real windowed product rebuilds and ends
+  locked-Ninja no-work. No adapter, device, texture, browser receipt, or result promotion is
+  created. Evidence: `notes/m3-t9-packed-upload-row-stride-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

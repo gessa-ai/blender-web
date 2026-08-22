@@ -18,6 +18,11 @@ if(NOT DEFINED BW_UPSTREAM_DIR OR
    NOT IS_DIRECTORY "${BW_UPSTREAM_DIR}")
   message(FATAL_ERROR "BW_UPSTREAM_DIR must name the absolute pinned Blender checkout")
 endif()
+if(NOT DEFINED BW_WASM_INCLUDE_DIR OR
+   NOT IS_ABSOLUTE "${BW_WASM_INCLUDE_DIR}" OR
+   NOT EXISTS "${BW_WASM_INCLUDE_DIR}/fmt/ranges.h")
+  message(FATAL_ERROR "BW_WASM_INCLUDE_DIR must name the harvested Wasm include root")
+endif()
 
 set(_bw_integrated_texture_sources
   wgpu_texture_format.cc
@@ -34,7 +39,8 @@ foreach(_bw_source IN LISTS _bw_integrated_texture_sources)
 endforeach()
 foreach(_bw_source
     "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_format.hh"
-    "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh")
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
+    "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern/BLI_assert.cc")
   if(NOT EXISTS "${_bw_source}")
     message(FATAL_ERROR "integrated WebGPU texture dependency is missing: ${_bw_source}")
   endif()
@@ -49,6 +55,7 @@ endif()
 
 add_executable(wgpu_texture_integrated_smoke
   "${_bw_integrated_texture_test}"
+  "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern/BLI_assert.cc"
   "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_texture_format.cc"
   "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}/wgpu_data_conversion.cc"
 )
@@ -62,6 +69,9 @@ target_include_directories(wgpu_texture_integrated_smoke PRIVATE
   "${BW_INTEGRATED_TEXTURE_SOURCE_DIR}"
   "${BW_UPSTREAM_DIR}/source/blender/gpu"
   "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+  "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern"
+  "${BW_UPSTREAM_DIR}/intern/guardedalloc"
+  "${BW_WASM_INCLUDE_DIR}"
 )
 target_compile_options(wgpu_texture_integrated_smoke PRIVATE
   -pthread

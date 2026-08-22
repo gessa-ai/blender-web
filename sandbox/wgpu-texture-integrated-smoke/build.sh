@@ -19,13 +19,16 @@ EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
 HOST_CMAKE="${HOST_CMAKE:-$ROOT/.host-tools/bin/cmake}"
+WASM_INCLUDE="$ROOT/lib/wasm/include"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
     CMAKE_HOST_ARGS=(-U CMAKE_OSX_DEPLOYMENT_TARGET)
+    NATIVE_FMT_INCLUDE="$ROOT/lib/linux_x64/fmt/include"
     ;;
   Darwin:arm64)
     CMAKE_HOST_ARGS=(-DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.2}")
+    NATIVE_FMT_INCLUDE="$ROOT/lib/macos_arm64/fmt/include"
     ;;
   *)
     echo "ERROR: supported hosts are Linux x86_64 and macOS arm64" >&2
@@ -58,6 +61,9 @@ source_digest()
   local files=(
     GPU_format.hh
     GPU_texture.hh
+    intern/gpu_texture_private.hh
+    ../blenlib/BLI_assert.h
+    ../blenlib/intern/BLI_assert.cc
     webgpu/wgpu_texture_format.cc
     webgpu/wgpu_texture_format.hh
     webgpu/wgpu_texture_format_list.h
@@ -83,12 +89,15 @@ require_file "$HERE/integrated_texture_test.cc"
 require_file "$ROOT/sandbox/wgpu-texture-wasm-smoke/CMakeLists.txt"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
 require_file "$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
+require_file "$NATIVE_FMT_INCLUDE/fmt/ranges.h"
+require_file "$WASM_INCLUDE/fmt/ranges.h"
 for source_name in \
   wgpu_texture_format.cc \
   wgpu_texture_format.hh \
@@ -99,6 +108,11 @@ for source_name in \
 do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
+
+if ! cmp -s "$NATIVE_FMT_INCLUDE/fmt/ranges.h" "$WASM_INCLUDE/fmt/ranges.h"; then
+  echo "ERROR: native and Wasm fmt headers differ" >&2
+  exit 1
+fi
 
 RGB9E5_TEXTURE_SOURCE="$WEBGPU_SOURCE/wgpu_texture.cc"
 if [ "$(grep -Fc 'PackedRGB9E5' "$RGB9E5_TEXTURE_SOURCE")" -ne 6 ] ||
@@ -123,6 +137,14 @@ if [ "$(grep -Ec '^uint32_t pack_r11g11b10_ufloat\(' "$R11_CONVERSION_SOURCE")" 
    grep -Fq 'static uint32_t pack_r11g11b10' "$RGB9E5_TEXTURE_SOURCE"
 then
   echo "ERROR: canonical RG11B10 Vulkan-parity wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'const size_t host_texel = to_bytesize(format_, format);' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   grep -Fq 'const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);' \
+     "$RGB9E5_TEXTURE_SOURCE"
+then
+  echo "ERROR: canonical strided-upload host-texel sizing differs" >&2
   exit 1
 fi
 
@@ -208,6 +230,7 @@ echo "== [1/3] canonical native texture-format/conversion module =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_TEXTURE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_texture_integrated_test
 
@@ -217,6 +240,7 @@ echo "== [2/3] canonical Wasm texture-format/conversion module =="
   -DCMAKE_BUILD_TYPE=Release \
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
+  -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
   -DBW_INTEGRATED_TEXTURE_SOURCE_DIR="$WEBGPU_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_texture_integrated_smoke
 
@@ -236,13 +260,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=8 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25' \
+    'INTEGRATED_TEXTURE_PASS contracts=9 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 8 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

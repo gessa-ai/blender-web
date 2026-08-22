@@ -17,6 +17,8 @@
 #include <limits>
 #include <vector>
 
+#include "intern/gpu_texture_private.hh"
+
 #include "wgpu_data_conversion.hh"
 #include "wgpu_texture_format.hh"
 
@@ -711,18 +713,63 @@ bool boundary_contract()
   return cases == 8;
 }
 
+bool packed_row_stride_contract()
+{
+  struct Case {
+    bw::TextureFormat texture_format;
+    blender::eGPUDataFormat data_format;
+    size_t expected_texel_bytes;
+    bool packed;
+  };
+  constexpr std::array<Case, 6> cases = {{
+      {bw::TextureFormat::UNORM_10_10_10_2, blender::GPU_DATA_2_10_10_10_REV, 4, true},
+      {bw::TextureFormat::UINT_10_10_10_2, blender::GPU_DATA_2_10_10_10_REV, 4, true},
+      {bw::TextureFormat::UFLOAT_11_11_10, blender::GPU_DATA_10_11_11_REV, 4, true},
+      {bw::TextureFormat::UFLOAT_11_11_10, blender::GPU_DATA_FLOAT, 12, false},
+      {bw::TextureFormat::UNORM_8_8_8_8, blender::GPU_DATA_UBYTE, 4, false},
+      {bw::TextureFormat::SFLOAT_32_32, blender::GPU_DATA_FLOAT, 8, false},
+  }};
+  constexpr size_t row_length = 7;
+  size_t packed = 0;
+  size_t row_bytes = 0;
+  for (const Case &test : cases) {
+    const size_t texel_bytes = blender::gpu::to_bytesize(test.texture_format, test.data_format);
+    if (!require(texel_bytes == test.expected_texel_bytes, "host texel size") ||
+        !require(row_length * texel_bytes == row_length * test.expected_texel_bytes,
+                 "strided upload row size"))
+    {
+      return false;
+    }
+    const size_t component_formula = size_t(blender::gpu::to_component_len(test.texture_format)) *
+                                     blender::gpu::to_bytesize(test.data_format);
+    if (test.packed &&
+        !require(component_formula != texel_bytes, "packed texel must bypass component formula"))
+    {
+      return false;
+    }
+    packed += test.packed;
+    row_bytes += row_length * texel_bytes;
+  }
+
+  std::printf("CONTRACT packed-row-stride PASS cases=%zu packed=%zu row_bytes=%zu\n",
+              cases.size(),
+              packed,
+              row_bytes);
+  return packed == 3 && row_bytes == 252;
+}
+
 }  // namespace
 
 int main()
 {
   if (!table_contract() || !capabilities_contract() || !render_attachment_contract() ||
       !view_format_contract() || !promotion_contract() || !rgb9e5_contract() ||
-      !rg11b10_contract() || !boundary_contract())
+      !rg11b10_contract() || !boundary_contract() || !packed_row_stride_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=8 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
-      "rg11b10=25\n");
+      "INTEGRATED_TEXTURE_PASS contracts=9 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
+      "rg11b10=25 packed_rows=6\n");
   return 0;
 }

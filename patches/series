@@ -787,3 +787,7 @@
 # capability matches WebGPU's 32-bit-float texture filterability gate. The T3
 # staged-source contract compiles the real context and exhausts all 256 feature masks.
 0167-gpu-webgpu-native-float32-filterable.patch
+# 0168: size strided host-upload rows by whole texels, preserving Blender's
+# compact 32-bit RGB10A2 and R11G11B10 representations instead of multiplying
+# their packed data-format width by the texture's logical component count.
+0168-gpu-webgpu-packed-upload-row-stride.patch

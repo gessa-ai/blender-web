@@ -1654,6 +1654,98 @@ bool framebuffer_layered_clear_contract()
   return true;
 }
 
+bool framebuffer_layered_draw_contract()
+{
+  using Count = bw::FramebufferDrawPassCount;
+  using Status = bw::FramebufferClearPassStatus;
+
+  Count count;
+  uint64_t hash = UINT64_C(14695981039346656037);
+  const auto update_count = [&](const int selected_layer,
+                                const uint32_t layer_count,
+                                const bool expected,
+                                const Count &expected_count) {
+    const Count before = count;
+    const bool actual = bw::framebuffer_draw_pass_count_update(
+        selected_layer, layer_count, count);
+    if (!require(actual == expected, "framebuffer draw-pass count decision") ||
+        !require(actual ? (count.count == expected_count.count &&
+                           count.layered == expected_count.layered) :
+                          (count.count == before.count && count.layered == before.layered),
+                 "framebuffer draw-pass count atomic result"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, uint32_t(selected_layer));
+    hash = fnv_u64(hash, layer_count);
+    hash = fnv_u64(hash, actual);
+    hash = fnv_u64(hash, count.count);
+    hash = fnv_u64(hash, count.layered);
+    return true;
+  };
+
+  if (!update_count(2, 4, true, Count{1, false}) ||
+      !update_count(-1, 3, true, Count{3, true}) ||
+      !update_count(1, 2, true, Count{3, true}) ||
+      !update_count(-1, 3, true, Count{3, true}) ||
+      !update_count(-1, 2, false, Count{}) ||
+      !update_count(2, 2, false, Count{}) ||
+      !update_count(-1, 0, false, Count{}) ||
+      !update_count(-1, uint32_t(std::numeric_limits<int>::max()) + 1u, false, Count{}))
+  {
+    return false;
+  }
+
+  struct LayerCase {
+    int selected_layer;
+    uint32_t layer_count;
+    uint32_t pass_layer;
+    Status status;
+    int force_layer;
+  };
+  constexpr std::array<LayerCase, 8> cases = {{{-1, 3, 0, Status::Active, 0},
+                                               {-1, 3, 2, Status::Active, 2},
+                                               {-1, 3, 3, Status::Inactive, 0},
+                                               {2, 3, 0, Status::Active, -1},
+                                               {2, 3, 2, Status::Active, -1},
+                                               {3, 3, 0, Status::Invalid, 0},
+                                               {-1, 0, 0, Status::Invalid, 0},
+                                               {-1,
+                                                std::numeric_limits<uint32_t>::max(),
+                                                uint32_t(std::numeric_limits<int>::max()) + 1u,
+                                                Status::Invalid,
+                                                0}}};
+  std::array<size_t, 3> status_counts = {};
+  for (const LayerCase &test : cases) {
+    constexpr int untouched = 0x3456;
+    int force_layer = untouched;
+    const Status actual = bw::framebuffer_draw_pass_layer(
+        test.selected_layer, test.layer_count, test.pass_layer, force_layer);
+    const bool active = actual == Status::Active;
+    if (!require(actual == test.status, "framebuffer draw-pass layer decision") ||
+        !require(active ? force_layer == test.force_layer : force_layer == untouched,
+                 "framebuffer draw-pass non-active result"))
+    {
+      return false;
+    }
+    status_counts[size_t(actual)]++;
+    hash = fnv_u64(hash, uint32_t(test.selected_layer));
+    hash = fnv_u64(hash, test.layer_count);
+    hash = fnv_u64(hash, test.pass_layer);
+    hash = fnv_u64(hash, uint32_t(actual));
+    hash = fnv_u64(hash, active ? uint32_t(force_layer) : UINT32_MAX);
+  }
+
+  std::printf("CONTRACT framebuffer-layered-draw PASS count_cases=8 layer_cases=%zu "
+              "active=%zu inactive=%zu invalid=%zu digest=%016" PRIx64 "\n",
+              cases.size(),
+              status_counts[size_t(Status::Active)],
+              status_counts[size_t(Status::Inactive)],
+              status_counts[size_t(Status::Invalid)],
+              hash);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -1666,15 +1758,16 @@ int main()
       !packed_row_stride_contract() ||
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
-      !component_swizzle_contract() || !framebuffer_layered_clear_contract())
+      !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
+      !framebuffer_layered_draw_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=18 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=19 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "readback_layouts=15 "
-      "framebuffer_reads=13 framebuffer_clear_cases=11 "
+      "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

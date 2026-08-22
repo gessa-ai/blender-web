@@ -296,3 +296,14 @@ all-layer attachments, keep fixed-layer behavior unchanged, and fail invalid sel
 submitting that pass. Exercise unequal color-layer counts plus invalid and integer-boundary cases
 in native and wasm32. See `sandbox/wgpu-framebuffer-completeness-oracle/` and
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 17 — layered draw counts follow attachment selections, not backing textures
+
+Signature: pass-per-layer emulation asks the first bound texture for its complete array size and
+then forces that pass number onto every attachment. A frontend-fixed attachment is moved away from
+its selected layer, and mismatched all-layer attachments can draw a prefix before a later view
+fails. Accumulate pass counts only from attachments whose frontend layer is negative, require all
+such counts to agree before encoding, validate fixed selections without letting them drive the
+loop, and preserve fixed layers when resolving each pass view. Exercise fixed/all-layer mixtures,
+mismatched counts, invalid selections, and signed-boundary cases in native and wasm32. See
+`sandbox/wgpu-texture-integrated-smoke/`.

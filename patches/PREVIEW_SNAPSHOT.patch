@@ -18370,10 +18370,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..7d8334c3d92ee9a9ce98cc7ee782978bb38d6608
+index 0000000000000000000000000000000000000000..cdb70d6a7f43f4c44c309d720b7d6945ca80f96b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,519 @@
+@@ -0,0 +1,561 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18704,6 +18704,48 @@ index 0000000000000000000000000000000000000000..7d8334c3d92ee9a9ce98cc7ee782978b
 +
 +  force_layer = candidate;
 +  return FramebufferClearPassStatus::Active;
++}
++
++/** Accumulated layer count for one emulated layered draw. Fixed-layer attachments do not drive
++ * the pass count; every all-layer attachment must expose the same count because one WebGPU render
++ * pipeline/pass cannot change its attachment layout between layers. */
++struct FramebufferDrawPassCount {
++  uint32_t count = 1;
++  bool layered = false;
++};
++
++/** Add one draw attachment to the pass-count model. Failure is atomic. */
++inline bool framebuffer_draw_pass_count_update(int selected_layer,
++                                               uint32_t layer_count,
++                                               FramebufferDrawPassCount &result)
++{
++  if (layer_count == 0 ||
++      layer_count > uint32_t(std::numeric_limits<int>::max()) ||
++      (selected_layer >= 0 && uint32_t(selected_layer) >= layer_count))
++  {
++    return false;
++  }
++
++  FramebufferDrawPassCount candidate = result;
++  if (selected_layer < 0) {
++    if (candidate.layered && candidate.count != layer_count) {
++      return false;
++    }
++    candidate.count = layer_count;
++    candidate.layered = true;
++  }
++  result = candidate;
++  return true;
++}
++
++/** Select one attachment for an emulated layered draw pass. All-layer attachments advance with
++ * the pass while a fixed-layer attachment keeps its frontend selection. */
++inline FramebufferClearPassStatus framebuffer_draw_pass_layer(int selected_layer,
++                                                              uint32_t layer_count,
++                                                              uint32_t pass_layer,
++                                                              int &force_layer)
++{
++  return framebuffer_clear_pass_layer(selected_layer, layer_count, pass_layer, force_layer);
 +}
 +
 +/** Host geometry for extracting one framebuffer rectangle from a tightly packed texture
@@ -20907,10 +20949,10 @@ index 0000000000000000000000000000000000000000..5b2bb8bca2f33f1e3817edb4c2855643
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e8af9de987c9436d7e898b195ff1adcfed246db0
+index 0000000000000000000000000000000000000000..728adbc80bcc443137b7cf6b476b916b7b79fa37
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1029 @@
+@@ -0,0 +1,1066 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21683,26 +21725,38 @@ index 0000000000000000000000000000000000000000..e8af9de987c9436d7e898b195ff1adcf
 +
 +int WGPUFrameBuffer::attachment_layer_count() const
 +{
-+  /* Array-layer count of the first bound colour attachment (the emulation renders one
-+   * pass per layer). A plain 2D target reports 1. */
++  /* A fixed-layer attachment participates in every emulated pass but does not
++   * determine their count. All layered attachments must agree before any draw is
++   * encoded; returning zero makes the batch fail closed instead of drawing only a
++   * prefix and then reaching a validation-invalid attachment view. */
++  webgpu::FramebufferDrawPassCount passes;
 +  for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
 +    Texture *tex = color_tex(slot);
-+    if (tex != nullptr) {
++    const bool active = (color_attachments_bits_ & (1u << slot)) != 0;
++    if (tex != nullptr && active) {
 +      webgpu::WGPUTexture *wt = as_wgpu(tex);
-+      if (wt->subresource_range().valid()) {
-+        const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
-+        return int(wt->attachment_layer_count(std::max(att.mip, 0)));
++      const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++      if (!webgpu::framebuffer_draw_pass_count_update(
++              att.layer,
++              wt->attachment_layer_count(std::max(att.mip, 0)),
++              passes))
++      {
++        return 0;
 +      }
 +    }
 +  }
 +  if (Texture *tex = depth_tex()) {
 +    webgpu::WGPUTexture *wt = as_wgpu(tex);
-+    if (wt->subresource_range().valid()) {
-+      const GPUAttachment &att = depth_attachment();
-+      return int(wt->attachment_layer_count(std::max(att.mip, 0)));
++    const GPUAttachment &att = depth_attachment();
++    if (!webgpu::framebuffer_draw_pass_count_update(
++            att.layer,
++            wt->attachment_layer_count(std::max(att.mip, 0)),
++            passes))
++    {
++      return 0;
 +    }
 +  }
-+  return 1;
++  return int(passes.count);
 +}
 +
 +bool WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
@@ -21774,13 +21828,25 @@ index 0000000000000000000000000000000000000000..e8af9de987c9436d7e898b195ff1adcf
 +      color_atts.push_back(wgpu::RenderPassColorAttachment{});
 +      continue;
 +    }
++    const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++    int attachment_force_layer = force_layer;
++    if (force_layer >= 0) {
++      const webgpu::FramebufferClearPassStatus draw_status =
++          webgpu::framebuffer_draw_pass_layer(
++              att.layer,
++              as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0)),
++              uint32_t(force_layer),
++              attachment_force_layer);
++      if (draw_status != webgpu::FramebufferClearPassStatus::Active) {
++        return nullptr;
++      }
++    }
 +    wgpu::RenderPassColorAttachment ca = {};
-+    ca.view = attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot], force_layer);
++    ca.view = attachment_view(att, attachment_force_layer);
 +    if (ca.view == nullptr) {
 +      return nullptr;
 +    }
-+    ca.depthSlice = attachment_depth_slice(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot],
-+                                           force_layer);
++    ca.depthSlice = attachment_depth_slice(att, attachment_force_layer);
 +    /* Honor the frontend's recorded load-action (GPU_framebuffer_bind_loadstore ->
 +     * attachment_set_loadstore_op), consumed ONE-SHOT: the first pass after the
 +     * bind performs the clear, later passes on the same binding LOAD (Blender's
@@ -21802,7 +21868,20 @@ index 0000000000000000000000000000000000000000..e8af9de987c9436d7e898b195ff1adcf
 +  wgpu::RenderPassDepthStencilAttachment dsa = {};
 +  const bool has_depth = dtex != nullptr;
 +  if (has_depth) {
-+    dsa.view = attachment_view(depth_attachment(), force_layer);
++    const GPUAttachment &att = depth_attachment();
++    int attachment_force_layer = force_layer;
++    if (force_layer >= 0) {
++      const webgpu::FramebufferClearPassStatus draw_status =
++          webgpu::framebuffer_draw_pass_layer(
++              att.layer,
++              as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0)),
++              uint32_t(force_layer),
++              attachment_force_layer);
++      if (draw_status != webgpu::FramebufferClearPassStatus::Active) {
++        return nullptr;
++      }
++    }
++    dsa.view = attachment_view(att, attachment_force_layer);
 +    if (dsa.view == nullptr) {
 +      return nullptr;
 +    }

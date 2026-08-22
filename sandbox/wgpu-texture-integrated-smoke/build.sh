@@ -231,6 +231,18 @@ then
   exit 1
 fi
 
+if [ "$(grep -Fc 'struct FramebufferDrawPassCount {' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline bool framebuffer_draw_pass_count_update(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline FramebufferClearPassStatus framebuffer_draw_pass_layer(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'framebuffer_draw_pass_count_update(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'framebuffer_draw_pass_layer(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot], force_layer)' "$FRAMEBUFFER_SOURCE")" -ne 0 ] ||
+   [ "$(grep -Fc 'attachment_view(depth_attachment(), force_layer)' "$FRAMEBUFFER_SOURCE")" -ne 0 ]
+then
+  echo "ERROR: canonical framebuffer layered-draw wiring differs" >&2
+  exit 1
+fi
+
 mapfile -t READBACK_LAYOUT_LINES < <(
   grep -nF 'texture_readback_layout(' "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1
 )
@@ -465,13 +477,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=18 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=19 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 18 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 19 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

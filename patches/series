@@ -846,3 +846,7 @@
 # passes so exhausting a shorter attachment cannot abort remaining color/depth layers.
 # The device-free native/Wasm contract covers exact pass selection and atomic rejection.
 0182-gpu-webgpu-framebuffer-layered-clear.patch
+# 0183: derive layered-draw pass counts only from all-layer attachments, require
+# every such attachment to agree, and preserve fixed frontend layer selections.
+# The device-free native/Wasm contract covers count and per-pass rejection atomicity.
+0183-gpu-webgpu-framebuffer-layered-draw.patch

@@ -264,3 +264,9 @@ Patch 0182's per-attachment layered-clear selection was then composed without ch
 `c5612129214143aeaef19b652001f4d926b84dfbc9f79599d0391e5d4812f649`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `831ad76e490ac58ee47689e97a72275c53eed6ab37af2416d8ba80ae820ac117`.
+
+Patch 0183's layered-draw count and fixed-layer selection correction was then composed without
+changing the 257-path / 20,258-entry authority. The patch is now 1,591,220 bytes with SHA-256
+`fc81c4e5bad4857f1397a7cdc16c83759dca7e1aaeadae167356637a2ab8aa53`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`0aa8637722e28a9e7a481d3a4f6284561c2139dc98d9a293672ae32539a04b23`.

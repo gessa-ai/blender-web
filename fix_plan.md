@@ -1433,6 +1433,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   contract is byte-identical. Canonical replay and the real windowed rebuild/no-work check are
   green. Required M3 remains red for the absent strict candidate and s7 still blocks live WebGPU
   clear proof. See `notes/m3-t10-framebuffer-layered-clear-20260822.md`.
+- [x] **M3.T10-FRAMEBUFFER-LAYERED-DRAW [gpu-backend]:** patch 0183 derives the emulated
+  draw-pass count only from all-layer attachments, requires those counts to agree before any
+  encoding, and preserves fixed frontend layer selections across every pass. The 16-case
+  device-free native/wasm32 contract covers fixed/all-layer composition and atomic invalid-count
+  rejection. Canonical replay and the real windowed rebuild/no-work check are green. Required M3
+  remains red for the absent strict candidate and s7 still blocks live layered-draw proof. See
+  `notes/m3-t10-framebuffer-layered-draw-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -1440,6 +1440,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rejection. Canonical replay and the real windowed rebuild/no-work check are green. Required M3
   remains red for the absent strict candidate and s7 still blocks live layered-draw proof. See
   `notes/m3-t10-framebuffer-layered-draw-20260822.md`.
+- [x] **M3.T10-FRAMEBUFFER-LAYERED-LOAD-CLEAR [gpu-backend]:** patch 0184 classifies pending
+  explicit clears before draw-pass assembly and materializes only multi-layer all-layer selections
+  through the complete layered-clear path. Fixed and single-layer actions retain their one-pass
+  behavior. The pinned native oracle covers all-layer scope, and the ten-case device-free
+  native/wasm32 contract covers exact classification and invalid boundaries. Canonical replay and
+  the real windowed rebuild/no-work check are green. Required M3 remains red for the absent strict
+  candidate and s7 still blocks live WebGPU load-clear proof. See
+  `notes/m3-t10-framebuffer-layered-load-clear-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

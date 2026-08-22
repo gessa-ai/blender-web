@@ -1746,6 +1746,50 @@ bool framebuffer_layered_draw_contract()
   return true;
 }
 
+bool framebuffer_load_clear_scope_contract()
+{
+  using Scope = bw::FramebufferLoadClearScope;
+  struct Case {
+    int selected_layer;
+    uint32_t layer_count;
+    Scope expected;
+  };
+  constexpr std::array<Case, 10> cases = {{{-1, 3, Scope::MaterializeAllLayers},
+                                           {-2, 2, Scope::MaterializeAllLayers},
+                                           {-1, 1, Scope::RenderPass},
+                                           {0, 3, Scope::RenderPass},
+                                           {2, 3, Scope::RenderPass},
+                                           {3, 3, Scope::Invalid},
+                                           {0, 0, Scope::Invalid},
+                                           {-1, 0, Scope::Invalid},
+                                           {-1,
+                                            uint32_t(std::numeric_limits<int>::max()),
+                                            Scope::MaterializeAllLayers},
+                                           {-1,
+                                            uint32_t(std::numeric_limits<int>::max()) + 1u,
+                                            Scope::Invalid}}};
+  std::array<size_t, 3> scope_counts = {};
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    const Scope actual = bw::framebuffer_load_clear_scope(test.selected_layer, test.layer_count);
+    if (!require(actual == test.expected, "framebuffer load-clear scope decision")) {
+      return false;
+    }
+    scope_counts[size_t(actual)]++;
+    hash = fnv_u64(hash, uint32_t(test.selected_layer));
+    hash = fnv_u64(hash, test.layer_count);
+    hash = fnv_u64(hash, uint32_t(actual));
+  }
+  std::printf("CONTRACT framebuffer-load-clear-scope PASS cases=%zu invalid=%zu render_pass=%zu "
+              "materialize=%zu digest=%016" PRIx64 "\n",
+              cases.size(),
+              scope_counts[size_t(Scope::Invalid)],
+              scope_counts[size_t(Scope::RenderPass)],
+              scope_counts[size_t(Scope::MaterializeAllLayers)],
+              hash);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -1759,15 +1803,16 @@ int main()
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
-      !framebuffer_layered_draw_contract())
+      !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=19 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=20 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "readback_layouts=15 "
       "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 "
+      "framebuffer_load_clear_cases=10 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

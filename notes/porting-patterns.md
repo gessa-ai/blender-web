@@ -307,3 +307,15 @@ such counts to agree before encoding, validate fixed selections without letting 
 loop, and preserve fixed layers when resolving each pass view. Exercise fixed/all-layer mixtures,
 mismatched counts, invalid selections, and signed-boundary cases in native and wasm32. See
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 18 — one-shot load clears do not span WebGPU array-layer passes
+
+Signature: an explicit framebuffer `CLEAR` action is changed to `LOAD` by the first render pass,
+but a native all-layer attachment was split into one WebGPU pass per array layer. Only the first
+layer is initialized; later layer/viewport passes load stale contents. Before assembling any draw
+pass, classify pending clears by frontend layer selection and physical layer count. Keep fixed and
+single-layer actions in the render pass, but materialize multi-layer all-layer actions through the
+backend's complete layered-clear path and consume them only after that operation. Validate the
+whole pending set before clearing any attachment. Exercise fixed, all-layer, invalid, and signed
+boundary scopes in native and wasm32. See `sandbox/wgpu-framebuffer-loadclear-oracle/` and
+`sandbox/wgpu-texture-integrated-smoke/`.

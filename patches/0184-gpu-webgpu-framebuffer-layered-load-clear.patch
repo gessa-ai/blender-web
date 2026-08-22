@@ -1,0 +1,135 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -330,6 +330,25 @@ inline FramebufferClearPassStatus framebuffer_clear_pass_layer(int selected_lay
+   return FramebufferClearPassStatus::Active;
+ }
+
++/** Where an explicit framebuffer load-action clear can execute. A fixed layer or a one-layer
++ * attachment is covered by the draw's render pass. WebGPU cannot attach every layer of an array
++ * texture to one pass, so an all-layer selection must be materialized before drawing. */
++enum class FramebufferLoadClearScope : uint8_t { Invalid, RenderPass, MaterializeAllLayers };
++
++inline FramebufferLoadClearScope framebuffer_load_clear_scope(int selected_layer,
++                                                              uint32_t layer_count)
++{
++  if (layer_count == 0 || layer_count > uint32_t(std::numeric_limits<int>::max()) ||
++      (selected_layer >= 0 && uint32_t(selected_layer) >= layer_count))
++  {
++    return FramebufferLoadClearScope::Invalid;
++  }
++  if (selected_layer < 0 && layer_count > 1) {
++    return FramebufferLoadClearScope::MaterializeAllLayers;
++  }
++  return FramebufferLoadClearScope::RenderPass;
++}
++
+ /** Accumulated layer count for one emulated layered draw. Fixed-layer attachments do not drive
+  * the pass count; every all-layer attachment must expose the same count because one WebGPU render
+  * pipeline/pass cannot change its attachment layout between layers. */
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -72,7 +72,7 @@ class WGPUFrameBuffer : public FrameBuffer {
+    * `force_layer >= 0` every attachment view is pinned to that single array layer
+    * (the M3.F7 multi-viewport / layered emulation renders one pass per layer). */
+   wgpu::RenderPassEncoder begin_load_pass(const wgpu::CommandEncoder &encoder,
+-                                          int force_layer = -1) const;
++                                          int force_layer = -1);
+
+   /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */
+   /** Whether GPU_framebuffer_multi_viewports_set() is active on this framebuffer. */
+@@ -108,14 +108,16 @@ class WGPUFrameBuffer : public FrameBuffer {
+   mutable int2 empty_render_attachment_size_ = int2(0);
+
+   /** Per-attachment load/store op (explicit-loadstore binds); default = clear+store. */
+-  /* Mutable: begin_load_pass() (const) consumes one-shot CLEAR load-actions —
+-   * the first render pass after attachment_set_loadstore_op performs the clear,
+-   * subsequent passes on the same binding LOAD (Blender's bind_loadstore contract
+-   * under the pass-per-draw model). */
++  /* A single-subresource CLEAR is consumed by begin_load_pass(). An all-layer array
++   * CLEAR is materialized first because WebGPU render passes expose one layer at a time. */
+   mutable GPULoadStore load_store_[GPU_FB_MAX_ATTACHMENT];
+
+   /** Recompute width_/height_ from the first bound attachment. */
+   void update_size();
++  /** Materialize pending explicit clears whose all-layer scope cannot fit in one
++   * WebGPU render pass. Returns false before clearing when any selected subresource
++   * is invalid. */
++  bool materialize_layered_loadstore_clears();
+
+   /** True when the active render-pass layout has no public color/depth target. */
+   bool needs_empty_render_attachment() const;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -397,6 +397,45 @@ void WGPUFrameBuffer::attachment_set_loadstore_op(GPUAttachmentType type, GPULoa
+   }
+ }
+
++bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
++{
++  uint32_t materialize_mask = 0;
++  for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
++    const GPUAttachment &attachment = attachments_[index];
++    if (attachment.tex == nullptr || load_store_[index].load_action != GPU_LOADACTION_CLEAR) {
++      continue;
++    }
++    const webgpu::FramebufferLoadClearScope scope = webgpu::framebuffer_load_clear_scope(
++        attachment.layer,
++        as_wgpu(attachment.tex)->attachment_layer_count(std::max(attachment.mip, 0)));
++    if (scope == webgpu::FramebufferLoadClearScope::Invalid) {
++      return false;
++    }
++    if (scope == webgpu::FramebufferLoadClearScope::MaterializeAllLayers) {
++      materialize_mask |= 1u << index;
++    }
++  }
++
++  for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
++    if ((materialize_mask & (1u << index)) == 0) {
++      continue;
++    }
++    const GPULoadStore &load_store = load_store_[index];
++    double4 clear_value(load_store.clear_value[0],
++                        load_store.clear_value[1],
++                        load_store.clear_value[2],
++                        load_store.clear_value[3]);
++    if (index < GPU_FB_COLOR_ATTACHMENT0) {
++      /* begin_load_pass() uses zero for the shared depth/stencil load action's
++       * stencil value; retain that established backend behavior here. */
++      clear_value[1] = 0.0;
++    }
++    clear_attachment(static_cast<GPUAttachmentType>(index), clear_value);
++    load_store_[index].load_action = GPU_LOADACTION_LOAD;
++  }
++  return true;
++}
++
+ void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
+                            eGPUDataFormat format,
+                            const int area[4],
+@@ -847,8 +886,11 @@ bool WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
+ }
+
+ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder &encoder,
+-                                                        int force_layer) const
++                                                        int force_layer)
+ {
++  if (!materialize_layered_loadstore_clears()) {
++    return nullptr;
++  }
+   /* NOTE: the local attachment vectors + views only need to outlive BeginRenderPass
+    * (it captures ref-counted handles). */
+   /* Preserve colour SLOTS through to the render-pass descriptor so its colour layout
+@@ -893,7 +935,7 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnc
+     ca.depthSlice = attachment_depth_slice(att, attachment_force_layer);
+     /* Honor the frontend's recorded load-action (GPU_framebuffer_bind_loadstore ->
+-     * attachment_set_loadstore_op), consumed ONE-SHOT: the first pass after the
+-     * bind performs the clear, later passes on the same binding LOAD (Blender's
+-     * bind_loadstore contract under the pass-per-draw model). */
++     * attachment_set_loadstore_op). Single-subresource actions are consumed by
++     * the first pass; all-layer array clears were materialized above so every
++     * selected layer is initialized before any draw. */
+     GPULoadStore &ls = load_store_[GPU_FB_COLOR_ATTACHMENT0 + slot];
+     if (ls.load_action == GPU_LOADACTION_CLEAR) {

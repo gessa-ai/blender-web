@@ -850,3 +850,7 @@
 # every such attachment to agree, and preserve fixed frontend layer selections.
 # The device-free native/Wasm contract covers count and per-pass rejection atomicity.
 0183-gpu-webgpu-framebuffer-layered-draw.patch
+# 0184: materialize explicit load-action clears across every selected array layer
+# before a WebGPU draw pass can consume the action on only its first layer.
+# The native oracle and device-free scope contract bind fixed, single, and all-layer behavior.
+0184-gpu-webgpu-framebuffer-layered-load-clear.patch

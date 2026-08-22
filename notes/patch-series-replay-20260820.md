@@ -270,3 +270,9 @@ changing the 257-path / 20,258-entry authority. The patch is now 1,591,220 bytes
 `fc81c4e5bad4857f1397a7cdc16c83759dca7e1aaeadae167356637a2ab8aa53`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `0aa8637722e28a9e7a481d3a4f6284561c2139dc98d9a293672ae32539a04b23`.
+
+Patch 0184's all-layer explicit load-clear materialization was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,593,916 bytes with SHA-256
+`9d1a52eac0a957b819b6a30a90791d63ba816216b9018f8d5c65c0cecd5caf2b`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`05f324014a6ed39fa243e27e717f1460a747a5e2570c1e765b9d4d882c5dca7f`.

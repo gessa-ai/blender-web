@@ -72,6 +72,7 @@ source_digest()
     webgpu/wgpu_texture.cc
     webgpu/wgpu_texture.hh
     webgpu/wgpu_framebuffer.cc
+    webgpu/wgpu_framebuffer.hh
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
     vulkan/vk_data_conversion.hh
@@ -120,6 +121,7 @@ for source_name in \
   wgpu_texture.cc \
   wgpu_texture.hh \
   wgpu_framebuffer.cc \
+  wgpu_framebuffer.hh \
   wgpu_data_conversion.cc \
   wgpu_data_conversion.hh
 do
@@ -169,6 +171,7 @@ FORMAT_SOURCE="$WEBGPU_SOURCE/wgpu_texture_format.cc"
 FORMAT_HEADER="$WEBGPU_SOURCE/wgpu_texture_format.hh"
 COMMON_HEADER="$WEBGPU_SOURCE/wgpu_common.hh"
 FRAMEBUFFER_SOURCE="$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+FRAMEBUFFER_HEADER="$WEBGPU_SOURCE/wgpu_framebuffer.hh"
 TEXTURE_HEADER="$WEBGPU_SOURCE/wgpu_texture.hh"
 if [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
@@ -240,6 +243,37 @@ if [ "$(grep -Fc 'struct FramebufferDrawPassCount {' "$COMMON_HEADER")" -ne 1 ] 
    [ "$(grep -Fc 'attachment_view(depth_attachment(), force_layer)' "$FRAMEBUFFER_SOURCE")" -ne 0 ]
 then
   echo "ERROR: canonical framebuffer layered-draw wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'enum class FramebufferLoadClearScope : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline FramebufferLoadClearScope framebuffer_load_clear_scope(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'bool materialize_layered_loadstore_clears();' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'bool WGPUFrameBuffer::materialize_layered_loadstore_clears()' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'framebuffer_load_clear_scope(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'clear_attachment(static_cast<GPUAttachmentType>(index), clear_value);' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (!materialize_layered_loadstore_clears()) {' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: canonical framebuffer layered load-clear wiring differs" >&2
+  exit 1
+fi
+
+MATERIALIZE_LOAD_CLEAR_LINE="$(grep -nF \
+  'if (!materialize_layered_loadstore_clears()) {' \
+  "$FRAMEBUFFER_SOURCE" | cut -d: -f1)"
+BEGIN_LOAD_PASS_LINE="$(grep -nF \
+  'wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(' \
+  "$FRAMEBUFFER_SOURCE" | cut -d: -f1)"
+BEGIN_LOAD_COLOR_ATTACHMENTS_LINE="$(grep -nF \
+  'std::vector<wgpu::RenderPassColorAttachment> color_atts;' \
+  "$FRAMEBUFFER_SOURCE" | tail -n 1 | cut -d: -f1)"
+if [ -z "$MATERIALIZE_LOAD_CLEAR_LINE" ] ||
+   [ -z "$BEGIN_LOAD_PASS_LINE" ] ||
+   [ -z "$BEGIN_LOAD_COLOR_ATTACHMENTS_LINE" ] ||
+   [ "$MATERIALIZE_LOAD_CLEAR_LINE" -le "$BEGIN_LOAD_PASS_LINE" ] ||
+   [ "$MATERIALIZE_LOAD_CLEAR_LINE" -ge "$BEGIN_LOAD_COLOR_ATTACHMENTS_LINE" ]
+then
+  echo "ERROR: layered load-clear materialization does not precede render-pass assembly" >&2
   exit 1
 fi
 
@@ -477,13 +511,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=19 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=20 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 19 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 20 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

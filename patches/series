@@ -733,3 +733,8 @@
 # contract covers all 33 primitive/index-format combinations and binds both
 # shipping batch call sites; non-strip pipelines retain Undefined.
 0155-gpu-webgpu-indexed-strip-format.patch
+# 0156: replace the ad-hoc RG11B10 encoder/decoder with the pinned Vulkan
+# backend's exact F32 <-> F11/F10 conversion policy. The device-free
+# native/Wasm contract covers 25 zero/sign/special/exponent-boundary vectors and
+# binds all three shipping texture call sites without creating a device.
+0156-gpu-webgpu-rg11b10-vulkan-parity.patch

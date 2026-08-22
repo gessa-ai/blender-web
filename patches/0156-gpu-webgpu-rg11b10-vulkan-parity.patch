@@ -1,0 +1,232 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.cc b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+index e8cdb3eb16b..e7f6ab7a445 100644
+--- a/source/blender/gpu/webgpu/wgpu_data_conversion.cc
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+@@ -165,4 +165,111 @@ void unpack_rgb9e5_ufloat(const uint32_t packed, float r_rgb[3])
+   r_rgb[2] = float((packed >> 18u) & mantissa_mask) * scale;
+ }
+ 
++template<uint32_t DestinationMantissaBits>
++static uint32_t convert_f32_to_unsigned_float_bits(const float value)
++{
++  constexpr uint32_t source_mantissa_bits = 23;
++  constexpr uint32_t source_mantissa_mask = (1u << source_mantissa_bits) - 1u;
++  constexpr int32_t source_exponent_bias = 127;
++  constexpr uint32_t source_exponent_special = 255;
++  constexpr uint32_t destination_mantissa_mask = (1u << DestinationMantissaBits) - 1u;
++  constexpr int32_t destination_exponent_bias = 15;
++  constexpr uint32_t destination_exponent_special = 31;
++
++  uint32_t bits = 0;
++  std::memcpy(&bits, &value, sizeof(bits));
++  const bool is_negative = (bits >> 31u) != 0;
++  uint32_t mantissa = bits & source_mantissa_mask;
++  int32_t exponent = int32_t((bits >> source_mantissa_bits) & source_exponent_special);
++  const bool is_nan = exponent == int32_t(source_exponent_special) && mantissa != 0;
++  const bool is_infinite = exponent == int32_t(source_exponent_special) && mantissa == 0;
++  const bool is_zero = exponent == 0 && mantissa == 0;
++
++  /* Match convert_float_formats<FormatF11/F10, FormatF32>() at the pin:
++   * negative finite values and infinities clamp to zero, while either-signed
++   * NaNs canonicalize to the destination's all-ones mantissa. */
++  if (is_negative && !is_nan) {
++    return 0;
++  }
++  if (is_zero) {
++    return 0;
++  }
++  if (is_infinite) {
++    exponent = int32_t(destination_exponent_special);
++  }
++  else if (is_nan) {
++    exponent = int32_t(destination_exponent_special);
++    mantissa = destination_mantissa_mask;
++  }
++  else {
++    exponent -= source_exponent_bias;
++    if (exponent > destination_exponent_bias) {
++      exponent = 0;
++      mantissa = source_mantissa_mask;
++    }
++    else if (exponent < -destination_exponent_bias) {
++      return 0;
++    }
++    exponent += destination_exponent_bias;
++    mantissa >>= source_mantissa_bits - DestinationMantissaBits;
++  }
++
++  return (uint32_t(exponent) << DestinationMantissaBits) |
++         (mantissa & destination_mantissa_mask);
++}
++
++template<uint32_t SourceMantissaBits>
++static float convert_unsigned_float_bits_to_f32(const uint32_t value)
++{
++  constexpr uint32_t source_mantissa_mask = (1u << SourceMantissaBits) - 1u;
++  constexpr int32_t source_exponent_bias = 15;
++  constexpr uint32_t source_exponent_special = 31;
++  constexpr uint32_t destination_mantissa_bits = 23;
++  constexpr uint32_t destination_mantissa_mask = (1u << destination_mantissa_bits) - 1u;
++  constexpr int32_t destination_exponent_bias = 127;
++  constexpr uint32_t destination_exponent_special = 255;
++
++  uint32_t mantissa = value & source_mantissa_mask;
++  int32_t exponent = int32_t((value >> SourceMantissaBits) & source_exponent_special);
++  const bool is_nan = exponent == int32_t(source_exponent_special) && mantissa != 0;
++  const bool is_infinite = exponent == int32_t(source_exponent_special) && mantissa == 0;
++  const bool is_zero = exponent == 0 && mantissa == 0;
++  if (is_zero) {
++    return 0.0f;
++  }
++  if (is_infinite) {
++    exponent = int32_t(destination_exponent_special);
++  }
++  else if (is_nan) {
++    exponent = int32_t(destination_exponent_special);
++    mantissa = destination_mantissa_mask;
++  }
++  else {
++    exponent -= source_exponent_bias;
++    exponent += destination_exponent_bias;
++    mantissa <<= destination_mantissa_bits - SourceMantissaBits;
++  }
++
++  const uint32_t bits = (uint32_t(exponent) << destination_mantissa_bits) |
++                        (mantissa & destination_mantissa_mask);
++  float result = 0.0f;
++  std::memcpy(&result, &bits, sizeof(result));
++  return result;
++}
++
++uint32_t pack_r11g11b10_ufloat(const float red, const float green, const float blue)
++{
++  const uint32_t red_bits = convert_f32_to_unsigned_float_bits<6>(red);
++  const uint32_t green_bits = convert_f32_to_unsigned_float_bits<6>(green);
++  const uint32_t blue_bits = convert_f32_to_unsigned_float_bits<5>(blue);
++  return red_bits | (green_bits << 11u) | (blue_bits << 22u);
++}
++
++void unpack_r11g11b10_ufloat(const uint32_t packed, float r_rgb[3])
++{
++  r_rgb[0] = convert_unsigned_float_bits_to_f32<6>(packed & 0x7ffu);
++  r_rgb[1] = convert_unsigned_float_bits_to_f32<6>((packed >> 11u) & 0x7ffu);
++  r_rgb[2] = convert_unsigned_float_bits_to_f32<5>((packed >> 22u) & 0x3ffu);
++}
++
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.hh b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+index 331b6f17e89..5b2bb8bca2f 100644
+--- a/source/blender/gpu/webgpu/wgpu_data_conversion.hh
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+@@ -72,4 +72,12 @@ uint32_t pack_rgb9e5_ufloat(float red, float green, float blue);
+ /** Decode WebGPU's 32-bit RGB9E5 shared-exponent layout into three floats. */
+ void unpack_rgb9e5_ufloat(uint32_t packed, float r_rgb[3]);
+ 
++/** Pack three floats into WebGPU's 32-bit RG11B10 unsigned-float layout using
++ * the pinned Vulkan backend's F32 -> F11/F10 conversion policy. */
++uint32_t pack_r11g11b10_ufloat(float red, float green, float blue);
++
++/** Decode WebGPU's 32-bit RG11B10 unsigned-float layout using the pinned Vulkan
++ * backend's F11/F10 -> F32 conversion policy. */
++void unpack_r11g11b10_ufloat(uint32_t packed, float r_rgb[3]);
++
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 47bb616cea3..e002851fa46 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -471,63 +471,6 @@ static int64_t dev_read_int(const uint8_t *p, Repr r)
+   }
+ }
+ 
+-/* --- Packed R11G11B10 (unsigned float) ------------------------------------ */
+-
+-/** Pack a non-negative float to an N-bit unsigned float (5-bit exponent, bias 15,
+- * mantissa = N-5 bits, no sign/inf/nan). Matches the WebGPU RG11B10Ufloat layout
+- * (R:0..10, G:11..21, B:22..31). Sufficient for the [0,1] test data. */
+-static uint32_t float_to_ufloat(float f, int mant_bits)
+-{
+-  if (!(f > 0.0f)) {
+-    return 0;
+-  }
+-  uint32_t bits;
+-  std::memcpy(&bits, &f, 4);
+-  int exp = int((bits >> 23) & 0xFF) - 127; /* unbias float32 */
+-  uint32_t mant = bits & 0x7FFFFF;          /* 23-bit mantissa */
+-  int e = exp + 15;                         /* rebias to 5-bit */
+-  if (e <= 0) {
+-    return 0; /* underflow to zero (denormals unsupported — negligible for data). */
+-  }
+-  if (e > 31) {
+-    e = 31; /* clamp to max finite. */
+-    mant = 0x7FFFFF;
+-  }
+-  uint32_t m = mant >> (23 - mant_bits);
+-  return (uint32_t(e) << mant_bits) | m;
+-}
+-
+-static float ufloat_to_float(uint32_t v, int mant_bits)
+-{
+-  const int e = int(v >> mant_bits) & 0x1F;
+-  const uint32_t m = v & ((1u << mant_bits) - 1u);
+-  if (e == 0) {
+-    if (m == 0) {
+-      return 0.0f;
+-    }
+-    /* Subnormal: no implicit leading one, exponent is 1-bias. */
+-    return std::ldexp(float(m), 1 - 15 - mant_bits);
+-  }
+-  if (e == 0x1F) {
+-    return m == 0 ? std::numeric_limits<float>::infinity() :
+-                    std::numeric_limits<float>::quiet_NaN();
+-  }
+-  return std::ldexp(1.0f + float(m) / float(1u << mant_bits), e - 15);
+-}
+-
+-static uint32_t pack_r11g11b10(float r, float g, float b)
+-{
+-  return (float_to_ufloat(r, 6) & 0x7FF) | ((float_to_ufloat(g, 6) & 0x7FF) << 11) |
+-         ((float_to_ufloat(b, 5) & 0x3FF) << 22);
+-}
+-
+-static void unpack_r11g11b10(uint32_t p, float out[3])
+-{
+-  out[0] = ufloat_to_float(p & 0x7FF, 6);
+-  out[1] = ufloat_to_float((p >> 11) & 0x7FF, 6);
+-  out[2] = ufloat_to_float((p >> 22) & 0x3FF, 5);
+-}
+-
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -1043,9 +986,9 @@ void WGPUTexture::convert_host_to_device(uint8_t *dst,
+         std::memcpy(&packed, s, 4); /* already packed — copy verbatim. */
+       }
+       else {
+-        packed = pack_r11g11b10(host_read_float(s, GPU_DATA_FLOAT),
+-                                host_read_float(s + hbytes, GPU_DATA_FLOAT),
+-                                host_read_float(s + 2 * hbytes, GPU_DATA_FLOAT));
++        packed = pack_r11g11b10_ufloat(host_read_float(s, GPU_DATA_FLOAT),
++                                       host_read_float(s + hbytes, GPU_DATA_FLOAT),
++                                       host_read_float(s + 2 * hbytes, GPU_DATA_FLOAT));
+       }
+       std::memcpy(d, &packed, 4);
+     }
+@@ -1148,7 +1091,7 @@ static void convert_device_to_host_snapshot(const TextureFormat texture_format,
+         uint32_t packed;
+         std::memcpy(&packed, s, 4);
+         float rgb[3];
+-        unpack_r11g11b10(packed, rgb);
++        unpack_r11g11b10_ufloat(packed, rgb);
+         host_write_float(d, GPU_DATA_FLOAT, rgb[0]);
+         host_write_float(d + hbytes, GPU_DATA_FLOAT, rgb[1]);
+         host_write_float(d + 2 * hbytes, GPU_DATA_FLOAT, rgb[2]);
+@@ -1923,7 +1866,7 @@ void WGPUTexture::clear(const double4 data)
+     const auto finite_or_zero = [](const double value) {
+       return std::isfinite(value) ? float(value) : 0.0f;
+     };
+-    uint32_t packed = pack_r11g11b10(
++    uint32_t packed = pack_r11g11b10_ufloat(
+         finite_or_zero(data[0]), finite_or_zero(data[1]), finite_or_zero(data[2]));
+     std::memcpy(texel.data(), &packed, 4);
+   }

@@ -480,6 +480,133 @@ bool rgb9e5_contract()
   return true;
 }
 
+constexpr uint32_t rg11b10_bits(const uint32_t red,
+                                const uint32_t green,
+                                const uint32_t blue)
+{
+  return red | (green << 11u) | (blue << 22u);
+}
+
+float float_from_bits(const uint32_t bits)
+{
+  float value = 0.0f;
+  std::memcpy(&value, &bits, sizeof(value));
+  return value;
+}
+
+uint32_t float_bits(const float value)
+{
+  uint32_t bits = 0;
+  std::memcpy(&bits, &value, sizeof(bits));
+  return bits;
+}
+
+bool rg11b10_contract()
+{
+  /* These are the pinned Vulkan backend's FormatF32 -> FormatF11/F10 results,
+   * including its deliberate truncation and boundary behavior. WebGPU must
+   * preserve that CPU oracle rather than substitute a second conversion policy. */
+  struct EncodeCase {
+    uint32_t source_bits;
+    uint32_t expected_f11;
+    uint32_t expected_f10;
+  };
+  constexpr std::array<EncodeCase, 16> encode_cases = {{{0x00000000u, 0x000u, 0x000u},
+                                                         {0x80000000u, 0x000u, 0x000u},
+                                                         {0x3f800000u, 0x3c0u, 0x1e0u},
+                                                         {0x40000000u, 0x400u, 0x200u},
+                                                         {0xc0000000u, 0x000u, 0x000u},
+                                                         {0x7f800000u, 0x7c0u, 0x3e0u},
+                                                         {0xff800000u, 0x000u, 0x000u},
+                                                         {0x7fc12345u, 0x7ffu, 0x3ffu},
+                                                         {0xffc12345u, 0x7ffu, 0x3ffu},
+                                                         {0x37800000u, 0x000u, 0x000u},
+                                                         {0x38000000u, 0x000u, 0x000u},
+                                                         {0x38400000u, 0x020u, 0x010u},
+                                                         {0x38800000u, 0x040u, 0x020u},
+                                                         {0x477fffffu, 0x7bfu, 0x3dfu},
+                                                         {0x47800000u, 0x3ffu, 0x1ffu},
+                                                         {0x7f7fffffu, 0x3ffu, 0x1ffu}}};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const EncodeCase &test : encode_cases) {
+    const float value = float_from_bits(test.source_bits);
+    const uint32_t actual = bw::pack_r11g11b10_ufloat(value, value, value);
+    const uint32_t expected =
+        rg11b10_bits(test.expected_f11, test.expected_f11, test.expected_f10);
+    if (!require(actual == expected, "RG11B10 encode matches pinned Vulkan")) {
+      return false;
+    }
+    hash = fnv_u64(hash, test.source_bits);
+    hash = fnv_u64(hash, actual);
+  }
+
+  struct DecodeCase {
+    uint32_t source_f11;
+    uint32_t source_f10;
+    uint32_t expected_f11_bits;
+    uint32_t expected_f10_bits;
+  };
+  constexpr std::array<DecodeCase, 9> decode_cases = {{{0x000u,
+                                                        0x000u,
+                                                        0x00000000u,
+                                                        0x00000000u},
+                                                       {0x3c0u,
+                                                        0x1e0u,
+                                                        0x3f800000u,
+                                                        0x3f800000u},
+                                                       {0x400u,
+                                                        0x200u,
+                                                        0x40000000u,
+                                                        0x40000000u},
+                                                       {0x7c0u,
+                                                        0x3e0u,
+                                                        0x7f800000u,
+                                                        0x7f800000u},
+                                                       {0x7ffu,
+                                                        0x3ffu,
+                                                        0x7fffffffu,
+                                                        0x7fffffffu},
+                                                       {0x001u,
+                                                        0x001u,
+                                                        0x38020000u,
+                                                        0x38040000u},
+                                                       {0x020u,
+                                                        0x010u,
+                                                        0x38400000u,
+                                                        0x38400000u},
+                                                       {0x040u,
+                                                        0x020u,
+                                                        0x38800000u,
+                                                        0x38800000u},
+                                                       {0x7bfu,
+                                                        0x3dfu,
+                                                        0x477e0000u,
+                                                        0x477c0000u}}};
+  for (const DecodeCase &test : decode_cases) {
+    const uint32_t packed = rg11b10_bits(test.source_f11, test.source_f11, test.source_f10);
+    float actual[3] = {};
+    bw::unpack_r11g11b10_ufloat(packed, actual);
+    if (!require(float_bits(actual[0]) == test.expected_f11_bits &&
+                     float_bits(actual[1]) == test.expected_f11_bits &&
+                     float_bits(actual[2]) == test.expected_f10_bits,
+                 "RG11B10 decode matches pinned Vulkan"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, packed);
+    hash = fnv_u64(hash, float_bits(actual[0]));
+    hash = fnv_u64(hash, float_bits(actual[1]));
+    hash = fnv_u64(hash, float_bits(actual[2]));
+  }
+
+  std::printf("CONTRACT rg11b10 PASS encode=%zu decode=%zu special=5 digest=%016" PRIx64 "\n",
+              encode_cases.size(),
+              decode_cases.size(),
+              hash);
+  return true;
+}
+
 bool boundary_contract()
 {
   const bw::PromotionPlan plan = bw::promotion_plan(bw::TextureFormat::UNORM_8_8_8);
@@ -533,11 +660,13 @@ bool boundary_contract()
 int main()
 {
   if (!table_contract() || !capabilities_contract() || !view_format_contract() ||
-      !promotion_contract() || !rgb9e5_contract() || !boundary_contract())
+      !promotion_contract() || !rgb9e5_contract() || !rg11b10_contract() ||
+      !boundary_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=6 formats=63 promotions=13 view_pairs=10 rgb9e5=10\n");
+      "INTEGRATED_TEXTURE_PASS contracts=7 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
+      "rg11b10=25\n");
   return 0;
 }

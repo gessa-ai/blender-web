@@ -64,6 +64,8 @@ source_digest()
     webgpu/wgpu_texture.cc
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
+    vulkan/vk_data_conversion.hh
+    vulkan/tests/vk_data_conversion_test.cc
   )
   if command -v sha256sum >/dev/null 2>&1; then
     (cd "$ROOT/upstream/source/blender/gpu" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
@@ -80,6 +82,8 @@ require_file "$HERE/integrated_texture_test.cc"
 require_file "$ROOT/sandbox/wgpu-texture-wasm-smoke/CMakeLists.txt"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
+require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -102,6 +106,32 @@ if [ "$(grep -Fc 'PackedRGB9E5' "$RGB9E5_TEXTURE_SOURCE")" -ne 6 ] ||
    grep -Fq 'shared-exponent pack not implemented' "$RGB9E5_TEXTURE_SOURCE"
 then
   echo "ERROR: canonical RGB9E5 texture wiring differs" >&2
+  exit 1
+fi
+
+R11_CONVERSION_SOURCE="$WEBGPU_SOURCE/wgpu_data_conversion.cc"
+R11_CONVERSION_HEADER="$WEBGPU_SOURCE/wgpu_data_conversion.hh"
+if [ "$(grep -Ec '^uint32_t pack_r11g11b10_ufloat\(' "$R11_CONVERSION_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^void unpack_r11g11b10_ufloat\(' "$R11_CONVERSION_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^uint32_t pack_r11g11b10_ufloat\(' "$R11_CONVERSION_HEADER")" -ne 1 ] ||
+   [ "$(grep -Ec '^void unpack_r11g11b10_ufloat\(' "$R11_CONVERSION_HEADER")" -ne 1 ] ||
+   [ "$(grep -Ec '(^|[^[:alnum:]_])pack_r11g11b10_ufloat\(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Ec '(^|[^[:alnum:]_])unpack_r11g11b10_ufloat\(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   grep -Fq 'float_to_ufloat' "$RGB9E5_TEXTURE_SOURCE" ||
+   grep -Fq 'static uint32_t pack_r11g11b10' "$RGB9E5_TEXTURE_SOURCE"
+then
+  echo "ERROR: canonical RG11B10 Vulkan-parity wiring differs" >&2
+  exit 1
+fi
+
+VK_CONVERSION_HEADER="$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
+VK_CONVERSION_TEST="$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
+if ! grep -Fq 'using FormatF11 = FloatingPointFormat<false, 6, 5>;' "$VK_CONVERSION_HEADER" ||
+   ! grep -Fq 'using FormatF10 = FloatingPointFormat<false, 5, 5>;' "$VK_CONVERSION_HEADER" ||
+   ! grep -Fq 'convert_float_formats<FormatF11, FormatF32, true>' "$VK_CONVERSION_TEST" ||
+   ! grep -Fq 'convert_float_formats<FormatF10, FormatF32, true>' "$VK_CONVERSION_TEST"
+then
+  echo "ERROR: pinned Vulkan RG11B10 oracle differs" >&2
   exit 1
 fi
 
@@ -196,13 +226,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=6 formats=63 promotions=13 view_pairs=10 rgb9e5=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=7 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 7 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

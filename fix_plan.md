@@ -513,6 +513,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   and eight-source binding. Live texture proof and the strict receipt remain owned by
   **M3-LINUX-REPLAY** under s7. Evidence:
   `notes/m3-t9-rgb9e5-integrated-linux-20260821.md`.
+- [x] **M3.T9.rg11b10 [gpu-backend] COMPLETE (patch 0156):** the canonical RG11B10 upload,
+  readback, and clear paths now share the pinned Vulkan backend's exact F32↔F11/F10 conversion
+  policy instead of an ad-hoc encoder that mishandled infinities, NaNs, and exponent boundaries.
+  Sixteen encode and nine decode vectors run byte-identically in native/wasm32 and bind all three
+  shipping call sites plus the exact Vulkan oracle sources. No instance, adapter, device, texture,
+  or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t9-rg11b10-vulkan-parity-20260821.md`.
 - [x] **M3.T10.state.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree fixed-function state table
   directly against Blender's real GPU enums. Four exhaustive contracts cover all 16 blend rows,

@@ -100,3 +100,9 @@ Patch 0155's indexed-strip pipeline-format correction was then composed without 
 `29c199a2c796b0c3f8d19f03ce7b7d478073a9fd635dd3e833bb3a6bc9bf94ae`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `abf74d3b822383af83655166a12cdc3d58da6f4e771adb96cc66cb0dfc6c7e1a`.
+
+Patch 0156's RG11B10 Vulkan-conversion parity correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,540,303 bytes with SHA-256
+`14f8fdbf157aa4216090d19e26956f2aefee5de81ad243f2ff5d938bc42561f4`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`5d3d221838941e8cf8c23bd2500cfc645de41d890a8bccfa3f87b356a60b0169`.

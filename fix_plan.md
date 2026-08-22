@@ -1534,6 +1534,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   OFF preflight, and REUSE are green. Required M3 remains red for the absent strict candidate and
   s7 still blocks live hardware readback proof. See
   `notes/m3-t6-buffer-read-offset-alignment-20260822.md`.
+- [x] **M3.T6-VERTEX-UPLOAD-PADDING [gpu-backend] (526305a):** patch 0196 routes initial VBO
+  uploads through the owned aligned-payload helper and checks the transfer before deleting static
+  host data or clearing dirty state. The fail-first guard plus nine-case native/wasm32 matrix cover
+  logical sizes one through eight, all preserved bytes, all zero-filled transfer tails, aligned
+  pointer retention, and atomic rejection. Canonical replay/reverse check, the real windowed
+  rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for the absent
+  strict candidate and s7 still blocks live hardware upload proof. See
+  `notes/m3-t6-vertex-upload-padding-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

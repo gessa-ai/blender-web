@@ -639,6 +639,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   windowed product compiles and links the corrected texture path. No adapter, device, framebuffer,
   browser receipt, or result promotion is created. Evidence:
   `notes/m3-t9-feature-render-attachments-20260822.md`.
+- [x] **M3.T10.dummy-attribute-default [gpu-backend] COMPLETE (patch 0166):** the shared
+  zero-stride dummy vertex buffer now contains Blender's Vulkan/default-attribute
+  `(0,0,0,1)` value instead of WebGPU's all-zero initialization, restoring the fourth
+  component used by missing orcos. The exact shipping method runs in a device-free
+  native/wasm32 create/write contract with byte-identical evidence and one queue-ordered
+  16-byte write; the real windowed product compiles and links the corrected context path.
+  No adapter, device, buffer, draw, browser receipt, or result promotion is created.
+  Evidence: `notes/m3-t10-dummy-attribute-default-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

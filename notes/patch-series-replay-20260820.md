@@ -160,3 +160,9 @@ Patch 0165's feature-aware render-attachment mapping was then composed without c
 `fe90f9b96bd83c02443b3e154fecc17201f86f96cf0ef1bcaa693330520537b3`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `48bf8892265d0be659778b5fc44d63c3171e7f3956ec10844db24c5c1c506f4c`.
+
+Patch 0166's dummy-attribute default-value correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,548,011 bytes with SHA-256
+`31832021c9d755a70e03c7f895ebc77793431fac192de1fde53f56fc43b4c4e5`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`a7af5d5008b634b86bc7eed7182ce78a919d3deb2fdcaa2da3a4e5190bbf3e7e`.

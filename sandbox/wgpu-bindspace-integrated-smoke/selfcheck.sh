@@ -15,6 +15,7 @@ WRONG_DAWN_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-dawn-out"
 WRONG_NODE_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-node-out"
 WRONG_FMT_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-fmt-out"
 WRONG_SAMPLER_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-sampler.inc"
+WRONG_DUMMY_OUT="$BINDSPACE_SELFCHECK_DIR/wrong-dummy.inc"
 WRONG_NODE="$BINDSPACE_SELFCHECK_DIR/wrong-node"
 WRONG_FMT="$BINDSPACE_SELFCHECK_DIR/wrong-fmt/include"
 case "$(uname -s):$(uname -m)" in
@@ -54,6 +55,32 @@ if [ -s "$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stdout" ] ||
      "$BINDSPACE_SELFCHECK_DIR/wrong-sampler.stderr"
 then
   echo "ERROR: malformed sampler rejection diagnostic differs" >&2
+  exit 1
+fi
+
+sed \
+  's/bd.size = 16;/bd.size = 32;/' \
+  "$ROOT/upstream/source/blender/gpu/webgpu/wgpu_context.cc" \
+  >"$BINDSPACE_SELFCHECK_DIR/wrong-dummy.cc"
+if "$ROOT/.host-tools/bin/python3.13" "$HERE/extract_dummy_vertex_buffer.py" \
+  --source "$BINDSPACE_SELFCHECK_DIR/wrong-dummy.cc" \
+  --output "$WRONG_DUMMY_OUT" \
+  >"$BINDSPACE_SELFCHECK_DIR/wrong-dummy.stdout" \
+  2>"$BINDSPACE_SELFCHECK_DIR/wrong-dummy.stderr"
+then
+  echo "ERROR: malformed dummy-vertex policy was accepted" >&2
+  exit 1
+fi
+if [ -e "$WRONG_DUMMY_OUT" ]; then
+  echo "ERROR: malformed dummy-vertex policy allocated generated output" >&2
+  exit 1
+fi
+if [ -s "$BINDSPACE_SELFCHECK_DIR/wrong-dummy.stdout" ] ||
+   ! grep -Fqx \
+     "DUMMY_VERTEX_EXTRACT_FAIL canonical dummy-vertex policy lost required structure: ['bd.size = 16;']" \
+     "$BINDSPACE_SELFCHECK_DIR/wrong-dummy.stderr"
+then
+  echo "ERROR: malformed dummy-vertex rejection diagnostic differs" >&2
   exit 1
 fi
 
@@ -115,4 +142,4 @@ then
   exit 1
 fi
 
-echo "BINDSPACE_INTEGRATED_SELFCHECK_PASS wrong_sampler=zero-allocation wrong_dawn=zero-allocation wrong_node=zero-allocation wrong_fmt=zero-allocation"
+echo "BINDSPACE_INTEGRATED_SELFCHECK_PASS wrong_sampler=zero-allocation wrong_dummy=zero-allocation wrong_dawn=zero-allocation wrong_node=zero-allocation wrong_fmt=zero-allocation"

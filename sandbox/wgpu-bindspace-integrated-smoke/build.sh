@@ -17,6 +17,7 @@ WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/t10-bindspace-integrated/wasm-build}"
 OUT="${OUT:-$ROOT/build-deps/t10-bindspace-integrated/evidence}"
 GENERATED_DIR="${GENERATED_DIR:-$ROOT/build-deps/t10-bindspace-integrated/generated}"
 SAMPLER_DESCRIPTOR_SOURCE="$GENERATED_DIR/wgpu_sampler_descriptor.inc"
+DUMMY_VERTEX_SOURCE="$GENERATED_DIR/wgpu_dummy_vertex_buffer.inc"
 EMSDK="${EMSDK:-$ROOT/tools/emsdk}"
 NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
@@ -64,6 +65,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_state_manager.cc
     source/blender/gpu/webgpu/wgpu_state_manager.hh
     source/blender/gpu/webgpu/wgpu_context.cc
+    source/blender/gpu/vulkan/vk_device.cc
     source/blender/gpu/intern/gpu_state.cc
     source/blender/gpu/intern/gpu_state_private.hh
     source/blender/gpu/intern/gpu_texture_private.hh
@@ -83,6 +85,7 @@ require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_bindspace_test.cc"
 require_file "$HERE/extract_sampler_descriptor.py"
+require_file "$HERE/extract_dummy_vertex_buffer.py"
 require_file "$ROOT/sandbox/wgpu-bindspace-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -145,6 +148,10 @@ esac
   --source "$WEBGPU_SOURCE/wgpu_context.cc" \
   --output "$SAMPLER_DESCRIPTOR_SOURCE"
 require_file "$SAMPLER_DESCRIPTOR_SOURCE"
+"$PYBIN" "$HERE/extract_dummy_vertex_buffer.py" \
+  --source "$WEBGPU_SOURCE/wgpu_context.cc" \
+  --output "$DUMMY_VERTEX_SOURCE"
+require_file "$DUMMY_VERTEX_SOURCE"
 
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
@@ -178,6 +185,7 @@ echo "== [1/3] canonical native WebGPU bind spaces =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_BINDSPACE_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="$SAMPLER_DESCRIPTOR_SOURCE" \
+  -DBW_WGPU_DUMMY_VERTEX_SOURCE="$DUMMY_VERTEX_SOURCE" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_bindspace_integrated_test
@@ -190,6 +198,7 @@ echo "== [2/3] canonical Wasm WebGPU bind spaces =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_BINDSPACE_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="$SAMPLER_DESCRIPTOR_SOURCE" \
+  -DBW_WGPU_DUMMY_VERTEX_SOURCE="$DUMMY_VERTEX_SOURCE" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_bindspace_integrated_smoke
 
@@ -209,13 +218,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BINDSPACE_PASS contracts=5 texture_binds=5 image_binds=5' \
+    'INTEGRATED_BINDSPACE_PASS contracts=6 texture_binds=5 image_binds=5 dummy_w=3f800000' \
     "$stdout_file"
   then
     echo "ERROR: integrated bind-space PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ]; then
     echo "ERROR: integrated bind-space evidence census differs: $stdout_file" >&2
     exit 1
   fi
@@ -233,6 +242,8 @@ OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(source_digest)"
 SAMPLER_SHA256="$(sha256_file "$SAMPLER_DESCRIPTOR_SOURCE")"
-printf 'PASS integrated-bindspace native/wasm bytes=%s sha256=%s source_sha256=%s sampler_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
-  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$SAMPLER_SHA256" "$FMT_SHA256" \
+DUMMY_VERTEX_SHA256="$(sha256_file "$DUMMY_VERTEX_SOURCE")"
+printf 'PASS integrated-bindspace native/wasm bytes=%s sha256=%s source_sha256=%s sampler_sha256=%s dummy_vertex_sha256=%s fmt_sha256=%s dawn=%s emcc=%s node=%s\n' \
+  "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$SAMPLER_SHA256" \
+  "$DUMMY_VERTEX_SHA256" "$FMT_SHA256" \
   "$DAWN_PIN" "$EMCC_VERSION" "$NODE_VERSION"

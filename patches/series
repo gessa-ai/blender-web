@@ -778,3 +778,8 @@
 # This restores the production Grease Pencil R16Unorm render mask and binds the exact
 # core/Unorm16/Tier1/Depth32Stencil8/RG11B10 decision matrix in native and wasm32.
 0165-gpu-webgpu-feature-render-attachments.patch
+# 0166: initialize the shared zero-stride dummy vertex buffer to Blender's
+# Vulkan/default-attribute (0,0,0,1) value instead of WebGPU's all-zero storage.
+# The exact shipping method runs device-free in native/wasm32 with an emulated
+# create/write queue and binds the pinned Vulkan orco policy.
+0166-gpu-webgpu-dummy-attribute-default.patch

@@ -29,6 +29,12 @@ if(NOT DEFINED BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE OR
   message(FATAL_ERROR
     "BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE must name the extracted canonical policy")
 endif()
+if(NOT DEFINED BW_WGPU_DUMMY_VERTEX_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_DUMMY_VERTEX_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_DUMMY_VERTEX_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_DUMMY_VERTEX_SOURCE must name the extracted canonical policy")
+endif()
 
 foreach(_bw_source wgpu_state_manager.cc wgpu_state_manager.hh)
   set(_bw_source_path "${BW_INTEGRATED_BINDSPACE_SOURCE_DIR}/${_bw_source}")
@@ -69,6 +75,7 @@ set_target_properties(wgpu_bindspace_integrated_smoke PROPERTIES
 target_compile_definitions(wgpu_bindspace_integrated_smoke PRIVATE
   GPU_STANDALONE
   BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE="${BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE}"
+  BW_WGPU_DUMMY_VERTEX_SOURCE="${BW_WGPU_DUMMY_VERTEX_SOURCE}"
 )
 target_include_directories(wgpu_bindspace_integrated_smoke PRIVATE
   "${BW_INTEGRATED_BINDSPACE_SOURCE_DIR}"

@@ -10,11 +10,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include "wgpu_state_manager.hh"
 
 #ifndef BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE
 #  error "BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE must name the extracted shipping policy"
+#endif
+#ifndef BW_WGPU_DUMMY_VERTEX_SOURCE
+#  error "BW_WGPU_DUMMY_VERTEX_SOURCE must name the extracted shipping policy"
 #endif
 
 namespace wgpu {
@@ -50,10 +54,107 @@ struct SamplerDescriptor {
   uint16_t maxAnisotropy = 1;
 };
 
+enum class BufferUsage : uint32_t {
+  Vertex = 1u << 0,
+  CopyDst = 1u << 1,
+};
+
+constexpr BufferUsage operator|(const BufferUsage lhs, const BufferUsage rhs)
+{
+  return BufferUsage(uint32_t(lhs) | uint32_t(rhs));
+}
+
+struct BufferDescriptor {
+  uint64_t size = 0;
+  BufferUsage usage = BufferUsage(0);
+};
+
+struct BufferStorage {
+  std::array<uint8_t, 16> bytes = {};
+  BufferDescriptor descriptor = {};
+};
+
+class Buffer {
+ public:
+  Buffer() = default;
+  Buffer(std::nullptr_t) {}
+  explicit Buffer(BufferStorage *storage) : storage_(storage) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return storage_ == nullptr;
+  }
+
+  bool operator!=(std::nullptr_t) const
+  {
+    return storage_ != nullptr;
+  }
+
+  BufferStorage *storage() const
+  {
+    return storage_;
+  }
+
+ private:
+  BufferStorage *storage_ = nullptr;
+};
+
+class Device {
+ public:
+  Device(BufferStorage *storage, uint32_t *create_count)
+      : storage_(storage), create_count_(create_count)
+  {
+  }
+
+  Buffer CreateBuffer(const BufferDescriptor *descriptor)
+  {
+    storage_->bytes.fill(0);
+    storage_->descriptor = *descriptor;
+    ++*create_count_;
+    return Buffer(storage_);
+  }
+
+ private:
+  BufferStorage *storage_;
+  uint32_t *create_count_;
+};
+
+class Queue {
+ public:
+  explicit Queue(uint32_t *write_count) : write_count_(write_count) {}
+
+  void WriteBuffer(const Buffer &buffer,
+                   const uint64_t offset,
+                   const void *data,
+                   const size_t size)
+  {
+    if (buffer.storage() == nullptr || offset + size > buffer.storage()->bytes.size()) {
+      return;
+    }
+    std::memcpy(buffer.storage()->bytes.data() + offset, data, size);
+    ++*write_count_;
+  }
+
+ private:
+  uint32_t *write_count_;
+};
+
 }  // namespace wgpu
 
 namespace blender::gpu {
+struct DummyVertexContext {
+  DummyVertexContext() : device_(&storage, &create_count), queue_(&write_count) {}
+
+  wgpu::BufferStorage storage;
+  uint32_t create_count = 0;
+  uint32_t write_count = 0;
+  wgpu::Device device_;
+  wgpu::Queue queue_;
+  wgpu::Buffer dummy_vertex_buffer_ = nullptr;
+};
+
 #include BW_WGPU_SAMPLER_DESCRIPTOR_SOURCE
+#include BW_WGPU_DUMMY_VERTEX_SOURCE
 }  // namespace blender::gpu
 
 namespace {
@@ -384,16 +485,45 @@ bool no_op_and_fence_contract()
   return true;
 }
 
+bool dummy_vertex_default_contract()
+{
+  blender::gpu::DummyVertexContext context;
+  const wgpu::Buffer first = blender::gpu::dummy_vertex_buffer_for_test(context);
+  const wgpu::Buffer second = blender::gpu::dummy_vertex_buffer_for_test(context);
+  std::array<uint32_t, 4> words = {};
+  std::memcpy(words.data(), context.storage.bytes.data(), context.storage.bytes.size());
+  const uint32_t expected_usage = uint32_t(wgpu::BufferUsage::Vertex) |
+                                  uint32_t(wgpu::BufferUsage::CopyDst);
+
+  if (!require(first != nullptr && second.storage() == first.storage(),
+               "dummy vertex handle reuse") ||
+      !require(context.create_count == 1, "dummy vertex created once") ||
+      !require(context.write_count == 1, "dummy vertex initialized once") ||
+      !require(context.storage.descriptor.size == 16, "dummy vertex byte size") ||
+      !require(uint32_t(context.storage.descriptor.usage) == expected_usage,
+               "dummy vertex usage") ||
+      !require(words[0] == 0u && words[1] == 0u && words[2] == 0u,
+               "dummy vertex xyz defaults") ||
+      !require(words[3] == 0x3f800000u, "dummy vertex w defaults to one"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT dummy-vertex-default PASS creates=1 writes=1 w=%08x\n", words[3]);
+  return true;
+}
+
 }  // namespace
 
 int main()
 {
   if (!default_state_contract() || !texture_bind_space_contract() ||
       !image_bind_space_contract() || !sampler_descriptor_contract() ||
-      !no_op_and_fence_contract())
+      !no_op_and_fence_contract() || !dummy_vertex_default_contract())
   {
     return 1;
   }
-  std::printf("INTEGRATED_BINDSPACE_PASS contracts=5 texture_binds=5 image_binds=5\n");
+  std::printf(
+      "INTEGRATED_BINDSPACE_PASS contracts=6 texture_binds=5 image_binds=5 dummy_w=3f800000\n");
   return 0;
 }

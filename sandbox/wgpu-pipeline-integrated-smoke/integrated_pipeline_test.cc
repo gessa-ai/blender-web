@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdio>
+#include <unordered_set>
 
 #ifndef BW_WGPU_PIPELINE_SOURCE
 #  error "BW_WGPU_PIPELINE_SOURCE must name the canonical wgpu_pipeline.cc"
@@ -309,18 +310,54 @@ bool dummy_vertex_contract()
   return true;
 }
 
+bool shader_lifetime_cache_contract()
+{
+  /* Reproduce allocator address reuse without constructing a device-backed shader:
+   * the render-pipeline hash must distinguish successive lifetimes at one address. */
+  auto *reused_address =
+      reinterpret_cast<blender::gpu::WGPUShader *>(uintptr_t{0x1000});
+  constexpr uint64_t identity_count = 4096;
+  const auto identity_hash = [](const bw::PipelineInfo &info) {
+    uint64_t hash = 1469598103934665603ull;
+    bw::hash_shader_identity(hash, info.shader, info.shader_cache_identity);
+    return hash;
+  };
+  std::unordered_set<uint64_t> hashes;
+  hashes.reserve(identity_count);
+  for (uint64_t identity = 1; identity <= identity_count; identity++) {
+    const bw::PipelineInfo info(reused_address, identity);
+    hashes.insert(identity_hash(info));
+  }
+
+  const bw::PipelineInfo first(reused_address, 1);
+  const bw::PipelineInfo same_lifetime(reused_address, 1);
+  const bw::PipelineInfo replacement(reused_address, 2);
+  if (!require(identity_hash(first) == identity_hash(same_lifetime),
+               "same shader lifetime cache identity") ||
+      !require(identity_hash(first) != identity_hash(replacement),
+               "reused shader address cache separation") ||
+      !require(hashes.size() == identity_count, "shader lifetime hash census"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096");
+  return true;
+}
+
 }  // namespace
 
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !format_32bit_contract() ||
-      !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract())
+      !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
+      !shader_lifetime_cache_contract())
   {
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=6 primitives=11 strip_cases=33 formats=96 i10=12 "
-      "dummy=32");
+      "INTEGRATED_PIPELINE_PASS contracts=7 primitives=11 strip_cases=33 formats=96 i10=12 "
+      "dummy=32 shader_lifetimes=4096");
   return 0;
 }

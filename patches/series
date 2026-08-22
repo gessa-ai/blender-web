@@ -754,3 +754,7 @@
 # instead of imposing the old instance-stepped 4096-element ceiling. The
 # device-free native/Wasm contract covers all 32 shader input types.
 0159-gpu-webgpu-dummy-zero-stride.patch
+# 0160: add a monotonic WGPUShader lifetime identity to the process-wide render-pipeline
+# cache key. Guardedalloc may reuse a raw shader address while old pipelines remain retained;
+# the native/Wasm contract proves 4,096 generations at one address remain distinct.
+0160-gpu-webgpu-render-pipeline-shader-identity.patch

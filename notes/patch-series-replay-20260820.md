@@ -124,3 +124,9 @@ Patch 0159's zero-stride dummy vertex binding was then composed without changing
 `4ea99ca851aa4c0a1fcfefc5fafd4080d30f0998c0d827e555b5a9ac9022acf1`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `b73ea64adf1310f25eefce8cfc04474b35ea99abd460b6b8d012d6aae7d8157c`.
+
+Patch 0160's render-pipeline shader-lifetime identity was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,544,126 bytes with SHA-256
+`ce2a91ec82cf62f5115f2bf20267b4d655abf16a0726335114630195bd838048`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`135586370ee0cff7523b9a6881ce15b4aabea5e4ecaaefddfa767827752713c4`.

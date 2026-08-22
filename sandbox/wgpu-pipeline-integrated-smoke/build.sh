@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# render-pipeline enum mappings and dummy-attribute binding plan. Invoke through
-# harness/buildwrap.sh.
+# render-pipeline enum mappings, dummy-attribute binding plan, and shader-lifetime
+# cache separation. Invoke through harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -77,6 +77,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_context.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
+    source/blender/gpu/webgpu/wgpu_shader.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
     source/blender/gpu/webgpu/wgpu_state_table.hh
     source/blender/gpu/intern/gpu_shader_interface.hh
@@ -112,6 +113,7 @@ for source_name in \
   wgpu_context.cc \
   wgpu_context.hh \
   wgpu_batch.cc \
+  wgpu_shader.cc \
   wgpu_shader.hh \
   wgpu_state_table.hh
 do
@@ -160,6 +162,24 @@ require_fixed_count 1 'binding.array_stride = 0;' "$WEBGPU_SOURCE/wgpu_pipeline.
 require_fixed_count 1 'binding.step_mode = wgpu::VertexStepMode::Vertex;' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
 require_fixed_count 1 'plan.push_back(dummy_vertex_binding(' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'hash_shader_identity(h, info.shader, info.shader_cache_identity);' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'static void hash_shader_identity(' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'BLI_assert(info.shader_cache_identity == info.shader->pipeline_cache_identity());' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'static std::atomic<uint64_t> next_identity{1};' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 \
+  'next_identity.fetch_add(1, std::memory_order_relaxed);' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 2 \
+  'webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 1 \
   '/* Every dummy slot has arrayStride zero, so all vertex and instance ranges read these' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
@@ -244,15 +264,16 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 7 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 8 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
      ! grep -qx 'CONTRACT dummy_vertex PASS cases=32 stride=0 step=vertex' "$stdout_file" ||
+     ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=6 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32' \
+       'INTEGRATED_PIPELINE_PASS contracts=7 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32 shader_lifetimes=4096' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

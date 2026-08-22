@@ -565,6 +565,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   draw-range validators. No instance, adapter, device, pipeline, draw, or receipt is created;
   live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
   `notes/m3-t10-dummy-zero-stride-20260821.md`.
+- [x] **M3.T10.render-pipeline-identity [gpu-backend] COMPLETE (patch 0160):** the process-wide
+  batch/immediate pipeline pools now key a shader by both address and a monotonic per-instance
+  identity, so guardedalloc address reuse cannot return a prior shader's retained pipeline. The
+  canonical native/wasm32 contract simulates 4,096 lifetimes at one address with 4,096 distinct
+  keys and source-binds all three shipping constructors. The real windowed product compiles and
+  links the changed shader/pipeline/batch/immediate paths. No instance, adapter, device, pipeline,
+  draw, or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t10-render-pipeline-identity-20260821.md`.
 - [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
   indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
   format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former

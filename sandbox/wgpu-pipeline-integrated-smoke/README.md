@@ -8,6 +8,7 @@ SPDX-License-Identifier: CC0-1.0
 This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
 primitive, index-format, component, and fetch enums. The shared test also covers
+the two-case transient multi-viewport uniform-buffer allocation transaction,
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
 window-backbuffer decisions, 21 ordinary offscreen viewport/scissor decisions, and
 19 exact indirect-draw span decisions. Direct draws
@@ -19,7 +20,9 @@ overlapping-but-aligned explicit stride, allocation bounds, and arithmetic overf
 Multi-viewport draws preserve the signed raster transform while intersecting the
 unsigned WebGPU scissor with the framebuffer. Negative, partially clipped, fully
 outside, zero, limit, and `int`-boundary rectangles must be decided atomically in
-both the direct and indirect EEVEE-shadow paths.
+both the direct and indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
+viewport}` uniform allocation must publish a handle only on success; both paths
+must return before queue or pass work when creation fails.
 Window-backbuffer rectangles preserve that same raster transform while converting
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; the

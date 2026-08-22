@@ -34,6 +34,114 @@ bool require(const bool condition, const char *message)
   return true;
 }
 
+class BufferHandleProbe {
+ public:
+  BufferHandleProbe() = default;
+  explicit BufferHandleProbe(const int identity) : identity_(identity) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return identity_ == 0;
+  }
+
+  int identity() const
+  {
+    return identity_;
+  }
+
+ private:
+  int identity_ = 0;
+};
+
+class BufferDeviceProbe {
+ public:
+  explicit BufferDeviceProbe(const bool create_success) : create_success_(create_success) {}
+
+  BufferHandleProbe CreateBuffer(const wgpu::BufferDescriptor *descriptor)
+  {
+    create_calls_++;
+    descriptor_present_ = descriptor != nullptr;
+    if (descriptor != nullptr) {
+      size_ = descriptor->size;
+      usage_ = descriptor->usage;
+      mapped_at_creation_ = descriptor->mappedAtCreation;
+    }
+    return create_success_ ? BufferHandleProbe(29) : BufferHandleProbe();
+  }
+
+  size_t create_calls() const
+  {
+    return create_calls_;
+  }
+
+  bool descriptor_present() const
+  {
+    return descriptor_present_;
+  }
+
+  uint64_t size() const
+  {
+    return size_;
+  }
+
+  wgpu::BufferUsage usage() const
+  {
+    return usage_;
+  }
+
+  bool mapped_at_creation() const
+  {
+    return mapped_at_creation_;
+  }
+
+ private:
+  bool create_success_ = false;
+  bool descriptor_present_ = false;
+  size_t create_calls_ = 0;
+  uint64_t size_ = 0;
+  wgpu::BufferUsage usage_ = wgpu::BufferUsage::None;
+  bool mapped_at_creation_ = false;
+};
+
+bool multiview_uniform_allocation_contract()
+{
+  constexpr wgpu::BufferUsage expected_usage =
+      wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+
+  BufferDeviceProbe failing_device(false);
+  BufferHandleProbe failed_output(7);
+  if (!require(!bw::multi_viewport_uniform_buffer_create(failing_device, failed_output),
+               "failed multi-viewport allocation is rejected") ||
+      !require(failed_output.identity() == 7,
+               "failed multi-viewport allocation preserves output") ||
+      !require(failing_device.create_calls() == 1 && failing_device.descriptor_present() &&
+                   failing_device.size() == 16 && failing_device.usage() == expected_usage &&
+                   !failing_device.mapped_at_creation(),
+               "failed multi-viewport allocation uses the exact descriptor"))
+  {
+    return false;
+  }
+
+  BufferDeviceProbe successful_device(true);
+  BufferHandleProbe successful_output(11);
+  if (!require(bw::multi_viewport_uniform_buffer_create(successful_device, successful_output),
+               "successful multi-viewport allocation is accepted") ||
+      !require(successful_output.identity() == 29,
+               "successful multi-viewport allocation publishes the candidate") ||
+      !require(successful_device.create_calls() == 1 && successful_device.descriptor_present() &&
+                   successful_device.size() == 16 &&
+                   successful_device.usage() == expected_usage &&
+                   !successful_device.mapped_at_creation(),
+               "successful multi-viewport allocation uses the exact descriptor"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT multiview_uniform_allocation PASS cases=2 creates=2 failure=atomic bytes=16");
+  return true;
+}
+
 bool primitive_topology_contract()
 {
   using PT = wgpu::PrimitiveTopology;
@@ -1134,6 +1242,7 @@ bool vertex_alias_cache_key_contract()
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
+      !multiview_uniform_allocation_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
       !offscreen_viewport_scissor_plan_contract() ||
@@ -1145,8 +1254,9 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=14 primitives=11 strip_cases=33 indirect_spans=19 "
-      "direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 "
+      "INTEGRATED_PIPELINE_PASS contracts=15 primitives=11 strip_cases=33 "
+      "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
+      "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

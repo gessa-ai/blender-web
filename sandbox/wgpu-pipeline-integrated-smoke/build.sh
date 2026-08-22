@@ -4,8 +4,9 @@
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
-# multi-viewport/window-backbuffer rectangles, dummy-attribute binding plan, and
-# shader-lifetime cache separation. Invoke through buildwrap.sh.
+# multi-viewport/window-backbuffer rectangles, transient multi-viewport uniform
+# allocation, dummy-attribute binding plan, and shader-lifetime cache separation.
+# Invoke through buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -227,6 +228,35 @@ require_fixed_count 1 'inline bool viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_
 require_fixed_count 2 \
   'if (!webgpu::viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
+  'inline bool multi_viewport_uniform_buffer_create(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 \
+  'wgpu::Buffer mv_buf = device.CreateBuffer(&bd);' "$WEBGPU_SOURCE/wgpu_batch.cc"
+mapfile -t MULTIVIEW_ALLOCATION_LINES < <(
+  grep -nF 'if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {' \
+    "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1
+)
+mapfile -t MULTIVIEW_WRITE_LINES < <(
+  grep -nF 'WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));' \
+    "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1
+)
+mapfile -t PUSH_CONSTANT_FLUSH_LINES < <(
+  grep -nF 'shader->push_constants_flush();' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1
+)
+if [ "${#MULTIVIEW_ALLOCATION_LINES[@]}" -ne 2 ] ||
+   [ "${#MULTIVIEW_WRITE_LINES[@]}" -ne 2 ] ||
+   [ "${#PUSH_CONSTANT_FLUSH_LINES[@]}" -ne 4 ] ||
+   [ "${MULTIVIEW_ALLOCATION_LINES[0]}" -ge "${PUSH_CONSTANT_FLUSH_LINES[0]}" ] ||
+   [ "${PUSH_CONSTANT_FLUSH_LINES[0]}" -ge "${MULTIVIEW_WRITE_LINES[0]}" ] ||
+   [ "${MULTIVIEW_ALLOCATION_LINES[1]}" -ge "${PUSH_CONSTANT_FLUSH_LINES[2]}" ] ||
+   [ "${PUSH_CONSTANT_FLUSH_LINES[2]}" -ge "${MULTIVIEW_WRITE_LINES[1]}" ]
+then
+  echo "ERROR: multi-viewport allocation guards do not precede state flushes and queue writes" >&2
+  exit 1
+fi
+require_fixed_count 1 \
   'using WindowViewportPlan = FramebufferViewportPlan;' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
   'inline bool window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
@@ -389,9 +419,12 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 15 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 16 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT multiview_uniform_allocation PASS cases=2 creates=2 failure=atomic bytes=16' \
+       "$stdout_file" ||
      ! grep -qx \
        'CONTRACT indirect_draw_span PASS cases=19 accepted=7 rejected=12 first_sum=36 stride_sum=144 end_sum=380' \
        "$stdout_file" ||
@@ -417,7 +450,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=14 primitives=11 strip_cases=33 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=15 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

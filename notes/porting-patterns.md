@@ -479,3 +479,14 @@ unmapping, allocating an encoder, or submitting; return failure so callers retai
 Exercise the exact extracted shipping method with deterministic allocation failure, map failure,
 the direct-write threshold, successful byte preservation, and exact operation ordering on native
 and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 32 — transient resource creation must guard stateful GPU work
+
+Signature: a backend allocates a short-lived buffer for an expanded draw path, assumes creation
+succeeded, then flushes state or reaches `Queue::WriteBuffer`, command encoding, and pass assembly
+with a null handle. Treat descriptor creation and handle publication as one transaction: create a
+local candidate, reject null without mutating the output, then let the caller proceed only after
+success. Bind every duplicated shipping path to the same transaction and require the guards to
+precede their first queue operation. Exercise deterministic failure, exact descriptor fields,
+atomic output preservation, and successful publication on native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

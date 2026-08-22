@@ -17153,7 +17153,7 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6a90baf54c1ce4e8d0acd8948c3c1f2367a59b39
+index 0000000000000000000000000000000000000000..1ef431a91eedeaec8b2a02601c5769060d1baadd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
 @@ -0,0 +1,880 @@
@@ -17561,10 +17561,10 @@ index 0000000000000000000000000000000000000000..6a90baf54c1ce4e8d0acd8948c3c1f23
 +    /* Per-pass (layer, viewport) UBO: std140 { int; int; } padded to 16 bytes. Reused
 +     * across passes — a queue WriteBuffer is ordered before the Submit that follows it,
 +     * so each pass reads its own value before the next overwrite. */
-+    wgpu::BufferDescriptor bd = {};
-+    bd.size = 16;
-+    bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
-+    wgpu::Buffer mv_buf = device.CreateBuffer(&bd);
++    wgpu::Buffer mv_buf;
++    if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {
++      return;
++    }
 +
 +    if (shader->push_constants_survive_compilation()) {
 +      shader->push_constants_flush();
@@ -17917,10 +17917,10 @@ index 0000000000000000000000000000000000000000..6a90baf54c1ce4e8d0acd8948c3c1f23
 +      return;
 +    }
 +
-+    wgpu::BufferDescriptor bd = {};
-+    bd.size = 16;
-+    bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
-+    wgpu::Buffer mv_buf = device.CreateBuffer(&bd);
++    wgpu::Buffer mv_buf;
++    if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {
++      return;
++    }
 +
 +    if (shader->push_constants_survive_compilation()) {
 +      shader->push_constants_flush();
@@ -18449,10 +18449,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..125ba8efee23359f94d0dc1118fab9eeac711314
+index 0000000000000000000000000000000000000000..d3a4a5c1570df770b188d8c66cc87b1e39461091
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1159 @@
+@@ -0,0 +1,1178 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18578,6 +18578,25 @@ index 0000000000000000000000000000000000000000..125ba8efee23359f94d0dc1118fab9ee
 +  candidate.instance_first = uint32_t(instance_first);
 +  candidate.instance_count = uint32_t(instance_count);
 +  result = candidate;
++  return true;
++}
++
++/** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
++ * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
++ * a non-null handle is available. Templated so the exact transaction remains device-free
++ * testable on native and Wasm. */
++template<typename DeviceT, typename BufferT>
++inline bool multi_viewport_uniform_buffer_create(DeviceT &device, BufferT &result)
++{
++  wgpu::BufferDescriptor descriptor = {};
++  descriptor.size = 16;
++  descriptor.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
++
++  BufferT candidate = device.CreateBuffer(&descriptor);
++  if (candidate == nullptr) {
++    return false;
++  }
++  result = std::move(candidate);
 +  return true;
 +}
 +

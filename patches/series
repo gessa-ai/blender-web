@@ -902,3 +902,6 @@
 # 0199: reject missing mapped ranges before copying either buffer in the
 # depth-texture upload transaction.
 0199-gpu-webgpu-depth-upload-mapped-ranges.patch
+# 0200: publish the direct/indirect multi-viewport uniform buffer only after
+# successful allocation, before any queue write or render-pass work.
+0200-gpu-webgpu-multiview-uniform-allocation.patch

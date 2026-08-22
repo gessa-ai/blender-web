@@ -1,0 +1,66 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -127,6 +127,25 @@ inline bool direct_draw_plan(int vertex_first,
+   return true;
+ }
+-
++
++/** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
++ * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
++ * a non-null handle is available. Templated so the exact transaction remains device-free
++ * testable on native and Wasm. */
++template<typename DeviceT, typename BufferT>
++inline bool multi_viewport_uniform_buffer_create(DeviceT &device, BufferT &result)
++{
++  wgpu::BufferDescriptor descriptor = {};
++  descriptor.size = 16;
++  descriptor.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
++
++  BufferT candidate = device.CreateBuffer(&descriptor);
++  if (candidate == nullptr) {
++    return false;
++  }
++  result = std::move(candidate);
++  return true;
++}
++
+ /** One signed viewport plus its WebGPU-valid unsigned framebuffer intersection. */
+ struct ViewportScissorPlan {
+   int viewport_x = 0;
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -402,10 +402,10 @@ void WGPUBatch::draw(int vertex_first,
+     /* Per-pass (layer, viewport) UBO: std140 { int; int; } padded to 16 bytes. Reused
+      * across passes — a queue WriteBuffer is ordered before the Submit that follows it,
+      * so each pass reads its own value before the next overwrite. */
+-    wgpu::BufferDescriptor bd = {};
+-    bd.size = 16;
+-    bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+-    wgpu::Buffer mv_buf = device.CreateBuffer(&bd);
++    wgpu::Buffer mv_buf;
++    if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {
++      return;
++    }
+-
++
+     if (shader->push_constants_survive_compilation()) {
+       shader->push_constants_flush();
+@@ -758,10 +758,10 @@ void WGPUBatch::draw_indirect(GPUStorageBuf *indirect_buf,
+       return;
+     }
+-
++
+-    wgpu::BufferDescriptor bd = {};
+-    bd.size = 16;
+-    bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+-    wgpu::Buffer mv_buf = device.CreateBuffer(&bd);
++    wgpu::Buffer mv_buf;
++    if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {
++      return;
++    }
+-
++
+     if (shader->push_constants_survive_compilation()) {
+       shader->push_constants_flush();

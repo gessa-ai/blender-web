@@ -1558,6 +1558,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for
   the absent strict candidate and s7 still blocks live hardware upload proof. See
   `notes/m3-t6-buffer-staging-map-20260822.md`.
+- [x] **M3.T9-DEPTH-UPLOAD-MAPPED-RANGES [gpu-backend] (af2caa0):** patch 0199 routes both
+  mapped-at-creation values/parameter writes in the depth-texture render upload through one
+  fail-closed helper. The fail-first source guard plus four-case native/wasm32 contract prove null
+  and empty inputs, missing mapped range with zero copy/unmap work, and exact successful bytes.
+  Canonical replay/reverse check, real windowed rebuild/no-work check, OFF preflight, and REUSE are
+  green. Required M3 remains red for the absent strict candidate and s7 still blocks live hardware
+  upload/pixel proof. See `notes/m3-t9-depth-upload-mapped-ranges-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

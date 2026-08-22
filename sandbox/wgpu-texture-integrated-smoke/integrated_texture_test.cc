@@ -993,6 +993,92 @@ bool upload_layout_contract()
   return regions_accepted == 3 && regions_rejected == 10;
 }
 
+bool clear_layout_contract()
+{
+  struct AcceptedCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t texel_bytes;
+    size_t sample_count;
+    size_t data_size;
+    uint32_t bytes_per_row;
+    size_t row_count;
+  };
+  constexpr std::array<AcceptedCase, 3> accepted_cases = {{
+      {3, 2, 4, 4, 24, 96, 12, 8},
+      {257, 2, 3, 16, 1542, 24672, 4112, 6},
+      {8192, 1, 1, 4, 8192, 32768, 32768, 1},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const AcceptedCase &test : accepted_cases) {
+    bw::TextureUploadLayout actual;
+    if (!require(bw::texture_upload_layout(test.width,
+                                           test.height,
+                                           test.depth,
+                                           test.texel_bytes,
+                                           test.texel_bytes,
+                                           0,
+                                           actual),
+                 "valid texture clear layout rejected") ||
+        !require(actual.sample_count == test.sample_count, "clear sample count") ||
+        !require(actual.device_data_size == test.data_size, "clear data size") ||
+        !require(actual.source_data_size == test.data_size, "clear source size") ||
+        !require(actual.bytes_per_row == test.bytes_per_row, "clear row bytes") ||
+        !require(actual.row_count == test.row_count, "clear row count"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, actual.sample_count);
+    hash = fnv_u64(hash, actual.device_data_size);
+    hash = fnv_u64(hash, actual.bytes_per_row);
+    hash = fnv_u64(hash, actual.row_count);
+  }
+
+  struct RejectedCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t texel_bytes;
+  };
+  constexpr std::array<RejectedCase, 3> rejected_cases = {{
+      {0, 1, 1, 4},
+      {UINT32_MAX, 1, 1, 2},
+      {UINT32_MAX, UINT32_MAX, UINT32_MAX, 1},
+  }};
+  const bw::TextureUploadLayout sentinel = {11, 12, 13, 14, 15, 16};
+  for (const RejectedCase &test : rejected_cases) {
+    bw::TextureUploadLayout actual = sentinel;
+    if (!require(!bw::texture_upload_layout(test.width,
+                                            test.height,
+                                            test.depth,
+                                            test.texel_bytes,
+                                            test.texel_bytes,
+                                            0,
+                                            actual),
+                 "invalid texture clear layout accepted") ||
+        !require(actual.sample_count == sentinel.sample_count &&
+                     actual.device_data_size == sentinel.device_data_size &&
+                     actual.source_row_stride == sentinel.source_row_stride &&
+                     actual.source_data_size == sentinel.source_data_size &&
+                     actual.bytes_per_row == sentinel.bytes_per_row &&
+                     actual.row_count == sentinel.row_count,
+                 "clear layout rejection is atomic"))
+    {
+      return false;
+    }
+  }
+
+  std::printf("CONTRACT clear-layout PASS cases=%zu accepted=%zu rejected=%zu "
+              "digest=%016" PRIx64 "\n",
+              accepted_cases.size() + rejected_cases.size(),
+              accepted_cases.size(),
+              rejected_cases.size(),
+              hash);
+  return true;
+}
+
 bool packed_row_stride_contract()
 {
   struct Case {
@@ -1299,7 +1385,8 @@ int main()
   if (!table_contract() || !capabilities_contract() || !format_creation_contract() ||
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
-      !allocation_limit_contract() || !upload_layout_contract() || !packed_row_stride_contract() ||
+      !allocation_limit_contract() || !upload_layout_contract() || !clear_layout_contract() ||
+      !packed_row_stride_contract() ||
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract())
@@ -1307,8 +1394,8 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=15 formats=63 creation_cases=448 allocation_limits=26 "
-      "upload_layouts=14 upload_regions=13 "
+      "INTEGRATED_TEXTURE_PASS contracts=16 formats=63 creation_cases=448 allocation_limits=26 "
+      "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "readback_layouts=15 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");

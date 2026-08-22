@@ -29958,10 +29958,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..92a3fd0981b9e4726f4ab627465c057ea2a145ec
+index 0000000000000000000000000000000000000000..aecc0b9394e5fdb530244b817652225fd39021aa
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2608 @@
+@@ -0,0 +1,2613 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32010,10 +32010,15 @@ index 0000000000000000000000000000000000000000..92a3fd0981b9e4726f4ab627465c057e
 +    const uint32_t ex = region.width;
 +    const uint32_t ey = region.height;
 +    const uint32_t ez = region.depth;
-+    const size_t sample_count = size_t(ex) * ey * ez;
++    TextureUploadLayout clear_layout;
++    if (!texture_upload_layout(
++            ex, ey, ez, texel_bytes, texel_bytes, 0, clear_layout))
++    {
++      return;
++    }
 +
-+    std::vector<uint8_t> buffer(sample_count * texel_bytes);
-+    for (size_t i = 0; i < sample_count; i++) {
++    std::vector<uint8_t> buffer(clear_layout.device_data_size);
++    for (size_t i = 0; i < clear_layout.sample_count; i++) {
 +      std::memcpy(buffer.data() + i * texel_bytes, texel.data(), texel_bytes);
 +    }
 +
@@ -32025,7 +32030,7 @@ index 0000000000000000000000000000000000000000..92a3fd0981b9e4726f4ab627465c057e
 +
 +    wgpu::TexelCopyBufferLayout layout = {};
 +    layout.offset = 0;
-+    layout.bytesPerRow = ex * texel_bytes;
++    layout.bytesPerRow = clear_layout.bytes_per_row;
 +    layout.rowsPerImage = ey;
 +
 +    wgpu::Extent3D write_size = {ex, ey, ez};

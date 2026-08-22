@@ -834,3 +834,7 @@
 # maxBufferSize before either synchronous or asynchronous texture-readback allocation.
 # The device-free native/Wasm contract covers exact limits and overflow boundaries.
 0179-gpu-webgpu-texture-readback-layout.patch
+# 0180: route non-renderable texture clears through checked linear-layout geometry
+# before allocating or replicating host texels. The native/Wasm contract covers exact
+# row/sample products plus uint32 and size_t overflow boundaries.
+0180-gpu-webgpu-texture-clear-layout.patch

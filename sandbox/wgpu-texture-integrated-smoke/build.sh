@@ -184,7 +184,7 @@ fi
 
 if [ "$(grep -Fc 'inline bool texture_upload_layout(' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'inline bool texture_region_fits(' "$COMMON_HEADER")" -ne 1 ] ||
-   [ "$(grep -Fc 'texture_upload_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'texture_upload_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 3 ] ||
    [ "$(grep -Fc 'texture_region_fits(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical texture upload-layout wiring differs" >&2
@@ -230,6 +230,31 @@ if [ -z "$UPLOAD_LAYOUT_LINE" ] || [ -z "$UPLOAD_DEVICE_ALLOCATION_LINE" ] ||
    [ "$UPLOAD_LAYOUT_LINE" -ge "$UPLOAD_DEVICE_ALLOCATION_LINE" ]
 then
   echo "ERROR: texture upload sizing is not fail-closed before host allocation" >&2
+  exit 1
+fi
+
+CLEAR_LAYOUT_LINE="$(awk '
+  /^void WGPUTexture::clear\(const double4 data\)/ { in_clear = 1 }
+  in_clear && /if \(!texture_upload_layout\(/ { print NR }
+  /^bool WGPUTexture::resolve_read_region\(/ { exit }
+' "$RGB9E5_TEXTURE_SOURCE")"
+CLEAR_BUFFER_LINE="$(grep -nF \
+  'std::vector<uint8_t> buffer(clear_layout.device_data_size);' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+CLEAR_WRITE_LINE="$(awk '
+  /^void WGPUTexture::clear\(const double4 data\)/ { in_clear = 1 }
+  in_clear && /ctx->queue_get\(\)\.WriteTexture/ { print NR }
+  /^bool WGPUTexture::resolve_read_region\(/ { exit }
+' "$RGB9E5_TEXTURE_SOURCE")"
+if [ -z "$CLEAR_LAYOUT_LINE" ] || [ -z "$CLEAR_BUFFER_LINE" ] || [ -z "$CLEAR_WRITE_LINE" ] ||
+   [ "$(printf '%s\n' "$CLEAR_LAYOUT_LINE" | wc -l | tr -d ' ')" -ne 1 ] ||
+   [ "$(printf '%s\n' "$CLEAR_WRITE_LINE" | wc -l | tr -d ' ')" -ne 1 ] ||
+   [ "$CLEAR_LAYOUT_LINE" -ge "$CLEAR_BUFFER_LINE" ] ||
+   [ "$CLEAR_BUFFER_LINE" -ge "$CLEAR_WRITE_LINE" ] ||
+   grep -Fq 'const size_t sample_count = size_t(ex) * ey * ez;' "$RGB9E5_TEXTURE_SOURCE" ||
+   grep -Fq 'std::vector<uint8_t> buffer(sample_count * texel_bytes);' "$RGB9E5_TEXTURE_SOURCE"
+then
+  echo "ERROR: texture clear sizing is not fail-closed before host allocation" >&2
   exit 1
 fi
 
@@ -407,13 +432,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=15 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 readback_layouts=15 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=16 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 15 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 16 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

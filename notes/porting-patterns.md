@@ -262,3 +262,13 @@ method byte-for-byte from the canonical source with unique, fail-closed boundari
 the class qualifier, and compile it against a minimal state carrier. Bind the canonical replay and
 the extracted payload digest, and add a malformed-source zero-allocation control. See
 `sandbox/wgpu-shader-frontend-integrated-smoke/`.
+
+## Class 14 — per-axis resource limits do not validate linear host copies
+
+Signature: texture creation rejects dimensions above the adapter limits, but a later upload,
+readback, or fallback clear multiplies individually valid width, height, depth, row pitch, and
+texel size into a wrapped `size_t` before allocating host memory. Resolve the complete linear
+geometry atomically before allocation or caller reads, and drive every later loop bound, byte
+count, and WebGPU layout field from that one result. Exercise the same boundary contract on native
+and wasm32 because their `size_t` overflow points differ. See
+`sandbox/wgpu-texture-integrated-smoke/`.

@@ -14,6 +14,7 @@ canonical/edge RGB9E5 encodes, 25 RG11B10 vectors against the pinned Vulkan
 F32/F11/F10 policy, the 16-case feature-aware render-attachment matrix (including
 Grease Pencil's `UNORM_16` render mask), 26 exact texture dimension/array/mip limit
 decisions, 14 checked uncompressed-upload layouts, 13 physical copy-region boundaries,
+six non-renderable clear layouts covering exact byte geometry and overflow rejection,
 15 checked readback layouts covering padded staging, host-size, and device-limit boundaries,
 six strided-upload host-texel cases that
 separate packed 32-bit rows from scalar-component rows, seven BC1/2/3 physical-block and

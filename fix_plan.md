@@ -1411,6 +1411,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   affected integrated contracts, canonical replay, windowed product rebuild/no-work, and REUSE
   are green. M0 remains 6/6; s7 still blocks a fresh hardware receipt. No result, deferral,
   tolerance, golden, blacklist, or promise changed. See `reports/audit-20260822.md`.
+- [x] **M3.T9-TEXTURE-CLEAR-LAYOUT [gpu-backend]:** patch 0180 routes the non-renderable
+  clear fallback through checked row/sample/data geometry before host allocation or
+  `Queue::WriteTexture`. The root/descendant native/wasm32 contract covers six clear layouts
+  byte-identically; canonical replay, the windowed rebuild/no-work check, OFF preflight, and REUSE
+  are green. Required M3 remains red for the absent strict candidate and s7 still blocks live
+  clear proof. See `notes/m3-t9-texture-clear-layout-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

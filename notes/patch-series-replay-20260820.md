@@ -88,3 +88,9 @@ Patch 0153's native RGB9E5 shared-exponent conversion was then composed without 
 `a8a582c521d36257d433250b4499e2a65617f16054308d23e2cb048e287f0219`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `3553bf3594cf8f5ebcf0ce4e23ca1dbea4d27376e5f16b817291c8e64bdb3b38`.
+
+Patch 0154's point-list primitive-restart compaction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,536,412 bytes with SHA-256
+`28dddfc5aaba843c5ce826d4669645f8a79d4dfe2dd911494c9338e3d2d2d659`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`3a2a595ec54ba249861abdccec50ab2b29578fccdd12f9f07aa16fa60bd52489`.

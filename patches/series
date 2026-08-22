@@ -724,3 +724,7 @@
 # The device-free native/Wasm texture contract binds Dawn decode vectors, exponent
 # rollover, clamping, and exact 32-bit layout without creating a WebGPU device.
 0153-gpu-webgpu-rgb9e5-conversion.patch
+# 0154: compact point-list primitive-restart markers before index squeezing.
+# The exact-source native/Wasm contract covers mixed, all-restart, wide-u32,
+# rebased-u16, subrange, and build-on-device metadata without a WebGPU device.
+0154-gpu-webgpu-point-restart-compaction.patch

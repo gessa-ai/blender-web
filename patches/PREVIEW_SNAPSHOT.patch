@@ -21674,10 +21674,10 @@ index 0000000000000000000000000000000000000000..fb405f61591c478d5a8772a203921ee0
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d2c2d54c32fb80022bd1e4e86bef90f834b15f7b
+index 0000000000000000000000000000000000000000..4632448aa08d5e91c4287c43f583ff37d8bbb36b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,157 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21819,16 +21819,28 @@ index 0000000000000000000000000000000000000000..d2c2d54c32fb80022bd1e4e86bef90f8
 +
 +void WGPUIndexBuffer::strip_restart_indices()
 +{
-+  /* Not implemented (matches the Vulkan backend). */
++  /* WebGPU primitive restart is available only for strip topologies through
++   * RenderPipelineDescriptor::primitive.stripIndexFormat. Point lists cannot
++   * consume restart markers, so compact them before IndexBuf::init() squeezes
++   * the 32-bit source data to its final index representation. */
++  uint32_t *indices = static_cast<uint32_t *>(data_);
++  uint32_t write_index = 0;
++  for (uint32_t read_index = 0; read_index < index_len_; read_index++) {
++    if (indices[read_index] != RESTART_INDEX) {
++      indices[write_index] = indices[read_index];
++      write_index++;
++    }
++  }
++  index_len_ = write_index;
 +}
 +
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9df10fabb74185811638a70e6e81c56f9e19d3b1
+index 0000000000000000000000000000000000000000..bcfea241668b5896e6918b3c916bcce1318c87af
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,63 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21844,7 +21856,9 @@ index 0000000000000000000000000000000000000000..9df10fabb74185811638a70e6e81c56f
 + * (so odd U16 buffer sizes upload without the 4-byte writeBuffer constraint).
 + * Blender uses both 16- and 32-bit index buffers; U16 buffers carry an
 + * `index_base_` applied at draw time, handled by the draw encoder (lane B).
-+ * `update_sub` / `strip_restart_indices` are left unimplemented as on Vulkan.
++ * `update_sub` remains unimplemented as on Vulkan. Point-list primitive-restart
++ * markers are removed before index squeezing because WebGPU supports restart
++ * only for strip topologies.
 + */
 +
 +#pragma once

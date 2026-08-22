@@ -23,6 +23,12 @@ if(NOT DEFINED BW_WASM_INCLUDE_DIR OR
    NOT EXISTS "${BW_WASM_INCLUDE_DIR}/fmt/ranges.h")
   message(FATAL_ERROR "BW_WASM_INCLUDE_DIR must name the harvested Wasm include root")
 endif()
+if(NOT DEFINED BW_WGPU_INDEX_STRIP_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_INDEX_STRIP_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_INDEX_STRIP_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted canonical method")
+endif()
 
 set(_bw_integrated_buffer_sources
   wgpu_buffer.cc
@@ -32,6 +38,8 @@ set(_bw_integrated_buffer_sources
   wgpu_pixel_buffer.hh
   wgpu_readback.cc
   wgpu_readback.hh
+  wgpu_index_buffer.cc
+  wgpu_index_buffer.hh
 )
 foreach(_bw_source IN LISTS _bw_integrated_buffer_sources)
   set(_bw_source_path "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/${_bw_source}")
@@ -41,6 +49,8 @@ foreach(_bw_source IN LISTS _bw_integrated_buffer_sources)
 endforeach()
 foreach(_bw_source
     "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_texture_private.hh"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_index_buffer.cc"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_index_buffer.hh"
     "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
     "${BW_UPSTREAM_DIR}/intern/guardedalloc/MEM_guardedalloc.h")
   if(NOT EXISTS "${_bw_source}")
@@ -64,15 +74,22 @@ endforeach()
 set(_bw_integrated_buffer_test
   "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_test.cc"
 )
-if(NOT EXISTS "${_bw_integrated_buffer_test}")
-  message(FATAL_ERROR "integrated WebGPU buffer test is missing: ${_bw_integrated_buffer_test}")
-endif()
+set(_bw_integrated_index_test
+  "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_index_test.cc"
+)
+foreach(_bw_test "${_bw_integrated_buffer_test}" "${_bw_integrated_index_test}")
+  if(NOT EXISTS "${_bw_test}")
+    message(FATAL_ERROR "integrated WebGPU buffer test is missing: ${_bw_test}")
+  endif()
+endforeach()
 
 add_executable(wgpu_buffer_integrated_smoke
   "${_bw_integrated_buffer_test}"
+  "${_bw_integrated_index_test}"
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_pixel_buffer.cc"
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_readback.cc"
+  "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_index_buffer.cc"
   ${_bw_buffer_guardedalloc_sources}
 )
 set_target_properties(wgpu_buffer_integrated_smoke PROPERTIES
@@ -81,25 +98,37 @@ set_target_properties(wgpu_buffer_integrated_smoke PROPERTIES
   OUTPUT_NAME integrated_buffer
   SUFFIX .js
 )
+target_compile_definitions(wgpu_buffer_integrated_smoke PRIVATE
+  BW_WGPU_INDEX_STRIP_SOURCE="${BW_WGPU_INDEX_STRIP_SOURCE}"
+)
 target_include_directories(wgpu_buffer_integrated_smoke PRIVATE
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"
   "${BW_UPSTREAM_DIR}/source/blender/gpu/intern"
   "${BW_UPSTREAM_DIR}/source/blender/gpu"
+  "${BW_UPSTREAM_DIR}/source/blender/blenkernel"
   "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+  "${BW_UPSTREAM_DIR}/source/blender/makesdna"
+  "${BW_UPSTREAM_DIR}/source/blender/makesrna"
   "${BW_UPSTREAM_DIR}/intern/guardedalloc"
   "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern"
   "${BW_UPSTREAM_DIR}/intern/atomic"
+  "${BW_UPSTREAM_DIR}/intern/clog"
+  "${BW_UPSTREAM_DIR}/intern/ghost"
+  "${BW_UPSTREAM_DIR}/intern/profile"
   "${BW_WASM_INCLUDE_DIR}"
 )
 target_compile_options(wgpu_buffer_integrated_smoke PRIVATE
   -pthread
   -fexceptions
+  -ffunction-sections
+  -fdata-sections
   "--use-port=emdawnwebgpu"
 )
 target_link_options(wgpu_buffer_integrated_smoke PRIVATE
   -pthread
   -fexceptions
   "--use-port=emdawnwebgpu"
+  "-Wl,--gc-sections"
   "-sENVIRONMENT=node"
   "-sEXIT_RUNTIME=1"
   "-sSTACK_SIZE=8388608"

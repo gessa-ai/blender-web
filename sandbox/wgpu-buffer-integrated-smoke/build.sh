@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# buffer wrapper, pixel-upload buffer, and readback registry. Invoke through
-# harness/buildwrap.sh.
+# buffer wrapper, pixel-upload buffer, readback registry, and index-buffer
+# point-restart cleanup. Invoke through harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +20,7 @@ NODE="${NODE:-$EMSDK/node/22.16.0_64bit/bin/node}"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
 HOST_CMAKE="${HOST_CMAKE:-$ROOT/.host-tools/bin/cmake}"
 WASM_INCLUDE="$ROOT/lib/wasm/include"
+INDEX_STRIP_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_strip.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -66,7 +67,12 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_pixel_buffer.hh
     source/blender/gpu/webgpu/wgpu_readback.cc
     source/blender/gpu/webgpu/wgpu_readback.hh
+    source/blender/gpu/webgpu/wgpu_index_buffer.cc
+    source/blender/gpu/webgpu/wgpu_index_buffer.hh
+    source/blender/gpu/intern/gpu_index_buffer.cc
     source/blender/gpu/intern/gpu_texture_private.hh
+    source/blender/gpu/GPU_index_buffer.hh
+    source/blender/gpu/GPU_primitive.hh
     source/blender/gpu/GPU_texture.hh
     intern/guardedalloc/MEM_guardedalloc.h
     intern/guardedalloc/intern/leak_detector.cc
@@ -87,6 +93,8 @@ require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_buffer_test.cc"
+require_file "$HERE/integrated_index_test.cc"
+require_file "$HERE/extract_index_strip.py"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -98,11 +106,16 @@ for source_name in \
   wgpu_pixel_buffer.cc \
   wgpu_pixel_buffer.hh \
   wgpu_readback.cc \
-  wgpu_readback.hh
+  wgpu_readback.hh \
+  wgpu_index_buffer.cc \
+  wgpu_index_buffer.hh
 do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_index_buffer.cc"
+require_file "$ROOT/upstream/source/blender/gpu/GPU_index_buffer.hh"
+require_file "$ROOT/upstream/source/blender/gpu/GPU_primitive.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
 require_file "$ROOT/upstream/intern/guardedalloc/MEM_guardedalloc.h"
 for source_name in \
@@ -155,6 +168,29 @@ case "$SOURCE_PROOF" in
     ;;
 esac
 
+INDEX_NEGATIVE_DIR="$(mktemp -d /tmp/blender-web-index-extract.XXXXXX)"
+INDEX_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/generated.inc"
+if INDEX_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_index_strip.py" \
+  --source "$WEBGPU_SOURCE/wgpu_index_buffer.hh" \
+  --output "$INDEX_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed index-strip source was accepted" >&2
+  exit 1
+fi
+if [ "$INDEX_NEGATIVE_MESSAGE" != \
+     "INDEX_STRIP_EXTRACT_FAIL canonical index-strip method boundaries are not unique" ] ||
+   [ -e "$INDEX_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed index-strip rejection differs" >&2
+  exit 1
+fi
+rmdir "$INDEX_NEGATIVE_DIR"
+
+"$PYBIN" "$HERE/extract_index_strip.py" \
+  --source "$WEBGPU_SOURCE/wgpu_index_buffer.cc" \
+  --output "$INDEX_STRIP_SOURCE"
+require_file "$INDEX_STRIP_SOURCE"
+
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
   echo "ERROR: expected Node v22.16.0, got $NODE_VERSION" >&2
@@ -186,6 +222,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
 
@@ -196,7 +233,8 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE" \
-  -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE"
+  -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
 echo "== [3/3] exact native/Wasm parity =="
@@ -215,13 +253,19 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=7 usage_cases=32 pixel_cases=7 exact_cap=256' \
+    'INTEGRATED_BUFFER_PASS contracts=9 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT index-metadata PASS subranges=1 inherited-base=1 device-u32=17' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 7 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

@@ -154,6 +154,12 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   if(NOT DEFINED BW_UPSTREAM_DIR)
     message(FATAL_ERROR "BW_UPSTREAM_DIR is required with BW_INTEGRATED_BUFFER_SOURCE_DIR")
   endif()
+  if(NOT DEFINED BW_WGPU_INDEX_STRIP_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_INDEX_STRIP_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_INDEX_STRIP_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted canonical method")
+  endif()
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -163,6 +169,9 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   set(_bw_integrated_buffer_test
     "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_test.cc"
   )
+  set(_bw_integrated_index_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_index_test.cc"
+  )
   set(_bw_integrated_buffer_sources
     wgpu_buffer.cc
     wgpu_buffer.hh
@@ -171,6 +180,8 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     wgpu_pixel_buffer.hh
     wgpu_readback.cc
     wgpu_readback.hh
+    wgpu_index_buffer.cc
+    wgpu_index_buffer.hh
   )
   foreach(_bw_source IN LISTS _bw_integrated_buffer_sources)
     set(_bw_source_path "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/${_bw_source}")
@@ -181,11 +192,14 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   endforeach()
   foreach(_bw_source
       "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_texture_private.hh"
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_index_buffer.cc"
+      "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_index_buffer.hh"
       "${BW_UPSTREAM_DIR}/source/blender/gpu/GPU_texture.hh"
-      "${BW_UPSTREAM_DIR}/intern/guardedalloc/MEM_guardedalloc.h")
+      "${BW_UPSTREAM_DIR}/intern/guardedalloc/MEM_guardedalloc.h"
+      "${_bw_integrated_index_test}")
     if(NOT IS_ABSOLUTE "${_bw_source}" OR NOT EXISTS "${_bw_source}")
       message(FATAL_ERROR
-        "integrated WebGPU pixel-buffer dependency is missing: ${_bw_source}")
+        "integrated WebGPU buffer dependency is missing: ${_bw_source}")
     endif()
   endforeach()
   set(_bw_buffer_guardedalloc_sources
@@ -210,21 +224,37 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
   find_package(Threads REQUIRED)
   add_executable(wgpu_buffer_integrated_test
     "${_bw_integrated_buffer_test}"
+    "${_bw_integrated_index_test}"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_pixel_buffer.cc"
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_readback.cc"
+    "${BW_UPSTREAM_DIR}/source/blender/gpu/intern/gpu_index_buffer.cc"
     ${_bw_buffer_guardedalloc_sources}
+  )
+  target_compile_definitions(wgpu_buffer_integrated_test PRIVATE
+    BW_WGPU_INDEX_STRIP_SOURCE="${BW_WGPU_INDEX_STRIP_SOURCE}"
   )
   target_include_directories(wgpu_buffer_integrated_test PRIVATE
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"
     "${BW_UPSTREAM_DIR}/source/blender/gpu/intern"
     "${BW_UPSTREAM_DIR}/source/blender/gpu"
+    "${BW_UPSTREAM_DIR}/source/blender/blenkernel"
     "${BW_UPSTREAM_DIR}/source/blender/blenlib"
+    "${BW_UPSTREAM_DIR}/source/blender/makesdna"
+    "${BW_UPSTREAM_DIR}/source/blender/makesrna"
     "${BW_UPSTREAM_DIR}/intern/guardedalloc"
     "${BW_UPSTREAM_DIR}/intern/guardedalloc/intern"
     "${BW_UPSTREAM_DIR}/intern/atomic"
+    "${BW_UPSTREAM_DIR}/intern/clog"
+    "${BW_UPSTREAM_DIR}/intern/ghost"
+    "${BW_UPSTREAM_DIR}/intern/profile"
     "${BW_NATIVE_FMT_INCLUDE_DIR}"
   )
+  target_compile_options(wgpu_buffer_integrated_test PRIVATE
+    -ffunction-sections
+    -fdata-sections
+  )
+  target_link_options(wgpu_buffer_integrated_test PRIVATE -Wl,--gc-sections)
   target_link_libraries(wgpu_buffer_integrated_test PRIVATE
     dawn::webgpu_dawn
     Threads::Threads

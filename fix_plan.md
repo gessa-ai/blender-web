@@ -488,6 +488,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   targets end at locked-Ninja no-work. It creates no instance, adapter, device, GPU buffer, upload,
   or receipt; live vertex allocation/draw proof remains owned by **M3-LINUX-REPLAY** and blocked by
   s7. Evidence: `notes/m3-t6-vertex-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T6.point-restart.integrated [gpu-backend] COMPLETE (patch 0154):** WebGPU point-list
+  restart markers are now compacted stably before `IndexBuf::init()` squeezes the data, closing the
+  silent out-of-range fetch path while preserving surviving point order. The exact extracted method
+  runs through Blender's real base initializer in native/wasm32 for mixed, all-restart, wide-u32,
+  and rebased-u16 inputs plus subrange/device metadata; both legs emit identical 692-byte evidence.
+  No instance, adapter, device, GPU buffer, or receipt is created; live proof remains owned by
+  **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t6-point-restart-integrated-linux-20260821.md`.
 - [x] **M3.T9.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree texture-format and
   RGB-to-RGBA conversion postimages against Blender's real `TextureFormat` enum. Five contracts

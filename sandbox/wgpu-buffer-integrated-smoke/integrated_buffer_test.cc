@@ -20,6 +20,10 @@
 namespace bw = blender::gpu::webgpu;
 namespace readback = blender::gpu::webgpu::readback;
 
+namespace blender::gpu {
+bool run_integrated_index_contracts();
+}
+
 namespace {
 
 bool require(const bool condition, const char *message)
@@ -425,10 +429,11 @@ int main()
 {
   if (!common_contract() || !usage_contract() || !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
-      !failed_ticket_capacity_contract())
+      !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
   {
     return 1;
   }
-  std::printf("INTEGRATED_BUFFER_PASS contracts=7 usage_cases=32 pixel_cases=7 exact_cap=256\n");
+  std::printf(
+      "INTEGRATED_BUFFER_PASS contracts=9 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
   return 0;
 }

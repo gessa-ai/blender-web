@@ -330,3 +330,9 @@ the 257-path / 20,258-entry authority. The patch is now 1,616,957 bytes with SHA
 `bc9af849b9e68a550df36c88c7ab63db24e45cd80ebde3ab50f2b322cde66cbd`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `6dac71b1f5d0b4437c632f0dcd796ac9fcb34a364e640a42fceb61b529aeb84c`.
+
+Patch 0194's scissor-sensitive framebuffer clear policy and typed draw implementation was then
+composed without changing the 257-path / 20,258-entry authority. The patch is now 1,646,549 bytes
+with SHA-256 `b71019f7be98dcb8c63c153cdf8bf214a097a52850138c70d05398c78bd42e2e`;
+the current normalized receipt binds byte-identical live/replay manifests at SHA-256
+`833c802f01c018a484ec9a6d0515a0e035965133c76347edb6e234fb83dadbcb`.

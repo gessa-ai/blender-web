@@ -18443,10 +18443,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..a1128e9be43b236930a6ebe2de8e122d155f38ed
+index 0000000000000000000000000000000000000000..9c87327a261ed4ae8349b35030524cc419624cd3
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,987 @@
+@@ -0,0 +1,1141 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18685,6 +18685,160 @@ index 0000000000000000000000000000000000000000..a1128e9be43b236930a6ebe2de8e122d
 +  candidate.scissor_y = uint32_t(clipped_top);
 +  candidate.scissor_width = uint32_t(clipped_right - clipped_left);
 +  candidate.scissor_height = uint32_t(clipped_bottom - clipped_top);
++  return true;
++}
++
++/** The implementation selected for one framebuffer clear. WebGPU load operations cover a whole
++ * attachment, so any proper sub-rectangle requires a draw. Empty clipped regions remain valid
++ * no-ops rather than malformed render passes. */
++enum class FramebufferClearMethod : uint8_t { NoOp, FullAttachmentLoadOp, ScissoredDraw };
++
++enum class FramebufferClearAspect : uint8_t {
++  Color = 1u << 0,
++  Depth = 1u << 1,
++  Stencil = 1u << 2,
++};
++
++struct FramebufferClearPlan {
++  FramebufferClearMethod method = FramebufferClearMethod::NoOp;
++  uint8_t aspects = 0;
++  uint32_t x = 0;
++  uint32_t y = 0;
++  uint32_t width = 0;
++  uint32_t height = 0;
++};
++
++enum class FramebufferClearShaderType : uint8_t { Float, Uint, Sint, Depth };
++
++/** Select the fragment output base type from the texture's numeric flags. Blender's packed
++ * UNORM_10_10_10_2 and UINT_10_10_10_2 share one legacy eGPUDataFormat token, so that token
++ * cannot distinguish the float and unsigned WebGPU render-target contracts. */
++inline FramebufferClearShaderType framebuffer_clear_color_shader_type(bool is_integer,
++                                                                      bool is_signed)
++{
++  if (!is_integer) {
++    return FramebufferClearShaderType::Float;
++  }
++  return is_signed ? FramebufferClearShaderType::Sint : FramebufferClearShaderType::Uint;
++}
++
++/** Exact typed fullscreen-triangle shaders used by scissored framebuffer clears. Keeping the
++ * shipping WGSL here lets the device-free contract parse and identity-bind every variant. */
++inline const char *framebuffer_clear_shader_source(FramebufferClearShaderType type)
++{
++  switch (type) {
++    case FramebufferClearShaderType::Float:
++      return "struct Params { value : vec4f, };\n"
++             "@group(0) @binding(0) var<uniform> params : Params;\n"
++             "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> @builtin(position) "
++             "vec4f {\n"
++             "  let x = f32((vid << 1u) & 2u);\n"
++             "  let y = f32(vid & 2u);\n"
++             "  return vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++             "}\n"
++             "@fragment fn fs_main() -> @location(0) vec4f { return params.value; }\n";
++    case FramebufferClearShaderType::Uint:
++      return "struct Params { value : vec4u, };\n"
++             "@group(0) @binding(0) var<uniform> params : Params;\n"
++             "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> @builtin(position) "
++             "vec4f {\n"
++             "  let x = f32((vid << 1u) & 2u);\n"
++             "  let y = f32(vid & 2u);\n"
++             "  return vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++             "}\n"
++             "@fragment fn fs_main() -> @location(0) vec4u { return params.value; }\n";
++    case FramebufferClearShaderType::Sint:
++      return "struct Params { value : vec4i, };\n"
++             "@group(0) @binding(0) var<uniform> params : Params;\n"
++             "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> @builtin(position) "
++             "vec4f {\n"
++             "  let x = f32((vid << 1u) & 2u);\n"
++             "  let y = f32(vid & 2u);\n"
++             "  return vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++             "}\n"
++             "@fragment fn fs_main() -> @location(0) vec4i { return params.value; }\n";
++    case FramebufferClearShaderType::Depth:
++      return "struct Params { value : vec4f, };\n"
++             "@group(0) @binding(0) var<uniform> params : Params;\n"
++             "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> @builtin(position) "
++             "vec4f {\n"
++             "  let x = f32((vid << 1u) & 2u);\n"
++             "  let y = f32(vid & 2u);\n"
++             "  return vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++             "}\n"
++             "@fragment fn fs_main() -> @builtin(frag_depth) f32 { return params.value.x; }\n";
++  }
++  return nullptr;
++}
++
++/** Preserve Blender's scissor-sensitive framebuffer clear contract. A disabled or exact-full
++ * scissor retains WebGPU's loadOp=Clear fast path. A proper clipped rectangle selects a draw over
++ * loadOp=Load attachments, while an empty rectangle is an explicit no-op. Window targets convert
++ * lower-left Y; ordinary offscreens retain the backend's established post-flip coordinates.
++ * Invalid target/aspect inputs leave `result` unchanged. */
++inline bool framebuffer_clear_plan(const int *scissor,
++                                   int target_width,
++                                   int target_height,
++                                   bool convert_bottom_origin,
++                                   uint8_t aspects,
++                                   FramebufferClearPlan &result)
++{
++  constexpr uint8_t valid_aspects = uint8_t(FramebufferClearAspect::Color) |
++                                    uint8_t(FramebufferClearAspect::Depth) |
++                                    uint8_t(FramebufferClearAspect::Stencil);
++  if (target_width <= 0 || target_height <= 0 || aspects == 0 ||
++      (aspects & ~valid_aspects) != 0)
++  {
++    return false;
++  }
++
++  FramebufferClearPlan candidate;
++  candidate.method = FramebufferClearMethod::FullAttachmentLoadOp;
++  candidate.aspects = aspects;
++  candidate.width = uint32_t(target_width);
++  candidate.height = uint32_t(target_height);
++  if (scissor == nullptr) {
++    result = candidate;
++    return true;
++  }
++
++  if (scissor[2] <= 0 || scissor[3] <= 0) {
++    candidate.method = FramebufferClearMethod::NoOp;
++    candidate.width = 0;
++    candidate.height = 0;
++    result = candidate;
++    return true;
++  }
++
++  const int64_t left = int64_t(scissor[0]);
++  const int64_t top = convert_bottom_origin ?
++                          int64_t(target_height) - int64_t(scissor[1]) -
++                              int64_t(scissor[3]) :
++                          int64_t(scissor[1]);
++  const int64_t right = left + int64_t(scissor[2]);
++  const int64_t bottom = top + int64_t(scissor[3]);
++  const int64_t clipped_left = left > 0 ? left : 0;
++  const int64_t clipped_top = top > 0 ? top : 0;
++  const int64_t clipped_right = right < int64_t(target_width) ? right : target_width;
++  const int64_t clipped_bottom = bottom < int64_t(target_height) ? bottom : target_height;
++  if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
++    candidate.method = FramebufferClearMethod::NoOp;
++    candidate.width = 0;
++    candidate.height = 0;
++    result = candidate;
++    return true;
++  }
++
++  candidate.x = uint32_t(clipped_left);
++  candidate.y = uint32_t(clipped_top);
++  candidate.width = uint32_t(clipped_right - clipped_left);
++  candidate.height = uint32_t(clipped_bottom - clipped_top);
++  if (candidate.x != 0 || candidate.y != 0 || candidate.width != uint32_t(target_width) ||
++      candidate.height != uint32_t(target_height))
++  {
++    candidate.method = FramebufferClearMethod::ScissoredDraw;
++  }
++  result = candidate;
 +  return true;
 +}
 +
@@ -21464,10 +21618,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b384a4e73e
+index 0000000000000000000000000000000000000000..b5b2570b80ff56875a45efeb171e0e323525609c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1124 @@
+@@ -0,0 +1,1640 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21668,15 +21822,448 @@ index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b3
 +  return true;
 +}
 +
++bool WGPUFrameBuffer::submit_scissored_color_clear(
++    const GPUAttachment &attachment,
++    int force_layer,
++    const double4 &clear_value,
++    const webgpu::FramebufferClearPlan &plan)
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr || attachment.tex == nullptr || plan.width == 0 || plan.height == 0) {
++    return false;
++  }
++  webgpu::WGPUTexture *texture = as_wgpu(attachment.tex);
++  wgpu::TextureView view = attachment_view(attachment, force_layer);
++  if (view == nullptr || !texture->subresource_range().valid()) {
++    return false;
++  }
++
++  const GPUTextureFormatFlag format_flags = attachment.tex->format_flag_get();
++  const webgpu::FramebufferClearShaderType shader_type =
++      webgpu::framebuffer_clear_color_shader_type(bool(format_flags & GPU_FORMAT_INTEGER),
++                                                  bool(format_flags & GPU_FORMAT_SIGNED));
++  wgpu::ShaderModule *module = nullptr;
++  switch (shader_type) {
++    case webgpu::FramebufferClearShaderType::Uint:
++      module = &scissored_clear_uint_module_;
++      break;
++    case webgpu::FramebufferClearShaderType::Sint:
++      module = &scissored_clear_sint_module_;
++      break;
++    case webgpu::FramebufferClearShaderType::Float:
++      module = &scissored_clear_float_module_;
++      break;
++    case webgpu::FramebufferClearShaderType::Depth:
++      return false;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  if (*module == nullptr) {
++    wgpu::ShaderSourceWGSL source = {};
++    source.code = webgpu::framebuffer_clear_shader_source(shader_type);
++    wgpu::ShaderModuleDescriptor descriptor = {};
++    descriptor.nextInChain = &source;
++    *module = device.CreateShaderModule(&descriptor);
++  }
++  if (*module == nullptr) {
++    return false;
++  }
++
++  const wgpu::TextureFormat format = texture->wgpu_format();
++  const uint32_t sample_count = texture->subresource_range().texture.GetSampleCount();
++  if (format == wgpu::TextureFormat::Undefined || sample_count == 0) {
++    return false;
++  }
++  const uint64_t pipeline_key = uint64_t(uint32_t(format)) | (uint64_t(sample_count) << 32);
++  wgpu::RenderPipeline pipeline;
++  const auto found = scissored_color_clear_pipelines_.find(pipeline_key);
++  if (found != scissored_color_clear_pipelines_.end()) {
++    pipeline = found->second;
++  }
++  else {
++    wgpu::ColorTargetState target = {};
++    target.format = format;
++    target.writeMask = wgpu::ColorWriteMask::All;
++    wgpu::FragmentState fragment = {};
++    fragment.module = *module;
++    fragment.entryPoint = "fs_main";
++    fragment.targetCount = 1;
++    fragment.targets = &target;
++    wgpu::RenderPipelineDescriptor descriptor = {};
++    descriptor.layout = nullptr;
++    descriptor.vertex.module = *module;
++    descriptor.vertex.entryPoint = "vs_main";
++    descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++    descriptor.multisample.count = sample_count;
++    descriptor.fragment = &fragment;
++    pipeline = device.CreateRenderPipeline(&descriptor);
++    scissored_color_clear_pipelines_[pipeline_key] = pipeline;
++  }
++  if (pipeline == nullptr) {
++    return false;
++  }
++
++  uint32_t clear_payload[4] = {};
++  if (shader_type == webgpu::FramebufferClearShaderType::Uint) {
++    for (int component = 0; component < 4; component++) {
++      clear_payload[component] = uint32_t(clear_value[component]);
++    }
++  }
++  else if (shader_type == webgpu::FramebufferClearShaderType::Sint) {
++    int32_t signed_payload[4];
++    for (int component = 0; component < 4; component++) {
++      signed_payload[component] = int32_t(clear_value[component]);
++    }
++    std::memcpy(clear_payload, signed_payload, sizeof(clear_payload));
++  }
++  else {
++    float float_payload[4];
++    for (int component = 0; component < 4; component++) {
++      float_payload[component] = float(clear_value[component]);
++    }
++    std::memcpy(clear_payload, float_payload, sizeof(clear_payload));
++  }
++
++  wgpu::BufferDescriptor uniform_descriptor = {};
++  uniform_descriptor.size = sizeof(clear_payload);
++  uniform_descriptor.usage = wgpu::BufferUsage::Uniform;
++  uniform_descriptor.mappedAtCreation = true;
++  wgpu::Buffer uniform = device.CreateBuffer(&uniform_descriptor);
++  if (uniform == nullptr) {
++    return false;
++  }
++  void *mapped = uniform.GetMappedRange(0, sizeof(clear_payload));
++  if (mapped == nullptr) {
++    uniform.Unmap();
++    return false;
++  }
++  std::memcpy(mapped, clear_payload, sizeof(clear_payload));
++  uniform.Unmap();
++
++  wgpu::BindGroupEntry entry = {};
++  entry.binding = 0;
++  entry.buffer = uniform;
++  entry.offset = 0;
++  entry.size = sizeof(clear_payload);
++  wgpu::BindGroupDescriptor bind_descriptor = {};
++  bind_descriptor.layout = pipeline.GetBindGroupLayout(0);
++  bind_descriptor.entryCount = 1;
++  bind_descriptor.entries = &entry;
++  wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_descriptor);
++  if (bind_group == nullptr) {
++    return false;
++  }
++
++  wgpu::RenderPassColorAttachment color = {};
++  color.view = view;
++  color.depthSlice = attachment_depth_slice(attachment, force_layer);
++  color.loadOp = wgpu::LoadOp::Load;
++  color.storeOp = wgpu::StoreOp::Store;
++  color.clearValue = {0.0, 0.0, 0.0, 0.0};
++  wgpu::RenderPassDescriptor pass_descriptor = {};
++  pass_descriptor.colorAttachmentCount = 1;
++  pass_descriptor.colorAttachments = &color;
++  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_descriptor);
++  pass.SetPipeline(pipeline);
++  pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
++  pass.SetBindGroup(0, bind_group);
++  pass.Draw(3, 1, 0, 0);
++  pass.End();
++  wgpu::CommandBuffer command = encoder.Finish();
++  ctx->queue_get().Submit(1, &command);
++  return true;
++}
++
++bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
++    const GPUAttachment &attachment,
++    int force_layer,
++    bool clear_depth,
++    float clear_depth_value,
++    bool clear_stencil,
++    uint clear_stencil_value,
++    const webgpu::FramebufferClearPlan &plan)
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr || attachment.tex == nullptr || (!clear_depth && !clear_stencil) ||
++      plan.width == 0 || plan.height == 0)
++  {
++    return false;
++  }
++  webgpu::WGPUTexture *texture = as_wgpu(attachment.tex);
++  wgpu::TextureView view = attachment_view(attachment, force_layer);
++  if (view == nullptr || !texture->subresource_range().valid()) {
++    return false;
++  }
++  const wgpu::TextureFormat format = texture->wgpu_format();
++  const bool combined = ELEM(format,
++                             wgpu::TextureFormat::Depth24PlusStencil8,
++                             wgpu::TextureFormat::Depth32FloatStencil8);
++  if (clear_stencil && !combined) {
++    return false;
++  }
++  const uint32_t sample_count = texture->subresource_range().texture.GetSampleCount();
++  if (format == wgpu::TextureFormat::Undefined || sample_count == 0) {
++    return false;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  if (scissored_clear_depth_module_ == nullptr) {
++    wgpu::ShaderSourceWGSL source = {};
++    source.code = webgpu::framebuffer_clear_shader_source(
++        webgpu::FramebufferClearShaderType::Depth);
++    wgpu::ShaderModuleDescriptor descriptor = {};
++    descriptor.nextInChain = &source;
++    scissored_clear_depth_module_ = device.CreateShaderModule(&descriptor);
++  }
++  if (scissored_clear_depth_module_ == nullptr) {
++    return false;
++  }
++
++  const uint64_t pipeline_key = uint64_t(uint32_t(format)) | (uint64_t(sample_count) << 32) |
++                                (uint64_t(clear_depth ? 1u : 0u) << 48) |
++                                (uint64_t(clear_stencil ? 1u : 0u) << 49);
++  wgpu::RenderPipeline pipeline;
++  const auto found = scissored_depth_clear_pipelines_.find(pipeline_key);
++  if (found != scissored_depth_clear_pipelines_.end()) {
++    pipeline = found->second;
++  }
++  else {
++    wgpu::FragmentState fragment = {};
++    fragment.module = scissored_clear_depth_module_;
++    fragment.entryPoint = "fs_main";
++    wgpu::DepthStencilState depth_stencil = {};
++    depth_stencil.format = format;
++    depth_stencil.depthWriteEnabled = clear_depth ? wgpu::OptionalBool::True :
++                                                   wgpu::OptionalBool::False;
++    depth_stencil.depthCompare = wgpu::CompareFunction::Always;
++    if (combined) {
++      depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
++      depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
++      depth_stencil.stencilFront.depthFailOp = clear_stencil ?
++                                                   wgpu::StencilOperation::Replace :
++                                                   wgpu::StencilOperation::Keep;
++      depth_stencil.stencilFront.passOp = clear_stencil ? wgpu::StencilOperation::Replace :
++                                                         wgpu::StencilOperation::Keep;
++      depth_stencil.stencilBack = depth_stencil.stencilFront;
++      depth_stencil.stencilReadMask = 0xffu;
++      depth_stencil.stencilWriteMask = clear_stencil ? 0xffu : 0u;
++    }
++    wgpu::RenderPipelineDescriptor descriptor = {};
++    descriptor.layout = nullptr;
++    descriptor.vertex.module = scissored_clear_depth_module_;
++    descriptor.vertex.entryPoint = "vs_main";
++    descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++    descriptor.multisample.count = sample_count;
++    descriptor.fragment = &fragment;
++    descriptor.depthStencil = &depth_stencil;
++    pipeline = device.CreateRenderPipeline(&descriptor);
++    scissored_depth_clear_pipelines_[pipeline_key] = pipeline;
++  }
++  if (pipeline == nullptr) {
++    return false;
++  }
++
++  const float depth_payload[4] = {
++      std::isfinite(clear_depth_value) ? clear_depth_value : 1.0f, 0.0f, 0.0f, 0.0f};
++  wgpu::BufferDescriptor uniform_descriptor = {};
++  uniform_descriptor.size = sizeof(depth_payload);
++  uniform_descriptor.usage = wgpu::BufferUsage::Uniform;
++  uniform_descriptor.mappedAtCreation = true;
++  wgpu::Buffer uniform = device.CreateBuffer(&uniform_descriptor);
++  if (uniform == nullptr) {
++    return false;
++  }
++  void *mapped = uniform.GetMappedRange(0, sizeof(depth_payload));
++  if (mapped == nullptr) {
++    uniform.Unmap();
++    return false;
++  }
++  std::memcpy(mapped, depth_payload, sizeof(depth_payload));
++  uniform.Unmap();
++
++  wgpu::BindGroupEntry entry = {};
++  entry.binding = 0;
++  entry.buffer = uniform;
++  entry.offset = 0;
++  entry.size = sizeof(depth_payload);
++  wgpu::BindGroupDescriptor bind_descriptor = {};
++  bind_descriptor.layout = pipeline.GetBindGroupLayout(0);
++  bind_descriptor.entryCount = 1;
++  bind_descriptor.entries = &entry;
++  wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_descriptor);
++  if (bind_group == nullptr) {
++    return false;
++  }
++
++  wgpu::RenderPassDepthStencilAttachment depth_stencil = {};
++  depth_stencil.view = view;
++  depth_stencil.depthLoadOp = wgpu::LoadOp::Load;
++  depth_stencil.depthStoreOp = wgpu::StoreOp::Store;
++  depth_stencil.depthClearValue = 1.0f;
++  if (combined) {
++    depth_stencil.stencilLoadOp = wgpu::LoadOp::Load;
++    depth_stencil.stencilStoreOp = wgpu::StoreOp::Store;
++    depth_stencil.stencilClearValue = 0u;
++  }
++  wgpu::RenderPassDescriptor pass_descriptor = {};
++  pass_descriptor.depthStencilAttachment = &depth_stencil;
++  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_descriptor);
++  pass.SetPipeline(pipeline);
++  pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
++  pass.SetBindGroup(0, bind_group);
++  if (clear_stencil) {
++    pass.SetStencilReference(clear_stencil_value);
++  }
++  pass.Draw(3, 1, 0, 0);
++  pass.End();
++  wgpu::CommandBuffer command = encoder.Finish();
++  ctx->queue_get().Submit(1, &command);
++  return true;
++}
++
++void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
++                                              Span<double4> colors,
++                                              float clear_depth,
++                                              uint clear_stencil,
++                                              const webgpu::FramebufferClearPlan &plan)
++{
++  uint32_t pass_count = 1;
++  for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
++    const GPUAttachment &attachment = attachments_[index];
++    if (attachment.tex != nullptr && attachment.layer < 0) {
++      pass_count = std::max(
++          pass_count,
++          as_wgpu(attachment.tex)->attachment_layer_count(std::max(attachment.mip, 0)));
++    }
++  }
++
++  for (uint32_t pass_layer = 0; pass_layer < pass_count; pass_layer++) {
++    if (buffers & GPU_COLOR_BIT) {
++      if (colors.is_empty()) {
++        return;
++      }
++      for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
++        Texture *texture = color_tex(slot);
++        if (texture == nullptr) {
++          continue;
++        }
++        const GPUAttachment &attachment = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++        int force_layer;
++        const webgpu::FramebufferClearPassStatus status =
++            webgpu::framebuffer_clear_pass_layer(
++                attachment.layer,
++                as_wgpu(texture)->attachment_layer_count(std::max(attachment.mip, 0)),
++                pass_layer,
++                force_layer);
++        if (status == webgpu::FramebufferClearPassStatus::Invalid) {
++          return;
++        }
++        if (status == webgpu::FramebufferClearPassStatus::Inactive) {
++          continue;
++        }
++        const double4 &color =
++            colors[(colors.size() == 1) ? 0 : std::min<int>(slot, colors.size() - 1)];
++        if (!submit_scissored_color_clear(attachment, force_layer, color, plan)) {
++          return;
++        }
++      }
++    }
++
++    Texture *depth_texture = depth_tex();
++    if (depth_texture == nullptr || !(buffers & (GPU_DEPTH_BIT | GPU_STENCIL_BIT))) {
++      continue;
++    }
++    const GPUAttachment &attachment = depth_attachment();
++    int force_layer;
++    const webgpu::FramebufferClearPassStatus status = webgpu::framebuffer_clear_pass_layer(
++        attachment.layer,
++        as_wgpu(depth_texture)->attachment_layer_count(std::max(attachment.mip, 0)),
++        pass_layer,
++        force_layer);
++    if (status == webgpu::FramebufferClearPassStatus::Invalid) {
++      return;
++    }
++    if (status == webgpu::FramebufferClearPassStatus::Inactive) {
++      continue;
++    }
++    const wgpu::TextureAspect selected_aspect =
++        as_wgpu(depth_texture)->subresource_range().aspect;
++    const bool clear_depth_aspect = selected_aspect != wgpu::TextureAspect::StencilOnly &&
++                                    bool(buffers & GPU_DEPTH_BIT);
++    const bool clear_stencil_aspect = selected_aspect != wgpu::TextureAspect::DepthOnly &&
++                                      bool(buffers & GPU_STENCIL_BIT) &&
++                                      depth_texture->format_get() ==
++                                          TextureFormat::SFLOAT_32_DEPTH_UINT_8;
++    if ((clear_depth_aspect || clear_stencil_aspect) &&
++        !submit_scissored_depth_stencil_clear(attachment,
++                                               force_layer,
++                                               clear_depth_aspect,
++                                               clear_depth,
++                                               clear_stencil_aspect,
++                                               clear_stencil,
++                                               plan))
++    {
++      return;
++    }
++  }
++}
++
 +void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
 +                                   Span<double4> colors,
 +                                   float clear_depth,
-+                                   uint clear_stencil)
++                                   uint clear_stencil,
++                                   bool force_full_attachment)
 +{
 +  WGPUContext *ctx = active_context();
 +  if (ctx == nullptr) {
 +    return;
 +  }
++
++  uint8_t clear_aspects = 0;
++  clear_aspects |= (buffers & GPU_COLOR_BIT) ?
++                       uint8_t(webgpu::FramebufferClearAspect::Color) :
++                       0u;
++  clear_aspects |= (buffers & GPU_DEPTH_BIT) ?
++                       uint8_t(webgpu::FramebufferClearAspect::Depth) :
++                       0u;
++  clear_aspects |= (buffers & GPU_STENCIL_BIT) ?
++                       uint8_t(webgpu::FramebufferClearAspect::Stencil) :
++                       0u;
++  webgpu::FramebufferClearPlan clear_plan;
++  if (force_full_attachment) {
++    if (width_ <= 0 || height_ <= 0 || clear_aspects == 0) {
++      return;
++    }
++    clear_plan.method = webgpu::FramebufferClearMethod::FullAttachmentLoadOp;
++    clear_plan.aspects = clear_aspects;
++    clear_plan.width = uint32_t(width_);
++    clear_plan.height = uint32_t(height_);
++  }
++  else {
++    int scissor[4];
++    const int *active_scissor = nullptr;
++    if (scissor_test_get()) {
++      scissor_get(scissor);
++      active_scissor = scissor;
++    }
++    if (!webgpu::framebuffer_clear_plan(active_scissor,
++                                        width_,
++                                        height_,
++                                        ctx->is_window_backbuffer(this),
++                                        clear_aspects,
++                                        clear_plan) ||
++        clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
++    {
++      return;
++    }
++  }
++  if (clear_plan.method == webgpu::FramebufferClearMethod::ScissoredDraw) {
++    submit_scissored_clear(buffers, colors, clear_depth, clear_stencil, clear_plan);
++    return;
++  }
++
 +  wgpu::Device device = ctx->device_get();
 +
 +  /* A negative attachment layer means the frontend selected every layer. WebGPU
@@ -21802,6 +22389,89 @@ index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b3
 +
 +void WGPUFrameBuffer::clear_attachment(GPUAttachmentType type, const double4 clear_value)
 +{
++  WGPUContext *ctx = active_context();
++  uint8_t clear_aspects = 0;
++  if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
++    if (Texture *depth_texture = depth_tex()) {
++      const wgpu::TextureAspect aspect = as_wgpu(depth_texture)->subresource_range().aspect;
++      if (aspect != wgpu::TextureAspect::StencilOnly) {
++        clear_aspects |= uint8_t(webgpu::FramebufferClearAspect::Depth);
++      }
++      if (type == GPU_FB_DEPTH_STENCIL_ATTACHMENT &&
++          aspect != wgpu::TextureAspect::DepthOnly)
++      {
++        clear_aspects |= uint8_t(webgpu::FramebufferClearAspect::Stencil);
++      }
++    }
++  }
++  else if (type >= GPU_FB_COLOR_ATTACHMENT0 && type < GPU_FB_MAX_ATTACHMENT) {
++    clear_aspects = uint8_t(webgpu::FramebufferClearAspect::Color);
++  }
++  if (ctx == nullptr || clear_aspects == 0) {
++    return;
++  }
++
++  int scissor[4];
++  const int *active_scissor = nullptr;
++  if (scissor_test_get()) {
++    scissor_get(scissor);
++    active_scissor = scissor;
++  }
++  webgpu::FramebufferClearPlan clear_plan;
++  if (!webgpu::framebuffer_clear_plan(active_scissor,
++                                      width_,
++                                      height_,
++                                      ctx->is_window_backbuffer(this),
++                                      clear_aspects,
++                                      clear_plan) ||
++      clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
++  {
++    return;
++  }
++  if (clear_plan.method == webgpu::FramebufferClearMethod::FullAttachmentLoadOp) {
++    clear_attachment_full(type, clear_value);
++    return;
++  }
++
++  if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
++    GPUFrameBufferBits bits = GPUFrameBufferBits(0);
++    if (clear_aspects & uint8_t(webgpu::FramebufferClearAspect::Depth)) {
++      bits |= GPU_DEPTH_BIT;
++    }
++    if (clear_aspects & uint8_t(webgpu::FramebufferClearAspect::Stencil)) {
++      bits |= GPU_STENCIL_BIT;
++    }
++    submit_scissored_clear(
++        bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]), clear_plan);
++    return;
++  }
++
++  const int slot = type - GPU_FB_COLOR_ATTACHMENT0;
++  Texture *texture = color_tex(slot);
++  if (texture == nullptr) {
++    return;
++  }
++  const GPUAttachment &attachment = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++  const uint32_t layer_count =
++      as_wgpu(texture)->attachment_layer_count(std::max(attachment.mip, 0));
++  const uint32_t pass_count = attachment.layer < 0 ? layer_count : 1u;
++  for (uint32_t pass_layer = 0; pass_layer < pass_count; pass_layer++) {
++    int force_layer;
++    const webgpu::FramebufferClearPassStatus status = webgpu::framebuffer_clear_pass_layer(
++        attachment.layer, layer_count, pass_layer, force_layer);
++    if (status == webgpu::FramebufferClearPassStatus::Invalid) {
++      return;
++    }
++    if (status == webgpu::FramebufferClearPassStatus::Active &&
++        !submit_scissored_color_clear(attachment, force_layer, clear_value, clear_plan))
++    {
++      return;
++    }
++  }
++}
++
++void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4 clear_value)
++{
 +  /* Clear a single attachment via a scoped render pass touching only it. */
 +  if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
 +    GPUFrameBufferBits bits = GPUFrameBufferBits(0);
@@ -21817,7 +22487,7 @@ index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b3
 +      }
 +    }
 +    if (bits != GPUFrameBufferBits(0)) {
-+      submit_clear(bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]));
++      submit_clear(bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]), true);
 +    }
 +    return;
 +  }
@@ -21900,7 +22570,7 @@ index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b3
 +       * stencil value; retain that established backend behavior here. */
 +      clear_value[1] = 0.0;
 +    }
-+    clear_attachment(static_cast<GPUAttachmentType>(index), clear_value);
++    clear_attachment_full(static_cast<GPUAttachmentType>(index), clear_value);
 +    load_store_[index].load_action = GPU_LOADACTION_LOAD;
 +  }
 +  return true;
@@ -22594,10 +23264,10 @@ index 0000000000000000000000000000000000000000..ca701764396d0aa0529019cab1a5f8b3
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..fd1e65c196e7bc1ffba7de30f07b420e297e713c
+index 0000000000000000000000000000000000000000..8e683e2ea0450bea888e878da8c4c563b0108d9f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,173 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -22611,10 +23281,10 @@ index 0000000000000000000000000000000000000000..fd1e65c196e7bc1ffba7de30f07b420e
 + * WGPUFrameBuffer — the WebGPU `gpu::FrameBuffer` implementation. WebGPU has no
 + * persistent framebuffer object: attachments are bound into a transient
 + * `wgpu::RenderPassDescriptor` at pass-begin. `bind()` just records this as the
-+ * context's active framebuffer; `clear*()` builds a one-shot render pass with
-+ * per-attachment loadOp=Clear / storeOp=Store (no draw) — the same mechanism the
-+ * draw path (wgpu_batch) will reuse to open its render pass. Depth aspect handling
-+ * comes from WGPUTexture. */
++ * context's active framebuffer. Full clears use one-shot render passes with
++ * per-attachment loadOp=Clear / storeOp=Store; scissored clears use typed draws over
++ * loadOp=Load. The draw path (wgpu_batch) reuses the transient-pass model. Depth
++ * aspect handling comes from WGPUTexture. */
 +
 +#pragma once
 +
@@ -22626,7 +23296,13 @@ index 0000000000000000000000000000000000000000..fd1e65c196e7bc1ffba7de30f07b420e
 +
 +#include "MEM_guardedalloc.h"
 +
++#include <unordered_map>
++
 +namespace blender::gpu {
++
++namespace webgpu {
++struct FramebufferClearPlan;
++}
 +
 +class WGPUFrameBuffer : public FrameBuffer {
 + public:
@@ -22729,7 +23405,37 @@ index 0000000000000000000000000000000000000000..fd1e65c196e7bc1ffba7de30f07b420e
 +  void submit_clear(GPUFrameBufferBits buffers,
 +                    Span<double4> colors,
 +                    float clear_depth,
-+                    uint clear_stencil);
++                    uint clear_stencil,
++                    bool force_full_attachment = false);
++  /** Internal full-attachment clear used to materialize a WebGPU load action. It deliberately
++   * ignores dynamic scissor state because attachment load operations are whole-subresource. */
++  void clear_attachment_full(GPUAttachmentType type, const double4 clear_value);
++
++  /** Emulate a proper-subrectangle clear with a fullscreen draw clipped to `plan`. Full
++   * attachment clears never enter this path and retain loadOp=Clear. */
++  void submit_scissored_clear(GPUFrameBufferBits buffers,
++                              Span<double4> colors,
++                              float clear_depth,
++                              uint clear_stencil,
++                              const webgpu::FramebufferClearPlan &plan);
++  bool submit_scissored_color_clear(const GPUAttachment &attachment,
++                                    int force_layer,
++                                    const double4 &clear_value,
++                                    const webgpu::FramebufferClearPlan &plan);
++  bool submit_scissored_depth_stencil_clear(const GPUAttachment &attachment,
++                                            int force_layer,
++                                            bool clear_depth,
++                                            float clear_depth_value,
++                                            bool clear_stencil,
++                                            uint clear_stencil_value,
++                                            const webgpu::FramebufferClearPlan &plan);
++
++  wgpu::ShaderModule scissored_clear_float_module_;
++  wgpu::ShaderModule scissored_clear_uint_module_;
++  wgpu::ShaderModule scissored_clear_sint_module_;
++  wgpu::ShaderModule scissored_clear_depth_module_;
++  std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_color_clear_pipelines_;
++  std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_depth_clear_pipelines_;
 +
 +  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUFrameBuffer")
 +};

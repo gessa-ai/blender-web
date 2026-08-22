@@ -884,3 +884,6 @@
 # 0193: apply ordinary offscreen viewport/scissor state in its established
 # lower-left coordinates before layered clears or render-pass allocation.
 0193-gpu-webgpu-offscreen-viewport-scissor.patch
+# 0194: preserve scissor-sensitive framebuffer clear semantics with typed
+# color/depth/stencil draws while retaining whole-attachment loadOp fast clears.
+0194-gpu-webgpu-framebuffer-scissored-clear.patch

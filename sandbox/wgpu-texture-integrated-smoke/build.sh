@@ -240,13 +240,38 @@ then
 fi
 
 if [ "$(grep -Fc 'inline FramebufferClearPassStatus framebuffer_clear_pass_layer(' "$COMMON_HEADER")" -ne 1 ] ||
-   [ "$(grep -Fc 'framebuffer_clear_pass_layer(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'framebuffer_clear_pass_layer(' "$FRAMEBUFFER_SOURCE")" -ne 5 ] ||
    [ "$(grep -Fc 'clear_status == webgpu::FramebufferClearPassStatus::Invalid' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
    [ "$(grep -Fc 'clear_status == webgpu::FramebufferClearPassStatus::Inactive' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'clear_status == webgpu::FramebufferClearPassStatus::Active' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'attachment_view(att, att.layer < 0 ? pass_layer : -1)' "$FRAMEBUFFER_SOURCE")" -ne 0 ]
 then
   echo "ERROR: canonical framebuffer layered-clear wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'enum class FramebufferClearMethod : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'enum class FramebufferClearAspect : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline bool framebuffer_clear_plan(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline FramebufferClearShaderType framebuffer_clear_color_shader_type(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline const char *framebuffer_clear_shader_source(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'framebuffer_clear_plan(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'framebuffer_clear_shader_source(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'framebuffer_clear_color_shader_type(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'submit_scissored_clear(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
+   [ "$(grep -Fc 'submit_scissored_color_clear(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
+   [ "$(grep -Fc 'submit_scissored_depth_stencil_clear(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'clear_attachment_full(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
+   [ "$(grep -Fc 'color.loadOp = wgpu::LoadOp::Load;' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'depth_stencil.depthLoadOp = wgpu::LoadOp::Load;' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'descriptor.multisample.count = sample_count;' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'wgpu::StencilOperation::Replace' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'pass.SetStencilReference(clear_stencil_value);' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'ca.loadOp = (buffers & GPU_COLOR_BIT) ? wgpu::LoadOp::Clear :' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'ca.loadOp = wgpu::LoadOp::Clear;' "$FRAMEBUFFER_SOURCE")" -ne 2 ]
+then
+  echo "ERROR: canonical framebuffer scissored-clear wiring differs" >&2
   exit 1
 fi
 
@@ -267,7 +292,7 @@ if [ "$(grep -Fc 'enum class FramebufferLoadClearScope : uint8_t {' "$COMMON_HEA
    [ "$(grep -Fc 'bool materialize_layered_loadstore_clears();' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'bool WGPUFrameBuffer::materialize_layered_loadstore_clears()' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_load_clear_scope(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'clear_attachment(static_cast<GPUAttachmentType>(index), clear_value);' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'clear_attachment_full(static_cast<GPUAttachmentType>(index), clear_value);' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!materialize_layered_loadstore_clears()) {' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical framebuffer layered load-clear wiring differs" >&2
@@ -320,7 +345,7 @@ fi
 UPLOAD_LAYOUT_LINE="$(grep -nF 'if (!texture_upload_layout(' \
   "$RGB9E5_TEXTURE_SOURCE" | head -n 1 | cut -d: -f1)"
 UPLOAD_DEVICE_ALLOCATION_LINE="$(grep -nF 'std::vector<uint8_t> device_data(layout.device_data_size);' \
-  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+  "$RGB9E5_TEXTURE_SOURCE" | head -n 1 | cut -d: -f1)"
 if [ -z "$UPLOAD_LAYOUT_LINE" ] || [ -z "$UPLOAD_DEVICE_ALLOCATION_LINE" ] ||
    [ "$UPLOAD_LAYOUT_LINE" -ge "$UPLOAD_DEVICE_ALLOCATION_LINE" ]
 then
@@ -536,13 +561,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=22 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=23 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 framebuffer_clear_formats=4 framebuffer_scissored_layers=4 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 22 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 23 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

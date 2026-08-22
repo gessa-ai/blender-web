@@ -1517,11 +1517,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work check, and OFF preflight are green. Required M3 remains red for the absent
   strict candidate and s7 still blocks live WebGPU draw proof. This task does not claim clear
   semantics. See `notes/m3-t10-offscreen-viewport-scissor-20260822.md`.
-- [ ] **M3.T10-FRAMEBUFFER-SCISSORED-CLEAR [gpu-backend]:** reconcile Blender's pinned
-  framebuffer-clear scissor semantics with WebGPU render-pass `loadOp=Clear`, which clears the
-  complete attachment and cannot consume dynamic scissor state. Derive a native pixel oracle,
-  add a fail-first device-free policy contract, and validate color/depth/stencil plus layered
-  boundaries without weakening full-attachment fast clears. **blocked-by none.**
+- [x] **M3.T10-FRAMEBUFFER-SCISSORED-CLEAR [gpu-backend]:** patch 0194 preserves the native
+  lower-left scissor footprint with typed color/depth/stencil fullscreen draws over
+  `loadOp=Load`, while disabled and exact-full scissors retain whole-attachment
+  `loadOp=Clear`. Empty intersections are no-ops, window Y conversion is widened, all-layer
+  selections reuse the guarded pass selector, and explicit load-action materialization stays
+  unconditionally full attachment. The native oracle, fail-first 18-case native/wasm32 policy
+  contract, exact four-shader Tint parse, canonical replay, product rebuild/no-work check, and
+  OFF preflight are green. Required M3 remains red for the absent strict candidate; s7 still
+  blocks live WebGPU pixel proof. See `notes/m3-t10-framebuffer-scissored-clear-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -430,3 +430,19 @@ validate the complete plan before any layered clear or pass allocation. Keep mul
 emulation under its per-pass owner. Draw-pass raster state does not prove scissored framebuffer
 clear semantics; audit and test clear paths separately. See
 `sandbox/wgpu-offscreen-viewport-oracle/` and `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 28 — attachment load clears cannot implement a scissored clear
+
+Signature: a backend maps every framebuffer clear to render-pass `loadOp=Clear`, even though
+Blender specifies that an enabled scissor clips color, depth, and stencil clears. WebGPU load
+operations always clear the complete attachment and cannot consume dynamic scissor state. Pin the
+logical lower-left footprint with a native pixel oracle, then select exactly one policy before
+device work: disabled or exact-full scissor keeps the load-op fast path, an empty intersection is
+a no-op, and a proper rectangle uses a typed fullscreen draw over `loadOp=Load` attachments.
+Preserve integer color output types, use depth output plus stencil replace state, and carry the
+same rectangle across every guarded array-layer pass. Explicit attachment load-action clears are
+different: they remain full-subresource operations even when frontend scissor state is enabled.
+Parse the exact shipping WGSL variants with pinned Tint and exercise window conversion, clipping,
+aspects, integer boundaries, and layer exhaustion on native and wasm32. See
+`sandbox/wgpu-framebuffer-scissored-clear-oracle/` and
+`sandbox/wgpu-texture-integrated-smoke/`.

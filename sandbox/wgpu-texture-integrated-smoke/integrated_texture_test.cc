@@ -1696,6 +1696,230 @@ bool framebuffer_layered_clear_contract()
   return true;
 }
 
+bool framebuffer_scissored_clear_plan_contract()
+{
+  using Aspect = bw::FramebufferClearAspect;
+  using Method = bw::FramebufferClearMethod;
+  using Plan = bw::FramebufferClearPlan;
+  constexpr uint8_t color = uint8_t(Aspect::Color);
+  constexpr uint8_t depth = uint8_t(Aspect::Depth);
+  constexpr uint8_t stencil = uint8_t(Aspect::Stencil);
+  struct Case {
+    bool scissor_enabled;
+    int scissor[4];
+    int target_width;
+    int target_height;
+    bool convert_bottom_origin;
+    uint8_t aspects;
+    bool accepted;
+    Method method;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+  };
+  constexpr std::array<Case, 18> cases = {{
+      {false, {0, 0, 0, 0}, 6, 5, false, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
+      {false,
+       {0, 0, 0, 0},
+       6,
+       5,
+       false,
+       uint8_t(color | depth | stencil),
+       true,
+       Method::FullAttachmentLoadOp,
+       0,
+       0,
+       6,
+       5},
+      {true, {0, 0, 6, 5}, 6, 5, false, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
+      {true, {1, 1, 3, 2}, 6, 5, false, color, true, Method::ScissoredDraw, 1, 1, 3, 2},
+      {true, {1, 1, 3, 2}, 6, 5, false, depth, true, Method::ScissoredDraw, 1, 1, 3, 2},
+      {true, {1, 1, 3, 2}, 6, 5, false, stencil, true, Method::ScissoredDraw, 1, 1, 3, 2},
+      {true,
+       {1, 1, 3, 2},
+       6,
+       5,
+       false,
+       uint8_t(color | depth | stencil),
+       true,
+       Method::ScissoredDraw,
+       1,
+       1,
+       3,
+       2},
+      {true, {1, 1, 3, 2}, 6, 5, true, color, true, Method::ScissoredDraw, 1, 2, 3, 2},
+      {true, {-2, 0, 4, 3}, 6, 5, false, color, true, Method::ScissoredDraw, 0, 0, 2, 3},
+      {true, {4, 3, 5, 4}, 6, 5, false, color, true, Method::ScissoredDraw, 4, 3, 2, 2},
+      {true, {1, 1, 0, 2}, 6, 5, false, color, true, Method::NoOp, 0, 0, 0, 0},
+      {true, {1, 1, 3, -2}, 6, 5, false, depth, true, Method::NoOp, 0, 0, 0, 0},
+      {true, {6, 0, 2, 2}, 6, 5, false, stencil, true, Method::NoOp, 0, 0, 0, 0},
+      {true,
+       {std::numeric_limits<int>::min(), 0, std::numeric_limits<int>::max(), 1},
+       6,
+       5,
+       false,
+       color,
+       true,
+       Method::NoOp,
+       0,
+       0,
+       0,
+       0},
+      {true,
+       {std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), 1, 1},
+       6,
+       5,
+       true,
+       color,
+       true,
+       Method::NoOp,
+       0,
+       0,
+       0,
+       0},
+      {false, {0, 0, 0, 0}, 0, 5, false, color, false, Method::NoOp, 0, 0, 0, 0},
+      {false, {0, 0, 0, 0}, 6, 5, false, 0, false, Method::NoOp, 0, 0, 0, 0},
+      {false, {0, 0, 0, 0}, 6, 5, false, 8, false, Method::NoOp, 0, 0, 0, 0},
+  }};
+
+  std::array<size_t, 3> method_counts = {};
+  size_t rejected = 0;
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    Plan actual = {Method::NoOp, 0xa5u, 91u, 92u, 93u, 94u};
+    const Plan sentinel = actual;
+    const bool result = bw::framebuffer_clear_plan(test.scissor_enabled ? test.scissor : nullptr,
+                                                    test.target_width,
+                                                    test.target_height,
+                                                    test.convert_bottom_origin,
+                                                    test.aspects,
+                                                    actual);
+    if (!require(result == test.accepted, "framebuffer clear-plan decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(actual.method == sentinel.method && actual.aspects == sentinel.aspects &&
+                       actual.x == sentinel.x && actual.y == sentinel.y &&
+                       actual.width == sentinel.width && actual.height == sentinel.height,
+                   "rejected framebuffer clear-plan preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+    if (!require(actual.method == test.method && actual.aspects == test.aspects &&
+                     actual.x == test.x && actual.y == test.y && actual.width == test.width &&
+                     actual.height == test.height,
+                 "accepted framebuffer clear-plan geometry"))
+    {
+      return false;
+    }
+    method_counts[size_t(actual.method)]++;
+    hash = fnv_u64(hash, uint32_t(actual.method));
+    hash = fnv_u64(hash, actual.aspects);
+    hash = fnv_u64(hash, actual.x);
+    hash = fnv_u64(hash, actual.y);
+    hash = fnv_u64(hash, actual.width);
+    hash = fnv_u64(hash, actual.height);
+  }
+
+  struct ShaderClassCase {
+    gpu::TextureFormat format;
+    bw::FramebufferClearShaderType expected;
+  };
+  constexpr std::array<ShaderClassCase, 4> shader_class_cases = {{
+      {gpu::TextureFormat::UNORM_10_10_10_2, bw::FramebufferClearShaderType::Float},
+      {gpu::TextureFormat::UINT_10_10_10_2, bw::FramebufferClearShaderType::Uint},
+      {gpu::TextureFormat::SINT_8_8_8_8, bw::FramebufferClearShaderType::Sint},
+      {gpu::TextureFormat::UNORM_8_8_8_8, bw::FramebufferClearShaderType::Float},
+  }};
+  for (const ShaderClassCase &test : shader_class_cases) {
+    const gpu::GPUTextureFormatFlag flags = gpu::to_format_flag(test.format);
+    const bw::FramebufferClearShaderType actual = bw::framebuffer_clear_color_shader_type(
+        bool(flags & gpu::GPU_FORMAT_INTEGER), bool(flags & gpu::GPU_FORMAT_SIGNED));
+    if (!require(actual == test.expected, "framebuffer clear shader class")) {
+      return false;
+    }
+    hash = fnv_u64(hash, uint32_t(test.format));
+    hash = fnv_u64(hash, uint32_t(actual));
+  }
+
+  constexpr std::array shader_types = {bw::FramebufferClearShaderType::Float,
+                                       bw::FramebufferClearShaderType::Uint,
+                                       bw::FramebufferClearShaderType::Sint,
+                                       bw::FramebufferClearShaderType::Depth};
+  constexpr std::array<const char *, 4> shader_names = {
+      "framebuffer_clear_float.wgsl",
+      "framebuffer_clear_uint.wgsl",
+      "framebuffer_clear_sint.wgsl",
+      "framebuffer_clear_depth.wgsl",
+  };
+  constexpr std::array<const char *, 4> result_tokens = {
+      "@location(0) vec4f", "@location(0) vec4u", "@location(0) vec4i", "@builtin(frag_depth) f32"};
+  for (size_t index = 0; index < shader_types.size(); index++) {
+    const char *shader = bw::framebuffer_clear_shader_source(shader_types[index]);
+    if (!require(shader != nullptr && std::strstr(shader, result_tokens[index]) != nullptr &&
+                     std::strstr(shader, "@builtin(vertex_index)") != nullptr &&
+                     std::strstr(shader, "var<uniform> params") != nullptr,
+                 "framebuffer clear shader identity"))
+    {
+      return false;
+    }
+    hash = fnv_string(hash, shader);
+#ifndef __EMSCRIPTEN__
+    tint::Source::File shader_file(shader_names[index], shader);
+    tint::Program program = tint::wgsl::reader::Parse(&shader_file);
+    if (!program.IsValid()) {
+      std::fprintf(stderr,
+                   "FAIL framebuffer clear WGSL parse: %s\n",
+                   program.Diagnostics().Str().c_str());
+      return false;
+    }
+#endif
+  }
+
+  size_t layered_active = 0;
+  size_t layered_inactive = 0;
+  for (uint32_t pass_layer = 0; pass_layer < 4; pass_layer++) {
+    int force_layer = 0x1234;
+    const bw::FramebufferClearPassStatus status =
+        bw::framebuffer_clear_pass_layer(-1, 3, pass_layer, force_layer);
+    if (!require(status == (pass_layer < 3 ? bw::FramebufferClearPassStatus::Active :
+                                            bw::FramebufferClearPassStatus::Inactive),
+                 "scissored clear layered boundary") ||
+        !require(pass_layer < 3 ? force_layer == int(pass_layer) : force_layer == 0x1234,
+                 "scissored clear layered selection"))
+    {
+      return false;
+    }
+    layered_active += status == bw::FramebufferClearPassStatus::Active ? 1 : 0;
+    layered_inactive += status == bw::FramebufferClearPassStatus::Inactive ? 1 : 0;
+    hash = fnv_u64(hash, uint32_t(status));
+  }
+
+  if (!require(method_counts[size_t(Method::NoOp)] == 5 &&
+                   method_counts[size_t(Method::FullAttachmentLoadOp)] == 3 &&
+                   method_counts[size_t(Method::ScissoredDraw)] == 7 && rejected == 3 &&
+                   layered_active == 3 && layered_inactive == 1 &&
+                   hash == UINT64_C(0x20f7de8ccccb59b6),
+               "framebuffer scissored-clear census"))
+  {
+    return false;
+  }
+  std::printf("CONTRACT framebuffer-scissored-clear-plan PASS cases=%zu formats=%zu full=%zu "
+              "draw=%zu noop=%zu rejected=%zu layers=3 digest=%016" PRIx64 "\n",
+              cases.size(),
+              shader_class_cases.size(),
+              method_counts[size_t(Method::FullAttachmentLoadOp)],
+              method_counts[size_t(Method::ScissoredDraw)],
+              method_counts[size_t(Method::NoOp)],
+              rejected,
+              hash);
+  return true;
+}
+
 bool framebuffer_layered_draw_contract()
 {
   using Count = bw::FramebufferDrawPassCount;
@@ -1960,17 +2184,20 @@ int main()
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
+      !framebuffer_scissored_clear_plan_contract() ||
       !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract() ||
       !mipmap_odd_kernel_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=22 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=23 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "srgb_clear=12 "
       "readback_layouts=15 "
-      "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 "
+      "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 "
+      "framebuffer_clear_formats=4 "
+      "framebuffer_scissored_layers=4 framebuffer_draw_cases=16 "
       "framebuffer_load_clear_cases=10 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");

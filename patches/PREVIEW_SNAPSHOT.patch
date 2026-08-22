@@ -20642,10 +20642,10 @@ index 0000000000000000000000000000000000000000..8489789dbed88989bd1a7694985d8f1d
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.cc b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e7f6ab7a445b2cde02d540f2c3644439553b2ab7
+index 0000000000000000000000000000000000000000..9ecac1f0d566d5a69811426a82d20a456bcfb97a
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,286 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20713,6 +20713,17 @@ index 0000000000000000000000000000000000000000..e7f6ab7a445b2cde02d540f2c3644439
 +      }
 +      break;
 +  }
++}
++
++uint8_t srgb_clear_component_to_unorm8(float linear)
++{
++  if (!std::isfinite(linear)) {
++    return 0;
++  }
++  linear = std::clamp(linear, 0.0f, 1.0f);
++  const float encoded = linear < 0.0031308f ? linear * 12.92f :
++                                                   1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f;
++  return uint8_t(std::lround(std::clamp(encoded, 0.0f, 1.0f) * 255.0f));
 +}
 +
 +size_t promoted_byte_size(uint32_t width, uint32_t height, uint32_t comp_bytes)
@@ -20923,10 +20934,10 @@ index 0000000000000000000000000000000000000000..e7f6ab7a445b2cde02d540f2c3644439
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.hh b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b2bb8bca2f33f1e3817edb4c28556432056e3b2
+index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903b96c1aaf
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,88 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20992,6 +21003,11 @@ index 0000000000000000000000000000000000000000..5b2bb8bca2f33f1e3817edb4c2855643
 +/** The opaque-alpha byte pattern for a (type, comp_bytes), little-endian.
 + * Exposed for tests. Writes `comp_bytes` bytes to `out`. */
 +void opaque_alpha_bytes(ScalarType type, uint32_t comp_bytes, uint8_t *out);
++
++/** Encode one linear clear color component exactly as an sRGB render attachment,
++ * then quantize it to the byte written by a non-renderable texture fallback.
++ * Non-finite inputs follow the fallback clear policy and become zero. */
++uint8_t srgb_clear_component_to_unorm8(float linear);
 +
 +/** Pack three float channels into WebGPU's 32-bit RGB9E5 shared-exponent layout.
 + * Negative and NaN channels become zero; positive infinity clamps to the largest
@@ -30417,10 +30433,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c5cabe55b33768c5919de6d6c2bf8ad56d3819d2
+index 0000000000000000000000000000000000000000..54b0bbe102d0e28ca92489988dfa4ce987349f42
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2625 @@
+@@ -0,0 +1,2632 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32441,6 +32457,8 @@ index 0000000000000000000000000000000000000000..c5cabe55b33768c5919de6d6c2bf8ad5
 +  }
 +  else {
 +    const uint32_t dbytes = repr_comp_bytes(repr);
++    const bool encode_srgb =
++        subresources_.backing_format == wgpu::TextureFormat::RGBA8UnormSrgb;
 +    for (int c = 0; c < channels; c++) {
 +      uint8_t *dc = texel.data() + size_t(c) * dbytes;
 +      double v = (c < logical) ? data[c] : 1.0;
@@ -32452,6 +32470,11 @@ index 0000000000000000000000000000000000000000..c5cabe55b33768c5919de6d6c2bf8ad5
 +      }
 +      if (integer) {
 +        dev_write_int(dc, repr, int64_t(v));
++      }
++      else if (encode_srgb && c < 3) {
++        /* A 1D WebGPU texture cannot be a render attachment. Apply the same OETF
++         * before WriteTexture that an sRGB render-pass clear applies in hardware. */
++        dc[0] = srgb_clear_component_to_unorm8(float(v));
 +      }
 +      else {
 +        dev_write_float(dc, repr, float(v));

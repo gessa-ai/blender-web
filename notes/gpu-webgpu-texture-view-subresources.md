@@ -96,8 +96,10 @@ does not apply 0144 and does not claim that EEVEE renders final pixels yet.
 - 0145 remains mandatory for incompatible same-byte texture aliases and shared-backing readback
   cache coherence. 0143 intentionally rejects those logical aliases rather than pretending that
   Dawn supports them.
-- 0147 remains mandatory for plain-1D sRGB clear, plain-1D/3D mip generation, partial/offset and
-  combined-aspect cross-format depth/stencil fallbacks, RG11 render-target emulation when the
-  optional feature is absent, exact 1D-array `textureQueryLod` lowering with sampler LOD state,
-  and native guarded `Float32Filterable` feature parity. Negative internal blit offsets remain a
-  safe no-op because the pin has no common Metal/Vulkan contract and no public caller uses them.
+- Patch 0186 closes the plain-1D sRGB clear fallback, and patch 0167 closes native guarded
+  `Float32Filterable` feature parity. The former 0147 planning label was superseded; its remaining
+  unnumbered continuations are plain-1D/3D mip generation, partial/offset and combined-aspect
+  cross-format depth/stencil fallbacks, RG11 render-target emulation when the optional feature is
+  absent, and exact 1D-array `textureQueryLod` lowering with sampler LOD state. Negative internal
+  blit offsets remain a safe no-op because the pin has no common Metal/Vulkan contract and no
+  public caller uses them.

@@ -1080,6 +1080,43 @@ bool clear_layout_contract()
   return true;
 }
 
+bool srgb_clear_contract()
+{
+  struct Case {
+    float linear;
+    uint8_t expected;
+  };
+  const std::array<Case, 12> cases = {{
+      {-1.0f, 0},
+      {0.0f, 0},
+      {0.001f, 3},
+      {0.0031308f, 10},
+      {0.25f, 137},
+      {0.5f, 188},
+      {0.75f, 225},
+      {1.0f, 255},
+      {2.0f, 255},
+      {std::numeric_limits<float>::quiet_NaN(), 0},
+      {-std::numeric_limits<float>::infinity(), 0},
+      {std::numeric_limits<float>::infinity(), 0},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    const uint8_t actual = bw::srgb_clear_component_to_unorm8(test.linear);
+    if (!require(actual == test.expected, "sRGB clear component encoding")) {
+      return false;
+    }
+    hash = fnv_byte(hash, actual);
+  }
+
+  std::printf("CONTRACT srgb-clear PASS cases=%zu native_bytes=137,188,225,128 "
+              "digest=%016" PRIx64 "\n",
+              cases.size(),
+              hash);
+  return true;
+}
+
 bool framebuffer_read_contract()
 {
   struct AcceptedCase {
@@ -1798,6 +1835,7 @@ int main()
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
       !allocation_limit_contract() || !upload_layout_contract() || !clear_layout_contract() ||
+      !srgb_clear_contract() ||
       !framebuffer_read_contract() ||
       !packed_row_stride_contract() ||
       !readback_layout_contract() ||
@@ -1808,8 +1846,9 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=20 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=21 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
+      "srgb_clear=12 "
       "readback_layouts=15 "
       "framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 "
       "framebuffer_load_clear_cases=10 "

@@ -858,3 +858,7 @@
 # size without reading beyond Blender's caller-owned logical payload.
 # The device-free native/Wasm contract covers aligned, padded, and rejected boundaries.
 0185-gpu-webgpu-storage-update-padding.patch
+# 0186: encode fallback sRGB clear RGB through the render-attachment OETF before
+# Queue::WriteTexture for non-renderable 1D textures; keep alpha linear.
+# Native 1D sampling oracle and device-free native/Wasm contract bind exact bytes.
+0186-gpu-webgpu-texture-1d-srgb-clear.patch

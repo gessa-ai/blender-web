@@ -282,3 +282,9 @@ Patch 0185's caller-safe storage-update padding was then composed without changi
 `f5e927e5bb33746ba20eb3d20f695dd257268b5bac43053b903b8be89d05c96a`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `e380fcae04925859a2d3f3b7133aa07626f3aacbae95c4ae3e34624fc3135424`.
+
+Patch 0186's non-renderable 1D sRGB clear encoding was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,596,649 bytes with SHA-256
+`30009e228d9c70fd49168ac239e736ab8d3fe1df3502b23abc317235ce16718e`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`4c5fe58ad4c0f19040fa5ef52b4fa103b0fa8403f1a9f164434c03bc37a4a940`.

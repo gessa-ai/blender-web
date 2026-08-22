@@ -337,6 +337,15 @@ then
   exit 1
 fi
 
+if [ "$(grep -Ec '^uint8_t srgb_clear_component_to_unorm8\(' "$R11_CONVERSION_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^uint8_t srgb_clear_component_to_unorm8\(' "$R11_CONVERSION_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'dc[0] = srgb_clear_component_to_unorm8(float(v));' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'subresources_.backing_format == wgpu::TextureFormat::RGBA8UnormSrgb' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: canonical non-renderable sRGB clear wiring differs" >&2
+  exit 1
+fi
+
 CREATION_GUARD_LINE="$(grep -nF 'if (!format_creation_supported(fi.gate, format_features)) {' \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
 ALLOCATION_GUARD_LINE="$(grep -nF '!texture_allocation_supported(' \
@@ -511,13 +520,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=20 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=21 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 20 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 21 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

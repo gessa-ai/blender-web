@@ -1456,6 +1456,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for
   the absent strict candidate and s7 still blocks live WebGPU update proof. See
   `notes/m3-t6-storage-update-padding-20260822.md`.
+- [x] **M3.T9-TEXTURE-1D-SRGB-CLEAR [gpu-backend]:** patch 0186 applies the sRGB
+  output transfer function to RGB before the raw `Queue::WriteTexture` fallback clears a
+  non-renderable 1D sRGB texture; alpha remains linear. The pinned native 1D sampling oracle and
+  12-case native/wasm32 byte contract bind the expected semantics and encoded bytes. Canonical
+  replay, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3
+  remains red for the absent strict candidate and s7 still blocks live WebGPU clear proof. See
+  `notes/m3-t9-texture-1d-srgb-clear-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

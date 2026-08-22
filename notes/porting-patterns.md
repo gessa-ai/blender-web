@@ -330,3 +330,14 @@ already aligned data, and otherwise copy only the logical bytes into owned zero-
 storage. Exercise native/wasm32 boundary parity and an ASan odd-size caller; do not infer source
 padding from destination alignment. See `sandbox/wgpu-storage-update-padding-repro/` and
 `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 20 — raw sRGB uploads do not perform render-attachment encoding
+
+Signature: a texture clear normally relies on the render attachment to encode linear RGB into
+sRGB storage, but a non-renderable texture dimension falls back to a repeated host texel and
+`WriteTexture`. That copy stores its bytes verbatim, so linearly quantizing the clear color makes
+the later sRGB sample decode it a second time. Apply the sRGB output transfer function to only the
+RGB components before quantization on the raw-copy path; alpha stays linear. Bind both the stored
+bytes and a native clear-then-sample round trip, because either check alone can miss a transfer
+direction error. See `sandbox/wgpu-texture-srgb-clear-oracle/` and
+`sandbox/wgpu-texture-integrated-smoke/`.

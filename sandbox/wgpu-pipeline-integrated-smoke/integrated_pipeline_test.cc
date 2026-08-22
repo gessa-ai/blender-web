@@ -424,8 +424,8 @@ bool viewport_scissor_plan_contract()
       {639, 479, 1, 1, 640, 480, 8192, true, 639, 479, 1, 1},
       {-63, -63, 64, 64, 64, 64, 64, true, 0, 0, 1, 1},
       {63, 63, 64, 64, 64, 64, 64, true, 63, 63, 1, 1},
-      {0, 0, 0, 1, 640, 480, 8192, false, 0, 0, 0, 0},
-      {0, 0, 1, 0, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, 0, 1, 640, 480, 8192, true, 0, 0, 0, 0},
+      {0, 0, 1, 0, 640, 480, 8192, true, 0, 0, 0, 0},
       {0, 0, -1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
       {0, 0, 1, -1, 640, 480, 8192, false, 0, 0, 0, 0},
       {0, 0, 1, 1, 0, 480, 8192, false, 0, 0, 0, 0},
@@ -435,10 +435,10 @@ bool viewport_scissor_plan_contract()
       {0, 0, 1, 1, 64, 65, 64, false, 0, 0, 0, 0},
       {0, 0, 65, 1, 64, 64, 64, false, 0, 0, 0, 0},
       {0, 0, 1, 65, 64, 64, 64, false, 0, 0, 0, 0},
-      {-10, 0, 10, 1, 640, 480, 8192, false, 0, 0, 0, 0},
-      {640, 0, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
-      {0, -10, 1, 10, 640, 480, 8192, false, 0, 0, 0, 0},
-      {0, 480, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {-10, 0, 10, 1, 640, 480, 8192, true, 0, 0, 0, 0},
+      {640, 0, 1, 1, 640, 480, 8192, true, 0, 0, 0, 0},
+      {0, -10, 1, 10, 640, 480, 8192, true, 0, 0, 0, 0},
+      {0, 480, 1, 1, 640, 480, 8192, true, 0, 0, 0, 0},
       {int_min, 0, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
       {int_max, 0, int_max, 1, 640, 480, 8192, false, 0, 0, 0, 0},
   }};
@@ -492,13 +492,13 @@ bool viewport_scissor_plan_contract()
     scissor_area += uint64_t(actual.scissor_width) * actual.scissor_height;
   }
 
-  if (!require(accepted == 11 && rejected == 17, "viewport/scissor census") ||
+  if (!require(accepted == 17 && rejected == 11, "viewport/scissor census") ||
       !require(scissor_area == 616503, "viewport/scissor aggregate"))
   {
     return false;
   }
   std::puts(
-      "CONTRACT viewport_scissor_plan PASS cases=28 accepted=11 rejected=17 area=616503");
+      "CONTRACT viewport_scissor_plan PASS cases=28 accepted=17 rejected=11 area=616503");
   return true;
 }
 
@@ -559,18 +559,18 @@ bool window_viewport_scissor_plan_contract()
        63, 0, 64, 64, false, 0, 0, 0, 0},
       {0, 0, 640, 480, true, 20, 470, 30, 20, 640, 480, 8192, true,
        0, 0, 640, 480, true, 20, 0, 30, 10},
-      {0, 0, 0, 1, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, 0, 1, 0, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {-10, 0, 10, 1, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {640, 0, 1, 1, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, -10, 1, 10, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, 480, 1, 1, false, 0, 0, 0, 0, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {0, 0, 0, 1, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       0, 479, 0, 1, false, 0, 0, 0, 0},
+      {0, 0, 1, 0, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       0, 480, 1, 0, false, 0, 0, 0, 0},
+      {-10, 0, 10, 1, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       -10, 479, 10, 1, true, 0, 0, 0, 0},
+      {640, 0, 1, 1, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       640, 479, 1, 1, true, 0, 0, 0, 0},
+      {0, -10, 1, 10, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       0, 480, 1, 10, true, 0, 0, 0, 0},
+      {0, 480, 1, 1, false, 0, 0, 0, 0, 640, 480, 8192, true,
+       0, -1, 1, 1, true, 0, 0, 0, 0},
       {0, 0, 1, 1, false, 0, 0, 0, 0, 0, 480, 8192, false,
        0, 0, 0, 0, false, 0, 0, 0, 0},
       {0, 0, 1, 1, false, 0, 0, 0, 0, 640, 0, 8192, false,
@@ -587,12 +587,12 @@ bool window_viewport_scissor_plan_contract()
        0, 0, 0, 0, false, 0, 0, 0, 0},
       {int_max, 0, int_max, 1, false, 0, 0, 0, 0, 640, 480, 8192, false,
        0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, 0, 640, 480, true, 0, 0, 0, 1, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, 0, 640, 480, true, -10, 0, 10, 1, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {0, 0, 640, 480, true, 0, int_min, 1, 1, 640, 480, 8192, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {0, 0, 640, 480, true, 0, 0, 0, 1, 640, 480, 8192, true,
+       0, 0, 640, 480, true, 0, 0, 0, 0},
+      {0, 0, 640, 480, true, -10, 0, 10, 1, 640, 480, 8192, true,
+       0, 0, 640, 480, true, 0, 0, 0, 0},
+      {0, 0, 640, 480, true, 0, int_min, 1, 1, 640, 480, 8192, true,
+       0, 0, 640, 480, true, 0, 0, 0, 0},
   }};
 
   size_t accepted = 0;
@@ -667,14 +667,14 @@ bool window_viewport_scissor_plan_contract()
   if (!require(!bw::window_viewport_scissor_plan(nullptr, nullptr, 640, 480, 8192, null_actual),
                "null window viewport rejected") ||
       !require(plans_equal(null_actual, null_sentinel), "null window viewport preserves output") ||
-      !require(accepted == 14 && rejected == 17, "window viewport/scissor census") ||
-      !require(viewport_sum == 9794, "window viewport aggregate") ||
+      !require(accepted == 23 && rejected == 8, "window viewport/scissor census") ||
+      !require(viewport_sum == 16208, "window viewport aggregate") ||
       !require(scissor_area == 1764, "window scissor aggregate"))
   {
     return false;
   }
-  std::puts("CONTRACT window_viewport_scissor_plan PASS cases=32 accepted=14 rejected=18 "
-            "viewport_sum=9794 scissor_area=1764");
+  std::puts("CONTRACT window_viewport_scissor_plan PASS cases=32 accepted=23 rejected=9 "
+            "viewport_sum=16208 scissor_area=1764");
   return true;
 }
 
@@ -724,22 +724,22 @@ bool offscreen_viewport_scissor_plan_contract()
        0, 0, 64, 64, true, 0, 63, 64, 1},
       {{0, 0, 6, 5}, false, {0, 0, 0, -1}, 6, 5, 8, true,
        0, 0, 6, 5, false, 0, 0, 0, 0},
-      {{0, 0, 0, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {{0, 0, 1, 0}, false, {0, 0, 0, 0}, 6, 5, 8, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 0, 1}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       0, 4, 0, 1, false, 0, 0, 0, 0},
+      {{0, 0, 1, 0}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       0, 5, 1, 0, false, 0, 0, 0, 0},
       {{-10, 0, 10, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
        0, 0, 0, 0, false, 0, 0, 0, 0},
-      {{0, 5, 1, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 5, 1, 1}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       0, -1, 1, 1, true, 0, 0, 0, 0},
       {{0, 0, 1, 1}, false, {0, 0, 0, 0}, 0, 5, 8, false,
        0, 0, 0, 0, false, 0, 0, 0, 0},
       {{0, 0, 1, 1}, false, {0, 0, 0, 0}, 9, 5, 8, false,
        0, 0, 0, 0, false, 0, 0, 0, 0},
-      {{0, 0, 6, 5}, true, {0, 0, 0, 1}, 6, 5, 8, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
-      {{0, 0, 6, 5}, true, {-10, 0, 10, 1}, 6, 5, 8, false,
-       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 6, 5}, true, {0, 0, 0, 1}, 6, 5, 8, true,
+       0, 0, 6, 5, true, 0, 0, 0, 0},
+      {{0, 0, 6, 5}, true, {-10, 0, 10, 1}, 6, 5, 8, true,
+       0, 0, 6, 5, true, 0, 0, 0, 0},
   }};
 
   const auto plans_equal = [](const bw::FramebufferViewportPlan &a,
@@ -761,7 +761,8 @@ bool offscreen_viewport_scissor_plan_contract()
   size_t rejected = 0;
   size_t enabled_scissors = 0;
   uint64_t scissor_area = 0;
-  for (const Case &test : cases) {
+  for (size_t case_index = 0; case_index < cases.size(); case_index++) {
+    const Case &test = cases[case_index];
     bw::FramebufferViewportPlan actual = {
         {101, 102, 103, 104, 105, 106, 107, 108}, true, 109, 110, 111, 112};
     const bw::FramebufferViewportPlan sentinel = actual;
@@ -773,6 +774,8 @@ bool offscreen_viewport_scissor_plan_contract()
         test.max_viewport_dimension,
         actual);
     if (!require(result == test.accepted, "offscreen viewport/scissor decision")) {
+      std::fprintf(stderr, "offscreen case=%zu accepted=%d actual=%d\n", case_index,
+                   int(test.accepted), int(result));
       return false;
     }
     if (!result) {
@@ -813,14 +816,14 @@ bool offscreen_viewport_scissor_plan_contract()
                "null offscreen viewport rejected") ||
       !require(plans_equal(null_actual, null_sentinel),
                "null offscreen viewport preserves output") ||
-      !require(accepted == 12 && rejected == 8, "offscreen viewport/scissor census") ||
-      !require(enabled_scissors == 5, "offscreen enabled-scissor census") ||
+      !require(accepted == 17 && rejected == 3, "offscreen viewport/scissor census") ||
+      !require(enabled_scissors == 8, "offscreen enabled-scissor census") ||
       !require(scissor_area == 113, "offscreen scissor aggregate"))
   {
     return false;
   }
-  std::puts("CONTRACT offscreen_viewport_scissor_plan PASS cases=21 accepted=12 rejected=9 "
-            "scissors=5 scissor_area=113");
+  std::puts("CONTRACT offscreen_viewport_scissor_plan PASS cases=21 accepted=17 rejected=4 "
+            "scissors=8 scissor_area=113");
   return true;
 }
 

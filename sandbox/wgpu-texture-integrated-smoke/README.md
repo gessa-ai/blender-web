@@ -19,6 +19,8 @@ six non-renderable clear layouts covering exact byte geometry and overflow rejec
 empty no-ops, bottom-to-top coordinate conversion, color/depth/stencil aspects, integer edges,
 and three-layer exhaustion. The driver also requires both scissored-clear pipeline caches to
 validate a newly created handle before publishing it, so a transient failure remains retryable.
+It checksum-binds the WebGPU GPU-test regression that combines an explicit green load clear,
+a normal red draw through a zero viewport, and framebuffer readback of the unchanged green result.
 Four real format-flag cases distinguish normalized RGB10A2 and RGBA8
 from unsigned RGB10A2 and signed RGBA8 before pinned-Tint parsing of the exact float, uint, sint,
 and depth fullscreen-clear WGSL variants,
@@ -38,7 +40,7 @@ harness/buildwrap.sh bash sandbox/wgpu-texture-integrated-smoke/build.sh
 ```
 
 The driver checksum-binds Dawn `36cf1fae`, emcc 6.0.5, Node 22.16.0, Blender's
-canonical clean-pin replay, and the 24 exact table/conversion/texture/enum/assert/oracle
+canonical clean-pin replay, and the 25 exact table/conversion/texture/enum/assert/oracle
 inputs before evidence allocation. It also requires the exact RGB9E5 format classification;
 the exact RGB9E5, RG11B10, and Blender DDS compressed-upload call-site censuses; the sampled-view
 swizzle descriptor and native adapter-guarded feature request; three launch-tier Blender swizzle

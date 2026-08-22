@@ -1,0 +1,189 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -148,8 +148,10 @@ struct ViewportScissorPlan {
+ 
+ /** Preserve Blender's signed viewport transform while intersecting the scissor with the
+  * framebuffer. WebGPU permits a negative viewport origin but its scissor is unsigned and must
+- * be contained in the render area. Fully clipped or device-invalid rectangles are rejected
+- * before a render pass is allocated. Failure leaves `result` unchanged. */
++ * be contained in the render area. Negative extents and device-invalid rectangles are rejected
++ * before a render pass is allocated. Legal zero or fully clipped rectangles retain their
++ * viewport and select a contained zero scissor so attachment load actions can still be consumed.
++ * Failure leaves `result` unchanged. */
+ inline bool viewport_scissor_plan(int x,
+                                   int y,
+                                   int width,
+@@ -161,7 +163,7 @@ inline bool viewport_scissor_plan(int x,
+                                   uint32_t max_viewport_dimension,
+                                   ViewportScissorPlan &result)
+ {
+-  if (width <= 0 || height <= 0 || target_width <= 0 || target_height <= 0 ||
++  if (width < 0 || height < 0 || target_width <= 0 || target_height <= 0 ||
+       max_viewport_dimension == 0 || uint64_t(target_width) > max_viewport_dimension ||
+       uint64_t(target_height) > max_viewport_dimension ||
+       uint64_t(width) > max_viewport_dimension || uint64_t(height) > max_viewport_dimension)
+@@ -187,15 +189,17 @@ inline bool viewport_scissor_plan(int x,
+   const int64_t clipped_top = top > 0 ? top : 0;
+   const int64_t clipped_right = right < target_width ? right : target_width;
+   const int64_t clipped_bottom = bottom < target_height ? bottom : target_height;
+-  if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
+-    return false;
+-  }
+ 
+   ViewportScissorPlan candidate;
+   candidate.viewport_x = x;
+   candidate.viewport_y = y;
+   candidate.viewport_width = uint32_t(width);
+   candidate.viewport_height = uint32_t(height);
++  if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
++    result = candidate;
++    return true;
++  }
++
+   candidate.scissor_x = uint32_t(clipped_left);
+   candidate.scissor_y = uint32_t(clipped_top);
+   candidate.scissor_width = uint32_t(clipped_right - clipped_left);
+@@ -224,7 +232,8 @@ using WindowViewportPlan = FramebufferViewportPlan;
+ 
+ /** Convert and clip a signed Blender bottom-origin scissor into WebGPU's unsigned top-origin
+  * render area. The clip-space transform affects content inside the rectangle, not the rectangle's
+- * location, and the offscreen readback flip independently restores Blender's row order. */
++ * location, and the offscreen readback flip independently restores Blender's row order. Legal
++ * empty intersections become a contained zero scissor; negative extents remain malformed. */
+ inline bool framebuffer_scissor_plan(const int *scissor,
+                                      int target_width,
+                                      int target_height,
+@@ -235,9 +244,15 @@ inline bool framebuffer_scissor_plan(const int *scissor,
+   if (scissor == nullptr) {
+     return true;
+   }
+-  if (scissor[2] <= 0 || scissor[3] <= 0) {
++  if (scissor[2] < 0 || scissor[3] < 0) {
+     return false;
+   }
++  candidate.scissor_enabled = true;
++  candidate.scissor_x = 0;
++  candidate.scissor_y = 0;
++  candidate.scissor_width = 0;
++  candidate.scissor_height = 0;
++
+   const int64_t left = int64_t(scissor[0]);
+   const int64_t top = int64_t(target_height) - int64_t(scissor[1]) - int64_t(scissor[3]);
+   const int64_t right = left + int64_t(scissor[2]);
+@@ -248,9 +263,8 @@ inline bool framebuffer_scissor_plan(const int *scissor,
+   const int64_t clipped_right = right < int64_t(target_width) ? right : target_width;
+   const int64_t clipped_bottom = bottom < int64_t(target_height) ? bottom : target_height;
+   if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
+-    return false;
++    return true;
+   }
+-  candidate.scissor_enabled = true;
+   candidate.scissor_x = uint32_t(clipped_left);
+   candidate.scissor_y = uint32_t(clipped_top);
+   candidate.scissor_width = uint32_t(clipped_right - clipped_left);
+@@ -439,10 +453,22 @@ inline bool window_viewport_scissor_plan(const int viewport[4],
+   }
+ 
+   FramebufferViewportPlan candidate;
+   candidate.viewport = viewport_plan;
++  const bool viewport_fully_clipped =
++      viewport_plan.viewport_width != 0 && viewport_plan.viewport_height != 0 &&
++      (viewport_plan.scissor_width == 0 || viewport_plan.scissor_height == 0);
++  if (viewport_fully_clipped) {
++    candidate.scissor_enabled = true;
++  }
+   if (!framebuffer_scissor_plan(scissor, target_width, target_height, candidate)) {
+     return false;
+   }
++  if (viewport_fully_clipped) {
++    candidate.scissor_x = 0;
++    candidate.scissor_y = 0;
++    candidate.scissor_width = 0;
++    candidate.scissor_height = 0;
++  }
+   result = candidate;
+   return true;
+ }
+diff --git a/source/blender/gpu/tests/framebuffer_test.cc b/source/blender/gpu/tests/framebuffer_test.cc
+--- a/source/blender/gpu/tests/framebuffer_test.cc
++++ b/source/blender/gpu/tests/framebuffer_test.cc
+@@ -206,6 +206,78 @@ GPU_TEST(framebuffer_scissor_test);
+ 
+ #endif
+ 
++static void test_framebuffer_webgpu_empty_raster_load_clear()
++{
++  GPU_render_begin();
++
++  const int2 size(2, 2);
++  constexpr eGPUTextureUsage usage = GPU_TEXTURE_USAGE_ATTACHMENT |
++                                     GPU_TEXTURE_USAGE_HOST_READ;
++  gpu::Texture *texture = GPU_texture_create_2d(
++      __func__, UNPACK2(size), 1, TextureFormat::UNORM_8_8_8_8, usage, nullptr);
++  ASSERT_NE(texture, nullptr);
++  GPU_texture_clear(texture, GPU_DATA_FLOAT, float4(0.0f));
++
++  gpu::FrameBuffer *framebuffer = nullptr;
++  GPU_framebuffer_ensure_config(
++      &framebuffer, {GPU_ATTACHMENT_NONE, GPU_ATTACHMENT_TEXTURE(texture)});
++  ASSERT_NE(framebuffer, nullptr);
++
++  shader::ShaderCreateInfo create_info("gpu_framebuffer_empty_raster_load_clear");
++  create_info.builtins(shader::BuiltinBits::VERTEX_ID);
++  create_info.fragment_out(0, shader::Type::float4_t, "out_color");
++  create_info.vertex_source_generated = R"(
++void main()
++{
++  int vertex = gl_VertexID % 3;
++  float x = -1.0 + float((vertex & 1) << 2);
++  float y = -1.0 + float((vertex & 2) << 1);
++  gl_Position = vec4(x, y, 0.0, 1.0);
++}
++)";
++  create_info.fragment_source_generated = R"(
++void main()
++{
++  out_color = vec4(1.0, 0.0, 0.0, 1.0);
++}
++)";
++  gpu::Shader *shader = GPU_shader_create_from_info_python(
++      reinterpret_cast<GPUShaderCreateInfo *>(&create_info));
++  ASSERT_NE(shader, nullptr);
++  Batch *batch = GPU_batch_create_procedural(GPU_PRIM_TRIS, 3);
++  ASSERT_NE(batch, nullptr);
++  GPU_batch_set_shader(batch, shader);
++
++  const GPULoadStore actions[2] = {
++      {GPU_LOADACTION_DONT_CARE, GPU_STOREACTION_DONT_CARE, {0.0, 0.0, 0.0, 0.0}},
++      {GPU_LOADACTION_CLEAR, GPU_STOREACTION_STORE, {0.0, 1.0, 0.0, 1.0}},
++  };
++  GPU_framebuffer_bind_loadstore(framebuffer, actions, 2);
++  GPU_framebuffer_viewport_set(framebuffer, 0, 0, 0, size.y);
++  GPU_scissor_test(false);
++
++  /* The normal draw must open a pass so the green load clear is consumed, while its legal zero
++   * viewport prevents the red shader from producing fragments. */
++  GPU_batch_draw(batch);
++  GPU_finish();
++
++  std::array<uchar4, 4> pixels;
++  GPU_framebuffer_read_color(
++      framebuffer, 0, 0, size.x, size.y, 4, 0, GPU_DATA_UBYTE, pixels.data());
++  for (const uchar4 pixel : pixels) {
++    EXPECT_EQ(pixel, uchar4(0, 255, 0, 255));
++  }
++
++  GPU_framebuffer_restore();
++  GPU_batch_discard(batch);
++  GPU_shader_unbind();
++  GPU_shader_free(shader);
++  GPU_framebuffer_free(framebuffer);
++  GPU_texture_free(texture);
++  GPU_render_end();
++}
++GPU_WEBGPU_TEST(framebuffer_webgpu_empty_raster_load_clear)
++
+ /* Color each side of a cube-map with a different color. */
+ static void test_framebuffer_cube()
+ {

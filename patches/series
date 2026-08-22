@@ -911,3 +911,6 @@
 # 0202: publish scissored-clear pipeline cache entries only after successful
 # creation, preserving retries after a transient null handle.
 0202-gpu-webgpu-scissored-clear-cache-commit.patch
+# 0203: preserve legal empty raster state so ordinary and multi-viewport passes
+# consume pending attachment load actions without producing draw fragments.
+0203-gpu-webgpu-empty-raster-loadop.patch

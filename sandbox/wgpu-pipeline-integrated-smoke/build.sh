@@ -196,7 +196,11 @@ require_fixed_count 1 'TEST_F(ComputeIndirectValidationTest, IndirectOffsetBound
   "$DAWN_SRC/src/dawn/tests/unittests/validation/ComputeIndirectValidationTests.cpp"
 require_fixed_count 1 'TEST_F(SetScissorTest, ScissorLargerThanFramebuffer)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
+require_fixed_count 1 'TEST_F(SetScissorTest, EmptyScissor)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
 require_fixed_count 1 'TEST_F(SetViewportTest, ViewportLargerThanLimit)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
+require_fixed_count 1 'TEST_F(SetViewportTest, EmptyViewport)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
 require_fixed_count 1 'TEST_F(SetViewportTest, NegativeXYWidthHeight)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
@@ -225,6 +229,11 @@ require_fixed_count 1 \
   'if (!webgpu::direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 'struct ViewportScissorPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'if (width < 0 || height < 0 || target_width <= 0 || target_height <= 0 ||' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 'const bool viewport_fully_clipped =' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 \
   'if (!webgpu::viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
@@ -433,13 +442,13 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT direct_draw_plan PASS cases=16 accepted=5 rejected=11 value_sum=17179869214' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT viewport_scissor_plan PASS cases=28 accepted=11 rejected=17 area=616503' \
+       'CONTRACT viewport_scissor_plan PASS cases=28 accepted=17 rejected=11 area=616503' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT window_viewport_scissor_plan PASS cases=32 accepted=14 rejected=18 viewport_sum=9794 scissor_area=1764' \
+       'CONTRACT window_viewport_scissor_plan PASS cases=32 accepted=23 rejected=9 viewport_sum=16208 scissor_area=1764' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT offscreen_viewport_scissor_plan PASS cases=21 accepted=12 rejected=9 scissors=5 scissor_area=113' \
+       'CONTRACT offscreen_viewport_scissor_plan PASS cases=21 accepted=17 rejected=4 scissors=8 scissor_area=113' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 indirect_cases=13 accepted=5 rejected=8 group_sum=40' \

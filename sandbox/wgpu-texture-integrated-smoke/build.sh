@@ -75,6 +75,7 @@ source_digest()
     webgpu/wgpu_framebuffer.hh
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
+    tests/framebuffer_test.cc
     shaders/gpu_shader_2D_update_mipmaps.bsl.hh
     vulkan/vk_data_conversion.hh
     vulkan/tests/vk_data_conversion_test.cc
@@ -101,6 +102,7 @@ require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_framebuffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
+require_file "$ROOT/upstream/source/blender/gpu/tests/framebuffer_test.cc"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture.cc"
@@ -321,6 +323,23 @@ if [ "$(grep -Fc 'enum class FramebufferLoadClearScope : uint8_t {' "$COMMON_HEA
    [ "$(grep -Fc 'if (!materialize_layered_loadstore_clears()) {' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical framebuffer layered load-clear wiring differs" >&2
+  exit 1
+fi
+
+FRAMEBUFFER_TEST_SOURCE="$ROOT/upstream/source/blender/gpu/tests/framebuffer_test.cc"
+if [ "$(grep -Fc 'static void test_framebuffer_webgpu_empty_raster_load_clear()' \
+       "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_WEBGPU_TEST(framebuffer_webgpu_empty_raster_load_clear)' \
+       "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_framebuffer_bind_loadstore(framebuffer, actions, 2);' \
+       "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_framebuffer_viewport_set(framebuffer, 0, 0, 0, size.y);' \
+       "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_framebuffer_read_color(' "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'EXPECT_EQ(pixel, uchar4(0, 255, 0, 255));' \
+       "$FRAMEBUFFER_TEST_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: empty-raster load-clear GPU regression differs" >&2
   exit 1
 fi
 

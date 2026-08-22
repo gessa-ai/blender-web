@@ -388,11 +388,13 @@ Signature: multi-viewport emulation forwards Blender's signed viewport rectangle
 `SetViewport` and `SetScissorRect`. WebGPU permits a bounded negative viewport origin, but its
 scissor fields are unsigned and Dawn requires the complete scissor inside the render area;
 casting a negative origin wraps, while an overshooting extent invalidates the command encoder.
-Preserve the original viewport so clipping does not change the raster transform, intersect a
-separate scissor with the framebuffer using widened arithmetic, and reject empty, fully clipped,
-or device-limit-invalid rectangles before allocating a pass. Exercise negative and partial edges,
-complete clipping, exact bounds, device limits, and `INT_MIN`/`INT_MAX` atomically in native and
-wasm32. Apply the same plan to direct and indirect multi-viewport paths. See
+Preserve the original viewport so clipping does not change the raster transform and intersect a
+separate scissor with the framebuffer using widened arithmetic. Reject negative extents and
+device-limit-invalid rectangles atomically, but retain legal zero extents and canonicalize fully
+clipped rectangles to a contained zero scissor. This lets a no-fragment pass consume pending
+attachment load actions instead of leaving stale pixels for a later read. Exercise negative and
+partial edges, complete clipping, exact bounds, device limits, and `INT_MIN`/`INT_MAX` in native
+and wasm32. Apply the same plan to direct and indirect multi-viewport paths. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
 
 ## Class 25 — clamped 2x2 mip kernels discard odd-axis edge texels

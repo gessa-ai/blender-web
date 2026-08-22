@@ -18,15 +18,17 @@ domain. Indirect draws cover signed input rejection, four-byte alignment,
 16-byte array commands, 20-byte indexed commands, tightly-packed zero stride,
 overlapping-but-aligned explicit stride, allocation bounds, and arithmetic overflow.
 Multi-viewport draws preserve the signed raster transform while intersecting the
-unsigned WebGPU scissor with the framebuffer. Negative, partially clipped, fully
-outside, zero, limit, and `int`-boundary rectangles must be decided atomically in
-both the direct and indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
+unsigned WebGPU scissor with the framebuffer. Legal zero and fully clipped rectangles
+produce a contained zero scissor so pending load actions can still be consumed; negative
+extents and device-invalid boundaries remain atomically rejected in both the direct and
+indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
 viewport}` uniform allocation must publish a handle only on success; both paths
 must return before queue or pass work when creation fails.
 Window-backbuffer rectangles preserve that same raster transform while converting
 Blender's bottom-origin viewport and optional independent scissor with widened
-arithmetic. Both rectangles must validate before a render pass is allocated; the
-explicit scissor is clipped without narrowing its signed frontend geometry.
+arithmetic. Both rectangles must validate before a render pass is allocated; a legal
+empty state remains encodable while the explicit scissor is clipped without narrowing
+its signed frontend geometry.
 Ordinary offscreen passes convert the same bottom-origin rectangles to WebGPU's top origin,
 preserve signed viewport transforms, and clip an enabled scissor independently. Clip-space and
 readback flips preserve orientation and row order but cannot relocate a partial rectangle.

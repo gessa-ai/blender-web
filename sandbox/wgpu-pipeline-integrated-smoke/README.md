@@ -27,8 +27,9 @@ Window-backbuffer rectangles preserve that same raster transform while convertin
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; the
 explicit scissor is clipped without narrowing its signed frontend geometry.
-Ordinary offscreen passes keep their established lower-left post-flip coordinates,
-preserve signed viewport transforms, and clip an enabled scissor independently.
+Ordinary offscreen passes convert the same bottom-origin rectangles to WebGPU's top origin,
+preserve signed viewport transforms, and clip an enabled scissor independently. Clip-space and
+readback flips preserve orientation and row order but cannot relocate a partial rectangle.
 The oracle's 6x5 viewport and viewport/scissor intersection are included verbatim.
 It additionally covers 15 direct compute-dispatch decisions and 13 indirect
 compute-dispatch ranges. Direct counts reject negative axes, non-positive published

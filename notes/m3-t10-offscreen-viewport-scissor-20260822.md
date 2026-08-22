@@ -6,10 +6,10 @@
 ## Outcome
 
 Patch 0193 makes every ordinary offscreen WebGPU draw apply the viewport and optional scissor
-stored by Blender. The viewport keeps the lower-left coordinates established by the backend's
-existing clip-space and readback flips, while an enabled scissor is clipped independently to
-WebGPU's unsigned render area. Both rectangles validate before layered clears or render-pass
-allocation.
+stored by Blender. Audit patch 0201 corrects both rectangles from Blender's bottom origin to
+WebGPU's top origin before clipping. The backend's clip-space and readback flips preserve content
+orientation and row order, but do not relocate a partial viewport or scissor. Both rectangles
+validate before layered clears or render-pass allocation.
 
 ## Oracle, diagnosis, and implementation
 
@@ -23,10 +23,10 @@ made the window branch validate and apply its state, but the offscreen branch st
 without either `SetViewport()` or `SetScissorRect()`. Dawn therefore used the whole-target default
 viewport and ignored Blender's enabled scissor.
 
-`offscreen_viewport_scissor_plan()` now reuses the signed viewport/device-limit validation from
-the multi-viewport path without performing the window-only Y conversion. The shared framebuffer
-scissor helper clips an enabled signed scissor with widened arithmetic and commits the plan only
-after every check passes. `begin_load_pass()` selects the window or offscreen plan before
+`offscreen_viewport_scissor_plan()` now reuses the window helper because every Blender framebuffer
+rectangle has the same bottom-origin API contract. The shared framebuffer scissor helper converts
+Y as `H - y - height`, clips with widened arithmetic, and commits the plan only after every check
+passes. `begin_load_pass()` selects the window or offscreen plan before
 `materialize_layered_loadstore_clears()` and `BeginRenderPass()`, then applies the resulting state
 to every ordinary pass. Multi-viewport emulation remains owned by `WGPUBatch` and skips this
 single-viewport state.
@@ -42,6 +42,9 @@ single-viewport state.
   decisions: 12 accepted and 9 rejected, with five enabled scissors and aggregate clipped area
   113. It exercises the oracle rectangles, signed partial viewports, disabled scissor, partial and
   oversized scissors, empty/outside state, device limits, null input, and integer boundaries.
+  This original device-free matrix incorrectly expected raw offscreen Y. Audit patch 0201 replaces
+  those expectations with the composed WebGPU-placement/readback invariant; the historical
+  receipt proves patch 0193's coverage, not the corrected coordinate result.
   Exact stdout is 1,270 bytes with SHA-256
   `52e812d816a279a9411cd6e32b2b53726d8756a1d29d4a459336595bdaeb7b74`; the bound shipping source
   set has SHA-256 `68ec55ffe336d748f83dd7184ccf4c116a4b177dd4489cc8ccfbbe153c8df7c6`.
@@ -68,7 +71,8 @@ single-viewport state.
 
 The device-free contract creates no WebGPU instance, adapter, device, render pass, draw, pixel,
 browser receipt, or result promotion. The native oracle binds Blender's offscreen coordinate
-semantics but not the WebGPU implementation. This task covers ordinary draw-pass viewport and
-scissor state only; framebuffer clear scissoring is queued separately and is not claimed here.
+semantics but not the WebGPU implementation. Audit patch 0201 therefore remains source-level
+proof pending the hardware-gated ordinary-draw/readback pixel case. Framebuffer clear scissoring
+is covered separately.
 Required M3 remains red, and live WebGPU proof remains owned by `M3-LINUX-REPLAY`, still blocked
 by the named s7 hardware-Vulkan/WebGPU condition.

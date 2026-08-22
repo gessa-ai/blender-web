@@ -1,0 +1,33 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -273,11 +273,11 @@ bool WGPUFrameBuffer::submit_scissored_color_clear(
+     descriptor.multisample.count = sample_count;
+     descriptor.fragment = &fragment;
+     pipeline = device.CreateRenderPipeline(&descriptor);
++    if (pipeline == nullptr) {
++      return false;
++    }
+     scissored_color_clear_pipelines_[pipeline_key] = pipeline;
+   }
+-  if (pipeline == nullptr) {
+-    return false;
+-  }
+ 
+   uint32_t clear_payload[4] = {};
+   if (shader_type == webgpu::FramebufferClearShaderType::Uint) {
+@@ -434,11 +434,11 @@ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+     descriptor.fragment = &fragment;
+     descriptor.depthStencil = &depth_stencil;
+     pipeline = device.CreateRenderPipeline(&descriptor);
++    if (pipeline == nullptr) {
++      return false;
++    }
+     scissored_depth_clear_pipelines_[pipeline_key] = pipeline;
+   }
+-  if (pipeline == nullptr) {
+-    return false;
+-  }
+ 
+   const float depth_payload[4] = {
+       std::isfinite(clear_depth_value) ? clear_depth_value : 1.0f, 0.0f, 0.0f, 0.0f};

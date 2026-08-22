@@ -703,25 +703,25 @@ bool offscreen_viewport_scissor_plan_contract()
       {{0, 0, 6, 5}, false, {0, 0, 0, 0}, 6, 5, 8, true,
        0, 0, 6, 5, false, 0, 0, 0, 0},
       {{1, 1, 3, 2}, false, {0, 0, 0, 0}, 6, 5, 8, true,
-       1, 1, 3, 2, false, 0, 0, 0, 0},
+       1, 2, 3, 2, false, 0, 0, 0, 0},
       {{-2, 1, 4, 3}, false, {0, 0, 0, 0}, 6, 5, 8, true,
        -2, 1, 4, 3, false, 0, 0, 0, 0},
       {{4, 3, 4, 3}, false, {0, 0, 0, 0}, 6, 5, 8, true,
-       4, 3, 4, 3, false, 0, 0, 0, 0},
+       4, -1, 4, 3, false, 0, 0, 0, 0},
       {{1, 0, 4, 4}, true, {3, 2, 3, 3}, 6, 5, 8, true,
-       1, 0, 4, 4, true, 3, 2, 3, 3},
+       1, 1, 4, 4, true, 3, 0, 3, 3},
       {{0, 0, 6, 5}, true, {-2, 1, 4, 3}, 6, 5, 8, true,
        0, 0, 6, 5, true, 0, 1, 2, 3},
       {{0, 0, 6, 5}, true, {4, 3, 4, 3}, 6, 5, 8, true,
-       0, 0, 6, 5, true, 4, 3, 2, 2},
+       0, 0, 6, 5, true, 4, 0, 2, 2},
       {{-2, -2, 10, 9}, true, {0, 0, 6, 5}, 6, 5, 16, true,
        -2, -2, 10, 9, true, 0, 0, 6, 5},
       {{-63, -63, 64, 64}, false, {0, 0, 0, 0}, 64, 64, 64, true,
-       -63, -63, 64, 64, false, 0, 0, 0, 0},
+       -63, 63, 64, 64, false, 0, 0, 0, 0},
       {{63, 63, 64, 64}, false, {0, 0, 0, 0}, 64, 64, 64, true,
-       63, 63, 64, 64, false, 0, 0, 0, 0},
+       63, -63, 64, 64, false, 0, 0, 0, 0},
       {{0, 0, 64, 64}, true, {-10, 0, int_max, 1}, 64, 64, 64, true,
-       0, 0, 64, 64, true, 0, 0, 64, 1},
+       0, 0, 64, 64, true, 0, 63, 64, 1},
       {{0, 0, 6, 5}, false, {0, 0, 0, -1}, 6, 5, 8, true,
        0, 0, 6, 5, false, 0, 0, 0, 0},
       {{0, 0, 0, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
@@ -788,7 +788,7 @@ bool offscreen_viewport_scissor_plan_contract()
                      actual.viewport.viewport_y == test.expected_viewport_y &&
                      actual.viewport.viewport_width == test.expected_viewport_width &&
                      actual.viewport.viewport_height == test.expected_viewport_height,
-                 "accepted offscreen viewport preserves lower-left transform") ||
+                 "accepted offscreen viewport converts to WebGPU top origin") ||
         !require(actual.scissor_enabled == test.expected_scissor_enabled &&
                      actual.scissor_x == test.expected_scissor_x &&
                      actual.scissor_y == test.expected_scissor_y &&

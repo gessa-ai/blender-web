@@ -905,3 +905,9 @@
 # 0200: publish the direct/indirect multi-viewport uniform buffer only after
 # successful allocation, before any queue write or render-pass work.
 0200-gpu-webgpu-multiview-uniform-allocation.patch
+# 0201: convert every Blender framebuffer viewport/scissor from bottom-origin
+# before WebGPU placement; clip-space/readback flips do not relocate rectangles.
+0201-gpu-webgpu-offscreen-origin.patch
+# 0202: publish scissored-clear pipeline cache entries only after successful
+# creation, preserving retries after a transient null handle.
+0202-gpu-webgpu-scissored-clear-cache-commit.patch

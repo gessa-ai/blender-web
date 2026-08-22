@@ -1709,7 +1709,6 @@ bool framebuffer_scissored_clear_plan_contract()
     int scissor[4];
     int target_width;
     int target_height;
-    bool convert_bottom_origin;
     uint8_t aspects;
     bool accepted;
     Method method;
@@ -1719,12 +1718,11 @@ bool framebuffer_scissored_clear_plan_contract()
     uint32_t height;
   };
   constexpr std::array<Case, 18> cases = {{
-      {false, {0, 0, 0, 0}, 6, 5, false, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
+      {false, {0, 0, 0, 0}, 6, 5, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
       {false,
        {0, 0, 0, 0},
        6,
        5,
-       false,
        uint8_t(color | depth | stencil),
        true,
        Method::FullAttachmentLoadOp,
@@ -1732,33 +1730,31 @@ bool framebuffer_scissored_clear_plan_contract()
        0,
        6,
        5},
-      {true, {0, 0, 6, 5}, 6, 5, false, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
-      {true, {1, 1, 3, 2}, 6, 5, false, color, true, Method::ScissoredDraw, 1, 1, 3, 2},
-      {true, {1, 1, 3, 2}, 6, 5, false, depth, true, Method::ScissoredDraw, 1, 1, 3, 2},
-      {true, {1, 1, 3, 2}, 6, 5, false, stencil, true, Method::ScissoredDraw, 1, 1, 3, 2},
+      {true, {0, 0, 6, 5}, 6, 5, color, true, Method::FullAttachmentLoadOp, 0, 0, 6, 5},
+      {true, {1, 1, 3, 2}, 6, 5, color, true, Method::ScissoredDraw, 1, 2, 3, 2},
+      {true, {1, 1, 3, 2}, 6, 5, depth, true, Method::ScissoredDraw, 1, 2, 3, 2},
+      {true, {1, 1, 3, 2}, 6, 5, stencil, true, Method::ScissoredDraw, 1, 2, 3, 2},
       {true,
        {1, 1, 3, 2},
        6,
        5,
-       false,
        uint8_t(color | depth | stencil),
        true,
        Method::ScissoredDraw,
        1,
-       1,
+       2,
        3,
        2},
-      {true, {1, 1, 3, 2}, 6, 5, true, color, true, Method::ScissoredDraw, 1, 2, 3, 2},
-      {true, {-2, 0, 4, 3}, 6, 5, false, color, true, Method::ScissoredDraw, 0, 0, 2, 3},
-      {true, {4, 3, 5, 4}, 6, 5, false, color, true, Method::ScissoredDraw, 4, 3, 2, 2},
-      {true, {1, 1, 0, 2}, 6, 5, false, color, true, Method::NoOp, 0, 0, 0, 0},
-      {true, {1, 1, 3, -2}, 6, 5, false, depth, true, Method::NoOp, 0, 0, 0, 0},
-      {true, {6, 0, 2, 2}, 6, 5, false, stencil, true, Method::NoOp, 0, 0, 0, 0},
+      {true, {1, 2, 3, 2}, 6, 5, color, true, Method::ScissoredDraw, 1, 1, 3, 2},
+      {true, {-2, 0, 4, 3}, 6, 5, color, true, Method::ScissoredDraw, 0, 2, 2, 3},
+      {true, {4, 3, 5, 4}, 6, 5, color, true, Method::ScissoredDraw, 4, 0, 2, 2},
+      {true, {1, 1, 0, 2}, 6, 5, color, true, Method::NoOp, 0, 0, 0, 0},
+      {true, {1, 1, 3, -2}, 6, 5, depth, true, Method::NoOp, 0, 0, 0, 0},
+      {true, {6, 0, 2, 2}, 6, 5, stencil, true, Method::NoOp, 0, 0, 0, 0},
       {true,
        {std::numeric_limits<int>::min(), 0, std::numeric_limits<int>::max(), 1},
        6,
        5,
-       false,
        color,
        true,
        Method::NoOp,
@@ -1770,7 +1766,6 @@ bool framebuffer_scissored_clear_plan_contract()
        {std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), 1, 1},
        6,
        5,
-       true,
        color,
        true,
        Method::NoOp,
@@ -1778,9 +1773,9 @@ bool framebuffer_scissored_clear_plan_contract()
        0,
        0,
        0},
-      {false, {0, 0, 0, 0}, 0, 5, false, color, false, Method::NoOp, 0, 0, 0, 0},
-      {false, {0, 0, 0, 0}, 6, 5, false, 0, false, Method::NoOp, 0, 0, 0, 0},
-      {false, {0, 0, 0, 0}, 6, 5, false, 8, false, Method::NoOp, 0, 0, 0, 0},
+      {false, {0, 0, 0, 0}, 0, 5, color, false, Method::NoOp, 0, 0, 0, 0},
+      {false, {0, 0, 0, 0}, 6, 5, 0, false, Method::NoOp, 0, 0, 0, 0},
+      {false, {0, 0, 0, 0}, 6, 5, 8, false, Method::NoOp, 0, 0, 0, 0},
   }};
 
   std::array<size_t, 3> method_counts = {};
@@ -1792,7 +1787,6 @@ bool framebuffer_scissored_clear_plan_contract()
     const bool result = bw::framebuffer_clear_plan(test.scissor_enabled ? test.scissor : nullptr,
                                                     test.target_width,
                                                     test.target_height,
-                                                    test.convert_bottom_origin,
                                                     test.aspects,
                                                     actual);
     if (!require(result == test.accepted, "framebuffer clear-plan decision")) {
@@ -1903,7 +1897,7 @@ bool framebuffer_scissored_clear_plan_contract()
                    method_counts[size_t(Method::FullAttachmentLoadOp)] == 3 &&
                    method_counts[size_t(Method::ScissoredDraw)] == 7 && rejected == 3 &&
                    layered_active == 3 && layered_inactive == 1 &&
-                   hash == UINT64_C(0x20f7de8ccccb59b6),
+                   hash == UINT64_C(0x4c0c3e6d424774f4),
                "framebuffer scissored-clear census"))
   {
     return false;

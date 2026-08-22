@@ -408,27 +408,30 @@ changes the result. See `sandbox/wgpu-texture-integrated-smoke/`.
 
 ## Class 26 — bottom-origin window rectangles must preflight before a render pass
 
-Signature: a window-backbuffer path converts `H - (y + height)` in signed `int`, clips the
+Signature: a framebuffer path converts `H - (y + height)` in signed `int`, clips the
 viewport itself, and opens the render pass before deciding whether the rectangle is usable.
 Negative origins then change the raster transform when clamped, integer-boundary state can
 overflow during Y conversion, and skipping `SetViewport` after pass creation silently selects
 WebGPU's whole-target default. Convert the bottom-origin coordinate with widened arithmetic,
 preserve the signed viewport under Dawn's published bounds, and clip an enabled frontend scissor
-independently into unsigned framebuffer space. Validate both rectangles atomically before any
-layered clear or pass allocation; a disabled scissor must remain disabled. Exercise partially
-visible edges, fully clipped rectangles, target/device limits, oversized-but-clippable scissors,
-null input, and `INT_MIN`/`INT_MAX` on native and wasm32. See
+independently into unsigned framebuffer space. Validate malformed rectangles atomically before
+any pass allocation, but preserve a legal zero or fully clipped raster state when the pass owns
+pending attachment load actions: encode a contained zero scissor so the pass consumes its clear
+without producing fragments. A disabled scissor must remain disabled. Exercise partially visible
+edges, fully clipped rectangles, target/device limits, oversized-but-clippable scissors, null
+input, `INT_MIN`/`INT_MAX`, and pending load clears on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
 
 ## Class 27 — ordinary offscreen passes must apply stored raster state
 
 Signature: a backend fixes window viewport handling inside a shared render-pass constructor but
 leaves ordinary offscreen passes on WebGPU's implicit whole-target viewport and disabled scissor.
-First pin the offscreen coordinate convention with a native pixel oracle: Blender's existing
-clip-space and readback flips can mean that the raw stored lower-left coordinates are already the
-correct WebGPU values, unlike a window surface's explicit Y conversion. Preserve the signed
-viewport transform, clip an enabled scissor independently into the unsigned render area, and
-validate the complete plan before any layered clear or pass allocation. Keep multi-viewport
+First pin the offscreen coordinate convention with a native pixel oracle, then compose it with
+the backend readback contract: when WebGPU physical row zero is read back as Blender's last row,
+the rectangle itself still needs `top = H - y - height`. Clip-space Y reflection only changes
+content inside a viewport and cannot relocate that viewport. Preserve the signed viewport
+transform, clip an enabled scissor independently into the unsigned render area, and validate the
+complete plan before any layered clear or pass allocation. Keep multi-viewport
 emulation under its per-pass owner. Draw-pass raster state does not prove scissored framebuffer
 clear semantics; audit and test clear paths separately. See
 `sandbox/wgpu-offscreen-viewport-oracle/` and `sandbox/wgpu-pipeline-integrated-smoke/`.
@@ -490,3 +493,12 @@ success. Bind every duplicated shipping path to the same transaction and require
 precede their first queue operation. Exercise deterministic failure, exact descriptor fields,
 atomic output preservation, and successful publication on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 33 — cache publication is an ownership commit
+
+Signature: a backend creates a pipeline, inserts its handle into a cache, and only then checks
+whether creation returned null. One transient failure permanently poisons that key: later callers
+find the cached null and never retry creation. Keep the candidate local, reject null first, and
+publish only a usable handle. Bind every duplicate cache to a source-order contract and exercise
+fail-once/succeed-once behavior where a fake device seam exists. See
+`sandbox/wgpu-texture-integrated-smoke/`.

@@ -35,6 +35,11 @@ reference. The dispatcher at `:502` reuses the existing active/inactive/invalid 
 selector. `clear_attachment_full()` at `:849` keeps explicit load-action materialization on its
 full-attachment path, preventing dynamic scissor state from narrowing a render-pass load action.
 
+Audit patch 0201 corrects every scissored-clear rectangle from Blender bottom-origin to WebGPU
+top-origin coordinates, including ordinary offscreens. Patch 0202 checks each newly created color
+or depth/stencil pipeline before inserting it into the cache, preserving a later retry after a
+transient null creation result.
+
 ## Verification
 
 - Native oracle: exact six-pixel color/depth rectangle, 30-pixel disabled-scissor clear, and all
@@ -47,6 +52,9 @@ full-attachment path, preventing dynamic scissor state from narrowing a render-p
   `20260822T190657-1788833`). Exact stdout is 2,399 bytes at SHA-256
   `3170624811efe6bfc59d415e2ee41a18686c0536992b3c77dd51956c8850814b`; the bound shipping source
   set is SHA-256 `00383027aead63274f20ba5015b863b980a2738a1f49504db9b3cc9dfb6c4d77`.
+  The original matrix treated raw offscreen Y as correct and did not cover cache-publication
+  ordering. The audit contracts correct those two source-level gaps; the historical hashes remain
+  evidence for patch 0194 only.
 - Wrong Node and Dawn identities reject before their requested evidence directories exist
   (`20260822T185006-1771883`, `20260822T185026-1772337`).
 - The canonical freezer passes with byte-identical 20,258-entry live/replay manifests. Its

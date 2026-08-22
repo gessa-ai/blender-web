@@ -263,6 +263,7 @@ require_fixed_count 1 \
 require_fixed_count 1 'struct FramebufferViewportPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
   'inline bool offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 0 'bool convert_bottom_origin' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
   'if (!webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \

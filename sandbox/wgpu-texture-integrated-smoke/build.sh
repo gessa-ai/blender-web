@@ -253,9 +253,11 @@ fi
 if [ "$(grep -Fc 'enum class FramebufferClearMethod : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'enum class FramebufferClearAspect : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'inline bool framebuffer_clear_plan(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'bool convert_bottom_origin' "$COMMON_HEADER")" -ne 0 ] ||
    [ "$(grep -Fc 'inline FramebufferClearShaderType framebuffer_clear_color_shader_type(' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'inline const char *framebuffer_clear_shader_source(' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_clear_plan(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'ctx->is_window_backbuffer(this),' "$FRAMEBUFFER_SOURCE")" -ne 0 ] ||
    [ "$(grep -Fc 'framebuffer_clear_shader_source(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
    [ "$(grep -Fc 'framebuffer_clear_color_shader_type(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'submit_scissored_clear(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
@@ -272,6 +274,29 @@ if [ "$(grep -Fc 'enum class FramebufferClearMethod : uint8_t {' "$COMMON_HEADER
    [ "$(grep -Fc 'ca.loadOp = wgpu::LoadOp::Clear;' "$FRAMEBUFFER_SOURCE")" -ne 2 ]
 then
   echo "ERROR: canonical framebuffer scissored-clear wiring differs" >&2
+  exit 1
+fi
+
+mapfile -t CLEAR_PIPELINE_CREATE_LINES < <(
+  grep -nF 'pipeline = device.CreateRenderPipeline(&descriptor);' "$FRAMEBUFFER_SOURCE" |
+    cut -d: -f1
+)
+mapfile -t CLEAR_PIPELINE_NULL_LINES < <(
+  grep -nF 'if (pipeline == nullptr) {' "$FRAMEBUFFER_SOURCE" | cut -d: -f1
+)
+mapfile -t CLEAR_PIPELINE_CACHE_LINES < <(
+  grep -nE 'scissored_(color|depth)_clear_pipelines_\[pipeline_key\] = pipeline;' \
+    "$FRAMEBUFFER_SOURCE" | cut -d: -f1
+)
+if [ "${#CLEAR_PIPELINE_CREATE_LINES[@]}" -ne 2 ] ||
+   [ "${#CLEAR_PIPELINE_NULL_LINES[@]}" -ne 2 ] ||
+   [ "${#CLEAR_PIPELINE_CACHE_LINES[@]}" -ne 2 ] ||
+   [ "${CLEAR_PIPELINE_CREATE_LINES[0]}" -ge "${CLEAR_PIPELINE_NULL_LINES[0]}" ] ||
+   [ "${CLEAR_PIPELINE_NULL_LINES[0]}" -ge "${CLEAR_PIPELINE_CACHE_LINES[0]}" ] ||
+   [ "${CLEAR_PIPELINE_CREATE_LINES[1]}" -ge "${CLEAR_PIPELINE_NULL_LINES[1]}" ] ||
+   [ "${CLEAR_PIPELINE_NULL_LINES[1]}" -ge "${CLEAR_PIPELINE_CACHE_LINES[1]}" ]
+then
+  echo "ERROR: scissored-clear pipelines publish before successful creation" >&2
   exit 1
 fi
 

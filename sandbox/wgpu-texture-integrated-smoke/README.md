@@ -16,8 +16,10 @@ Grease Pencil's `UNORM_16` render mask), 26 exact texture dimension/array/mip li
 decisions, 14 checked uncompressed-upload layouts, 13 physical copy-region boundaries,
 six non-renderable clear layouts covering exact byte geometry and overflow rejection,
 18 framebuffer-clear policy decisions covering whole-attachment load operations, clipped draws,
-empty no-ops, lower-left/window coordinate handling, color/depth/stencil aspects, integer edges,
-and three-layer exhaustion. Four real format-flag cases distinguish normalized RGB10A2 and RGBA8
+empty no-ops, bottom-to-top coordinate conversion, color/depth/stencil aspects, integer edges,
+and three-layer exhaustion. The driver also requires both scissored-clear pipeline caches to
+validate a newly created handle before publishing it, so a transient failure remains retryable.
+Four real format-flag cases distinguish normalized RGB10A2 and RGBA8
 from unsigned RGB10A2 and signed RGBA8 before pinned-Tint parsing of the exact float, uint, sint,
 and depth fullscreen-clear WGSL variants,
 eleven native-parity 1/2/3-tap mipmap axis plans (including the odd 5-to-2 edge kernel),

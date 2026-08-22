@@ -1360,6 +1360,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   six parser cases, the real postimage build, and llvmpipe rejection are green. All audited
   device-free contracts replay, canonical source remains exact, and REUSE is 1,983/1,983. No
   hardware receipt or result was promoted. See `reports/audit-20260821.md`.
+- [x] **AUDIT-20260822-R4 [driver] (a1355a3):** adversarial exact latest-25 review
+  (`908449b..fc63056`) found 0 critical / 2 major / 2 minor. Native device creation now requests
+  adapter-supported BC compression, feature-gated Unorm16 and D32/S8 creation fails before Dawn
+  can return an error texture, and the broken pipeline marker plus stale selector census are
+  repaired. The ten-feature/1,024-mask GHOST contract, 448-case native/wasm32 format contract,
+  affected integrated contracts, canonical replay, windowed product rebuild/no-work, and REUSE
+  are green. M0 remains 6/6; s7 still blocks a fresh hardware receipt. No result, deferral,
+  tolerance, golden, blacklist, or promise changed. See `reports/audit-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

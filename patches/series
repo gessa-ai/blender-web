@@ -794,3 +794,7 @@
 # 0169: transcode complete signed packed-normal fields in vertex-buffer subrange
 # updates before writing Snorm8x4 storage; reject partial packed fields atomically.
 0169-gpu-webgpu-i10-subrange-update.patch
+# 0170: upload Blender's existing BC1/2/3 DDS blocks with WebGPU's physical
+# 4x4 copy extent and block-row layout; unsupported features/types fail allocation
+# so the pinned image caller takes its faithful uncompressed fallback.
+0170-gpu-webgpu-bc-upload.patch

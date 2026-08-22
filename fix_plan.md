@@ -677,6 +677,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   is exact and the real windowed product rebuilds and ends locked-Ninja no-work. No adapter,
   device, buffer, draw, browser receipt, or result promotion is created. Evidence:
   `notes/m3-t6-i10-subrange-update-20260822.md`.
+- [x] **M3.T9.bc-upload [gpu-backend] COMPLETE (patch 0170):** Blender's existing BC1/2/3
+  DDS mip blocks now reach `Queue::WriteTexture` with Dawn's physical 4x4 extent, exact block-row
+  stride, edge, layer, and overflow validation. Unsupported texture types or devices without
+  `TextureCompressionBC` fail allocation so the pinned image caller takes its faithful
+  uncompressed fallback. Seven layouts and all nine texture-type enumerators pass byte-identically
+  in native/wasm32; canonical replay is exact and the real windowed product rebuilds and ends
+  locked-Ninja no-work. No live device, texture, sample, browser receipt, or result promotion is
+  claimed. Evidence: `notes/m3-t9-bc-upload-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

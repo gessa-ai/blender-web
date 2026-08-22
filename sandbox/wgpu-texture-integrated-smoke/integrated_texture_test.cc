@@ -23,6 +23,7 @@
 #include "wgpu_texture_format.hh"
 
 namespace bw = blender::gpu::webgpu;
+namespace gpu = blender::gpu;
 
 namespace {
 
@@ -758,18 +759,126 @@ bool packed_row_stride_contract()
   return packed == 3 && row_bytes == 252;
 }
 
+bool compressed_upload_layout_contract()
+{
+  struct Case {
+    bw::TextureFormat format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t layers;
+    uint32_t unpack_row_length;
+    uint32_t copy_width;
+    uint32_t copy_height;
+    uint32_t bytes_per_row;
+    uint32_t rows_per_image;
+    size_t data_size;
+  };
+  constexpr std::array<Case, 7> cases = {{
+      {bw::TextureFormat::SNORM_DXT1, 8, 8, 1, 0, 8, 8, 16, 2, 32},
+      {bw::TextureFormat::SRGB_DXT1, 2, 1, 1, 0, 4, 4, 8, 1, 8},
+      {bw::TextureFormat::SNORM_DXT3, 12, 8, 1, 0, 12, 8, 48, 2, 96},
+      {bw::TextureFormat::SRGB_DXT5, 7, 5, 1, 0, 8, 8, 32, 2, 64},
+      {bw::TextureFormat::SNORM_DXT1, 8, 8, 3, 0, 8, 8, 16, 2, 96},
+      {bw::TextureFormat::SNORM_DXT1, 8, 8, 1, 16, 8, 8, 32, 2, 64},
+      {bw::TextureFormat::SRGB_DXT5, 1, 1, 6, 9, 4, 4, 48, 1, 288},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    bw::CompressedUploadLayout actual;
+    if (!require(bw::compressed_upload_layout(test.format,
+                                              test.width,
+                                              test.height,
+                                              test.layers,
+                                              test.unpack_row_length,
+                                              actual),
+                 "compressed layout accepted") ||
+        !require(actual.copy_width == test.copy_width, "compressed copy width") ||
+        !require(actual.copy_height == test.copy_height, "compressed copy height") ||
+        !require(actual.bytes_per_row == test.bytes_per_row, "compressed bytes per row") ||
+        !require(actual.rows_per_image == test.rows_per_image, "compressed rows per image") ||
+        !require(actual.data_size == test.data_size, "compressed data size"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, uint64_t(test.format));
+    hash = fnv_u64(hash, actual.copy_width);
+    hash = fnv_u64(hash, actual.copy_height);
+    hash = fnv_u64(hash, actual.bytes_per_row);
+    hash = fnv_u64(hash, actual.rows_per_image);
+    hash = fnv_u64(hash, actual.data_size);
+  }
+
+  bw::CompressedUploadLayout sentinel = {17, 18, 19, 20, 21};
+  const bw::CompressedUploadLayout unchanged = sentinel;
+  const auto rejects_without_mutation = [&](bw::TextureFormat format,
+                                            uint32_t width,
+                                            uint32_t height,
+                                            uint32_t layers,
+                                            uint32_t unpack_row_length) {
+    sentinel = unchanged;
+    const bool accepted = bw::compressed_upload_layout(
+        format, width, height, layers, unpack_row_length, sentinel);
+    return require(!accepted, "compressed invalid layout rejected") &&
+           require(std::memcmp(&sentinel, &unchanged, sizeof(sentinel)) == 0,
+                   "compressed rejection is atomic");
+  };
+  if (!rejects_without_mutation(bw::TextureFormat::UNORM_8_8_8_8, 4, 4, 1, 0) ||
+      !rejects_without_mutation(bw::TextureFormat::SNORM_DXT1, 0, 4, 1, 0) ||
+      !rejects_without_mutation(bw::TextureFormat::SNORM_DXT1, 4, 0, 1, 0) ||
+      !rejects_without_mutation(bw::TextureFormat::SNORM_DXT1, 4, 4, 0, 0) ||
+      !rejects_without_mutation(bw::TextureFormat::SNORM_DXT1, 8, 4, 1, 7) ||
+      !rejects_without_mutation(bw::TextureFormat::SNORM_DXT5,
+                                std::numeric_limits<uint32_t>::max(),
+                                4,
+                                1,
+                                0))
+  {
+    return false;
+  }
+
+  constexpr std::array<gpu::GPUTextureType, 9> types = {gpu::GPU_TEXTURE_1D,
+                                                        gpu::GPU_TEXTURE_1D_ARRAY,
+                                                        gpu::GPU_TEXTURE_2D,
+                                                        gpu::GPU_TEXTURE_2D_ARRAY,
+                                                        gpu::GPU_TEXTURE_3D,
+                                                        gpu::GPU_TEXTURE_CUBE,
+                                                        gpu::GPU_TEXTURE_CUBE_ARRAY,
+                                                        gpu::GPU_TEXTURE_ARRAY,
+                                                        gpu::GPU_TEXTURE_BUFFER};
+  size_t supported = 0;
+  for (gpu::GPUTextureType type : types) {
+    const bool actual = bw::compressed_texture_type_supported(type);
+    const bool expected = type == gpu::GPU_TEXTURE_2D || type == gpu::GPU_TEXTURE_2D_ARRAY ||
+                          type == gpu::GPU_TEXTURE_CUBE || type == gpu::GPU_TEXTURE_CUBE_ARRAY;
+    if (!require(actual == expected, "compressed texture type support")) {
+      return false;
+    }
+    supported += actual;
+    hash = fnv_byte(hash, uint8_t(actual));
+  }
+
+  std::printf("CONTRACT compressed-upload PASS cases=%zu supported_types=%zu digest=%016" PRIx64
+              "\n",
+              cases.size(),
+              supported,
+              hash);
+  return supported == 4;
+}
+
 }  // namespace
 
 int main()
 {
   if (!table_contract() || !capabilities_contract() || !render_attachment_contract() ||
       !view_format_contract() || !promotion_contract() || !rgb9e5_contract() ||
-      !rg11b10_contract() || !boundary_contract() || !packed_row_stride_contract())
+      !rg11b10_contract() || !boundary_contract() || !packed_row_stride_contract() ||
+      !compressed_upload_layout_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=9 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
-      "rg11b10=25 packed_rows=6\n");
+      "INTEGRATED_TEXTURE_PASS contracts=10 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
+      "rg11b10=25 packed_rows=6 compressed_layouts=7\n");
   return 0;
 }

@@ -184,3 +184,9 @@ the 257-path / 20,258-entry authority. The patch is now 1,553,145 bytes with SHA
 `e6476ec9ed391efbcf3ffcb8281d0497354246f5e2b019bcd144429400b0d76f`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `7633f52f3646196f89530538207cc8b05cea397e6b9f20911f2b65317b46ce9d`.
+
+Patch 0170's BC1/2/3 physical-block upload and faithful feature/type fallback were then composed
+without changing the 257-path / 20,258-entry authority. The patch is now 1,560,311 bytes with
+SHA-256 `0e920948915c22c2a0cd54d8b483027b4e5dc7ae34f850c7d799fb970cb31336`; the current
+normalized receipt binds byte-identical live/replay manifests at SHA-256
+`e1e2d5147cc7342708ffc310ae3a1baa1a6ec793d2ebb1633ed28e596f1fed50`.

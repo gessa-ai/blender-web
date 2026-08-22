@@ -72,7 +72,9 @@ source_digest()
     webgpu/wgpu_data_conversion.hh
     vulkan/vk_data_conversion.hh
     vulkan/tests/vk_data_conversion_test.cc
+    intern/gpu_texture.cc
     ../draw/engines/gpencil/gpencil_engine_c.cc
+    ../imbuf/intern/util_gpu.cc
   )
   if command -v sha256sum >/dev/null 2>&1; then
     (cd "$ROOT/upstream/source/blender/gpu" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
@@ -92,7 +94,9 @@ require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture.cc"
 require_file "$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
+require_file "$ROOT/upstream/source/blender/imbuf/intern/util_gpu.cc"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -145,6 +149,33 @@ if [ "$(grep -Fc 'const size_t host_texel = to_bytesize(format_, format);' "$RGB
      "$RGB9E5_TEXTURE_SOURCE"
 then
   echo "ERROR: canonical strided-upload host-texel sizing differs" >&2
+  exit 1
+fi
+
+FORMAT_SOURCE="$WEBGPU_SOURCE/wgpu_texture_format.cc"
+FORMAT_HEADER="$WEBGPU_SOURCE/wgpu_texture_format.hh"
+if [ "$(grep -Ec '^bool compressed_upload_layout\(' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^bool compressed_texture_type_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^bool compressed_upload_layout\(' "$FORMAT_HEADER")" -ne 1 ] ||
+   [ "$(grep -Ec '^bool compressed_texture_type_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'compressed_upload_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'FeatureName::TextureCompressionBC' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'case GPU_TEXTURE_ARRAY:' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'case GPU_TEXTURE_BUFFER:' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'compressed_layout.data_size, &layout, &write_size' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (repr == Repr::Compressed || repr == Repr::Unsupported)' "$RGB9E5_TEXTURE_SOURCE")" -ne 3 ]
+then
+  echo "ERROR: canonical block-compressed upload wiring differs" >&2
+  exit 1
+fi
+
+GPU_TEXTURE_FRONTEND="$ROOT/upstream/source/blender/gpu/intern/gpu_texture.cc"
+IMBUF_GPU_SOURCE="$ROOT/upstream/source/blender/imbuf/intern/util_gpu.cc"
+if [ "$(grep -Fc 'gpu::Texture *GPU_texture_create_compressed_2d(' "$GPU_TEXTURE_FRONTEND")" -ne 1 ] ||
+   [ "$(grep -Fc 'size = ((extent[0] + 3) / 4) * ((extent[1] + 3) / 4) *' "$GPU_TEXTURE_FRONTEND")" -ne 1 ] ||
+   [ "$(grep -Fc 'tex = GPU_texture_create_compressed_2d(name,' "$IMBUF_GPU_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: pinned Blender compressed-texture caller contract differs" >&2
   exit 1
 fi
 
@@ -260,13 +291,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=9 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6' \
+    'INTEGRATED_TEXTURE_PASS contracts=10 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 10 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

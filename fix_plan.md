@@ -1582,12 +1582,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32, real product, OFF preflight, REUSE, scoped, and container-backed regression
   evidence is recorded in `reports/audit-20260822-r5.md`. The remaining valid-empty/load-action
   minor is queued immediately below; no hardware receipt or gate promotion occurred.
-- [ ] **M3.T10-EMPTY-RASTER-LOADOP [gpu-backend]:** distinguish malformed raster state from legal
-  zero/fully clipped viewport or enabled scissor state. Preserve a zero viewport or contained
-  `(0,0,0,0)` scissor so `begin_load_pass()` still materializes pending load actions and the
-  caller's normal draw produces no fragments. Add a bind-loadstore clear + zero raster +
-  framebuffer-read regression, plus native/wasm32 planner boundaries; pinned Dawn accepts zero
-  extents. Live WebGPU pixel proof remains s7-blocked, but the source/device-free repair is not.
+- [x] **M3.T10-EMPTY-RASTER-LOADOP [gpu-backend] (4dd5f75):** patch 0203 separates
+  negative/device-invalid raster state from legal zero or fully clipped viewports/scissors. Empty
+  state now preserves a zero viewport or contained `(0,0,0,0)` scissor, allowing ordinary and
+  multi-viewport passes to
+  consume pending attachment load clears without producing fragments. The fail-first planner,
+  28/32/21-case native/wasm32 boundaries, checksum-bound bind-loadstore/draw/framebuffer-read GPU
+  regression, targeted wasm32 test-TU compile, canonical replay/reverse, real product rebuild and
+  no-work check, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
+  Live GPU-test pixel proof remains s7-blocked. See
+  `notes/m3-t10-empty-raster-loadop-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

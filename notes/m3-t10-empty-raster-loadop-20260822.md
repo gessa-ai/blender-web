@@ -51,6 +51,14 @@ as green.
   keeps M0 6/6 green while M1-M8 retain their separately named receipt/product/browser/run-label
   boundaries.
 
+The optional full numbered-history diagnostic still stops at the pre-existing entry 15/180
+(`0016-gpu-webgpu-texture-format-conversion.patch`, `20260822T220144-1965108`); canonical replay
+and patch 0203 reversal are the current source authorities. Building the entire optional wasm
+GPU-test archive also reaches
+unrelated pre-existing death-test portability errors in `texture_view_test.cc` and
+`texture_test.cc` (`20260822T220501-1971286`); the new `framebuffer_test.cc` translation unit
+itself compiles cleanly.
+
 ## Boundary
 
 No WebGPU adapter, device, render pass, draw, pixel, or browser receipt is claimed on ornith-lab.

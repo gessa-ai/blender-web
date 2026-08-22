@@ -13,17 +13,17 @@ index 298cd0d09bfad01d0ba4e92674ae84fc769e02f9..47a0c8756c4c236985e0fdf18244209e
    const bool emulate_triangle_fan = prim_type == GPU_PRIM_TRI_FAN;
    std::vector<uint32_t> fan_indices;
    webgpu::Buffer fan_index_buffer;
-@@ -625,6 +627,9 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+@@ -625,5 +627,8 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
    }
    WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
    const bool indexed = (wibo != nullptr && wibo->buffer().valid());
 +  const webgpu::IndexBindingPlan index_binding =
 +      indexed ? webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Indirect) :
 +                webgpu::IndexBindingPlan{};
- 
+-
++
    webgpu::PipelineInfo info;
-   info.shader = shader;
-@@ -678,12 +683,12 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+@@ -678,13 +683,13 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
        }
      }
      if (indexed) {
@@ -39,13 +39,14 @@ index 298cd0d09bfad01d0ba4e92674ae84fc769e02f9..47a0c8756c4c236985e0fdf18244209e
 +                                 index_binding.byte_offset);
      }
    };
- 
+-
++
+   auto issue_indirect_draws = [&](wgpu::RenderPassEncoder &render_pass) {
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
 index 139fa2a1ede3965f6996618b787a6b961c727fb4..854a279a5d5298f0e166eaa7cd7c4c50ebdfd027 100644
 --- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
-@@ -34,20 +34,28 @@ namespace webgpu {
- 
+@@ -35,8 +35,8 @@ namespace webgpu {
  /** Complete WebGPU indexed-draw binding state derived from IndexBuf metadata.
   *
 - * Subranges share their parent's allocation, so index_start_get() must become
@@ -59,11 +60,13 @@ index 139fa2a1ede3965f6996618b787a6b961c727fb4..854a279a5d5298f0e166eaa7cd7c4c50
 + * complete parent allocation at offset zero. Keeping the mode and base vertex in one
 + * plan prevents alternate pass encoders from applying subrange metadata twice. */
  struct IndexBindingPlan {
+@@ -43,12 +43,20 @@ struct IndexBindingPlan {
    uint64_t byte_offset = 0;
    int32_t base_vertex = 0;
  };
- 
+-
 -inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer)
++
 +enum class IndexBindingMode {
 +  Direct,
 +  Indirect,
@@ -79,4 +82,6 @@ index 139fa2a1ede3965f6996618b787a6b961c727fb4..854a279a5d5298f0e166eaa7cd7c4c50
 +              0,
            int32_t(index_buffer.index_base_get())};
  }
- 
+-
++
+ }  // namespace webgpu

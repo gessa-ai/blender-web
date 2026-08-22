@@ -1614,6 +1614,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   patch reversal, the real product rebuild/no-work check, OFF preflight, REUSE, scoped M3, and
   container-backed regression are verified. Live draw/pixel proof remains s7-blocked. See
   `notes/m3-t10-color-blit-resource-guards-20260822.md`.
+- [x] **M3.T9-MIPMAP-RESOURCE-TRANSACTION [gpu-backend] (8eb6231):** patch 0207 rejects failed
+  shader-module, command-encoder, texture-view, bind-group, render-pass, and finished-command-
+  buffer creation before dependent mipmap work or queue submission. The unchanged source fails
+  before evidence; the exact shipping method's nine cases stop all eight injected failures before
+  submit and pass byte-identically on native/wasm32 within 24 integrated texture contracts.
+  Canonical replay/reverse, the real product rebuild/no-work check, OFF preflight, scoped M3, and
+  container-backed regression are verified. Live mipmap/pixel proof remains blocked by no
+  conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn). See
+  `notes/m3-t9-mipmap-resource-transaction-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

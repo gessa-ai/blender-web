@@ -517,3 +517,14 @@ turning a recoverable resource failure into validation errors or a null-handle c
 handle before the first dependent operation. Use one device-free buffer-creation transaction so
 failure cannot overwrite the caller's handle, and bind the remaining guards to the exact shipping
 source order. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 35 — multi-pass resource failure must discard the whole command encoder
+
+Signature: a dependent mipmap loop encodes earlier passes, then continues past a missing view or
+uses another null transient handle and still finishes and submits the command buffer. That can
+publish a holey mip chain whose later levels depend on absent intermediate results. Guard the
+module and encoder before dependent work; return, rather than continue, on every failed view,
+bind-group, or pass allocation so the local encoder and all prior passes are abandoned; and
+validate the finished command buffer before the only queue submission. Exercise each failure
+boundary, including a later pass after earlier encoding, against the exact extracted shipping
+method on native and wasm32. See `sandbox/wgpu-texture-integrated-smoke/`.

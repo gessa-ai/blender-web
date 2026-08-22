@@ -872,3 +872,6 @@
 # 0189: validate normalized signed direct-draw parameters before context, geometry,
 # pipeline, or render-pass work and reuse one unsigned plan across every draw path.
 0189-gpu-webgpu-direct-draw-ranges.patch
+# 0190: preserve signed multi-viewport transforms while intersecting their
+# unsigned WebGPU scissors with the render area before direct or indirect pass work.
+0190-gpu-webgpu-multiviewport-scissor.patch

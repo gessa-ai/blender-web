@@ -379,3 +379,16 @@ fan expansion plus indexed, non-indexed, single-pass, and layered calls. Do not 
 the public API explicitly leaves to the graphics backend. Exercise each negative/zero field and
 `INT_MIN`/`INT_MAX` boundaries on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 24 — signed viewports need a distinct unsigned WebGPU scissor
+
+Signature: multi-viewport emulation forwards Blender's signed viewport rectangle to both
+`SetViewport` and `SetScissorRect`. WebGPU permits a bounded negative viewport origin, but its
+scissor fields are unsigned and Dawn requires the complete scissor inside the render area;
+casting a negative origin wraps, while an overshooting extent invalidates the command encoder.
+Preserve the original viewport so clipping does not change the raster transform, intersect a
+separate scissor with the framebuffer using widened arithmetic, and reject empty, fully clipped,
+or device-limit-invalid rectangles before allocating a pass. Exercise negative and partial edges,
+complete clipping, exact bounds, device limits, and `INT_MIN`/`INT_MAX` atomically in native and
+wasm32. Apply the same plan to direct and indirect multi-viewport paths. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

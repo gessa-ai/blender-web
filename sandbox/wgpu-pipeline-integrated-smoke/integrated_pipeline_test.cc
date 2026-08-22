@@ -286,6 +286,114 @@ bool direct_draw_plan_contract()
   return true;
 }
 
+bool viewport_scissor_plan_contract()
+{
+  struct Case {
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t target_width;
+    uint32_t target_height;
+    uint32_t max_viewport_dimension;
+    bool accepted;
+    uint32_t scissor_x;
+    uint32_t scissor_y;
+    uint32_t scissor_width;
+    uint32_t scissor_height;
+  };
+  constexpr int int_max = std::numeric_limits<int>::max();
+  constexpr int int_min = std::numeric_limits<int>::min();
+  constexpr std::array<Case, 28> cases = {{
+      {0, 0, 640, 480, 640, 480, 8192, true, 0, 0, 640, 480},
+      {10, 20, 30, 40, 640, 480, 8192, true, 10, 20, 30, 40},
+      {-10, 5, 20, 10, 640, 480, 8192, true, 0, 5, 10, 10},
+      {5, -10, 10, 20, 640, 480, 8192, true, 5, 0, 10, 10},
+      {630, 20, 20, 30, 640, 480, 8192, true, 630, 20, 10, 30},
+      {20, 470, 30, 20, 640, 480, 8192, true, 20, 470, 30, 10},
+      {-10, -20, 660, 520, 640, 480, 8192, true, 0, 0, 640, 480},
+      {-10, -10, 20, 20, 640, 480, 8192, true, 0, 0, 10, 10},
+      {639, 479, 1, 1, 640, 480, 8192, true, 639, 479, 1, 1},
+      {-63, -63, 64, 64, 64, 64, 64, true, 0, 0, 1, 1},
+      {63, 63, 64, 64, 64, 64, 64, true, 63, 63, 1, 1},
+      {0, 0, 0, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, 1, 0, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, -1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, 1, -1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, 1, 1, 0, 480, 8192, false, 0, 0, 0, 0},
+      {0, 0, 1, 1, 640, 0, 8192, false, 0, 0, 0, 0},
+      {0, 0, 1, 1, 640, 480, 0, false, 0, 0, 0, 0},
+      {0, 0, 1, 1, 65, 64, 64, false, 0, 0, 0, 0},
+      {0, 0, 1, 1, 64, 65, 64, false, 0, 0, 0, 0},
+      {0, 0, 65, 1, 64, 64, 64, false, 0, 0, 0, 0},
+      {0, 0, 1, 65, 64, 64, 64, false, 0, 0, 0, 0},
+      {-10, 0, 10, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {640, 0, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, -10, 1, 10, 640, 480, 8192, false, 0, 0, 0, 0},
+      {0, 480, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {int_min, 0, 1, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+      {int_max, 0, int_max, 1, 640, 480, 8192, false, 0, 0, 0, 0},
+  }};
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  uint64_t scissor_area = 0;
+  for (const Case &test : cases) {
+    bw::ViewportScissorPlan actual = {101, 102, 103, 104, 105, 106, 107, 108};
+    const bw::ViewportScissorPlan sentinel = actual;
+    const bool result = bw::viewport_scissor_plan(test.x,
+                                                  test.y,
+                                                  test.width,
+                                                  test.height,
+                                                  test.target_width,
+                                                  test.target_height,
+                                                  test.max_viewport_dimension,
+                                                  actual);
+    if (!require(result == test.accepted, "viewport/scissor decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(actual.viewport_x == sentinel.viewport_x &&
+                       actual.viewport_y == sentinel.viewport_y &&
+                       actual.viewport_width == sentinel.viewport_width &&
+                       actual.viewport_height == sentinel.viewport_height &&
+                       actual.scissor_x == sentinel.scissor_x &&
+                       actual.scissor_y == sentinel.scissor_y &&
+                       actual.scissor_width == sentinel.scissor_width &&
+                       actual.scissor_height == sentinel.scissor_height,
+                   "rejected viewport/scissor preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+    if (!require(actual.viewport_x == test.x && actual.viewport_y == test.y &&
+                     actual.viewport_width == uint32_t(test.width) &&
+                     actual.viewport_height == uint32_t(test.height),
+                 "accepted viewport preserves raster transform") ||
+        !require(actual.scissor_x == test.scissor_x &&
+                     actual.scissor_y == test.scissor_y &&
+                     actual.scissor_width == test.scissor_width &&
+                     actual.scissor_height == test.scissor_height,
+                 "accepted scissor intersection"))
+    {
+      return false;
+    }
+    accepted++;
+    scissor_area += uint64_t(actual.scissor_width) * actual.scissor_height;
+  }
+
+  if (!require(accepted == 11 && rejected == 17, "viewport/scissor census") ||
+      !require(scissor_area == 616503, "viewport/scissor aggregate"))
+  {
+    return false;
+  }
+  std::puts(
+      "CONTRACT viewport_scissor_plan PASS cases=28 accepted=11 rejected=17 area=616503");
+  return true;
+}
+
 bool compute_dispatch_range_contract()
 {
   struct DirectCase {
@@ -705,7 +813,7 @@ int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
-      !compute_dispatch_range_contract() ||
+      !viewport_scissor_plan_contract() || !compute_dispatch_range_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -713,8 +821,8 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=11 primitives=11 strip_cases=33 indirect_spans=19 "
-      "direct_draws=16 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 "
-      "shader_lifetimes=4096 alias_keys=2");
+      "INTEGRATED_PIPELINE_PASS contracts=12 primitives=11 strip_cases=33 indirect_spans=19 "
+      "direct_draws=16 viewport_scissors=28 compute_direct=15 compute_indirect=13 formats=96 "
+      "i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

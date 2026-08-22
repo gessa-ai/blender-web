@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# render-pipeline enum mappings, direct/indirect draw and dispatch spans, dummy-attribute
-# binding plan, and shader-lifetime cache separation. Invoke through buildwrap.sh.
+# render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
+# multi-viewport scissors, dummy-attribute binding plan, and shader-lifetime cache
+# separation. Invoke through buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -111,8 +112,10 @@ require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidati
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawVertexAndIndexBufferOOBValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/ComputeValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/ComputeIndirectValidationTests.cpp"
+require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
 require_file "$DAWN_SRC/src/dawn/native/RenderEncoderBase.cpp"
+require_file "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -188,6 +191,22 @@ require_fixed_count 1 \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/ComputeValidationTests.cpp"
 require_fixed_count 1 'TEST_F(ComputeIndirectValidationTest, IndirectOffsetBounds)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/ComputeIndirectValidationTests.cpp"
+require_fixed_count 1 'TEST_F(SetScissorTest, ScissorLargerThanFramebuffer)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
+require_fixed_count 1 'TEST_F(SetViewportTest, ViewportLargerThanLimit)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
+require_fixed_count 1 'TEST_F(SetViewportTest, NegativeXYWidthHeight)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/DynamicStateCommandValidationTests.cpp"
+require_fixed_count 1 'void RenderPassEncoder::APISetViewport(' \
+  "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
+require_fixed_count 1 'x < -maxViewportBounds || y < -maxViewportBounds' \
+  "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
+require_fixed_count 1 'x + width > maxViewportBounds - 1 || y + height > maxViewportBounds - 1' \
+  "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
+require_fixed_count 1 'void RenderPassEncoder::APISetScissorRect(' \
+  "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
+require_fixed_count 1 'static_cast<uint64_t>(x) + static_cast<uint64_t>(width) >' \
+  "$DAWN_SRC/src/dawn/native/RenderPassEncoder.cpp"
 require_fixed_count 1 'struct ComputeDispatchPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool compute_dispatch_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -201,6 +220,14 @@ require_fixed_count 1 'struct DirectDrawPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
   'if (!webgpu::direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'struct ViewportScissorPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 'inline bool viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 'uint32_t(rect[0])' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 'uint32_t(rect[1])' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 'uint32_t(rect[2])' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 'uint32_t(rect[3])' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 'uint32_t(vertex_first)' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 'uint32_t(vertex_count)' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 'uint32_t(instance_first)' "$WEBGPU_SOURCE/wgpu_batch.cc"
@@ -325,7 +352,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 12 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 13 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -333,6 +360,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT direct_draw_plan PASS cases=16 accepted=5 rejected=11 value_sum=17179869214' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT viewport_scissor_plan PASS cases=28 accepted=11 rejected=17 area=616503' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 indirect_cases=13 accepted=5 rejected=8 group_sum=40' \
@@ -344,7 +374,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=11 primitives=11 strip_cases=33 indirect_spans=19 direct_draws=16 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=12 primitives=11 strip_cases=33 indirect_spans=19 direct_draws=16 viewport_scissors=28 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

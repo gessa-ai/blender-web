@@ -1487,6 +1487,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green, and the real windowed product rebuilds then ends locked-Ninja no-work. Required M3 remains
   red for the absent strict candidate and s7 still blocks live WebGPU draw proof. See
   `notes/m3-t10-direct-draw-ranges-20260822.md`.
+- [x] **M3.T10-MULTIVIEWPORT-SCISSOR [gpu-backend]:** patch 0190 preserves Blender's signed
+  viewport transform while intersecting a separate unsigned scissor with the framebuffer before
+  direct or indirect multi-viewport pass work. The 28-case native/wasm32 contract covers negative,
+  partial, outside, exact-limit, device-limit, and integer-boundary rectangles atomically.
+  Canonical replay and the real windowed rebuild/no-work check are green. Required M3 remains red
+  for the absent strict candidate and s7 still blocks live WebGPU draw proof. See
+  `notes/m3-t10-multiviewport-scissor-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

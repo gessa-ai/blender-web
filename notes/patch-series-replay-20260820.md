@@ -306,3 +306,9 @@ Patch 0189's fail-closed direct-draw parameter validation was then composed with
 `3614142754032eaef27f717644e2d0d9ac585c7ce117b794bb288f246a6c1d66`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `534301890e496f019ac54e69129be6297a81b4f76168586db1c0e93962c3371a`.
+
+Patch 0190's multi-viewport scissor intersection was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,607,884 bytes with SHA-256
+`462e17b59733c30b665317a140332c0d067741fd286b39695c2e19d191bca4cd`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`7060a4003e8b0b91095a1c4eb65a546b3fa31129ba156de936fc3fe44ccec4d6`.

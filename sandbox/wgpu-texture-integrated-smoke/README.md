@@ -13,7 +13,8 @@ promotion plans and byte transforms, three Dawn RGB9E5 decode vectors, seven
 canonical/edge RGB9E5 encodes, 25 RG11B10 vectors against the pinned Vulkan
 F32/F11/F10 policy, the 16-case feature-aware render-attachment matrix (including
 Grease Pencil's `UNORM_16` render mask), 26 exact texture dimension/array/mip limit
-decisions, six strided-upload host-texel cases that
+decisions, 14 checked uncompressed-upload layouts, 13 physical copy-region boundaries,
+six strided-upload host-texel cases that
 separate packed 32-bit rows from scalar-component rows, seven BC1/2/3 physical-block and
 source-stride layouts, all nine compressed texture-type enumerators, all ten documented
 `rgba`/`xyzw`/`01` component-swizzle symbols, and invalid/boundary behavior. Native and Wasm

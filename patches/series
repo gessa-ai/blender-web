@@ -826,3 +826,7 @@
 # device limits before Dawn can return a non-null error texture. The device-free
 # native/Wasm contract covers all physical dimensions and exact boundaries.
 0177-gpu-webgpu-texture-allocation-limits.patch
+# 0178: validate uncompressed texture copy regions and all source/device byte
+# products before allocating or reading caller data. The native/Wasm contract
+# covers strided layouts, uint32/size_t overflow, and physical copy boundaries.
+0178-gpu-webgpu-texture-upload-layout.patch

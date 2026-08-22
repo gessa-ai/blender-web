@@ -151,7 +151,7 @@ then
   exit 1
 fi
 
-if [ "$(grep -Fc 'const size_t host_texel = to_bytesize(format_, format);' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+if [ "$(grep -Fc 'to_bytesize(format_, format)' "$RGB9E5_TEXTURE_SOURCE")" -ne 3 ] ||
    grep -Fq 'const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);' \
      "$RGB9E5_TEXTURE_SOURCE"
 then
@@ -179,6 +179,26 @@ if [ "$(grep -Fc 'inline bool texture_allocation_supported(' "$COMMON_HEADER")" 
    [ "$(grep -Fc '!texture_allocation_supported(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical texture allocation-limit wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'inline bool texture_upload_layout(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline bool texture_region_fits(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'texture_upload_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'texture_region_fits(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: canonical texture upload-layout wiring differs" >&2
+  exit 1
+fi
+
+UPLOAD_LAYOUT_LINE="$(grep -nF 'if (!texture_upload_layout(' \
+  "$RGB9E5_TEXTURE_SOURCE" | head -n 1 | cut -d: -f1)"
+UPLOAD_DEVICE_ALLOCATION_LINE="$(grep -nF 'std::vector<uint8_t> device_data(layout.device_data_size);' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+if [ -z "$UPLOAD_LAYOUT_LINE" ] || [ -z "$UPLOAD_DEVICE_ALLOCATION_LINE" ] ||
+   [ "$UPLOAD_LAYOUT_LINE" -ge "$UPLOAD_DEVICE_ALLOCATION_LINE" ]
+then
+  echo "ERROR: texture upload sizing is not fail-closed before host allocation" >&2
   exit 1
 fi
 
@@ -356,13 +376,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=13 formats=63 creation_cases=448 allocation_limits=26 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=14 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 13 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 14 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

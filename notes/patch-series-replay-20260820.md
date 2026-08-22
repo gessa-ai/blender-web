@@ -234,3 +234,9 @@ bytes with SHA-256
 `42fd53158a55c78a3e8c8ba9a3014dbf505c931302d652620bdee704ab3b15fd`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `6615aed1077016c70a1d0ca0e7bfa3309e48121fdfe47e60cd226be600deca9a`.
+
+Patch 0178's fail-closed uncompressed texture upload-layout validation was then composed without
+changing the 257-path / 20,258-entry authority. The patch is now 1,574,038 bytes with SHA-256
+`9bdf18537414991749e88d1e86738c234914e19e6f3cbc59cd37fd4c538d9a74`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`2a29bdb087d4792af08819eed932a2c20cae1b821aafda3bed0a56416d46395b`.

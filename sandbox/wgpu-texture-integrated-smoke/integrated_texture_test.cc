@@ -849,6 +849,150 @@ bool allocation_limit_contract()
   return accepted == 7 && rejected == 19;
 }
 
+bool upload_layout_contract()
+{
+  struct LayoutCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t device_texel_bytes;
+    size_t host_texel_bytes;
+    uint32_t unpack_row_length;
+    size_t sample_count;
+    size_t device_data_size;
+    size_t source_row_stride;
+    size_t source_data_size;
+    uint32_t bytes_per_row;
+    size_t row_count;
+  };
+  const std::array<LayoutCase, 4> accepted_cases = {{
+      {2, 3, 4, 4, 4, 0, 24, 96, 8, 96, 8, 12},
+      {2, 3, 4, 8, 4, 5, 24, 192, 20, 228, 16, 12},
+      {7, 1, 1, 4, 12, 7, 7, 28, 84, 84, 28, 1},
+      {1, 256, 6, 16, 12, 0, 1536, 24576, 12, 18432, 16, 1536},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const LayoutCase &test : accepted_cases) {
+    bw::TextureUploadLayout actual;
+    if (!require(bw::texture_upload_layout(test.width,
+                                           test.height,
+                                           test.depth,
+                                           test.device_texel_bytes,
+                                           test.host_texel_bytes,
+                                           test.unpack_row_length,
+                                           actual),
+                 "valid texture upload layout rejected") ||
+        !require(actual.sample_count == test.sample_count, "upload sample count") ||
+        !require(actual.device_data_size == test.device_data_size, "upload device size") ||
+        !require(actual.source_row_stride == test.source_row_stride,
+                 "upload source row stride") ||
+        !require(actual.source_data_size == test.source_data_size, "upload source size") ||
+        !require(actual.bytes_per_row == test.bytes_per_row, "upload bytes per row") ||
+        !require(actual.row_count == test.row_count, "upload row count"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, actual.sample_count);
+    hash = fnv_u64(hash, actual.device_data_size);
+    hash = fnv_u64(hash, actual.source_row_stride);
+    hash = fnv_u64(hash, actual.source_data_size);
+    hash = fnv_u64(hash, actual.bytes_per_row);
+    hash = fnv_u64(hash, actual.row_count);
+  }
+
+  struct RejectedCase {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t device_texel_bytes;
+    size_t host_texel_bytes;
+    uint32_t unpack_row_length;
+  };
+  const std::array<RejectedCase, 10> rejected_cases = {{
+      {0, 1, 1, 1, 1, 0},
+      {1, 0, 1, 1, 1, 0},
+      {1, 1, 0, 1, 1, 0},
+      {1, 1, 1, 0, 1, 0},
+      {1, 1, 1, 1, 0, 0},
+      {8, 1, 1, 1, 1, 7},
+      {std::numeric_limits<uint32_t>::max(), 1, 1, 2, 1, 0},
+      {std::numeric_limits<uint32_t>::max(),
+       std::numeric_limits<uint32_t>::max(),
+       std::numeric_limits<uint32_t>::max(),
+       1,
+       1,
+       0},
+      {1, 2, 1, 1, std::numeric_limits<size_t>::max(), 2},
+      {1, 2, 1, 1, std::numeric_limits<size_t>::max(), 0},
+  }};
+  const bw::TextureUploadLayout sentinel = {11, 12, 13, 14, 15, 16};
+  for (const RejectedCase &test : rejected_cases) {
+    bw::TextureUploadLayout actual = sentinel;
+    if (!require(!bw::texture_upload_layout(test.width,
+                                            test.height,
+                                            test.depth,
+                                            test.device_texel_bytes,
+                                            test.host_texel_bytes,
+                                            test.unpack_row_length,
+                                            actual),
+                 "invalid texture upload layout accepted") ||
+        !require(actual.sample_count == sentinel.sample_count &&
+                     actual.device_data_size == sentinel.device_data_size &&
+                     actual.source_row_stride == sentinel.source_row_stride &&
+                     actual.source_data_size == sentinel.source_data_size &&
+                     actual.bytes_per_row == sentinel.bytes_per_row &&
+                     actual.row_count == sentinel.row_count,
+                 "upload layout rejection is atomic"))
+    {
+      return false;
+    }
+  }
+
+  struct RegionCase {
+    wgpu::Origin3D origin;
+    wgpu::Extent3D extent;
+    wgpu::Extent3D capacity;
+    bool accepted;
+  };
+  const std::array<RegionCase, 13> region_cases = {{
+      {{0, 0, 0}, {1, 1, 1}, {1, 1, 1}, true},
+      {{3, 4, 5}, {7, 8, 9}, {10, 12, 14}, true},
+      {{UINT32_MAX - 1, 0, 0}, {1, 1, 1}, {UINT32_MAX, 1, 1}, true},
+      {{0, 0, 0}, {0, 1, 1}, {1, 1, 1}, false},
+      {{0, 0, 0}, {1, 0, 1}, {1, 1, 1}, false},
+      {{0, 0, 0}, {1, 1, 0}, {1, 1, 1}, false},
+      {{2, 0, 0}, {1, 1, 1}, {1, 1, 1}, false},
+      {{0, 2, 0}, {1, 1, 1}, {1, 1, 1}, false},
+      {{0, 0, 2}, {1, 1, 1}, {1, 1, 1}, false},
+      {{1, 0, 0}, {2, 1, 1}, {2, 1, 1}, false},
+      {{0, 1, 0}, {1, 2, 1}, {1, 2, 1}, false},
+      {{0, 0, 1}, {1, 1, 2}, {1, 1, 2}, false},
+      {{UINT32_MAX, 0, 0}, {2, 1, 1}, {UINT32_MAX, 1, 1}, false},
+  }};
+  size_t regions_accepted = 0;
+  size_t regions_rejected = 0;
+  for (const RegionCase &test : region_cases) {
+    const bool actual = bw::texture_region_fits(test.origin, test.extent, test.capacity);
+    if (!require(actual == test.accepted, "texture upload region decision")) {
+      return false;
+    }
+    regions_accepted += actual ? 1 : 0;
+    regions_rejected += actual ? 0 : 1;
+    hash = fnv_byte(hash, uint8_t(actual));
+  }
+
+  std::printf("CONTRACT upload-layout PASS layouts=%zu accepted=%zu rejected=%zu "
+              "regions=%zu/%zu digest=%016" PRIx64 "\n",
+              accepted_cases.size() + rejected_cases.size(),
+              accepted_cases.size(),
+              rejected_cases.size(),
+              regions_accepted,
+              regions_rejected,
+              hash);
+  return regions_accepted == 3 && regions_rejected == 10;
+}
+
 bool packed_row_stride_contract()
 {
   struct Case {
@@ -1047,14 +1191,15 @@ int main()
   if (!table_contract() || !capabilities_contract() || !format_creation_contract() ||
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
-      !allocation_limit_contract() || !packed_row_stride_contract() ||
+      !allocation_limit_contract() || !upload_layout_contract() || !packed_row_stride_contract() ||
       !compressed_upload_layout_contract() ||
       !component_swizzle_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=13 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=14 formats=63 creation_cases=448 allocation_limits=26 "
+      "upload_layouts=14 upload_regions=13 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

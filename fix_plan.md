@@ -699,6 +699,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   rebuilds and ends locked-Ninja no-work. No adapter, device, buffer allocation, browser receipt,
   or result promotion is created. Evidence:
   `notes/m3-t6-buffer-allocation-limit-20260822.md`.
+- [x] **M3.T9.texture-allocation-limits [gpu-backend] COMPLETE (patch 0177):** texture
+  creation now rejects physical 1D/2D/array/3D extents and mip counts outside the live device
+  limits before Dawn can return a non-null error texture. Twenty-six zero, exact-limit,
+  over-limit, and NPOT mip cases pass byte-identically in native/wasm32; canonical replay is
+  exact, and the real windowed product rebuilds and ends locked-Ninja no-work. No adapter,
+  device, texture, browser receipt, or result promotion is created. Evidence:
+  `notes/m3-t9-texture-allocation-limits-20260822.md`.
 - [x] **M3.T9.bc-upload [gpu-backend] COMPLETE (patch 0170):** Blender's existing BC1/2/3
   DDS mip blocks now reach `Queue::WriteTexture` with Dawn's physical 4x4 extent, exact block-row
   stride, edge, layer, and overflow validation. Unsupported texture types or devices without

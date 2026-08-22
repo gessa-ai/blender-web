@@ -28,6 +28,7 @@ set(_bw_integrated_texture_sources
   wgpu_texture_format.cc
   wgpu_texture_format.hh
   wgpu_texture_format_list.h
+  wgpu_common.hh
   wgpu_data_conversion.cc
   wgpu_data_conversion.hh
 )

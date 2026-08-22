@@ -1,0 +1,115 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -92,6 +92,58 @@ inline bool buffer_allocation_size(size_t requested_size,
+   result = candidate;
+   return true;
+ }
++
++/** Validate one texture allocation against the live device's dimension, array-layer, and
++ * mip-level limits. This mirrors Dawn's `ValidateTextureSize` decision before CreateTexture can
++ * return a non-null error texture. */
++inline bool texture_allocation_supported(wgpu::TextureDimension dimension,
++                                         const wgpu::Extent3D &size,
++                                         uint32_t mip_level_count,
++                                         const wgpu::Limits &limits)
++{
++  if (size.width == 0 || size.height == 0 || size.depthOrArrayLayers == 0 ||
++      mip_level_count == 0)
++  {
++    return false;
++  }
++
++  uint32_t max_mipped_dimension;
++  switch (dimension) {
++    case wgpu::TextureDimension::e1D:
++      return size.height == 1 && size.depthOrArrayLayers == 1 && mip_level_count == 1 &&
++             size.width <= limits.maxTextureDimension1D;
++    case wgpu::TextureDimension::e2D:
++      if (size.width > limits.maxTextureDimension2D ||
++          size.height > limits.maxTextureDimension2D ||
++          size.depthOrArrayLayers > limits.maxTextureArrayLayers)
++      {
++        return false;
++      }
++      max_mipped_dimension = size.width > size.height ? size.width : size.height;
++      break;
++    case wgpu::TextureDimension::e3D:
++      if (size.width > limits.maxTextureDimension3D ||
++          size.height > limits.maxTextureDimension3D ||
++          size.depthOrArrayLayers > limits.maxTextureDimension3D)
++      {
++        return false;
++      }
++      max_mipped_dimension = size.width > size.height ? size.width : size.height;
++      if (size.depthOrArrayLayers > max_mipped_dimension) {
++        max_mipped_dimension = size.depthOrArrayLayers;
++      }
++      break;
++    case wgpu::TextureDimension::Undefined:
++      return false;
++  }
++
++  uint32_t max_mip_level_count = 0;
++  while (max_mipped_dimension != 0) {
++    max_mip_level_count++;
++    max_mipped_dimension >>= 1;
++  }
++  return mip_level_count <= max_mip_level_count;
++}
+-
++
+ /** True when the half-open byte range [offset, offset + size) is contained in
+  * an allocation of `capacity` bytes. The subtraction form cannot overflow. */
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -676,20 +676,24 @@ bool WGPUTexture::allocate()
+   if (ctx == nullptr) {
+     return false;
+   }
++  wgpu::Device device = ctx->device_get();
++  if (device == nullptr) {
++    return false;
++  }
+-
++
+   TextureFormatFeatures format_features;
+   format_features.texture_compression_bc =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::TextureCompressionBC);
++      device.HasFeature(wgpu::FeatureName::TextureCompressionBC);
+   format_features.unorm16_texture_formats =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
++      device.HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
+   format_features.texture_formats_tier1 =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1);
++      device.HasFeature(wgpu::FeatureName::TextureFormatsTier1);
+   format_features.depth32_float_stencil8 =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
++      device.HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
+   format_features.float32_filterable =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::Float32Filterable);
++      device.HasFeature(wgpu::FeatureName::Float32Filterable);
+   format_features.rg11b10_ufloat_renderable =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
++      device.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
+   if (!format_creation_supported(fi.gate, format_features)) {
+     return false;
+   }
+@@ -773,7 +777,14 @@ bool WGPUTexture::allocate()
+     desc.viewFormats = &paired_format;
+   }
+-
++
+-  texture_ = ctx->device_get().CreateTexture(&desc);
++  wgpu::Limits limits = {};
++  if (!device.GetLimits(&limits) ||
++      !texture_allocation_supported(desc.dimension, desc.size, desc.mipLevelCount, limits))
++  {
++    return false;
++  }
++
++  texture_ = device.CreateTexture(&desc);
+   if (texture_ == nullptr) {
+     return false;
+   }

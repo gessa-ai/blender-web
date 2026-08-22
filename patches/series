@@ -822,3 +822,7 @@
 # before Dawn can return a non-null error buffer. The device-free native/Wasm
 # contract covers ten zero, exact-limit, over-limit, and SIZE_MAX boundary cases.
 0176-gpu-webgpu-buffer-allocation-limit.patch
+# 0177: reject texture extents, array layers, and mip counts above the live
+# device limits before Dawn can return a non-null error texture. The device-free
+# native/Wasm contract covers all physical dimensions and exact boundaries.
+0177-gpu-webgpu-texture-allocation-limits.patch

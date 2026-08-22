@@ -19,6 +19,7 @@
 
 #include "intern/gpu_texture_private.hh"
 
+#include "wgpu_common.hh"
 #include "wgpu_data_conversion.hh"
 #include "wgpu_texture_format.hh"
 
@@ -774,6 +775,80 @@ bool boundary_contract()
   return cases == 8;
 }
 
+bool allocation_limit_contract()
+{
+  wgpu::Limits limits = {};
+  limits.maxTextureDimension1D = 8192;
+  limits.maxTextureDimension2D = 4096;
+  limits.maxTextureDimension3D = 2048;
+  limits.maxTextureArrayLayers = 256;
+
+  struct Case {
+    wgpu::TextureDimension dimension;
+    wgpu::Extent3D size;
+    uint32_t mip_levels;
+    bool accepted;
+  };
+  const std::array<Case, 25> cases = {{
+      {wgpu::TextureDimension::Undefined, {1, 1, 1}, 1, false},
+      {wgpu::TextureDimension::e1D, {1, 1, 1}, 1, true},
+      {wgpu::TextureDimension::e1D, {8192, 1, 1}, 1, true},
+      {wgpu::TextureDimension::e1D, {8193, 1, 1}, 1, false},
+      {wgpu::TextureDimension::e1D, {8192, 2, 1}, 1, false},
+      {wgpu::TextureDimension::e1D, {8192, 1, 2}, 1, false},
+      {wgpu::TextureDimension::e1D, {8192, 1, 1}, 2, false},
+      {wgpu::TextureDimension::e2D, {1, 1, 1}, 1, true},
+      {wgpu::TextureDimension::e2D, {4096, 4096, 256}, 13, true},
+      {wgpu::TextureDimension::e2D, {4097, 4096, 256}, 13, false},
+      {wgpu::TextureDimension::e2D, {4096, 4097, 256}, 13, false},
+      {wgpu::TextureDimension::e2D, {4096, 4096, 257}, 13, false},
+      {wgpu::TextureDimension::e2D, {4096, 4096, 256}, 14, false},
+      {wgpu::TextureDimension::e2D, {5, 3, 1}, 3, true},
+      {wgpu::TextureDimension::e2D, {5, 3, 1}, 4, false},
+      {wgpu::TextureDimension::e3D, {1, 1, 1}, 1, true},
+      {wgpu::TextureDimension::e3D, {2048, 2048, 2048}, 12, true},
+      {wgpu::TextureDimension::e3D, {2049, 2048, 2048}, 12, false},
+      {wgpu::TextureDimension::e3D, {2048, 2049, 2048}, 12, false},
+      {wgpu::TextureDimension::e3D, {2048, 2048, 2049}, 12, false},
+      {wgpu::TextureDimension::e3D, {2048, 2048, 2048}, 13, false},
+      {wgpu::TextureDimension::e2D, {0, 1, 1}, 1, false},
+      {wgpu::TextureDimension::e2D, {1, 0, 1}, 1, false},
+      {wgpu::TextureDimension::e2D, {1, 1, 0}, 1, false},
+      {wgpu::TextureDimension::e2D, {1, 1, 1}, 0, false},
+  }};
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  for (const Case &test : cases) {
+    const bool actual = bw::texture_allocation_supported(
+        test.dimension, test.size, test.mip_levels, limits);
+    if (!require(actual == test.accepted, "texture allocation-limit decision")) {
+      return false;
+    }
+    accepted += actual ? 1 : 0;
+    rejected += actual ? 0 : 1;
+  }
+
+  wgpu::Limits zero_limits = {};
+  zero_limits.maxTextureDimension1D = 0;
+  zero_limits.maxTextureDimension2D = 0;
+  zero_limits.maxTextureDimension3D = 0;
+  zero_limits.maxTextureArrayLayers = 0;
+  if (!require(!bw::texture_allocation_supported(
+                   wgpu::TextureDimension::e2D, {1, 1, 1}, 1, zero_limits),
+               "zero texture limits accepted"))
+  {
+    return false;
+  }
+  rejected++;
+
+  std::printf("CONTRACT allocation-limits PASS cases=%zu accepted=%zu rejected=%zu\n",
+              cases.size() + 1,
+              accepted,
+              rejected);
+  return accepted == 7 && rejected == 19;
+}
+
 bool packed_row_stride_contract()
 {
   struct Case {
@@ -972,13 +1047,15 @@ int main()
   if (!table_contract() || !capabilities_contract() || !format_creation_contract() ||
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
-      !packed_row_stride_contract() || !compressed_upload_layout_contract() ||
+      !allocation_limit_contract() || !packed_row_stride_contract() ||
+      !compressed_upload_layout_contract() ||
       !component_swizzle_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=12 formats=63 creation_cases=448 promotions=13 "
+      "INTEGRATED_TEXTURE_PASS contracts=13 formats=63 creation_cases=448 allocation_limits=26 "
+      "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;
 }

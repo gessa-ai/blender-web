@@ -64,6 +64,7 @@ source_digest()
     intern/gpu_texture_private.hh
     ../blenlib/BLI_assert.h
     ../blenlib/intern/BLI_assert.cc
+    webgpu/wgpu_common.hh
     webgpu/wgpu_texture_format.cc
     webgpu/wgpu_texture_format.hh
     webgpu/wgpu_texture_format_list.h
@@ -111,6 +112,7 @@ for source_name in \
   wgpu_texture_format.cc \
   wgpu_texture_format.hh \
   wgpu_texture_format_list.h \
+  wgpu_common.hh \
   wgpu_texture.cc \
   wgpu_data_conversion.cc \
   wgpu_data_conversion.hh
@@ -159,6 +161,7 @@ fi
 
 FORMAT_SOURCE="$WEBGPU_SOURCE/wgpu_texture_format.cc"
 FORMAT_HEADER="$WEBGPU_SOURCE/wgpu_texture_format.hh"
+COMMON_HEADER="$WEBGPU_SOURCE/wgpu_common.hh"
 if [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!format_creation_supported(fi.gate, format_features)) {' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
@@ -172,12 +175,23 @@ then
   exit 1
 fi
 
+if [ "$(grep -Fc 'inline bool texture_allocation_supported(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc '!texture_allocation_supported(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: canonical texture allocation-limit wiring differs" >&2
+  exit 1
+fi
+
 CREATION_GUARD_LINE="$(grep -nF 'if (!format_creation_supported(fi.gate, format_features)) {' \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
-CREATE_TEXTURE_LINE="$(grep -nF 'texture_ = ctx->device_get().CreateTexture(&desc);' \
+ALLOCATION_GUARD_LINE="$(grep -nF '!texture_allocation_supported(' \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
-if [ -z "$CREATION_GUARD_LINE" ] || [ -z "$CREATE_TEXTURE_LINE" ] ||
+CREATE_TEXTURE_LINE="$(grep -nF 'texture_ = device.CreateTexture(&desc);' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+if [ -z "$CREATION_GUARD_LINE" ] || [ -z "$ALLOCATION_GUARD_LINE" ] ||
+   [ -z "$CREATE_TEXTURE_LINE" ] ||
    [ "$CREATION_GUARD_LINE" -ge "$CREATE_TEXTURE_LINE" ] ||
+   [ "$ALLOCATION_GUARD_LINE" -ge "$CREATE_TEXTURE_LINE" ] ||
    [ "$(sed -n "$((CREATION_GUARD_LINE + 1))p" "$RGB9E5_TEXTURE_SOURCE")" != \
      '    return false;' ]
 then
@@ -342,13 +356,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=12 formats=63 creation_cases=448 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=13 formats=63 creation_cases=448 allocation_limits=26 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 12 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 13 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

@@ -227,3 +227,10 @@ the 257-path / 20,258-entry authority. The patch is now 1,567,504 bytes with SHA
 `886eea5052e492eac6c0658d44872389fd60bf420e89b3aeab7d61138a3253bf`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `7ff47d3453e57907bf3143f83b08debd324230c6d37f494b81b1cd68c9d82f67`.
+
+Patch 0177's fail-closed texture dimension, array-layer, and mip-limit validation was then
+composed without changing the 257-path / 20,258-entry authority. The patch is now 1,569,723
+bytes with SHA-256
+`42fd53158a55c78a3e8c8ba9a3014dbf505c931302d652620bdee704ab3b15fd`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`6615aed1077016c70a1d0ca0e7bfa3309e48121fdfe47e60cd226be600deca9a`.

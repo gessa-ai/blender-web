@@ -189,8 +189,14 @@ bool index_metadata_contract()
   IndexStripHarness device_only;
   device_only.init_build_on_device(17);
 
-  const webgpu::IndexBindingPlan child_binding = webgpu::index_binding_plan(child);
-  const webgpu::IndexBindingPlan wide_binding = webgpu::index_binding_plan(wide_child);
+  const webgpu::IndexBindingPlan child_binding = webgpu::index_binding_plan(
+      child, webgpu::IndexBindingMode::Direct);
+  const webgpu::IndexBindingPlan child_indirect_binding = webgpu::index_binding_plan(
+      child, webgpu::IndexBindingMode::Indirect);
+  const webgpu::IndexBindingPlan wide_binding = webgpu::index_binding_plan(
+      wide_child, webgpu::IndexBindingMode::Direct);
+  const webgpu::IndexBindingPlan wide_indirect_binding = webgpu::index_binding_plan(
+      wide_child, webgpu::IndexBindingMode::Indirect);
 
   if (!require(!parent.is_32bit(), "parent compresses to u16") ||
       !require(parent.index_base_get() == 65536, "parent base") ||
@@ -202,10 +208,16 @@ bool index_metadata_contract()
       !require(!child.is_32bit() && child.size_get() == 4, "subrange u16 byte size") ||
       !require(child_binding.byte_offset == 2 && child_binding.base_vertex == 65536,
                "subrange u16 draw binding") ||
+      !require(child_indirect_binding.byte_offset == 0 &&
+                   child_indirect_binding.base_vertex == 65536,
+               "subrange u16 indirect binding") ||
       !require(wide_child.is_32bit() && wide_child.index_start_get() == 3,
                "subrange u32 metadata") ||
       !require(wide_binding.byte_offset == 12 && wide_binding.base_vertex == 0,
                "subrange u32 draw binding") ||
+      !require(wide_indirect_binding.byte_offset == 0 &&
+                   wide_indirect_binding.base_vertex == 0,
+               "subrange u32 indirect binding") ||
       !require(device_only.is_32bit(), "device-built indices are u32") ||
       !require(device_only.index_start_get() == 0 && device_only.index_len_get() == 17,
                "device-built span") ||
@@ -215,7 +227,8 @@ bool index_metadata_contract()
   }
 
   std::puts(
-      "CONTRACT index-metadata PASS subranges=2 bindings=u16@2+65536/u32@12+0 device-u32=17");
+      "CONTRACT index-metadata PASS subranges=2 "
+      "direct=u16@2+65536/u32@12+0 indirect=u16@0+65536/u32@0+0 device-u32=17");
   return true;
 }
 

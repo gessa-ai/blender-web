@@ -529,6 +529,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   device, draw, browser, or receipt is created; live pixel proof remains owned by
   **M3-LINUX-REPLAY** under s7. Evidence:
   `notes/m3-f7-index-subrange-binding-20260821.md`.
+- [x] **M3.F7.indirect-subrange [gpu-backend] COMPLETE (patch 0158):** indirect indexed draws
+  now bind the complete parent allocation because Blender's generated `DrawCommandIndexed`
+  already carries the absolute first index and squeezed-u16 base vertex; the former WebGPU path
+  applied the subrange start twice. The canonical native/wasm32 metadata contract covers direct
+  and indirect u16/u32 plans and exact-source binds both shipping encoders plus the pinned command
+  producer. The real windowed Wasm product compiles and links the changed batch path. No instance,
+  adapter, device, draw, browser, or receipt is created; live pixel proof remains owned by
+  **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-f7-indirect-index-subrange-20260821.md`.
 - [x] **M3.T10.state.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree fixed-function state table
   directly against Blender's real GPU enums. Four exhaustive contracts cover all 16 blend rows,

@@ -4,8 +4,8 @@
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # buffer wrapper, pixel-upload buffer, readback registry, and index-buffer
-# point-restart cleanup and indexed-draw subrange binding plan. Invoke through
-# harness/buildwrap.sh.
+# point-restart cleanup and direct/indirect indexed-draw subrange binding plans.
+# Invoke through harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -71,6 +71,9 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_index_buffer.cc
     source/blender/gpu/webgpu/wgpu_index_buffer.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
+    source/blender/gpu/intern/gpu_batch.cc
+    source/blender/draw/intern/draw_shader_shared.hh
+    source/blender/draw/intern/shaders/draw_command_generate_comp.glsl
     source/blender/draw/engines/eevee/eevee_shadow.cc
     source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc
     source/blender/gpu/intern/gpu_index_buffer.cc
@@ -122,7 +125,11 @@ require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_index_buffer.cc"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_index_buffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_primitive.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_batch.cc"
 require_file "$ROOT/upstream/intern/guardedalloc/MEM_guardedalloc.h"
+require_file "$ROOT/upstream/source/blender/draw/intern/draw_shader_shared.hh"
+require_file \
+  "$ROOT/upstream/source/blender/draw/intern/shaders/draw_command_generate_comp.glsl"
 require_file "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_shadow.cc"
 require_file \
   "$ROOT/upstream/source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc"
@@ -156,15 +163,25 @@ require_fixed_count()
   fi
 }
 
-# Bind the pure metadata contract to every shipping direct-draw arm, then
-# separately census real multi-viewport and mesh-subrange producers. Live
-# combinations remain part of the hardware-owned M3 replay.
+# Bind the pure metadata contract to the shipping direct and indirect draw arms,
+# then bind the indirect command producer and separately census real
+# multi-viewport and mesh-subrange producers. Live combinations remain part of
+# the hardware-owned M3 replay.
 require_fixed_count 1 \
-  'inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer)' \
+  'inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer,' \
   "$WEBGPU_SOURCE/wgpu_index_buffer.hh"
-require_fixed_count 1 'webgpu::index_binding_plan(*elem)' "$WEBGPU_SOURCE/wgpu_batch.cc"
-require_fixed_count 2 'index_binding.byte_offset' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'webgpu::IndexBindingMode::Direct' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'webgpu::IndexBindingMode::Indirect' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 3 'index_binding.byte_offset' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 4 'index_binding.base_vertex' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 '*r_vertex_first = batch->elem_()->index_start_get();' \
+  "$ROOT/upstream/source/blender/gpu/intern/gpu_batch.cc"
+require_fixed_count 1 '*r_base_index = batch->elem_()->index_base_get();' \
+  "$ROOT/upstream/source/blender/gpu/intern/gpu_batch.cc"
+require_fixed_count 2 'cmd_indexed.vertex_first = uint(group.vertex_first);' \
+  "$ROOT/upstream/source/blender/draw/intern/shaders/draw_command_generate_comp.glsl"
+require_fixed_count 2 'cmd_indexed.base_index = uint(group.base_index);' \
+  "$ROOT/upstream/source/blender/draw/intern/shaders/draw_command_generate_comp.glsl"
 require_fixed_count 1 'GPU_framebuffer_multi_viewports_set(render_fb_,' \
   "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_shadow.cc"
 require_fixed_count 2 'GPU_indexbuf_create_subrange' \
@@ -294,7 +311,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT index-metadata PASS subranges=2 bindings=u16@2+65536/u32@12+0 device-u32=17' \
+    'CONTRACT index-metadata PASS subranges=2 direct=u16@2+65536/u32@12+0 indirect=u16@0+65536/u32@0+0 device-u32=17' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2

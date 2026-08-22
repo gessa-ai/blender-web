@@ -56,7 +56,7 @@ git -C upstream apply --reverse --check ../patches/PREVIEW_SNAPSHOT.patch
 `patches/canonical` names this single squashed source-reconstruction patch. The historical
 filename is retained because the stronger canonical freezer regenerated the file byte-for-byte;
 renaming or duplicating the 1.5 MB blob would add no integrity. Its SHA-256 is
-`6473b2a62a450260a41decd73fa200c3831c422763d9f8ac511cc0ad38108e8b`. It is the exact
+`a5ee03e943121c11bb48f4c3e79f83adfc2d7c50974ea6262b56b5924917f3e1`. It is the exact
 integration-tree authority, including 257 concrete modified/untracked upstream paths (210 in
 Git's compact status view). Do not reconstruct the current tree by applying an arbitrary subset
 of numbered historical patches.

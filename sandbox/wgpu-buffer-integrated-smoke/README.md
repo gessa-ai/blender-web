@@ -15,10 +15,13 @@ matrix, alignment and index helpers, invalid-buffer behavior, move lifetime, the
 pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real readback registry's
 invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
 wide u32 indices, rebased u16 squeezing, build-on-device metadata, and both u16 and
-u32 subrange binding plans (byte offset plus base vertex). Exact source checks bind
-that plan to ordinary and multi-viewport indexed draws, then separately census
-EEVEE's multi-viewport shadow path and mesh triangle-subrange producers. The live
-combinations remain part of the hardware-owned M3 replay.
+u32 subrange binding plans (byte offset plus base vertex). Direct plans bind the
+subrange byte window; indirect plans bind offset zero because Blender's generated
+`DrawCommandIndexed` already contains the absolute first index and base vertex.
+Exact source checks bind both modes to the shipping draw arms and to the command
+producer, then separately census EEVEE's multi-viewport shadow path and mesh
+triangle-subrange producers. The live combinations remain part of the hardware-owned
+M3 replay.
 The readback cases fill the 256-record exact-ticket cap, prove overflow is fail-closed,
 retire half the records, refill the released capacity, and prove full reuse before
 requiring byte-identical native/Node evidence.

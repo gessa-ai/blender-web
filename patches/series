@@ -744,3 +744,8 @@
 # source checks bind both draw arms and separately census real multi-viewport and
 # mesh-subrange producers.
 0157-gpu-webgpu-index-subrange-binding-plan.patch
+# 0158: distinguish direct subrange binding from GPU-generated indirect commands.
+# Direct draws bind the subrange byte window, while DrawCommandIndexed already
+# carries absolute firstIndex/baseVertex and therefore binds the parent allocation
+# at offset zero. The device-free native/Wasm contract covers u16/u32 subranges.
+0158-gpu-webgpu-indirect-index-subrange-binding.patch

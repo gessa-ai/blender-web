@@ -762,3 +762,7 @@
 # Distinct valid alias sequences can concatenate to identical raw bytes while matching
 # different shader locations; the native/Wasm contract proves those keys stay separate.
 0161-gpu-webgpu-pipeline-vertex-alias-key.patch
+# 0162: reject trailing bytes after an otherwise valid checksummed WGSL cache payload.
+# The exact shipping reader's native/Wasm contract proves a clean hit, an appended-byte
+# miss, unchanged output sentinels, and cleanup without creating a WebGPU device.
+0162-gpu-webgpu-shader-cache-envelope.patch

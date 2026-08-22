@@ -1,0 +1,15 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.cc b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader_cache.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+@@ -185,6 +185,11 @@ bool cache_lookup(const ShaderCacheKey &key,
+     {
+       break;
+     }
++    /* A cache entry is one exact envelope. A valid checksummed prefix followed by
++     * stale or torn bytes is still corruption and must re-enter translation. */
++    if (std::fgetc(f) != EOF || std::ferror(f) != 0) {
++      break;
++    }
+     if (payload_hash(v, fr, c) != expected_payload_hash) {
+       break;
+     }

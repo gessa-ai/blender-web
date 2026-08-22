@@ -580,6 +580,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   windowed product compiles and links the corrected cache path. No instance, adapter, device,
   pipeline, draw, or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under
   s7. Evidence: `notes/m3-t10-pipeline-alias-key-20260821.md`.
+- [x] **M3.T7.cache-envelope [gpu-backend] COMPLETE (patch 0162):** the WGSL disk-cache reader
+  now requires EOF immediately after the bounded checksummed payload, so appended or torn bytes
+  force translation instead of accepting a valid prefix. The exact shipping reader's native/
+  wasm32 contract proves a clean hit, appended-byte miss, unchanged output sentinels, and cleanup;
+  the real windowed product compiles and links the corrected cache path. No instance, adapter,
+  device, shader module, pipeline, browser receipt, or result promotion is created. Evidence:
+  `notes/m3-t7-cache-envelope-20260821.md`.
 - [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
   indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
   format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former

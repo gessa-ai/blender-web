@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
@@ -18,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "wgpu_shader_cache.hh"
 #include "wgpu_shader_compiler.hh"
 #include "wgpu_shader_interface_map.hh"
 
@@ -292,6 +294,48 @@ bool bindmap_cache_reflection_contract()
          cold.sampled_texture_bindings == warm.sampled_texture_bindings;
 }
 
+bool cache_envelope_contract()
+{
+  const char *cache_dir = std::getenv("BW_SHADER_CACHE_DIR");
+  if (cache_dir == nullptr || cache_dir[0] == '\0') {
+    return false;
+  }
+
+  const bw::ShaderCacheKey key{0x454e56454c4f5045ull, 0x545241494c494e47ull};
+  char filename[48];
+  std::snprintf(filename,
+                sizeof(filename),
+                "%016llx%016llx.wgslc",
+                static_cast<unsigned long long>(key.hi),
+                static_cast<unsigned long long>(key.lo));
+  const std::string path = std::string(cache_dir) + "/" + filename;
+  const std::string expected_vertex = "vertex-envelope";
+  const std::string expected_fragment = "fragment-envelope";
+  const std::string expected_compute = "compute-envelope";
+  bw::cache_store(key, expected_vertex, expected_fragment, expected_compute);
+
+  std::string vertex;
+  std::string fragment;
+  std::string compute;
+  const bool clean_hit = bw::cache_lookup(key, vertex, fragment, compute) &&
+                         vertex == expected_vertex && fragment == expected_fragment &&
+                         compute == expected_compute;
+
+  FILE *file = std::fopen(path.c_str(), "ab");
+  const bool appended = file != nullptr && std::fputc('!', file) != EOF;
+  const bool closed = file != nullptr && std::fclose(file) == 0;
+
+  vertex = "vertex-sentinel";
+  fragment = "fragment-sentinel";
+  compute = "compute-sentinel";
+  const bool trailing_rejected = !bw::cache_lookup(key, vertex, fragment, compute) &&
+                                 vertex == "vertex-sentinel" &&
+                                 fragment == "fragment-sentinel" &&
+                                 compute == "compute-sentinel";
+  const bool removed = std::remove(path.c_str()) == 0;
+  return clean_hit && appended && closed && trailing_rejected && removed;
+}
+
 bool type_reflection_contract()
 {
   bw::ShaderStageSources sources;
@@ -509,13 +553,14 @@ int main()
   };
 
   gate("bindmap_cache_reflection", bindmap_cache_reflection_contract());
+  gate("cache_envelope", cache_envelope_contract());
   gate("type_reflection", type_reflection_contract());
   gate("compute_reflection", compute_reflection_contract());
   gate("binding_policy", binding_policy_contract());
   gate("sampler_compaction", sampler_compaction_contract());
 
-  if (passed == 5 && total == 5) {
-    std::cout << "INTEGRATED_SHADER_COMPILER_PASS contracts=5 cache_entries=4\n";
+  if (passed == 6 && total == 6) {
+    std::cout << "INTEGRATED_SHADER_COMPILER_PASS contracts=6 cache_entries=4\n";
     return 0;
   }
   std::cerr << "INTEGRATED_SHADER_COMPILER_FAIL contracts=" << passed << "/" << total << "\n";

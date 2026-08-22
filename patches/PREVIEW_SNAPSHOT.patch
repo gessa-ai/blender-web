@@ -27455,10 +27455,10 @@ index 0000000000000000000000000000000000000000..ed04ac626e2506b9319e6a04b18d8073
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.cc b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cdf50728837fcdcef506ed472049a76f127c2628
+index 0000000000000000000000000000000000000000..9b48d29f7924f8aa7ffd13b259db04acdc107a6b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,265 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later */
@@ -27657,6 +27657,11 @@ index 0000000000000000000000000000000000000000..cdf50728837fcdcef506ed472049a76f
 +    if ((vlen && !read_exact(f, &v[0], vlen)) || (flen && !read_exact(f, &fr[0], flen)) ||
 +        (clen && !read_exact(f, &c[0], clen)))
 +    {
++      break;
++    }
++    /* A cache entry is one exact envelope. A valid checksummed prefix followed by
++     * stale or torn bytes is still corruption and must re-enter translation. */
++    if (std::fgetc(f) != EOF || std::ferror(f) != 0) {
 +      break;
 +    }
 +    if (payload_hash(v, fr, c) != expected_payload_hash) {

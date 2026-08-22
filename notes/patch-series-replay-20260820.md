@@ -136,3 +136,9 @@ Patch 0161's vertex-alias cache-key framing was then composed without changing t
 `2b32dfed7921b565c3f17c2e5a32429d724790e4f743681d742134b5d2c9418f`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `79e9e8df23b24e625ae2652ae7449c487726378c4683b347d6a939702fdfeb51`.
+
+Patch 0162's strict WGSL-cache envelope check was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,544,573 bytes with SHA-256
+`2b05464d60d3adde9be154ba4e9051680fdf4c2e81ae052a126bc3016e0f0290`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`09eb8a314d51b4bd66e1ced20e91738738fc9a8da5beba9e065cc2e5b8cf626d`.

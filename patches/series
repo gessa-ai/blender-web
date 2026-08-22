@@ -791,3 +791,6 @@
 # compact 32-bit RGB10A2 and R11G11B10 representations instead of multiplying
 # their packed data-format width by the texture's logical component count.
 0168-gpu-webgpu-packed-upload-row-stride.patch
+# 0169: transcode complete signed packed-normal fields in vertex-buffer subrange
+# updates before writing Snorm8x4 storage; reject partial packed fields atomically.
+0169-gpu-webgpu-i10-subrange-update.patch

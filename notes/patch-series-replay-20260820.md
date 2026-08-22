@@ -178,3 +178,9 @@ Patch 0168's packed strided-upload row-size correction was then composed without
 `f7240244a1971f87399010bbf2afe64e145837172cafa67ae9ead6cfa028a5d9`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `a690ef64439b3e8df49b2cf9034e728931481bbb0832825bec4089be797cfe4a`.
+
+Patch 0169's signed packed-normal subrange-update correction was then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,553,145 bytes with SHA-256
+`e6476ec9ed391efbcf3ffcb8281d0497354246f5e2b019bcd144429400b0d76f`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`7633f52f3646196f89530538207cc8b05cea397e6b9f20911f2b65317b46ce9d`.

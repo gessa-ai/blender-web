@@ -266,6 +266,168 @@ bool bounds_contract()
   return true;
 }
 
+bool subrange_contract()
+{
+  constexpr uint interleaved_vertices = 8;
+  constexpr size_t interleaved_stride = 12;
+  GPUVertFormat interleaved = make_format({gpu::VertAttrType::UINT_32,
+                                           gpu::VertAttrType::SNORM_10_10_10_2,
+                                           gpu::VertAttrType::UNORM_8_8_8_8},
+                                          interleaved_stride,
+                                          false);
+  std::vector<uint8_t> interleaved_source(interleaved_vertices * interleaved_stride, 0x5a);
+  for (uint vertex = 0; vertex < interleaved_vertices; vertex++) {
+    store_u32(interleaved_source.data() + size_t(vertex) * interleaved_stride + 4,
+              pack_i10(vertex * 73u, 1023u - vertex * 31u, vertex * 19u, vertex));
+  }
+  std::vector<uint8_t> interleaved_expected = interleaved_source;
+  transcode_i10_attrs(
+      interleaved_expected.data(), interleaved_expected.size(), interleaved, interleaved_vertices);
+  constexpr size_t interleaved_start = interleaved_stride + 4;
+  constexpr size_t interleaved_length = 40;
+  std::vector<uint8_t> interleaved_payload(
+      interleaved_source.begin() + interleaved_start,
+      interleaved_source.begin() + interleaved_start + interleaved_length);
+  if (!require(transcode_i10_update_payload(interleaved_payload.data(),
+                                            interleaved_payload.size(),
+                                            interleaved_start,
+                                            interleaved,
+                                            interleaved_vertices),
+               "interleaved signed-I10 subrange accepted") ||
+      !require(std::memcmp(interleaved_payload.data(),
+                           interleaved_expected.data() + interleaved_start,
+                           interleaved_payload.size()) == 0,
+               "interleaved signed-I10 subrange conversion"))
+  {
+    return false;
+  }
+
+  constexpr uint deinterleaved_vertices = 7;
+  GPUVertFormat deinterleaved = make_format({gpu::VertAttrType::SFLOAT_32_32,
+                                             gpu::VertAttrType::SNORM_10_10_10_2,
+                                             gpu::VertAttrType::UINT_32,
+                                             gpu::VertAttrType::SNORM_10_10_10_2},
+                                            20,
+                                            true);
+  std::vector<uint8_t> deinterleaved_source(size_t(deinterleaved_vertices) * 20, 0xa5);
+  constexpr size_t first_i10_base = size_t(deinterleaved_vertices) * 8;
+  constexpr size_t second_i10_base = first_i10_base + size_t(deinterleaved_vertices) * 8;
+  for (uint vertex = 0; vertex < deinterleaved_vertices; vertex++) {
+    store_u32(deinterleaved_source.data() + first_i10_base + size_t(vertex) * 4,
+              pack_i10(vertex * 41u, 511u - vertex, 512u + vertex, vertex));
+    store_u32(deinterleaved_source.data() + second_i10_base + size_t(vertex) * 4,
+              pack_i10(1023u - vertex * 17u, vertex * 29u, vertex * 67u, 3u - vertex));
+  }
+  std::vector<uint8_t> deinterleaved_expected = deinterleaved_source;
+  transcode_i10_attrs(deinterleaved_expected.data(),
+                      deinterleaved_expected.size(),
+                      deinterleaved,
+                      deinterleaved_vertices);
+  auto verify_deinterleaved = [&](const size_t start,
+                                  const size_t length,
+                                  const char *accepted_message,
+                                  const char *conversion_message) {
+    std::vector<uint8_t> payload(deinterleaved_source.begin() + start,
+                                 deinterleaved_source.begin() + start + length);
+    return require(transcode_i10_update_payload(payload.data(),
+                                                payload.size(),
+                                                start,
+                                                deinterleaved,
+                                                deinterleaved_vertices),
+                   accepted_message) &&
+           require(std::memcmp(payload.data(),
+                               deinterleaved_expected.data() + start,
+                               payload.size()) == 0,
+                   conversion_message);
+  };
+  if (!verify_deinterleaved(first_i10_base + 8,
+                            12,
+                            "first deinterleaved signed-I10 subrange accepted",
+                            "first deinterleaved signed-I10 subrange conversion") ||
+      !verify_deinterleaved(second_i10_base + 4,
+                            20,
+                            "second deinterleaved signed-I10 subrange accepted",
+                            "second deinterleaved signed-I10 subrange conversion"))
+  {
+    return false;
+  }
+
+  std::vector<uint8_t> full_payload = interleaved_source;
+  if (!require(transcode_i10_update_payload(full_payload.data(),
+                                            full_payload.size(),
+                                            0,
+                                            interleaved,
+                                            interleaved_vertices),
+               "whole signed-I10 update accepted") ||
+      !require(full_payload == interleaved_expected,
+               "whole signed-I10 update matches initial upload conversion"))
+  {
+    return false;
+  }
+
+  auto require_rejected_unchanged = [&](const size_t start,
+                                        const size_t length,
+                                        const char *message) {
+    std::vector<uint8_t> payload(interleaved_source.begin() + start,
+                                 interleaved_source.begin() + start + length);
+    const std::vector<uint8_t> before = payload;
+    return require(!transcode_i10_update_payload(
+                       payload.data(), payload.size(), start, interleaved, interleaved_vertices),
+                   message) &&
+           require(payload == before, "rejected signed-I10 update remains atomic");
+  };
+  if (!require_rejected_unchanged(17, 4, "leading partial signed-I10 field rejected") ||
+      !require_rejected_unchanged(16, 3, "trailing partial signed-I10 field rejected") ||
+      !require_rejected_unchanged(16, 15, "complete-then-partial signed-I10 range rejected"))
+  {
+    return false;
+  }
+
+  GPUVertFormat huge = make_format({gpu::VertAttrType::SNORM_10_10_10_2}, 4, false);
+  std::array<uint8_t, 4> huge_payload{};
+  store_u32(huge_payload.data(), pack_i10(511, 512, 1023, 1));
+  std::array<uint8_t, 4> huge_expected = huge_payload;
+  transcode_i10_attrs(huge_expected.data(), huge_expected.size(), huge, UINT32_MAX);
+  if (!require(transcode_i10_update_payload(
+                   huge_payload.data(), huge_payload.size(), 0, huge, UINT32_MAX),
+               "constant-work signed-I10 update accepted at maximum vertex census") ||
+      !require(huge_payload == huge_expected,
+               "constant-work signed-I10 update conversion at maximum vertex census"))
+  {
+    return false;
+  }
+
+  std::array<uint8_t, 4> overflow_payload = {1, 2, 3, 4};
+  const std::array<uint8_t, 4> overflow_before = overflow_payload;
+  if (!require(!transcode_i10_update_payload(overflow_payload.data(),
+                                             overflow_payload.size(),
+                                             SIZE_MAX - 1,
+                                             interleaved,
+                                             interleaved_vertices),
+               "overflowing signed-I10 update range rejected") ||
+      !require(overflow_payload == overflow_before, "overflow rejection remains atomic"))
+  {
+    return false;
+  }
+
+  GPUVertFormat plain = make_format({gpu::VertAttrType::SFLOAT_32_32}, 8, false);
+  std::array<uint8_t, 8> plain_payload = {0, 1, 2, 3, 4, 5, 6, 7};
+  const std::array<uint8_t, 8> plain_before = plain_payload;
+  if (!require(transcode_i10_update_payload(
+                   plain_payload.data(), plain_payload.size(), 0, plain, 1),
+               "non-I10 update accepted") ||
+      !require(plain_payload == plain_before, "non-I10 update preserved") ||
+      !require(transcode_i10_update_payload(
+                   interleaved_payload.data(), 0, 16, interleaved, interleaved_vertices),
+               "empty signed-I10 update accepted"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT subrange PASS cases=11 fields=21 rejected=4 max_vertices=4294967295");
+  return true;
+}
+
 bool usage_contract()
 {
   constexpr std::array<webgpu::UsageType, 4> expected = {
@@ -296,12 +458,13 @@ bool usage_contract()
 int run_integrated_vertex_contracts()
 {
   if (!component_contract() || !detection_contract() || !interleaved_contract() ||
-      !deinterleaved_contract() || !bounds_contract() || !usage_contract())
+      !deinterleaved_contract() || !bounds_contract() || !subrange_contract() ||
+      !usage_contract())
   {
     return 1;
   }
   std::puts(
-      "INTEGRATED_VERTEX_PASS contracts=6 components=1024 vertices=1041 fields=1059 usage=8");
+      "INTEGRATED_VERTEX_PASS contracts=7 components=1024 vertices=1041 fields=1080 usage=8");
   return 0;
 }
 

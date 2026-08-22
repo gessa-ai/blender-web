@@ -200,7 +200,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_vertex.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 7 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 8 ] ||
      ! grep -qx 'CONTRACT component PASS cases=1024 range=-127:127' "$stdout_file" ||
      ! grep -qx 'CONTRACT detection PASS cases=19 slots=16 legacy-alias=1' "$stdout_file" ||
      ! grep -qx \
@@ -208,9 +208,12 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT deinterleaved PASS vertices=17 fields=34 preserved=204' "$stdout_file" ||
      ! grep -qx 'CONTRACT bounds PASS nbytes=13 transformed=1 guarded=12' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT subrange PASS cases=11 fields=21 rejected=4 max_vertices=4294967295' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT usage PASS cases=8 masked-flags=4' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_VERTEX_PASS contracts=6 components=1024 vertices=1041 fields=1059 usage=8' \
+       'INTEGRATED_VERTEX_PASS contracts=7 components=1024 vertices=1041 fields=1080 usage=8' \
        "$stdout_file"
   then
     echo "ERROR: integrated vertex evidence differs: $stdout_file" >&2

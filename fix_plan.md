@@ -669,6 +669,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   in native/wasm32, canonical replay is exact, and the real windowed product rebuilds and ends
   locked-Ninja no-work. No adapter, device, texture, browser receipt, or result promotion is
   created. Evidence: `notes/m3-t9-packed-upload-row-stride-20260822.md`.
+- [x] **M3.T6.i10-subrange-update [gpu-backend] COMPLETE (patch 0169):** vertex-buffer
+  subrange updates now transcode complete signed packed-normal fields to the `Snorm8x4`
+  storage representation used by full uploads, while partial packed fields reject atomically.
+  The native/wasm32 contract covers interleaved and deinterleaved ranges, full-upload identity,
+  four rejection controls, and constant work at a `UINT32_MAX` vertex census; canonical replay
+  is exact and the real windowed product rebuilds and ends locked-Ninja no-work. No adapter,
+  device, buffer, draw, browser receipt, or result promotion is created. Evidence:
+  `notes/m3-t6-i10-subrange-update-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

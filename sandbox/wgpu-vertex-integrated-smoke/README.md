@@ -9,8 +9,11 @@ This device-free M3.T6 reconciliation includes Blender's canonical in-tree
 `wgpu_vertex_buffer.cc` postimage directly in one shared native/wasm32 test. It
 covers all 1,024 signed 10-bit component encodings, signed-I10 detection across
 all 16 vertex-attribute slots, 1,024 interleaved vertices, two deinterleaved
-signed-normal blocks, truncated-input safety, and all four usage modes with and
-without the buffer-texture flag.
+signed-normal blocks, truncated-input safety, signed-I10 subrange updates, and
+all four usage modes with and without the buffer-texture flag. The subrange
+contract compares 21 converted fields with the full-upload result, rejects four
+partial/overflowing ranges atomically, and proves a one-field update remains
+bounded even when the declared vertex census is `UINT32_MAX`.
 
 Run only through the build wrapper:
 

@@ -1,0 +1,172 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -56,6 +56,21 @@ static inline int8_t i10_component_to_snorm8(uint32_t bits10)
+   return int8_t((o > 127) ? 127 : (o < -127) ? -127 : o);
+ }
+ 
++static void transcode_i10_field(uint8_t *field)
++{
++  const uint32_t packed = uint32_t(field[0]) | (uint32_t(field[1]) << 8) |
++                          (uint32_t(field[2]) << 16) | (uint32_t(field[3]) << 24);
++  int w = int((packed >> 30) & 0x3u);
++  if (w & 0x2) {
++    w -= 4; /* sign-extend the 2-bit component to [-2, 1]. */
++  }
++  w = (w > 1) ? 1 : (w < -1) ? -1 : w;
++  field[0] = uint8_t(i10_component_to_snorm8(packed));         /* X (low 10 bits) */
++  field[1] = uint8_t(i10_component_to_snorm8(packed >> 10));   /* Y */
++  field[2] = uint8_t(i10_component_to_snorm8(packed >> 20));   /* Z */
++  field[3] = uint8_t(int8_t(w * 127));                         /* W (unused by normals) */
++}
++
+ /** True if `fmt` carries at least one normalized GPU_COMP_I10 attribute needing transcode. */
+ static bool format_has_norm_i10(const GPUVertFormat &fmt)
+ {
+@@ -104,20 +119,111 @@ static void transcode_i10_attrs(uint8_t *bytes,
+       if (off + 4 > nbytes) {
+         break;
+       }
+-      uint8_t *f = bytes + off;
+-      const uint32_t p = uint32_t(f[0]) | (uint32_t(f[1]) << 8) | (uint32_t(f[2]) << 16) |
+-                         (uint32_t(f[3]) << 24);
+-      int w = int((p >> 30) & 0x3u);
+-      if (w & 0x2) {
+-        w -= 4; /* sign-extend the 2-bit component to [-2, 1]. */
++      transcode_i10_field(bytes + off);
++    }
++  }
++}
++
++static void i10_attribute_layout(const GPUVertFormat &fmt,
++                                 const uint attribute_index,
++                                 const uint vertex_len,
++                                 size_t &r_base,
++                                 size_t &r_stride)
++{
++  const GPUVertAttr &attribute = fmt.attrs[attribute_index];
++  if (!fmt.deinterleaved) {
++    r_base = attribute.offset;
++    r_stride = fmt.stride;
++    return;
++  }
++  r_base = 0;
++  for (uint index = 0; index < attribute_index; index++) {
++    r_base += size_t(fmt.attrs[index].type.size()) * size_t(vertex_len);
++  }
++  r_stride = attribute.type.size();
++}
++
++static void i10_update_vertex_range(const size_t base,
++                                    const size_t stride,
++                                    const uint vertex_len,
++                                    const size_t update_start,
++                                    const size_t update_end,
++                                    uint &r_first,
++                                    uint &r_end)
++{
++  r_first = r_end = 0;
++  if (vertex_len == 0 || update_end <= base) {
++    return;
++  }
++  const size_t first = (update_start > base) ? (update_start - base) / stride : 0;
++  if (first >= vertex_len) {
++    return;
++  }
++  const size_t end_delta = update_end - base;
++  const size_t end = end_delta / stride + ((end_delta % stride) != 0);
++  r_first = uint(first);
++  r_end = uint((end < vertex_len) ? end : vertex_len);
++}
++
++/** Convert complete signed-I10 fields inside one `GPU_vertbuf_update_sub` payload.
++ * The payload addresses `[update_start, update_start + nbytes)` in the full VBO. A range
++ * touching only part of a packed field cannot be decoded independently, so reject it before
++ * changing any byte. */
++static bool transcode_i10_update_payload(uint8_t *bytes,
++                                         const size_t nbytes,
++                                         const size_t update_start,
++                                         const GPUVertFormat &fmt,
++                                         const uint vertex_len)
++{
++  if ((bytes == nullptr && nbytes != 0) || update_start > SIZE_MAX - nbytes) {
++    return false;
++  }
++  const size_t update_end = update_start + nbytes;
++
++  /* Validate the whole range first so a rejected payload remains byte-identical. */
++  for (uint attribute_index = 0; attribute_index < fmt.attr_len; attribute_index++) {
++    const GPUVertAttr &attribute = fmt.attrs[attribute_index];
++    if (attribute.type.comp_type() != GPU_COMP_I10 ||
++        attribute.type.fetch_mode() != GPU_FETCH_INT_TO_FLOAT_UNIT)
++    {
++      continue;
++    }
++    size_t base, stride;
++    i10_attribute_layout(fmt, attribute_index, vertex_len, base, stride);
++    uint first_vertex, end_vertex;
++    i10_update_vertex_range(
++        base, stride, vertex_len, update_start, update_end, first_vertex, end_vertex);
++    for (uint vertex = first_vertex; vertex < end_vertex; vertex++) {
++      const size_t field_start = base + size_t(vertex) * stride;
++      const size_t field_end = field_start + 4;
++      const bool overlaps = field_start < update_end && update_start < field_end;
++      if (overlaps && (field_start < update_start || field_end > update_end)) {
++        return false;
+       }
+-      w = (w > 1) ? 1 : (w < -1) ? -1 : w;
+-      f[0] = uint8_t(i10_component_to_snorm8(p));         /* X (low 10 bits) */
+-      f[1] = uint8_t(i10_component_to_snorm8(p >> 10));   /* Y */
+-      f[2] = uint8_t(i10_component_to_snorm8(p >> 20));   /* Z */
+-      f[3] = uint8_t(int8_t(w * 127));                    /* W (2-bit; unused by normals) */
+     }
+   }
++
++  for (uint attribute_index = 0; attribute_index < fmt.attr_len; attribute_index++) {
++    const GPUVertAttr &attribute = fmt.attrs[attribute_index];
++    if (attribute.type.comp_type() != GPU_COMP_I10 ||
++        attribute.type.fetch_mode() != GPU_FETCH_INT_TO_FLOAT_UNIT)
++    {
++      continue;
++    }
++    size_t base, stride;
++    i10_attribute_layout(fmt, attribute_index, vertex_len, base, stride);
++    uint first_vertex, end_vertex;
++    i10_update_vertex_range(
++        base, stride, vertex_len, update_start, update_end, first_vertex, end_vertex);
++    for (uint vertex = first_vertex; vertex < end_vertex; vertex++) {
++      const size_t field_start = base + size_t(vertex) * stride;
++      const size_t field_end = field_start + 4;
++      if (field_start >= update_start && field_end <= update_end) {
++        transcode_i10_field(bytes + field_start - update_start);
++      }
++    }
++  }
++  return true;
+ }
+ 
+ /** Map Blender's base `GPUUsageType` (low bits) to the buffer wrapper's usage. */
+@@ -258,7 +364,22 @@ void WGPUVertexBuffer::update_sub(uint start, uint len, const void *data)
+     return;
+   }
+   WGPUContext *ctx = active_context();
+-  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), start, data, len);
++  if (format_has_norm_i10(format)) {
++    const uint8_t *source = static_cast<const uint8_t *>(data);
++    std::vector<uint8_t> scratch(source, source + len);
++    if (!transcode_i10_update_payload(
++            scratch.data(), scratch.size(), start, format, vertex_len))
++    {
++      BLI_assert_msg(false,
++                     "WebGPU signed-I10 vertex subrange updates must contain whole fields");
++      return;
++    }
++    buffer_.update_sub(
++        ctx->device_get(), ctx->queue_get(), start, scratch.data(), scratch.size());
++  }
++  else {
++    buffer_.update_sub(ctx->device_get(), ctx->queue_get(), start, data, len);
++  }
+   buffer_texture_buffer_dirty_ = true;
+ }
+ 

@@ -8,6 +8,7 @@
  * device, or texture is created; live texture operations remain part of the
  * hardware-gated M3 replay. */
 
+#include <algorithm>
 #include <array>
 #include <cinttypes>
 #include <cmath>
@@ -1079,6 +1080,191 @@ bool clear_layout_contract()
   return true;
 }
 
+bool framebuffer_read_contract()
+{
+  struct AcceptedCase {
+    uint32_t source_width;
+    uint32_t source_height;
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t source_components;
+    uint32_t destination_components;
+    size_t component_bytes;
+    size_t source_size;
+    size_t destination_size;
+  };
+  constexpr std::array<AcceptedCase, 3> accepted_cases = {{
+      {2, 2, 0, 0, 2, 2, 4, 1, 1, 16, 4},
+      {4, 3, 1, 1, 2, 2, 1, 4, 2, 24, 32},
+      {3, 2, 2, 0, 1, 2, 2, 3, 4, 48, 24},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const AcceptedCase &test : accepted_cases) {
+    bw::FramebufferReadLayout actual;
+    if (!require(bw::framebuffer_read_layout(test.source_width,
+                                             test.source_height,
+                                             test.x,
+                                             test.y,
+                                             test.width,
+                                             test.height,
+                                             test.source_components,
+                                             test.destination_components,
+                                             test.component_bytes,
+                                             actual),
+                 "valid framebuffer read layout rejected") ||
+        !require(actual.source_data_size == test.source_size,
+                 "framebuffer source size") ||
+        !require(actual.destination_data_size == test.destination_size,
+                 "framebuffer destination size"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, actual.source_texel_bytes);
+    hash = fnv_u64(hash, actual.destination_texel_bytes);
+    hash = fnv_u64(hash, actual.source_row_bytes);
+    hash = fnv_u64(hash, actual.destination_row_bytes);
+    hash = fnv_u64(hash, actual.source_data_size);
+    hash = fnv_u64(hash, actual.destination_data_size);
+  }
+
+  struct RejectedCase {
+    uint32_t source_width;
+    uint32_t source_height;
+    int x;
+    int y;
+    int width;
+    int height;
+    uint32_t source_components;
+    uint32_t destination_components;
+    size_t component_bytes;
+  };
+  constexpr std::array<RejectedCase, 7> rejected_cases = {{
+      {2, 2, -1, 0, 1, 1, 4, 4, 1},
+      {2, 2, 0, -1, 1, 1, 4, 4, 1},
+      {2, 2, 0, 0, 0, 1, 4, 4, 1},
+      {2, 2, 1, 0, 2, 1, 4, 4, 1},
+      {2, 2, 0, 0, 1, 1, 0, 4, 1},
+      {2, 2, 0, 0, 1, 1, 4, 5, 1},
+      {UINT32_MAX, UINT32_MAX, 0, 0, 1, 1, 4, 4, 4},
+  }};
+  const bw::FramebufferReadLayout sentinel = {
+      11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  for (const RejectedCase &test : rejected_cases) {
+    bw::FramebufferReadLayout actual = sentinel;
+    if (!require(!bw::framebuffer_read_layout(test.source_width,
+                                              test.source_height,
+                                              test.x,
+                                              test.y,
+                                              test.width,
+                                              test.height,
+                                              test.source_components,
+                                              test.destination_components,
+                                              test.component_bytes,
+                                              actual),
+                 "invalid framebuffer read layout accepted") ||
+        !require(actual.source_width == sentinel.source_width &&
+                     actual.source_height == sentinel.source_height &&
+                     actual.source_x == sentinel.source_x &&
+                     actual.source_y == sentinel.source_y &&
+                     actual.width == sentinel.width && actual.height == sentinel.height &&
+                     actual.source_components == sentinel.source_components &&
+                     actual.destination_components == sentinel.destination_components &&
+                     actual.component_bytes == sentinel.component_bytes &&
+                     actual.source_texel_bytes == sentinel.source_texel_bytes &&
+                     actual.destination_texel_bytes == sentinel.destination_texel_bytes &&
+                     actual.source_row_bytes == sentinel.source_row_bytes &&
+                     actual.destination_row_bytes == sentinel.destination_row_bytes &&
+                     actual.source_data_size == sentinel.source_data_size &&
+                     actual.destination_data_size == sentinel.destination_data_size,
+                 "framebuffer layout rejection is atomic"))
+    {
+      return false;
+    }
+  }
+
+  const std::array<uint8_t, 12> source = {
+      1, 2, 3, 4, 5, 6,
+      11, 12, 13, 14, 15, 16,
+  };
+  const std::array<uint8_t, 16> expected = {
+      13, 14, 0, 255, 15, 16, 0, 255,
+      3, 4, 0, 255, 5, 6, 0, 255,
+  };
+  bw::FramebufferReadLayout extraction_layout;
+  std::array<uint8_t, 16> destination = {};
+  const uint8_t one = 255;
+  if (!require(bw::framebuffer_read_layout(
+                   3, 2, 1, 0, 2, 2, 2, 4, 1, extraction_layout),
+               "framebuffer extraction layout") ||
+      !require(bw::framebuffer_read_extract(source.data(),
+                                            source.size(),
+                                            destination.data(),
+                                            destination.size(),
+                                            &one,
+                                            extraction_layout),
+               "framebuffer extraction") ||
+      !require(destination == expected, "framebuffer crop/flip/channel conversion"))
+  {
+    return false;
+  }
+  for (const uint8_t value : destination) {
+    hash = fnv_byte(hash, value);
+  }
+
+  const std::array<uint8_t, 16> rgba_source = {
+      1, 2, 3, 4, 5, 6, 7, 8,
+      11, 12, 13, 14, 15, 16, 17, 18,
+  };
+  const std::array<uint8_t, 4> expected_red = {11, 15, 1, 5};
+  std::array<uint8_t, 4> red_destination = {};
+  bw::FramebufferReadLayout truncation_layout;
+  if (!require(bw::framebuffer_read_layout(
+                   2, 2, 0, 0, 2, 2, 4, 1, 1, truncation_layout),
+               "framebuffer truncation layout") ||
+      !require(bw::framebuffer_read_extract(rgba_source.data(),
+                                            rgba_source.size(),
+                                            red_destination.data(),
+                                            red_destination.size(),
+                                            &one,
+                                            truncation_layout),
+               "framebuffer leading-channel extraction") ||
+      !require(red_destination == expected_red, "framebuffer channel truncation"))
+  {
+    return false;
+  }
+  for (const uint8_t value : red_destination) {
+    hash = fnv_byte(hash, value);
+  }
+
+  std::array<uint8_t, 16> unchanged;
+  unchanged.fill(0x5a);
+  if (!require(!bw::framebuffer_read_extract(source.data(),
+                                             source.size() - 1,
+                                             unchanged.data(),
+                                             unchanged.size(),
+                                             &one,
+                                             extraction_layout),
+               "short framebuffer source accepted") ||
+      !require(std::all_of(unchanged.begin(), unchanged.end(), [](uint8_t value) {
+        return value == 0x5a;
+      }),
+               "failed framebuffer extraction changed destination"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT framebuffer-read PASS cases=%zu accepted=%zu rejected=%zu "
+              "digest=%016" PRIx64 "\n",
+              accepted_cases.size() + rejected_cases.size() + 3,
+              accepted_cases.size(),
+              rejected_cases.size(),
+              hash);
+  return true;
+}
+
 bool packed_row_stride_contract()
 {
   struct Case {
@@ -1386,6 +1572,7 @@ int main()
       !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
       !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
       !allocation_limit_contract() || !upload_layout_contract() || !clear_layout_contract() ||
+      !framebuffer_read_contract() ||
       !packed_row_stride_contract() ||
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
@@ -1394,9 +1581,10 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=16 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=17 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "readback_layouts=15 "
+      "framebuffer_reads=13 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

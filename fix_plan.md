@@ -1417,6 +1417,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   byte-identically; canonical replay, the windowed rebuild/no-work check, OFF preflight, and REUSE
   are green. Required M3 remains red for the absent strict candidate and s7 still blocks live
   clear proof. See `notes/m3-t9-texture-clear-layout-20260822.md`.
+- [x] **M3.T10-FRAMEBUFFER-SUBRESOURCE-READ [gpu-backend]:** patch 0181 makes framebuffer
+  readback resolve the attached mip/layer, separates source and requested channel geometry, and
+  validates the crop before allocation or caller writes. The pinned native oracle proves two
+  array layers, all four requested channel counts, and R/RG default-channel extension; the
+  device-free native/wasm32 contract covers crop, Y-flip, truncation, extension, and atomic
+  rejection byte-identically. Canonical replay and the real windowed rebuild/no-work check are
+  green. Required M3 remains red for the absent strict candidate and s7 still blocks live WebGPU
+  readback proof. See `notes/m3-t10-framebuffer-subresource-read-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

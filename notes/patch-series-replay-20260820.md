@@ -252,3 +252,9 @@ changing the 257-path / 20,258-entry authority. The patch is now 1,575,846 bytes
 `787d9817bf6b6e5c00496fdd720429b592a9af304d286c25d01ecebbc6e97a7d`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `4310652613440ab11c15b38e3507053d56192664073148c67eac4e7f7b22440a`.
+
+Patch 0181's framebuffer attachment-subresource and requested-channel readback correction was then
+composed without changing the 257-path / 20,258-entry authority. The patch is now 1,585,709 bytes
+with SHA-256 `417e94e6dee8e933bde4e71e06b158cd56def8e19c3cef0e53ec52076c1bdab6`;
+the current normalized receipt binds byte-identical live/replay manifests at SHA-256
+`73cfb96d783a50f199aa10dc3ec06baa32e720d082a169dbb3d3209ca6483c35`.

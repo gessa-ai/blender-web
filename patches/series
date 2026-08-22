@@ -838,3 +838,7 @@
 # before allocating or replicating host texels. The native/Wasm contract covers exact
 # row/sample products plus uint32 and size_t overflow boundaries.
 0180-gpu-webgpu-texture-clear-layout.patch
+# 0181: make framebuffer readback select the attached mip/layer, honor the requested
+# channel count, and validate crop/host byte geometry before allocation or caller writes.
+# The native/Wasm contract covers crop, Y-flip, channel extension, and rejection atomicity.
+0181-gpu-webgpu-framebuffer-subresource-read.patch

@@ -18370,10 +18370,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..3bb1d1a370ef40b08470fef399c466c5beaf98f7
+index 0000000000000000000000000000000000000000..73314b5a52accbafb9121575e4f1e62858c5903c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,484 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18395,6 +18395,7 @@ index 0000000000000000000000000000000000000000..3bb1d1a370ef40b08470fef399c466c5
 +
 +#include <cstddef>
 +#include <cstdint>
++#include <cstring>
 +#include <limits>
 +
 +#include "webgpu/webgpu_cpp.h"
@@ -18667,6 +18668,157 @@ index 0000000000000000000000000000000000000000..3bb1d1a370ef40b08470fef399c466c5
 +  }
 +
 +  result = candidate;
++  return true;
++}
++
++/** Host geometry for extracting one framebuffer rectangle from a tightly packed texture
++ * subresource. The source is WebGPU top-down; the destination is Blender's GL-compatible
++ * bottom-up convention and can request a different leading-channel count. */
++struct FramebufferReadLayout {
++  uint32_t source_width = 0;
++  uint32_t source_height = 0;
++  uint32_t source_x = 0;
++  uint32_t source_y = 0;
++  uint32_t width = 0;
++  uint32_t height = 0;
++  uint32_t source_components = 0;
++  uint32_t destination_components = 0;
++  size_t component_bytes = 0;
++  size_t source_texel_bytes = 0;
++  size_t destination_texel_bytes = 0;
++  size_t source_row_bytes = 0;
++  size_t destination_row_bytes = 0;
++  size_t source_data_size = 0;
++  size_t destination_data_size = 0;
++};
++
++/** Resolve every source/destination byte count before reading a framebuffer attachment or
++ * touching caller memory. Failure leaves `result` unchanged. */
++inline bool framebuffer_read_layout(uint32_t source_width,
++                                    uint32_t source_height,
++                                    int x,
++                                    int y,
++                                    int width,
++                                    int height,
++                                    uint32_t source_components,
++                                    uint32_t destination_components,
++                                    size_t component_bytes,
++                                    FramebufferReadLayout &result)
++{
++  if (source_width == 0 || source_height == 0 || x < 0 || y < 0 || width <= 0 ||
++      height <= 0 || source_components == 0 || source_components > 4 ||
++      destination_components == 0 || destination_components > 4 || component_bytes == 0)
++  {
++    return false;
++  }
++  const uint32_t source_x = uint32_t(x);
++  const uint32_t source_y = uint32_t(y);
++  const uint32_t copy_width = uint32_t(width);
++  const uint32_t copy_height = uint32_t(height);
++  if (source_x > source_width || copy_width > source_width - source_x ||
++      source_y > source_height || copy_height > source_height - source_y)
++  {
++    return false;
++  }
++
++  FramebufferReadLayout candidate;
++  candidate.source_width = source_width;
++  candidate.source_height = source_height;
++  candidate.source_x = source_x;
++  candidate.source_y = source_y;
++  candidate.width = copy_width;
++  candidate.height = copy_height;
++  candidate.source_components = source_components;
++  candidate.destination_components = destination_components;
++  candidate.component_bytes = component_bytes;
++  if (!checked_size_mul(size_t(source_components),
++                        component_bytes,
++                        candidate.source_texel_bytes) ||
++      !checked_size_mul(size_t(destination_components),
++                        component_bytes,
++                        candidate.destination_texel_bytes) ||
++      !checked_size_mul(size_t(source_width),
++                        candidate.source_texel_bytes,
++                        candidate.source_row_bytes) ||
++      !checked_size_mul(size_t(source_height),
++                        candidate.source_row_bytes,
++                        candidate.source_data_size) ||
++      !checked_size_mul(size_t(copy_width),
++                        candidate.destination_texel_bytes,
++                        candidate.destination_row_bytes) ||
++      !checked_size_mul(size_t(copy_height),
++                        candidate.destination_row_bytes,
++                        candidate.destination_data_size))
++  {
++    return false;
++  }
++  result = candidate;
++  return true;
++}
++
++/** Crop, vertically flip, and select/extend leading channels from a validated framebuffer
++ * source. Missing color channels are zero and a missing requested alpha channel is one, matching
++ * native framebuffer reads. All capacity checks happen before `destination` is changed. */
++inline bool framebuffer_read_extract(const uint8_t *source,
++                                     size_t source_capacity,
++                                     uint8_t *destination,
++                                     size_t destination_capacity,
++                                     const void *one_component,
++                                     const FramebufferReadLayout &layout)
++{
++  if (source == nullptr || destination == nullptr || one_component == nullptr ||
++      layout.source_x > uint32_t(std::numeric_limits<int>::max()) ||
++      layout.source_y > uint32_t(std::numeric_limits<int>::max()) ||
++      layout.width > uint32_t(std::numeric_limits<int>::max()) ||
++      layout.height > uint32_t(std::numeric_limits<int>::max()))
++  {
++    return false;
++  }
++  FramebufferReadLayout expected;
++  if (!framebuffer_read_layout(layout.source_width,
++                               layout.source_height,
++                               int(layout.source_x),
++                               int(layout.source_y),
++                               int(layout.width),
++                               int(layout.height),
++                               layout.source_components,
++                               layout.destination_components,
++                               layout.component_bytes,
++                               expected) ||
++      expected.source_texel_bytes != layout.source_texel_bytes ||
++      expected.destination_texel_bytes != layout.destination_texel_bytes ||
++      expected.source_row_bytes != layout.source_row_bytes ||
++      expected.destination_row_bytes != layout.destination_row_bytes ||
++      expected.source_data_size != layout.source_data_size ||
++      expected.destination_data_size != layout.destination_data_size ||
++      source_capacity < layout.source_data_size ||
++      destination_capacity < layout.destination_data_size)
++  {
++    return false;
++  }
++
++  std::memset(destination, 0, layout.destination_data_size);
++  const size_t copied_components =
++      layout.source_components < layout.destination_components ?
++          size_t(layout.source_components) :
++          size_t(layout.destination_components);
++  const size_t copied_bytes = copied_components * layout.component_bytes;
++  for (uint32_t row = 0; row < layout.height; row++) {
++    const uint32_t source_row = layout.source_height - 1 - (layout.source_y + row);
++    const uint8_t *source_pixel = source + size_t(source_row) * layout.source_row_bytes +
++                                  size_t(layout.source_x) * layout.source_texel_bytes;
++    uint8_t *destination_pixel = destination + size_t(row) * layout.destination_row_bytes;
++    for (uint32_t column = 0; column < layout.width; column++) {
++      std::memcpy(destination_pixel, source_pixel, copied_bytes);
++      if (layout.destination_components == 4 && layout.source_components < 4) {
++        std::memcpy(destination_pixel + 3 * layout.component_bytes,
++                    one_component,
++                    layout.component_bytes);
++      }
++      source_pixel += layout.source_texel_bytes;
++      destination_pixel += layout.destination_texel_bytes;
++    }
++  }
 +  return true;
 +}
 +
@@ -20720,10 +20872,10 @@ index 0000000000000000000000000000000000000000..5b2bb8bca2f33f1e3817edb4c2855643
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cb124fde6e5997a8c551db320137a176f9a5127b
+index 0000000000000000000000000000000000000000..f30e68486429915a986530fc1abdf3bec62074c2
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,949 @@
+@@ -0,0 +1,1004 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20740,6 +20892,7 @@ index 0000000000000000000000000000000000000000..cb124fde6e5997a8c551db320137a176
 +#include "wgpu_framebuffer.hh"
 +
 +#include "wgpu_context.hh"
++#include "wgpu_common.hh"
 +#include "wgpu_state_manager.hh"
 +#include "wgpu_texture.hh"
 +
@@ -21100,22 +21253,51 @@ index 0000000000000000000000000000000000000000..cb124fde6e5997a8c551db320137a176
 +void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
 +                           eGPUDataFormat format,
 +                           const int area[4],
-+                           int /*channel_len*/,
++                           int channel_len,
 +                           int slot,
 +                           void *r_data)
 +{
-+  Texture *tex = (planes & GPU_COLOR_BIT) ? color_tex(slot) : depth_tex();
++  const GPUAttachment &attachment = (planes & GPU_COLOR_BIT) ?
++                                        attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot] :
++                                        depth_attachment();
++  Texture *tex = attachment.tex;
 +  if (tex == nullptr || r_data == nullptr) {
 +    return;
 +  }
-+  int full[3] = {1, 1, 1};
-+  tex->mip_size_get(0, full);
-+  const int fw = std::max(full[0], 1);
-+  const int fh = std::max(full[1], 1);
-+  const size_t total = tex->read_size_get(0, format);
-+  const size_t bpp = total / (size_t(fw) * fh);
-+
 +  const int x = area[0], y = area[1], w = area[2], h = area[3];
++  const int mip = std::max(attachment.mip, 0);
++  const int layer = std::max(attachment.layer, 0);
++  webgpu::WGPUTexture *wtex = as_wgpu(tex);
++  webgpu::WGPUTexture::ResolvedReadRegion region;
++  if (!wtex->resolve_subresource(mip, layer, region)) {
++    return;
++  }
++
++  const bool packed_format = ELEM(format,
++                                  GPU_DATA_UINT_24_8_DEPRECATED,
++                                  GPU_DATA_10_11_11_REV,
++                                  GPU_DATA_2_10_10_10_REV);
++  if (channel_len < 1 || channel_len > 4 || (packed_format && channel_len != 1)) {
++    return;
++  }
++  const uint32_t source_components = packed_format ? 1u :
++                                                     uint32_t(to_component_len(tex->format_get()));
++  const uint32_t destination_components = packed_format ? 1u : uint32_t(channel_len);
++  const size_t component_bytes = to_bytesize(format);
++  webgpu::FramebufferReadLayout layout;
++  if (!webgpu::framebuffer_read_layout(region.width,
++                                       region.height,
++                                       x,
++                                       y,
++                                       w,
++                                       h,
++                                       source_components,
++                                       destination_components,
++                                       component_bytes,
++                                       layout))
++  {
++    return;
++  }
 +
 +  /* ADR-005 decision 3 (render-target readback row-flip). WebGPU stores the rendered
 +   * texture top-down (row 0 = top); lane A's vertex-shader clip-space Y-flip (decision
@@ -21125,19 +21307,44 @@ index 0000000000000000000000000000000000000000..cb124fde6e5997a8c551db320137a176
 +   * upload->read, no render pass) stays symmetric and is NOT flipped, so the texture_*
 +   * suite is untouched. `y` (area origin) is in GL bottom-up coordinates: after the
 +   * whole attachment is flipped to bottom-up, cropping [y, y+h) is a direct copy. */
-+  std::vector<uint8_t> tmp(total);
-+  tex->read(0, format, tmp.data());
-+  uint8_t *dst = static_cast<uint8_t *>(r_data);
-+  for (int row = 0; row < h; row++) {
-+    /* Bottom-up destination row `row` maps to WebGPU top-down source row
-+     * (fh - 1 - (y + row)). */
-+    const int src_row = fh - 1 - (y + row);
-+    if (src_row < 0 || src_row >= fh) {
-+      continue;
++  std::vector<uint8_t> tmp(layout.source_data_size);
++  wtex->read_sub(mip, layer, format, tmp.data());
++
++  uint8_t one_component[4] = {};
++  switch (format) {
++    case GPU_DATA_UBYTE:
++      one_component[0] = 0xff;
++      break;
++    case GPU_DATA_HALF_FLOAT: {
++      const uint16_t one = 0x3c00;
++      std::memcpy(one_component, &one, sizeof(one));
++      break;
 +    }
-+    const uint8_t *src = tmp.data() + (size_t(src_row) * fw + x) * bpp;
-+    std::memcpy(dst + size_t(row) * w * bpp, src, size_t(w) * bpp);
++    case GPU_DATA_FLOAT: {
++      const float one = 1.0f;
++      std::memcpy(one_component, &one, sizeof(one));
++      break;
++    }
++    case GPU_DATA_INT: {
++      const int32_t one = 1;
++      std::memcpy(one_component, &one, sizeof(one));
++      break;
++    }
++    case GPU_DATA_UINT:
++    case GPU_DATA_UINT_24_8_DEPRECATED:
++    case GPU_DATA_10_11_11_REV:
++    case GPU_DATA_2_10_10_10_REV: {
++      const uint32_t one = 1;
++      std::memcpy(one_component, &one, sizeof(one));
++      break;
++    }
 +  }
++  webgpu::framebuffer_read_extract(tmp.data(),
++                                   tmp.size(),
++                                   static_cast<uint8_t *>(r_data),
++                                   layout.destination_data_size,
++                                   one_component,
++                                   layout);
 +}
 +
 +void WGPUFrameBuffer::blit_to(GPUFrameBufferBits planes,
@@ -29958,10 +30165,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..aecc0b9394e5fdb530244b817652225fd39021aa
+index 0000000000000000000000000000000000000000..c5cabe55b33768c5919de6d6c2bf8ad56d3819d2
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2613 @@
+@@ -0,0 +1,2625 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32046,7 +32253,14 @@ index 0000000000000000000000000000000000000000..aecc0b9394e5fdb530244b817652225f
 +
 +bool WGPUTexture::resolve_read_region(int mip, ResolvedReadRegion &r_region) const
 +{
-+  if (!resolve_subresource(mip, -1, r_region)) {
++  return resolve_read_region(mip, -1, r_region);
++}
++
++bool WGPUTexture::resolve_read_region(int mip,
++                                      int layer,
++                                      ResolvedReadRegion &r_region) const
++{
++  if (!resolve_subresource(mip, layer, r_region)) {
 +    return false;
 +  }
 +  if (r_region.aspect == wgpu::TextureAspect::All && (format_flag_ & GPU_FORMAT_DEPTH)) {
@@ -32224,11 +32438,16 @@ index 0000000000000000000000000000000000000000..aecc0b9394e5fdb530244b817652225f
 +
 +void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
 +{
++  read_sub(mip, -1, format, data);
++}
++
++void WGPUTexture::read_sub(int mip, int layer, eGPUDataFormat format, void *data)
++{
 +  if (data == nullptr) {
 +    return;
 +  }
 +  ResolvedReadRegion resolved;
-+  if (!resolve_read_region(mip, resolved)) {
++  if (!resolve_read_region(mip, layer, resolved)) {
 +    return;
 +  }
 +  const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
@@ -32577,10 +32796,10 @@ index 0000000000000000000000000000000000000000..aecc0b9394e5fdb530244b817652225f
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9a1d37e8443fae24cdf704cb939d7467e7d11702
+index 0000000000000000000000000000000000000000..47469ee7be799c65832d74d3c83c2b898003808a
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.hh
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,211 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32684,11 +32903,16 @@ index 0000000000000000000000000000000000000000..9a1d37e8443fae24cdf704cb939d7467
 +  void swizzle_set(const char swizzle_mask[4]) override;
 +  void mip_range_set(int min, int max) override;
 +  void read(int mip, eGPUDataFormat format, void *data) override;
++  /** Read one relative mip and one relative layer/depth slice. */
++  void read_sub(int mip, int layer, eGPUDataFormat format, void *data);
 +  GPUReadback *read_async(int mip, eGPUDataFormat format) override;
 +
 +  /** Resolve this texture or nested texture view to the backing WebGPU texture and
 +   * absolute mip/layer copy region. */
 +  bool resolve_read_region(int mip, ResolvedReadRegion &r_region) const;
++
++  /** Resolve one relative mip and layer/depth slice for host readback. */
++  bool resolve_read_region(int mip, int layer, ResolvedReadRegion &r_region) const;
 +
 +  /** Resolve one relative mip and optionally one relative array layer. `layer < 0`
 +   * keeps the full array subset; non-array and 3D textures require layer 0/-1. */

@@ -272,3 +272,16 @@ geometry atomically before allocation or caller reads, and drive every later loo
 count, and WebGPU layout field from that one result. Exercise the same boundary contract on native
 and wasm32 because their `size_t` overflow points differ. See
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 15 — framebuffer readback belongs to the attached subresource
+
+Signature: a backend calls `texture->read(0, ...)`, sizes each destination row from the texture's
+whole-mip byte count, and then crops on the host. This silently reads array layer zero, ignores the
+framebuffer attachment's mip, and writes the texture's full component count even when the caller
+requested fewer channels. Resolve the exact attachment mip/layer before reading; validate source
+and destination row geometry separately; then crop, apply the backend's Y convention, and
+truncate or extend channels without exceeding the caller-visible payload. Native framebuffer
+reads define missing color channels as zero and a requested missing alpha channel as one. Exercise
+layer selection, leading-channel truncation, R/RG extension, bounds, and native/wasm32 overflow
+before trusting pixels. See `sandbox/wgpu-framebuffer-subresource-oracle/` and
+`sandbox/wgpu-texture-integrated-smoke/`.

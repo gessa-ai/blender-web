@@ -9,7 +9,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-WEBGPU_SOURCE="$ROOT/upstream/source/blender/gpu/webgpu"
+WEBGPU_SOURCE="${BW_INTEGRATED_TEXTURE_SOURCE_DIR:-$ROOT/upstream/source/blender/gpu/webgpu}"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -60,6 +60,7 @@ source_digest()
 {
   local files=(
     GPU_format.hh
+    GPU_framebuffer.hh
     GPU_texture.hh
     intern/gpu_texture_private.hh
     ../blenlib/BLI_assert.h
@@ -69,6 +70,8 @@ source_digest()
     webgpu/wgpu_texture_format.hh
     webgpu/wgpu_texture_format_list.h
     webgpu/wgpu_texture.cc
+    webgpu/wgpu_texture.hh
+    webgpu/wgpu_framebuffer.cc
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
     vulkan/vk_data_conversion.hh
@@ -94,6 +97,7 @@ require_file "$HERE/integrated_texture_test.cc"
 require_file "$ROOT/sandbox/wgpu-texture-wasm-smoke/CMakeLists.txt"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/source/blender/gpu/GPU_framebuffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
@@ -114,6 +118,8 @@ for source_name in \
   wgpu_texture_format_list.h \
   wgpu_common.hh \
   wgpu_texture.cc \
+  wgpu_texture.hh \
+  wgpu_framebuffer.cc \
   wgpu_data_conversion.cc \
   wgpu_data_conversion.hh
 do
@@ -162,6 +168,8 @@ fi
 FORMAT_SOURCE="$WEBGPU_SOURCE/wgpu_texture_format.cc"
 FORMAT_HEADER="$WEBGPU_SOURCE/wgpu_texture_format.hh"
 COMMON_HEADER="$WEBGPU_SOURCE/wgpu_common.hh"
+FRAMEBUFFER_SOURCE="$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+TEXTURE_HEADER="$WEBGPU_SOURCE/wgpu_texture.hh"
 if [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!format_creation_supported(fi.gate, format_features)) {' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
@@ -195,6 +203,20 @@ if [ "$(grep -Fc 'inline bool texture_readback_layout(' "$COMMON_HEADER")" -ne 1
    [ "$(grep -Fc 'texture_readback_layout(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ]
 then
   echo "ERROR: canonical texture readback-layout wiring differs" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'inline bool framebuffer_read_layout(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'inline bool framebuffer_read_extract(' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'void read_sub(int mip, int layer,' "$TEXTURE_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'void WGPUTexture::read_sub(int mip,' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'framebuffer_read_layout(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'framebuffer_read_extract(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'wtex->read_sub(mip, layer, format, tmp.data());' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   grep -Fq 'tex->read(0, format, tmp.data());' "$FRAMEBUFFER_SOURCE" ||
+   grep -Fq 'tex->read_size_get(0, format)' "$FRAMEBUFFER_SOURCE"
+then
+  echo "ERROR: canonical framebuffer subresource-read wiring differs" >&2
   exit 1
 fi
 
@@ -432,13 +454,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=16 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=17 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 readback_layouts=15 framebuffer_reads=13 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 16 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 17 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

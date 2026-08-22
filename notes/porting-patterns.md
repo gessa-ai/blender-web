@@ -507,3 +507,13 @@ context-local, process-wide, and per-shader pools can duplicate it independently
 publication site to one source-order contract and exercise fail-once/succeed-once behavior with a
 device-free handle/cache seam. See
 `sandbox/wgpu-texture-integrated-smoke/` and `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 34 — transient render helpers must guard every created handle
+
+Signature: a render fallback checks its inputs and cached pipeline, but assumes its lazy shader
+module, short-lived uniform buffer, and bind group all succeed. A failed module reaches pipeline
+creation, a failed buffer reaches `Queue::WriteBuffer`, or a failed bind group reaches pass work,
+turning a recoverable resource failure into validation errors or a null-handle call. Reject each
+handle before the first dependent operation. Use one device-free buffer-creation transaction so
+failure cannot overwrite the caller's handle, and bind the remaining guards to the exact shipping
+source order. See `sandbox/wgpu-pipeline-integrated-smoke/`.

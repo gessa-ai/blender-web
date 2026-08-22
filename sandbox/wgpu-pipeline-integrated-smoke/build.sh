@@ -5,7 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, dummy-attribute binding plan, and shader-lifetime cache separation.
+# cache publication, color-blit resource guards, dummy-attribute binding plan,
+# and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -238,6 +239,11 @@ require_fixed_count 2 \
   'if (!webgpu::viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
   'inline bool multi_viewport_uniform_buffer_create(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool buffer_create_if_valid(' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'return buffer_create_if_valid(device, descriptor, result);' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 \
   'if (!webgpu::multi_viewport_uniform_buffer_create(device, mv_buf)) {' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
@@ -263,6 +269,51 @@ if [ "${#MULTIVIEW_ALLOCATION_LINES[@]}" -ne 2 ] ||
    [ "${PUSH_CONSTANT_FLUSH_LINES[2]}" -ge "${MULTIVIEW_WRITE_LINES[1]}" ]
 then
   echo "ERROR: multi-viewport allocation guards do not precede state flushes and queue writes" >&2
+  exit 1
+fi
+require_fixed_count 1 \
+  'if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 0 \
+  'wgpu::Buffer blit_uniform = device_.CreateBuffer(&bd);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 2 \
+  'if (selected_module == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 3 \
+  'if (bind_group == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc"
+COLOR_MODULE_CREATE_LINE="$(grep -nF \
+  'selected_module = device_.CreateShaderModule(&md);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_MODULE_GUARD_LINE="$(grep -nF \
+  'if (selected_module == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | tail -n 1 | cut -d: -f1)"
+COLOR_PIPELINE_KEY_LINE="$(grep -nF \
+  'const uint32_t fmt_key = uint32_t(dst_format)' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_UNIFORM_GUARD_LINE="$(grep -nF \
+  'if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_QUEUE_WRITE_LINE="$(grep -nF \
+  'queue_.WriteBuffer(blit_uniform, 0, blit_data, sizeof(blit_data));' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_BIND_CREATE_LINE="$(grep -nF \
+  'wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
+COLOR_BIND_GUARD_LINE="$(grep -nF \
+  'if (bind_group == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
+COLOR_ENCODER_LINE="$(grep -nF \
+  'wgpu::CommandEncoder enc = device_.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
+if [ -z "$COLOR_MODULE_CREATE_LINE" ] || [ -z "$COLOR_MODULE_GUARD_LINE" ] ||
+   [ -z "$COLOR_PIPELINE_KEY_LINE" ] || [ -z "$COLOR_UNIFORM_GUARD_LINE" ] ||
+   [ -z "$COLOR_QUEUE_WRITE_LINE" ] || [ -z "$COLOR_BIND_CREATE_LINE" ] ||
+   [ -z "$COLOR_BIND_GUARD_LINE" ] || [ -z "$COLOR_ENCODER_LINE" ] ||
+   [ "$COLOR_MODULE_CREATE_LINE" -ge "$COLOR_MODULE_GUARD_LINE" ] ||
+   [ "$COLOR_MODULE_GUARD_LINE" -ge "$COLOR_PIPELINE_KEY_LINE" ] ||
+   [ "$COLOR_UNIFORM_GUARD_LINE" -ge "$COLOR_QUEUE_WRITE_LINE" ] ||
+   [ "$COLOR_BIND_CREATE_LINE" -ge "$COLOR_BIND_GUARD_LINE" ] ||
+   [ "$COLOR_BIND_GUARD_LINE" -ge "$COLOR_ENCODER_LINE" ]
+then
+  echo "ERROR: color-blit resource guards do not precede queue and pass work" >&2
   exit 1
 fi
 require_fixed_count 1 \

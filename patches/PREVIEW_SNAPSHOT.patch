@@ -18528,10 +18528,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..e77ea67b3bd91965c82de2ae9db13aab76818ff6
+index 0000000000000000000000000000000000000000..c6ef46651ccc34b177683561ed78ebbe02ee74ba
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1200 @@
+@@ -0,0 +1,1209 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18660,10 +18660,24 @@ index 0000000000000000000000000000000000000000..e77ea67b3bd91965c82de2ae9db13aab
 +  return true;
 +}
 +
++/** Create a WebGPU buffer without publishing a failed handle. Templated so resource-allocation
++ * transactions remain device-free testable on native and Wasm. */
++template<typename DeviceT, typename BufferT>
++inline bool buffer_create_if_valid(DeviceT &device,
++                                   const wgpu::BufferDescriptor &descriptor,
++                                   BufferT &result)
++{
++  BufferT candidate = device.CreateBuffer(&descriptor);
++  if (candidate == nullptr) {
++    return false;
++  }
++  result = std::move(candidate);
++  return true;
++}
++
 +/** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
 + * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
-+ * a non-null handle is available. Templated so the exact transaction remains device-free
-+ * testable on native and Wasm. */
++ * a non-null handle is available. */
 +template<typename DeviceT, typename BufferT>
 +inline bool multi_viewport_uniform_buffer_create(DeviceT &device, BufferT &result)
 +{
@@ -18671,12 +18685,7 @@ index 0000000000000000000000000000000000000000..e77ea67b3bd91965c82de2ae9db13aab
 +  descriptor.size = 16;
 +  descriptor.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 +
-+  BufferT candidate = device.CreateBuffer(&descriptor);
-+  if (candidate == nullptr) {
-+    return false;
-+  }
-+  result = std::move(candidate);
-+  return true;
++  return buffer_create_if_valid(device, descriptor, result);
 +}
 +
 +/** Publish a fallible WebGPU handle only after creation succeeds. A null sampler or pipeline
@@ -19734,10 +19743,10 @@ index 0000000000000000000000000000000000000000..e77ea67b3bd91965c82de2ae9db13aab
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..404a773b44c3c354c1d57e32723d7c50430ecd44
+index 0000000000000000000000000000000000000000..1a0aa77e669df9882bf817b17d97c9f92d2855b1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1280 @@
+@@ -0,0 +1,1289 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20190,6 +20199,9 @@ index 0000000000000000000000000000000000000000..404a773b44c3c354c1d57e32723d7c50
 +    md.nextInChain = &wgsl;
 +    selected_module = device_.CreateShaderModule(&md);
 +  }
++  if (selected_module == nullptr) {
++    return false;
++  }
 +  /* Pipeline cached per destination format (auto layout: one sampled texture and
 +   * one copy-extent/slice uniform in group 0). */
 +  const uint32_t fmt_key = uint32_t(dst_format) | (module_key << 24);
@@ -20225,7 +20237,10 @@ index 0000000000000000000000000000000000000000..404a773b44c3c354c1d57e32723d7c50
 +  wgpu::BufferDescriptor bd = {};
 +  bd.size = 16;
 +  bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
-+  wgpu::Buffer blit_uniform = device_.CreateBuffer(&bd);
++  wgpu::Buffer blit_uniform;
++  if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {
++    return false;
++  }
 +  const uint32_t blit_data[4] = {w, h, uint32_t(src_layer), flip_source_y ? 1u : 0u};
 +  queue_.WriteBuffer(blit_uniform, 0, blit_data, sizeof(blit_data));
 +  entries[1].binding = 1;
@@ -20237,6 +20252,9 @@ index 0000000000000000000000000000000000000000..404a773b44c3c354c1d57e32723d7c50
 +  bgd.entryCount = 2;
 +  bgd.entries = entries;
 +  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);
++  if (bind_group == nullptr) {
++    return false;
++  }
 +
 +  wgpu::RenderPassColorAttachment ca = {};
 +  ca.view = dst_view;

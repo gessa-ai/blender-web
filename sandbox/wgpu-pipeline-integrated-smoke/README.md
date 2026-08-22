@@ -8,7 +8,8 @@ SPDX-License-Identifier: CC0-1.0
 This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
 primitive, index-format, component, and fetch enums. The shared test also covers
-the two-case transient multi-viewport uniform-buffer allocation transaction,
+the two-case transient uniform-buffer allocation transaction shared by
+multi-viewport emulation and cross-format color blits,
 the fail-first/retry transactions shared by sampler/render-pipeline caches and the
 per-shader compute-pipeline variant cache,
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
@@ -26,6 +27,10 @@ extents and device-invalid boundaries remain atomically rejected in both the dir
 indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
 viewport}` uniform allocation must publish a handle only on success; both paths
 must return before queue or pass work when creation fails.
+The color-blit fallback additionally rejects a missing shader module before pipeline creation,
+the missing uniform before `WriteBuffer`, and a missing bind group before command-encoder/pass
+work. The source-order checks bind all three guards to the shipping method while the shared
+native/Wasm allocation contract proves failure leaves the caller's buffer handle unchanged.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.

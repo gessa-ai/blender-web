@@ -920,3 +920,6 @@
 # 0205: keep null specialization-keyed compute pipelines out of the per-shader
 # variant cache so a transient creation failure can retry on the next dispatch.
 0205-gpu-webgpu-compute-cache-publication.patch
+# 0206: stop the cross-format color-blit fallback after shader-module,
+# uniform-buffer, or bind-group creation fails, before queue or pass work.
+0206-gpu-webgpu-color-blit-resource-guards.patch

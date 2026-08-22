@@ -533,6 +533,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   no-work. It creates no instance, adapter, device, render pipeline, or receipt; historical live
   T10 proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t10-pipeline-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
+  indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
+  format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former
+  Undefined format at DrawIndexed validation. The device-free native/wasm32 contract exhausts all
+  33 primitive/index-format combinations and source-binds both shipping batch call sites. No
+  adapter, device, pipeline, draw, or receipt is created; live proof remains owned by
+  **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t10-indexed-strip-format-integrated-linux-20260821.md`.
 - [x] **M3.T10.query.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree conservative occlusion-query
   implementation directly and verifies initial state, five valid begin/end transitions, guarded

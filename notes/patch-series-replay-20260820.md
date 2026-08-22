@@ -94,3 +94,9 @@ Patch 0154's point-list primitive-restart compaction was then composed without c
 `28dddfc5aaba843c5ce826d4669645f8a79d4dfe2dd911494c9338e3d2d2d659`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `3a2a595ec54ba249861abdccec50ab2b29578fccdd12f9f07aa16fa60bd52489`.
+
+Patch 0155's indexed-strip pipeline-format correction was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,537,496 bytes with SHA-256
+`29c199a2c796b0c3f8d19f03ce7b7d478073a9fd635dd3e833bb3a6bc9bf94ae`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`abf74d3b822383af83655166a12cdc3d58da6f4e771adb96cc66cb0dfc6c7e1a`.

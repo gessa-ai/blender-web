@@ -728,3 +728,8 @@
 # The exact-source native/Wasm contract covers mixed, all-restart, wide-u32,
 # rebased-u16, subrange, and build-on-device metadata without a WebGPU device.
 0154-gpu-webgpu-point-restart-compaction.patch
+# 0155: carry the bound Uint16/Uint32 index format into direct and indirect
+# line-strip/triangle-strip pipelines. The device-free native/Wasm mapping
+# contract covers all 33 primitive/index-format combinations and binds both
+# shipping batch call sites; non-strip pipelines retain Undefined.
+0155-gpu-webgpu-indexed-strip-format.patch

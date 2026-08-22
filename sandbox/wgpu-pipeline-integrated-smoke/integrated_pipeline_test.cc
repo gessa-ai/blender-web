@@ -58,6 +58,50 @@ bool primitive_topology_contract()
   return true;
 }
 
+bool strip_index_format_contract()
+{
+  using IF = wgpu::IndexFormat;
+  constexpr std::array primitives = {
+      blender::GPU_PRIM_POINTS,
+      blender::GPU_PRIM_LINES,
+      blender::GPU_PRIM_TRIS,
+      blender::GPU_PRIM_LINE_STRIP,
+      blender::GPU_PRIM_LINE_LOOP,
+      blender::GPU_PRIM_TRI_STRIP,
+      blender::GPU_PRIM_TRI_FAN,
+      blender::GPU_PRIM_LINES_ADJ,
+      blender::GPU_PRIM_TRIS_ADJ,
+      blender::GPU_PRIM_LINE_STRIP_ADJ,
+      blender::GPU_PRIM_NONE,
+  };
+  constexpr std::array index_formats = {IF::Undefined, IF::Uint16, IF::Uint32};
+
+  size_t cases = 0;
+  size_t selected = 0;
+  for (const blender::GPUPrimType primitive : primitives) {
+    const bool is_strip = primitive == blender::GPU_PRIM_LINE_STRIP ||
+                          primitive == blender::GPU_PRIM_LINE_LOOP ||
+                          primitive == blender::GPU_PRIM_TRI_STRIP;
+    for (const IF index_format : index_formats) {
+      const IF expected = is_strip ? index_format : IF::Undefined;
+      if (!require(bw::to_wgpu_strip_index_format(primitive, index_format) == expected,
+                   "strip index-format mapping"))
+      {
+        return false;
+      }
+      cases++;
+      selected += expected != IF::Undefined ? 1 : 0;
+    }
+  }
+  if (!require(cases == 33, "strip index-format census") ||
+      !require(selected == 6, "selected strip index-format census"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT strip_index_format PASS cases=33 selected=6");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -195,11 +239,13 @@ bool format_i10_contract()
 
 int main()
 {
-  if (!primitive_topology_contract() || !format_32bit_contract() ||
+  if (!primitive_topology_contract() || !strip_index_format_contract() ||
+      !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract())
   {
     return 1;
   }
-  std::puts("INTEGRATED_PIPELINE_PASS contracts=4 primitives=11 formats=96 i10=12");
+  std::puts(
+      "INTEGRATED_PIPELINE_PASS contracts=5 primitives=11 strip_cases=33 formats=96 i10=12");
   return 0;
 }

@@ -1,0 +1,77 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.hh
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+@@ -94,4 +94,6 @@
+ 
+ wgpu::PrimitiveTopology to_wgpu_topology(GPUPrimType prim);
++wgpu::IndexFormat to_wgpu_strip_index_format(GPUPrimType prim,
++                                             wgpu::IndexFormat index_format);
+ wgpu::VertexFormat to_wgpu_vertex_format(GPUVertCompType comp_type,
+                                          int comp_len,
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -53,4 +53,21 @@
+ }
+ 
++wgpu::IndexFormat to_wgpu_strip_index_format(const GPUPrimType prim,
++                                             const wgpu::IndexFormat index_format)
++{
++  if (index_format == wgpu::IndexFormat::Undefined) {
++    return wgpu::IndexFormat::Undefined;
++  }
++  switch (prim) {
++    case GPU_PRIM_LINE_STRIP:
++    case GPU_PRIM_LINE_LOOP:
++    case GPU_PRIM_TRI_STRIP:
++      return index_format;
++    default:
++      /* Dawn requires Undefined for every non-strip topology. */
++      return wgpu::IndexFormat::Undefined;
++  }
++}
++
+ /** Map a Blender vertex component (type, count, fetch) to the WGSL vertex format.
+  * WebGPU allows only x2/x4 for 8-/16-bit and scalar…x4 for 32-bit. */
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -334,8 +334,11 @@
+   info.prim_type = (emulate_triangle_fan && wibo != nullptr) ? GPU_PRIM_TRI_STRIP :
+                    emulate_triangle_fan                      ? GPU_PRIM_TRIS :
+                                                                prim_type;
+-  info.strip_index_format = (emulate_triangle_fan && wibo != nullptr) ?
+-                                wgpu::IndexFormat::Uint32 :
+-                                wgpu::IndexFormat::Undefined;
++  const wgpu::IndexFormat draw_index_format =
++      (emulate_triangle_fan && wibo != nullptr) ? wgpu::IndexFormat::Uint32 :
++      (wibo != nullptr && wibo->buffer().valid()) ? wibo->index_format() :
++                                                    wgpu::IndexFormat::Undefined;
++  info.strip_index_format = webgpu::to_wgpu_strip_index_format(info.prim_type,
++                                                               draw_index_format);
+   info.flip_y = !ctx->is_window_backbuffer(fb);
+ 
+@@ -614,4 +617,6 @@
+     elem->upload_data();
+   }
++  WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
++  const bool indexed = (wibo != nullptr && wibo->buffer().valid());
+ 
+   webgpu::PipelineInfo info;
+@@ -637,5 +642,8 @@
+     return;
+   }
+   info.prim_type = prim_type;
++  info.strip_index_format = webgpu::to_wgpu_strip_index_format(
++      info.prim_type,
++      indexed ? wibo->index_format() : wgpu::IndexFormat::Undefined);
+   info.flip_y = !ctx->is_window_backbuffer(fb);
+ 
+@@ -647,7 +655,4 @@
+   const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+       info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+-
+-  WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
+-  const bool indexed = (wibo != nullptr && wibo->buffer().valid());
+ 
+   auto bind_geometry = [&](wgpu::RenderPassEncoder &render_pass) {

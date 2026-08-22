@@ -60,6 +60,7 @@ source_digest()
   local files=(
     source/blender/gpu/webgpu/wgpu_pipeline.cc
     source/blender/gpu/webgpu/wgpu_pipeline.hh
+    source/blender/gpu/webgpu/wgpu_batch.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
     source/blender/gpu/webgpu/wgpu_state_table.hh
     source/blender/gpu/intern/gpu_shader_interface.hh
@@ -90,6 +91,7 @@ require_file "$NODE"
 for source_name in \
   wgpu_pipeline.cc \
   wgpu_pipeline.hh \
+  wgpu_batch.cc \
   wgpu_shader.hh \
   wgpu_state_table.hh
 do
@@ -148,6 +150,14 @@ case "$SOURCE_PROOF" in
     ;;
 esac
 
+if [ "$(grep -Fc \
+       'info.strip_index_format = webgpu::to_wgpu_strip_index_format(' \
+       "$WEBGPU_SOURCE/wgpu_batch.cc")" -ne 2 ]
+then
+  echo "ERROR: direct/indirect indexed-strip pipeline binding differs" >&2
+  exit 1
+fi
+
 NODE_VERSION="$("$NODE" --version)"
 if [ "$NODE_VERSION" != "v22.16.0" ]; then
   echo "ERROR: expected Node v22.16.0, got $NODE_VERSION" >&2
@@ -201,13 +211,14 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 5 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 6 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
+     ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=4 primitives=11 formats=96 i10=12' \
+       'INTEGRATED_PIPELINE_PASS contracts=5 primitives=11 strip_cases=33 formats=96 i10=12' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

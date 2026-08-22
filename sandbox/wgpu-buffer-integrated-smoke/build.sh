@@ -4,7 +4,8 @@
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # buffer wrapper, pixel-upload buffer, readback registry, and index-buffer
-# point-restart cleanup. Invoke through harness/buildwrap.sh.
+# point-restart cleanup and indexed-draw subrange binding plan. Invoke through
+# harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -69,6 +70,9 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_readback.hh
     source/blender/gpu/webgpu/wgpu_index_buffer.cc
     source/blender/gpu/webgpu/wgpu_index_buffer.hh
+    source/blender/gpu/webgpu/wgpu_batch.cc
+    source/blender/draw/engines/eevee/eevee_shadow.cc
+    source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc
     source/blender/gpu/intern/gpu_index_buffer.cc
     source/blender/gpu/intern/gpu_texture_private.hh
     source/blender/gpu/GPU_index_buffer.hh
@@ -108,7 +112,8 @@ for source_name in \
   wgpu_readback.cc \
   wgpu_readback.hh \
   wgpu_index_buffer.cc \
-  wgpu_index_buffer.hh
+  wgpu_index_buffer.hh \
+  wgpu_batch.cc
 do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
@@ -118,6 +123,9 @@ require_file "$ROOT/upstream/source/blender/gpu/GPU_index_buffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_primitive.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
 require_file "$ROOT/upstream/intern/guardedalloc/MEM_guardedalloc.h"
+require_file "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_shadow.cc"
+require_file \
+  "$ROOT/upstream/source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc"
 for source_name in \
   leak_detector.cc \
   mallocn.cc \
@@ -134,6 +142,33 @@ if ! cmp -s "$NATIVE_FMT_INCLUDE/fmt/ranges.h" "$WASM_INCLUDE/fmt/ranges.h"; the
   exit 1
 fi
 FMT_SHA256="$(sha256_file "$WASM_INCLUDE/fmt/ranges.h")"
+
+require_fixed_count()
+{
+  local expected="$1"
+  local needle="$2"
+  local source_file="$3"
+  local actual
+  actual="$(grep -Fc -- "$needle" "$source_file" || true)"
+  if [ "$actual" -ne "$expected" ]; then
+    echo "ERROR: expected $expected exact '$needle' occurrence(s) in $source_file, got $actual" >&2
+    exit 1
+  fi
+}
+
+# Bind the pure metadata contract to every shipping direct-draw arm, then
+# separately census real multi-viewport and mesh-subrange producers. Live
+# combinations remain part of the hardware-owned M3 replay.
+require_fixed_count 1 \
+  'inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer)' \
+  "$WEBGPU_SOURCE/wgpu_index_buffer.hh"
+require_fixed_count 1 'webgpu::index_binding_plan(*elem)' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 'index_binding.byte_offset' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 4 'index_binding.base_vertex' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'GPU_framebuffer_multi_viewports_set(render_fb_,' \
+  "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_shadow.cc"
+require_fixed_count 2 'GPU_indexbuf_create_subrange' \
+  "$ROOT/upstream/source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc"
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -259,7 +294,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT index-metadata PASS subranges=1 inherited-base=1 device-u32=17' \
+    'CONTRACT index-metadata PASS subranges=2 bindings=u16@2+65536/u32@12+0 device-u32=17' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2

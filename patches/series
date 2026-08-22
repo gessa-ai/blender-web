@@ -738,3 +738,9 @@
 # native/Wasm contract covers 25 zero/sign/special/exponent-boundary vectors and
 # binds all three shipping texture call sites without creating a device.
 0156-gpu-webgpu-rg11b10-vulkan-parity.patch
+# 0157: derive the index-buffer byte window and squeezed-u16 base vertex as
+# one binding plan, then use both in multi-viewport and ordinary indexed draws.
+# The device-free native/Wasm contract covers u16 and u32 subranges while exact
+# source checks bind both draw arms and separately census real multi-viewport and
+# mesh-subrange producers.
+0157-gpu-webgpu-index-subrange-binding-plan.patch

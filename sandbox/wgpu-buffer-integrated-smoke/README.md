@@ -9,11 +9,16 @@ This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 `wgpu_pixel_buffer`, and `wgpu_readback` postimages directly for native Dawn and
 WebAssembly. It also extracts `WGPUIndexBuffer::strip_restart_indices` byte-for-byte
 and executes it through Blender's real `IndexBuf::init()` without retaining the
-live-device index-buffer vtable. It checks the exact buffer-usage matrix, alignment
-and index helpers, invalid-buffer behavior, move lifetime, the CPU-backed pixel-upload
-buffer's map/unmap and byte-preservation lifecycle, and the real readback registry's
+live-device index-buffer vtable. The same translation unit includes the canonical
+`index_binding_plan()` header helper used by `WGPUBatch`. It checks the exact buffer-usage
+matrix, alignment and index helpers, invalid-buffer behavior, move lifetime, the CPU-backed
+pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real readback registry's
 invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
-wide u32 indices, rebased u16 squeezing, subranges, and build-on-device metadata.
+wide u32 indices, rebased u16 squeezing, build-on-device metadata, and both u16 and
+u32 subrange binding plans (byte offset plus base vertex). Exact source checks bind
+that plan to ordinary and multi-viewport indexed draws, then separately census
+EEVEE's multi-viewport shadow path and mesh triangle-subrange producers. The live
+combinations remain part of the hardware-owned M3 replay.
 The readback cases fill the 256-record exact-ticket cap, prove overflow is fail-closed,
 retire half the records, refill the released capacity, and prove full reuse before
 requiring byte-identical native/Node evidence.

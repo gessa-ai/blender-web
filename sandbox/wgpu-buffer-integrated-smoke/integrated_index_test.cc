@@ -14,6 +14,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "GPU_index_buffer.hh"
+#include "wgpu_index_buffer.hh"
 
 #ifndef BW_WGPU_INDEX_STRIP_SOURCE
 #  error "BW_WGPU_INDEX_STRIP_SOURCE must name the extracted shipping method"
@@ -179,8 +180,17 @@ bool index_metadata_contract()
   parent.init(source.size(), owned_indices(source), 65536, 65539, GPU_PRIM_TRIS, false);
   IndexStripHarness child;
   child.init_subrange(&parent, 1, 2);
+  constexpr std::array<uint32_t, 4> wide_source = {3, 70000, 42, 90000};
+  IndexStripHarness wide_parent;
+  wide_parent.init(
+      wide_source.size(), owned_indices(wide_source), 3, 90000, GPU_PRIM_TRIS, false);
+  IndexStripHarness wide_child;
+  wide_child.init_subrange(&wide_parent, 3, 1);
   IndexStripHarness device_only;
   device_only.init_build_on_device(17);
+
+  const webgpu::IndexBindingPlan child_binding = webgpu::index_binding_plan(child);
+  const webgpu::IndexBindingPlan wide_binding = webgpu::index_binding_plan(wide_child);
 
   if (!require(!parent.is_32bit(), "parent compresses to u16") ||
       !require(parent.index_base_get() == 65536, "parent base") ||
@@ -190,6 +200,12 @@ bool index_metadata_contract()
                "subrange span") ||
       !require(child.index_base_get() == parent.index_base_get(), "subrange base inheritance") ||
       !require(!child.is_32bit() && child.size_get() == 4, "subrange u16 byte size") ||
+      !require(child_binding.byte_offset == 2 && child_binding.base_vertex == 65536,
+               "subrange u16 draw binding") ||
+      !require(wide_child.is_32bit() && wide_child.index_start_get() == 3,
+               "subrange u32 metadata") ||
+      !require(wide_binding.byte_offset == 12 && wide_binding.base_vertex == 0,
+               "subrange u32 draw binding") ||
       !require(device_only.is_32bit(), "device-built indices are u32") ||
       !require(device_only.index_start_get() == 0 && device_only.index_len_get() == 17,
                "device-built span") ||
@@ -198,7 +214,8 @@ bool index_metadata_contract()
     return false;
   }
 
-  std::puts("CONTRACT index-metadata PASS subranges=1 inherited-base=1 device-u32=17");
+  std::puts(
+      "CONTRACT index-metadata PASS subranges=2 bindings=u16@2+65536/u32@12+0 device-u32=17");
   return true;
 }
 

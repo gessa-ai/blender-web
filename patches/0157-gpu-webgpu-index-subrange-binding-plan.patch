@@ -1,0 +1,99 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 4558a8e..298cd0d 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -257,6 +257,8 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+    * GPU expansion covers U16 packing, U32, restart-delimited fans,
+    * shared/device-built buffers, and subranges. */
+   WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
++  const webgpu::IndexBindingPlan index_binding =
++      elem != nullptr ? webgpu::index_binding_plan(*elem) : webgpu::IndexBindingPlan{};
+   const bool emulate_triangle_fan = prim_type == GPU_PRIM_TRI_FAN;
+   std::vector<uint32_t> fan_indices;
+   webgpu::Buffer fan_index_buffer;
+@@ -448,16 +450,21 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+           mv_pass.DrawIndexed(fan_index_count,
+                               uint32_t(instance_count),
+                               0,
+-                              wibo != nullptr ? int32_t(elem->index_base_get()) : 0,
++                              wibo != nullptr ? index_binding.base_vertex : 0,
+                               uint32_t(instance_first));
+         }
+         else if (elem != nullptr) {
+           if (wibo->buffer().valid()) {
+-            mv_pass.SetIndexBuffer(wibo->buffer().handle(), wibo->index_format(), 0);
++            /* Subrange IBOs share their parent's GPU allocation. Bind the
++             * subrange's byte window and retain its squeezed-u16 base vertex,
++             * exactly as the single-pass path below does. */
++            mv_pass.SetIndexBuffer(wibo->buffer().handle(),
++                                   wibo->index_format(),
++                                   index_binding.byte_offset);
+             mv_pass.DrawIndexed(uint32_t(vertex_count),
+                                 uint32_t(instance_count),
+                                 uint32_t(vertex_first),
+-                                0,
++                                index_binding.base_vertex,
+                                 uint32_t(instance_first));
+           }
+         }
+@@ -518,7 +525,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     pass.DrawIndexed(fan_index_count,
+                      uint32_t(instance_count),
+                      0,
+-                     wibo != nullptr ? int32_t(elem->index_base_get()) : 0,
++                     wibo != nullptr ? index_binding.base_vertex : 0,
+                      uint32_t(instance_first));
+   }
+   else if (elem != nullptr) {
+@@ -529,14 +536,13 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+        * index_base_, applied as baseVertex. Without BOTH, a subrange draw reads
+        * the wrong segment of the shared mesh IBO — garbage connectivity (the
+        * r26/r27 crumpled-outline defect). */
+-      const uint32_t index_size = elem->is_32bit() ? 4u : 2u;
+       pass.SetIndexBuffer(wibo->buffer().handle(),
+                           wibo->index_format(),
+-                          uint64_t(elem->index_start_get()) * index_size);
++                          index_binding.byte_offset);
+       pass.DrawIndexed(uint32_t(vertex_count),
+                        uint32_t(instance_count),
+                        uint32_t(vertex_first),
+-                       int32_t(elem->index_base_get()),
++                       index_binding.base_vertex,
+                        uint32_t(instance_first));
+     }
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+index bcfea24..139fa2a 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -23 +23,3 @@
++#include <cstdint>
++
+ #include "GPU_index_buffer.hh"
+@@ -30 +32,24 @@
++namespace webgpu {
++
++/** Complete WebGPU indexed-draw binding state derived from IndexBuf metadata.
++ *
++ * Subranges share their parent's allocation, so index_start_get() must become
++ * the SetIndexBuffer byte offset. Squeezed Uint16 buffers store indices relative
++ * to index_base_get(), which must become DrawIndexed's baseVertex. Keeping both
++ * values together prevents alternate pass encoders from silently dropping half
++ * of the binding contract. */
++struct IndexBindingPlan {
++  uint64_t byte_offset = 0;
++  int32_t base_vertex = 0;
++};
++
++inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer)
++{
++  const uint64_t index_size = index_buffer.is_32bit() ? sizeof(uint32_t) : sizeof(uint16_t);
++  return {uint64_t(index_buffer.index_start_get()) * index_size,
++          int32_t(index_buffer.index_base_get())};
++}
++
++}  // namespace webgpu
++
+ class WGPUIndexBuffer : public IndexBuf {
+  public:
+   ~WGPUIndexBuffer() override;

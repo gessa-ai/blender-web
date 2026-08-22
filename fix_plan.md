@@ -520,6 +520,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   shipping call sites plus the exact Vulkan oracle sources. No instance, adapter, device, texture,
   or receipt is created; live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
   `notes/m3-t9-rg11b10-vulkan-parity-20260821.md`.
+- [x] **M3.F7.index-subrange [gpu-backend] COMPLETE (patch 0157):** multi-viewport indexed
+  draws now retain both the parent-buffer byte window and the squeezed-u16 base vertex through a
+  shared binding plan, matching the existing single-pass semantics. Native/wasm32 metadata cases
+  cover u16 and u32 subranges byte-identically; exact source checks bind ordinary/multi-viewport
+  draw arms and separately census EEVEE-shadow multi-viewport and mesh-subrange producers. The
+  real windowed Wasm product compiles and links the changed batch path. No instance, adapter,
+  device, draw, browser, or receipt is created; live pixel proof remains owned by
+  **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-f7-index-subrange-binding-20260821.md`.
 - [x] **M3.T10.state.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree fixed-function state table
   directly against Blender's real GPU enums. Four exhaustive contracts cover all 16 blend rows,

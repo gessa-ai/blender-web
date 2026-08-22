@@ -106,3 +106,9 @@ Patch 0156's RG11B10 Vulkan-conversion parity correction was then composed witho
 `14f8fdbf157aa4216090d19e26956f2aefee5de81ad243f2ff5d938bc42561f4`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `5d3d221838941e8cf8c23bd2500cfc645de41d890a8bccfa3f87b356a60b0169`.
+
+Patch 0157's indexed-subrange binding plan was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,541,575 bytes with SHA-256
+`6473b2a62a450260a41decd73fa200c3831c422763d9f8ac511cc0ad38108e8b`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`695321e772d5440ae3925eaa1cbec5962429649c3128f9aa7aedaeb92663a212`.

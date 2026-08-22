@@ -1606,6 +1606,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   miss path. Canonical replay/reverse, the real product rebuild/no-work check, OFF preflight,
   REUSE, scoped M3, and container-backed regression are verified. Live retry/dispatch proof
   remains s7-blocked. See `notes/m3-t8-compute-cache-publication-20260822.md`.
+- [x] **M3.T10-COLOR-BLIT-RESOURCE-GUARDS [gpu-backend] (6a27d5d):** patch 0206 rejects failed
+  lazy shader-module, 16-byte uniform-buffer, and bind-group creation before the cross-format
+  color-blit fallback reaches pipeline, queue, encoder, or pass work. The unchanged source fails
+  before evidence; the shared two-case allocation transaction is byte-identical on native/wasm32,
+  and exact source-order guards bind all three shipping failure boundaries. Canonical replay,
+  patch reversal, the real product rebuild/no-work check, OFF preflight, REUSE, scoped M3, and
+  container-backed regression are verified. Live draw/pixel proof remains s7-blocked. See
+  `notes/m3-t10-color-blit-resource-guards-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

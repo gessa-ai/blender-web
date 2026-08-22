@@ -518,10 +518,10 @@ index b7379284272a4ab34b526c367d94e71132f8329b..e99dd55f5ee51b788e1f4cdcc86eb57c
  /** Set "None" as -1 so this can be used as an index. */
 diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e5033c48739353ab842842119a9d71d27f8d9a78
+index 0000000000000000000000000000000000000000..8ee161924cdaf15eab4500798251e1e7b2593986
 --- /dev/null
 +++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,211 @@
 +/* SPDX-FileCopyrightText: 2022-2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -621,6 +621,8 @@ index 0000000000000000000000000000000000000000..e5033c48739353ab842842119a9d71d2
 +   * lacks them):
 +   *   - Unorm16TextureFormats: R/RG/RGBA 16-bit unorm (Blender's *16 formats).
 +   *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable.
++   *   - Float32Filterable: enables linear filtering for R/RG/RGBA 32-bit float
++   *     textures, matching the backend's format-capability gate.
 +   *   - Depth32FloatStencil8: Blender's D32F/S8 combined depth-stencil format.
 +   *   - TextureFormatsTier1: extended write-only storage texture formats.
 +   *   - TextureFormatsTier2: extended read-write storage texture formats.
@@ -635,6 +637,9 @@ index 0000000000000000000000000000000000000000..e5033c48739353ab842842119a9d71d2
 +  }
 +  if (adapter_.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable)) {
 +    required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);
++  }
++  if (adapter_.HasFeature(wgpu::FeatureName::Float32Filterable)) {
++    required_features.push_back(wgpu::FeatureName::Float32Filterable);
 +  }
 +  if (adapter_.HasFeature(wgpu::FeatureName::Depth32FloatStencil8)) {
 +    required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);

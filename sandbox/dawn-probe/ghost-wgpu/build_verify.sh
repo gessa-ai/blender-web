@@ -2,10 +2,10 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# M3.T3 verify: require patch 0149's integrated GHOST_ContextWGPU postimage,
-# stage it outside upstream/, apply patch 0167 there, compile the candidate
-# against Blender's real GHOST headers inside Dawn's CMake graph, and run its
-# optional-feature selector without a device. A software adapter can only
+# M3.T3 verify: require patches 0149 and 0167's integrated
+# GHOST_ContextWGPU postimage, stage it outside upstream/, compile the canonical
+# source against Blender's real GHOST headers inside Dawn's CMake graph, and run
+# its optional-feature selector without a device. A software adapter can only
 # produce the explicit blocked control; it cannot produce a T3 receipt.
 #
 #   harness/buildwrap.sh bash sandbox/dawn-probe/ghost-wgpu/build_verify.sh hardware
@@ -121,9 +121,9 @@ if [ "$dawn_head" != "$EXPECTED_DAWN" ]; then
 fi
 
 # All allocations happen after both source pins pass. Stage only the two
-# canonical files under the ignored build tree, require the exact 0149
-# postimage, and apply 0167 only to that stage before compiling. The source
-# worktree remains byte-for-byte untouched.
+# canonical files under the ignored build tree and require the exact 0149+0167
+# postimage before compiling. Reverse-checking both patches is a read-only proof;
+# the source worktree remains byte-for-byte untouched.
 mkdir -p "$BUILD"
 stage_tmp="$(mktemp -d "${TMPDIR:-/tmp}/blender-web-t3-ghost.XXXXXX")"
 trap 'rm -rf -- "$stage_tmp"' EXIT
@@ -134,8 +134,7 @@ cp "$UP/$stage_rel/GHOST_ContextWGPU.hh" "$stage_tmp/$stage_rel/"
 (
   cd "$stage_tmp"
   git apply --reverse --check "$PLATFORM_PATCH"
-  git apply --check "$FEATURE_PATCH"
-  git apply "$FEATURE_PATCH"
+  git apply --reverse --check "$FEATURE_PATCH"
 )
 
 stage="$BUILD/bw-ghost-wgpu-source/$stage_rel"

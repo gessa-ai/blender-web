@@ -656,10 +656,12 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   duplicated, side-effecting, and ambiguous selectors. The live Vulkan control still rejects
   llvmpipe and emits no receipt. Evidence:
   `notes/m3-t3-native-float32-filterable-20260822.md`.
-- [ ] **M3.T3.native-float32-filterable-integration [gpu-backend]:** compose patch 0167's
-  verified postimage into the canonical 257-path source snapshot, switch the T3 verifier from
-  forward-apply to reverse-check, and compile/link the real windowed product. This is the next
-  unblocked device-free integration step; it must not claim a hardware receipt.
+- [x] **M3.T3.native-float32-filterable-integration [gpu-backend] COMPLETE:** patch 0167's
+  verified postimage is composed into the canonical 257-path / 20,258-entry source snapshot;
+  the T3 verifier reverse-checks it, canonical replay is exact, and the real windowed product
+  compiles, links, and ends locked-Ninja no-work. The live control still rejects llvmpipe and
+  creates no hardware receipt. Evidence:
+  `notes/m3-t3-native-float32-filterable-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

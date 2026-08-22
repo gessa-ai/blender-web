@@ -446,3 +446,13 @@ Parse the exact shipping WGSL variants with pinned Tint and exercise window conv
 aspects, integer boundaries, and layer exhaustion on native and wasm32. See
 `sandbox/wgpu-framebuffer-scissored-clear-oracle/` and
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 29 — aligned copy size does not imply an aligned buffer offset
+
+Signature: a buffer read rounds its byte count to WebGPU's four-byte copy granularity and proves
+the aligned range fits, but forwards the original source offset unchanged. Dawn validates source
+and destination offsets independently, so a contained read at offset two still invalidates the
+command encoder. Use one checked copy-span decision after size alignment: require nonzero aligned
+size, aligned source and destination offsets, and subtraction-form containment for both buffers.
+Bind the pure misalignment case to the shipping read seam before any encoder or asynchronous
+ticket work. See `sandbox/wgpu-buffer-integrated-smoke/`.

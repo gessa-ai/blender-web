@@ -18085,10 +18085,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..381c2495f1b6848ac238848e70441a2088516a0d
+index 0000000000000000000000000000000000000000..45b6284ecd07023cd3703f319760d35893e01ced
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,250 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18281,7 +18281,9 @@ index 0000000000000000000000000000000000000000..381c2495f1b6848ac238848e70441a20
 +    return out;
 +  }
 +  size_t copy;
-+  if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {
++  if (!checked_align_up(size, kCopyAlignment, copy) ||
++      !buffer_copy_range_valid(offset, 0, copy, size_, copy))
++  {
 +    return out;
 +  }
 +#ifdef __EMSCRIPTEN__

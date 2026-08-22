@@ -887,3 +887,6 @@
 # 0194: preserve scissor-sensitive framebuffer clear semantics with typed
 # color/depth/stencil draws while retaining whole-attachment loadOp fast clears.
 0194-gpu-webgpu-framebuffer-scissored-clear.patch
+# 0195: reject misaligned buffer-read source offsets before native Dawn's
+# CopyBufferToBuffer encoder and the browser asynchronous readback registry.
+0195-gpu-webgpu-buffer-read-offset-alignment.patch

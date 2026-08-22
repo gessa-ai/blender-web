@@ -250,7 +250,10 @@ fi
 require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
-  'if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {' \
+  'if (!checked_align_up(size, kCopyAlignment, copy) ||' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  '!buffer_copy_range_valid(offset, 0, copy, size_, copy))' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
   'inline bool buffer_copy_range_valid(size_t source_offset,' \

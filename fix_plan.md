@@ -498,6 +498,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   end at locked-Ninja no-work. It creates no instance, adapter, device, texture, or receipt; the
   historical live T9 creation/upload/readback proof remains owned by **M3-LINUX-REPLAY** and
   blocked by s7. Evidence: `notes/m3-t9-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T9.rgb9e5 [gpu-backend] COMPLETE (patch 0153):** the canonical texture path now
+  classifies `UFLOAT_9_9_9_EXP_5` as native RGB9E5 and uses exact shared-exponent packing for
+  upload/clear plus unpacking for readback. Three pinned Dawn decode vectors and seven
+  canonical/edge encodes run byte-identically in native/wasm32, with exact shipping-call-site
+  and eight-source binding. Live texture proof and the strict receipt remain owned by
+  **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t9-rgb9e5-integrated-linux-20260821.md`.
 - [x] **M3.T10.state.integrated [gpu-backend]** RECONCILED on Linux: a checkout-relative,
   device-free native/Wasm contract now compiles the canonical in-tree fixed-function state table
   directly against Blender's real GPU enums. Four exhaustive contracts cover all 16 blend rows,

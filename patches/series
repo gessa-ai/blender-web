@@ -720,3 +720,7 @@
 # The device-free native/Wasm contract covers all four pinned mat3 declarations and
 # rejects the former tight 36-byte copy before any browser/device receipt is involved.
 0152-gpu-webgpu-push-constant-mat3-std140.patch
+# 0153: implement the native RGB9E5 shared-exponent CPU conversion path.
+# The device-free native/Wasm texture contract binds Dawn decode vectors, exponent
+# rollover, clamping, and exact 32-bit layout without creating a WebGPU device.
+0153-gpu-webgpu-rgb9e5-conversion.patch

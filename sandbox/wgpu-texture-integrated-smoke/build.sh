@@ -61,6 +61,7 @@ source_digest()
     webgpu/wgpu_texture_format.cc
     webgpu/wgpu_texture_format.hh
     webgpu/wgpu_texture_format_list.h
+    webgpu/wgpu_texture.cc
     webgpu/wgpu_data_conversion.cc
     webgpu/wgpu_data_conversion.hh
   )
@@ -86,11 +87,23 @@ for source_name in \
   wgpu_texture_format.cc \
   wgpu_texture_format.hh \
   wgpu_texture_format_list.h \
+  wgpu_texture.cc \
   wgpu_data_conversion.cc \
   wgpu_data_conversion.hh
 do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
+
+RGB9E5_TEXTURE_SOURCE="$WEBGPU_SOURCE/wgpu_texture.cc"
+if [ "$(grep -Fc 'PackedRGB9E5' "$RGB9E5_TEXTURE_SOURCE")" -ne 6 ] ||
+   [ "$(grep -Fc 'case TextureFormat::UFLOAT_9_9_9_EXP_5:' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '(^|[^[:alnum:]_])pack_rgb9e5_ufloat\(' "$RGB9E5_TEXTURE_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'unpack_rgb9e5_ufloat(packed, rgb);' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   grep -Fq 'shared-exponent pack not implemented' "$RGB9E5_TEXTURE_SOURCE"
+then
+  echo "ERROR: canonical RGB9E5 texture wiring differs" >&2
+  exit 1
+fi
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -183,13 +196,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=5 formats=63 promotions=13 view_pairs=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=6 formats=63 promotions=13 view_pairs=10 rgb9e5=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

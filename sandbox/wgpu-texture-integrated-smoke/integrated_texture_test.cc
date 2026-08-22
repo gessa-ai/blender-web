@@ -10,9 +10,11 @@
 
 #include <array>
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 #include "wgpu_data_conversion.hh"
@@ -407,6 +409,77 @@ bool promotion_contract()
   return true;
 }
 
+constexpr uint32_t rgb9e5_bits(
+    const uint32_t red, const uint32_t green, const uint32_t blue, const uint32_t exponent)
+{
+  return red | (green << 9u) | (blue << 18u) | (exponent << 27u);
+}
+
+bool rgb9e5_contract()
+{
+  struct DecodeCase {
+    uint32_t packed;
+    std::array<float, 3> expected;
+  };
+  const float smallest = std::ldexp(1.0f, -24);
+  const float largest_scale = std::ldexp(1.0f, 7);
+  const std::array<DecodeCase, 3> decode_cases = {{
+      {rgb9e5_bits(0, 1, 2, 0), {0.0f, smallest, 2.0f * smallest}},
+      {rgb9e5_bits(2, 1, 0, 31), {2.0f * largest_scale, largest_scale, 0.0f}},
+      {rgb9e5_bits(0, 1, 2, 24), {0.0f, 1.0f, 2.0f}},
+  }};
+
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const DecodeCase &test : decode_cases) {
+    float actual[3] = {};
+    bw::unpack_rgb9e5_ufloat(test.packed, actual);
+    if (!require(actual[0] == test.expected[0] && actual[1] == test.expected[1] &&
+                     actual[2] == test.expected[2],
+                 "RGB9E5 decode vector"))
+    {
+      return false;
+    }
+    hash = fnv_u64(hash, test.packed);
+    for (const float value : actual) {
+      uint32_t bits = 0;
+      std::memcpy(&bits, &value, sizeof(bits));
+      hash = fnv_u64(hash, bits);
+    }
+  }
+
+  struct EncodeCase {
+    std::array<float, 3> source;
+    uint32_t expected;
+  };
+  const float max_value = 511.0f * largest_scale;
+  const std::array<EncodeCase, 7> encode_cases = {{
+      {{0.0f, 0.0f, 0.0f}, 0},
+      {{0.0f, smallest, 2.0f * smallest}, rgb9e5_bits(0, 1, 2, 0)},
+      {{1.0f, 1.0f, 1.0f}, rgb9e5_bits(256, 256, 256, 16)},
+      {{0.0f, 1.0f, 2.0f}, rgb9e5_bits(0, 128, 256, 17)},
+      {{1023.0f / 512.0f, 1.0f, 0.0f}, rgb9e5_bits(256, 128, 0, 17)},
+      {{max_value, max_value, max_value}, rgb9e5_bits(511, 511, 511, 31)},
+      {{-1.0f,
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity()},
+       rgb9e5_bits(0, 0, 511, 31)},
+  }};
+  for (const EncodeCase &test : encode_cases) {
+    const uint32_t actual =
+        bw::pack_rgb9e5_ufloat(test.source[0], test.source[1], test.source[2]);
+    if (!require(actual == test.expected, "RGB9E5 encode vector")) {
+      return false;
+    }
+    hash = fnv_u64(hash, actual);
+  }
+
+  std::printf("CONTRACT rgb9e5 PASS encode=%zu decode=%zu edge=3 digest=%016" PRIx64 "\n",
+              encode_cases.size(),
+              decode_cases.size(),
+              hash);
+  return true;
+}
+
 bool boundary_contract()
 {
   const bw::PromotionPlan plan = bw::promotion_plan(bw::TextureFormat::UNORM_8_8_8);
@@ -460,10 +533,11 @@ bool boundary_contract()
 int main()
 {
   if (!table_contract() || !capabilities_contract() || !view_format_contract() ||
-      !promotion_contract() || !boundary_contract())
+      !promotion_contract() || !rgb9e5_contract() || !boundary_contract())
   {
     return 1;
   }
-  std::printf("INTEGRATED_TEXTURE_PASS contracts=5 formats=63 promotions=13 view_pairs=10\n");
+  std::printf(
+      "INTEGRATED_TEXTURE_PASS contracts=6 formats=63 promotions=13 view_pairs=10 rgb9e5=10\n");
   return 0;
 }

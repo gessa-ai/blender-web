@@ -82,3 +82,9 @@ Patch 0152's float3x3 std140 column-packing correction was then composed without
 `3045050329c55f3d269c24b8441a209b0e1c0113bf11445d9b45534a4bf1aa71`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `dec961c47e21e5df934641525f20f5ba682ab1bd7075aa705767878d7bf1c21c`.
+
+Patch 0153's native RGB9E5 shared-exponent conversion was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,535,730 bytes with SHA-256
+`a8a582c521d36257d433250b4499e2a65617f16054308d23e2cb048e287f0219`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`3553bf3594cf8f5ebcf0ce4e23ca1dbea4d27376e5f16b817291c8e64bdb3b38`.

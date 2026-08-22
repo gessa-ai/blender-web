@@ -631,6 +631,14 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   the real windowed product compiles and links the corrected context path. No adapter, device,
   sampler, browser receipt, or result promotion is created. Evidence:
   `notes/m3-t10-sampler-anisotropy-20260822.md`.
+- [x] **M3.T9.feature-render-attachments [gpu-backend] COMPLETE (patch 0165):** texture
+  allocation now derives render-attachment eligibility from the exact enabled optional-format
+  features, restoring the production Grease Pencil `UNORM_16` render mask while preserving the
+  independent RG11B10 and D32/S8 feature gates. A 16-case native/wasm32 contract binds core,
+  Unorm16, Tier1, RG11B10, and D32/S8 positive and negative decisions byte-identically; the real
+  windowed product compiles and links the corrected texture path. No adapter, device, framebuffer,
+  browser receipt, or result promotion is created. Evidence:
+  `notes/m3-t9-feature-render-attachments-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

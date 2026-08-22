@@ -774,3 +774,7 @@
 # Dawn requires all three filters to be linear when maxAnisotropy exceeds one;
 # the device-free native/Wasm descriptor contract exhausts the four sample counts.
 0164-gpu-webgpu-sampler-anisotropy.patch
+# 0165: honor optional format features when allocating WebGPU render attachments.
+# This restores the production Grease Pencil R16Unorm render mask and binds the exact
+# core/Unorm16/Tier1/Depth32Stencil8/RG11B10 decision matrix in native and wasm32.
+0165-gpu-webgpu-feature-render-attachments.patch

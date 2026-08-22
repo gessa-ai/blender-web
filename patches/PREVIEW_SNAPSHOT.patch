@@ -29648,10 +29648,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e002851fa46c36368ab074a3229ed4f4939cb41b
+index 0000000000000000000000000000000000000000..90e4063e59a0d070e018bcfd6c204c06ea59c2dd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2482 @@
+@@ -0,0 +1,2489 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30332,17 +30332,25 @@ index 0000000000000000000000000000000000000000..e002851fa46c36368ab074a3229ed4f4
 +  }
 +
 +  const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
-+  /* Renderable = the format's spec cap, OR any depth/stencil format (needed for the
-+   * render-pass depth clear). RG11B10Ufloat's cap is conditional on the device
-+   * feature; without it the texture remains legal for raw upload/read and sampling.
-+   * SNORM16 is emulated as a Uint texture, whose Uint target is not renderable.
++  /* Renderability combines the core table with the optional format features enabled on this
++   * device. In particular Blender's Grease Pencil render path uses an R16Unorm mask attachment;
++   * omitting its enabled Unorm16/Tier1 capability silently stripped RenderAttachment from the
++   * texture and made framebuffer creation invalid. SNORM16 remains sampled-only because its
++   * Uint backing has no shader conversion for attachment writes.
 +   * WebGPU forbids RenderAttachment on 1D textures (dimension=1D); a 1D array is
 +   * created as 2D so it stays eligible. */
-+  const bool optional_render_feature =
-+      wgpu_format_ != wgpu::TextureFormat::RG11B10Ufloat ||
++  RenderAttachmentFeatures render_features;
++  render_features.unorm16_texture_formats =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
++  render_features.texture_formats_tier1 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1);
++  render_features.depth32_float_stencil8 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
++  render_features.rg11b10_ufloat_renderable =
 +      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
++  const bool format_renderable = render_attachment_supported(wgpu_format_, render_features);
 +  if (wgpu_format_ == wgpu::TextureFormat::RG11B10Ufloat &&
-+      !optional_render_feature &&
++      !format_renderable &&
 +      (gpu_image_usage_flags_ & GPU_TEXTURE_USAGE_ATTACHMENT))
 +  {
 +    /* An explicitly requested RG11B10 attachment cannot be made faithful without
@@ -30352,8 +30360,7 @@ index 0000000000000000000000000000000000000000..e002851fa46c36368ab074a3229ed4f4
 +    return false;
 +  }
 +  const bool renderable =
-+      (fi.caps.renderable || (format_flag_ & GPU_FORMAT_DEPTH) != 0) &&
-+      optional_render_feature && type_ != GPU_TEXTURE_1D;
++      format_renderable && !snorm16_emulated_ && type_ != GPU_TEXTURE_1D;
 +  const bool tier1_storage =
 +      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1) &&
 +      is_tier1_storage_format(wgpu_format_);
@@ -32348,10 +32355,10 @@ index 0000000000000000000000000000000000000000..9a1d37e8443fae24cdf704cb939d7467
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..80ec58e31e02ac613ae822c4114a9d9db0e12d63
+index 0000000000000000000000000000000000000000..e66d581b44f1ecaa963de70e4361b1f2e5ca624c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,251 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32473,6 +32480,28 @@ index 0000000000000000000000000000000000000000..80ec58e31e02ac613ae822c4114a9d9d
 +  return c;
 +}
 +
++bool render_attachment_supported(F f, const RenderAttachmentFeatures &features)
++{
++  switch (f) {
++    /* Either feature exposes the 16-bit normalized formats as render targets.
++     * TextureFormatsTier1 also adds the renderable 8-bit signed-normalized set. */
++    case F::R16Unorm:
++    case F::RG16Unorm:
++    case F::RGBA16Unorm:
++      return features.unorm16_texture_formats || features.texture_formats_tier1;
++    case F::R8Snorm:
++    case F::RG8Snorm:
++    case F::RGBA8Snorm:
++      return features.texture_formats_tier1;
++    case F::RG11B10Ufloat:
++      return features.rg11b10_ufloat_renderable;
++    case F::Depth32FloatStencil8:
++      return features.depth32_float_stencil8;
++    default:
++      return caps_of(f).renderable;
++  }
++}
++
 +/* ---- The table ------------------------------------------------------------- */
 +
 +static const FormatInfo g_table[] = {
@@ -32583,10 +32612,10 @@ index 0000000000000000000000000000000000000000..80ec58e31e02ac613ae822c4114a9d9d
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9a711c00bcd075e391f97bbb8d556dd1a8c698c9
+index 0000000000000000000000000000000000000000..47ed533705824dce4316b61e60da81e3cbe0bc4a
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,130 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32662,6 +32691,19 @@ index 0000000000000000000000000000000000000000..9a711c00bcd075e391f97bbb8d556dd1
 +  bool blendable = false;    /* supports fixed-function blending as a color target. */
 +  bool multisample = false;  /* supports sampleCount > 1. */
 +};
++
++/** Optional device features which promote sampled-only formats into legal render
++ * attachments. Defaults describe the WebGPU core-format baseline. */
++struct RenderAttachmentFeatures {
++  bool unorm16_texture_formats = false;
++  bool texture_formats_tier1 = false;
++  bool depth32_float_stencil8 = false;
++  bool rg11b10_ufloat_renderable = false;
++};
++
++/** True when `format` is render-attachment capable for the enabled feature set. */
++bool render_attachment_supported(wgpu::TextureFormat format,
++                                 const RenderAttachmentFeatures &features);
 +
 +struct FormatInfo {
 +  TextureFormat blender;

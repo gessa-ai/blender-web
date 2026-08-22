@@ -154,3 +154,9 @@ Patch 0164's anisotropic sampler mapping was then composed without changing the 
 `68c9422ec2204a17348f6a0ab42f0fac3b5eeb012cba9c8eb5d5481b7f937e9d`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `434c9c0e2c0100b54bf19c12b424bf8c96720da958c1bfb9b3e666b10197c81b`.
+
+Patch 0165's feature-aware render-attachment mapping was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,547,630 bytes with SHA-256
+`fe90f9b96bd83c02443b3e154fecc17201f86f96cf0ef1bcaa693330520537b3`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`48bf8892265d0be659778b5fc44d63c3171e7f3956ec10844db24c5c1c506f4c`.

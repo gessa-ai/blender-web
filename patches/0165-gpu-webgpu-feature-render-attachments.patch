@@ -1,0 +1,106 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+@@ -70,6 +70,19 @@ struct FormatCaps {
+   bool multisample = false;  /* supports sampleCount > 1. */
+ };
+-
++
++/** Optional device features which promote sampled-only formats into legal render
++ * attachments. Defaults describe the WebGPU core-format baseline. */
++struct RenderAttachmentFeatures {
++  bool unorm16_texture_formats = false;
++  bool texture_formats_tier1 = false;
++  bool depth32_float_stencil8 = false;
++  bool rg11b10_ufloat_renderable = false;
++};
++
++/** True when `format` is render-attachment capable for the enabled feature set. */
++bool render_attachment_supported(wgpu::TextureFormat format,
++                                 const RenderAttachmentFeatures &features);
++
+ struct FormatInfo {
+   TextureFormat blender;
+   const char *name;               /* blender enum spelling */
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+@@ -119,6 +119,28 @@ FormatCaps caps_of(F f)
+   return c;
+ }
+-
++
++bool render_attachment_supported(F f, const RenderAttachmentFeatures &features)
++{
++  switch (f) {
++    /* Either feature exposes the 16-bit normalized formats as render targets.
++     * TextureFormatsTier1 also adds the renderable 8-bit signed-normalized set. */
++    case F::R16Unorm:
++    case F::RG16Unorm:
++    case F::RGBA16Unorm:
++      return features.unorm16_texture_formats || features.texture_formats_tier1;
++    case F::R8Snorm:
++    case F::RG8Snorm:
++    case F::RGBA8Snorm:
++      return features.texture_formats_tier1;
++    case F::RG11B10Ufloat:
++      return features.rg11b10_ufloat_renderable;
++    case F::Depth32FloatStencil8:
++      return features.depth32_float_stencil8;
++    default:
++      return caps_of(f).renderable;
++  }
++}
++
+ /* ---- The table ------------------------------------------------------------- */
+-
++
+ static const FormatInfo g_table[] = {
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -676,15 +676,23 @@ bool WGPUTexture::allocate()
+-
++
+   const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
+-  /* Renderable = the format's spec cap, OR any depth/stencil format (needed for the
+-   * render-pass depth clear). RG11B10Ufloat's cap is conditional on the device
+-   * feature; without it the texture remains legal for raw upload/read and sampling.
+-   * SNORM16 is emulated as a Uint texture, whose Uint target is not renderable.
++  /* Renderability combines the core table with the optional format features enabled on this
++   * device. In particular Blender's Grease Pencil render path uses an R16Unorm mask attachment;
++   * omitting its enabled Unorm16/Tier1 capability silently stripped RenderAttachment from the
++   * texture and made framebuffer creation invalid. SNORM16 remains sampled-only because its
++   * Uint backing has no shader conversion for attachment writes.
+    * WebGPU forbids RenderAttachment on 1D textures (dimension=1D); a 1D array is
+    * created as 2D so it stays eligible. */
+-  const bool optional_render_feature =
+-      wgpu_format_ != wgpu::TextureFormat::RG11B10Ufloat ||
+-      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
++  RenderAttachmentFeatures render_features;
++  render_features.unorm16_texture_formats =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
++  render_features.texture_formats_tier1 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1);
++  render_features.depth32_float_stencil8 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
++  render_features.rg11b10_ufloat_renderable =
++      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
++  const bool format_renderable = render_attachment_supported(wgpu_format_, render_features);
+   if (wgpu_format_ == wgpu::TextureFormat::RG11B10Ufloat &&
+-      !optional_render_feature &&
++      !format_renderable &&
+       (gpu_image_usage_flags_ & GPU_TEXTURE_USAGE_ATTACHMENT))
+   {
+@@ -697,9 +705,8 @@ bool WGPUTexture::allocate()
+      * emulation; legal upload/read/sample-only RG11 remains available below. */
+     return false;
+   }
+-  const bool renderable =
+-      (fi.caps.renderable || (format_flag_ & GPU_FORMAT_DEPTH) != 0) &&
+-      optional_render_feature && type_ != GPU_TEXTURE_1D;
++  const bool renderable =
++      format_renderable && !snorm16_emulated_ && type_ != GPU_TEXTURE_1D;
+   const bool tier1_storage =
+       ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1) &&
+       is_tier1_storage_format(wgpu_format_);

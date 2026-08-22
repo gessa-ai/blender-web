@@ -66,6 +66,7 @@ source_digest()
     webgpu/wgpu_data_conversion.hh
     vulkan/vk_data_conversion.hh
     vulkan/tests/vk_data_conversion_test.cc
+    ../draw/engines/gpencil/gpencil_engine_c.cc
   )
   if command -v sha256sum >/dev/null 2>&1; then
     (cd "$ROOT/upstream/source/blender/gpu" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
@@ -84,6 +85,7 @@ require_file "$ROOT/upstream/source/blender/gpu/GPU_format.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
+require_file "$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -132,6 +134,14 @@ if ! grep -Fq 'using FormatF11 = FloatingPointFormat<false, 6, 5>;' "$VK_CONVERS
    ! grep -Fq 'convert_float_formats<FormatF10, FormatF32, true>' "$VK_CONVERSION_TEST"
 then
   echo "ERROR: pinned Vulkan RG11B10 oracle differs" >&2
+  exit 1
+fi
+
+GPENCIL_MASK_SOURCE="$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
+if [ "$(grep -Fc 'const gpu::TextureFormat mask_format = this->is_render ? gpu::TextureFormat::UNORM_16 :' "$GPENCIL_MASK_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'this->mask_tx.acquire_2d(size, mask_format);' "$GPENCIL_MASK_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: pinned Grease Pencil UNORM16 render-mask path differs" >&2
   exit 1
 fi
 
@@ -226,13 +236,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=7 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25' \
+    'INTEGRATED_TEXTURE_PASS contracts=8 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 7 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 8 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

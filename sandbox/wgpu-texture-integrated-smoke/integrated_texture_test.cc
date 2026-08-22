@@ -257,6 +257,62 @@ bool capabilities_contract()
   return true;
 }
 
+bool render_attachment_contract()
+{
+  enum FeatureMask : uint8_t {
+    Unorm16 = 1u << 0,
+    Tier1 = 1u << 1,
+    Depth32Stencil8 = 1u << 2,
+    RG11B10 = 1u << 3,
+  };
+  struct Case {
+    wgpu::TextureFormat format;
+    uint8_t features;
+    bool expected;
+  };
+  constexpr std::array<Case, 16> cases = {{{wgpu::TextureFormat::RGBA8Unorm, 0, true},
+                                           {wgpu::TextureFormat::R32Float, 0, true},
+                                           {wgpu::TextureFormat::Depth32Float, 0, true},
+                                           {wgpu::TextureFormat::BC1RGBAUnorm, 0, false},
+                                           {wgpu::TextureFormat::R16Unorm, 0, false},
+                                           {wgpu::TextureFormat::R16Unorm, Unorm16, true},
+                                           {wgpu::TextureFormat::RG16Unorm, Tier1, true},
+                                           {wgpu::TextureFormat::RGBA16Unorm, Tier1, true},
+                                           {wgpu::TextureFormat::R8Snorm, 0, false},
+                                           {wgpu::TextureFormat::RG8Snorm, Tier1, true},
+                                           {wgpu::TextureFormat::RGBA8Snorm, Tier1, true},
+                                           {wgpu::TextureFormat::RG11B10Ufloat, 0, false},
+                                           {wgpu::TextureFormat::RG11B10Ufloat, RG11B10, true},
+                                           {wgpu::TextureFormat::RG11B10Ufloat, Tier1, false},
+                                           {wgpu::TextureFormat::Depth32FloatStencil8, 0, false},
+                                           {wgpu::TextureFormat::Depth32FloatStencil8,
+                                            Depth32Stencil8,
+                                            true}}};
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  for (const Case &test : cases) {
+    bw::RenderAttachmentFeatures features;
+    features.unorm16_texture_formats = (test.features & Unorm16) != 0;
+    features.texture_formats_tier1 = (test.features & Tier1) != 0;
+    features.depth32_float_stencil8 = (test.features & Depth32Stencil8) != 0;
+    features.rg11b10_ufloat_renderable = (test.features & RG11B10) != 0;
+    if (!require(bw::render_attachment_supported(test.format, features) == test.expected,
+                 "feature-aware render-attachment capability"))
+    {
+      return false;
+    }
+    accepted += test.expected;
+    rejected += !test.expected;
+  }
+
+  std::printf("CONTRACT render-attachments PASS cases=%zu accepted=%zu rejected=%zu\n",
+              cases.size(),
+              accepted,
+              rejected);
+  return accepted == 10 && rejected == 6;
+}
+
 bool view_format_contract()
 {
   using F = wgpu::TextureFormat;
@@ -659,14 +715,14 @@ bool boundary_contract()
 
 int main()
 {
-  if (!table_contract() || !capabilities_contract() || !view_format_contract() ||
-      !promotion_contract() || !rgb9e5_contract() || !rg11b10_contract() ||
-      !boundary_contract())
+  if (!table_contract() || !capabilities_contract() || !render_attachment_contract() ||
+      !view_format_contract() || !promotion_contract() || !rgb9e5_contract() ||
+      !rg11b10_contract() || !boundary_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=7 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
+      "INTEGRATED_TEXTURE_PASS contracts=8 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
       "rg11b10=25\n");
   return 0;
 }

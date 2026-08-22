@@ -166,3 +166,9 @@ Patch 0166's dummy-attribute default-value correction was then composed without 
 `31832021c9d755a70e03c7f895ebc77793431fac192de1fde53f56fc43b4c4e5`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `a7af5d5008b634b86bc7eed7182ce78a919d3deb2fdcaa2da3a4e5190bbf3e7e`.
+
+Patch 0167's guarded native `Float32Filterable` request is a verified numbered delta but is
+not yet composed into this authority. Its T3 proof applies the patch only to an isolated source
+stage and leaves the canonical 0166 hashes above unchanged. The next integration iteration must
+compose that postimage before switching its verifier to an integrated reverse-check or claiming a
+windowed-product build.

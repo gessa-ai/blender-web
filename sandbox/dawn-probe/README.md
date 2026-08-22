@@ -73,9 +73,11 @@ host exposed only a software/CPU adapter; that result is not a receipt.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.
 - `ghost-wgpu/build_verify.sh` — requires patch 0149's canonical integrated
-  postimage, stages the pinned GHOST context outside `upstream/`, builds it
-  through the same locked Dawn graph, and requires either a hardware T3 pass or
-  an explicit software-block control. Hardware mode independently classifies
-  the adapter retained by the real context and requires one exact adapter/PASS
-  transcript; `parser-selfcheck` rejects missing, duplicated, blocked, and
-  nonzero synthetic transcripts without allocating build or GPU state.
+  postimage, stages the pinned GHOST context outside `upstream/`, applies patch
+  0167 only to that temporary stage, and builds it through the same locked Dawn
+  graph. Its device-free contract exhausts all 256 optional-feature masks and
+  requires guarded `Float32Filterable` selection before either a hardware T3
+  pass or an explicit software-block control. `parser-selfcheck` also rejects
+  five malformed selector shapes plus missing, duplicated, blocked, and nonzero
+  hardware transcripts. Hardware mode independently classifies the adapter
+  retained by the real context and requires one exact adapter/PASS transcript.

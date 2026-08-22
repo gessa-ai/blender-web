@@ -647,6 +647,19 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   16-byte write; the real windowed product compiles and links the corrected context path.
   No adapter, device, buffer, draw, browser receipt, or result promotion is created.
   Evidence: `notes/m3-t10-dummy-attribute-default-20260822.md`.
+- [x] **M3.T3.native-float32-filterable-patch [gpu-backend] VERIFIED (patch 0167):**
+  native GHOST now has an adapter-guarded request for `Float32Filterable`, matching the
+  backend's gated R/RG/RGBA32-float filtering policy and the browser's request of every
+  exposed adapter feature. The T3 driver applies 0167 only to an isolated source stage,
+  compiles the real GHOST context against pinned Dawn, and exhausts all 256 combinations of
+  its eight optional features; extractor mutation controls reject missing, mismatched,
+  duplicated, side-effecting, and ambiguous selectors. The live Vulkan control still rejects
+  llvmpipe and emits no receipt. Evidence:
+  `notes/m3-t3-native-float32-filterable-20260822.md`.
+- [ ] **M3.T3.native-float32-filterable-integration [gpu-backend]:** compose patch 0167's
+  verified postimage into the canonical 257-path source snapshot, switch the T3 verifier from
+  forward-apply to reverse-check, and compile/link the real windowed product. This is the next
+  unblocked device-free integration step; it must not claim a hardware receipt.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

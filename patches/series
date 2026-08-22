@@ -783,3 +783,7 @@
 # The exact shipping method runs device-free in native/wasm32 with an emulated
 # create/write queue and binds the pinned Vulkan orco policy.
 0166-gpu-webgpu-dummy-attribute-default.patch
+# 0167: request native Float32Filterable whenever Dawn exposes it so the device
+# capability matches WebGPU's 32-bit-float texture filterability gate. The T3
+# staged-source contract compiles the real context and exhausts all 256 feature masks.
+0167-gpu-webgpu-native-float32-filterable.patch

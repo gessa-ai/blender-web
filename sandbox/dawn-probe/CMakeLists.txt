@@ -144,6 +144,19 @@ if(DEFINED BW_GHOST_WGPU_SOURCE_DIR)
     "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   target_link_libraries(ghost_wgpu_verify PRIVATE dawn::webgpu_dawn)
+
+  if(NOT DEFINED BW_GHOST_WGPU_FEATURE_SOURCE_DIR OR
+     NOT IS_ABSOLUTE "${BW_GHOST_WGPU_FEATURE_SOURCE_DIR}" OR
+     NOT EXISTS "${BW_GHOST_WGPU_FEATURE_SOURCE_DIR}/ghost_wgpu_optional_features.inc")
+    message(FATAL_ERROR
+      "BW_GHOST_WGPU_FEATURE_SOURCE_DIR must name the extracted optional-feature contract")
+  endif()
+  add_executable(ghost_wgpu_feature_contract
+    "${CMAKE_CURRENT_SOURCE_DIR}/ghost-wgpu/feature_contract_test.cc"
+  )
+  target_include_directories(ghost_wgpu_feature_contract PRIVATE
+    "${BW_GHOST_WGPU_FEATURE_SOURCE_DIR}"
+  )
 endif()
 
 # Optional device-free contract for the canonical in-tree buffer wrapper,

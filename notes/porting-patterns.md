@@ -528,3 +528,16 @@ bind-group, or pass allocation so the local encoder and all prior passes are aba
 validate the finished command buffer before the only queue submission. Exercise each failure
 boundary, including a later pass after earlier encoding, against the exact extracted shipping
 method on native and wasm32. See `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 36 — reserved asynchronous readback must fail terminal before mapping
+
+Signature: a readback registry reserves in-flight capacity and a ticket, creates its staging
+buffer, then assumes both command-encoder creation and `Finish()` succeeded. A null encoder is
+dereferenced immediately; a null finished command buffer can still be submitted and followed by
+`MapAsync`, leaving registry work pending for a copy that never existed. Encode the copy through
+one checked transaction: reject a null encoder before copy work, reject a null command buffer
+before submit, and submit exactly once only on success. On either failure, settle the reservation
+with a specific terminal error, release every pinned backend handle, and install no map callback.
+Exercise encoder failure, finished-buffer failure, and exact successful ordering with a
+device-free native/wasm32 seam, then bind every texture and buffer kick to it. See
+`sandbox/wgpu-buffer-integrated-smoke/`.

@@ -206,6 +206,18 @@ require_fixed_count 1 \
   'inline bool buffer_allocation_size(size_t requested_size,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'inline bool command_encode_submit_if_valid(const DeviceT &device,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::command_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_readback.cc"
+require_fixed_count 2 \
+  'fail_reserved_pending(pending, TicketError::CommandEncodingFailed);' \
+  "$WEBGPU_SOURCE/wgpu_readback.cc"
+require_fixed_count 0 \
+  'wgpu::CommandEncoder encoder = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_readback.cc"
+require_fixed_count 1 \
   'if (device == nullptr || !device.GetLimits(&limits) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
@@ -479,7 +491,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=16 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
+    'INTEGRATED_BUFFER_PASS contracts=17 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -495,12 +507,15 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT readback-command PASS cases=3 copies=2 submits=1' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 16 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 17 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

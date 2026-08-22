@@ -926,3 +926,6 @@
 # 0207: abort mipmap generation before submission when any shader, encoder,
 # subresource view, bind group, render pass, or command-buffer handle fails.
 0207-gpu-webgpu-mipmap-resource-transaction.patch
+# 0208: fail both asynchronous readback kicks before mapping or submission when
+# command-encoder or finished-command-buffer creation returns a null handle.
+0208-gpu-webgpu-readback-command-transaction.patch

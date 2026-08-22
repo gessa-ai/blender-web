@@ -18528,10 +18528,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..c6ef46651ccc34b177683561ed78ebbe02ee74ba
+index 0000000000000000000000000000000000000000..67c6318f47ec4aa27103467687cc7fed390ab155
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1209 @@
+@@ -0,0 +1,1230 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18672,6 +18672,27 @@ index 0000000000000000000000000000000000000000..c6ef46651ccc34b177683561ed78ebbe
 +    return false;
 +  }
 +  result = std::move(candidate);
++  return true;
++}
++
++/** Encode and submit one short-lived command buffer without using a failed encoder or
++ * submitting a failed command-buffer handle. Templated so transient creation failures remain
++ * device-free testable on native and Wasm. */
++template<typename DeviceT, typename QueueT, typename EncodeFn>
++inline bool command_encode_submit_if_valid(const DeviceT &device,
++                                           const QueueT &queue,
++                                           EncodeFn &&encode)
++{
++  auto encoder = device.CreateCommandEncoder();
++  if (encoder == nullptr) {
++    return false;
++  }
++  std::forward<EncodeFn>(encode)(encoder);
++  auto command_buffer = encoder.Finish();
++  if (command_buffer == nullptr) {
++    return false;
++  }
++  queue.Submit(1, &command_buffer);
 +  return true;
 +}
 +
@@ -25149,10 +25170,10 @@ index 0000000000000000000000000000000000000000..9e38e923b56b90c771a3b28ce9d83adc
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a03ec5c2f1f7dbf2f60c4d77f9d7658168e3fe09
+index 0000000000000000000000000000000000000000..1cbc48aafa706919b40d62c8dd8c77da538fca79
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_readback.cc
-@@ -0,0 +1,1001 @@
+@@ -0,0 +1,1011 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
@@ -25168,6 +25189,8 @@ index 0000000000000000000000000000000000000000..a03ec5c2f1f7dbf2f60c4d77f9d76581
 + * and WebGPU staging/source handles are released by the map callback that owns them. */
 +
 +#include "wgpu_readback.hh"
++
++#include "wgpu_common.hh"
 +
 +#include <algorithm>
 +#include <atomic>
@@ -25876,10 +25899,14 @@ index 0000000000000000000000000000000000000000..a03ec5c2f1f7dbf2f60c4d77f9d76581
 +  destination.layout.rowsPerImage = region.height;
 +
 +  const wgpu::Extent3D extent = {region.width, region.height, region.depth};
-+  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-+  encoder.CopyTextureToBuffer(&source, &destination, &extent);
-+  wgpu::CommandBuffer command_buffer = encoder.Finish();
-+  queue.Submit(1, &command_buffer);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyTextureToBuffer(&source, &destination, &extent);
++      }))
++  {
++    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++    release_backend_handles(*pending);
++    return pending->ticket;
++  }
 +
 +  staging.MapAsync(wgpu::MapMode::Read,
 +                   0,
@@ -25953,10 +25980,14 @@ index 0000000000000000000000000000000000000000..a03ec5c2f1f7dbf2f60c4d77f9d76581
 +  }
 +  pending->staging = staging;
 +
-+  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-+  encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy);
-+  wgpu::CommandBuffer command_buffer = encoder.Finish();
-+  queue.Submit(1, &command_buffer);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy);
++      }))
++  {
++    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++    release_backend_handles(*pending);
++    return pending->ticket;
++  }
 +
 +  staging.MapAsync(wgpu::MapMode::Read,
 +                   0,
@@ -26156,10 +26187,10 @@ index 0000000000000000000000000000000000000000..a03ec5c2f1f7dbf2f60c4d77f9d76581
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42e9d00117
+index 0000000000000000000000000000000000000000..7904fdf6b26fb095f4773b0db97b311378a78b23
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_readback.hh
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,223 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
@@ -26256,6 +26287,7 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 +  InvalidArgument,
 +  CapacityExceeded,
 +  StagingAllocationFailed,
++  CommandEncodingFailed,
 +  MapFailed,
 +  NoMappedRange,
 +  SourceForgotten,
@@ -26310,7 +26342,8 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 + * caller stack. The source must carry CopySrc usage and its actual uncompressed format,
 + * aspect, texel size, and region are validated before submission. Cache mode reuses an
 + * identical in-flight key. Exact mode always creates a new ticket and copy, with a terminal
-+ * Failed ticket for argument/allocation/capacity errors whenever the registry can represent it. */
++ * Failed ticket for argument/allocation/command/capacity errors whenever the registry can
++ * represent it. */
 +Ticket kick_texture(const wgpu::Device &device,
 +                    const wgpu::Queue &queue,
 +                    const wgpu::Texture &tex,

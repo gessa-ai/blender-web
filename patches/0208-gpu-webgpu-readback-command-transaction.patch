@@ -1,0 +1,102 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -141,6 +141,27 @@ inline bool buffer_create_if_valid(DeviceT &device,
+   return true;
+ }
+
++/** Encode and submit one short-lived command buffer without using a failed encoder or
++ * submitting a failed command-buffer handle. Templated so transient creation failures remain
++ * device-free testable on native and Wasm. */
++template<typename DeviceT, typename QueueT, typename EncodeFn>
++inline bool command_encode_submit_if_valid(const DeviceT &device,
++                                           const QueueT &queue,
++                                           EncodeFn &&encode)
++{
++  auto encoder = device.CreateCommandEncoder();
++  if (encoder == nullptr) {
++    return false;
++  }
++  std::forward<EncodeFn>(encode)(encoder);
++  auto command_buffer = encoder.Finish();
++  if (command_buffer == nullptr) {
++    return false;
++  }
++  queue.Submit(1, &command_buffer);
++  return true;
++}
++
+ /** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
+  * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
+  * a non-null handle is available. */
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
+--- a/source/blender/gpu/webgpu/wgpu_readback.hh
++++ b/source/blender/gpu/webgpu/wgpu_readback.hh
+@@ -94,6 +94,7 @@ enum class TicketError : uint8_t {
+   InvalidArgument,
+   CapacityExceeded,
+   StagingAllocationFailed,
++  CommandEncodingFailed,
+   MapFailed,
+   NoMappedRange,
+   SourceForgotten,
+@@ -148,7 +149,8 @@ struct TextureRegion {
+  * caller stack. The source must carry CopySrc usage and its actual uncompressed format,
+  * aspect, texel size, and region are validated before submission. Cache mode reuses an
+  * identical in-flight key. Exact mode always creates a new ticket and copy, with a terminal
+- * Failed ticket for argument/allocation/capacity errors whenever the registry can represent it. */
++ * Failed ticket for argument/allocation/command/capacity errors whenever the registry can
++ * represent it. */
+ Ticket kick_texture(const wgpu::Device &device,
+                     const wgpu::Queue &queue,
+                     const wgpu::Texture &tex,
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+--- a/source/blender/gpu/webgpu/wgpu_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -14,6 +14,8 @@
+
+ #include "wgpu_readback.hh"
+
++#include "wgpu_common.hh"
++
+ #include <algorithm>
+ #include <atomic>
+ #include <cstring>
+@@ -721,10 +723,14 @@ Ticket kick_texture(const wgpu::Device &device,
+   destination.layout.rowsPerImage = region.height;
+
+   const wgpu::Extent3D extent = {region.width, region.height, region.depth};
+-  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+-  encoder.CopyTextureToBuffer(&source, &destination, &extent);
+-  wgpu::CommandBuffer command_buffer = encoder.Finish();
+-  queue.Submit(1, &command_buffer);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyTextureToBuffer(&source, &destination, &extent);
++      }))
++  {
++    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++    release_backend_handles(*pending);
++    return pending->ticket;
++  }
+
+   staging.MapAsync(wgpu::MapMode::Read,
+                    0,
+@@ -798,10 +804,14 @@ Ticket kick_buffer(const wgpu::Device &device,
+   }
+   pending->staging = staging;
+
+-  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+-  encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy);
+-  wgpu::CommandBuffer command_buffer = encoder.Finish();
+-  queue.Submit(1, &command_buffer);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy);
++      }))
++  {
++    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++    release_backend_handles(*pending);
++    return pending->ticket;
++  }
+
+   staging.MapAsync(wgpu::MapMode::Read,
+                    0,

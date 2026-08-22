@@ -21,7 +21,10 @@ matrix, ordinary and checked alignment/range helpers, live allocation-limit deci
 storage-update padding and storage-copy source/destination bounds,
 invalid-buffer behavior, move lifetime,
 the CPU-backed pixel-upload buffer's map/unmap and byte-preservation lifecycle, and the real
-readback registry's invalid-request lifecycle. The index cases cover mixed and all-restart point lists,
+readback registry's invalid-request lifecycle. A deterministic command transaction rejects null
+encoder and finished-command-buffer handles before copy, mapping, or submission; exact source
+checks bind both texture and buffer kicks to that helper and their terminal
+`CommandEncodingFailed` path. The index cases cover mixed and all-restart point lists,
 wide u32 indices, rebased u16 squeezing, build-on-device metadata, allocation failure
 and retry, and both u16 and u32 subrange binding plans (byte offset plus base vertex). Direct plans bind the
 subrange byte window; indirect plans bind offset zero because Blender's generated

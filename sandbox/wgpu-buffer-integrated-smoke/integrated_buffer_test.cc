@@ -135,6 +135,125 @@ bool checked_arithmetic_contract()
   return true;
 }
 
+struct ReadbackCommandTrace {
+  enum class Failure : uint8_t {
+    None,
+    Encoder,
+    CommandBuffer,
+  };
+
+  Failure failure = Failure::None;
+  int encoder_creates = 0;
+  int copies = 0;
+  int finishes = 0;
+  int submits = 0;
+};
+
+class ReadbackCommandBufferProbe {
+ public:
+  explicit ReadbackCommandBufferProbe(const bool valid = false) : valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+ private:
+  bool valid_ = false;
+};
+
+class ReadbackCommandEncoderProbe {
+ public:
+  ReadbackCommandEncoderProbe(ReadbackCommandTrace *trace, const bool valid)
+      : trace_(trace), valid_(valid)
+  {
+  }
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  void Copy()
+  {
+    trace_->copies++;
+  }
+
+  ReadbackCommandBufferProbe Finish()
+  {
+    trace_->finishes++;
+    return ReadbackCommandBufferProbe(trace_->failure !=
+                                      ReadbackCommandTrace::Failure::CommandBuffer);
+  }
+
+ private:
+  ReadbackCommandTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+class ReadbackDeviceProbe {
+ public:
+  explicit ReadbackDeviceProbe(ReadbackCommandTrace &trace) : trace_(&trace) {}
+
+  ReadbackCommandEncoderProbe CreateCommandEncoder() const
+  {
+    trace_->encoder_creates++;
+    return ReadbackCommandEncoderProbe(
+        trace_, trace_->failure != ReadbackCommandTrace::Failure::Encoder);
+  }
+
+ private:
+  ReadbackCommandTrace *trace_ = nullptr;
+};
+
+class ReadbackQueueProbe {
+ public:
+  explicit ReadbackQueueProbe(ReadbackCommandTrace &trace) : trace_(&trace) {}
+
+  void Submit(const size_t count, const ReadbackCommandBufferProbe *command_buffer) const
+  {
+    if (count == 1 && command_buffer != nullptr && !(*command_buffer == nullptr)) {
+      trace_->submits++;
+    }
+  }
+
+ private:
+  ReadbackCommandTrace *trace_ = nullptr;
+};
+
+bool readback_command_transaction_contract()
+{
+  constexpr std::array failures = {ReadbackCommandTrace::Failure::Encoder,
+                                   ReadbackCommandTrace::Failure::CommandBuffer,
+                                   ReadbackCommandTrace::Failure::None};
+
+  for (const ReadbackCommandTrace::Failure failure : failures) {
+    ReadbackCommandTrace trace;
+    trace.failure = failure;
+    const ReadbackDeviceProbe device(trace);
+    const ReadbackQueueProbe queue(trace);
+    const bool result = bw::command_encode_submit_if_valid(device, queue, [](auto &encoder) {
+      encoder.Copy();
+    });
+
+    const bool expect_success = failure == ReadbackCommandTrace::Failure::None;
+    const int expect_copy = failure == ReadbackCommandTrace::Failure::Encoder ? 0 : 1;
+    const int expect_finish = expect_copy;
+    const int expect_submit = expect_success ? 1 : 0;
+    if (!require(result == expect_success, "readback command result") ||
+        !require(trace.encoder_creates == 1, "readback encoder creation count") ||
+        !require(trace.copies == expect_copy, "readback copy ordering") ||
+        !require(trace.finishes == expect_finish, "readback finish ordering") ||
+        !require(trace.submits == expect_submit, "readback submit ordering"))
+    {
+      return false;
+    }
+  }
+
+  std::printf("CONTRACT readback-command PASS cases=%zu copies=2 submits=1\n", failures.size());
+  return true;
+}
+
 class MappedBufferProbe {
  public:
   explicit MappedBufferProbe(const bool map_success) : map_success_(map_success)
@@ -755,7 +874,8 @@ bool failed_ticket_capacity_contract()
 
 int main()
 {
-  if (!common_contract() || !checked_arithmetic_contract() || !mapped_buffer_write_contract() ||
+  if (!common_contract() || !checked_arithmetic_contract() ||
+      !readback_command_transaction_contract() || !mapped_buffer_write_contract() ||
       !allocation_limit_contract() || !update_payload_contract() || !copy_range_contract() ||
       !usage_contract() ||
       !invalid_buffer_contract() ||
@@ -767,7 +887,7 @@ int main()
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=16 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "INTEGRATED_BUFFER_PASS contracts=17 usage_cases=32 pixel_cases=7 exact_cap=256 "
       "buffer_update_cases=9 index_cases=4 index_upload_cases=6\n");
   return 0;
 }

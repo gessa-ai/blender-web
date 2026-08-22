@@ -749,3 +749,8 @@
 # carries absolute firstIndex/baseVertex and therefore binds the parent allocation
 # at offset zero. The device-free native/Wasm contract covers u16/u32 subranges.
 0158-gpu-webgpu-indirect-index-subrange-binding.patch
+# 0159: bind missing vertex attributes through Dawn-valid zero-stride slots.
+# The shared 16-byte zero buffer now serves arbitrary vertex/instance ranges
+# instead of imposing the old instance-stepped 4096-element ceiling. The
+# device-free native/Wasm contract covers all 32 shader input types.
+0159-gpu-webgpu-dummy-zero-stride.patch

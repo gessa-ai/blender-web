@@ -558,6 +558,13 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   no-work. It creates no instance, adapter, device, render pipeline, or receipt; historical live
   T10 proof remains owned by **M3-LINUX-REPLAY** and blocked by s7. Evidence:
   `notes/m3-t10-pipeline-integrated-linux-reconcile-20260821.md`.
+- [x] **M3.T10.dummy-zero-stride [gpu-backend] COMPLETE (patch 0159):** missing vertex
+  attributes now use Dawn-valid zero-stride, vertex-stepped bindings over one 16-byte zero buffer,
+  removing the former 4,096-instance ceiling for `Float32x4` inputs. The canonical native/wasm32
+  contract covers all 32 shader input types and source-binds Dawn's stride-zero pipeline and
+  draw-range validators. No instance, adapter, device, pipeline, draw, or receipt is created;
+  live proof remains owned by **M3-LINUX-REPLAY** under s7. Evidence:
+  `notes/m3-t10-dummy-zero-stride-20260821.md`.
 - [x] **M3.T10.indexed-strip-format [gpu-backend] COMPLETE (patch 0155):** direct and indirect
   indexed line-strip, line-loop, and triangle-strip draws now carry their bound Uint16/Uint32
   format into the render-pipeline descriptor and cache key. Pinned Dawn rejects the former

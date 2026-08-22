@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
-# render-pipeline enum mappings. Invoke through harness/buildwrap.sh.
+# render-pipeline enum mappings and dummy-attribute binding plan. Invoke through
+# harness/buildwrap.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -55,11 +56,26 @@ sha256_file()
   fi
 }
 
+require_fixed_count()
+{
+  local expected="$1"
+  local needle="$2"
+  local source_file="$3"
+  local actual
+  actual="$(grep -Fc -- "$needle" "$source_file" || true)"
+  if [ "$actual" -ne "$expected" ]; then
+    echo "ERROR: expected $expected exact '$needle' occurrence(s) in $source_file, got $actual" >&2
+    exit 1
+  fi
+}
+
 source_digest()
 {
   local files=(
     source/blender/gpu/webgpu/wgpu_pipeline.cc
     source/blender/gpu/webgpu/wgpu_pipeline.hh
+    source/blender/gpu/webgpu/wgpu_context.cc
+    source/blender/gpu/webgpu/wgpu_context.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
     source/blender/gpu/webgpu/wgpu_state_table.hh
@@ -85,12 +101,16 @@ require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_pipeline_test.cc"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
+require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
+require_file "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
 for source_name in \
   wgpu_pipeline.cc \
   wgpu_pipeline.hh \
+  wgpu_context.cc \
+  wgpu_context.hh \
   wgpu_batch.cc \
   wgpu_shader.hh \
   wgpu_state_table.hh
@@ -130,6 +150,19 @@ if [ -n "$(git -C "$DAWN_SRC" status --porcelain)" ]; then
   echo "ERROR: Dawn checkout is not clean at the pinned commit" >&2
   exit 1
 fi
+require_fixed_count 1 'TEST_F(VertexStateTest, StrideZero)' \
+  "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
+require_fixed_count 2 'if (arrayStride == 0) {' \
+  "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
+require_fixed_count 1 'static VertexBinding dummy_vertex_binding(' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'binding.array_stride = 0;' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'binding.step_mode = wgpu::VertexStepMode::Vertex;' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 'plan.push_back(dummy_vertex_binding(' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  '/* Every dummy slot has arrayStride zero, so all vertex and instance ranges read these' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
 if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2
   exit 1
@@ -211,14 +244,15 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 6 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 7 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
+     ! grep -qx 'CONTRACT dummy_vertex PASS cases=32 stride=0 step=vertex' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=5 primitives=11 strip_cases=33 formats=96 i10=12' \
+       'INTEGRATED_PIPELINE_PASS contracts=6 primitives=11 strip_cases=33 formats=96 i10=12 dummy=32' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

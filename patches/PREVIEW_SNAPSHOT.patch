@@ -18419,7 +18419,7 @@ index 0000000000000000000000000000000000000000..8c42137fc1680b5429b6f9bdc2447fc8
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1a8bf0fadfc9cb29ce51c11cf44fea0566d01715
+index 0000000000000000000000000000000000000000..30f0f7a5aff3d539befa33e8868ebfa83ba8f5bf
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
 @@ -0,0 +1,1257 @@
@@ -18732,10 +18732,10 @@ index 0000000000000000000000000000000000000000..1a8bf0fadfc9cb29ce51c11cf44fea05
 +{
 +  if (dummy_vertex_buffer_ == nullptr) {
 +    wgpu::BufferDescriptor bd = {};
-+    /* Comfortable for the largest dummy stride (16 B) over a healthy instance count; an
-+     * Instance-stepped dummy on a non-instanced draw only ever reads element 0. WebGPU
-+     * zero-initialises buffer storage — exactly the constant an unbound attribute yields. */
-+    bd.size = 65536;
++    /* Every dummy slot has arrayStride zero, so all vertex and instance ranges read these
++     * same 16 bytes. This covers the largest dummy format (Float32x4); WebGPU zero-initialises
++     * buffer storage — exactly the constant an unbound attribute yields. */
++    bd.size = 16;
 +    bd.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 +    dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
 +  }
@@ -19682,7 +19682,7 @@ index 0000000000000000000000000000000000000000..1a8bf0fadfc9cb29ce51c11cf44fea05
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..c0dae1c87414ef4d8f0d6ae22c330c46c2b1c5b9
+index 0000000000000000000000000000000000000000..8489789dbed88989bd1a7694985d8f1db4fb8ada
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
 @@ -0,0 +1,355 @@
@@ -19904,9 +19904,9 @@ index 0000000000000000000000000000000000000000..c0dae1c87414ef4d8f0d6ae22c330c46
 +  wgpu::Sampler get_sampler(const GPUSamplerState &state);
 +
 +  /* A shared zero-filled vertex buffer bound to dummy VertexState slots — the WebGPU
-+   * stand-in for the constant an unbound/disabled GL vertex attribute reads (WebGPU
-+   * forbids Vulkan's arrayStride-0 trick). Instance-stepped in the plan, so a
-+   * non-instanced draw reads element 0 (zeros) for every vertex. Lazily created,
++   * stand-in for the constant an unbound/disabled GL vertex attribute reads. Zero-stride
++   * vertex bindings make the same bytes serve every vertex and instance, matching Vulkan's
++   * constant-attribute plan without a range-dependent dummy allocation. Lazily created and
 +   * retained for the context lifetime. */
 +  wgpu::Buffer dummy_vertex_buffer();
 +
@@ -22070,10 +22070,10 @@ index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2db43f253c7b7c16ab661bf2d46798292f36617f
+index 0000000000000000000000000000000000000000..4bbd8f397687c885c6319b2e66855b874ba81f16
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,534 @@
+@@ -0,0 +1,543 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -22477,6 +22477,29 @@ index 0000000000000000000000000000000000000000..2db43f253c7b7c16ab661bf2d4679829
 +  }
 +}
 +
++static VertexBinding dummy_vertex_binding(const uint32_t location, const uint8_t type_byte)
++{
++  uint32_t attribute_size = 0;
++  const wgpu::VertexFormat format = dummy_vertex_format(type_byte, attribute_size);
++  BLI_assert(attribute_size <= 16);
++
++  VertexBinding binding;
++  binding.vbo_index = -1;
++  binding.is_dummy = true;
++  binding.buffer_offset = 0;
++  /* Pinned Dawn accepts zero array stride and validates only the attribute's fixed byte span.
++   * Match Vulkan's constant-attribute binding so firstVertex/firstInstance and draw counts can
++   * never walk past the shared 16-byte zero buffer. */
++  binding.array_stride = 0;
++  binding.step_mode = wgpu::VertexStepMode::Vertex;
++  wgpu::VertexAttribute attribute = {};
++  attribute.format = format;
++  attribute.offset = 0;
++  attribute.shaderLocation = location;
++  binding.attributes.push_back(attribute);
++  return binding;
++}
++
 +VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
 +                             const int64_t *vertex_lens,
 +                             int formats_len,
@@ -22566,30 +22589,16 @@ index 0000000000000000000000000000000000000000..2db43f253c7b7c16ab661bf2d4679829
 +    }
 +  }
 +
-+  /* Dummy-fill: any @location the vertex module consumes but no VBO provided. WebGPU
-+   * forbids arrayStride 0 (Vulkan's constant-attribute trick), so use an Instance-stepped
-+   * slot over the context's zero buffer — a non-instanced draw reads element 0 for every
-+   * vertex, i.e. the constant 0 an unbound GL attribute yields. */
++  /* Dummy-fill: any @location the vertex module consumes but no VBO provided. Dawn accepts
++   * arrayStride zero and applies one fixed attribute span to the whole draw, so this remains
++   * the constant 0 an unbound GL attribute yields for arbitrary vertex and instance ranges. */
 +  const uint32_t enabled = itf->enabled_attr_mask_;
 +  for (int loc = 0; loc < 16; loc++) {
 +    const uint32_t m = (1u << loc);
 +    if ((enabled & m) == 0u || (occupied & m) != 0u) {
 +      continue;
 +    }
-+    uint32_t sz = 16;
-+    const wgpu::VertexFormat fmt = dummy_vertex_format(itf->attr_types_[loc], sz);
-+    VertexBinding b;
-+    b.vbo_index = -1;
-+    b.is_dummy = true;
-+    b.buffer_offset = 0;
-+    b.array_stride = sz;
-+    b.step_mode = wgpu::VertexStepMode::Instance;
-+    wgpu::VertexAttribute va = {};
-+    va.format = fmt;
-+    va.offset = 0;
-+    va.shaderLocation = uint32_t(loc);
-+    b.attributes.push_back(va);
-+    plan.push_back(std::move(b));
++    plan.push_back(dummy_vertex_binding(uint32_t(loc), itf->attr_types_[loc]));
 +  }
 +
 +  return plan;

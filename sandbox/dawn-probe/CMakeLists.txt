@@ -386,8 +386,10 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
 
   add_executable(wgpu_pipeline_integrated_test
     "${_bw_integrated_pipeline_test}"
-    "${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/wgpu_pipeline.cc"
     "${BW_UPSTREAM_DIR}/source/blender/blenlib/intern/BLI_assert.cc"
+  )
+  target_compile_definitions(wgpu_pipeline_integrated_test PRIVATE
+    BW_WGPU_PIPELINE_SOURCE="${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/wgpu_pipeline.cc"
   )
   target_include_directories(wgpu_pipeline_integrated_test PRIVATE
     "${BW_INTEGRATED_PIPELINE_SOURCE_DIR}"

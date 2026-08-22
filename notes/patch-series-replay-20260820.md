@@ -118,3 +118,9 @@ Patch 0158's indirect indexed-subrange binding correction was then composed with
 `a5ee03e943121c11bb48f4c3e79f83adfc2d7c50974ea6262b56b5924917f3e1`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `4e22dfdd79e6ab956e46d8d51ace0c6fdde8ca7356d88c4a702255f83cf0313b`.
+
+Patch 0159's zero-stride dummy vertex binding was then composed without changing the 257-path /
+20,258-entry authority. The patch is now 1,542,552 bytes with SHA-256
+`4ea99ca851aa4c0a1fcfefc5fafd4080d30f0998c0d827e555b5a9ac9022acf1`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`b73ea64adf1310f25eefce8cfc04474b35ea99abd460b6b8d012d6aae7d8157c`.

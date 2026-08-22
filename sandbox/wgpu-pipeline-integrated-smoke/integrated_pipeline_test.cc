@@ -11,7 +11,13 @@
 #include <array>
 #include <cstdio>
 
-#include "wgpu_pipeline.hh"
+#ifndef BW_WGPU_PIPELINE_SOURCE
+#  error "BW_WGPU_PIPELINE_SOURCE must name the canonical wgpu_pipeline.cc"
+#endif
+
+/* The dummy-binding helper intentionally has internal linkage. Including the
+ * canonical translation unit keeps this contract on the shipping vertex plan. */
+#include BW_WGPU_PIPELINE_SOURCE
 
 namespace bw = blender::gpu::webgpu;
 
@@ -235,17 +241,86 @@ bool format_i10_contract()
   return true;
 }
 
+bool dummy_vertex_contract()
+{
+  using T = blender::gpu::shader::Type;
+  using VF = wgpu::VertexFormat;
+  struct Expected {
+    T type;
+    VF format;
+  };
+  constexpr std::array<Expected, 32> expected = {{
+      {T::float_t, VF::Float32},
+      {T::float2_t, VF::Float32x2},
+      {T::float3_t, VF::Float32x3},
+      {T::float4_t, VF::Float32x4},
+      {T::float3x3_t, VF::Float32x4},
+      {T::float4x4_t, VF::Float32x4},
+      {T::uint_t, VF::Uint32},
+      {T::uint2_t, VF::Uint32x2},
+      {T::uint3_t, VF::Uint32x3},
+      {T::uint4_t, VF::Uint32x4},
+      {T::int_t, VF::Sint32},
+      {T::int2_t, VF::Sint32x2},
+      {T::int3_t, VF::Sint32x3},
+      {T::int4_t, VF::Sint32x4},
+      {T::bool_t, VF::Uint32},
+      {T::float3_10_10_10_2_t, VF::Float32x3},
+      {T::uchar_t, VF::Uint32},
+      {T::uchar2_t, VF::Uint32x2},
+      {T::uchar3_t, VF::Uint32x3},
+      {T::uchar4_t, VF::Uint32x4},
+      {T::char_t, VF::Sint32},
+      {T::char2_t, VF::Sint32x2},
+      {T::char3_t, VF::Sint32x3},
+      {T::char4_t, VF::Sint32x4},
+      {T::ushort_t, VF::Uint32},
+      {T::ushort2_t, VF::Uint32x2},
+      {T::ushort3_t, VF::Uint32x3},
+      {T::ushort4_t, VF::Uint32x4},
+      {T::short_t, VF::Sint32},
+      {T::short2_t, VF::Sint32x2},
+      {T::short3_t, VF::Sint32x3},
+      {T::short4_t, VF::Sint32x4},
+  }};
+
+  for (size_t index = 0; index < expected.size(); index++) {
+    const uint32_t location = uint32_t(index % 16);
+    const bw::VertexBinding binding =
+        bw::dummy_vertex_binding(location, uint8_t(expected[index].type));
+    if (!require(binding.vbo_index == -1 && binding.is_dummy,
+                 "dummy source identity") ||
+        !require(binding.buffer_offset == 0, "dummy buffer offset") ||
+        !require(binding.array_stride == 0, "dummy zero stride") ||
+        !require(binding.step_mode == wgpu::VertexStepMode::Vertex,
+                 "dummy vertex step mode") ||
+        !require(binding.attributes.size() == 1, "dummy attribute count") ||
+        !require(binding.attributes[0].format == expected[index].format,
+                 "dummy attribute format") ||
+        !require(binding.attributes[0].offset == 0, "dummy attribute offset") ||
+        !require(binding.attributes[0].shaderLocation == location,
+                 "dummy shader location"))
+    {
+      return false;
+    }
+  }
+
+  std::puts("CONTRACT dummy_vertex PASS cases=32 stride=0 step=vertex");
+  return true;
+}
+
 }  // namespace
 
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !format_32bit_contract() ||
-      !format_subword_contract() || !format_i10_contract())
+      !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract())
   {
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=5 primitives=11 strip_cases=33 formats=96 i10=12");
+      "INTEGRATED_PIPELINE_PASS contracts=6 primitives=11 strip_cases=33 formats=96 i10=12 "
+      "dummy=32");
   return 0;
 }

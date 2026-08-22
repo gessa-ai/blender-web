@@ -5,6 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # buffer wrapper, pixel-upload buffer, readback registry, and index-buffer
 # point-restart cleanup and direct/indirect indexed-draw subrange binding plans.
+# The pure buffer arithmetic leg also binds fail-closed alignment and subrange
+# validation at size_t's representable boundary.
 # Invoke through harness/buildwrap.sh.
 set -euo pipefail
 
@@ -186,6 +188,17 @@ require_fixed_count 1 'GPU_framebuffer_multi_viewports_set(render_fb_,' \
   "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_shadow.cc"
 require_fixed_count 2 'GPU_indexbuf_create_subrange' \
   "$ROOT/upstream/source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc"
+require_fixed_count 1 \
+  'inline bool checked_align_up(size_t v, size_t a, size_t &result)' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'if (!checked_align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment, allocated_size)) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  'if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
 
 if [ ! -d "$DAWN_SRC/.git" ]; then
   echo "ERROR: Dawn checkout missing at $DAWN_SRC" >&2
@@ -305,7 +318,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=9 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
+    'INTEGRATED_BUFFER_PASS contracts=10 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -317,7 +330,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 10 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

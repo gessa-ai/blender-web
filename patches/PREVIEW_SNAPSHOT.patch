@@ -18012,10 +18012,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1cea06c53f855ad7484eec235dcceab87ef01cf7
+index 0000000000000000000000000000000000000000..4b4667f9e47600c3ac046c1a16ecccbf84a57710
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,241 @@
+@@ -0,0 +1,245 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18121,9 +18121,13 @@ index 0000000000000000000000000000000000000000..1cea06c53f855ad7484eec235dcceab8
 +                    bool readable,
 +                    const char *label)
 +{
++  size_t allocated_size;
++  if (!checked_align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment, allocated_size)) {
++    return false;
++  }
 +  readback::forget_source(readback::SourceKind::Buffer, this);
 +  requested_ = size;
-+  size_ = align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment);
++  size_ = allocated_size;
 +  kind_ = kind;
 +  readable_ = readable;
 +
@@ -18161,7 +18165,7 @@ index 0000000000000000000000000000000000000000..1cea06c53f855ad7484eec235dcceab8
 +  if ((offset % kCopyAlignment) != 0 || (size % kCopyAlignment) != 0) {
 +    return false; /* WebGPU copies require 4-byte alignment */
 +  }
-+  if (offset + size > size_) {
++  if (!range_fits(offset, size, size_)) {
 +    return false;
 +  }
 +
@@ -18200,8 +18204,8 @@ index 0000000000000000000000000000000000000000..1cea06c53f855ad7484eec235dcceab8
 +  if (handle_ == nullptr || !readable_ || size == 0) {
 +    return out;
 +  }
-+  const size_t copy = align_up(size, kCopyAlignment);
-+  if (offset > size_ || copy > size_ - offset) {
++  size_t copy;
++  if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {
 +    return out;
 +  }
 +#ifdef __EMSCRIPTEN__
@@ -18363,10 +18367,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..8c42137fc1680b5429b6f9bdc2447fc8a4b50977
+index 0000000000000000000000000000000000000000..af179a2b34e7336e4593ce1a6f451ade601175b1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,84 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18388,6 +18392,7 @@ index 0000000000000000000000000000000000000000..8c42137fc1680b5429b6f9bdc2447fc8
 +
 +#include <cstddef>
 +#include <cstdint>
++#include <limits>
 +
 +#include "webgpu/webgpu_cpp.h"
 +
@@ -18427,6 +18432,26 @@ index 0000000000000000000000000000000000000000..8c42137fc1680b5429b6f9bdc2447fc8
 +inline size_t align_up(size_t v, size_t a)
 +{
 +  return (v + (a - 1)) & ~(a - 1);
++}
++
++/** Round up without wrapping. Invalid alignments and unrepresentable results fail
++ * without changing `result`. */
++inline bool checked_align_up(size_t v, size_t a, size_t &result)
++{
++  if (a == 0 || (a & (a - 1)) != 0 ||
++      v > std::numeric_limits<size_t>::max() - (a - 1))
++  {
++    return false;
++  }
++  result = (v + (a - 1)) & ~(a - 1);
++  return true;
++}
++
++/** True when the half-open byte range [offset, offset + size) is contained in
++ * an allocation of `capacity` bytes. The subtraction form cannot overflow. */
++inline bool range_fits(size_t offset, size_t size, size_t capacity)
++{
++  return offset <= capacity && size <= capacity - offset;
 +}
 +
 +}  // namespace blender::gpu::webgpu

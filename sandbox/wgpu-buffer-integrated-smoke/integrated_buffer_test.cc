@@ -11,6 +11,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <limits>
 #include <utility>
 
 #include "wgpu_buffer.hh"
@@ -93,6 +94,39 @@ bool common_contract()
   std::printf("CONTRACT common PASS align_cases=%zu threshold=%zu\n",
               align_cases.size(),
               bw::kWriteBufferStagingThreshold);
+  return true;
+}
+
+bool checked_arithmetic_contract()
+{
+  constexpr size_t size_max = std::numeric_limits<size_t>::max();
+  size_t aligned = 0;
+  size_t rejected_sentinel = 37;
+
+  if (!require(bw::checked_align_up(0, 4, aligned) && aligned == 0,
+               "checked zero alignment") ||
+      !require(bw::checked_align_up(1, 4, aligned) && aligned == 4,
+               "checked ordinary alignment") ||
+      !require(bw::checked_align_up(size_max - 3, 4, aligned) && aligned == size_max - 3,
+               "checked maximum representable alignment") ||
+      !require(bw::checked_align_up(size_max, 1, aligned) && aligned == size_max,
+               "checked unit alignment") ||
+      !require(!bw::checked_align_up(size_max - 2, 4, rejected_sentinel) &&
+                   rejected_sentinel == 37,
+               "alignment overflow is rejected without output mutation") ||
+      !require(!bw::checked_align_up(8, 0, rejected_sentinel) && rejected_sentinel == 37,
+               "zero alignment is rejected") ||
+      !require(!bw::checked_align_up(8, 3, rejected_sentinel) && rejected_sentinel == 37,
+               "non-power-of-two alignment is rejected") ||
+      !require(bw::range_fits(0, 0, 0), "empty range fits empty allocation") ||
+      !require(bw::range_fits(12, 4, 16), "exact-end range fits") ||
+      !require(!bw::range_fits(12, 5, 16), "past-end range is rejected") ||
+      !require(!bw::range_fits(size_max - 3, 8, 16), "wrapped range is rejected"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT checked-arithmetic PASS align_cases=7 range_cases=4\n");
   return true;
 }
 
@@ -427,13 +461,14 @@ bool failed_ticket_capacity_contract()
 
 int main()
 {
-  if (!common_contract() || !usage_contract() || !invalid_buffer_contract() ||
+  if (!common_contract() || !checked_arithmetic_contract() || !usage_contract() ||
+      !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() || !blender::gpu::run_integrated_index_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=9 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
+      "INTEGRATED_BUFFER_PASS contracts=10 usage_cases=32 pixel_cases=7 exact_cap=256 index_cases=4\n");
   return 0;
 }

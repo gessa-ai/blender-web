@@ -810,3 +810,7 @@
 # Dawn can return a non-null error texture. A shared device-free predicate preserves
 # BC requirements, SNORM16 emulation, and Float32/RG11 capability-only behavior.
 0173-gpu-webgpu-format-creation-gates.patch
+# 0174: reject unrepresentable buffer alignment and overflowed byte ranges before
+# creating, updating, or reading a WebGPU buffer. The device-free native/Wasm
+# contract covers seven alignment and four range boundary cases through SIZE_MAX.
+0174-gpu-webgpu-buffer-range-overflow.patch

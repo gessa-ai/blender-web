@@ -209,3 +209,9 @@ the 257-path / 20,258-entry authority. The patch is now 1,564,621 bytes with SHA
 `cee1d5789abb02fae264161b7a4239231102ac7f798d06354f7b0fab9f9a548d`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `59783c215bac83bb1fc1d45cb06a0919f2e506d965441efdcd205e484ba78a05`.
+
+Patch 0174's fail-closed buffer alignment and range validation was then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,565,421 bytes with SHA-256
+`e4d6d1714e3f270c56ae43f01a2e15b1cc72b09b84d1a88b1a5d6e806883ac6c`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`3a6823e5567cee3f7ac813006ff1da79f08835892bf64242cafe832de094b8f4`.

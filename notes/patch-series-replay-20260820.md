@@ -294,3 +294,9 @@ Patch 0187's fail-closed indirect-draw span validation was then composed without
 `ae6cc793258976707513f3a1fce12306f58e1e98167ab02107b77ecce8b832f5`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `7f01714887853e0d5bafa626778c1f6867c42bf6ca8654b9dc7a22f82b805023`.
+
+Patch 0188's fail-closed direct and indirect compute-dispatch range validation was then composed
+without changing the 257-path / 20,258-entry authority. The patch is now 1,601,734 bytes with
+SHA-256 `16ff5a21fdeed3fa11c91e61763bd36306f355e5d32887c2f14d3f962fac90f4`; the current
+normalized receipt binds byte-identical live/replay manifests at SHA-256
+`22c14a60f7f9f0612ea5a49258f03dfcdc0722d9d60f1d43d587bbb79c1758aa`.

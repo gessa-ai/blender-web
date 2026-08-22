@@ -866,3 +866,6 @@
 # signed input, GL's tightly-packed zero stride, Dawn's four-byte alignment,
 # 16/20-byte command shapes, overflow, and the allocated indirect buffer.
 0187-gpu-webgpu-indirect-draw-ranges.patch
+# 0188: validate direct compute workgroup counts against the published per-axis
+# limits and prove the fixed 12-byte indirect command span before pipeline/pass work.
+0188-gpu-webgpu-compute-dispatch-ranges.patch

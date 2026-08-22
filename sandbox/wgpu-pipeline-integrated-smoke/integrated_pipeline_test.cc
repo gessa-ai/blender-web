@@ -207,6 +207,124 @@ bool indirect_draw_span_contract()
   return true;
 }
 
+bool compute_dispatch_range_contract()
+{
+  struct DirectCase {
+    int groups_x;
+    int groups_y;
+    int groups_z;
+    int max_x;
+    int max_y;
+    int max_z;
+    bool accepted;
+    uint32_t expected_x;
+    uint32_t expected_y;
+    uint32_t expected_z;
+  };
+  constexpr std::array<DirectCase, 15> direct_cases = {{
+      {1, 1, 1, 65535, 65535, 65535, true, 1, 1, 1},
+      {0, 1, 1, 65535, 65535, 65535, true, 0, 1, 1},
+      {1, 0, 1, 65535, 65535, 65535, true, 1, 0, 1},
+      {1, 1, 0, 65535, 65535, 65535, true, 1, 1, 0},
+      {7, 11, 13, 7, 11, 13, true, 7, 11, 13},
+      {0, 0, 0, 1, 1, 1, true, 0, 0, 0},
+      {-1, 1, 1, 65535, 65535, 65535, false, 0, 0, 0},
+      {1, -1, 1, 65535, 65535, 65535, false, 0, 0, 0},
+      {1, 1, -1, 65535, 65535, 65535, false, 0, 0, 0},
+      {8, 11, 13, 7, 11, 13, false, 0, 0, 0},
+      {7, 12, 13, 7, 11, 13, false, 0, 0, 0},
+      {7, 11, 14, 7, 11, 13, false, 0, 0, 0},
+      {1, 1, 1, 0, 1, 1, false, 0, 0, 0},
+      {1, 1, 1, 1, 0, 1, false, 0, 0, 0},
+      {1, 1, 1, 1, 1, 0, false, 0, 0, 0},
+  }};
+
+  size_t direct_accepted = 0;
+  size_t direct_rejected = 0;
+  uint64_t accepted_group_sum = 0;
+  for (const DirectCase &test : direct_cases) {
+    bw::ComputeDispatchPlan actual = {101, 102, 103};
+    const bw::ComputeDispatchPlan sentinel = actual;
+    const bool result = bw::compute_dispatch_plan(test.groups_x,
+                                                  test.groups_y,
+                                                  test.groups_z,
+                                                  test.max_x,
+                                                  test.max_y,
+                                                  test.max_z,
+                                                  actual);
+    if (!require(result == test.accepted, "compute dispatch decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(actual.groups_x == sentinel.groups_x &&
+                       actual.groups_y == sentinel.groups_y &&
+                       actual.groups_z == sentinel.groups_z,
+                   "rejected compute dispatch preserves output"))
+      {
+        return false;
+      }
+      direct_rejected++;
+      continue;
+    }
+    if (!require(actual.groups_x == test.expected_x && actual.groups_y == test.expected_y &&
+                     actual.groups_z == test.expected_z,
+                 "accepted compute dispatch geometry"))
+    {
+      return false;
+    }
+    direct_accepted++;
+    accepted_group_sum += actual.groups_x + actual.groups_y + actual.groups_z;
+  }
+
+  struct IndirectCase {
+    uint64_t offset;
+    uint64_t capacity;
+    bool accepted;
+  };
+  constexpr std::array<IndirectCase, 13> indirect_cases = {{
+      {0, 12, true},
+      {4, 16, true},
+      {8, 20, true},
+      {12, 24, true},
+      {std::numeric_limits<uint64_t>::max() - 15,
+       std::numeric_limits<uint64_t>::max(),
+       true},
+      {0, 0, false},
+      {0, 11, false},
+      {4, 15, false},
+      {1, 32, false},
+      {2, 32, false},
+      {3, 32, false},
+      {std::numeric_limits<uint64_t>::max() - 11,
+       std::numeric_limits<uint64_t>::max(),
+       false},
+      {std::numeric_limits<uint64_t>::max() - 3,
+       std::numeric_limits<uint64_t>::max(),
+       false},
+  }};
+  size_t indirect_accepted = 0;
+  size_t indirect_rejected = 0;
+  for (const IndirectCase &test : indirect_cases) {
+    const bool result = bw::compute_indirect_dispatch_range(test.offset, test.capacity);
+    if (!require(result == test.accepted, "compute indirect dispatch range")) {
+      return false;
+    }
+    result ? indirect_accepted++ : indirect_rejected++;
+  }
+
+  if (!require(direct_accepted == 6 && direct_rejected == 9,
+               "direct compute dispatch census") ||
+      !require(indirect_accepted == 5 && indirect_rejected == 8,
+               "indirect compute dispatch census") ||
+      !require(accepted_group_sum == 40, "accepted compute dispatch aggregate"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 "
+            "indirect_cases=13 accepted=5 rejected=8 group_sum=40");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -507,7 +625,7 @@ bool vertex_alias_cache_key_contract()
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
-      !indirect_draw_span_contract() ||
+      !indirect_draw_span_contract() || !compute_dispatch_range_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -515,7 +633,8 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=9 primitives=11 strip_cases=33 indirect_spans=19 "
-      "formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
+      "INTEGRATED_PIPELINE_PASS contracts=10 primitives=11 strip_cases=33 indirect_spans=19 "
+      "compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 "
+      "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

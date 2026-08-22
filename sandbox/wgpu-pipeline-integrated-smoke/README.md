@@ -11,8 +11,12 @@ primitive, index-format, component, and fetch enums. The shared test also covers
 19 exact indirect-draw span decisions: signed input rejection, four-byte alignment,
 16-byte array commands, 20-byte indexed commands, tightly-packed zero stride,
 overlapping-but-aligned explicit stride, allocation bounds, and arithmetic overflow.
-It covers all
-11 primitive rows, all 33 primitive/index-format combinations, and all 96
+It additionally covers 15 direct compute-dispatch decisions and 13 indirect
+compute-dispatch ranges. Direct counts reject negative axes, non-positive published
+limits, and values above those per-axis limits while preserving zero-count no-ops;
+indirect commands require four-byte alignment and one complete 12-byte `[x,y,z]`
+record without overflow. It covers all 11 primitive rows, all 33
+primitive/index-format combinations, and all 96
 combinations of eight vertex component types, four valid component lengths, and
 three fetch modes. It also covers every one of the 32 shader input types in the
 dummy-attribute plan and requires a zero-stride, vertex-stepped binding that remains
@@ -37,13 +41,15 @@ before returning `TriangleList`. Native and Wasm stdout and stderr must be
 byte-identical.
 
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline and
-16/20-byte indirect draw-range validation), emcc 6.0.5, Node 22.16.0, matching
+16/20-byte indirect draw-range plus direct/indirect compute validation), emcc 6.0.5,
+Node 22.16.0, matching
 native/Wasm fmt headers, Blender's canonical clean-pin replay, and the 18 direct
-pipeline/batch/vertex-format/enum/assert inputs before evidence allocation. It also
+pipeline/batch/vertex-format/enum/assert inputs plus the two compute-dispatch inputs,
+`wgpu_common.hh` and `wgpu_backend.cc`, before evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish
 with exact no-work checks.
 
-No WebGPU instance, adapter, device, render pipeline, or pixel evidence is
-created. Live descriptor and pixel validation remain owned by
+No WebGPU instance, adapter, device, render/compute pipeline, compute pass, dispatch,
+or pixel evidence is created. Live descriptor, dispatch, and pixel validation remain owned by
 `M3-LINUX-REPLAY` and require an accepted hardware adapter.

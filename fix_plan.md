@@ -1471,6 +1471,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for the absent
   strict candidate and s7 still blocks live WebGPU draw proof. See
   `notes/m3-t10-indirect-draw-ranges-20260822.md`.
+- [x] **M3.T8-COMPUTE-DISPATCH-RANGES [gpu-backend]:** patch 0188 validates signed direct
+  workgroup counts against the three published backend limits before converting them to WebGPU,
+  and proves the complete aligned 12-byte indirect command before pipeline/pass work. Fifteen
+  direct and thirteen indirect cases are byte-identical on native and wasm32, including negative,
+  zero, exact-limit, over-limit, alignment, exact-fit, undersized, and arithmetic-boundary inputs.
+  Canonical replay, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green.
+  Required M3 remains red for the absent strict candidate and s7 still blocks live WebGPU compute
+  proof. See `notes/m3-t8-compute-dispatch-ranges-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

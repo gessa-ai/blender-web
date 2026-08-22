@@ -354,3 +354,16 @@ size, require four-byte alignment, reserve the final command, and bound the rema
 and leave the result untouched on rejection. Exercise both 16/20-byte shapes, overlapping legal
 strides, signed boundaries, alignment, exact-fit and one-byte-short allocations, and large-count
 arithmetic in native and wasm32. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 22 — signed dispatch geometry must be resolved before unsigned WebGPU calls
+
+Signature: a backend receives signed compute workgroup counts, casts them directly into WebGPU's
+unsigned dispatch API, and relies on one frontend binding that checks only upper bounds. Negative
+values can therefore become huge dispatches, while other callers can exceed the per-axis limits
+published by the backend. The indirect sibling can likewise issue its fixed three-word command
+without proving that the buffer contains all 12 bytes. Resolve direct counts atomically against
+the published per-axis capabilities before shader or pipeline work, preserving zero-count no-op
+semantics, and validate an aligned indirect span with subtraction before opening a compute pass.
+Exercise negative and exact-limit axes, zero dimensions, invalid capabilities, exact-fit and
+undersized indirect buffers, alignment, and 64-bit boundary arithmetic in native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

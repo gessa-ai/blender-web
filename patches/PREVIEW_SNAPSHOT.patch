@@ -18528,10 +18528,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..3c1473b9f82a5cebd51bd5ade95ac536811a64c8
+index 0000000000000000000000000000000000000000..e77ea67b3bd91965c82de2ae9db13aab76818ff6
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1188 @@
+@@ -0,0 +1,1200 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18689,6 +18689,18 @@ index 0000000000000000000000000000000000000000..3c1473b9f82a5cebd51bd5ade95ac536
 +    return false;
 +  }
 +  cache.emplace(key, handle);
++  return true;
++}
++
++/** Append a specialization-keyed pipeline variant only after fallible creation succeeds. A null
++ * variant must stay absent so a later request for the same key retries creation. */
++template<typename CacheT, typename KeyT, typename HandleT>
++inline bool cache_variant_if_valid(CacheT &cache, const KeyT &key, const HandleT &handle)
++{
++  if (handle == nullptr) {
++    return false;
++  }
++  cache.push_back({key, handle});
 +  return true;
 +}
 +
@@ -26353,10 +26365,10 @@ index 0000000000000000000000000000000000000000..6bac11134f0f2d79a34f1d3f0dfdac42
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..63d775095e0b4864bf6de173d85d82ca3de82543
+index 0000000000000000000000000000000000000000..c5adc24454d0686fadaa9561f03ca07f39aa107b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2913 @@
+@@ -0,0 +1,2915 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -28930,7 +28942,9 @@ index 0000000000000000000000000000000000000000..63d775095e0b4864bf6de173d85d82ca
 +  desc.compute.constantCount = constants.size();
 +  desc.compute.constants = constants.empty() ? nullptr : constants.data();
 +  wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&desc);
-+  compute_pipelines_.push_back({key, pipeline});
++  if (!wgi::cache_variant_if_valid(compute_pipelines_, key, pipeline)) {
++    return nullptr;
++  }
 +  return pipeline;
 +}
 +

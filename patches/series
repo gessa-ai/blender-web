@@ -917,3 +917,6 @@
 # 0204: publish sampler and render-pipeline cache entries only after successful
 # creation so transient null handles remain retryable across every live cache.
 0204-gpu-webgpu-cache-publication.patch
+# 0205: keep null specialization-keyed compute pipelines out of the per-shader
+# variant cache so a transient creation failure can retry on the next dispatch.
+0205-gpu-webgpu-compute-cache-publication.patch

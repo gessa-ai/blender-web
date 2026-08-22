@@ -498,11 +498,12 @@ atomic output preservation, and successful publication on native and wasm32. See
 
 ## Class 33 — cache publication is an ownership commit
 
-Signature: a backend creates a sampler or pipeline, inserts its handle into a cache, and only
-then checks whether creation returned null. One transient failure permanently poisons that key:
-later callers find the cached null and never retry creation. Keep the candidate local, reject
-null first, and publish only a usable handle. When this appears once, census every cache for the
-same create/publish order; framebuffer-local, context-local, and process-wide pools can duplicate
-it independently. Bind every publication site to one source-order contract and exercise
-fail-once/succeed-once behavior with a device-free handle/cache seam. See
+Signature: a backend creates a sampler or pipeline, inserts its handle into a map or appends it to
+a specialization-keyed sequence, and only then checks whether creation returned null. One
+transient failure permanently poisons that key: later callers find the cached null and never retry
+creation. Keep the candidate local, reject null first, and publish only a usable handle. When this
+appears once, census every cache for the same create/publish order; framebuffer-local,
+context-local, process-wide, and per-shader pools can duplicate it independently. Bind every
+publication site to one source-order contract and exercise fail-once/succeed-once behavior with a
+device-free handle/cache seam. See
 `sandbox/wgpu-texture-integrated-smoke/` and `sandbox/wgpu-pipeline-integrated-smoke/`.

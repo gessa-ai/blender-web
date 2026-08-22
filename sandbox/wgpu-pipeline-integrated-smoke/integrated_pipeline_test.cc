@@ -191,6 +191,45 @@ bool cache_handle_publication_contract()
   return true;
 }
 
+struct ComputePipelineVariantProbe {
+  std::vector<uint32_t> key;
+  CacheHandleProbe pipeline;
+};
+
+bool compute_pipeline_cache_publication_contract()
+{
+  std::vector<ComputePipelineVariantProbe> cache;
+  cache.push_back({{3u}, CacheHandleProbe(31)});
+
+  const std::vector<uint32_t> retry_key = {7u, 11u};
+  const CacheHandleProbe failed_candidate;
+  if (!require(!bw::cache_variant_if_valid(cache, retry_key, failed_candidate),
+               "null compute-pipeline candidate is rejected") ||
+      !require(cache.size() == 1 && cache.front().key == std::vector<uint32_t>{3u},
+               "null compute-pipeline candidate is not published") ||
+      !require(cache.front().pipeline.identity() == 31,
+               "failed compute-pipeline publication preserves cache"))
+  {
+    return false;
+  }
+
+  const CacheHandleProbe retry_candidate(73);
+  if (!require(bw::cache_variant_if_valid(cache, retry_key, retry_candidate),
+               "valid compute-pipeline retry is accepted") ||
+      !require(cache.size() == 2 && cache.back().key == retry_key &&
+                   cache.back().pipeline.identity() == 73,
+               "valid compute-pipeline retry is published") ||
+      !require(retry_candidate.identity() == 73,
+               "compute-pipeline publication preserves caller handle"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT compute_pipeline_cache_publication PASS attempts=2 failure=unpublished retry=published entries=2");
+  return true;
+}
+
 bool primitive_topology_contract()
 {
   using PT = wgpu::PrimitiveTopology;
@@ -1296,6 +1335,7 @@ int main()
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
       !cache_handle_publication_contract() ||
+      !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
       !offscreen_viewport_scissor_plan_contract() ||
@@ -1307,10 +1347,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=16 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=17 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 formats=96 i10=12 dummy=32 cache_publications=2 "
+      "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

@@ -18528,10 +18528,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..d3566b60bff75909912c3d39c9a8002d5ad69a85
+index 0000000000000000000000000000000000000000..3c1473b9f82a5cebd51bd5ade95ac536811a64c8
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1175 @@
+@@ -0,0 +1,1188 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18676,6 +18676,19 @@ index 0000000000000000000000000000000000000000..d3566b60bff75909912c3d39c9a8002d
 +    return false;
 +  }
 +  result = std::move(candidate);
++  return true;
++}
++
++/** Publish a fallible WebGPU handle only after creation succeeds. A null sampler or pipeline
++ * must remain absent so the same cache key can retry after a transient allocation failure.
++ * Templated so the exact transaction remains device-free testable on native and Wasm. */
++template<typename CacheT, typename KeyT, typename HandleT>
++inline bool cache_handle_if_valid(CacheT &cache, const KeyT &key, const HandleT &handle)
++{
++  if (handle == nullptr) {
++    return false;
++  }
++  cache.emplace(key, handle);
 +  return true;
 +}
 +
@@ -19709,10 +19722,10 @@ index 0000000000000000000000000000000000000000..d3566b60bff75909912c3d39c9a8002d
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad0bb6dfc0
+index 0000000000000000000000000000000000000000..404a773b44c3c354c1d57e32723d7c50430ecd44
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1277 @@
+@@ -0,0 +1,1280 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20023,7 +20036,9 @@ index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad
 +  }
 +
 +  wgpu::Sampler sampler = device_.CreateSampler(&d);
-+  sampler_cache_[key] = sampler;
++  if (!webgpu::cache_handle_if_valid(sampler_cache_, key, sampler)) {
++    return nullptr;
++  }
 +  return sampler;
 +}
 +
@@ -20187,10 +20202,9 @@ index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad
 +    pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
 +    pd.fragment = &fragment;
 +    pipeline = device_.CreateRenderPipeline(&pd);
-+    blit_pipelines_[fmt_key] = pipeline;
-+  }
-+  if (pipeline == nullptr) {
-+    return false;
++    if (!webgpu::cache_handle_if_valid(blit_pipelines_, fmt_key, pipeline)) {
++      return false;
++    }
 +  }
 +
 +  wgpu::BindGroupEntry entries[2] = {};
@@ -20333,10 +20347,11 @@ index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad
 +    pipeline_desc.fragment = &fragment;
 +    pipeline_desc.depthStencil = &depth_stencil;
 +    pipeline = device_.CreateRenderPipeline(&pipeline_desc);
-+    depth_blit_pipelines_[uint32_t(dst_format)] = pipeline;
-+  }
-+  if (pipeline == nullptr) {
-+    return false;
++    if (!webgpu::cache_handle_if_valid(
++            depth_blit_pipelines_, uint32_t(dst_format), pipeline))
++    {
++      return false;
++    }
 +  }
 +
 +  wgpu::BindGroupEntry entry = {};
@@ -20461,10 +20476,11 @@ index 0000000000000000000000000000000000000000..dd40b15e768b1f383d94fe111d0637ad
 +    pipeline_desc.fragment = &fragment;
 +    pipeline_desc.depthStencil = &depth_stencil;
 +    pipeline = device_.CreateRenderPipeline(&pipeline_desc);
-+    depth_upload_pipelines_[uint32_t(format)] = pipeline;
-+  }
-+  if (pipeline == nullptr) {
-+    return false;
++    if (!webgpu::cache_handle_if_valid(
++            depth_upload_pipelines_, uint32_t(format), pipeline))
++    {
++      return false;
++    }
 +  }
 +
 +  const uint64_t value_bytes = uint64_t(w) * uint64_t(h) * sizeof(float);
@@ -24124,10 +24140,10 @@ index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8397e5349c17e6054adb9e8085a546cecd429b35
+index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe09944764
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,593 @@
+@@ -0,0 +1,595 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -24716,7 +24732,9 @@ index 0000000000000000000000000000000000000000..8397e5349c17e6054adb9e8085a546ce
 +    return it->second;
 +  }
 +  wgpu::RenderPipeline pipeline = build_pipeline(device, info);
-+  cache_.emplace(key, pipeline);
++  if (!cache_handle_if_valid(cache_, key, pipeline)) {
++    return nullptr;
++  }
 +  return pipeline;
 +}
 +

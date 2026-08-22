@@ -9,6 +9,7 @@ This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
 primitive, index-format, component, and fetch enums. The shared test also covers
 the two-case transient multi-viewport uniform-buffer allocation transaction,
+the fail-first/retry transaction shared by sampler and render-pipeline caches,
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
 window-backbuffer decisions, 21 ordinary offscreen viewport/scissor decisions, and
 19 exact indirect-draw span decisions. Direct draws
@@ -24,6 +25,9 @@ extents and device-invalid boundaries remain atomically rejected in both the dir
 indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
 viewport}` uniform allocation must publish a handle only on success; both paths
 must return before queue or pass work when creation fails.
+Likewise, a null sampler or render-pipeline candidate must remain absent from its
+cache so the same key can retry and publish a later valid handle. The source guard
+binds that transaction to every context and process-wide pipeline cache site.
 Window-backbuffer rectangles preserve that same raster transform while converting
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; a legal

@@ -142,6 +142,55 @@ bool multiview_uniform_allocation_contract()
   return true;
 }
 
+class CacheHandleProbe {
+ public:
+  CacheHandleProbe() = default;
+  explicit CacheHandleProbe(const int identity) : identity_(identity) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return identity_ == 0;
+  }
+
+  int identity() const
+  {
+    return identity_;
+  }
+
+ private:
+  int identity_ = 0;
+};
+
+bool cache_handle_publication_contract()
+{
+  std::unordered_map<uint32_t, CacheHandleProbe> cache;
+  cache.emplace(3u, CacheHandleProbe(31));
+
+  const CacheHandleProbe failed_candidate;
+  if (!require(!bw::cache_handle_if_valid(cache, 7u, failed_candidate),
+               "null cache candidate is rejected") ||
+      !require(cache.size() == 1 && cache.find(7u) == cache.end(),
+               "null cache candidate is not published") ||
+      !require(cache.at(3u).identity() == 31, "failed publication preserves cache"))
+  {
+    return false;
+  }
+
+  const CacheHandleProbe retry_candidate(73);
+  if (!require(bw::cache_handle_if_valid(cache, 7u, retry_candidate),
+               "valid retry candidate is accepted") ||
+      !require(cache.size() == 2 && cache.at(7u).identity() == 73,
+               "valid retry candidate is published") ||
+      !require(retry_candidate.identity() == 73, "publication preserves caller handle"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT cache_handle_publication PASS attempts=2 failure=unpublished retry=published entries=2");
+  return true;
+}
+
 bool primitive_topology_contract()
 {
   using PT = wgpu::PrimitiveTopology;
@@ -1246,6 +1295,7 @@ int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
+      !cache_handle_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
       !offscreen_viewport_scissor_plan_contract() ||
@@ -1257,9 +1307,10 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=15 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=16 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
+      "compute_indirect=13 formats=96 i10=12 dummy=32 cache_publications=2 "
+      "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

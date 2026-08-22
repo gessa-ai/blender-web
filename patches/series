@@ -914,3 +914,6 @@
 # 0203: preserve legal empty raster state so ordinary and multi-viewport passes
 # consume pending attachment load actions without producing draw fragments.
 0203-gpu-webgpu-empty-raster-loadop.patch
+# 0204: publish sampler and render-pipeline cache entries only after successful
+# creation so transient null handles remain retryable across every live cache.
+0204-gpu-webgpu-cache-publication.patch

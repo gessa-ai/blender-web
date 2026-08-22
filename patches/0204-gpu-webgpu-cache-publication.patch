@@ -1,0 +1,72 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -148 +148,14 @@ inline bool multi_viewport_uniform_buffer_create(DeviceT &device, BufferT &result)
++/** Publish a fallible WebGPU handle only after creation succeeds. A null sampler or pipeline
++ * must remain absent so the same cache key can retry after a transient allocation failure.
++ * Templated so the exact transaction remains device-free testable on native and Wasm. */
++template<typename CacheT, typename KeyT, typename HandleT>
++inline bool cache_handle_if_valid(CacheT &cache, const KeyT &key, const HandleT &handle)
++{
++  if (handle == nullptr) {
++    return false;
++  }
++  cache.emplace(key, handle);
++  return true;
++}
++
+ /** One signed viewport plus its WebGPU-valid unsigned framebuffer intersection. */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -310,3 +310,5 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
+   wgpu::Sampler sampler = device_.CreateSampler(&d);
+-  sampler_cache_[key] = sampler;
++  if (!webgpu::cache_handle_if_valid(sampler_cache_, key, sampler)) {
++    return nullptr;
++  }
+   return sampler;
+@@ -474,6 +476,5 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+     pipeline = device_.CreateRenderPipeline(&pd);
+-    blit_pipelines_[fmt_key] = pipeline;
+-  }
+-  if (pipeline == nullptr) {
+-    return false;
++    if (!webgpu::cache_handle_if_valid(blit_pipelines_, fmt_key, pipeline)) {
++      return false;
++    }
+   }
+@@ -620,6 +621,7 @@ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+     pipeline = device_.CreateRenderPipeline(&pipeline_desc);
+-    depth_blit_pipelines_[uint32_t(dst_format)] = pipeline;
+-  }
+-  if (pipeline == nullptr) {
+-    return false;
++    if (!webgpu::cache_handle_if_valid(
++            depth_blit_pipelines_, uint32_t(dst_format), pipeline))
++    {
++      return false;
++    }
+   }
+@@ -748,6 +750,7 @@ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+     pipeline = device_.CreateRenderPipeline(&pipeline_desc);
+-    depth_upload_pipelines_[uint32_t(format)] = pipeline;
+-  }
+-  if (pipeline == nullptr) {
+-    return false;
++    if (!webgpu::cache_handle_if_valid(
++            depth_upload_pipelines_, uint32_t(format), pipeline))
++    {
++      return false;
++    }
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -588,3 +588,5 @@ wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Device &device, const PipelineInfo &info)
+   wgpu::RenderPipeline pipeline = build_pipeline(device, info);
+-  cache_.emplace(key, pipeline);
++  if (!cache_handle_if_valid(cache_, key, pipeline)) {
++    return nullptr;
++  }
+   return pipeline;

@@ -72,12 +72,14 @@ host exposed only a software/CPU adapter; that result is not a receipt.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.
-- `ghost-wgpu/build_verify.sh` — requires patches 0149 and 0167's canonical
-  integrated postimage, stages the pinned GHOST context outside `upstream/`, and
-  builds it through the same locked Dawn graph. Its device-free contract
-  exhausts all 256 optional-feature masks and
-  requires guarded `Float32Filterable` selection before either a hardware T3
-  pass or an explicit software-block control. `parser-selfcheck` also rejects
-  five malformed selector shapes plus missing, duplicated, blocked, and nonzero
-  hardware transcripts. Hardware mode independently classifies the adapter
-  retained by the real context and requires one exact adapter/PASS transcript.
+- `ghost-wgpu/build_verify.sh` — requires patches 0149, 0167, 0171, and 0172's
+  canonical integrated postimage, then stages the pinned GHOST context outside
+  `upstream/` through the same locked Dawn graph. Its device-free
+  contract exhausts all 1,024 masks across ten optional features and requires
+  guarded `Float32Filterable`, `TextureComponentSwizzle`, and
+  `TextureCompressionBC` selection before either a hardware T3 pass or an explicit
+  software-block control. `parser-selfcheck` rejects eight malformed selector
+  shapes, including missing, mismatched, and duplicated BC selectors, plus missing,
+  duplicated, blocked, and nonzero hardware transcripts. Hardware mode independently
+  classifies the adapter retained by the real context and requires one exact
+  adapter/PASS transcript.

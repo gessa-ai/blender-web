@@ -784,8 +784,8 @@
 # create/write queue and binds the pinned Vulkan orco policy.
 0166-gpu-webgpu-dummy-attribute-default.patch
 # 0167: request native Float32Filterable whenever Dawn exposes it so the device
-# capability matches WebGPU's 32-bit-float texture filterability gate. The T3
-# staged-source contract compiles the real context and exhausts all 256 feature masks.
+# capability matches WebGPU's 32-bit-float texture filterability gate. Its patch-local
+# eight-feature contract exhausted 256 masks; later selectors extend the cumulative census.
 0167-gpu-webgpu-native-float32-filterable.patch
 # 0168: size strided host-upload rows by whole texels, preserving Blender's
 # compact 32-bit RGB10A2 and R11G11B10 representations instead of multiplying
@@ -802,3 +802,11 @@
 # TextureComponentSwizzle feature, with adapter-guarded native device opt-in and
 # fail-closed behavior when a non-identity mask cannot be represented.
 0171-gpu-webgpu-texture-component-swizzle.patch
+# 0172: request native TextureCompressionBC whenever Dawn exposes it so the
+# device feature required by patch 0170's BC1/2/3 upload path is actually enabled.
+# The staged GHOST contract exhausts all 1,024 ten-feature masks.
+0172-gpu-webgpu-native-bc-feature.patch
+# 0173: reject feature-gated Unorm16 and Depth32FloatStencil8 creation before
+# Dawn can return a non-null error texture. A shared device-free predicate preserves
+# BC requirements, SNORM16 emulation, and Float32/RG11 capability-only behavior.
+0173-gpu-webgpu-format-creation-gates.patch

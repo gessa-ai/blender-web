@@ -192,7 +192,7 @@ require_fixed_count 1 \
   'webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 1 \
-  '/* Every dummy slot has arrayStride zero, so all vertex and instance ranges read these' \
+  '/* Every dummy slot has arrayStride zero, so all vertex and instance ranges read the same' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
 if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2

@@ -260,14 +260,78 @@ bool capabilities_contract()
   return true;
 }
 
+enum FeatureMask : uint8_t {
+  CompressionBC = 1u << 0,
+  Unorm16 = 1u << 1,
+  Tier1 = 1u << 2,
+  Depth32Stencil8 = 1u << 3,
+  Float32 = 1u << 4,
+  RG11B10 = 1u << 5,
+};
+
+bw::TextureFormatFeatures texture_features(const uint8_t mask)
+{
+  bw::TextureFormatFeatures features;
+  features.texture_compression_bc = (mask & CompressionBC) != 0;
+  features.unorm16_texture_formats = (mask & Unorm16) != 0;
+  features.texture_formats_tier1 = (mask & Tier1) != 0;
+  features.depth32_float_stencil8 = (mask & Depth32Stencil8) != 0;
+  features.float32_filterable = (mask & Float32) != 0;
+  features.rg11b10_ufloat_renderable = (mask & RG11B10) != 0;
+  return features;
+}
+
+bool format_creation_contract()
+{
+  constexpr std::array<bw::FeatureGate, 7> gates = {bw::FeatureGate::None,
+                                                     bw::FeatureGate::TextureCompressionBC,
+                                                     bw::FeatureGate::Depth32FloatStencil8,
+                                                     bw::FeatureGate::Unorm16,
+                                                     bw::FeatureGate::Snorm16,
+                                                     bw::FeatureGate::Float32Filterable,
+                                                     bw::FeatureGate::RG11B10UfloatRenderable};
+  size_t accepted = 0;
+  size_t rejected = 0;
+  for (const bw::FeatureGate gate : gates) {
+    for (uint8_t mask = 0; mask < 64; mask++) {
+      bool expected = true;
+      switch (gate) {
+        case bw::FeatureGate::TextureCompressionBC:
+          expected = (mask & CompressionBC) != 0;
+          break;
+        case bw::FeatureGate::Depth32FloatStencil8:
+          expected = (mask & Depth32Stencil8) != 0;
+          break;
+        case bw::FeatureGate::Unorm16:
+          expected = (mask & (Unorm16 | Tier1)) != 0;
+          break;
+        default:
+          break;
+      }
+      const bool actual = bw::format_creation_supported(gate, texture_features(mask));
+      if (!require(actual == expected, "feature-aware format creation")) {
+        return false;
+      }
+      accepted += actual;
+      rejected += !actual;
+    }
+  }
+  if (!require(!bw::format_creation_supported(static_cast<bw::FeatureGate>(UINT8_MAX),
+                                               texture_features(UINT8_MAX)),
+               "unknown creation gate fails closed"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT format-creation PASS cases=%zu accepted=%zu rejected=%zu invalid=1\n",
+              gates.size() * 64,
+              accepted,
+              rejected);
+  return accepted == 368 && rejected == 80;
+}
+
 bool render_attachment_contract()
 {
-  enum FeatureMask : uint8_t {
-    Unorm16 = 1u << 0,
-    Tier1 = 1u << 1,
-    Depth32Stencil8 = 1u << 2,
-    RG11B10 = 1u << 3,
-  };
   struct Case {
     wgpu::TextureFormat format;
     uint8_t features;
@@ -295,11 +359,7 @@ bool render_attachment_contract()
   size_t accepted = 0;
   size_t rejected = 0;
   for (const Case &test : cases) {
-    bw::RenderAttachmentFeatures features;
-    features.unorm16_texture_formats = (test.features & Unorm16) != 0;
-    features.texture_formats_tier1 = (test.features & Tier1) != 0;
-    features.depth32_float_stencil8 = (test.features & Depth32Stencil8) != 0;
-    features.rg11b10_ufloat_renderable = (test.features & RG11B10) != 0;
+    const bw::TextureFormatFeatures features = texture_features(test.features);
     if (!require(bw::render_attachment_supported(test.format, features) == test.expected,
                  "feature-aware render-attachment capability"))
     {
@@ -909,15 +969,16 @@ bool component_swizzle_contract()
 
 int main()
 {
-  if (!table_contract() || !capabilities_contract() || !render_attachment_contract() ||
-      !view_format_contract() || !promotion_contract() || !rgb9e5_contract() ||
-      !rg11b10_contract() || !boundary_contract() || !packed_row_stride_contract() ||
-      !compressed_upload_layout_contract() || !component_swizzle_contract())
+  if (!table_contract() || !capabilities_contract() || !format_creation_contract() ||
+      !render_attachment_contract() || !view_format_contract() || !promotion_contract() ||
+      !rgb9e5_contract() || !rg11b10_contract() || !boundary_contract() ||
+      !packed_row_stride_contract() || !compressed_upload_layout_contract() ||
+      !component_swizzle_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=11 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
-      "rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
+      "INTEGRATED_TEXTURE_PASS contracts=12 formats=63 creation_cases=448 promotions=13 "
+      "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;
 }

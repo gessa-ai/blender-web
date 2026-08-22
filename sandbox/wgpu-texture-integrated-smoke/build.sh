@@ -159,6 +159,32 @@ fi
 
 FORMAT_SOURCE="$WEBGPU_SOURCE/wgpu_texture_format.cc"
 FORMAT_HEADER="$WEBGPU_SOURCE/wgpu_texture_format.hh"
+if [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^bool format_creation_supported\(' "$FORMAT_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (!format_creation_supported(fi.gate, format_features)) {' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'TextureFormatFeatures format_features;' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'render_attachment_supported(wgpu_format_, format_features)' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   grep -Fq 'RenderAttachmentFeatures' "$FORMAT_HEADER" ||
+   grep -Fq 'RenderAttachmentFeatures' "$FORMAT_SOURCE" ||
+   grep -Fq 'RenderAttachmentFeatures' "$HERE/integrated_texture_test.cc"
+then
+  echo "ERROR: canonical feature-aware texture creation wiring differs" >&2
+  exit 1
+fi
+
+CREATION_GUARD_LINE="$(grep -nF 'if (!format_creation_supported(fi.gate, format_features)) {' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+CREATE_TEXTURE_LINE="$(grep -nF 'texture_ = ctx->device_get().CreateTexture(&desc);' \
+  "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
+if [ -z "$CREATION_GUARD_LINE" ] || [ -z "$CREATE_TEXTURE_LINE" ] ||
+   [ "$CREATION_GUARD_LINE" -ge "$CREATE_TEXTURE_LINE" ] ||
+   [ "$(sed -n "$((CREATION_GUARD_LINE + 1))p" "$RGB9E5_TEXTURE_SOURCE")" != \
+     '    return false;' ]
+then
+  echo "ERROR: format creation guard is not fail-closed before CreateTexture" >&2
+  exit 1
+fi
+
 if [ "$(grep -Ec '^bool compressed_upload_layout\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool compressed_texture_type_supported\(' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Ec '^bool compressed_upload_layout\(' "$FORMAT_HEADER")" -ne 1 ] ||
@@ -316,13 +342,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=11 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=12 formats=63 creation_cases=448 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 11 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 12 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

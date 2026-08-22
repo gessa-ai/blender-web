@@ -197,3 +197,15 @@ were then composed without changing the 257-path / 20,258-entry authority. The p
 `e8ef2bc5549b8d81b1bb000b54a9ad680714d09c0fe01ee5e217088b46aa6183`; the current normalized
 receipt binds byte-identical live/replay manifests at SHA-256
 `4a20cb6de8562ef7cca8c67f71254006d9714868ce266b3fa6821339ce727fc1`.
+
+Patch 0172's adapter-guarded native `TextureCompressionBC` request was then composed without
+changing the 257-path / 20,258-entry authority. The patch is now 1,563,408 bytes with SHA-256
+`c6ec8f525209f0dbc9f193dcdd74a0dd08d5f481e14e0af35ea54e583b9c4047`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`f6293f61eac8dee378f8edb23845201ac2f69bfe95b631b103ef5ea711660bec`.
+
+Patch 0173's fail-closed Unorm16 and D32/S8 creation gates were then composed without changing
+the 257-path / 20,258-entry authority. The patch is now 1,564,621 bytes with SHA-256
+`cee1d5789abb02fae264161b7a4239231102ac7f798d06354f7b0fab9f9a548d`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`59783c215bac83bb1fc1d45cb06a0919f2e506d965441efdcd205e484ba78a05`.

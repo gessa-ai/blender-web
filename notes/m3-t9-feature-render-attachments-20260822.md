@@ -7,8 +7,18 @@
 
 Patch 0165 makes WebGPU texture allocation honor the optional format features enabled on the
 live device when deciding whether to request `RenderAttachment`. This restores Grease Pencil's
-production `UNORM_16` render mask, which maps to `R16Unorm`, while keeping unsupported optional
-formats sampled-only or failing an explicit attachment request as before.
+production `UNORM_16` render mask, which maps to `R16Unorm`, while withholding attachment usage
+from optional formats whose render feature is absent.
+
+### Audited correction - patch 0173
+
+The original outcome's “sampled-only” claim was false for feature-gated format creation.
+`R/RG/RGBA16Unorm` cannot be created unless `Unorm16TextureFormats` or `TextureFormatsTier1` is
+enabled, and `Depth32FloatStencil8` cannot be created without its named feature. Dawn may return a
+non-null error texture for an invalid descriptor, so the later null-handle check was not a
+fail-closed guard. Patch 0173 adds a pure `format_creation_supported` predicate shared with the
+render-attachment feature set and rejects these gates before `CreateTexture`. It preserves BC's
+existing feature/type rejection, SNORM16 Uint emulation, and Float32/RG11 capability-only gates.
 
 ## Diagnosis and implementation
 

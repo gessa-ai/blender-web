@@ -19,6 +19,7 @@ EXPECTED_FEATURES = (
     "RG11B10UfloatRenderable",
     "Float32Filterable",
     "TextureComponentSwizzle",
+    "TextureCompressionBC",
     "Depth32FloatStencil8",
     "TextureFormatsTier1",
     "TextureFormatsTier2",
@@ -76,12 +77,18 @@ def selfcheck() -> None:
     if (
         b"wgpu::FeatureName::Float32Filterable" not in payload
         or b"wgpu::FeatureName::TextureComponentSwizzle" not in payload
+        or b"wgpu::FeatureName::TextureCompressionBC" not in payload
     ):
-        raise RuntimeError("positive self-check lost required texture features")
+        raise RuntimeError("positive self-check lost a required texture feature")
 
     swizzle_pair = (
         "  if (adapter_.HasFeature(wgpu::FeatureName::TextureComponentSwizzle)) {\n"
         "    required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);\n"
+        "  }\n"
+    )
+    bc_pair = (
+        "  if (adapter_.HasFeature(wgpu::FeatureName::TextureCompressionBC)) {\n"
+        "    required_features.push_back(wgpu::FeatureName::TextureCompressionBC);\n"
         "  }\n"
     )
     mutations = (
@@ -92,6 +99,13 @@ def selfcheck() -> None:
             1,
         ),
         source.replace(swizzle_pair, swizzle_pair + swizzle_pair, 1),
+        source.replace(bc_pair, "", 1),
+        source.replace(
+            "required_features.push_back(wgpu::FeatureName::TextureCompressionBC);",
+            "required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);",
+            1,
+        ),
+        source.replace(bc_pair, bc_pair + bc_pair, 1),
         source.replace(swizzle_pair, swizzle_pair + "  audit_side_effect();\n", 1),
         source.replace(BLOCK_END, BLOCK_END + "\n" + BLOCK_END, 1),
     )
@@ -114,7 +128,7 @@ def main() -> int:
         if args.source is not None or args.output is not None:
             parser.error("--selfcheck does not accept --source or --output")
         selfcheck()
-        print("T3 OPTIONAL FEATURE EXTRACTOR SELFCHECK PASS cases=6")
+        print("T3 OPTIONAL FEATURE EXTRACTOR SELFCHECK PASS cases=9")
         return 0
     if args.source is None or args.output is None:
         parser.error("--source and --output are required without --selfcheck")

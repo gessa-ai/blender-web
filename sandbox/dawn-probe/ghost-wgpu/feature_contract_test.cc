@@ -13,6 +13,7 @@ enum class FeatureName : uint8_t {
   RG11B10UfloatRenderable,
   Float32Filterable,
   TextureComponentSwizzle,
+  TextureCompressionBC,
   Depth32FloatStencil8,
   TextureFormatsTier1,
   TextureFormatsTier2,
@@ -24,11 +25,12 @@ enum class FeatureName : uint8_t {
 
 namespace {
 
-constexpr std::array<wgpu::FeatureName, 9> kFeatureOrder = {
+constexpr std::array<wgpu::FeatureName, 10> kFeatureOrder = {
     wgpu::FeatureName::Unorm16TextureFormats,
     wgpu::FeatureName::RG11B10UfloatRenderable,
     wgpu::FeatureName::Float32Filterable,
     wgpu::FeatureName::TextureComponentSwizzle,
+    wgpu::FeatureName::TextureCompressionBC,
     wgpu::FeatureName::Depth32FloatStencil8,
     wgpu::FeatureName::TextureFormatsTier1,
     wgpu::FeatureName::TextureFormatsTier2,
@@ -68,13 +70,14 @@ bool verify_mask(const uint32_t mask)
 
 int main()
 {
-  for (uint32_t mask = 0; mask < 512; mask++) {
+  for (uint32_t mask = 0; mask < 1024; mask++) {
     if (!verify_mask(mask)) {
       std::fprintf(stderr, "optional-feature contract failed at mask=%u\n", mask);
       return 1;
     }
   }
   std::puts(
-      "T3 OPTIONAL FEATURE CONTRACT PASS features=9 masks=512 float32_index=2 swizzle_index=3");
+      "T3 OPTIONAL FEATURE CONTRACT PASS features=10 masks=1024 float32_index=2 "
+      "swizzle_index=3 bc_index=4");
   return 0;
 }

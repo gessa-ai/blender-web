@@ -1,0 +1,243 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index e91cd6e8e74c5dc1d2f292d4ec1212dd8f4ad7d4..a1128e9be43b236930a6ebe2de8e122d155f38ed 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -191,8 +191,8 @@ inline bool viewport_scissor_plan(int x,
+   return true;
+ }
+ 
+-/** A bottom-origin window viewport plus its optional independent WebGPU scissor. */
+-struct WindowViewportPlan {
++/** One framebuffer viewport plus its optional independent WebGPU scissor. */
++struct FramebufferViewportPlan {
+   ViewportScissorPlan viewport;
+   bool scissor_enabled = false;
+   uint32_t scissor_x = 0;
+@@ -201,6 +201,44 @@ struct WindowViewportPlan {
+   uint32_t scissor_height = 0;
+ };
+ 
++using WindowViewportPlan = FramebufferViewportPlan;
++
++/** Clip a signed frontend scissor into WebGPU's unsigned render area. Window coordinates need
++ * their lower-left Y converted to the top-left surface convention; offscreen coordinates stay
++ * unchanged because their clip-space and readback flips already establish lower-left semantics. */
++inline bool framebuffer_scissor_plan(const int *scissor,
++                                     int target_width,
++                                     int target_height,
++                                     bool convert_bottom_origin,
++                                     FramebufferViewportPlan &candidate)
++{
++  if (scissor == nullptr) {
++    return true;
++  }
++  if (scissor[2] <= 0 || scissor[3] <= 0) {
++    return false;
++  }
++  const int64_t left = int64_t(scissor[0]);
++  const int64_t top = convert_bottom_origin ?
++                          int64_t(target_height) - int64_t(scissor[1]) - int64_t(scissor[3]) :
++                          int64_t(scissor[1]);
++  const int64_t right = left + int64_t(scissor[2]);
++  const int64_t bottom = top + int64_t(scissor[3]);
++  const int64_t clipped_left = left > 0 ? left : 0;
++  const int64_t clipped_top = top > 0 ? top : 0;
++  const int64_t clipped_right = right < int64_t(target_width) ? right : target_width;
++  const int64_t clipped_bottom = bottom < int64_t(target_height) ? bottom : target_height;
++  if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
++    return false;
++  }
++  candidate.scissor_enabled = true;
++  candidate.scissor_x = uint32_t(clipped_left);
++  candidate.scissor_y = uint32_t(clipped_top);
++  candidate.scissor_width = uint32_t(clipped_right - clipped_left);
++  candidate.scissor_height = uint32_t(clipped_bottom - clipped_top);
++  return true;
++}
++
+ /** Convert Blender's bottom-origin window viewport without changing its raster transform. The
+  * optional frontend scissor is converted and clipped independently because WebGPU requires an
+  * unsigned rectangle contained in the render area. Failure leaves `result` unchanged. */
+@@ -209,7 +247,7 @@ inline bool window_viewport_scissor_plan(const int viewport[4],
+                                          int target_width,
+                                          int target_height,
+                                          uint32_t max_viewport_dimension,
+-                                         WindowViewportPlan &result)
++                                         FramebufferViewportPlan &result)
+ {
+   if (viewport == nullptr) {
+     return false;
+@@ -236,29 +274,46 @@ inline bool window_viewport_scissor_plan(const int viewport[4],
+     return false;
+   }
+ 
+-  WindowViewportPlan candidate;
++  FramebufferViewportPlan candidate;
+   candidate.viewport = viewport_plan;
+-  if (scissor != nullptr) {
+-    if (scissor[2] <= 0 || scissor[3] <= 0) {
+-      return false;
+-    }
+-    const int64_t left = int64_t(scissor[0]);
+-    const int64_t top = int64_t(target_height) - int64_t(scissor[1]) -
+-                        int64_t(scissor[3]);
+-    const int64_t right = left + int64_t(scissor[2]);
+-    const int64_t bottom = top + int64_t(scissor[3]);
+-    const int64_t clipped_left = left > 0 ? left : 0;
+-    const int64_t clipped_top = top > 0 ? top : 0;
+-    const int64_t clipped_right = right < int64_t(target_width) ? right : target_width;
+-    const int64_t clipped_bottom = bottom < int64_t(target_height) ? bottom : target_height;
+-    if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
+-      return false;
+-    }
+-    candidate.scissor_enabled = true;
+-    candidate.scissor_x = uint32_t(clipped_left);
+-    candidate.scissor_y = uint32_t(clipped_top);
+-    candidate.scissor_width = uint32_t(clipped_right - clipped_left);
+-    candidate.scissor_height = uint32_t(clipped_bottom - clipped_top);
++  if (!framebuffer_scissor_plan(scissor, target_width, target_height, true, candidate)) {
++    return false;
++  }
++  result = candidate;
++  return true;
++}
++
++/** Preserve ordinary offscreen viewport/scissor coordinates through WebGPU's existing
++ * clip-space-Y and readback-row flips. The viewport remains signed; an enabled scissor is
++ * independently clipped to the render area. Failure leaves `result` unchanged. */
++inline bool offscreen_viewport_scissor_plan(const int viewport[4],
++                                            const int *scissor,
++                                            int target_width,
++                                            int target_height,
++                                            uint32_t max_viewport_dimension,
++                                            FramebufferViewportPlan &result)
++{
++  if (viewport == nullptr) {
++    return false;
++  }
++
++  ViewportScissorPlan viewport_plan;
++  if (!viewport_scissor_plan(viewport[0],
++                             viewport[1],
++                             viewport[2],
++                             viewport[3],
++                             target_width,
++                             target_height,
++                             max_viewport_dimension,
++                             viewport_plan))
++  {
++    return false;
++  }
++
++  FramebufferViewportPlan candidate;
++  candidate.viewport = viewport_plan;
++  if (!framebuffer_scissor_plan(scissor, target_width, target_height, false, candidate)) {
++    return false;
+   }
+   result = candidate;
+   return true;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index a5b4d9f66cb5779cb3a9e47499ada2996cc6e2b7..ca701764396d0aa0529019cab1a5f8b384a4e73e 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -890,8 +890,9 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+ {
+   WGPUContext *wctx = active_context();
+   const bool is_backbuffer = (wctx != nullptr && wctx->is_window_backbuffer(this));
+-  webgpu::WindowViewportPlan window_viewport;
+-  if (is_backbuffer) {
++  const bool apply_ordinary_viewport = !multi_viewport_;
++  webgpu::FramebufferViewportPlan draw_viewport;
++  if (apply_ordinary_viewport) {
+     int viewport[4];
+     viewport_get(viewport);
+     int scissor[4];
+@@ -901,17 +902,30 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+       active_scissor = scissor;
+     }
+     wgpu::Limits limits = {};
+-    if (!wctx->device_get().GetLimits(&limits)) {
++    if (wctx == nullptr || !wctx->device_get().GetLimits(&limits)) {
+       return nullptr;
+     }
+-    if (!webgpu::window_viewport_scissor_plan(viewport,
+-                                               active_scissor,
+-                                               width_,
+-                                               height_,
+-                                               limits.maxTextureDimension2D,
+-                                               window_viewport))
+-    {
+-      return nullptr;
++    if (is_backbuffer) {
++      if (!webgpu::window_viewport_scissor_plan(viewport,
++                                                 active_scissor,
++                                                 width_,
++                                                 height_,
++                                                 limits.maxTextureDimension2D,
++                                                 draw_viewport))
++      {
++        return nullptr;
++      }
++    }
++    else {
++      if (!webgpu::offscreen_viewport_scissor_plan(viewport,
++                                                    active_scissor,
++                                                    width_,
++                                                    height_,
++                                                    limits.maxTextureDimension2D,
++                                                    draw_viewport))
++      {
++        return nullptr;
++      }
+     }
+   }
+   if (!materialize_layered_loadstore_clears()) {
+@@ -1052,32 +1066,24 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+ 
+   wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
+ 
+-  /* Window-direct viewport/scissor application (M4 r39, DEFECT B). Region content is
+-   * normally drawn into a region-sized offscreen (viewport == whole target), so the
+-   * single-pass/immediate draw paths apply no SetViewport/SetScissorRect and the
+-   * whole-target default is correct. But wm_draw_window_onscreen draws region overlays
+-   * (wm_region_draw_overlay -> ED_*_draw_overlay, e.g. the timeline current-frame
+-   * indicator) and paint cursors STRAIGHT to the window backbuffer with a region
+-   * sub-rect set via wmViewport(region->winrct)/GPU_scissor. With no viewport applied,
+-   * that region-local geometry mapped to the full window and fell outside the visible
+-   * result (the missing playhead box). The preflight above preserves the signed
+-   * viewport transform while converting its GL bottom-origin Y with widened arithmetic.
+-   * An enabled scissor is converted and clipped independently to WebGPU's unsigned
+-   * render-area bounds. Both rectangles validate before layered clears or pass allocation;
+-   * offscreen targets (and the native/headless gpu gate, which has no window backbuffer)
+-   * keep the whole-target default untouched. */
+-  if (is_backbuffer) {
+-    pass.SetViewport(float(window_viewport.viewport.viewport_x),
+-                     float(window_viewport.viewport.viewport_y),
+-                     float(window_viewport.viewport.viewport_width),
+-                     float(window_viewport.viewport.viewport_height),
++  /* Ordinary passes always apply the frontend viewport and optional scissor. Window targets
++   * convert lower-left Y to the browser surface's top-left convention. Offscreen targets keep
++   * the raw lower-left coordinates because their shader/readback Y flips already establish that
++   * convention. Multi-viewport emulation owns its per-pass rectangles in WGPUBatch and therefore
++   * skips this single-viewport state. Every ordinary rectangle was validated above before
++   * layered clears or pass allocation. */
++  if (apply_ordinary_viewport) {
++    pass.SetViewport(float(draw_viewport.viewport.viewport_x),
++                     float(draw_viewport.viewport.viewport_y),
++                     float(draw_viewport.viewport.viewport_width),
++                     float(draw_viewport.viewport.viewport_height),
+                      0.0f,
+                      1.0f);
+-    if (window_viewport.scissor_enabled) {
+-      pass.SetScissorRect(window_viewport.scissor_x,
+-                          window_viewport.scissor_y,
+-                          window_viewport.scissor_width,
+-                          window_viewport.scissor_height);
++    if (draw_viewport.scissor_enabled) {
++      pass.SetScissorRect(draw_viewport.scissor_x,
++                          draw_viewport.scissor_y,
++                          draw_viewport.scissor_width,
++                          draw_viewport.scissor_height);
+     }
+   }
+ 

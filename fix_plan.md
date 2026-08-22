@@ -1509,6 +1509,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Canonical replay, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green.
   Required M3 remains red for the absent strict candidate and s7 still blocks live window proof.
   See `notes/m3-t10-window-viewport-scissor-20260822.md`.
+- [x] **M3.T10-OFFSCREEN-VIEWPORT-SCISSOR [gpu-backend]:** patch 0193 applies Blender's
+  stored viewport and optional independent scissor to ordinary offscreen render passes in the
+  lower-left coordinates fixed by a pinned native pixel oracle. The 21-case native/wasm32
+  contract covers oracle, partial, outside, disabled-scissor, device-limit, null, and integer-edge
+  state atomically. Canonical replay, patch reversal/forward application, the real windowed
+  rebuild/no-work check, and OFF preflight are green. Required M3 remains red for the absent
+  strict candidate and s7 still blocks live WebGPU draw proof. This task does not claim clear
+  semantics. See `notes/m3-t10-offscreen-viewport-scissor-20260822.md`.
+- [ ] **M3.T10-FRAMEBUFFER-SCISSORED-CLEAR [gpu-backend]:** reconcile Blender's pinned
+  framebuffer-clear scissor semantics with WebGPU render-pass `loadOp=Clear`, which clears the
+  complete attachment and cannot consume dynamic scissor state. Derive a native pixel oracle,
+  add a fail-first device-free policy contract, and validate color/depth/stencil plus layered
+  boundaries without weakening full-attachment fast clears. **blocked-by none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -9,7 +9,8 @@ This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
 primitive, index-format, component, and fetch enums. The shared test also covers
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
-window-backbuffer decisions, and 19 exact indirect-draw span decisions. Direct draws
+window-backbuffer decisions, 21 ordinary offscreen viewport/scissor decisions, and
+19 exact indirect-draw span decisions. Direct draws
 resolve Blender's four signed backend parameters before WebGPU work, reject negative
 first values and non-positive normalized counts, and preserve the full positive `int`
 domain. Indirect draws cover signed input rejection, four-byte alignment,
@@ -23,6 +24,9 @@ Window-backbuffer rectangles preserve that same raster transform while convertin
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; the
 explicit scissor is clipped without narrowing its signed frontend geometry.
+Ordinary offscreen passes keep their established lower-left post-flip coordinates,
+preserve signed viewport transforms, and clip an enabled scissor independently.
+The oracle's 6x5 viewport and viewport/scissor intersection are included verbatim.
 It additionally covers 15 direct compute-dispatch decisions and 13 indirect
 compute-dispatch ranges. Direct counts reject negative axes, non-positive published
 limits, and values above those per-axis limits while preserving zero-count no-ops;

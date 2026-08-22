@@ -417,3 +417,16 @@ layered clear or pass allocation; a disabled scissor must remain disabled. Exerc
 visible edges, fully clipped rectangles, target/device limits, oversized-but-clippable scissors,
 null input, and `INT_MIN`/`INT_MAX` on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 27 — ordinary offscreen passes must apply stored raster state
+
+Signature: a backend fixes window viewport handling inside a shared render-pass constructor but
+leaves ordinary offscreen passes on WebGPU's implicit whole-target viewport and disabled scissor.
+First pin the offscreen coordinate convention with a native pixel oracle: Blender's existing
+clip-space and readback flips can mean that the raw stored lower-left coordinates are already the
+correct WebGPU values, unlike a window surface's explicit Y conversion. Preserve the signed
+viewport transform, clip an enabled scissor independently into the unsigned render area, and
+validate the complete plan before any layered clear or pass allocation. Keep multi-viewport
+emulation under its per-pass owner. Draw-pass raster state does not prove scissored framebuffer
+clear semantics; audit and test clear paths separately. See
+`sandbox/wgpu-offscreen-viewport-oracle/` and `sandbox/wgpu-pipeline-integrated-smoke/`.

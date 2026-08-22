@@ -570,6 +570,152 @@ bool window_viewport_scissor_plan_contract()
   return true;
 }
 
+bool offscreen_viewport_scissor_plan_contract()
+{
+  struct Case {
+    int viewport[4];
+    bool scissor_enabled;
+    int scissor[4];
+    int target_width;
+    int target_height;
+    uint32_t max_viewport_dimension;
+    bool accepted;
+    int expected_viewport_x;
+    int expected_viewport_y;
+    uint32_t expected_viewport_width;
+    uint32_t expected_viewport_height;
+    bool expected_scissor_enabled;
+    uint32_t expected_scissor_x;
+    uint32_t expected_scissor_y;
+    uint32_t expected_scissor_width;
+    uint32_t expected_scissor_height;
+  };
+  constexpr int int_max = std::numeric_limits<int>::max();
+  constexpr std::array<Case, 20> cases = {{
+      {{0, 0, 6, 5}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       0, 0, 6, 5, false, 0, 0, 0, 0},
+      {{1, 1, 3, 2}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       1, 1, 3, 2, false, 0, 0, 0, 0},
+      {{-2, 1, 4, 3}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       -2, 1, 4, 3, false, 0, 0, 0, 0},
+      {{4, 3, 4, 3}, false, {0, 0, 0, 0}, 6, 5, 8, true,
+       4, 3, 4, 3, false, 0, 0, 0, 0},
+      {{1, 0, 4, 4}, true, {3, 2, 3, 3}, 6, 5, 8, true,
+       1, 0, 4, 4, true, 3, 2, 3, 3},
+      {{0, 0, 6, 5}, true, {-2, 1, 4, 3}, 6, 5, 8, true,
+       0, 0, 6, 5, true, 0, 1, 2, 3},
+      {{0, 0, 6, 5}, true, {4, 3, 4, 3}, 6, 5, 8, true,
+       0, 0, 6, 5, true, 4, 3, 2, 2},
+      {{-2, -2, 10, 9}, true, {0, 0, 6, 5}, 6, 5, 16, true,
+       -2, -2, 10, 9, true, 0, 0, 6, 5},
+      {{-63, -63, 64, 64}, false, {0, 0, 0, 0}, 64, 64, 64, true,
+       -63, -63, 64, 64, false, 0, 0, 0, 0},
+      {{63, 63, 64, 64}, false, {0, 0, 0, 0}, 64, 64, 64, true,
+       63, 63, 64, 64, false, 0, 0, 0, 0},
+      {{0, 0, 64, 64}, true, {-10, 0, int_max, 1}, 64, 64, 64, true,
+       0, 0, 64, 64, true, 0, 0, 64, 1},
+      {{0, 0, 6, 5}, false, {0, 0, 0, -1}, 6, 5, 8, true,
+       0, 0, 6, 5, false, 0, 0, 0, 0},
+      {{0, 0, 0, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 1, 0}, false, {0, 0, 0, 0}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{-10, 0, 10, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 5, 1, 1}, false, {0, 0, 0, 0}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 1, 1}, false, {0, 0, 0, 0}, 0, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 1, 1}, false, {0, 0, 0, 0}, 9, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 6, 5}, true, {0, 0, 0, 1}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+      {{0, 0, 6, 5}, true, {-10, 0, 10, 1}, 6, 5, 8, false,
+       0, 0, 0, 0, false, 0, 0, 0, 0},
+  }};
+
+  const auto plans_equal = [](const bw::FramebufferViewportPlan &a,
+                              const bw::FramebufferViewportPlan &b) {
+    return a.viewport.viewport_x == b.viewport.viewport_x &&
+           a.viewport.viewport_y == b.viewport.viewport_y &&
+           a.viewport.viewport_width == b.viewport.viewport_width &&
+           a.viewport.viewport_height == b.viewport.viewport_height &&
+           a.viewport.scissor_x == b.viewport.scissor_x &&
+           a.viewport.scissor_y == b.viewport.scissor_y &&
+           a.viewport.scissor_width == b.viewport.scissor_width &&
+           a.viewport.scissor_height == b.viewport.scissor_height &&
+           a.scissor_enabled == b.scissor_enabled && a.scissor_x == b.scissor_x &&
+           a.scissor_y == b.scissor_y && a.scissor_width == b.scissor_width &&
+           a.scissor_height == b.scissor_height;
+  };
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  size_t enabled_scissors = 0;
+  uint64_t scissor_area = 0;
+  for (const Case &test : cases) {
+    bw::FramebufferViewportPlan actual = {
+        {101, 102, 103, 104, 105, 106, 107, 108}, true, 109, 110, 111, 112};
+    const bw::FramebufferViewportPlan sentinel = actual;
+    const bool result = bw::offscreen_viewport_scissor_plan(
+        test.viewport,
+        test.scissor_enabled ? test.scissor : nullptr,
+        test.target_width,
+        test.target_height,
+        test.max_viewport_dimension,
+        actual);
+    if (!require(result == test.accepted, "offscreen viewport/scissor decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(plans_equal(actual, sentinel),
+                   "rejected offscreen viewport/scissor preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+    if (!require(actual.viewport.viewport_x == test.expected_viewport_x &&
+                     actual.viewport.viewport_y == test.expected_viewport_y &&
+                     actual.viewport.viewport_width == test.expected_viewport_width &&
+                     actual.viewport.viewport_height == test.expected_viewport_height,
+                 "accepted offscreen viewport preserves lower-left transform") ||
+        !require(actual.scissor_enabled == test.expected_scissor_enabled &&
+                     actual.scissor_x == test.expected_scissor_x &&
+                     actual.scissor_y == test.expected_scissor_y &&
+                     actual.scissor_width == test.expected_scissor_width &&
+                     actual.scissor_height == test.expected_scissor_height,
+                 "accepted offscreen scissor clips independently"))
+    {
+      return false;
+    }
+    accepted++;
+    if (actual.scissor_enabled) {
+      enabled_scissors++;
+      scissor_area += uint64_t(actual.scissor_width) * actual.scissor_height;
+    }
+  }
+
+  bw::FramebufferViewportPlan null_actual = {
+      {101, 102, 103, 104, 105, 106, 107, 108}, true, 109, 110, 111, 112};
+  const bw::FramebufferViewportPlan null_sentinel = null_actual;
+  if (!require(!bw::offscreen_viewport_scissor_plan(
+                   nullptr, nullptr, 6, 5, 8, null_actual),
+               "null offscreen viewport rejected") ||
+      !require(plans_equal(null_actual, null_sentinel),
+               "null offscreen viewport preserves output") ||
+      !require(accepted == 12 && rejected == 8, "offscreen viewport/scissor census") ||
+      !require(enabled_scissors == 5, "offscreen enabled-scissor census") ||
+      !require(scissor_area == 113, "offscreen scissor aggregate"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT offscreen_viewport_scissor_plan PASS cases=21 accepted=12 rejected=9 "
+            "scissors=5 scissor_area=113");
+  return true;
+}
+
 bool compute_dispatch_range_contract()
 {
   struct DirectCase {
@@ -990,6 +1136,7 @@ int main()
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
+      !offscreen_viewport_scissor_plan_contract() ||
       !compute_dispatch_range_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
@@ -998,8 +1145,8 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=13 primitives=11 strip_cases=33 indirect_spans=19 "
-      "direct_draws=16 viewport_scissors=28 window_rects=32 compute_direct=15 "
+      "INTEGRATED_PIPELINE_PASS contracts=14 primitives=11 strip_cases=33 indirect_spans=19 "
+      "direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 formats=96 i10=12 dummy=32 shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

@@ -881,3 +881,6 @@
 # 0192: preserve the signed window-backbuffer viewport while converting its
 # bottom-origin Y and independent scissor atomically before render-pass work.
 0192-gpu-webgpu-window-viewport-scissor.patch
+# 0193: apply ordinary offscreen viewport/scissor state in its established
+# lower-left coordinates before layered clears or render-pass allocation.
+0193-gpu-webgpu-offscreen-viewport-scissor.patch

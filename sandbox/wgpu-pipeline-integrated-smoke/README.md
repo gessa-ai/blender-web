@@ -8,7 +8,10 @@ SPDX-License-Identifier: CC0-1.0
 This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 `wgpu_pipeline` postimage directly for native and wasm32 against Blender's real
 primitive, index-format, component, and fetch enums. The shared test also covers
-19 exact indirect-draw span decisions: signed input rejection, four-byte alignment,
+16 direct-draw decisions and 19 exact indirect-draw span decisions. Direct draws
+resolve Blender's four signed backend parameters before WebGPU work, reject negative
+first values and non-positive normalized counts, and preserve the full positive `int`
+domain. Indirect draws cover signed input rejection, four-byte alignment,
 16-byte array commands, 20-byte indexed commands, tightly-packed zero stride,
 overlapping-but-aligned explicit stride, allocation bounds, and arithmetic overflow.
 It additionally covers 15 direct compute-dispatch decisions and 13 indirect
@@ -44,12 +47,12 @@ The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline an
 16/20-byte indirect draw-range plus direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching
 native/Wasm fmt headers, Blender's canonical clean-pin replay, and the 18 direct
-pipeline/batch/vertex-format/enum/assert inputs plus the two compute-dispatch inputs,
+pipeline/batch/vertex-format/enum/assert inputs plus the direct-draw and two compute-dispatch inputs,
 `wgpu_common.hh` and `wgpu_backend.cc`, before evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish
 with exact no-work checks.
 
-No WebGPU instance, adapter, device, render/compute pipeline, compute pass, dispatch,
+No WebGPU instance, adapter, device, render/compute pipeline, render/compute pass, draw, dispatch,
 or pixel evidence is created. Live descriptor, dispatch, and pixel validation remain owned by
 `M3-LINUX-REPLAY` and require an accepted hardware adapter.

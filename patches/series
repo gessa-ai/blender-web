@@ -869,3 +869,6 @@
 # 0188: validate direct compute workgroup counts against the published per-axis
 # limits and prove the fixed 12-byte indirect command span before pipeline/pass work.
 0188-gpu-webgpu-compute-dispatch-ranges.patch
+# 0189: validate normalized signed direct-draw parameters before context, geometry,
+# pipeline, or render-pass work and reuse one unsigned plan across every draw path.
+0189-gpu-webgpu-direct-draw-ranges.patch

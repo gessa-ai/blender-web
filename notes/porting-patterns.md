@@ -367,3 +367,15 @@ semantics, and validate an aligned indirect span with subtraction before opening
 Exercise negative and exact-limit axes, zero dimensions, invalid capabilities, exact-fit and
 undersized indirect buffers, alignment, and 64-bit boundary arithmetic in native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 23 — normalized direct-draw inputs are still signed at the backend boundary
+
+Signature: a frontend uses zero draw counts as defaults, resolves them before backend dispatch,
+but leaves every draw parameter signed. A backend then casts negative first/count values at each
+unsigned graphics-API call after context, upload, pipeline, or pass work. Resolve the four values
+once at method entry: require nonnegative first values and positive normalized counts, preserve the
+full positive `int` domain, and leave the output unchanged on rejection. Reuse that one plan for
+fan expansion plus indexed, non-indexed, single-pass, and layered calls. Do not add geometry bounds
+the public API explicitly leaves to the graphics backend. Exercise each negative/zero field and
+`INT_MIN`/`INT_MAX` boundaries on native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

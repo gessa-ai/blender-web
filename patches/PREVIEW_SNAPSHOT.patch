@@ -17153,10 +17153,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed2414b903c1
+index 0000000000000000000000000000000000000000..c8cbae055f875ac2f0932aede7c1a5e224944432
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,831 @@
+@@ -0,0 +1,840 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17367,6 +17367,12 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +
 +void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int instance_count)
 +{
++  webgpu::DirectDrawPlan draw_parameters;
++  if (!webgpu::direct_draw_plan(
++          vertex_first, vertex_count, instance_first, instance_count, draw_parameters))
++  {
++    return;
++  }
 +  WGPUContext *ctx = active_context();
 +  if (ctx == nullptr) {
 +    return;
@@ -17425,17 +17431,19 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +  webgpu::Buffer fan_index_buffer;
 +  uint32_t fan_index_count = 0;
 +  if (emulate_triangle_fan) {
-+    if (vertex_first < 0 || vertex_count < 3) {
++    if (draw_parameters.vertex_count < 3) {
 +      return;
 +    }
 +    if (wibo != nullptr) {
-+      if (uint64_t(vertex_first) + uint64_t(vertex_count) > elem->index_len_get()) {
++      if (uint64_t(draw_parameters.vertex_first) + draw_parameters.vertex_count >
++          elem->index_len_get())
++      {
 +        return;
 +      }
 +      if (!expand_indexed_triangle_fan(*ctx,
 +                                       *wibo,
-+                                       uint32_t(vertex_first),
-+                                       uint32_t(vertex_count),
++                                       draw_parameters.vertex_first,
++                                       draw_parameters.vertex_count,
 +                                       fan_index_buffer,
 +                                       fan_index_count))
 +      {
@@ -17443,17 +17451,18 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +      }
 +    }
 +    else {
-+      const uint64_t fan_count = uint64_t(vertex_count - 2) * 3;
-+      const uint64_t vertex_last = uint64_t(vertex_first) + uint64_t(vertex_count) - 1;
++      const uint64_t fan_count = uint64_t(draw_parameters.vertex_count - 2) * 3;
++      const uint64_t vertex_last =
++          uint64_t(draw_parameters.vertex_first) + draw_parameters.vertex_count - 1;
 +      if (fan_count > UINT32_MAX || fan_count > SIZE_MAX / sizeof(uint32_t) ||
 +          vertex_last > UINT32_MAX ||
 +          (wvbos[0] != nullptr && vertex_last >= uint64_t(wvbos[0]->vertex_len)))
 +      {
 +        return;
 +      }
-+      fan_indices.reserve(size_t(vertex_count - 2) * 3);
-+      const uint32_t base = uint32_t(vertex_first);
-+      for (uint32_t i = 1; i + 1 < uint32_t(vertex_count); i++) {
++      fan_indices.reserve(size_t(draw_parameters.vertex_count - 2) * 3);
++      const uint32_t base = draw_parameters.vertex_first;
++      for (uint32_t i = 1; i + 1 < draw_parameters.vertex_count; i++) {
 +        fan_indices.push_back(base);
 +        fan_indices.push_back(base + i);
 +        fan_indices.push_back(base + i + 1);
@@ -17608,10 +17617,10 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +        if (emulate_triangle_fan) {
 +          mv_pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
 +          mv_pass.DrawIndexed(fan_index_count,
-+                              uint32_t(instance_count),
++                              draw_parameters.instance_count,
 +                              0,
 +                              wibo != nullptr ? index_binding.base_vertex : 0,
-+                              uint32_t(instance_first));
++                              draw_parameters.instance_first);
 +        }
 +        else if (elem != nullptr) {
 +          if (wibo->buffer().valid()) {
@@ -17621,18 +17630,18 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +            mv_pass.SetIndexBuffer(wibo->buffer().handle(),
 +                                   wibo->index_format(),
 +                                   index_binding.byte_offset);
-+            mv_pass.DrawIndexed(uint32_t(vertex_count),
-+                                uint32_t(instance_count),
-+                                uint32_t(vertex_first),
++            mv_pass.DrawIndexed(draw_parameters.vertex_count,
++                                draw_parameters.instance_count,
++                                draw_parameters.vertex_first,
 +                                index_binding.base_vertex,
-+                                uint32_t(instance_first));
++                                draw_parameters.instance_first);
 +          }
 +        }
 +        else {
-+          mv_pass.Draw(uint32_t(vertex_count),
-+                       uint32_t(instance_count),
-+                       uint32_t(vertex_first),
-+                       uint32_t(instance_first));
++          mv_pass.Draw(draw_parameters.vertex_count,
++                       draw_parameters.instance_count,
++                       draw_parameters.vertex_first,
++                       draw_parameters.instance_first);
 +        }
 +        mv_pass.End();
 +        wgpu::CommandBuffer mv_cb = mv_enc.Finish();
@@ -17683,10 +17692,10 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +  if (emulate_triangle_fan) {
 +    pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
 +    pass.DrawIndexed(fan_index_count,
-+                     uint32_t(instance_count),
++                     draw_parameters.instance_count,
 +                     0,
 +                     wibo != nullptr ? index_binding.base_vertex : 0,
-+                     uint32_t(instance_first));
++                     draw_parameters.instance_first);
 +  }
 +  else if (elem != nullptr) {
 +    if (wibo->buffer().valid()) {
@@ -17699,18 +17708,18 @@ index 0000000000000000000000000000000000000000..8b044fd2e48f61768bbc9c26d316ed24
 +      pass.SetIndexBuffer(wibo->buffer().handle(),
 +                          wibo->index_format(),
 +                          index_binding.byte_offset);
-+      pass.DrawIndexed(uint32_t(vertex_count),
-+                       uint32_t(instance_count),
-+                       uint32_t(vertex_first),
++      pass.DrawIndexed(draw_parameters.vertex_count,
++                       draw_parameters.instance_count,
++                       draw_parameters.vertex_first,
 +                       index_binding.base_vertex,
-+                       uint32_t(instance_first));
++                       draw_parameters.instance_first);
 +    }
 +  }
 +  else {
-+    pass.Draw(uint32_t(vertex_count),
-+              uint32_t(instance_count),
-+              uint32_t(vertex_first),
-+              uint32_t(instance_first));
++    pass.Draw(draw_parameters.vertex_count,
++              draw_parameters.instance_count,
++              draw_parameters.vertex_first,
++              draw_parameters.instance_first);
 +  }
 +
 +  pass.End();
@@ -18394,10 +18403,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5c07f2394072b92803937a56b2cefd5acb706961
+index 0000000000000000000000000000000000000000..59dbba1ecd6995b8dd34df5561f75bf6af520f64
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,668 @@
+@@ -0,0 +1,698 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18492,6 +18501,36 @@ index 0000000000000000000000000000000000000000..5c07f2394072b92803937a56b2cefd5a
 +  {
 +    return false;
 +  }
++  result = candidate;
++  return true;
++}
++
++/** Validated unsigned parameters for one direct WebGPU draw. */
++struct DirectDrawPlan {
++  uint32_t vertex_first = 0;
++  uint32_t vertex_count = 0;
++  uint32_t instance_first = 0;
++  uint32_t instance_count = 0;
++};
++
++/** Convert Blender's signed backend parameters only after the frontend has resolved its
++ * zero-count defaults. WebGPU accepts unsigned values, so negative inputs would otherwise
++ * become very large draws. Failure leaves `result` unchanged. */
++inline bool direct_draw_plan(int vertex_first,
++                             int vertex_count,
++                             int instance_first,
++                             int instance_count,
++                             DirectDrawPlan &result)
++{
++  if (vertex_first < 0 || vertex_count <= 0 || instance_first < 0 || instance_count <= 0) {
++    return false;
++  }
++
++  DirectDrawPlan candidate;
++  candidate.vertex_first = uint32_t(vertex_first);
++  candidate.vertex_count = uint32_t(vertex_count);
++  candidate.instance_first = uint32_t(instance_first);
++  candidate.instance_count = uint32_t(instance_count);
 +  result = candidate;
 +  return true;
 +}

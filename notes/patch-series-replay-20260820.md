@@ -300,3 +300,9 @@ without changing the 257-path / 20,258-entry authority. The patch is now 1,601,7
 SHA-256 `16ff5a21fdeed3fa11c91e61763bd36306f355e5d32887c2f14d3f962fac90f4`; the current
 normalized receipt binds byte-identical live/replay manifests at SHA-256
 `22c14a60f7f9f0612ea5a49258f03dfcdc0722d9d60f1d43d587bbb79c1758aa`.
+
+Patch 0189's fail-closed direct-draw parameter validation was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,603,299 bytes with SHA-256
+`3614142754032eaef27f717644e2d0d9ac585c7ce117b794bb288f246a6c1d66`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`534301890e496f019ac54e69129be6297a81b4f76168586db1c0e93962c3371a`.

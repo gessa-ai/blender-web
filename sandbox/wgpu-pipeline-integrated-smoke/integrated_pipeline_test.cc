@@ -207,6 +207,85 @@ bool indirect_draw_span_contract()
   return true;
 }
 
+bool direct_draw_plan_contract()
+{
+  struct Case {
+    int vertex_first;
+    int vertex_count;
+    int instance_first;
+    int instance_count;
+    bool accepted;
+  };
+  constexpr int int_max = std::numeric_limits<int>::max();
+  constexpr int int_min = std::numeric_limits<int>::min();
+  constexpr std::array<Case, 16> cases = {{
+      {0, 1, 0, 1, true},
+      {3, 7, 11, 13, true},
+      {int_max, 1, int_max, 1, true},
+      {0, int_max, 0, int_max, true},
+      {int_max, int_max, int_max, int_max, true},
+      {-1, 1, 0, 1, false},
+      {0, -1, 0, 1, false},
+      {0, 1, -1, 1, false},
+      {0, 1, 0, -1, false},
+      {0, 0, 0, 1, false},
+      {0, 1, 0, 0, false},
+      {int_min, 1, 0, 1, false},
+      {0, int_min, 0, 1, false},
+      {0, 1, int_min, 1, false},
+      {0, 1, 0, int_min, false},
+      {-1, -1, -1, -1, false},
+  }};
+
+  size_t accepted = 0;
+  size_t rejected = 0;
+  uint64_t value_sum = 0;
+  for (const Case &test : cases) {
+    bw::DirectDrawPlan actual = {101, 102, 103, 104};
+    const bw::DirectDrawPlan sentinel = actual;
+    const bool result = bw::direct_draw_plan(test.vertex_first,
+                                             test.vertex_count,
+                                             test.instance_first,
+                                             test.instance_count,
+                                             actual);
+    if (!require(result == test.accepted, "direct draw decision")) {
+      return false;
+    }
+    if (!result) {
+      if (!require(actual.vertex_first == sentinel.vertex_first &&
+                       actual.vertex_count == sentinel.vertex_count &&
+                       actual.instance_first == sentinel.instance_first &&
+                       actual.instance_count == sentinel.instance_count,
+                   "rejected direct draw preserves output"))
+      {
+        return false;
+      }
+      rejected++;
+      continue;
+    }
+    if (!require(actual.vertex_first == uint32_t(test.vertex_first) &&
+                     actual.vertex_count == uint32_t(test.vertex_count) &&
+                     actual.instance_first == uint32_t(test.instance_first) &&
+                     actual.instance_count == uint32_t(test.instance_count),
+                 "accepted direct draw geometry"))
+    {
+      return false;
+    }
+    accepted++;
+    value_sum += uint64_t(actual.vertex_first) + actual.vertex_count + actual.instance_first +
+                 actual.instance_count;
+  }
+
+  if (!require(accepted == 5 && rejected == 11, "direct draw census") ||
+      !require(value_sum == 17179869214ull, "direct draw aggregate"))
+  {
+    return false;
+  }
+  std::puts(
+      "CONTRACT direct_draw_plan PASS cases=16 accepted=5 rejected=11 value_sum=17179869214");
+  return true;
+}
+
 bool compute_dispatch_range_contract()
 {
   struct DirectCase {
@@ -625,7 +704,8 @@ bool vertex_alias_cache_key_contract()
 int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
-      !indirect_draw_span_contract() || !compute_dispatch_range_contract() ||
+      !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
+      !compute_dispatch_range_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -633,8 +713,8 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=10 primitives=11 strip_cases=33 indirect_spans=19 "
-      "compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 "
+      "INTEGRATED_PIPELINE_PASS contracts=11 primitives=11 strip_cases=33 indirect_spans=19 "
+      "direct_draws=16 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

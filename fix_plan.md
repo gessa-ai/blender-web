@@ -1542,6 +1542,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red for the absent
   strict candidate and s7 still blocks live hardware upload proof. See
   `notes/m3-t6-vertex-upload-padding-20260822.md`.
+- [x] **M3.T6-INDEX-UPLOAD-COMMIT [gpu-backend] (7b3a59b):** patch 0197 publishes a common
+  WebGPU buffer handle only after mapped initialization succeeds and transfers initial index-data
+  ownership only after that transaction commits. The fail-first extracted shipping-method
+  contract plus six-case native/wasm32 matrix prove failed creation retains an invalid destination,
+  host bytes, and uncommitted state before a successful retry. Canonical replay/reverse check, the
+  real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required M3 remains red
+  for the absent strict candidate and s7 still blocks live hardware upload proof. See
+  `notes/m3-t6-index-upload-commit-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

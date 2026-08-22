@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# M3.T3 verify: require patches 0149 and 0167's integrated
+# M3.T3 verify: require patches 0149, 0167, and 0171's integrated
 # GHOST_ContextWGPU postimage, stage it outside upstream/, compile the canonical
 # source against Blender's real GHOST headers inside Dawn's CMake graph, and run
 # its optional-feature selector without a device. A software adapter can only
@@ -20,6 +20,7 @@ DAWN_SRC="${DAWN_SRC:-$REPO/build-dawn/dawn}"
 BUILD="${BUILD:-$REPO/build-dawn/probe-build}"
 PLATFORM_PATCH="$REPO/patches/0149-ghost-webgpu-native-platform-backend.patch"
 FEATURE_PATCH="$REPO/patches/0167-gpu-webgpu-native-float32-filterable.patch"
+SWIZZLE_PATCH="$REPO/patches/0171-gpu-webgpu-texture-component-swizzle.patch"
 FEATURE_EXTRACTOR="$HERE/extract_optional_features.py"
 CMAKE="$REPO/.host-tools/bin/cmake"
 PYTHON="$REPO/.host-tools/bin/python3.13"
@@ -99,6 +100,7 @@ for required in \
   "$DAWN_SRC" \
   "$PLATFORM_PATCH" \
   "$FEATURE_PATCH" \
+  "$SWIZZLE_PATCH" \
   "$FEATURE_EXTRACTOR" \
   "$CMAKE" \
   "$PYTHON"
@@ -121,8 +123,8 @@ if [ "$dawn_head" != "$EXPECTED_DAWN" ]; then
 fi
 
 # All allocations happen after both source pins pass. Stage only the two
-# canonical files under the ignored build tree and require the exact 0149+0167
-# postimage before compiling. Reverse-checking both patches is a read-only proof;
+# canonical files under the ignored build tree and require the exact 0149+0167+0171
+# postimage before compiling. Reverse-checking all three patches is a read-only proof;
 # the source worktree remains byte-for-byte untouched.
 mkdir -p "$BUILD"
 stage_tmp="$(mktemp -d "${TMPDIR:-/tmp}/blender-web-t3-ghost.XXXXXX")"
@@ -134,7 +136,12 @@ cp "$UP/$stage_rel/GHOST_ContextWGPU.hh" "$stage_tmp/$stage_rel/"
 (
   cd "$stage_tmp"
   git apply --reverse --check "$PLATFORM_PATCH"
+  git apply --include="$stage_rel/GHOST_ContextWGPU.cc" --reverse --check "$SWIZZLE_PATCH"
+  git apply --include="$stage_rel/GHOST_ContextWGPU.cc" --reverse "$SWIZZLE_PATCH"
   git apply --reverse --check "$FEATURE_PATCH"
+  git apply --reverse "$FEATURE_PATCH"
+  git apply "$FEATURE_PATCH"
+  git apply --include="$stage_rel/GHOST_ContextWGPU.cc" "$SWIZZLE_PATCH"
 )
 
 stage="$BUILD/bw-ghost-wgpu-source/$stage_rel"
@@ -164,7 +171,7 @@ feature_source="$feature_source_dir/ghost_wgpu_optional_features.inc"
 
 feature_output="$("$BUILD/ghost_wgpu_feature_contract")"
 if [ "$feature_output" != \
-  "T3 OPTIONAL FEATURE CONTRACT PASS features=8 masks=256 float32_index=2" ]
+  "T3 OPTIONAL FEATURE CONTRACT PASS features=9 masks=512 float32_index=2 swizzle_index=3" ]
 then
   echo "ERROR: optional-feature contract lacks the exact PASS verdict" >&2
   exit 1

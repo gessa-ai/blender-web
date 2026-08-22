@@ -518,10 +518,10 @@ index b7379284272a4ab34b526c367d94e71132f8329b..e99dd55f5ee51b788e1f4cdcc86eb57c
  /** Set "None" as -1 so this can be used as an index. */
 diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8ee161924cdaf15eab4500798251e1e7b2593986
+index 0000000000000000000000000000000000000000..7f8eb20d0141a57e4fb9862a1170515f292bf4cd
 --- /dev/null
 +++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
-@@ -0,0 +1,211 @@
+@@ -0,0 +1,216 @@
 +/* SPDX-FileCopyrightText: 2022-2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -623,6 +623,8 @@ index 0000000000000000000000000000000000000000..8ee161924cdaf15eab4500798251e1e7
 +   *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable.
 +   *   - Float32Filterable: enables linear filtering for R/RG/RGBA 32-bit float
 +   *     textures, matching the backend's format-capability gate.
++   *   - TextureComponentSwizzle: applies Blender's sampled-texture channel masks
++   *     directly in Dawn/Emdawnwebgpu texture views.
 +   *   - Depth32FloatStencil8: Blender's D32F/S8 combined depth-stencil format.
 +   *   - TextureFormatsTier1: extended write-only storage texture formats.
 +   *   - TextureFormatsTier2: extended read-write storage texture formats.
@@ -640,6 +642,9 @@ index 0000000000000000000000000000000000000000..8ee161924cdaf15eab4500798251e1e7
 +  }
 +  if (adapter_.HasFeature(wgpu::FeatureName::Float32Filterable)) {
 +    required_features.push_back(wgpu::FeatureName::Float32Filterable);
++  }
++  if (adapter_.HasFeature(wgpu::FeatureName::TextureComponentSwizzle)) {
++    required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);
 +  }
 +  if (adapter_.HasFeature(wgpu::FeatureName::Depth32FloatStencil8)) {
 +    required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);
@@ -29660,10 +29665,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..fbb37c639de1083f0fba94a8b79921644049a657
+index 0000000000000000000000000000000000000000..1ca96736ce442299ede6b6f2e9770fbd4835e8e6
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2570 @@
+@@ -0,0 +1,2602 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -31416,6 +31421,38 @@ index 0000000000000000000000000000000000000000..fbb37c639de1083f0fba94a8b7992164
 +    d.arrayLayerCount = subresources_.layer_count;
 +  }
 +  d.aspect = sampled_range.aspect;
++
++  /* WebGPU's stable TextureComponentSwizzle feature is the direct equivalent of
++   * Vulkan's VkComponentMapping used by GPU_texture_swizzle_set. Apply it only to
++   * sampled views: storage images, attachments, copies, and readback address the
++   * backing channels and deliberately retain identity mapping. */
++  wgpu::TextureComponentSwizzleDescriptor swizzle_desc = {};
++  swizzle_desc.swizzle.r = to_wgpu_component_swizzle(swizzle_[0]);
++  swizzle_desc.swizzle.g = to_wgpu_component_swizzle(swizzle_[1]);
++  swizzle_desc.swizzle.b = to_wgpu_component_swizzle(swizzle_[2]);
++  swizzle_desc.swizzle.a = to_wgpu_component_swizzle(swizzle_[3]);
++  if (swizzle_desc.swizzle.r == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.g == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.b == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.a == wgpu::ComponentSwizzle::Undefined)
++  {
++    return nullptr;
++  }
++  const bool identity = swizzle_desc.swizzle.r == wgpu::ComponentSwizzle::R &&
++                        swizzle_desc.swizzle.g == wgpu::ComponentSwizzle::G &&
++                        swizzle_desc.swizzle.b == wgpu::ComponentSwizzle::B &&
++                        swizzle_desc.swizzle.a == wgpu::ComponentSwizzle::A;
++  if (!identity) {
++    WGPUContext *ctx = active_context();
++    if (ctx == nullptr ||
++        !ctx->device_get().HasFeature(wgpu::FeatureName::TextureComponentSwizzle))
++    {
++      /* A null bind is visible and fail-closed; silently sampling identity channels
++       * would corrupt image alpha, paint masks, volume fields, and EEVEE vectors. */
++      return nullptr;
++    }
++    d.nextInChain = &swizzle_desc;
++  }
 +  return subresources_.texture.CreateView(&d);
 +}
 +
@@ -32448,10 +32485,10 @@ index 0000000000000000000000000000000000000000..9a1d37e8443fae24cdf704cb939d7467
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7762a08beb0c3e6e442ea340173e29dd846f722a
+index 0000000000000000000000000000000000000000..1da27c2b8f8ce52a9f6822f076d98fe677ebc850
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,341 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32645,6 +32682,29 @@ index 0000000000000000000000000000000000000000..7762a08beb0c3e6e442ea340173e29dd
 +  return format_info(format).wgpu;
 +}
 +
++wgpu::ComponentSwizzle to_wgpu_component_swizzle(const char component)
++{
++  switch (component) {
++    case 'r':
++    case 'x':
++      return wgpu::ComponentSwizzle::R;
++    case 'g':
++    case 'y':
++      return wgpu::ComponentSwizzle::G;
++    case 'b':
++    case 'z':
++      return wgpu::ComponentSwizzle::B;
++    case 'a':
++    case 'w':
++      return wgpu::ComponentSwizzle::A;
++    case '0':
++      return wgpu::ComponentSwizzle::Zero;
++    case '1':
++      return wgpu::ComponentSwizzle::One;
++  }
++  return wgpu::ComponentSwizzle::Undefined;
++}
++
 +bool compressed_upload_layout(TextureFormat format,
 +                              uint32_t width,
 +                              uint32_t height,
@@ -32772,10 +32832,10 @@ index 0000000000000000000000000000000000000000..7762a08beb0c3e6e442ea340173e29dd
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..c09e458ade9733f71191295b7d682cd62e78b4d7
+index 0000000000000000000000000000000000000000..a24997231a472ae30f7c572ea77938acd0461f04
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,162 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32903,6 +32963,10 @@ index 0000000000000000000000000000000000000000..c09e458ade9733f71191295b7d682cd6
 + * Sliced-3D compression is a distinct optional feature and is not part of Blender's pinned
 + * compressed-2D creation API. */
 +bool compressed_texture_type_supported(GPUTextureType type);
++
++/** Translate Blender's documented `rgba` / `xyzw` / `01` sampled-texture mask alphabet.
++ * Undefined is the fail-closed sentinel for every other byte. */
++wgpu::ComponentSwizzle to_wgpu_component_swizzle(char component);
 +
 +/** Look up the full record for a Blender format. */
 +const FormatInfo &format_info(TextureFormat format);

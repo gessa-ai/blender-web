@@ -74,6 +74,8 @@ source_digest()
     vulkan/tests/vk_data_conversion_test.cc
     intern/gpu_texture.cc
     ../draw/engines/gpencil/gpencil_engine_c.cc
+    ../draw/engines/eevee/eevee_renderbuffers.cc
+    ../editors/sculpt_paint/paint_cursor.cc
     ../imbuf/intern/util_gpu.cc
   )
   if command -v sha256sum >/dev/null 2>&1; then
@@ -96,7 +98,10 @@ require_file "$ROOT/upstream/source/blender/gpu/vulkan/vk_data_conversion.hh"
 require_file "$ROOT/upstream/source/blender/gpu/vulkan/tests/vk_data_conversion_test.cc"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture.cc"
 require_file "$ROOT/upstream/source/blender/draw/engines/gpencil/gpencil_engine_c.cc"
+require_file "$ROOT/upstream/source/blender/draw/engines/eevee/eevee_renderbuffers.cc"
+require_file "$ROOT/upstream/source/blender/editors/sculpt_paint/paint_cursor.cc"
 require_file "$ROOT/upstream/source/blender/imbuf/intern/util_gpu.cc"
+require_file "$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
 require_file "$NODE"
@@ -176,6 +181,26 @@ if [ "$(grep -Fc 'gpu::Texture *GPU_texture_create_compressed_2d(' "$GPU_TEXTURE
    [ "$(grep -Fc 'tex = GPU_texture_create_compressed_2d(name,' "$IMBUF_GPU_SOURCE")" -ne 1 ]
 then
   echo "ERROR: pinned Blender compressed-texture caller contract differs" >&2
+  exit 1
+fi
+
+GHOST_WGPU_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_ContextWGPU.cc"
+EEVEE_RENDERBUFFERS="$ROOT/upstream/source/blender/draw/engines/eevee/eevee_renderbuffers.cc"
+PAINT_CURSOR_SOURCE="$ROOT/upstream/source/blender/editors/sculpt_paint/paint_cursor.cc"
+WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
+if [ "$(grep -Ec '^wgpu::ComponentSwizzle to_wgpu_component_swizzle\(' "$FORMAT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Ec '^wgpu::ComponentSwizzle to_wgpu_component_swizzle\(' "$FORMAT_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'wgpu::TextureComponentSwizzleDescriptor swizzle_desc = {};' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'd.nextInChain = &swizzle_desc;' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'FeatureName::TextureComponentSwizzle' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'FeatureName::TextureComponentSwizzle' "$GHOST_WGPU_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'GPU_texture_swizzle_set(vector_tx, "rgrg")' "$EEVEE_RENDERBUFFERS")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_texture_swizzle_set(target->overlay_texture, "rrrr")' "$PAINT_CURSOR_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPU_texture_swizzle_set(tex, imb_gpu_get_swizzle(ibuf));' "$IMBUF_GPU_SOURCE")" -ne 2 ] ||
+   [ "$(grep -Fc 'adapter.features.forEach(function (f) { requiredFeatures.push(f); });' "$WGPU_PREINIT_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'requiredFeatures: requiredFeatures,' "$WGPU_PREINIT_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: canonical texture-component-swizzle wiring differs" >&2
   exit 1
 fi
 
@@ -291,13 +316,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=10 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7' \
+    'INTEGRATED_TEXTURE_PASS contracts=11 formats=63 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 10 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 11 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

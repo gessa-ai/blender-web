@@ -685,6 +685,15 @@ probes), R3 geometry-stage gap (ZERO geometry create-infos at pin → M6 concern
   in native/wasm32; canonical replay is exact and the real windowed product rebuilds and ends
   locked-Ninja no-work. No live device, texture, sample, browser receipt, or result promotion is
   claimed. Evidence: `notes/m3-t9-bc-upload-20260822.md`.
+- [x] **M3.T9.component-swizzle [gpu-backend] COMPLETE (patch 0171):** sampled texture views
+  now apply Blender's documented `rgba` / `xyzw` / `01` channel masks through Dawn's stable
+  `TextureComponentSwizzle` feature. Native device creation requests the feature only when the
+  adapter exposes it; invalid masks and unavailable non-identity swizzles fail closed instead of
+  silently sampling identity channels. Ten symbols pass byte-identically in native/wasm32, the
+  native GHOST contract exhausts all 512 combinations of its nine optional features, canonical
+  replay is exact, and the real windowed product rebuilds and ends locked-Ninja no-work. No live
+  adapter, sampled texture, pixel, browser receipt, or result promotion is claimed. Evidence:
+  `notes/m3-t9-texture-component-swizzle-20260822.md`.
 - [x] **M3.T4–T10 [gpu-backend]** CLOSED by the accepted successor rounds: the registered
   backend now has real context/capabilities, buffer factories, shaderc→Tint→WGSL compilation,
   direct/indirect compute, textures/data conversion, framebuffer/pipeline/state, immediate, and

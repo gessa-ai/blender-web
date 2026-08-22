@@ -866,6 +866,45 @@ bool compressed_upload_layout_contract()
   return supported == 4;
 }
 
+bool component_swizzle_contract()
+{
+  struct Case {
+    char blender;
+    wgpu::ComponentSwizzle webgpu;
+  };
+  constexpr std::array<Case, 10> cases = {{{'r', wgpu::ComponentSwizzle::R},
+                                            {'x', wgpu::ComponentSwizzle::R},
+                                            {'g', wgpu::ComponentSwizzle::G},
+                                            {'y', wgpu::ComponentSwizzle::G},
+                                            {'b', wgpu::ComponentSwizzle::B},
+                                            {'z', wgpu::ComponentSwizzle::B},
+                                            {'a', wgpu::ComponentSwizzle::A},
+                                            {'w', wgpu::ComponentSwizzle::A},
+                                            {'0', wgpu::ComponentSwizzle::Zero},
+                                            {'1', wgpu::ComponentSwizzle::One}}};
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    const wgpu::ComponentSwizzle actual = bw::to_wgpu_component_swizzle(test.blender);
+    if (!require(actual == test.webgpu, "component swizzle mapping")) {
+      return false;
+    }
+    hash = fnv_byte(hash, uint8_t(test.blender));
+    hash = fnv_u64(hash, uint64_t(actual));
+  }
+  if (!require(bw::to_wgpu_component_swizzle('\0') == wgpu::ComponentSwizzle::Undefined,
+               "invalid component swizzle sentinel") ||
+      !require(bw::to_wgpu_component_swizzle('R') == wgpu::ComponentSwizzle::Undefined,
+               "uppercase component swizzle sentinel"))
+  {
+    return false;
+  }
+  std::printf("CONTRACT component-swizzle PASS cases=%zu aliases=4 constants=2 digest=%016" PRIx64
+              "\n",
+              cases.size(),
+              hash);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -873,12 +912,12 @@ int main()
   if (!table_contract() || !capabilities_contract() || !render_attachment_contract() ||
       !view_format_contract() || !promotion_contract() || !rgb9e5_contract() ||
       !rg11b10_contract() || !boundary_contract() || !packed_row_stride_contract() ||
-      !compressed_upload_layout_contract())
+      !compressed_upload_layout_contract() || !component_swizzle_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=10 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
-      "rg11b10=25 packed_rows=6 compressed_layouts=7\n");
+      "INTEGRATED_TEXTURE_PASS contracts=11 formats=63 promotions=13 view_pairs=10 rgb9e5=10 "
+      "rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;
 }

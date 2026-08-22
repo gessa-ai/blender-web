@@ -798,3 +798,7 @@
 # 4x4 copy extent and block-row layout; unsupported features/types fail allocation
 # so the pinned image caller takes its faithful uncompressed fallback.
 0170-gpu-webgpu-bc-upload.patch
+# 0171: apply Blender's sampled-texture channel masks through Dawn's stable
+# TextureComponentSwizzle feature, with adapter-guarded native device opt-in and
+# fail-closed behavior when a non-identity mask cannot be represented.
+0171-gpu-webgpu-texture-component-swizzle.patch

@@ -14,8 +14,9 @@ canonical/edge RGB9E5 encodes, 25 RG11B10 vectors against the pinned Vulkan
 F32/F11/F10 policy, the 16-case feature-aware render-attachment matrix (including
 Grease Pencil's `UNORM_16` render mask), six strided-upload host-texel cases that
 separate packed 32-bit rows from scalar-component rows, seven BC1/2/3 physical-block and
-source-stride layouts, all nine compressed texture-type enumerators, and invalid/boundary
-behavior. Native and Wasm stdout must be byte-identical.
+source-stride layouts, all nine compressed texture-type enumerators, all ten documented
+`rgba`/`xyzw`/`01` component-swizzle symbols, and invalid/boundary behavior. Native and Wasm
+stdout must be byte-identical.
 
 Run only through the build wrapper:
 
@@ -24,12 +25,14 @@ harness/buildwrap.sh bash sandbox/wgpu-texture-integrated-smoke/build.sh
 ```
 
 The driver checksum-binds Dawn `36cf1fae`, emcc 6.0.5, Node 22.16.0, Blender's
-canonical clean-pin replay, and the sixteen exact table/conversion/texture/enum/assert/oracle
-inputs before evidence allocation. It also requires the exact RGB9E5 format classification and
-the exact RGB9E5, RG11B10, and Blender DDS compressed-upload call-site censuses before allocating
+canonical clean-pin replay, and the eighteen exact table/conversion/texture/enum/assert/oracle
+inputs before evidence allocation. It also requires the exact RGB9E5 format classification;
+the exact RGB9E5, RG11B10, and Blender DDS compressed-upload call-site censuses; the sampled-view
+swizzle descriptor and native adapter-guarded feature request; three launch-tier Blender swizzle
+consumer families; and the browser's all-supported-features device request before allocating
 evidence. Both targets
 build only through `scripts/ninja-locked.sh` and finish with an exact no-work check.
 
-No WebGPU instance, adapter, device, texture, or milestone receipt is created.
-Live creation, compressed sampling/readback, and framebuffer coverage remain owned by
-`M3-LINUX-REPLAY` and require an accepted hardware adapter.
+No WebGPU instance, adapter, device, texture, sampled pixel, or milestone receipt is created.
+Live component-swizzle sampling, compressed sampling/readback, and framebuffer coverage remain
+owned by `M3-LINUX-REPLAY` and require an accepted hardware adapter.

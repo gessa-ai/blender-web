@@ -190,3 +190,10 @@ without changing the 257-path / 20,258-entry authority. The patch is now 1,560,3
 SHA-256 `0e920948915c22c2a0cd54d8b483027b4e5dc7ae34f850c7d799fb970cb31336`; the current
 normalized receipt binds byte-identical live/replay manifests at SHA-256
 `e1e2d5147cc7342708ffc310ae3a1baa1a6ec793d2ebb1633ed28e596f1fed50`.
+
+Patch 0171's sampled-texture component-swizzle mapping and adapter-guarded native feature request
+were then composed without changing the 257-path / 20,258-entry authority. The patch is now
+1,563,091 bytes with SHA-256
+`e8ef2bc5549b8d81b1bb000b54a9ad680714d09c0fe01ee5e217088b46aa6183`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`4a20cb6de8562ef7cca8c67f71254006d9714868ce266b3fa6821339ce727fc1`.

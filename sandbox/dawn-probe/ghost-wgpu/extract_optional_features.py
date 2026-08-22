@@ -18,6 +18,7 @@ EXPECTED_FEATURES = (
     "Unorm16TextureFormats",
     "RG11B10UfloatRenderable",
     "Float32Filterable",
+    "TextureComponentSwizzle",
     "Depth32FloatStencil8",
     "TextureFormatsTier1",
     "TextureFormatsTier2",
@@ -72,23 +73,26 @@ def selfcheck() -> None:
     )
     source = "fixture prefix\n" + BLOCK_START + pairs + BLOCK_END + "\nfixture suffix\n"
     payload = extract_payload(source)
-    if b"wgpu::FeatureName::Float32Filterable" not in payload:
-        raise RuntimeError("positive self-check lost Float32Filterable")
+    if (
+        b"wgpu::FeatureName::Float32Filterable" not in payload
+        or b"wgpu::FeatureName::TextureComponentSwizzle" not in payload
+    ):
+        raise RuntimeError("positive self-check lost required texture features")
 
-    float_pair = (
-        "  if (adapter_.HasFeature(wgpu::FeatureName::Float32Filterable)) {\n"
-        "    required_features.push_back(wgpu::FeatureName::Float32Filterable);\n"
+    swizzle_pair = (
+        "  if (adapter_.HasFeature(wgpu::FeatureName::TextureComponentSwizzle)) {\n"
+        "    required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);\n"
         "  }\n"
     )
     mutations = (
-        source.replace(float_pair, "", 1),
+        source.replace(swizzle_pair, "", 1),
         source.replace(
-            "required_features.push_back(wgpu::FeatureName::Float32Filterable);",
+            "required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);",
             "required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);",
             1,
         ),
-        source.replace(float_pair, float_pair + float_pair, 1),
-        source.replace(float_pair, float_pair + "  audit_side_effect();\n", 1),
+        source.replace(swizzle_pair, swizzle_pair + swizzle_pair, 1),
+        source.replace(swizzle_pair, swizzle_pair + "  audit_side_effect();\n", 1),
         source.replace(BLOCK_END, BLOCK_END + "\n" + BLOCK_END, 1),
     )
     for index, mutation in enumerate(mutations, start=1):

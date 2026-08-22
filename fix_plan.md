@@ -1592,6 +1592,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   no-work check, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
   Live GPU-test pixel proof remains s7-blocked. See
   `notes/m3-t10-empty-raster-loadop-20260822.md`.
+- [x] **M3.T10-CACHE-PUBLICATION [gpu-backend] (01a4627):** patch 0204 keeps null sampler
+  and render-pipeline candidates out of the context-local and process-wide caches, preserving a
+  later retry after transient creation failure. The unchanged source fails before evidence;
+  native/wasm32 fail-first/retry behavior is byte-identical, and exact source guards bind all
+  five live publication sites. Canonical replay/reverse, the real product rebuild/no-work check,
+  OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live retry and
+  pixel proof remain s7-blocked. See `notes/m3-t10-cache-publication-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

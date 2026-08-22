@@ -1511,7 +1511,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   See `notes/m3-t10-window-viewport-scissor-20260822.md`.
 - [x] **M3.T10-OFFSCREEN-VIEWPORT-SCISSOR [gpu-backend]:** patch 0193 applies Blender's
   stored viewport and optional independent scissor to ordinary offscreen render passes in the
-  lower-left coordinates fixed by a pinned native pixel oracle. The 21-case native/wasm32
+  lower-left coordinates fixed by a pinned native pixel oracle. Audit patch 0201 composes that
+  oracle with WebGPU's top-origin placement/readback contract and corrects both rectangles with
+  `H-y-height`; the revised 21-case native/wasm32
   contract covers oracle, partial, outside, disabled-scissor, device-limit, null, and integer-edge
   state atomically. Canonical replay, patch reversal/forward application, the real windowed
   rebuild/no-work check, and OFF preflight are green. Required M3 remains red for the absent
@@ -1525,7 +1527,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   unconditionally full attachment. The native oracle, fail-first 18-case native/wasm32 policy
   contract, exact four-shader Tint parse, canonical replay, product rebuild/no-work check, and
   OFF preflight are green. Required M3 remains red for the absent strict candidate; s7 still
-  blocks live WebGPU pixel proof. See `notes/m3-t10-framebuffer-scissored-clear-20260822.md`.
+  blocks live WebGPU pixel proof. Audit patches 0201/0202 correct offscreen Y and make pipeline
+  cache publication retry-safe. See `notes/m3-t10-framebuffer-scissored-clear-20260822.md`.
 - [x] **M3.T6-BUFFER-READ-OFFSET-ALIGNMENT [gpu-backend] (d186fef):** patch 0195 routes
   `Buffer::read()` through the existing checked `CopyBufferToBuffer` span validator after size
   alignment, rejecting a contained but misaligned source offset before native encoding or browser
@@ -1573,6 +1576,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   reversal, the real windowed rebuild/no-work check, OFF preflight, and REUSE are green. Required
   M3 remains red for the absent strict candidate and s7 still blocks live hardware draw proof. See
   `notes/m3-t10-multiview-uniform-allocation-20260822.md`.
+- [x] **AUDIT-20260822-R5 [driver] (cde8ed8):** adversarially reviewed exact range
+  `783b42d^..19c62fd` (25 commits): 0 critical, 1 major, 2 minor. Patches 0201/0202 fix the
+  offscreen bottom/top-origin composition and retry-poisoned scissored-clear caches; canonical,
+  native/wasm32, real product, OFF preflight, REUSE, scoped, and container-backed regression
+  evidence is recorded in `reports/audit-20260822-r5.md`. The remaining valid-empty/load-action
+  minor is queued immediately below; no hardware receipt or gate promotion occurred.
+- [ ] **M3.T10-EMPTY-RASTER-LOADOP [gpu-backend]:** distinguish malformed raster state from legal
+  zero/fully clipped viewport or enabled scissor state. Preserve a zero viewport or contained
+  `(0,0,0,0)` scissor so `begin_load_pass()` still materializes pending load actions and the
+  caller's normal draw produces no fragments. Add a bind-loadstore clear + zero raster +
+  framebuffer-read regression, plus native/wasm32 planner boundaries; pinned Dawn accepts zero
+  extents. Live WebGPU pixel proof remains s7-blocked, but the source/device-free repair is not.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

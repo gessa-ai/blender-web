@@ -18370,10 +18370,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..73314b5a52accbafb9121575e4f1e62858c5903c
+index 0000000000000000000000000000000000000000..7d8334c3d92ee9a9ce98cc7ee782978bb38d6608
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,484 @@
+@@ -0,0 +1,519 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18669,6 +18669,41 @@ index 0000000000000000000000000000000000000000..73314b5a52accbafb9121575e4f1e628
 +
 +  result = candidate;
 +  return true;
++}
++
++enum class FramebufferClearPassStatus : uint8_t { Invalid, Inactive, Active };
++
++/** Select one attachment for a framebuffer clear pass. A negative selected layer advances through
++ * the attachment's relative subresource range; a fixed layer remains attached to every emitted
++ * pass. Non-active decisions leave `force_layer` unchanged. */
++inline FramebufferClearPassStatus framebuffer_clear_pass_layer(int selected_layer,
++                                                               uint32_t layer_count,
++                                                               uint32_t pass_layer,
++                                                               int &force_layer)
++{
++  if (layer_count == 0) {
++    return FramebufferClearPassStatus::Invalid;
++  }
++
++  int candidate;
++  if (selected_layer < 0) {
++    if (pass_layer >= layer_count) {
++      return FramebufferClearPassStatus::Inactive;
++    }
++    if (pass_layer > uint32_t(std::numeric_limits<int>::max())) {
++      return FramebufferClearPassStatus::Invalid;
++    }
++    candidate = int(pass_layer);
++  }
++  else {
++    if (uint32_t(selected_layer) >= layer_count) {
++      return FramebufferClearPassStatus::Invalid;
++    }
++    candidate = -1;
++  }
++
++  force_layer = candidate;
++  return FramebufferClearPassStatus::Active;
 +}
 +
 +/** Host geometry for extracting one framebuffer rectangle from a tightly packed texture
@@ -20872,10 +20907,10 @@ index 0000000000000000000000000000000000000000..5b2bb8bca2f33f1e3817edb4c2855643
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f30e68486429915a986530fc1abdf3bec62074c2
+index 0000000000000000000000000000000000000000..e8af9de987c9436d7e898b195ff1adcfed246db0
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1004 @@
+@@ -0,0 +1,1029 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21089,16 +21124,17 @@ index 0000000000000000000000000000000000000000..f30e68486429915a986530fc1abdf3be
 +
 +  /* A negative attachment layer means the frontend selected every layer. WebGPU
 +   * render attachments are single-layer, so submit one exact pass per layer. */
-+  int pass_count = 1;
++  uint32_t pass_count = 1;
 +  for (int i = 0; i < GPU_FB_MAX_ATTACHMENT; i++) {
 +    const GPUAttachment &att = attachments_[i];
 +    if (att.tex != nullptr && att.layer < 0) {
-+      pass_count = std::max(pass_count,
-+                            int(as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0))));
++      pass_count = std::max(
++          pass_count,
++          as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0)));
 +    }
 +  }
 +
-+  for (int pass_layer = 0; pass_layer < pass_count; pass_layer++) {
++  for (uint32_t pass_layer = 0; pass_layer < pass_count; pass_layer++) {
 +    std::vector<wgpu::RenderPassColorAttachment> color_atts;
 +    for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
 +      Texture *tex = color_tex(slot);
@@ -21106,12 +21142,24 @@ index 0000000000000000000000000000000000000000..f30e68486429915a986530fc1abdf3be
 +        continue;
 +      }
 +      const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
++      const uint32_t layer_count =
++          as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0));
++      int force_layer;
++      const webgpu::FramebufferClearPassStatus clear_status =
++          webgpu::framebuffer_clear_pass_layer(
++              att.layer, layer_count, pass_layer, force_layer);
++      if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
++        return;
++      }
++      if (clear_status == webgpu::FramebufferClearPassStatus::Inactive) {
++        continue;
++      }
 +      wgpu::RenderPassColorAttachment ca = {};
-+      ca.view = attachment_view(att, att.layer < 0 ? pass_layer : -1);
++      ca.view = attachment_view(att, force_layer);
 +      if (ca.view == nullptr) {
 +        return;
 +      }
-+      ca.depthSlice = attachment_depth_slice(att, att.layer < 0 ? pass_layer : -1);
++      ca.depthSlice = attachment_depth_slice(att, force_layer);
 +      ca.loadOp = (buffers & GPU_COLOR_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
 +      ca.storeOp = wgpu::StoreOp::Store;
 +      /* Keep the unused Load clear value explicitly finite across native and web
@@ -21127,28 +21175,40 @@ index 0000000000000000000000000000000000000000..f30e68486429915a986530fc1abdf3be
 +
 +    Texture *dtex = depth_tex();
 +    wgpu::RenderPassDepthStencilAttachment dsa = {};
-+    const bool has_depth = dtex != nullptr;
-+    if (has_depth) {
++    bool has_depth = false;
++    if (dtex != nullptr) {
 +      const GPUAttachment &att = depth_attachment();
-+      const wgpu::TextureAspect selected_aspect =
-+          as_wgpu(dtex)->subresource_range().aspect;
-+      const bool permits_depth = selected_aspect != wgpu::TextureAspect::StencilOnly;
-+      const bool permits_stencil = selected_aspect != wgpu::TextureAspect::DepthOnly;
-+      dsa.view = attachment_view(att, att.layer < 0 ? pass_layer : -1);
-+      if (dsa.view == nullptr) {
++      const uint32_t layer_count =
++          as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0));
++      int force_layer;
++      const webgpu::FramebufferClearPassStatus clear_status =
++          webgpu::framebuffer_clear_pass_layer(
++              att.layer, layer_count, pass_layer, force_layer);
++      if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
 +        return;
 +      }
-+      dsa.depthLoadOp = (permits_depth && (buffers & GPU_DEPTH_BIT)) ?
-+                            wgpu::LoadOp::Clear :
-+                            wgpu::LoadOp::Load;
-+      dsa.depthStoreOp = wgpu::StoreOp::Store;
-+      dsa.depthClearValue = std::isfinite(clear_depth) ? clear_depth : 1.0f;
-+      if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
-+        dsa.stencilLoadOp = (permits_stencil && (buffers & GPU_STENCIL_BIT)) ?
-+                                wgpu::LoadOp::Clear :
-+                                wgpu::LoadOp::Load;
-+        dsa.stencilStoreOp = wgpu::StoreOp::Store;
-+        dsa.stencilClearValue = clear_stencil;
++      if (clear_status == webgpu::FramebufferClearPassStatus::Active) {
++        has_depth = true;
++        const wgpu::TextureAspect selected_aspect =
++            as_wgpu(dtex)->subresource_range().aspect;
++        const bool permits_depth = selected_aspect != wgpu::TextureAspect::StencilOnly;
++        const bool permits_stencil = selected_aspect != wgpu::TextureAspect::DepthOnly;
++        dsa.view = attachment_view(att, force_layer);
++        if (dsa.view == nullptr) {
++          return;
++        }
++        dsa.depthLoadOp = (permits_depth && (buffers & GPU_DEPTH_BIT)) ?
++                              wgpu::LoadOp::Clear :
++                              wgpu::LoadOp::Load;
++        dsa.depthStoreOp = wgpu::StoreOp::Store;
++        dsa.depthClearValue = std::isfinite(clear_depth) ? clear_depth : 1.0f;
++        if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
++          dsa.stencilLoadOp = (permits_stencil && (buffers & GPU_STENCIL_BIT)) ?
++                                  wgpu::LoadOp::Clear :
++                                  wgpu::LoadOp::Load;
++          dsa.stencilStoreOp = wgpu::StoreOp::Store;
++          dsa.stencilClearValue = clear_stencil;
++        }
 +      }
 +    }
 +

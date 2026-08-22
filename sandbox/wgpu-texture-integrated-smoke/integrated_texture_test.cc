@@ -1564,6 +1564,96 @@ bool component_swizzle_contract()
   return true;
 }
 
+bool framebuffer_layered_clear_contract()
+{
+  struct Case {
+    int selected_layer;
+    uint32_t layer_count;
+    uint32_t pass_layer;
+    bw::FramebufferClearPassStatus status;
+    int force_layer;
+  };
+  using Status = bw::FramebufferClearPassStatus;
+  constexpr std::array<Case, 11> cases = {{{-1, 2, 0, Status::Active, 0},
+                                           {-1, 2, 1, Status::Active, 1},
+                                           {-1, 2, 2, Status::Inactive, 0},
+                                           {0, 1, 0, Status::Active, -1},
+                                           {0, 1, 1, Status::Active, -1},
+                                           {1, 2, 0, Status::Active, -1},
+                                           {2, 2, 0, Status::Invalid, 0},
+                                           {-1, 0, 0, Status::Invalid, 0},
+                                           {0, 0, 0, Status::Invalid, 0},
+                                           {-1,
+                                            std::numeric_limits<uint32_t>::max(),
+                                            uint32_t(std::numeric_limits<int>::max()),
+                                            Status::Active,
+                                            std::numeric_limits<int>::max()},
+                                           {-1,
+                                            std::numeric_limits<uint32_t>::max(),
+                                            uint32_t(std::numeric_limits<int>::max()) + 1u,
+                                            Status::Invalid,
+                                            0}}};
+  std::array<size_t, 3> status_counts = {};
+  uint64_t hash = UINT64_C(14695981039346656037);
+  for (const Case &test : cases) {
+    constexpr int untouched = 0x4567;
+    int force_layer = untouched;
+    const Status actual = bw::framebuffer_clear_pass_layer(
+        test.selected_layer, test.layer_count, test.pass_layer, force_layer);
+    const bool active = actual == Status::Active;
+    if (!require(actual == test.status, "framebuffer clear-pass decision") ||
+        !require(active ? force_layer == test.force_layer : force_layer == untouched,
+                 "framebuffer clear-pass non-active result"))
+    {
+      return false;
+    }
+    status_counts[size_t(actual)]++;
+    hash = fnv_u64(hash, uint32_t(test.selected_layer));
+    hash = fnv_u64(hash, test.layer_count);
+    hash = fnv_u64(hash, test.pass_layer);
+    hash = fnv_u64(hash, uint32_t(actual));
+    hash = fnv_u64(hash, active ? uint32_t(force_layer) : UINT32_MAX);
+  }
+
+  const auto pass_mask = [](const std::array<int, 2> &selected_layers,
+                            const std::array<uint32_t, 2> &layer_counts,
+                            const uint32_t pass_layer) {
+    uint32_t mask = 0;
+    for (size_t attachment = 0; attachment < selected_layers.size(); attachment++) {
+      int force_layer = 0;
+      const Status status = bw::framebuffer_clear_pass_layer(selected_layers[attachment],
+                                                              layer_counts[attachment],
+                                                              pass_layer,
+                                                              force_layer);
+      if (status == Status::Invalid) {
+        return UINT32_MAX;
+      }
+      if (status == Status::Active) {
+        mask |= 1u << attachment;
+      }
+    }
+    return mask;
+  };
+  const std::array<uint32_t, 2> uneven_masks = {
+      pass_mask({-1, -1}, {2, 1}, 0), pass_mask({-1, -1}, {2, 1}, 1)};
+  if (!require(uneven_masks == std::array<uint32_t, 2>{3, 1},
+               "uneven layered framebuffer clear census"))
+  {
+    return false;
+  }
+  for (const uint32_t mask : uneven_masks) {
+    hash = fnv_u64(hash, mask);
+  }
+  std::printf("CONTRACT framebuffer-layered-clear PASS cases=%zu active=%zu inactive=%zu "
+              "invalid=%zu uneven=3 digest=%016" PRIx64 "\n",
+              cases.size(),
+              status_counts[size_t(Status::Active)],
+              status_counts[size_t(Status::Inactive)],
+              status_counts[size_t(Status::Invalid)],
+              hash);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -1576,15 +1666,15 @@ int main()
       !packed_row_stride_contract() ||
       !readback_layout_contract() ||
       !compressed_upload_layout_contract() ||
-      !component_swizzle_contract())
+      !component_swizzle_contract() || !framebuffer_layered_clear_contract())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=17 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=18 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "readback_layouts=15 "
-      "framebuffer_reads=13 "
+      "framebuffer_reads=13 framebuffer_clear_cases=11 "
       "promotions=13 "
       "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
   return 0;

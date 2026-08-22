@@ -1425,6 +1425,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rejection byte-identically. Canonical replay and the real windowed rebuild/no-work check are
   green. Required M3 remains red for the absent strict candidate and s7 still blocks live WebGPU
   readback proof. See `notes/m3-t10-framebuffer-subresource-read-20260822.md`.
+- [x] **M3.T10-FRAMEBUFFER-LAYERED-CLEAR [gpu-backend]:** patch 0182 classifies each color
+  and depth attachment independently on every one-layer WebGPU clear pass. Exhausting a shorter
+  all-layer attachment now omits only that attachment instead of aborting the remaining layers;
+  invalid selections still fail closed. The pinned native oracle clears both layers of a
+  two-layer attachment beside a one-layer sibling, and the 11-case device-free native/wasm32
+  contract is byte-identical. Canonical replay and the real windowed rebuild/no-work check are
+  green. Required M3 remains red for the absent strict candidate and s7 still blocks live WebGPU
+  clear proof. See `notes/m3-t10-framebuffer-layered-clear-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

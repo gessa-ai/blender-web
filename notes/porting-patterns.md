@@ -285,3 +285,14 @@ reads define missing color channels as zero and a requested missing alpha channe
 layer selection, leading-channel truncation, R/RG extension, bounds, and native/wasm32 overflow
 before trusting pixels. See `sandbox/wgpu-framebuffer-subresource-oracle/` and
 `sandbox/wgpu-texture-integrated-smoke/`.
+
+## Class 16 — layered framebuffer clear passes exhaust attachments independently
+
+Signature: a framebuffer clear emulates an all-layer native attachment with one WebGPU render pass
+per layer, chooses the maximum layer count globally, and aborts when a shorter sibling has no view
+for a later pass. Earlier layers clear, but the longer attachment's remaining layers stay stale.
+Classify every attachment on every pass as active, exhausted, or invalid: omit only exhausted
+all-layer attachments, keep fixed-layer behavior unchanged, and fail invalid selections before
+submitting that pass. Exercise unequal color-layer counts plus invalid and integer-boundary cases
+in native and wasm32. See `sandbox/wgpu-framebuffer-completeness-oracle/` and
+`sandbox/wgpu-texture-integrated-smoke/`.

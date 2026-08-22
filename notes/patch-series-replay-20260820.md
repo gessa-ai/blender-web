@@ -258,3 +258,9 @@ composed without changing the 257-path / 20,258-entry authority. The patch is no
 with SHA-256 `417e94e6dee8e933bde4e71e06b158cd56def8e19c3cef0e53ec52076c1bdab6`;
 the current normalized receipt binds byte-identical live/replay manifests at SHA-256
 `73cfb96d783a50f199aa10dc3ec06baa32e720d082a169dbb3d3209ca6483c35`.
+
+Patch 0182's per-attachment layered-clear selection was then composed without changing the
+257-path / 20,258-entry authority. The patch is now 1,588,016 bytes with SHA-256
+`c5612129214143aeaef19b652001f4d926b84dfbc9f79599d0391e5d4812f649`; the current normalized
+receipt binds byte-identical live/replay manifests at SHA-256
+`831ad76e490ac58ee47689e97a72275c53eed6ab37af2416d8ba80ae820ac117`.

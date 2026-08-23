@@ -1023,3 +1023,6 @@
 # 0239: reserve ordinary framebuffer load-action clears per command and consume
 # them only after the complete draw submission succeeds; failed epochs retry.
 0239-gpu-webgpu-framebuffer-load-action-transaction.patch
+# 0240: own SSBO/UBO writes and clears that arrive during persistent allocation
+# validation, retaining rejection state and replaying accepted payloads exactly once.
+0240-gpu-webgpu-pending-buffer-payload.patch

@@ -29,6 +29,7 @@ bool run_integrated_index_contracts();
 namespace blender::gpu::webgpu {
 bool run_integrated_buffer_create_contracts();
 bool run_integrated_buffer_update_contracts();
+bool run_pending_buffer_payload_contracts();
 }
 
 namespace {
@@ -973,13 +974,15 @@ int main()
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() ||
       !blender::gpu::webgpu::run_integrated_buffer_create_contracts() ||
+      !blender::gpu::webgpu::run_pending_buffer_payload_contracts() ||
       !blender::gpu::webgpu::run_integrated_buffer_update_contracts() ||
       !blender::gpu::run_integrated_index_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=18 usage_cases=32 pixel_cases=7 exact_cap=256 "
-      "buffer_create_cases=6 buffer_update_cases=9 index_cases=4 index_upload_cases=7\n");
+      "INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=9 index_cases=4 "
+      "index_upload_cases=7\n");
   return 0;
 }

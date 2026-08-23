@@ -12,7 +12,7 @@ import sys
 
 
 START = "bool Buffer::create_scoped("
-END = "\n\nbool Buffer::update_sub("
+END = "\n\nbool Buffer::update_allocation("
 
 
 def main() -> int:
@@ -31,10 +31,12 @@ def main() -> int:
         raise RuntimeError("canonical scoped buffer-create method is structurally incomplete")
     required = (
         "instance == nullptr || device == nullptr",
+        "pending_updates_->begin(allocated_size)",
         "allocation_cache_.get_or_create(",
         "candidate.handle = device.CreateBuffer(&descriptor);",
         "candidate.handle.GetMappedRange(0, allocated_size)",
         "candidate.size = allocated_size;",
+        "pending_updates->replay(",
         "return allocation != nullptr;",
     )
     missing = [needle for needle in required if needle not in method]
@@ -46,6 +48,11 @@ def main() -> int:
     method = method.replace(
         "bool Buffer::create_scoped(",
         "bool BufferCreateHarness::create_scoped(",
+        1,
+    )
+    method = method.replace(
+        "Buffer::update_allocation(",
+        "BufferCreateHarness::update_allocation(",
         1,
     )
     payload = (

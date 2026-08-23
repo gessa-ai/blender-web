@@ -251,6 +251,13 @@ class BufferUpdateHarness {
     Allocation allocation_;
   };
 
+  struct PendingUpdateContext {
+    update_mock::Instance instance;
+    update_mock::Device device;
+    update_mock::Queue queue;
+    OrderedQueueScheduler scheduler;
+  };
+
   BufferUpdateHarness(update_mock::Trace &trace, const size_t capacity, const bool valid = true)
       : allocation_cache_(Allocation{update_mock::Buffer(&trace, valid), capacity, false})
   {
@@ -265,8 +272,16 @@ class BufferUpdateHarness {
                   size_t size);
 
  private:
+  static bool update_allocation(PendingUpdateContext context,
+                                const Allocation &allocation,
+                                size_t offset,
+                                const void *data,
+                                size_t size);
+
   static constexpr uint8_t kAllocationKey = 0;
   AllocationCache allocation_cache_;
+  std::shared_ptr<PendingBufferPayloadQueue<PendingUpdateContext>> pending_updates_ =
+      std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
 };
 
 /* Execute the shipping state machine with deterministic fallible mapping. Only

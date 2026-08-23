@@ -12,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -760,6 +761,18 @@ int main()
   }
 
   bw::ScopedHandleCache<uint8_t, PersistentBufferAllocation> persistent_buffer_cache;
+  bw::PendingBufferPayloadQueue<uint32_t> pending_persistent_payloads;
+  const std::array<uint8_t, 8> pending_sentinel = {
+      0x13, 0x27, 0x39, 0x4d, 0x51, 0x66, 0x7a, 0x8e};
+  int persistent_settlements = 0;
+  size_t persistent_payload_replays = 0;
+  int persistent_payload_writes = 0;
+  bool persistent_payload_exact = false;
+  if (!require(pending_persistent_payloads.begin(pending_sentinel.size()),
+               "shipping pending-payload queue rejected a valid allocation size"))
+  {
+    return 24;
+  }
   int persistent_buffer_creates = 0;
   const PersistentBufferAllocation invalid_persistent = persistent_buffer_cache.get_or_create(
       instance, device, uint8_t(0), "audit invalid persistent buffer", [&]() {
@@ -772,11 +785,37 @@ int main()
         candidate.size = descriptor.size;
         candidate.readable = true;
         return candidate;
+      },
+      [&](const PersistentBufferAllocation accepted) {
+        persistent_settlements++;
+        if (accepted != nullptr) {
+          persistent_payload_replays += pending_persistent_payloads.replay(
+              accepted.size,
+              [&](const uint32_t,
+                  const size_t offset,
+                  const void *data,
+                  const size_t size) {
+                persistent_payload_exact =
+                    offset == 0 && size == pending_sentinel.size() &&
+                    std::memcmp(data, pending_sentinel.data(), pending_sentinel.size()) == 0;
+                device.GetQueue().WriteBuffer(accepted.handle, offset, data, size);
+                persistent_payload_writes++;
+                return true;
+              });
+        }
       });
   if (!require(invalid_persistent == nullptr && persistent_buffer_cache.size() == 0 &&
                    !persistent_buffer_cache.pending(uint8_t(0)) &&
-                   persistent_buffer_creates == 1,
+                   persistent_buffer_creates == 1 && persistent_settlements == 1,
                "shipping scoped cache published a non-null persistent-buffer error object"))
+  {
+    return 24;
+  }
+  if (!require(pending_persistent_payloads.retain(
+                   7u, 0, pending_sentinel.data(), pending_sentinel.size()) &&
+                   pending_persistent_payloads.size() == 1 &&
+                   pending_persistent_payloads.retryable(),
+               "rejected persistent allocation did not retain its one-shot payload"))
   {
     return 24;
   }
@@ -792,11 +831,32 @@ int main()
         candidate.size = descriptor.size;
         candidate.readable = false;
         return candidate;
+      },
+      [&](const PersistentBufferAllocation accepted) {
+        persistent_settlements++;
+        if (accepted != nullptr) {
+          persistent_payload_replays += pending_persistent_payloads.replay(
+              accepted.size,
+              [&](const uint32_t,
+                  const size_t offset,
+                  const void *data,
+                  const size_t size) {
+                persistent_payload_exact =
+                    offset == 0 && size == pending_sentinel.size() &&
+                    std::memcmp(data, pending_sentinel.data(), pending_sentinel.size()) == 0;
+                device.GetQueue().WriteBuffer(accepted.handle, offset, data, size);
+                persistent_payload_writes++;
+                return true;
+              });
+        }
       });
   if (!require(valid_persistent != nullptr && valid_persistent.size == 8 &&
                    !valid_persistent.readable && persistent_buffer_cache.size() == 1 &&
                    !persistent_buffer_cache.pending(uint8_t(0)) &&
-                   persistent_buffer_creates == 2,
+                   persistent_buffer_creates == 2 && persistent_settlements == 2 &&
+                   persistent_payload_replays == 1 && persistent_payload_writes == 1 &&
+                   persistent_payload_exact && pending_persistent_payloads.size() == 0 &&
+                   !pending_persistent_payloads.retryable(),
                "shipping scoped cache did not atomically publish a clean persistent retry"))
   {
     return 25;
@@ -1279,7 +1339,8 @@ int main()
             << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
             << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"
             << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
-            << " persistent_buffer_error_object_rejected=1 scoped_transient_buffer_cases="
+            << " persistent_buffer_error_object_rejected=1 persistent_payload_replayed=1"
+            << " scoped_transient_buffer_cases="
             << transient_buffer_cases
             << " transient_buffer_error_object_blocked=1 scoped_transient_bind_group_cases="
             << transient_bind_group_cases

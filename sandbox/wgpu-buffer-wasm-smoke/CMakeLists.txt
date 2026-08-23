@@ -101,6 +101,12 @@ set(_bw_integrated_buffer_update_test
 set(_bw_integrated_buffer_create_test
   "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_create_test.cc"
 )
+if(NOT DEFINED BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE must name the extracted canonical methods")
+endif()
 foreach(_bw_test
     "${_bw_integrated_buffer_test}"
     "${_bw_integrated_index_test}"
@@ -133,6 +139,7 @@ target_compile_definitions(wgpu_buffer_integrated_smoke PRIVATE
   BW_WGPU_INDEX_UPLOAD_SOURCE="${BW_WGPU_INDEX_UPLOAD_SOURCE}"
   BW_WGPU_BUFFER_CREATE_SOURCE="${BW_WGPU_BUFFER_CREATE_SOURCE}"
   BW_WGPU_BUFFER_UPDATE_SOURCE="${BW_WGPU_BUFFER_UPDATE_SOURCE}"
+  BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}"
 )
 target_include_directories(wgpu_buffer_integrated_smoke PRIVATE
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

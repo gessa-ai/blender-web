@@ -27,6 +27,7 @@ INDEX_STRIP_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_strip.in
 INDEX_UPLOAD_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_upload.inc"
 BUFFER_UPDATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_update.inc"
 BUFFER_CREATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_create.inc"
+PENDING_PAYLOAD_FRONTEND_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_pending_payload_frontend.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -77,6 +78,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_storage_buffer.cc
     source/blender/gpu/webgpu/wgpu_storage_buffer.hh
     source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+    source/blender/gpu/webgpu/wgpu_uniform_buffer.hh
     source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
     source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
     source/blender/gpu/webgpu/wgpu_shader.cc
@@ -117,6 +119,7 @@ require_file "$HERE/extract_index_strip.py"
 require_file "$HERE/extract_index_upload.py"
 require_file "$HERE/extract_buffer_update.py"
 require_file "$HERE/extract_buffer_create.py"
+require_file "$HERE/extract_pending_payload_frontend.py"
 require_file "$HERE/integrated_buffer_create_test.cc"
 require_file "$HERE/integrated_buffer_update_test.cc"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
@@ -134,6 +137,8 @@ for source_name in \
   wgpu_readback.hh \
   wgpu_storage_buffer.cc \
   wgpu_storage_buffer.hh \
+  wgpu_uniform_buffer.cc \
+  wgpu_uniform_buffer.hh \
   wgpu_index_buffer.cc \
   wgpu_index_buffer.hh \
   wgpu_batch.cc
@@ -280,6 +285,13 @@ require_fixed_count 1 '.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
 require_fixed_count 1 'return buffer_.create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 1 'class PendingBufferPayloadQueue {' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 'pending_updates_->retain(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'pending_updates->replay(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 2 'allocation_ready || buffer_.creation_pending_or_retryable()' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 3 'allocation_ready || buffer_.creation_pending_or_retryable()' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
 require_fixed_count 1 'push_constants_buffer_.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_shader.cc"
 require_fixed_count 1 'return track_next_allocation_ && buffer_.creation_pending();' \
@@ -453,6 +465,28 @@ fi
   --source "$WEBGPU_SOURCE/wgpu_buffer.cc" \
   --output "$BUFFER_CREATE_SOURCE"
 require_file "$BUFFER_CREATE_SOURCE"
+
+PENDING_PAYLOAD_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/pending-payload.inc"
+if PENDING_PAYLOAD_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_pending_payload_frontend.py" \
+  --storage-source "$WEBGPU_SOURCE/wgpu_storage_buffer.hh" \
+  --uniform-source "$WEBGPU_SOURCE/wgpu_uniform_buffer.hh" \
+  --output "$PENDING_PAYLOAD_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed pending-payload frontend source was accepted" >&2
+  exit 1
+fi
+if [[ "$PENDING_PAYLOAD_NEGATIVE_MESSAGE" != \
+      PENDING_PAYLOAD_EXTRACT_FAIL\ canonical\ storage\ ensure\ method\ boundaries* ]] ||
+   [ -e "$PENDING_PAYLOAD_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed pending-payload frontend rejection differs" >&2
+  exit 1
+fi
+"$PYBIN" "$HERE/extract_pending_payload_frontend.py" \
+  --storage-source "$WEBGPU_SOURCE/wgpu_storage_buffer.cc" \
+  --uniform-source "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc" \
+  --output "$PENDING_PAYLOAD_FRONTEND_SOURCE"
+require_file "$PENDING_PAYLOAD_FRONTEND_SOURCE"
 rmdir "$INDEX_NEGATIVE_DIR"
 
 NODE_VERSION="$("$NODE" --version)"
@@ -489,6 +523,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
   -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
+  -DBW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="$PENDING_PAYLOAD_FRONTEND_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
@@ -504,6 +539,7 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
   -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
+  -DBW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="$PENDING_PAYLOAD_FRONTEND_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
@@ -523,7 +559,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=18 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 buffer_update_cases=9 index_cases=4 index_upload_cases=7' \
+    'INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=9 index_cases=4 index_upload_cases=7' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -538,6 +574,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry bytes=6 allocation=8' \
     "$stdout_file" ||
      ! grep -qx \
+    'CONTRACT pending-buffer-payload PASS cases=4 creates=5 payloads=8 order=exact retry=retained frontend_calls=one-shot' \
+    "$stdout_file" ||
+     ! grep -qx \
     'CONTRACT buffer-staging-map PASS cases=9 large_bytes=65540 map_failure=reject writes=1 submits=1' \
     "$stdout_file" ||
      ! grep -qx \
@@ -550,7 +589,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 18 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 19 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

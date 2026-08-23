@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 
-START = "bool Buffer::update_sub("
+START = "bool Buffer::update_allocation("
 END = "\n\nstd::vector<uint8_t> Buffer::read("
 
 
@@ -32,19 +32,21 @@ def main() -> int:
     required = (
         "kWriteBufferStagingThreshold",
         "allocation_cache_.lookup(kAllocationKey)",
-        "queue_write_buffer_scoped(instance,",
-        "wgpu::Buffer staging = device.CreateBuffer(&sd);",
+        "pending_updates_->retain(",
+        "queue_write_buffer_scoped(context.instance,",
+        "wgpu::Buffer staging = context.device.CreateBuffer(&sd);",
         "staging.GetMappedRange(0, size)",
-        "command_encode_submit_scoped(instance,",
+        "command_encode_submit_scoped(context.instance,",
         "staging, 0, allocation.handle, offset, size",
     )
     missing = [needle for needle in required if needle not in method]
     if missing:
         raise RuntimeError(f"canonical buffer-update method lost required structure: {missing}")
 
-    method = method.replace(
-        "bool Buffer::update_sub(", "bool BufferUpdateHarness::update_sub(", 1
-    )
+    method = method.replace("Buffer::update_allocation(",
+                            "BufferUpdateHarness::update_allocation(")
+    method = method.replace("bool Buffer::update_sub(",
+                            "bool BufferUpdateHarness::update_sub(", 1)
     payload = (
         "/* Generated from canonical wgpu_buffer.cc; do not edit. */\n" + method
     ).encode("utf-8")

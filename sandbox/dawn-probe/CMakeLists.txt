@@ -75,6 +75,7 @@ target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})
 add_executable(dawn_error_handle_probe probe_error_handles.cc)
 target_include_directories(dawn_error_handle_probe PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../../platform_web/ghost
+  ${BW_INTEGRATED_BUFFER_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/../../upstream/source/blender/gpu/webgpu
 )
 target_link_libraries(dawn_error_handle_probe PRIVATE dawn::webgpu_dawn)
@@ -201,6 +202,12 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_WGPU_BUFFER_CREATE_SOURCE must name the extracted canonical method")
   endif()
+  if(NOT DEFINED BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE OR
+     NOT IS_ABSOLUTE "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}" OR
+     NOT EXISTS "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}")
+    message(FATAL_ERROR
+      "BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE must name the extracted canonical methods")
+  endif()
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -287,6 +294,7 @@ if(DEFINED BW_INTEGRATED_BUFFER_SOURCE_DIR)
     BW_WGPU_INDEX_UPLOAD_SOURCE="${BW_WGPU_INDEX_UPLOAD_SOURCE}"
     BW_WGPU_BUFFER_CREATE_SOURCE="${BW_WGPU_BUFFER_CREATE_SOURCE}"
     BW_WGPU_BUFFER_UPDATE_SOURCE="${BW_WGPU_BUFFER_UPDATE_SOURCE}"
+    BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}"
   )
   target_include_directories(wgpu_buffer_integrated_test PRIVATE
     "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

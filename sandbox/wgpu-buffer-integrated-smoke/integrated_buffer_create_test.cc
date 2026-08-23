@@ -207,12 +207,13 @@ class BufferCreateHarness {
 
   class Cache {
    public:
-    template<typename CreateFn>
+    template<typename CreateFn, typename SettledFn>
     Allocation get_or_create(const create_mock::Instance & /*instance*/,
                              const create_mock::Device & /*device*/,
                              const uint8_t /*key*/,
                              const char *label,
-                             CreateFn &&create)
+                             CreateFn &&create,
+                             SettledFn &&settled)
     {
       if (published_ != nullptr) {
         return published_;
@@ -223,6 +224,7 @@ class BufferCreateHarness {
       pending_ = true;
       label_ = label ? label : "";
       candidate_ = std::forward<CreateFn>(create)();
+      settled_ = std::forward<SettledFn>(settled);
       if (settle_immediately_) {
         settle(immediate_scope_valid_);
       }
@@ -254,6 +256,9 @@ class BufferCreateHarness {
         published_ = std::move(candidate_);
       }
       candidate_ = {};
+      if (settled_) {
+        settled_(published_);
+      }
     }
 
     const std::string &label() const
@@ -268,7 +273,19 @@ class BufferCreateHarness {
     bool settle_immediately_ = true;
     bool immediate_scope_valid_ = true;
     std::string label_;
+    std::function<void(Allocation)> settled_;
   };
+
+  struct PendingUpdateContext {};
+
+  static bool update_allocation(PendingUpdateContext,
+                                const Allocation &,
+                                size_t,
+                                const void *,
+                                size_t)
+  {
+    return true;
+  }
 
   bool create_scoped(const create_mock::Instance &instance,
                      const create_mock::Device &device,
@@ -307,6 +324,8 @@ class BufferCreateHarness {
  private:
   static constexpr uint8_t kAllocationKey = 0;
   Cache allocation_cache_;
+  std::shared_ptr<PendingBufferPayloadQueue<PendingUpdateContext>> pending_updates_ =
+      std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
 };
 
 /* Execute the exact shipping method with deterministic handles and deferred scope status. */
@@ -515,6 +534,419 @@ bool run_integrated_buffer_create_contracts()
       creates,
       payload.size());
   return cases == 6 && creates == 4;
+}
+
+}  // namespace blender::gpu::webgpu
+
+namespace blender::gpu {
+
+namespace pending_frontend_mock {
+
+using BufferKind = webgpu::BufferKind;
+using BufferUpdatePayload = webgpu::BufferUpdatePayload;
+using UsageType = webgpu::UsageType;
+using webgpu::align_up;
+using webgpu::buffer_update_payload;
+using webgpu::kCopyAlignment;
+
+struct Trace {
+  struct Write {
+    size_t sequence = 0;
+    size_t offset = 0;
+    std::vector<uint8_t> bytes;
+  };
+
+  size_t creates = 0;
+  size_t next_sequence = 0;
+  std::vector<Write> writes;
+};
+
+struct Instance {};
+struct Device {};
+struct Queue {};
+struct Scheduler {};
+
+class Buffer {
+ public:
+  explicit Buffer(std::shared_ptr<Trace> trace) : trace_(std::move(trace)) {}
+
+  bool valid() const
+  {
+    return valid_;
+  }
+
+  bool creation_pending_or_retryable() const
+  {
+    return pending_ || payloads_.retryable();
+  }
+
+  size_t update_capacity() const
+  {
+    return allocation_size_;
+  }
+
+  template<typename InstanceT, typename DeviceT>
+  bool create_scoped(const InstanceT &,
+                     const DeviceT &,
+                     BufferKind,
+                     UsageType,
+                     const size_t size,
+                     const void *,
+                     bool,
+                     const char *)
+  {
+    allocation_size_ = std::max<size_t>(kCopyAlignment, align_up(size, kCopyAlignment));
+    if (!payloads_.begin(allocation_size_)) {
+      return false;
+    }
+    if (valid_) {
+      return true;
+    }
+    if (!pending_) {
+      pending_ = true;
+      trace_->creates++;
+    }
+    return false;
+  }
+
+  template<typename InstanceT,
+           typename DeviceT,
+           typename QueueT,
+           typename SchedulerT>
+  bool update_sub(const InstanceT &,
+                  const DeviceT &,
+                  const QueueT &,
+                  SchedulerT &,
+                  const size_t offset,
+                  const void *data,
+                  const size_t size)
+  {
+    const size_t sequence = trace_->next_sequence++;
+    if (valid_) {
+      record(sequence, offset, data, size);
+      return true;
+    }
+    return payloads_.retain(sequence, offset, data, size);
+  }
+
+  void settle(const bool accepted)
+  {
+    if (!pending_) {
+      return;
+    }
+    pending_ = false;
+    if (!accepted) {
+      return;
+    }
+    valid_ = true;
+    payloads_.replay(
+        allocation_size_,
+        [this](const size_t sequence, const size_t offset, const void *data, const size_t size) {
+          record(sequence, offset, data, size);
+          return true;
+        });
+  }
+
+  size_t retained() const
+  {
+    return payloads_.size();
+  }
+
+ private:
+  void record(const size_t sequence, const size_t offset, const void *data, const size_t size)
+  {
+    Trace::Write write;
+    write.sequence = sequence;
+    write.offset = offset;
+    const uint8_t *source = static_cast<const uint8_t *>(data);
+    write.bytes.assign(source, source + size);
+    trace_->writes.push_back(std::move(write));
+  }
+
+  std::shared_ptr<Trace> trace_;
+  webgpu::PendingBufferPayloadQueue<size_t> payloads_;
+  size_t allocation_size_ = 0;
+  bool pending_ = false;
+  bool valid_ = false;
+};
+
+}  // namespace pending_frontend_mock
+
+enum GPUUsageType : uint8_t {
+  GPU_USAGE_STATIC,
+  GPU_USAGE_DEVICE_ONLY,
+};
+
+class PendingFrontendContext {
+ public:
+  pending_frontend_mock::Instance instance_get() const
+  {
+    return {};
+  }
+  pending_frontend_mock::Device device_get() const
+  {
+    return {};
+  }
+  pending_frontend_mock::Queue queue_get() const
+  {
+    return {};
+  }
+  pending_frontend_mock::Scheduler &queue_scheduler_get()
+  {
+    return scheduler_;
+  }
+
+ private:
+  pending_frontend_mock::Scheduler scheduler_;
+};
+
+static PendingFrontendContext *pending_frontend_context = nullptr;
+
+static PendingFrontendContext *pending_active_context()
+{
+  return pending_frontend_context;
+}
+
+class StorageFrontendHarness {
+ public:
+  StorageFrontendHarness(const size_t size,
+                         const GPUUsageType usage,
+                         std::shared_ptr<pending_frontend_mock::Trace> trace)
+      : size_in_bytes_(size),
+        usage_size_in_bytes_(size),
+        usage_(usage),
+        label_("pending storage frontend"),
+        buffer_(std::move(trace))
+  {
+  }
+
+  bool ensure();
+  void update(const void *data);
+  void clear(uint32_t clear_value);
+
+  void settle(const bool accepted)
+  {
+    buffer_.settle(accepted);
+  }
+  size_t retained() const
+  {
+    return buffer_.retained();
+  }
+
+ private:
+  size_t size_in_bytes_ = 0;
+  size_t usage_size_in_bytes_ = 0;
+  GPUUsageType usage_ = GPU_USAGE_STATIC;
+  std::string label_;
+  pending_frontend_mock::Buffer buffer_;
+};
+
+class UniformFrontendHarness {
+ public:
+  UniformFrontendHarness(const size_t size,
+                         std::shared_ptr<pending_frontend_mock::Trace> trace)
+      : size_in_bytes_(size), label_("pending uniform frontend"), buffer_(std::move(trace))
+  {
+  }
+
+  ~UniformFrontendHarness()
+  {
+    delete[] static_cast<uint8_t *>(data_);
+  }
+
+  bool ensure();
+  bool ensure_updated();
+  void update(const void *data);
+  void clear_to_zero();
+
+  void attach_for_test(const void *data)
+  {
+    delete[] static_cast<uint8_t *>(data_);
+    uint8_t *owned = new uint8_t[size_in_bytes_];
+    std::memcpy(owned, data, size_in_bytes_);
+    data_ = owned;
+  }
+  bool has_attached_data() const
+  {
+    return data_ != nullptr;
+  }
+  void settle(const bool accepted)
+  {
+    buffer_.settle(accepted);
+  }
+  size_t retained() const
+  {
+    return buffer_.retained();
+  }
+
+ private:
+  size_t size_in_bytes_ = 0;
+  void *data_ = nullptr;
+  std::string label_;
+  pending_frontend_mock::Buffer buffer_;
+};
+
+static constexpr size_t kUboMinBindingPad = 16384;
+
+#define WGPUContext PendingFrontendContext
+#define active_context pending_active_context
+#define webgpu pending_frontend_mock
+#define WGPUStorageBuffer StorageFrontendHarness
+#define WGPUUniformBuffer UniformFrontendHarness
+#define MEM_SAFE_DELETE_VOID(value) \
+  do { \
+    delete[] static_cast<uint8_t *>(value); \
+    value = nullptr; \
+  } while (false)
+#include BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE
+#undef MEM_SAFE_DELETE_VOID
+#undef WGPUUniformBuffer
+#undef WGPUStorageBuffer
+#undef webgpu
+#undef active_context
+#undef WGPUContext
+
+}  // namespace blender::gpu
+
+namespace blender::gpu::webgpu {
+
+bool run_pending_buffer_payload_contracts()
+{
+  using pending_frontend_mock::Trace;
+  constexpr std::array<uint8_t, 8> storage_a = {0x10, 0x21, 0x32, 0x43,
+                                                0x54, 0x65, 0x76, 0x87};
+  constexpr std::array<uint8_t, 8> storage_b = {0xa8, 0xb9, 0xca, 0xdb,
+                                                0xec, 0xfd, 0x0e, 0x1f};
+  constexpr std::array<uint8_t, 16> uniform_a = {0x01, 0x12, 0x23, 0x34,
+                                                 0x45, 0x56, 0x67, 0x78,
+                                                 0x89, 0x9a, 0xab, 0xbc,
+                                                 0xcd, 0xde, 0xef, 0xf0};
+  constexpr std::array<uint8_t, 16> uniform_b = {0xf0, 0xe1, 0xd2, 0xc3,
+                                                 0xb4, 0xa5, 0x96, 0x87,
+                                                 0x78, 0x69, 0x5a, 0x4b,
+                                                 0x3c, 0x2d, 0x1e, 0x0f};
+  PendingFrontendContext context;
+  pending_frontend_context = &context;
+  size_t cases = 0;
+  size_t payloads = 0;
+  size_t creates = 0;
+
+  {
+    auto trace = std::make_shared<Trace>();
+    StorageFrontendHarness storage(storage_a.size(), GPU_USAGE_STATIC, trace);
+    storage.update(storage_a.data());
+    storage.clear(0x44332211u);
+    storage.update(storage_b.data());
+    if (!require(trace->creates == 1 && trace->writes.empty() && storage.retained() == 3,
+                 "storage frontend retains every pending payload"))
+    {
+      return false;
+    }
+    storage.settle(true);
+    storage.settle(true);
+    const std::array<uint8_t, 8> clear_bytes = {0x11, 0x22, 0x33, 0x44,
+                                                0x11, 0x22, 0x33, 0x44};
+    if (!require(trace->writes.size() == 3 && trace->writes[0].sequence == 0 &&
+                     trace->writes[1].sequence == 1 && trace->writes[2].sequence == 2,
+                 "storage pending payloads replay exactly once in order") ||
+        !require(trace->writes[0].bytes ==
+                         std::vector<uint8_t>(storage_a.begin(), storage_a.end()) &&
+                     trace->writes[1].bytes ==
+                         std::vector<uint8_t>(clear_bytes.begin(), clear_bytes.end()) &&
+                     trace->writes[2].bytes ==
+                         std::vector<uint8_t>(storage_b.begin(), storage_b.end()),
+                 "storage replay preserves sentinel bytes"))
+    {
+      return false;
+    }
+    payloads += trace->writes.size();
+    creates += trace->creates;
+    cases++;
+  }
+
+  {
+    auto trace = std::make_shared<Trace>();
+    StorageFrontendHarness storage(storage_a.size(), GPU_USAGE_STATIC, trace);
+    storage.update(storage_a.data());
+    storage.settle(false);
+    if (!require(trace->writes.empty() && storage.retained() == 1,
+                 "rejected allocation retains the one-shot frontend payload") ||
+        !require(!storage.ensure() && trace->creates == 2,
+                 "later resource use starts one clean allocation retry"))
+    {
+      return false;
+    }
+    storage.settle(true);
+    if (!require(trace->writes.size() == 1 && trace->writes[0].bytes ==
+                                                   std::vector<uint8_t>(storage_a.begin(),
+                                                                        storage_a.end()),
+                 "accepted retry replays without a second frontend update"))
+    {
+      return false;
+    }
+    payloads += trace->writes.size();
+    creates += trace->creates;
+    cases++;
+  }
+
+  {
+    auto trace = std::make_shared<Trace>();
+    UniformFrontendHarness uniform(uniform_a.size(), trace);
+    uniform.update(uniform_a.data());
+    uniform.clear_to_zero();
+    uniform.update(uniform_b.data());
+    if (!require(trace->creates == 1 && trace->writes.empty() && uniform.retained() == 3,
+                 "uniform frontend retains update clear update order"))
+    {
+      return false;
+    }
+    uniform.settle(true);
+    const std::vector<uint8_t> zeros(uniform_a.size(), uint8_t(0));
+    if (!require(trace->writes.size() == 3 &&
+                     trace->writes[0].bytes ==
+                         std::vector<uint8_t>(uniform_a.begin(), uniform_a.end()) &&
+                     trace->writes[1].bytes == zeros &&
+                     trace->writes[2].bytes ==
+                         std::vector<uint8_t>(uniform_b.begin(), uniform_b.end()),
+                 "uniform pending payloads replay once with exact bytes"))
+    {
+      return false;
+    }
+    payloads += trace->writes.size();
+    creates += trace->creates;
+    cases++;
+  }
+
+  {
+    auto trace = std::make_shared<Trace>();
+    UniformFrontendHarness uniform(uniform_a.size(), trace);
+    uniform.attach_for_test(uniform_b.data());
+    if (!require(!uniform.ensure_updated() && !uniform.has_attached_data() &&
+                     uniform.retained() == 1,
+                 "attached uniform ownership transfers to the pending queue"))
+    {
+      return false;
+    }
+    uniform.settle(true);
+    if (!require(trace->writes.size() == 1 && trace->writes[0].bytes ==
+                                                   std::vector<uint8_t>(uniform_b.begin(),
+                                                                        uniform_b.end()),
+                 "attached uniform payload replays without a second bind"))
+    {
+      return false;
+    }
+    payloads += trace->writes.size();
+    creates += trace->creates;
+    cases++;
+  }
+
+  pending_frontend_context = nullptr;
+  std::printf(
+      "CONTRACT pending-buffer-payload PASS cases=%zu creates=%zu payloads=%zu order=exact retry=retained frontend_calls=one-shot\n",
+      cases,
+      creates,
+      payloads);
+  return cases == 4 && creates == 5 && payloads == 8;
 }
 
 }  // namespace blender::gpu::webgpu

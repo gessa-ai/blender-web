@@ -188,6 +188,48 @@ bool transient_handle_publication_contract()
   return true;
 }
 
+bool framebuffer_load_action_commit_contract()
+{
+  blender::GPULoadOp load_action = blender::GPU_LOADACTION_CLEAR;
+  int attempts = 0;
+
+  if (!require(
+          !bw::framebuffer_load_action_commit_if_valid(
+              [&]() {
+                attempts++;
+                return false;
+              },
+              blender::GPU_LOADACTION_LOAD,
+              load_action),
+          "failed layered load clear is rejected") ||
+      !require(load_action == blender::GPU_LOADACTION_CLEAR,
+               "failed layered load clear remains pending") ||
+      !require(attempts == 1, "failed layered load clear attempts once"))
+  {
+    return false;
+  }
+
+  if (!require(
+          bw::framebuffer_load_action_commit_if_valid(
+              [&]() {
+                attempts++;
+                return true;
+              },
+              blender::GPU_LOADACTION_LOAD,
+              load_action),
+          "successful layered load clear is accepted") ||
+      !require(load_action == blender::GPU_LOADACTION_LOAD,
+               "successful layered load clear is committed") ||
+      !require(attempts == 2, "layered load clear retry census"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT framebuffer_load_action_commit PASS cases=2 failure=pending retry=committed");
+  return true;
+}
+
 bool vertex_buffer_handle_resolution_contract()
 {
   const std::array<int, 3> bindings = {11, 22, 33};
@@ -2034,6 +2076,7 @@ int main()
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
       !transient_handle_publication_contract() ||
+      !framebuffer_load_action_commit_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
       !cache_handle_publication_contract() ||
@@ -2053,14 +2096,14 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=24 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "index_binding_resolutions=3 cache_publications=2 "
-      "compute_cache_publications=2 "
+      "compute_cache_publications=2 load_action_commits=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

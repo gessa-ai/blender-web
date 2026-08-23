@@ -5,7 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, transient bind-group publication, fail-closed vertex/index-buffer resolution,
+# cache publication, transient bind-group publication, layered load-action commit,
+# fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
 # framebuffer full/scissored-clear and copy, texture render-clear, batch, and immediate-draw
@@ -274,6 +275,9 @@ require_fixed_count 1 \
   'inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'inline bool framebuffer_load_action_commit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
   'inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -508,8 +512,8 @@ for marker, pass_body in transactions:
         raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
 
 full_clear_transactions = (
-    "void WGPUFrameBuffer::submit_clear(",
-    "void WGPUFrameBuffer::clear_attachment_full(",
+    "bool WGPUFrameBuffer::submit_clear(",
+    "bool WGPUFrameBuffer::clear_attachment_full(",
 )
 
 for marker in full_clear_transactions:
@@ -527,6 +531,20 @@ for marker in full_clear_transactions:
     )
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
+
+materialize_body = method_body("bool WGPUFrameBuffer::materialize_layered_loadstore_clears(")
+commit_call = "if (!webgpu::framebuffer_load_action_commit_if_valid("
+if materialize_body.count(commit_call) != 1:
+    raise SystemExit("ERROR: layered load clear does not use one checked commit transaction")
+for needle in (
+    "return clear_attachment_full(",
+    "GPU_LOADACTION_LOAD,",
+    "load_store_[index].load_action))",
+):
+    if materialize_body.count(needle) != 1:
+        raise SystemExit(f"ERROR: layered load clear commit is missing exact input: {needle}")
+if "load_store_[index].load_action = GPU_LOADACTION_LOAD;" in materialize_body:
+    raise SystemExit("ERROR: layered load clear still commits outside the checked transaction")
 
 load_pass_body = method_body("wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(")
 load_pass_publication = """wgpu::RenderPassEncoder pass;
@@ -1094,6 +1112,9 @@ require_fixed_count 1 \
   'if (!webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
   'if (!webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 \
+  'if (!webgpu::framebuffer_load_action_commit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(vp[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(sc[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
@@ -1257,7 +1278,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 25 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 26 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1265,6 +1286,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT framebuffer_load_action_commit PASS cases=2 failure=pending retry=committed' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable' \
@@ -1315,7 +1339,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=24 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

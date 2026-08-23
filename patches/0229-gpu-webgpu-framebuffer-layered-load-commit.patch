@@ -1,0 +1,276 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -1026,6 +1026,20 @@ inline FramebufferLoadClearScope framebuffer_load_clear_scope(int selected_layer,
+   return FramebufferLoadClearScope::RenderPass;
+ }
+ 
++/** Consume a pending framebuffer load action only after its explicit clear reached the queue.
++ * A failed command transaction leaves the action untouched so the next draw retries it. */
++template<typename SubmitFn, typename ActionT>
++inline bool framebuffer_load_action_commit_if_valid(SubmitFn &&submit,
++                                                    const ActionT committed_action,
++                                                    ActionT &load_action)
++{
++  if (!std::forward<SubmitFn>(submit)()) {
++    return false;
++  }
++  load_action = committed_action;
++  return true;
++}
++
+ /** Accumulated layer count for one emulated layered draw. Fixed-layer attachments do not drive
+  * the pass count; every all-layer attachment must expose the same count because one WebGPU render
+  * pipeline/pass cannot change its attachment layout between layers. */
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -132,18 +132,19 @@ class WGPUFrameBuffer : public FrameBuffer {
+ 
+   /** Build + submit a one-shot clear render pass. `colors` is either one colour
+    * (broadcast to every colour attachment) or one per colour attachment slot. */
+-  void submit_clear(GPUFrameBufferBits buffers,
++  bool submit_clear(GPUFrameBufferBits buffers,
+                     Span<double4> colors,
+                     float clear_depth,
+                     uint clear_stencil,
+                     bool force_full_attachment = false);
+   /** Internal full-attachment clear used to materialize a WebGPU load action. It deliberately
+-   * ignores dynamic scissor state because attachment load operations are whole-subresource. */
+-  void clear_attachment_full(GPUAttachmentType type, const double4 clear_value);
++   * ignores dynamic scissor state because attachment load operations are whole-subresource.
++   * Returns true only after every selected layer's clear reached the queue. */
++  bool clear_attachment_full(GPUAttachmentType type, const double4 clear_value);
+ 
+   /** Emulate a proper-subrectangle clear with a fullscreen draw clipped to `plan`. Full
+    * attachment clears never enter this path and retain loadOp=Clear. */
+-  void submit_scissored_clear(GPUFrameBufferBits buffers,
++  bool submit_scissored_clear(GPUFrameBufferBits buffers,
+                               Span<double4> colors,
+                               float clear_depth,
+                               uint clear_stencil,
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -499,7 +499,7 @@ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+       });
+ }
+ 
+-void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
++bool WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+                                               Span<double4> colors,
+                                               float clear_depth,
+                                               uint clear_stencil,
+@@ -518,7 +518,7 @@ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+   for (uint32_t pass_layer = 0; pass_layer < pass_count; pass_layer++) {
+     if (buffers & GPU_COLOR_BIT) {
+       if (colors.is_empty()) {
+-        return;
++        return false;
+       }
+       for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
+         Texture *texture = color_tex(slot);
+@@ -534,7 +534,7 @@ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+                 pass_layer,
+                 force_layer);
+         if (status == webgpu::FramebufferClearPassStatus::Invalid) {
+-          return;
++          return false;
+         }
+         if (status == webgpu::FramebufferClearPassStatus::Inactive) {
+           continue;
+@@ -542,7 +542,7 @@ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+         const double4 &color =
+             colors[(colors.size() == 1) ? 0 : std::min<int>(slot, colors.size() - 1)];
+         if (!submit_scissored_color_clear(attachment, force_layer, color, plan)) {
+-          return;
++          return false;
+         }
+       }
+     }
+@@ -559,7 +559,7 @@ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+         pass_layer,
+         force_layer);
+     if (status == webgpu::FramebufferClearPassStatus::Invalid) {
+-      return;
++      return false;
+     }
+     if (status == webgpu::FramebufferClearPassStatus::Inactive) {
+       continue;
+@@ -581,12 +581,13 @@ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+                                                clear_stencil,
+                                                plan))
+     {
+-      return;
++      return false;
+     }
+   }
++  return true;
+ }
+ 
+-void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
++bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+                                    Span<double4> colors,
+                                    float clear_depth,
+                                    uint clear_stencil,
+@@ -594,7 +595,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+ {
+   WGPUContext *ctx = active_context();
+   if (ctx == nullptr) {
+-    return;
++    return false;
+   }
+ 
+   uint8_t clear_aspects = 0;
+@@ -610,7 +611,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+   webgpu::FramebufferClearPlan clear_plan;
+   if (force_full_attachment) {
+     if (width_ <= 0 || height_ <= 0 || clear_aspects == 0) {
+-      return;
++      return false;
+     }
+     clear_plan.method = webgpu::FramebufferClearMethod::FullAttachmentLoadOp;
+     clear_plan.aspects = clear_aspects;
+@@ -631,12 +632,11 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+                                         clear_plan) ||
+         clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
+     {
+-      return;
++      return false;
+     }
+   }
+   if (clear_plan.method == webgpu::FramebufferClearMethod::ScissoredDraw) {
+-    submit_scissored_clear(buffers, colors, clear_depth, clear_stencil, clear_plan);
+-    return;
++    return submit_scissored_clear(buffers, colors, clear_depth, clear_stencil, clear_plan);
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+@@ -668,7 +668,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+           webgpu::framebuffer_clear_pass_layer(
+               att.layer, layer_count, pass_layer, force_layer);
+       if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
+-        return;
++        return false;
+       }
+       if (clear_status == webgpu::FramebufferClearPassStatus::Inactive) {
+         continue;
+@@ -676,7 +676,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+       wgpu::RenderPassColorAttachment ca = {};
+       ca.view = attachment_view(att, force_layer);
+       if (ca.view == nullptr) {
+-        return;
++        return false;
+       }
+       ca.depthSlice = attachment_depth_slice(att, force_layer);
+       ca.loadOp = (buffers & GPU_COLOR_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+@@ -704,7 +704,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+           webgpu::framebuffer_clear_pass_layer(
+               att.layer, layer_count, pass_layer, force_layer);
+       if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
+-        return;
++        return false;
+       }
+       if (clear_status == webgpu::FramebufferClearPassStatus::Active) {
+         has_depth = true;
+@@ -714,7 +714,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+         const bool permits_stencil = selected_aspect != wgpu::TextureAspect::DepthOnly;
+         dsa.view = attachment_view(att, force_layer);
+         if (dsa.view == nullptr) {
+-          return;
++          return false;
+         }
+         dsa.depthLoadOp = (permits_depth && (buffers & GPU_DEPTH_BIT)) ?
+                               wgpu::LoadOp::Clear :
+@@ -738,7 +738,7 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+     /* WebGPU rejects attachment-less render passes. Blender can transiently bind an
+      * empty framebuffer while rebuilding EEVEE pass state; clearing it is a no-op. */
+     if (color_atts.empty() && !has_depth) {
+-      return;
++      return false;
+     }
+     if (!webgpu::command_pass_encode_submit_if_valid(
+             device,
+@@ -746,9 +746,10 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+             [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
+             [](auto & /*pass*/) {}))
+     {
+-      return;
++      return false;
+     }
+   }
++  return true;
+ }
+ 
+ void WGPUFrameBuffer::clear(GPUFrameBufferBits buffers,
+@@ -847,7 +848,7 @@ void WGPUFrameBuffer::clear_attachment(GPUAttachmentType type, const double4 clea
+   }
+ }
+ 
+-void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4 clear_value)
++bool WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4 clear_value)
+ {
+   /* Clear a single attachment via a scoped render pass touching only it. */
+   if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
+@@ -864,9 +865,10 @@ void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4
+       }
+     }
+     if (bits != GPUFrameBufferBits(0)) {
+-      submit_clear(bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]), true);
++      return submit_clear(
++          bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]), true);
+     }
+-    return;
++    return false;
+   }
+   /* Colour: reuse submit_clear, but only the requested slot should clear. Simplest
+    * correct approach — clear just that slot by binding it alone is not possible
+@@ -877,7 +879,7 @@ void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4
+   WGPUContext *ctx = active_context();
+   Texture *tex = color_tex(slot);
+   if (ctx == nullptr || tex == nullptr) {
+-    return;
++    return false;
+   }
+   wgpu::Device device = ctx->device_get();
+   const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
+@@ -889,7 +891,7 @@ void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4
+     wgpu::RenderPassColorAttachment ca = {};
+     ca.view = attachment_view(att, force_layer);
+     if (ca.view == nullptr) {
+-      return;
++      return false;
+     }
+     ca.depthSlice = attachment_depth_slice(att, force_layer);
+     ca.loadOp = wgpu::LoadOp::Clear;
+@@ -905,9 +907,10 @@ void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4
+             [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
+             [](auto & /*pass*/) {}))
+     {
+-      return;
++      return false;
+     }
+   }
++  return true;
+ }
+ 
+ void WGPUFrameBuffer::attachment_set_loadstore_op(GPUAttachmentType type, GPULoadStore ls)
+@@ -950,8 +953,16 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+        * stencil value; retain that established backend behavior here. */
+       clear_value[1] = 0.0;
+     }
+-    clear_attachment_full(static_cast<GPUAttachmentType>(index), clear_value);
+-    load_store_[index].load_action = GPU_LOADACTION_LOAD;
++    if (!webgpu::framebuffer_load_action_commit_if_valid(
++            [&]() {
++              return clear_attachment_full(
++                  static_cast<GPUAttachmentType>(index), clear_value);
++            },
++            GPU_LOADACTION_LOAD,
++            load_store_[index].load_action))
++    {
++      return false;
++    }
+   }
+   return true;
+ }

@@ -989,3 +989,6 @@
 # 0228: distinguish intentional shader auto-layout fallback from failed WebGPU
 # layout allocation, publishing the bind-group/pipeline-layout pair atomically.
 0228-gpu-webgpu-shader-layout-resource-transaction.patch
+# 0229: consume an all-layer framebuffer load clear only after every selected
+# layer's checked clear transaction reaches the queue, retaining failed work for retry.
+0229-gpu-webgpu-framebuffer-layered-load-commit.patch

@@ -637,3 +637,14 @@ Destroy an invalid candidate without publishing its pointer. Exercise rejected/a
 statuses plus null, invalid, and valid window candidates device-free on native and wasm32, and bind
 both shipping publication sites to the tested transaction. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 45 — one-shot state commits only after its GPU work is submitted
+
+Signature: an explicit all-layer framebuffer load clear invokes a checked per-layer command
+transaction but unconditionally changes the pending load action to `LOAD` after the void wrapper
+returns. A failed view, encoder, pass, or finished command buffer therefore suppresses every retry,
+and the next draw loads an attachment that was never cleared. Propagate success through the nested
+clear helpers; retain the pending action on any failure; and commit it only after every selected
+layer reached the queue. Exercise fail-first retention followed by a successful retry on native and
+wasm32, then source-bind the materializer to the exact commit helper. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

@@ -42,6 +42,10 @@ Framebuffer full clears likewise use that tested render-pass transaction for bot
 clears and single-color-attachment clears. A failed encoder or pass now stops the layer loop before
 dependent work, while a failed finished command buffer stops before submission; exact method-body
 checks reject any retained unchecked command operation.
+An all-layer explicit load clear additionally commits its pending load action only after every
+selected layer's checked clear transaction succeeds. A failed layer remains pending so the next
+draw retries instead of loading uncleared attachment contents; the device-free contract proves the
+fail-first/retry state transition and exact shipping-source binding.
 Framebuffer blits likewise use the checked copy transaction for both the two-step stencil buffer
 bridge and the raw texture-to-texture path. Encoder failure stops before either copy, and finished-
 command-buffer failure stops before queue submission; exact method-body checks bind all three copy

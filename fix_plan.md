@@ -1804,6 +1804,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, OFF preflight, REUSE, scoped M4, and container-backed regression are verified.
   Live present/pixel proof remains blocked by the named s7 hardware-adapter condition. See
   `notes/m4-t21-ghost-present-resource-transaction-20260823.md`.
+- [x] **M4-GHOST-WINDOW-PUBLICATION [ghost-web] (472d9b1):** web-window validity now follows
+  the exact drawing-context initialization result, and only a valid candidate reaches callback
+  registration, the active-window slot, manager insertion, or the initial event queue. Invalid
+  candidates are destroyed and returned as null. A five-case fail-first native/wasm32 contract,
+  descendant replay, wrong-Node zero-evidence control, real product rebuild/no-work, OFF
+  preflight, REUSE, scoped M4, and container-backed regression are verified. Live browser proof
+  remains blocked by the named s7 hardware-adapter condition. See
+  `notes/m4-ghost-window-publication-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

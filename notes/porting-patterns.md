@@ -854,3 +854,18 @@ real forced-loss software-Dawn control may prove non-null error-object behavior 
 non-receipt. See `platform_web/shell/wgpu-preinit-worker.js`,
 `platform_web/ghost/GHOST_WGPUTransaction.hh`, and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 59 — pending persistent allocation must own one-shot frontend payloads
+
+Signature: a persistent buffer correctly withholds its non-null candidate until browser error
+scopes settle, but `StorageBuf::update()` or `UniformBuf::update()` returns when allocation is
+pending and drops the caller's only byte copy. Creation later publishes an empty buffer, while a
+rejected candidate also loses the initialization needed by a clean retry. Open an owned payload
+queue before resource creation, copy every aligned update and clear in frontend order, leave the
+queue retryable on rejection, and drain it exactly once from callback-owned state after the
+composite allocation publishes. Deferred UBO ownership may be released only after that queue has
+accepted the bytes; binding still waits for the allocation itself. Exercise a single actual
+frontend create/update call, multiple pending update/clear operations, non-null rejection plus
+resource-only retry, and exact sentinel ordering on native and wasm32. Use pinned Dawn only as an
+explicit software error-object control. See `sandbox/wgpu-buffer-integrated-smoke/` and
+`sandbox/dawn-probe/probe_error_handles.cc`.

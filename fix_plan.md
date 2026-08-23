@@ -1965,11 +1965,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   product-correctness/lifetime defects while canonical replay, native/wasm32 controls, the real
   product no-work build, compliance, protected-path ownership, and hardware/non-receipt boundaries
   remain clean. See `reports/audit-20260823-r7.md`.
-- [ ] **AUDIT-R7-GPU-PENDING-BUFFER-PAYLOAD [gpu-backend, blocked-by: none]:** retain every
-  SSBO/UBO update or clear that arrives while persistent allocation publication is pending, then
-  replay it exactly once after acceptance without requiring a second frontend call. Add a
-  delayed-scope actual frontend create/update regression with sentinel bytes, native/wasm32
-  parity, and a non-null pinned-Dawn rejection/retry control that remains a software non-receipt.
+- [x] **AUDIT-R7-GPU-PENDING-BUFFER-PAYLOAD [gpu-backend, blocked-by: none] COMPLETE (d999280,
+  patch 0240):** SSBO/UBO updates, clears, and attached data now transfer into an ordered owned
+  queue while persistent allocation validation is pending; rejection retains retry state and an
+  accepted publication replays each payload exactly once without a second frontend call. Extracted
+  frontend native/wasm32 parity, sentinel ordering, non-null pinned-Dawn rejection/retry, canonical
+  replay, real product rebuild/no-work, OFF preflight, and compliance are verified. See
+  `notes/m3-gpu-pending-buffer-payload-20260823.md`.
 - [ ] **AUDIT-R7-GPU-LAYERED-CLEAR-ORDER [gpu-backend, blocked-by: none]:** reserve and submit
   every materialized all-layer load clear before the draw that observes the staged action as
   `LOAD`; reject/rollback either half without committing a newer generation. Add a scheduler trace

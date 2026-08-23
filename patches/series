@@ -932,3 +932,6 @@
 # 0209: stop direct and indirect compute dispatch before dependent pass work or
 # submission when command-encoder, compute-pass, or finished-buffer creation fails.
 0209-gpu-webgpu-compute-command-transaction.patch
+# 0210: rebuild EEVEE image-render shadow passes exactly once when the asynchronous
+# WebGPU atlas allocation settles after their initial sync.
+0210-eevee-webgpu-shadow-atlas-ready-resync.patch

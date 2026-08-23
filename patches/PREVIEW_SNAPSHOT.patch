@@ -2849,7 +2849,7 @@ index 3286dbf24e2e3d61af97f5ef853589b3d0cf5a46..2d700ce4c8fb0e6acb9c67bd325cf0d2
        drw.submit(tiles_flatten_ps_, view);
  
 diff --git a/source/blender/draw/engines/eevee/eevee_engine.cc b/source/blender/draw/engines/eevee/eevee_engine.cc
-index 42b58c3bf25d002317974384f94d66d6a875672b..91fa9b0fc30f14a74f5b42b6cd3d2b3d672eb6ec 100644
+index 42b58c3bf25d002317974384f94d66d6a875672b..4108cf69021a160d12d388627d93c07fb4df6847 100644
 --- a/source/blender/draw/engines/eevee/eevee_engine.cc
 +++ b/source/blender/draw/engines/eevee/eevee_engine.cc
 @@ -4,6 +4,9 @@
@@ -2862,7 +2862,7 @@ index 42b58c3bf25d002317974384f94d66d6a875672b..91fa9b0fc30f14a74f5b42b6cd3d2b3d
  #include "GPU_framebuffer.hh"
  
  #include "ED_screen.hh"
-@@ -37,38 +40,152 @@ void Engine::free_static()
+@@ -37,38 +40,158 @@ void Engine::free_static()
  
  using namespace blender::eevee;
  
@@ -2959,6 +2959,12 @@ index 42b58c3bf25d002317974384f94d66d6a875672b..91fa9b0fc30f14a74f5b42b6cd3d2b3d
 +            session->phase = EEVEEImageRenderPhase::Failed;
 +            return RenderStepStatus::Failed;
 +          }
++          /* `Instance::init()` may have synced while the asynchronous WebGPU buffer receipt was
++           * pending. Rebuild those passes once after READY so the atlas SSBO is actually bound
++           * before shadow samples can be submitted. */
++          if (session->instance->shadow_atlas_requires_sync()) {
++            session->instance->render_sync();
++          }
 +          session->phase = EEVEEImageRenderPhase::RenderSamples;
 +          break;
 +        }
@@ -3041,7 +3047,7 @@ index 42b58c3bf25d002317974384f94d66d6a875672b..91fa9b0fc30f14a74f5b42b6cd3d2b3d
  }
  
  static void eevee_render_update_passes(RenderEngine *engine, Scene *scene, ViewLayer *view_layer)
-@@ -81,7 +198,15 @@ RenderEngineType DRW_engine_viewport_eevee_type = {
+@@ -81,7 +204,15 @@ RenderEngineType DRW_engine_viewport_eevee_type = {
      /*prev*/ nullptr,
      /*idname*/ "BLENDER_EEVEE",
      /*name*/ N_("EEVEE"),
@@ -3058,7 +3064,7 @@ index 42b58c3bf25d002317974384f94d66d6a875672b..91fa9b0fc30f14a74f5b42b6cd3d2b3d
      /*update*/ nullptr,
      /*render*/ &eevee_render,
      /*render_frame_finish*/ nullptr,
-@@ -99,6 +224,8 @@ RenderEngineType DRW_engine_viewport_eevee_type = {
+@@ -99,6 +230,8 @@ RenderEngineType DRW_engine_viewport_eevee_type = {
          /*srna*/ nullptr,
          /*call*/ nullptr,
      },
@@ -3503,7 +3509,7 @@ index 79c69aa84632e821bf1caf947016e786a782426e..e37a430b4ec45512955923bef12b932c
      /* Ensure layer view for frame-buffer attachment. */
      header_tx.ensure_layer_views();
 diff --git a/source/blender/draw/engines/eevee/eevee_instance.cc b/source/blender/draw/engines/eevee/eevee_instance.cc
-index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4915d7585 100644
+index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..9c62d603b828b8a1dd23c2afed4216903c8e2dba 100644
 --- a/source/blender/draw/engines/eevee/eevee_instance.cc
 +++ b/source/blender/draw/engines/eevee/eevee_instance.cc
 @@ -8,6 +8,8 @@
@@ -3537,7 +3543,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  
  #include "eevee_instance.hh"
  
-@@ -505,6 +512,11 @@ void Instance::render_sync()
+@@ -505,6 +512,16 @@ void Instance::render_sync()
    manager->end_sync();
  }
  
@@ -3546,10 +3552,15 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
 +  return shadows.shadow_atlas_status();
 +}
 +
++bool Instance::shadow_atlas_requires_sync() const
++{
++  return shadows.shadow_atlas_requires_sync();
++}
++
  bool Instance::needs_lightprobe_sphere_passes() const
  {
    return sphere_probes.update_probes_this_sample_;
-@@ -581,61 +593,10 @@ void Instance::render_sample()
+@@ -581,61 +598,10 @@ void Instance::render_sample()
    motion_blur.step();
  }
  
@@ -3613,7 +3624,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
      for (const std::string &vector_pass_name :
           Film::pass_to_render_pass_names(EEVEE_RENDER_PASS_VECTOR, view_layer))
      {
-@@ -656,7 +617,13 @@ void Instance::render_read_result(RenderLayer *render_layer, const char *view_na
+@@ -656,7 +622,13 @@ void Instance::render_read_result(RenderLayer *render_layer, const char *view_na
  /** \name Interface
   * \{ */
  
@@ -3628,7 +3639,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  {
    skip_render_ = skip_render_ || !is_loaded(needed_shaders);
  
-@@ -665,7 +632,7 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
+@@ -665,7 +637,7 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
        RE_engine_set_error_message(engine, info_.c_str());
        info_ = "";
      }
@@ -3637,7 +3648,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
    }
  
    DebugScope debug_scope(debug_scope_render_frame, "EEVEE.render_frame");
-@@ -700,7 +667,7 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
+@@ -700,7 +672,7 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
      if (G.background == false && first_read) {
        /* Allow to preview the first sample. */
        /* TODO(fclem): Might want to not do this during animation render to avoid too much stall. */
@@ -3646,7 +3657,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
        first_read = false;
        DRW_render_context_disable(render->re);
        /* Allow the 2D viewport to grab the ticket mutex to display the render. */
-@@ -710,8 +677,9 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
+@@ -710,8 +682,9 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
    }
  
    this->film.cryptomatte_sort();
@@ -3658,7 +3669,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  
    if (!info_.empty()) {
      RE_engine_set_error_message(
-@@ -719,6 +687,46 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
+@@ -719,6 +692,46 @@ void Instance::render_frame(RenderEngine *engine, RenderLayer *render_layer, con
      printf("%s", info_.c_str());
      info_ = "";
    }
@@ -3705,7 +3716,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  }
  
  void Instance::draw_viewport()
-@@ -788,6 +796,7 @@ void Instance::draw_viewport_image_render()
+@@ -788,6 +801,7 @@ void Instance::draw_viewport_image_render()
      /* Render at least once to blit the finished image. */
      this->render_sample();
    } while (!sampling.finished_viewport());
@@ -3713,7 +3724,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
    velocity.step_swap();
  
    if (is_viewport_compositor_enabled) {
-@@ -884,7 +893,7 @@ void Instance::update_passes(RenderEngine *engine, Scene *scene, ViewLayer *view
+@@ -884,7 +898,7 @@ void Instance::update_passes(RenderEngine *engine, Scene *scene, ViewLayer *view
                                EEVEE_RENDER_PASS_CRYPTOMATTE_MATERIAL);
  }
  
@@ -3722,7 +3733,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
      Object &probe,
      FunctionRef<void()> context_enable,
      FunctionRef<void()> context_disable,
-@@ -893,6 +902,11 @@ void Instance::light_bake_irradiance(
+@@ -893,6 +907,11 @@ void Instance::light_bake_irradiance(
  {
    BLI_assert(is_baking());
  
@@ -3734,7 +3745,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
    DRWContext draw_ctx(DRWContext::CUSTOM, depsgraph);
    this->draw_ctx = &draw_ctx;
  
-@@ -910,57 +924,106 @@ void Instance::light_bake_irradiance(
+@@ -910,57 +929,106 @@ void Instance::light_bake_irradiance(
      context_disable();
    };
  
@@ -3881,7 +3892,7 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  
    /* Start with 1 sample and progressively ramp up. */
    float time_per_sample_ms_smooth = 16.0f;
-@@ -1003,24 +1066,52 @@ void Instance::light_bake_irradiance(
+@@ -1003,24 +1071,52 @@ void Instance::light_bake_irradiance(
        /* Exponential average. */
        time_per_sample_ms_smooth = interpolate(time_per_sample_ms_smooth, time_per_sample_ms, 0.7f);
  
@@ -3940,20 +3951,22 @@ index e0ff6c9ab13c355a24bac4b8e65ff3ffa18d0a83..7f009ca92ee536a643c8be2e4b4f20c4
  
  /** \} */
 diff --git a/source/blender/draw/engines/eevee/eevee_instance.hh b/source/blender/draw/engines/eevee/eevee_instance.hh
-index d2069c70c0e84e22a84c540234eb918d21165e7c..f7c8871a4f5354cf71249d79f807679bb593c00d 100644
+index d2069c70c0e84e22a84c540234eb918d21165e7c..1021cdc83a7d47a5515e540426cf0f49a2c658ff 100644
 --- a/source/blender/draw/engines/eevee/eevee_instance.hh
 +++ b/source/blender/draw/engines/eevee/eevee_instance.hh
-@@ -248,6 +248,9 @@ class Instance : public DrawEngine {
+@@ -248,6 +248,11 @@ class Instance : public DrawEngine {
      return (loaded_shaders & groups) == groups;
    }
  
 +  /** Poll readiness of resources that must settle before an image-render or light-bake sync. */
 +  ShadowAtlasStatus shadow_atlas_status();
++  /** True when the settled WebGPU shadow atlas still needs to be rebound by `render_sync`. */
++  bool shadow_atlas_requires_sync() const;
 +
    /**
     * Return true when probe pipeline is used during this sample.
     */
-@@ -264,7 +267,14 @@ class Instance : public DrawEngine {
+@@ -264,7 +269,14 @@ class Instance : public DrawEngine {
    /* Render. */
  
    void render_sync();
@@ -3969,7 +3982,7 @@ index d2069c70c0e84e22a84c540234eb918d21165e7c..f7c8871a4f5354cf71249d79f807679b
    void store_metadata(RenderResult *render_result);
  
    /* Viewport. */
-@@ -277,12 +287,13 @@ class Instance : public DrawEngine {
+@@ -277,12 +289,13 @@ class Instance : public DrawEngine {
    /* Light bake. */
  
    void init_light_bake(Depsgraph *depsgraph, draw::Manager *manager);
@@ -3984,7 +3997,7 @@ index d2069c70c0e84e22a84c540234eb918d21165e7c..f7c8871a4f5354cf71249d79f807679b
  
    static void update_passes(RenderEngine *engine, Scene *scene, ViewLayer *view_layer);
  
-@@ -368,12 +379,23 @@ class Instance : public DrawEngine {
+@@ -368,12 +381,23 @@ class Instance : public DrawEngine {
    }
  
   private:
@@ -6092,7 +6105,7 @@ index 17b0fb9ac358cbb2bff7197a1227d589f74728a0..f5765dafcd251a7dca4d3d443c457823
    SHADOW_TILEMAP_BOUNDS,
    SHADOW_TILEMAP_FINALIZE,
 diff --git a/source/blender/draw/engines/eevee/eevee_shadow.cc b/source/blender/draw/engines/eevee/eevee_shadow.cc
-index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7d716560d 100644
+index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..47fcb4cc7be13f093a9b64fae148414544f59a6c 100644
 --- a/source/blender/draw/engines/eevee/eevee_shadow.cc
 +++ b/source/blender/draw/engines/eevee/eevee_shadow.cc
 @@ -8,11 +8,15 @@
@@ -6190,7 +6203,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
    const int2 atlas_extent = shadow_page_size_ * int2(SHADOW_PAGE_PER_ROW, SHADOW_PAGE_PER_COL);
    const int atlas_layers = divide_ceil_u(shadow_page_len_, SHADOW_PAGE_PER_LAYER);
  
-@@ -665,8 +715,43 @@ void ShadowModule::init()
+@@ -665,8 +715,49 @@ void ShadowModule::init()
    }
  }
  
@@ -6225,6 +6238,12 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
 +  return ShadowAtlasStatus::Failed;
 +}
 +
++bool ShadowModule::shadow_atlas_requires_sync() const
++{
++  return use_webgpu_shadow_atlas_ && webgpu_shadow_atlas_ready_ &&
++         !webgpu_shadow_atlas_ready_for_sync_;
++}
++
  void ShadowModule::begin_sync()
  {
 +  webgpu_shadow_atlas_ready_for_sync_ =
@@ -6234,7 +6253,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
    past_casters_updated_.clear();
    curr_casters_updated_.clear();
    curr_casters_.clear();
-@@ -874,6 +959,11 @@ void ShadowModule::end_sync()
+@@ -874,6 +965,11 @@ void ShadowModule::end_sync()
  
    {
      Manager &manager = *inst_.manager;
@@ -6246,7 +6265,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
  
      {
        PassSimple &pass = tilemap_setup_ps_;
-@@ -898,9 +988,9 @@ void ShadowModule::end_sync()
+@@ -898,9 +994,9 @@ void ShadowModule::end_sync()
          sub.bind_ssbo("tilemaps_clip_buf", tilemap_pool.tilemaps_clip);
          sub.bind_ssbo("casters_id_buf", curr_casters_);
          sub.bind_ssbo("bounds_buf", &manager.bounds_buf.current());
@@ -6258,7 +6277,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
          sub.bind_resources(inst_.lights);
          sub.dispatch(int3(
              divide_ceil_u(std::max(curr_casters_.size(), int64_t(1)), SHADOW_BOUNDS_GROUP_SIZE),
-@@ -1096,26 +1186,43 @@ void ShadowModule::end_sync()
+@@ -1096,26 +1192,43 @@ void ShadowModule::end_sync()
          sub.shader_set(inst_.shaders.static_shader_get(SHADOW_TILEMAP_AMEND));
          sub.bind_image("tilemaps_img", tilemap_pool.tilemap_tx);
          sub.bind_ssbo("tilemaps_buf", tilemap_pool.tilemaps_data);
@@ -6308,7 +6327,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
    }
  
    debug_end_sync();
-@@ -1302,6 +1409,11 @@ void ShadowModule::render(View &view, int2 extent)
+@@ -1302,6 +1415,11 @@ void ShadowModule::render(View &view, int2 extent)
      return;
    }
  
@@ -6320,7 +6339,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
    input_depth_extent_ = extent;
  
    gpu::FrameBuffer *prev_fb = GPU_framebuffer_active_get();
-@@ -1313,8 +1425,21 @@ void ShadowModule::render(View &view, int2 extent)
+@@ -1313,8 +1431,21 @@ void ShadowModule::render(View &view, int2 extent)
    usage_tag_fb_resolution_ = math::divide_ceil(extent, int2(std::exp2(usage_tag_fb_lod_)));
    usage_tag_fb.ensure(usage_tag_fb_resolution_);
  
@@ -6344,7 +6363,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
  
    update_tag_fb_.ensure(int2(SHADOW_TILEMAP_RES));
  
-@@ -1357,6 +1482,11 @@ void ShadowModule::render(View &view, int2 extent)
+@@ -1357,6 +1488,11 @@ void ShadowModule::render(View &view, int2 extent)
  
        inst_.pipelines.shadow.render(shadow_multi_view_);
  
@@ -6357,7 +6376,7 @@ index 1d3ad1499f038bc150a13d3fef15dee5e344f2f8..5b9461901eac3cde88299b182f1a2bb7
          GPU_flush();
        }
 diff --git a/source/blender/draw/engines/eevee/eevee_shadow.hh b/source/blender/draw/engines/eevee/eevee_shadow.hh
-index 2697b4a688f7cb550f45502baf798701854aa3aa..b0379b0b8ab939bb36036877068fe7a8d595ae1d 100644
+index 2697b4a688f7cb550f45502baf798701854aa3aa..ccda21752d6c101f65a91dd689bf426c4bafdd4b 100644
 --- a/source/blender/draw/engines/eevee/eevee_shadow.hh
 +++ b/source/blender/draw/engines/eevee/eevee_shadow.hh
 @@ -179,6 +179,12 @@ struct ShadowObject {
@@ -6408,7 +6427,7 @@ index 2697b4a688f7cb550f45502baf798701854aa3aa..b0379b0b8ab939bb36036877068fe7a8
  
    /** Arrays of viewports to rendering each tile to. */
    std::array<int4, 16> multi_viewports_;
-@@ -332,13 +349,18 @@ class ShadowModule {
+@@ -332,13 +349,21 @@ class ShadowModule {
   public:
    ShadowModule(Instance &inst, ShadowSceneData &data);
  
@@ -6427,6 +6446,9 @@ index 2697b4a688f7cb550f45502baf798701854aa3aa..b0379b0b8ab939bb36036877068fe7a8
 +   * to the next shadow sync; passes already synced without the atlas remain non-submittable.
 +   */
 +  ShadowAtlasStatus shadow_atlas_status();
++
++  /** True when a settled WebGPU atlas has not yet been bound into a shadow pass sync. */
++  bool shadow_atlas_requires_sync() const;
 +
    void begin_sync();
    /** Register a shadow caster or receiver. */

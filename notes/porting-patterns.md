@@ -732,3 +732,20 @@ pending queue order, non-null root/view rejection, clean retry, and pair-level a
 on native and wasm32, then confirm the exact factories against pinned Dawn as explicitly
 software-only non-receipt evidence. See `sandbox/wgpu-texture-integrated-smoke/` and
 `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 51 — explicit layout coverage and validation readiness are separate states
+
+Signature: a shader has complete interface-map coverage, creates a non-null bind-group layout and
+pipeline layout, and immediately exposes the pair. Browser validation resolves later, so an error
+pair can be consumed by pipeline creation; treating the still-pending pair as `has_layout=false`
+also silently selects Dawn auto layout even though the shader requires the explicit resource
+types. Retain the CPU layout entries, mark covered layouts as required independently of readiness,
+and publish the two handles atomically through one validation/OOM/internal scoped cache. Pipeline
+lookup must stop while the required pair is pending and retry creation after rejection; only an
+actually uncovered shader may use auto layout. Bind groups created before an enclosing command
+scope need their own ordered resource gate, while bind groups created inside that command scope are
+already rejected with the complete command before submission. Exercise pending deduplication,
+non-null pair rejection, atomic clean retry, and same-epoch dependent-work cancellation on native
+and wasm32, then confirm the exact generic gates against pinned Dawn as software-only non-receipt
+evidence. See `sandbox/wgpu-shader-frontend-integrated-smoke/`,
+`sandbox/wgpu-pipeline-integrated-smoke/`, and `sandbox/dawn-probe/probe_error_handles.cc`.

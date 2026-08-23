@@ -78,10 +78,11 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   exact mapped dummy-vertex-buffer factory and the persistent buffer wrapper's composite
   handle/metadata value. The short-lived buffer control then proves the shipping ordered resource
   gate blocks dependent work after a real non-null buffer error object and releases a clean
-  next-epoch retry. Matching texture and texture-view controls prove the same ordered gate blocks
-  their non-null error objects, while a composite texture/view cache proves rejection is atomic and
-  a clean replacement can publish on retry. Its output is explicitly non-receipt evidence and
-  cannot satisfy the hardware success criterion above.
+  next-epoch retry. Matching bind-group, texture, and texture-view controls prove the same ordered
+  gate blocks their non-null error objects, while composite texture/view and
+  bind-group/pipeline-layout caches prove pair rejection is atomic and clean replacements publish
+  on retry. Its output is explicitly non-receipt evidence and cannot satisfy the hardware success
+  criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

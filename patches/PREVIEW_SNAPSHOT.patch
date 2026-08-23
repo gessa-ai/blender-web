@@ -16849,7 +16849,7 @@ index 993239c0bc984e87e909ff9ae728022ff7d72d5a..90813884f7581604a6eaca24f6482e83
  }  // namespace blender::gpu::tests
 diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a7e2fdda825aa80a736ed43462bb240da70966a2
+index 0000000000000000000000000000000000000000..2aff395285caf39e379a7e8e3c2373a2b22e4ee7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_backend.cc
 @@ -0,0 +1,340 @@
@@ -17054,7 +17054,7 @@ index 0000000000000000000000000000000000000000..a7e2fdda825aa80a736ed43462bb240d
 +  }
 +
 +  wgpu::Device device = ctx->device_get();
-+  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
++  wgpu::ComputePipeline pipeline = shader->compute_pipeline(ctx->instance_get(), device);
 +  if (pipeline == nullptr) {
 +    return;
 +  }
@@ -17105,7 +17105,7 @@ index 0000000000000000000000000000000000000000..a7e2fdda825aa80a736ed43462bb240d
 +  }
 +
 +  wgpu::Device device = ctx->device_get();
-+  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
++  wgpu::ComputePipeline pipeline = shader->compute_pipeline(ctx->instance_get(), device);
 +  if (pipeline == nullptr) {
 +    return;
 +  }
@@ -17277,10 +17277,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b5e03012253805b3f58a027684bdbe441e69ebdf
+index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73d2442c84
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,978 @@
+@@ -0,0 +1,986 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17482,7 +17482,13 @@ index 0000000000000000000000000000000000000000..b5e03012253805b3f58a027684bdbe44
 +  group_descriptor.layout = pipeline.GetBindGroupLayout(0);
 +  group_descriptor.entryCount = 3;
 +  group_descriptor.entries = entries;
-+  const wgpu::BindGroup group = ctx.device_get().CreateBindGroup(&group_descriptor);
++  const wgpu::BindGroup group = webgpu::transient_resource_create_scoped(
++      ctx.instance_get(),
++      ctx.device_get(),
++      ctx.queue_scheduler_get(),
++      "indexed triangle-fan bind group",
++      [&]() { return ctx.device_get().CreateBindGroup(&group_descriptor); },
++      [](bool) {});
 +  if (group == nullptr) {
 +    return false;
 +  }
@@ -17669,7 +17675,8 @@ index 0000000000000000000000000000000000000000..b5e03012253805b3f58a027684bdbe44
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(ctx->device_get(), info);
++  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
 +  }
@@ -18039,7 +18046,8 @@ index 0000000000000000000000000000000000000000..b5e03012253805b3f58a027684bdbe44
 +      indexed ? wibo->index_format() : wgpu::IndexFormat::Undefined);
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(ctx->device_get(), info);
++  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
 +  }
@@ -20849,10 +20857,10 @@ index 0000000000000000000000000000000000000000..b74f33584d3794c668ca1904279da3ac
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..016861e63c3e5d9309614842c209b991eee95cf1
+index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac990aa6bc8
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1314 @@
+@@ -0,0 +1,1332 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21364,7 +21372,13 @@ index 0000000000000000000000000000000000000000..016861e63c3e5d9309614842c209b991
 +  bgd.layout = pipeline.GetBindGroupLayout(0);
 +  bgd.entryCount = 2;
 +  bgd.entries = entries;
-+  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);
++  wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(
++      instance_,
++      device_,
++      queue_scheduler_,
++      "color blit bind group",
++      [&]() { return device_.CreateBindGroup(&bgd); },
++      [](bool) {});
 +  if (bind_group == nullptr) {
 +    return false;
 +  }
@@ -21509,7 +21523,13 @@ index 0000000000000000000000000000000000000000..016861e63c3e5d9309614842c209b991
 +  bind_desc.layout = pipeline.GetBindGroupLayout(0);
 +  bind_desc.entryCount = 1;
 +  bind_desc.entries = &entry;
-+  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bind_desc);
++  wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(
++      instance_,
++      device_,
++      queue_scheduler_,
++      "depth blit bind group",
++      [&]() { return device_.CreateBindGroup(&bind_desc); },
++      [](bool) {});
 +  if (bind_group == nullptr) {
 +    return false;
 +  }
@@ -21673,7 +21693,13 @@ index 0000000000000000000000000000000000000000..016861e63c3e5d9309614842c209b991
 +  bind_desc.layout = pipeline.GetBindGroupLayout(0);
 +  bind_desc.entryCount = 2;
 +  bind_desc.entries = entries;
-+  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bind_desc);
++  wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(
++      instance_,
++      device_,
++      queue_scheduler_,
++      "depth upload bind group",
++      [&]() { return device_.CreateBindGroup(&bind_desc); },
++      [](bool) {});
 +  if (bind_group == nullptr) {
 +    return false;
 +  }
@@ -22924,10 +22950,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3d4ff268d131fefb61e0cfa6f26e42f7fe6a8f26
+index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24ded44032d
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1829 @@
+@@ -0,0 +1,1841 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23277,7 +23303,13 @@ index 0000000000000000000000000000000000000000..3d4ff268d131fefb61e0cfa6f26e42f7
 +  bind_descriptor.layout = pipeline.GetBindGroupLayout(0);
 +  bind_descriptor.entryCount = 1;
 +  bind_descriptor.entries = &entry;
-+  wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_descriptor);
++  wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_scheduler_get(),
++      "scissored color-clear bind group",
++      [&]() { return device.CreateBindGroup(&bind_descriptor); },
++      [](bool) {});
 +  if (bind_group == nullptr) {
 +    return false;
 +  }
@@ -23424,7 +23456,13 @@ index 0000000000000000000000000000000000000000..3d4ff268d131fefb61e0cfa6f26e42f7
 +  bind_descriptor.layout = pipeline.GetBindGroupLayout(0);
 +  bind_descriptor.entryCount = 1;
 +  bind_descriptor.entries = &entry;
-+  wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_descriptor);
++  wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_scheduler_get(),
++      "scissored depth-stencil-clear bind group",
++      [&]() { return device.CreateBindGroup(&bind_descriptor); },
++      [](bool) {});
 +  if (bind_group == nullptr) {
 +    return false;
 +  }
@@ -24971,10 +25009,10 @@ index 0000000000000000000000000000000000000000..c1ec948ce232f2c43b52a313f61fb1b2
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9504917ec8631a0fc3d9a96df13b96d643901d8e
+index 0000000000000000000000000000000000000000..dd4410fd1895379fc9f0efbca0cecabb26c5fc09
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,267 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -25160,7 +25198,8 @@ index 0000000000000000000000000000000000000000..9504917ec8631a0fc3d9a96df13b96d6
 +  info.prim_type = draw_prim_type;
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(ctx->device_get(), info);
++  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
 +  }
@@ -25572,10 +25611,10 @@ index 0000000000000000000000000000000000000000..83c56ca794607d1f959297e526054415
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe09944764
+index 0000000000000000000000000000000000000000..a7bc5a337a12371ea0638f74d93b4ce24e45108e
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,595 @@
+@@ -0,0 +1,604 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -25820,9 +25859,16 @@ index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe
 +
 +/* --- Build ------------------------------------------------------------------ */
 +
-+static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const PipelineInfo &info)
++static wgpu::RenderPipeline build_pipeline(const wgpu::Instance &instance,
++                                           const wgpu::Device &device,
++                                           const PipelineInfo &info)
 +{
 +  WGPUShader *shader = info.shader;
++  if (shader->explicit_layout_required() &&
++      !shader->ensure_explicit_layout(instance, device))
++  {
++    return nullptr;
++  }
 +
 +  auto specialization_entries = [&](const uint32_t stage,
 +                                    std::vector<std::string> &r_keys,
@@ -26153,7 +26199,9 @@ index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe
 +  return plan;
 +}
 +
-+wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Device &device, const PipelineInfo &info)
++wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Instance &instance,
++                                           const wgpu::Device &device,
++                                           const PipelineInfo &info)
 +{
 +  BLI_assert(info.shader != nullptr);
 +  BLI_assert(info.shader_cache_identity != 0);
@@ -26163,7 +26211,7 @@ index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe
 +  if (it != cache_.end()) {
 +    return it->second;
 +  }
-+  wgpu::RenderPipeline pipeline = build_pipeline(device, info);
++  wgpu::RenderPipeline pipeline = build_pipeline(instance, device, info);
 +  if (!cache_handle_if_valid(cache_, key, pipeline)) {
 +    return nullptr;
 +  }
@@ -26173,10 +26221,10 @@ index 0000000000000000000000000000000000000000..abcd6f2dfdc13f4a922a119b581633fe
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5f0c8ef51adfe7ae389f1f8aa35be80e50477181
+index 0000000000000000000000000000000000000000..8a8de8015b6c1a0f4bff52e4f1c33c1ee4c3d631
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,146 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26276,7 +26324,9 @@ index 0000000000000000000000000000000000000000..5f0c8ef51adfe7ae389f1f8aa35be80e
 +/** Per-context cache of `wgpu::RenderPipeline`s keyed by a PipelineInfo hash. */
 +class WGPUPipelinePool {
 + public:
-+  wgpu::RenderPipeline get(const wgpu::Device &device, const PipelineInfo &info);
++  wgpu::RenderPipeline get(const wgpu::Instance &instance,
++                           const wgpu::Device &device,
++                           const PipelineInfo &info);
 +
 + private:
 +  std::unordered_map<uint64_t, wgpu::RenderPipeline> cache_;
@@ -27816,10 +27866,10 @@ index 0000000000000000000000000000000000000000..972573105d2165c30962d278d53473a6
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc236826b02
+index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316decb8c5018
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2958 @@
+@@ -0,0 +1,2968 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30196,29 +30246,6 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +  return device.CreateShaderModule(&desc);
 +}
 +
-+template<typename BindGroupLayoutT,
-+         typename PipelineLayoutT,
-+         typename CreateBindGroupLayoutFn,
-+         typename CreatePipelineLayoutFn>
-+static bool explicit_layout_handles_create_if_valid(
-+    CreateBindGroupLayoutFn &&create_bind_group_layout,
-+    CreatePipelineLayoutFn &&create_pipeline_layout,
-+    BindGroupLayoutT &r_bind_group_layout,
-+    PipelineLayoutT &r_pipeline_layout)
-+{
-+  BindGroupLayoutT bind_group_layout = create_bind_group_layout();
-+  if (bind_group_layout == nullptr) {
-+    return false;
-+  }
-+  PipelineLayoutT pipeline_layout = create_pipeline_layout(bind_group_layout);
-+  if (pipeline_layout == nullptr) {
-+    return false;
-+  }
-+  r_bind_group_layout = std::move(bind_group_layout);
-+  r_pipeline_layout = std::move(pipeline_layout);
-+  return true;
-+}
-+
 +static bool wgsl_has_override_id(const std::string &wgsl, const uint32_t constant_id)
 +{
 +  const std::string marker = "@id(" + std::to_string(constant_id) + ")";
@@ -30244,7 +30271,8 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +  /* Shaders compile on the async worker thread, which has no thread-local active
 +   * GPU context — reach the device backend-side (one Dawn device). */
 +  wgpu::Device device = WGPUContext::backend_device();
-+  if (device == nullptr) {
++  wgpu::Instance instance = WGPUContext::backend_instance();
++  if (instance == nullptr || device == nullptr) {
 +    return false;
 +  }
 +
@@ -30340,9 +30368,11 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +  /* Build the explicit group-0 layout from the interface map, pruned to each
 +   * entry point's transitively used resources (needs has_multi_viewport_ /
 +   * multi_viewport_binding_ from build_interface). An uncovered semantic binding
-+   * deliberately leaves has_explicit_layout() false for Dawn's auto layout; a null
-+   * layout resource instead fails finalization so it cannot masquerade as that fallback. */
-+  if (!build_explicit_layout(device,
++   * deliberately leaves explicit_layout_required() false for Dawn's auto layout. A covered
++   * layout instead stays required while its scoped pair is pending or retrying, so an error
++   * object can never masquerade as that fallback. */
++  if (!build_explicit_layout(instance,
++                             device,
 +                             result.vertex_resource_bindings,
 +                             result.fragment_resource_bindings,
 +                             result.compute_resource_bindings,
@@ -30364,9 +30394,13 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +}
 +void WGPUShader::unbind() {}
 +
-+wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
++wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Instance &instance,
++                                                   const wgpu::Device &device)
 +{
 +  if (compute_module_ == nullptr) {
++    return nullptr;
++  }
++  if (explicit_layout_required() && !ensure_explicit_layout(instance, device)) {
 +    return nullptr;
 +  }
 +  /* Specialization key = the raw override bit patterns of the currently-bound
@@ -30433,13 +30467,15 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +/** \name Explicit pipeline layout
 + * \{ */
 +
-+bool WGPUShader::build_explicit_layout(const wgpu::Device &device,
++bool WGPUShader::build_explicit_layout(const wgpu::Instance &instance,
++                                       const wgpu::Device &device,
 +                                       const std::vector<uint32_t> &vertex_resource_bindings,
 +                                       const std::vector<uint32_t> &fragment_resource_bindings,
 +                                       const std::vector<uint32_t> &compute_resource_bindings,
 +                                       const std::vector<uint32_t> &sampled_texture_bindings)
 +{
-+  explicit_layout_ok_ = false;
++  explicit_layout_required_ = false;
++  explicit_layout_cache_ = {};
 +  explicit_entries_.clear();
 +  surviving_bindings_.clear();
 +  if (device == nullptr) {
@@ -30543,32 +30579,56 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +    return true;
 +  }
 +
-+  wgpu::BindGroupLayoutDescriptor bgld = {};
-+  bgld.label = name_get().c_str();
-+  bgld.entryCount = entries.size();
-+  bgld.entries = entries.empty() ? nullptr : entries.data();
-+  wgpu::BindGroupLayout bgl;
-+  wgpu::PipelineLayout pl;
-+  if (!explicit_layout_handles_create_if_valid(
-+          [&]() { return device.CreateBindGroupLayout(&bgld); },
-+          [&](const wgpu::BindGroupLayout &candidate_bgl) {
-+            wgpu::PipelineLayoutDescriptor pld = {};
-+            pld.label = name_get().c_str();
-+            pld.bindGroupLayoutCount = 1;
-+            pld.bindGroupLayouts = &candidate_bgl;
-+            return device.CreatePipelineLayout(&pld);
-+          },
-+          bgl,
-+          pl))
-+  {
++  explicit_entries_ = std::move(entries);
++  explicit_layout_required_ = true;
++  /* Native Dawn settles synchronously; browser Dawn leaves this pending. Either way the shader
++   * remains compiled, and pipeline lookup refuses auto-layout fallback until this exact pair is
++   * accepted. A rejected pair is recreated from explicit_entries_ on the next lookup. */
++  ensure_explicit_layout(instance, device);
++  return true;
++}
++
++bool WGPUShader::ensure_explicit_layout(const wgpu::Instance &instance,
++                                        const wgpu::Device &device)
++{
++  if (!explicit_layout_required_) {
++    return true;
++  }
++  if (instance == nullptr || device == nullptr) {
++    return false;
++  }
++  if (explicit_layout_cache_.lookup(kExplicitLayoutKey) != nullptr) {
++    return true;
++  }
++  if (explicit_layout_cache_.pending(kExplicitLayoutKey)) {
 +    return false;
 +  }
 +
-+  explicit_entries_ = std::move(entries);
-+  explicit_bgl_ = bgl;
-+  explicit_pipeline_layout_ = pl;
-+  explicit_layout_ok_ = true;
-+  return true;
++  const std::string label = name_get();
++  const ExplicitLayoutHandles handles = explicit_layout_cache_.get_or_create(
++      instance,
++      device,
++      kExplicitLayoutKey,
++      "shader explicit bind-group/pipeline-layout creation",
++      [&]() {
++        wgpu::BindGroupLayoutDescriptor bind_group_descriptor = {};
++        bind_group_descriptor.label = label.c_str();
++        bind_group_descriptor.entryCount = explicit_entries_.size();
++        bind_group_descriptor.entries = explicit_entries_.empty() ? nullptr :
++                                                                    explicit_entries_.data();
++        ExplicitLayoutHandles candidate;
++        candidate.bind_group_layout = device.CreateBindGroupLayout(&bind_group_descriptor);
++        if (candidate.bind_group_layout == nullptr) {
++          return ExplicitLayoutHandles{};
++        }
++        wgpu::PipelineLayoutDescriptor pipeline_descriptor = {};
++        pipeline_descriptor.label = label.c_str();
++        pipeline_descriptor.bindGroupLayoutCount = 1;
++        pipeline_descriptor.bindGroupLayouts = &candidate.bind_group_layout;
++        candidate.pipeline_layout = device.CreatePipelineLayout(&pipeline_descriptor);
++        return candidate;
++      });
++  return handles != nullptr;
 +}
 +
 +/** \} */
@@ -30780,10 +30840,10 @@ index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc2
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..0ec0a3ae447a749b6cf2ff1c9c3f025e88f0b8cc
+index 0000000000000000000000000000000000000000..109b20728edca2451b31dbff0d8b9fb0fd833628
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.hh
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,334 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30904,7 +30964,8 @@ index 0000000000000000000000000000000000000000..0ec0a3ae447a749b6cf2ff1c9c3f025e
 +   * pointer-keyed pool) is deliberate: a freed-then-reallocated WGPUShader address
 +   * could otherwise return another shader's stale pipeline. Null if no compute stage
 +   * or the compile failed. */
-+  wgpu::ComputePipeline compute_pipeline(const wgpu::Device &device);
++  wgpu::ComputePipeline compute_pipeline(const wgpu::Instance &instance,
++                                         const wgpu::Device &device);
 +  const webgpu::InterfaceMap &interface_map() const
 +  {
 +    return interface_map_;
@@ -30928,17 +30989,25 @@ index 0000000000000000000000000000000000000000..0ec0a3ae447a749b6cf2ff1c9c3f025e
 +   * layout, differing only where the auto layout is wrong. has_explicit_layout() is
 +   * false (and the draw/compute paths fall back to the auto layout) if any surviving
 +   * WGSL binding is not covered by the interface map — never a silent mix. */
++  bool explicit_layout_required() const
++  {
++    return explicit_layout_required_;
++  }
++  /** Ensure a covered shader's explicit layout pair has completed its implementation error
++   * scopes. A browser call can return false while validation is pending; a rejected pair remains
++   * unpublished and the next call retries from the retained CPU entries. */
++  bool ensure_explicit_layout(const wgpu::Instance &instance, const wgpu::Device &device);
 +  bool has_explicit_layout() const
 +  {
-+    return explicit_layout_ok_;
++    return explicit_layout_cache_.lookup(kExplicitLayoutKey) != nullptr;
 +  }
-+  const wgpu::BindGroupLayout &explicit_bind_group_layout() const
++  wgpu::BindGroupLayout explicit_bind_group_layout() const
 +  {
-+    return explicit_bgl_;
++    return explicit_layout_cache_.lookup(kExplicitLayoutKey).bind_group_layout;
 +  }
-+  const wgpu::PipelineLayout &explicit_pipeline_layout() const
++  wgpu::PipelineLayout explicit_pipeline_layout() const
 +  {
-+    return explicit_pipeline_layout_;
++    return explicit_layout_cache_.lookup(kExplicitLayoutKey).pipeline_layout;
 +  }
 +
 +  /* ---- Push-constant UBO surface (for lane B's bind-group assembly) --------
@@ -31043,14 +31112,28 @@ index 0000000000000000000000000000000000000000..0ec0a3ae447a749b6cf2ff1c9c3f025e
 +  /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
 +  webgpu::InterfaceMap interface_map_;
 +
++  struct ExplicitLayoutHandles {
++    wgpu::BindGroupLayout bind_group_layout;
++    wgpu::PipelineLayout pipeline_layout;
++
++    bool operator==(std::nullptr_t) const
++    {
++      return bind_group_layout == nullptr || pipeline_layout == nullptr;
++    }
++    bool operator!=(std::nullptr_t) const
++    {
++      return !(*this == nullptr);
++    }
++  };
++
 +  /* Explicit group-0 layout built from interface_map_ post-compile, pruned to the
-+   * WGSL-surviving binding set (see has_explicit_layout()). Created in finalize() on
-+   * the async compile worker via the shared backend device; read at draw/dispatch. */
++   * WGSL-surviving binding set. The complete bind-group/pipeline-layout pair stays in a scoped
++   * cache so a non-null Dawn error object cannot masquerade as accepted publication. */
++  static constexpr uint8_t kExplicitLayoutKey = 0;
 +  std::vector<wgpu::BindGroupLayoutEntry> explicit_entries_;
 +  std::vector<uint32_t> surviving_bindings_;
-+  wgpu::BindGroupLayout explicit_bgl_;
-+  wgpu::PipelineLayout explicit_pipeline_layout_;
-+  bool explicit_layout_ok_ = false;
++  webgpu::ScopedHandleCache<uint8_t, ExplicitLayoutHandles> explicit_layout_cache_;
++  bool explicit_layout_required_ = false;
 +
 +  /* Push-constant emulation. `push_constants_` maps a uniform location (base
 +   * 1024 + i, as the interface assigns) to its std140 byte offset + size; the CPU
@@ -31081,11 +31164,11 @@ index 0000000000000000000000000000000000000000..0ec0a3ae447a749b6cf2ff1c9c3f025e
 +  /** Build the interface + push-constant layout from the create-info. */
 +  void build_interface(const shader::ShaderCreateInfo &info);
 +
-+  /** Build explicit_entries_ / explicit_bgl_ / explicit_pipeline_layout_ from
-+   * interface_map_, restricted to the resources Tint reports as transitively used
-+   * by each final WGSL entry point. Sets explicit_layout_ok_. Returns false when
-+   * either required WebGPU layout resource cannot be created. */
-+  bool build_explicit_layout(const wgpu::Device &device,
++  /** Build explicit_entries_ from interface_map_, restricted to the resources Tint reports as
++   * transitively used by each final WGSL entry point, then request the scope-validated layout
++   * pair. Browser validation may remain pending after this function returns. */
++  bool build_explicit_layout(const wgpu::Instance &instance,
++                             const wgpu::Device &device,
 +                             const std::vector<uint32_t> &vertex_resource_bindings,
 +                             const std::vector<uint32_t> &fragment_resource_bindings,
 +                             const std::vector<uint32_t> &compute_resource_bindings,

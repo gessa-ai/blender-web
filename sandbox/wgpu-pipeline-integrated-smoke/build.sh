@@ -5,7 +5,7 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, transient bind-group publication, layered load-action commit,
+# cache publication, scoped transient bind-group validation, layered load-action commit,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -276,6 +276,21 @@ require_fixed_count 1 \
   'class ScopedHandleCache {' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'if (shader->explicit_layout_required() &&' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  '!shader->ensure_explicit_layout(instance, device))' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 2 \
+  'shader->compute_pipeline(ctx->instance_get(), device);' \
+  "$WEBGPU_SOURCE/wgpu_backend.cc"
+require_fixed_count 2 \
+  'pipeline_pool().get(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'pipeline_pool().get(' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
   'sampler_cache_.get_or_create(' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 1 \
@@ -317,6 +332,15 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'inline auto transient_resource_create_scoped(const InstanceT &instance,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 3 \
+  'webgpu::transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'webgpu::transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 \
+  'webgpu::transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
   'bool Buffer::create_transient(const wgpu::Instance &instance,' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
@@ -520,7 +544,8 @@ transactions = (
 for marker, begin_pass, pass_body in transactions:
     body = method_body(marker)
     helper = "webgpu::command_pass_encode_submit_scoped("
-    if body.count(helper) != 1 or body.count(begin_pass) != 1:
+    resource_gate = "webgpu::transient_resource_create_scoped("
+    if body.count(helper) != 1 or body.count(begin_pass) != 1 or body.count(resource_gate) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
     forbidden = (
         "CreateCommandEncoder()",
@@ -531,6 +556,8 @@ for marker, begin_pass, pass_body in transactions:
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
     helper_offset = body.index(helper)
+    if body.index(resource_gate) >= helper_offset:
+        raise SystemExit(f"ERROR: {marker} creates its bind group after command reservation")
     positions = [body.find(needle, helper_offset) for needle in pass_body]
     if any(position < 0 for position in positions) or positions != sorted(positions):
         raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
@@ -586,8 +613,9 @@ transactions = (
 for marker, pass_body in transactions:
     body = method_body(marker)
     helper = "webgpu::command_pass_encode_submit_scoped("
+    resource_gate = "webgpu::transient_resource_create_scoped("
     begin_pass = "[&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); }"
-    if body.count(helper) != 1 or body.count(begin_pass) != 1:
+    if body.count(helper) != 1 or body.count(begin_pass) != 1 or body.count(resource_gate) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
     forbidden = (
         "CreateCommandEncoder()",
@@ -598,6 +626,8 @@ for marker, pass_body in transactions:
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
     helper_offset = body.index(helper)
+    if body.index(resource_gate) >= helper_offset:
+        raise SystemExit(f"ERROR: {marker} creates its bind group after command reservation")
     positions = [body.find(needle, helper_offset) for needle in pass_body]
     if any(position < 0 for position in positions) or positions != sorted(positions):
         raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
@@ -978,6 +1008,9 @@ FAN_MODULE_GUARD_LINE="$(grep -nF \
 FAN_PIPELINE_CREATE_LINE="$(grep -nF \
   'pipeline = device.CreateComputePipeline(&pipeline_descriptor);' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+FAN_BIND_SCOPE_LINE="$(grep -nF \
+  'const wgpu::BindGroup group = webgpu::transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_BIND_GUARD_LINE="$(grep -nF \
   'if (group == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_COMMAND_TRANSACTION_LINE="$(grep -nF \
@@ -985,9 +1018,12 @@ FAN_COMMAND_TRANSACTION_LINE="$(grep -nF \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 if [ -z "$FAN_MODULE_CREATE_LINE" ] || [ -z "$FAN_MODULE_GUARD_LINE" ] ||
    [ -z "$FAN_PIPELINE_CREATE_LINE" ] || [ -z "$FAN_BIND_GUARD_LINE" ] ||
+   [ -z "$FAN_BIND_SCOPE_LINE" ] ||
    [ -z "$FAN_COMMAND_TRANSACTION_LINE" ] ||
    [ "$FAN_MODULE_CREATE_LINE" -ge "$FAN_MODULE_GUARD_LINE" ] ||
    [ "$FAN_MODULE_GUARD_LINE" -ge "$FAN_PIPELINE_CREATE_LINE" ] ||
+   [ "$FAN_PIPELINE_CREATE_LINE" -ge "$FAN_BIND_SCOPE_LINE" ] ||
+   [ "$FAN_BIND_SCOPE_LINE" -ge "$FAN_BIND_GUARD_LINE" ] ||
    [ "$FAN_BIND_GUARD_LINE" -ge "$FAN_COMMAND_TRANSACTION_LINE" ]
 then
   echo "ERROR: indexed triangle-fan resource guards do not precede dependent work" >&2
@@ -1083,7 +1119,7 @@ COLOR_QUEUE_WRITE_LINE="$(grep -nF \
   'webgpu::queue_write_buffer_scoped(instance_,' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | tail -n 1 | cut -d: -f1)"
 COLOR_BIND_CREATE_LINE="$(grep -nF \
-  'wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);' \
+  'wgpu::BindGroup bind_group = webgpu::transient_resource_create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
 COLOR_BIND_GUARD_LINE="$(grep -nF \
   'if (bind_group == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"

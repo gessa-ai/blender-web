@@ -14,7 +14,7 @@ the three-case mapped dummy-vertex-buffer creation transaction,
 the fail-first/retry transactions shared by sampler/render-pipeline caches and the
 per-shader compute-pipeline variant cache,
 the atomic transient-handle publication shared by compute, direct/indirect batch, and
-immediate bind-group builders,
+immediate bind-group builders plus the ordered bind-group gates used before command scopes,
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
 window-backbuffer decisions, 21 ordinary offscreen viewport/scissor decisions, and
 19 exact indirect-draw span decisions. Direct draws
@@ -76,10 +76,13 @@ popped, so no initialization write can overtake browser validation and no provis
 can reach a draw. Creation and mapped-range failures both remain retryable.
 The same rule applies to each specialization-keyed compute pipeline: a transient null
 creation result must not become a retained variant that suppresses every later retry.
-Every non-empty compute or draw bind-group assembly likewise rejects a null group before
-command/pass work, preserves the caller's prior handle on failure, and publishes only a valid
-candidate. Exact source-order checks bind the tested transaction to both compute dispatches,
-all four direct/indirect ordinary/multi-viewport batch paths, and immediate draws.
+Every bind group created before its enclosing command scope now reserves the same ordered resource
+gate, so a non-null error object cancels the dependent same-epoch command and a later frame can
+retry. Bind groups created inside an already-scoped compute/draw command remain covered by that
+complete command scope. Literal null guards still preserve caller state. Exact source-order checks
+bind the pre-command gate to all three context render helpers, both scissored-clear paths, and the
+indexed-fan expansion, while the existing scoped command checks cover both compute dispatches, all
+four direct/indirect ordinary/multi-viewport batch paths, mip generation, and immediate draws.
 Framebuffer load-pass construction uses that same atomic publication rule before applying its
 ordinary viewport or scissor. Callers therefore receive either a valid initialized pass or a
 null result, without a failed `BeginRenderPass` handle being used inside the factory first.

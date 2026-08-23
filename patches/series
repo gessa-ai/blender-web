@@ -1011,3 +1011,6 @@
 # cover command-local views with the enclosing scope, and atomically publish
 # the private framebuffer texture/view pair only after all scopes accept it.
 0235-gpu-webgpu-texture-view-error-object-contract.patch
+# 0236: scope transient bind groups ahead of dependent queue work and publish
+# each shader's explicit bind-group/pipeline-layout pair only after validation.
+0236-gpu-webgpu-bind-group-layout-error-object-contract.patch

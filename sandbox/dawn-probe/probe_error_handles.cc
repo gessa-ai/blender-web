@@ -110,6 +110,20 @@ struct TextureViewAllocation {
   }
 };
 
+struct LayoutAllocation {
+  wgpu::BindGroupLayout bind_group_layout;
+  wgpu::PipelineLayout pipeline_layout;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return bind_group_layout == nullptr || pipeline_layout == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return !(*this == nullptr);
+  }
+};
+
 }  // namespace
 
 int main()
@@ -678,6 +692,58 @@ int main()
     transient_buffer_cases++;
   }
 
+  wgpu::BindGroupLayoutDescriptor empty_layout_descriptor = {};
+  const wgpu::BindGroupLayout empty_layout =
+      device.CreateBindGroupLayout(&empty_layout_descriptor);
+  if (!require(empty_layout != nullptr, "valid empty bind-group layout setup failed")) {
+    return 31;
+  }
+  bw::OrderedQueueScheduler transient_bind_group_scheduler;
+  int transient_bind_group_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    if (valid_case) {
+      transient_bind_group_scheduler.begin_epoch();
+    }
+    bool completed = false;
+    bool accepted = false;
+    int dependent_work = 0;
+    int canceled_work = 0;
+    const wgpu::BindGroup candidate = bw::transient_resource_create_scoped(
+        instance,
+        device,
+        transient_bind_group_scheduler,
+        valid_case ? "audit valid transient bind group" :
+                     "audit invalid transient bind group",
+        [&]() {
+          wgpu::BindGroupDescriptor descriptor = {};
+          descriptor.layout = valid_case ? empty_layout : required_layout;
+          return device.CreateBindGroup(&descriptor);
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    transient_bind_group_scheduler.enqueue(
+        [&](auto done) {
+          dependent_work++;
+          done(true);
+        },
+        [&]() { canceled_work++; });
+    if (!require(candidate != nullptr,
+                 "Dawn transient-bind-group control did not return a non-null candidate") ||
+        !require(completed && accepted == valid_case,
+                 "shipping transient-bind-group gate ignored completed scope status") ||
+        !require(dependent_work == (valid_case ? 1 : 0) &&
+                     canceled_work == (valid_case ? 0 : 1),
+                 "shipping transient-bind-group gate released rejected dependent work") ||
+        !require(transient_bind_group_scheduler.pending_count() == 0,
+                 "shipping transient-bind-group gate left ordered work pending"))
+    {
+      return 32;
+    }
+    transient_bind_group_cases++;
+  }
+
   bw::OrderedQueueScheduler transient_texture_scheduler;
   int transient_texture_cases = 0;
   for (const bool valid_case : {false, true}) {
@@ -827,6 +893,58 @@ int main()
     return 30;
   }
 
+  bw::ScopedHandleCache<uint8_t, LayoutAllocation> layout_pair_cache;
+  int layout_pair_cases = 0;
+  bool invalid_layout_pair_nonnull = false;
+  const LayoutAllocation rejected_layout_pair = layout_pair_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid layout pair", [&]() {
+        wgpu::BindGroupLayoutEntry duplicate_entries[2] = {};
+        for (wgpu::BindGroupLayoutEntry &entry : duplicate_entries) {
+          entry.binding = 0;
+          entry.visibility = wgpu::ShaderStage::Vertex;
+          entry.buffer.type = wgpu::BufferBindingType::Uniform;
+        }
+        wgpu::BindGroupLayoutDescriptor bind_group_descriptor = {};
+        bind_group_descriptor.entryCount = 2;
+        bind_group_descriptor.entries = duplicate_entries;
+        LayoutAllocation candidate;
+        candidate.bind_group_layout = device.CreateBindGroupLayout(&bind_group_descriptor);
+        wgpu::PipelineLayoutDescriptor pipeline_descriptor = {};
+        pipeline_descriptor.bindGroupLayoutCount = 1;
+        pipeline_descriptor.bindGroupLayouts = &candidate.bind_group_layout;
+        candidate.pipeline_layout = device.CreatePipelineLayout(&pipeline_descriptor);
+        invalid_layout_pair_nonnull = candidate.bind_group_layout != nullptr &&
+                                      candidate.pipeline_layout != nullptr;
+        return candidate;
+      });
+  layout_pair_cases++;
+  if (!require(rejected_layout_pair == nullptr && invalid_layout_pair_nonnull &&
+                   layout_pair_cache.size() == 0 &&
+                   !layout_pair_cache.pending(uint8_t(0)),
+               "shipping scoped cache published a non-null layout error pair"))
+  {
+    return 33;
+  }
+
+  const LayoutAllocation accepted_layout_pair = layout_pair_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid layout pair", [&]() {
+        LayoutAllocation candidate;
+        wgpu::BindGroupLayoutDescriptor bind_group_descriptor = {};
+        candidate.bind_group_layout = device.CreateBindGroupLayout(&bind_group_descriptor);
+        wgpu::PipelineLayoutDescriptor pipeline_descriptor = {};
+        pipeline_descriptor.bindGroupLayoutCount = 1;
+        pipeline_descriptor.bindGroupLayouts = &candidate.bind_group_layout;
+        candidate.pipeline_layout = device.CreatePipelineLayout(&pipeline_descriptor);
+        return candidate;
+      });
+  layout_pair_cases++;
+  if (!require(accepted_layout_pair != nullptr && layout_pair_cache.size() == 1 &&
+                   !layout_pair_cache.pending(uint8_t(0)),
+               "shipping scoped cache did not atomically publish a clean layout retry"))
+  {
+    return 34;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
@@ -835,12 +953,16 @@ int main()
             << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
             << " persistent_buffer_error_object_rejected=1 scoped_transient_buffer_cases="
             << transient_buffer_cases
-            << " transient_buffer_error_object_blocked=1 scoped_transient_texture_cases="
+            << " transient_buffer_error_object_blocked=1 scoped_transient_bind_group_cases="
+            << transient_bind_group_cases
+            << " transient_bind_group_error_object_blocked=1 scoped_transient_texture_cases="
             << transient_texture_cases
             << " transient_texture_error_object_blocked=1 scoped_transient_view_cases="
             << transient_view_cases
             << " transient_view_error_object_blocked=1 scoped_texture_view_pair_cases="
             << texture_view_pair_cases
-            << " texture_view_pair_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " texture_view_pair_error_object_rejected=1 scoped_layout_pair_cases="
+            << layout_pair_cases
+            << " layout_pair_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

@@ -117,15 +117,27 @@ then
 fi
 if [ "$(grep -F -c \
        'static bool explicit_layout_handles_create_if_valid(' \
-       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 0 ] ||
    [ "$(grep -F -c \
        'if (!build_explicit_layout(device,' \
-       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 0 ] ||
    [ "$(grep -F -c \
        'bool build_explicit_layout(const wgpu::Device &device,' \
+       "$WEBGPU_SOURCE/wgpu_shader.hh")" -ne 0 ] ||
+   [ "$(grep -F -c \
+       'explicit_layout_cache_.get_or_create(' \
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+   [ "$(grep -F -c \
+       'bool WGPUShader::ensure_explicit_layout(const wgpu::Instance &instance,' \
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+   [ "$(grep -F -c \
+       'webgpu::ScopedHandleCache<uint8_t, ExplicitLayoutHandles> explicit_layout_cache_;' \
+       "$WEBGPU_SOURCE/wgpu_shader.hh")" -ne 1 ] ||
+   [ "$(grep -F -c \
+       'bool build_explicit_layout(const wgpu::Instance &instance,' \
        "$WEBGPU_SOURCE/wgpu_shader.hh")" -ne 1 ]
 then
-  echo "ERROR: explicit shader-layout resource transaction is not wired exactly once" >&2
+  echo "ERROR: scoped explicit shader-layout publication is not wired exactly once" >&2
   exit 1
 fi
 for source_path in \
@@ -268,7 +280,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT qualifiers PASS bit-patterns=8 outputs=16 writeonly-promoted=1' "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT explicit-layout-resource-transaction PASS cases=3 bind-group-fail=closed pipeline-fail=closed success=published' \
+       'CONTRACT explicit-layout-scoped-publication PASS cases=7 attempts=4 pending=deduplicated error-object=rejected retry=published nulls=atomic' \
        "$stdout_file" ||
      ! grep -qx 'CONTRACT std140 PASS cases=30 scalars=15 arrays=15' "$stdout_file" ||
      ! grep -qx \
@@ -284,7 +296,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=11 cases=649' "$stdout_file"
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=11 cases=653' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1

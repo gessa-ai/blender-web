@@ -1825,10 +1825,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   found five open semantic defects, while canonical replay, integrated native/wasm32 builds,
   provenance, protected-path ownership, and the hardware/non-receipt boundary remain clean. See
   `reports/audit-20260823-r6.md`.
-- [ ] **AUDIT-R6-ERROR-OBJECT-CONTRACT [gpu-backend + ghost-web]:** replace null-only WebGPU
-  creation/command “success” with explicit preflight or completed error-scope status, and require
-  validation-error objects to be rejected before publication, submission, present counters, or
-  one-shot state commits. **blocked-by: none; highest priority.**
+- [x] **AUDIT-R6-GHOST-ERROR-OBJECT-CONTRACT [ghost-web] (ce5eb31):** backbuffer and present-pipeline
+  candidates now publish only after validation/OOM/internal scopes complete cleanly; present
+  encoding is scope-validated before submission, and a second submit scope precedes first-pixel
+  and keepalive commits. The fail-first contract, root/descendant native+wasm32 parity, pinned-Dawn
+  non-receipt error-object control, real product rebuild/no-work, OFF preflight, scoped M4, and
+  container-backed regression are verified. Live pixels remain blocked by the named s7 hardware
+  condition. See `notes/m4-ghost-error-object-contract-20260823.md`.
+- [ ] **AUDIT-R6-GPU-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace the remaining null-only
+  backend creation/command “success” with explicit preflight or completed error-scope status, and
+  require validation-error objects to be rejected before publication, submission, or one-shot
+  state commits. Reuse the now-live pinned-Dawn control; do not infer browser success from it.
+  **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport
   bindings), distinguish a genuinely empty layout from missing/partial resources, and reject
@@ -1836,11 +1844,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
   `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
   command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
-  **blocked-by: AUDIT-R6-ERROR-OBJECT-CONTRACT.**
+  **blocked-by: AUDIT-R6-GPU-ERROR-OBJECT-CONTRACT.**
 - [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
   backbuffer extents coherent across replacement failure, require matching extents before
   present, and retry a pending resize without depending on a second browser resize event.
-  **blocked-by: AUDIT-R6-ERROR-OBJECT-CONTRACT.**
+  **blocked-by: none; GHOST error-object prerequisite complete.**
 - [ ] **AUDIT-R6-GHOST-SURFACE-PUBLICATION [ghost-web]:** propagate unresolved-canvas,
   surface-creation, configuration, and initial-backbuffer failure through drawing-context status;
   destroy rather than publish a window that cannot present. Keep any device-only mode explicit

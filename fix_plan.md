@@ -1832,10 +1832,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   non-receipt error-object control, real product rebuild/no-work, OFF preflight, scoped M4, and
   container-backed regression are verified. Live pixels remain blocked by the named s7 hardware
   condition. See `notes/m4-ghost-error-object-contract-20260823.md`.
-- [ ] **AUDIT-R6-GPU-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace the remaining null-only
-  backend creation/command “success” with explicit preflight or completed error-scope status, and
-  require validation-error objects to be rejected before publication, submission, or one-shot
-  state commits. Reuse the now-live pinned-Dawn control; do not infer browser success from it.
+- [x] **AUDIT-R6-GPU-COMMAND-ERROR-OBJECT-CONTRACT [gpu-backend] (d5029d5):** every short-lived
+  backend command submission and direct queue write now runs through completed
+  validation/OOM/internal scopes and one ordered frame-epoch scheduler. Encoding/submission error
+  objects never reach a later submit or commit, later same-epoch queue work is canceled, and the
+  next frame can retry. Native/wasm32 parity, the pinned-Dawn llvmpipe non-receipt control, product
+  rebuild/no-work, OFF preflight, canonical replay, and reverse application are verified. This
+  closes the command/queue half only; live hardware proof remains blocked by s7. See
+  `notes/m3-gpu-command-error-object-contract-20260823.md`.
+- [ ] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace remaining null-only
+  buffer, texture/view, sampler, bind-group/layout, pipeline-layout, and pipeline creation/cache
+  publication with completed error-scope status. Preserve old resources and CPU retry state until
+  validation/OOM/internal scopes settle, and reject error objects before dependent command work or
+  one-shot commits. Reuse the pinned-Dawn control; do not infer browser success from it.
   **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport
@@ -1844,7 +1853,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
   `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
   command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
-  **blocked-by: AUDIT-R6-GPU-ERROR-OBJECT-CONTRACT.**
+  **blocked-by: AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT.**
 - [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
   backbuffer extents coherent across replacement failure, require matching extents before
   present, and retry a pending resize without depending on a second browser resize event.

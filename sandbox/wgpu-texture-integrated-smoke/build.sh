@@ -268,7 +268,7 @@ if [ "$(grep -Fc 'enum class FramebufferClearMethod : uint8_t {' "$COMMON_HEADER
    [ "$(grep -Fc 'submit_scissored_clear(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
    [ "$(grep -Fc 'submit_scissored_color_clear(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
    [ "$(grep -Fc 'submit_scissored_depth_stencil_clear(' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
-   [ "$(grep -Fc 'clear_attachment_full(' "$FRAMEBUFFER_SOURCE")" -ne 3 ] ||
+   [ "$(grep -Fc 'clear_attachment_full(' "$FRAMEBUFFER_SOURCE")" -ne 4 ] ||
    [ "$(grep -Fc 'color.loadOp = wgpu::LoadOp::Load;' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'depth_stencil.depthLoadOp = wgpu::LoadOp::Load;' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);' "$FRAMEBUFFER_SOURCE")" -ne 2 ] ||
@@ -282,24 +282,24 @@ then
   exit 1
 fi
 
+mapfile -t CLEAR_PIPELINE_CACHE_LINES < <(
+  grep -nE 'const wgpu::RenderPipeline pipeline = scissored_(color|depth)_clear_pipelines_\.get_or_create\(' \
+    "$FRAMEBUFFER_SOURCE" | cut -d: -f1
+)
 mapfile -t CLEAR_PIPELINE_CREATE_LINES < <(
-  grep -nF 'pipeline = device.CreateRenderPipeline(&descriptor);' "$FRAMEBUFFER_SOURCE" |
+  grep -nF 'return device.CreateRenderPipeline(&descriptor);' "$FRAMEBUFFER_SOURCE" |
     cut -d: -f1
 )
 mapfile -t CLEAR_PIPELINE_NULL_LINES < <(
   grep -nF 'if (pipeline == nullptr) {' "$FRAMEBUFFER_SOURCE" | cut -d: -f1
 )
-mapfile -t CLEAR_PIPELINE_CACHE_LINES < <(
-  grep -nE 'scissored_(color|depth)_clear_pipelines_\[pipeline_key\] = pipeline;' \
-    "$FRAMEBUFFER_SOURCE" | cut -d: -f1
-)
 if [ "${#CLEAR_PIPELINE_CREATE_LINES[@]}" -ne 2 ] ||
    [ "${#CLEAR_PIPELINE_NULL_LINES[@]}" -ne 2 ] ||
    [ "${#CLEAR_PIPELINE_CACHE_LINES[@]}" -ne 2 ] ||
+   [ "${CLEAR_PIPELINE_CACHE_LINES[0]}" -ge "${CLEAR_PIPELINE_CREATE_LINES[0]}" ] ||
    [ "${CLEAR_PIPELINE_CREATE_LINES[0]}" -ge "${CLEAR_PIPELINE_NULL_LINES[0]}" ] ||
-   [ "${CLEAR_PIPELINE_NULL_LINES[0]}" -ge "${CLEAR_PIPELINE_CACHE_LINES[0]}" ] ||
-   [ "${CLEAR_PIPELINE_CREATE_LINES[1]}" -ge "${CLEAR_PIPELINE_NULL_LINES[1]}" ] ||
-   [ "${CLEAR_PIPELINE_NULL_LINES[1]}" -ge "${CLEAR_PIPELINE_CACHE_LINES[1]}" ]
+   [ "${CLEAR_PIPELINE_CACHE_LINES[1]}" -ge "${CLEAR_PIPELINE_CREATE_LINES[1]}" ] ||
+   [ "${CLEAR_PIPELINE_CREATE_LINES[1]}" -ge "${CLEAR_PIPELINE_NULL_LINES[1]}" ]
 then
   echo "ERROR: scissored-clear pipelines publish before successful creation" >&2
   exit 1
@@ -319,13 +319,14 @@ fi
 
 if [ "$(grep -Fc 'enum class FramebufferLoadClearScope : uint8_t {' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'inline FramebufferLoadClearScope framebuffer_load_clear_scope(' "$COMMON_HEADER")" -ne 1 ] ||
-   [ "$(grep -Fc 'bool materialize_layered_loadstore_clears();' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
-   [ "$(grep -Fc 'bool WGPUFrameBuffer::materialize_layered_loadstore_clears()' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'class FramebufferLoadActionCompletionGroup {' "$COMMON_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'load_action_transaction_prepare(' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'bool WGPUFrameBuffer::load_action_transaction_prepare(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_load_clear_scope(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!clear_attachment_full(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'layered_load_clear_pending_mask_.fetch_or(pending_bit' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR)' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'if (!materialize_layered_loadstore_clears()) {' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
+   [ "$(grep -Fc 'draw_completion = completions.completion();' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'std::function<void(bool)> clear_completion = completions.completion();' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'materialize_layered_loadstore_clears(' "$FRAMEBUFFER_SOURCE")" -ne 0 ]
 then
   echo "ERROR: canonical framebuffer layered load-clear wiring differs" >&2
   exit 1
@@ -348,22 +349,27 @@ then
   exit 1
 fi
 
-MATERIALIZE_LOAD_CLEAR_LINE="$(grep -nF \
-  'if (!materialize_layered_loadstore_clears()) {' \
+PREPARE_LOAD_CLEAR_LINE="$(grep -nF \
+  'bool WGPUFrameBuffer::load_action_transaction_prepare(' \
+  "$FRAMEBUFFER_SOURCE" | cut -d: -f1)"
+PREPARE_VIEWPORT_LINE="$(grep -nF \
+  'if (!load_pass_viewport_plan(draw_viewport)) {' \
+  "$FRAMEBUFFER_SOURCE" | head -n 1 | cut -d: -f1)"
+PREPARE_CLEAR_LINE="$(grep -nF \
+  'if (!clear_attachment_full(' \
   "$FRAMEBUFFER_SOURCE" | cut -d: -f1)"
 BEGIN_LOAD_PASS_LINE="$(grep -nF \
   'wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(' \
   "$FRAMEBUFFER_SOURCE" | cut -d: -f1)"
-BEGIN_LOAD_COLOR_ATTACHMENTS_LINE="$(grep -nF \
-  'std::vector<wgpu::RenderPassColorAttachment> color_atts;' \
-  "$FRAMEBUFFER_SOURCE" | tail -n 1 | cut -d: -f1)"
-if [ -z "$MATERIALIZE_LOAD_CLEAR_LINE" ] ||
+if [ -z "$PREPARE_LOAD_CLEAR_LINE" ] ||
+   [ -z "$PREPARE_VIEWPORT_LINE" ] ||
+   [ -z "$PREPARE_CLEAR_LINE" ] ||
    [ -z "$BEGIN_LOAD_PASS_LINE" ] ||
-   [ -z "$BEGIN_LOAD_COLOR_ATTACHMENTS_LINE" ] ||
-   [ "$MATERIALIZE_LOAD_CLEAR_LINE" -le "$BEGIN_LOAD_PASS_LINE" ] ||
-   [ "$MATERIALIZE_LOAD_CLEAR_LINE" -ge "$BEGIN_LOAD_COLOR_ATTACHMENTS_LINE" ]
+   [ "$PREPARE_LOAD_CLEAR_LINE" -ge "$PREPARE_VIEWPORT_LINE" ] ||
+   [ "$PREPARE_VIEWPORT_LINE" -ge "$PREPARE_CLEAR_LINE" ] ||
+   [ "$PREPARE_CLEAR_LINE" -ge "$BEGIN_LOAD_PASS_LINE" ]
 then
-  echo "ERROR: layered load-clear materialization does not precede render-pass assembly" >&2
+  echo "ERROR: layered load-clear preparation does not precede dependent render-pass assembly" >&2
   exit 1
 fi
 

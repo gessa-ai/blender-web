@@ -373,6 +373,24 @@ struct OrderedQueueScheduler {};
 
 template<typename InstanceT,
          typename DeviceT,
+         typename SchedulerT,
+         typename CreateFn,
+         typename CompleteFn>
+auto transient_resource_create_scoped(const InstanceT & /*instance*/,
+                                      const DeviceT & /*device*/,
+                                      SchedulerT & /*scheduler*/,
+                                      const char * /*label*/,
+                                      CreateFn &&create,
+                                      CompleteFn &&complete)
+{
+  auto candidate = create();
+  const bool valid = !(candidate == nullptr);
+  complete(valid);
+  return candidate;
+}
+
+template<typename InstanceT,
+         typename DeviceT,
          typename QueueT,
          typename SchedulerT,
          typename EncodeFn,

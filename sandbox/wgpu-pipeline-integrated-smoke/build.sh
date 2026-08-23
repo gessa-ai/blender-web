@@ -9,6 +9,7 @@
 # exact surviving-WGSL bind-group completeness,
 # layered load-action commit,
 # ordinary load-action submission transactions,
+# layered clear-before-draw ordering,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -526,7 +527,13 @@ require_fixed_count 1 \
   'class FramebufferLoadActionTracker {' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'class FramebufferLoadActionCompletionGroup {' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
   'load_action_transaction() const' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.hh"
+require_fixed_count 1 \
+  'load_action_transaction_prepare(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.hh"
 require_fixed_count 1 \
   'inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,' \
@@ -786,20 +793,23 @@ for marker in full_clear_transactions:
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
 
-materialize_body = method_body("bool WGPUFrameBuffer::materialize_layered_loadstore_clears(")
+materialize_body = method_body("bool WGPUFrameBuffer::load_action_transaction_prepare(")
 ordered_commit = (
-    "load_action_transaction();",
-    "if (!load_action->stage(uint32_t(index)))",
+    "if (!load_pass_viewport_plan(draw_viewport))",
+    "if (load_action->stage(uint32_t(index)))",
+    "webgpu::FramebufferLoadActionCompletionGroup completions(",
+    "draw_completion = completions.completion();",
+    "std::function<void(bool)> clear_completion = completions.completion();",
     "if (!clear_attachment_full(",
-    "[load_action](const bool valid) { load_action->complete(valid); }",
 )
 positions = [materialize_body.find(needle) for needle in ordered_commit]
 if any(position < 0 for position in positions) or positions != sorted(positions):
-    raise SystemExit("ERROR: layered load clear is not committed by its scoped completion")
+    raise SystemExit("ERROR: layered load clear does not share the draw completion barrier")
 for obsolete in (
     "layered_load_clear_pending_mask_",
     "load_store_[index].load_action = GPU_LOADACTION_LOAD;",
     "framebuffer_load_action_commit_if_valid(",
+    "load_action_transaction();",
 ):
     if obsolete in materialize_body:
         raise SystemExit(f"ERROR: layered load clear retains obsolete {obsolete}")
@@ -814,6 +824,9 @@ if load_pass_body.count(load_pass_publication) != 1:
     raise SystemExit("ERROR: framebuffer load pass is not published atomically")
 if "wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);" in load_pass_body:
     raise SystemExit("ERROR: framebuffer load pass retains unchecked direct publication")
+if "materialize_layered_loadstore_clears(" in load_pass_body or \
+   "load_action_transaction_prepare(" in load_pass_body:
+    raise SystemExit("ERROR: framebuffer load pass reserves layered clears behind its draw")
 if load_pass_body.count("load_action->stage(") != 2:
     raise SystemExit("ERROR: framebuffer load pass does not stage color and depth clears")
 if "load_action = GPU_LOADACTION_LOAD" in load_pass_body or \
@@ -876,13 +889,19 @@ require_fixed_count 4 \
   'load_action = fb->load_action_transaction();' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 4 \
-  'load_action->complete(valid);' \
+  'fb->load_action_transaction_prepare(load_action, load_action_completion)' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 4 \
+  'load_action_completion(valid);' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
   'load_action = fb->load_action_transaction();' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 1 \
-  'load_action->complete(valid);' \
+  'fb->load_action_transaction_prepare(load_action, load_action_completion)' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'load_action_completion(valid);' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_batch.cc" "$WEBGPU_SOURCE/wgpu_immediate.cc" <<'PY'
 from pathlib import Path
@@ -911,10 +930,12 @@ transactions = (
 )
 markers = (
     "load_action = fb->load_action_transaction();",
+    "load_action_completion;",
+    "fb->load_action_transaction_prepare(load_action, load_action_completion)",
     "webgpu::command_encode_submit_scoped(",
     "fb->begin_load_pass(",
     "ctx->create_bind_group_checked(",
-    "load_action->complete(valid);",
+    "load_action_completion(valid);",
 )
 for label, body, expected in transactions:
     positions = []
@@ -934,7 +955,11 @@ for label, body, expected in transactions:
 
 for path in (Path(sys.argv[1]), Path(sys.argv[2])):
     source = path.read_text(encoding="utf-8")
-    for obsolete in ("begin_load_pass(mv_enc, layer)", "begin_load_pass(enc);"):
+    for obsolete in (
+        "begin_load_pass(mv_enc, layer)",
+        "begin_load_pass(enc);",
+        "load_action->complete(valid);",
+    ):
         if obsolete in source:
             raise SystemExit(f"ERROR: {path.name} retains uncommitted load-pass caller {obsolete}")
 PY
@@ -1087,12 +1112,12 @@ def method_body(marker: str) -> str:
 
 blocks = (
     (
-        "bool Buffer::update_sub(",
-        "encoder.CopyBufferToBuffer(\n                                     staging, 0, allocation.handle, offset, size);",
+        "bool Buffer::update_allocation(",
+        "encoder.CopyBufferToBuffer(",
     ),
     (
         "std::vector<uint8_t> Buffer::read(",
-        "encoder.CopyBufferToBuffer(\n                                     allocation.handle, offset, staging, 0, copy);",
+        "encoder.CopyBufferToBuffer(",
     ),
 )
 
@@ -1424,9 +1449,11 @@ require_fixed_count 1 \
   'inline bool offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 0 'bool convert_bottom_origin' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
-  'if (!webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+  'return webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
-  'if (!webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+  'return webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 2 \
+  'if (!load_pass_viewport_plan(draw_viewport))' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 \
   'layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
@@ -1440,22 +1467,25 @@ require_fixed_count 1 \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
   'pass.SetScissorRect(draw_viewport.scissor_x,' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
-WINDOW_PLAN_LINE="$(grep -nF 'if (!webgpu::window_viewport_scissor_plan(' \
+mapfile -t LOAD_PASS_PLAN_LINES < <(
+  grep -nF 'if (!load_pass_viewport_plan(draw_viewport))' \
+    "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1
+)
+PREPARE_LINE="$(grep -nF 'bool WGPUFrameBuffer::load_action_transaction_prepare(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
-OFFSCREEN_PLAN_LINE="$(grep -nF 'if (!webgpu::offscreen_viewport_scissor_plan(' \
-  "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
-LAYERED_CLEAR_LINE="$(grep -nF 'if (!materialize_layered_loadstore_clears())' \
+BEGIN_LOAD_PASS_LINE="$(grep -nF 'wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
 BEGIN_PASS_LINE="$(grep -nF \
   'if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
-if [ -z "$WINDOW_PLAN_LINE" ] || [ -z "$OFFSCREEN_PLAN_LINE" ] ||
-   [ -z "$LAYERED_CLEAR_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||
-   [ "$WINDOW_PLAN_LINE" -ge "$LAYERED_CLEAR_LINE" ] ||
-   [ "$OFFSCREEN_PLAN_LINE" -ge "$LAYERED_CLEAR_LINE" ] ||
-   [ "$LAYERED_CLEAR_LINE" -ge "$BEGIN_PASS_LINE" ]
+if [ "${#LOAD_PASS_PLAN_LINES[@]}" -ne 2 ] ||
+   [ -z "$PREPARE_LINE" ] || [ -z "$BEGIN_LOAD_PASS_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||
+   [ "$PREPARE_LINE" -ge "${LOAD_PASS_PLAN_LINES[0]}" ] ||
+   [ "${LOAD_PASS_PLAN_LINES[0]}" -ge "$BEGIN_LOAD_PASS_LINE" ] ||
+   [ "$BEGIN_LOAD_PASS_LINE" -ge "${LOAD_PASS_PLAN_LINES[1]}" ] ||
+   [ "${LOAD_PASS_PLAN_LINES[1]}" -ge "$BEGIN_PASS_LINE" ]
 then
-  echo "ERROR: framebuffer viewport preflight no longer precedes layered clears and pass allocation" >&2
+  echo "ERROR: framebuffer viewport preflight does not guard clear reservation and pass allocation" >&2
   exit 1
 fi
 require_fixed_count 0 'uint32_t(rect[0])' "$WEBGPU_SOURCE/wgpu_batch.cc"
@@ -1788,7 +1818,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 35 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 36 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1808,6 +1838,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT framebuffer_load_action_transaction PASS cases=6 attachments=3 late_view=pending late_bind=pending same_epoch=load retry=committed generation=isolated' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT framebuffer_layered_clear_order PASS cases=4 clears=4 draws=3 canceled=1 loads=4 committed=1 rollback=2 generation=isolated' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable' \
@@ -1876,7 +1909,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=34 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=35 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

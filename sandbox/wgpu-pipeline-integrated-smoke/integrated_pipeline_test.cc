@@ -451,6 +451,122 @@ bool framebuffer_load_action_transaction_contract()
   return true;
 }
 
+bool framebuffer_layered_clear_order_contract()
+{
+  struct OrderCase {
+    bool clear_valid;
+    bool draw_valid;
+    bool replace_generation;
+    const char *expected_order;
+    bool expected_pending;
+  };
+  constexpr std::array<OrderCase, 4> cases = {{{true, true, false, "CD", false},
+                                                {false, true, false, "CX", true},
+                                                {true, false, false, "CD", true},
+                                                {true, true, true, "CD", true}}};
+
+  int clear_operations = 0;
+  int draw_operations = 0;
+  int canceled_draws = 0;
+  int load_observations = 0;
+
+  for (const OrderCase &test : cases) {
+    bw::FramebufferLoadActionTracker tracker;
+    tracker.record(4u, true);
+    auto transaction = tracker.transaction();
+    if (!require(transaction->stage(4u), "layered clear generation stages before scheduling")) {
+      return false;
+    }
+
+    bw::FramebufferLoadActionCompletionGroup completions(transaction, 2u);
+    std::function<void(bool)> clear_complete = completions.completion();
+    std::function<void(bool)> draw_complete = completions.completion();
+
+    auto load_observer = tracker.transaction();
+    if (!require(!load_observer->stage(4u),
+                 "dependent draw observes the staged all-layer clear as load"))
+    {
+      return false;
+    }
+    load_observations++;
+    load_observer->complete(false);
+
+    bw::OrderedQueueScheduler scheduler;
+    bw::OrderedQueueScheduler::Ticket leading_ticket;
+    if (test.replace_generation) {
+      leading_ticket = scheduler.reserve();
+    }
+    std::string order;
+    bool draw_saw_pending = false;
+    scheduler.enqueue([&](std::function<void(bool)> done) {
+      order += 'C';
+      clear_operations++;
+      clear_complete(test.clear_valid);
+      /* One helper can report a synchronous failure and later release its retained callback.
+       * The per-operation completion must be idempotent. */
+      clear_complete(test.clear_valid);
+      done(test.clear_valid);
+    });
+    scheduler.enqueue(
+        [&](std::function<void(bool)> done) {
+          order += 'D';
+          draw_operations++;
+          draw_saw_pending = tracker.requires_clear(4u);
+          draw_complete(test.draw_valid);
+          done(test.draw_valid);
+        },
+        [&]() {
+          order += 'X';
+          canceled_draws++;
+          draw_complete(false);
+        });
+
+    std::shared_ptr<bw::FramebufferLoadActionTransaction> replacement;
+    if (test.replace_generation) {
+      tracker.record(4u, true);
+      replacement = tracker.transaction();
+      if (!require(replacement->stage(4u),
+                   "replacement generation stages independently while old work waits"))
+      {
+        return false;
+      }
+      leading_ticket.resolve([](std::function<void(bool)> done) { done(true); });
+    }
+
+    if (!require(order == test.expected_order, "layered clear precedes dependent draw") ||
+        !require(scheduler.pending_count() == 0, "layered clear scheduler drains") ||
+        !require(draw_operations + canceled_draws == clear_operations,
+                 "each layered clear has one dependent draw outcome") ||
+        !require(order == "CX" || draw_saw_pending,
+                 "executed draw retains the shared generation until validation") ||
+        !require(tracker.requires_clear(4u) == test.expected_pending,
+                 "layered clear commits only after both operations accept"))
+    {
+      return false;
+    }
+
+    if (replacement) {
+      replacement->complete(true);
+      if (!require(!tracker.requires_clear(4u),
+                   "matching replacement completion commits its own generation"))
+      {
+        return false;
+      }
+    }
+  }
+
+  if (!require(clear_operations == 4 && draw_operations == 3 && canceled_draws == 1 &&
+                   load_observations == 4,
+               "layered clear ordering census"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT framebuffer_layered_clear_order PASS cases=4 clears=4 draws=3 canceled=1 loads=4 committed=1 rollback=2 generation=isolated");
+  return true;
+}
+
 bool vertex_buffer_handle_resolution_contract()
 {
   const std::array<int, 3> bindings = {11, 22, 33};
@@ -3414,6 +3530,7 @@ int main()
       !bind_group_completeness_contract() ||
       !framebuffer_load_action_commit_contract() ||
       !framebuffer_load_action_transaction_contract() ||
+      !framebuffer_layered_clear_order_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
@@ -3439,7 +3556,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=34 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=35 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -3449,6 +3566,7 @@ int main()
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
       "transient_resource_gates=3 "
       "compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 "
+      "layered_clear_orders=4 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

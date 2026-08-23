@@ -33,6 +33,7 @@ def main() -> int:
     required = (
         "device.CreateShaderModule(&module_desc)",
         "device.CreateRenderPipeline(&pipeline_desc)",
+        "webgpu::transient_resource_create_scoped(",
         "webgpu::command_encode_submit_scoped(",
         "ctx->queue_scheduler_get()",
         "int(mip - 1), int(layer), TextureViewValidationScope::EnclosingCommand)",

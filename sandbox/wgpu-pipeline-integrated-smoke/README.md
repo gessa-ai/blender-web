@@ -40,6 +40,10 @@ Framebuffer full clears likewise use that tested render-pass transaction for bot
 clears and single-color-attachment clears. A failed encoder or pass now stops the layer loop before
 dependent work, while a failed finished command buffer stops before submission; exact method-body
 checks reject any retained unchecked command operation.
+Framebuffer blits likewise use the checked copy transaction for both the two-step stencil buffer
+bridge and the raw texture-to-texture path. Encoder failure stops before either copy, and finished-
+command-buffer failure stops before queue submission; exact method-body checks bind all three copy
+operations to those two transactions.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.

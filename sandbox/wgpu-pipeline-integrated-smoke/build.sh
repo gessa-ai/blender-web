@@ -6,7 +6,7 @@
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
 # cache publication, color-blit/indexed-fan resource guards, buffer/storage/context-render/
-# framebuffer full/scissored-clear, batch, and immediate-draw command transactions,
+# framebuffer full/scissored-clear and copy, batch, and immediate-draw command transactions,
 # dummy-attribute binding
 # plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
@@ -407,6 +407,35 @@ for marker in full_clear_transactions:
     )
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
+
+blit_body = method_body("void WGPUFrameBuffer::blit_to(")
+helper = "if (!webgpu::command_encode_submit_if_valid("
+if blit_body.count(helper) != 2:
+    raise SystemExit("ERROR: framebuffer blit does not contain two checked copy transactions")
+forbidden = (
+    "CreateCommandEncoder()",
+    ".Finish()",
+    ".Submit(1,",
+)
+if any(needle in blit_body for needle in forbidden):
+    raise SystemExit("ERROR: framebuffer blit retains an unchecked command operation")
+
+first_helper = blit_body.index(helper)
+second_helper = blit_body.index(helper, first_helper + len(helper))
+bridge_to_buffer = blit_body.index("encoder.CopyTextureToBuffer(")
+bridge_to_texture = blit_body.index("encoder.CopyBufferToTexture(")
+raw_copy = blit_body.index("encoder.CopyTextureToTexture(")
+if not first_helper < bridge_to_buffer < bridge_to_texture < second_helper < raw_copy:
+    raise SystemExit("ERROR: framebuffer copy operations are outside their checked transactions")
+if any(
+    blit_body.count(needle) != 1
+    for needle in (
+        "encoder.CopyTextureToBuffer(",
+        "encoder.CopyBufferToTexture(",
+        "encoder.CopyTextureToTexture(",
+    )
+):
+    raise SystemExit("ERROR: framebuffer copy transaction is ambiguous")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \

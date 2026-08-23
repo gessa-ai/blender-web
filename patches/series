@@ -962,3 +962,6 @@
 # 0219: route full framebuffer clears through the checked encoder, render-pass,
 # finish, and submission transaction.
 0219-gpu-webgpu-framebuffer-full-clear-command-transaction.patch
+# 0220: route stencil-bridge and raw framebuffer texture copies through the
+# checked encoder/finish/submission transaction.
+0220-gpu-webgpu-framebuffer-copy-command-transaction.patch

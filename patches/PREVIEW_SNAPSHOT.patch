@@ -21894,10 +21894,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..729cc7b708927ca2b060da1bd06c35c6f8694025
+index 0000000000000000000000000000000000000000..9f81cab85ac57850fdd541be7851a346098cad7b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1643 @@
+@@ -0,0 +1,1649 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23148,11 +23148,14 @@ index 0000000000000000000000000000000000000000..729cc7b708927ca2b060da1bd06c35c6
 +    bridge_dst.aspect = aspect;
 +
 +    wgpu::Extent3D bridge_size = {w, h, 1};
-+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-+    encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
-+    encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
-+    wgpu::CommandBuffer command = encoder.Finish();
-+    ctx->queue_get().Submit(1, &command);
++    if (!webgpu::command_encode_submit_if_valid(
++            device, ctx->queue_get(), [&](auto &encoder) {
++              encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
++              encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
++            }))
++    {
++      return;
++    }
 +    return;
 +  }
 +  /* Colour blits across incompatible formats or dimensions cannot use
@@ -23221,10 +23224,13 @@ index 0000000000000000000000000000000000000000..729cc7b708927ca2b060da1bd06c35c6
 +
 +  wgpu::Extent3D size = {w, h, 1};
 +  wgpu::Device device = ctx->device_get();
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  enc.CopyTextureToTexture(&s, &d, &size);
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  ctx->queue_get().Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(
++          device, ctx->queue_get(), [&](auto &encoder) {
++            encoder.CopyTextureToTexture(&s, &d, &size);
++          }))
++  {
++    return;
++  }
 +}
 +
 +int WGPUFrameBuffer::attachment_layer_count() const

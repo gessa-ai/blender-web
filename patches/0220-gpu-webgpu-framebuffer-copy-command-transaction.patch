@@ -1,0 +1,41 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -1248,11 +1248,14 @@ void WGPUFrameBuffer::blit_to(GPUFrameBuffer *src,
+     bridge_dst.aspect = aspect;
+ 
+     wgpu::Extent3D bridge_size = {w, h, 1};
+-    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+-    encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
+-    encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
+-    wgpu::CommandBuffer command = encoder.Finish();
+-    ctx->queue_get().Submit(1, &command);
++    if (!webgpu::command_encode_submit_if_valid(
++            device, ctx->queue_get(), [&](auto &encoder) {
++              encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
++              encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
++            }))
++    {
++      return;
++    }
+     return;
+   }
+   /* Colour blits across incompatible formats or dimensions cannot use
+@@ -1321,10 +1324,13 @@ void WGPUFrameBuffer::blit_to(GPUFrameBuffer *src,
+ 
+   wgpu::Extent3D size = {w, h, 1};
+   wgpu::Device device = ctx->device_get();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  enc.CopyTextureToTexture(&s, &d, &size);
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  ctx->queue_get().Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(
++          device, ctx->queue_get(), [&](auto &encoder) {
++            encoder.CopyTextureToTexture(&s, &d, &size);
++          }))
++  {
++    return;
++  }
+ }
+ 
+ int WGPUFrameBuffer::attachment_layer_count() const

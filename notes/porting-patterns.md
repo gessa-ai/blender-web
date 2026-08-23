@@ -925,3 +925,17 @@ discards its returned WebGPU handle without touching the owner. Exercise delayed
 delivery after destruction under AddressSanitizer, retain an unsafe raw-owner control that ASan
 must reject, and compile the accepted contract for native and wasm32. See
 `platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 64 — terminal device state must gate already-scheduled callback work
+
+Signature: a device-lost callback publishes only shared terminal state, while owner cleanup and
+callback-lifetime invalidation wait for the next public platform entry. Resize, pipeline, and
+present callbacks already queued before the loss can therefore configure a surface, publish GPU
+handles, submit work, or record a present during that interval if they check only owner lifetime.
+Capture the shared device state in every fallible completion and consult it immediately before
+Configure, handle publication, queue submission, and present bookkeeping. Keep separate guards at
+each nested asynchronous stage: a creation check cannot protect a later configuration completion,
+and a command-validation check cannot protect submission or its final commit. Exercise closures
+created under an active state, signal loss before delivery, and require zero post-loss operations
+while retaining an active-state control. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

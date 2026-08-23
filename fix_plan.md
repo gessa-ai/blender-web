@@ -2001,10 +2001,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   standalone/product builds, OFF preflight, canonical replay, compliance, scoped M4, and
   container-backed regression are verified. See
   `notes/m4-ghost-acquisition-lifetime-20260823.md`.
-- [ ] **AUDIT-R7-GHOST-LOSS-INFLIGHT-CANCEL [ghost-web, blocked-by: none]:** make pending fallback
-  resize, pipeline, and present closures consult the shared terminal device state immediately.
-  Signal loss between transaction start and completion and prove no Configure, handle publication,
-  queue Submit, or `note_present()` can occur before a later public boundary propagates cleanup.
+- [x] **AUDIT-R7-GHOST-LOSS-INFLIGHT-CANCEL [ghost-web, blocked-by: none] COMPLETE (22a5514):**
+  pending fallback resize, pipeline, submission, and present completions now consult the shared
+  terminal device state before Configure, handle publication, queue Submit, or `note_present()`.
+  Fail-first source binding, active/lost native/wasm32 parity, standalone/product builds, OFF
+  preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.
+  See `notes/m4-ghost-loss-inflight-cancel-20260823.md`.
 - [ ] **AUDIT-R7-GPU-SCHEDULER-FAILURE-DRAIN [gpu-backend, blocked-by: none]:** replace recursive
   same-epoch cancellation with an iterative bounded-stack drain and prune failed epochs as soon as
   no queued entry can reference them. Regress a failed head plus 100,000 resolved followers and a

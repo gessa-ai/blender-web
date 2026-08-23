@@ -1936,6 +1936,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   parity, a seven-case pinned-Node worker transaction, canonical replay, real product
   rebuild/no-work, OFF preflight, REUSE, scoped M4, and container-backed regression are verified.
   Live pixels remain blocked by s7. See `notes/m4-ghost-surface-publication-20260823.md`.
+- [x] **AUDIT-R6-GHOST-SURFACE-FAILURE-PROPAGATION [ghost-web] (33dfe08):** per-frame
+  surface acquisition now requires an optimal/suboptimal status plus a live texture, maps timeout,
+  outdated/error, lost, and suboptimal results to exact retry/reconfigure/recreate actions, and
+  propagates an unscheduled present as `GHOST_kFailure` while keeping device-only swaps explicit.
+  Fail-first source binding, native/wasm32 status parity, wrong-Node control, standalone context,
+  canonical replay, real product rebuild/no-work, OFF preflight, REUSE, scoped M4, and
+  container-backed regression are verified. Live pixels remain blocked by s7. See
+  `notes/m4-ghost-surface-failure-propagation-20260823.md`.
+- [ ] **AUDIT-R6-GHOST-DEVICE-LOSS-PROPAGATION [ghost-web]:** imported browser devices have no
+  owned loss signal, while pinned Dawn can return a non-null error texture with an apparently
+  successful surface status after device loss. Fail closed before present work, propagate the
+  terminal context state, and prove callback lifetime/order without treating software Dawn as a
+  receipt.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

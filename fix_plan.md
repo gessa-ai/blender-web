@@ -1788,6 +1788,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, OFF preflight, scoped M3, and container-backed regression are verified. Live
   layout/pipeline/draw proof remains blocked by the named s7 hardware-adapter condition. See
   `notes/m3-t7-shader-layout-resource-transaction-20260823.md`.
+- [x] **M3.T10-FRAMEBUFFER-LAYERED-LOAD-COMMIT [gpu-backend] (1ba3e94):** patch 0229
+  propagates full-clear command success and consumes a pending all-layer load clear only after
+  every selected layer reaches the queue. Failed view, encoder, pass, or command-buffer creation
+  retains the action for retry. The fail-first source guard, two-case native/wasm32 transaction,
+  wrong-Node zero-evidence control, canonical replay, numbered reverse/forward cycles, real
+  product rebuild/no-work, OFF preflight, scoped M3, and container-backed regression are
+  verified. Live clear/draw/pixel proof remains blocked by the named s7 hardware-adapter
+  condition. See `notes/m3-t10-framebuffer-layered-load-commit-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

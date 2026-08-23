@@ -89,10 +89,12 @@ The same rule applies to each specialization-keyed compute pipeline: a transient
 creation result must not become a retained variant that suppresses every later retry.
 Every bind group created before its enclosing command scope now reserves the same ordered resource
 gate, so a non-null error object cancels the dependent same-epoch command and a later frame can
-retry. Bind groups created inside an already-scoped compute/draw command remain covered by that
-complete command scope. Literal null guards still preserve caller state. Exact source-order checks
-bind the pre-command gate to all three context render helpers, both scissored-clear paths, and the
-indexed-fan expansion, while the existing scoped command checks cover both compute dispatches, all
+retry. Direct and indirect compute share that pre-command gate and require zero uncaptured creation
+errors before an accepted retry can publish its dispatch. Bind groups created inside an
+already-scoped draw command remain covered by that complete command scope. Literal null guards
+still preserve caller state. Exact source-order checks bind the pre-command gate to both compute
+dispatches, all three context render helpers, both scissored-clear paths, and the indexed-fan
+expansion, while the existing scoped command checks cover both compute dispatches, all
 four direct/indirect ordinary/multi-viewport batch paths, mip generation, and immediate draws.
 Before any of those compute, batch, or immediate encoders is allocated, the unique assembled
 group-0 binding IDs must also equal the shader's exact surviving final-WGSL set. This keeps a

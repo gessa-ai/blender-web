@@ -1032,3 +1032,6 @@
 # 0242: retain direct and staged buffer-upload bytes plus VBO/UBO commit state
 # until completed implementation scopes accept the operation; rejected uploads retry.
 0242-gpu-webgpu-upload-commit.patch
+# 0243: validate direct/indirect compute bind groups under an ordered transient
+# resource gate before their dependent dispatch can reach queue submission.
+0243-gpu-webgpu-compute-bind-scope.patch

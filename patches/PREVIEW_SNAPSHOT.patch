@@ -16849,10 +16849,10 @@ index 993239c0bc984e87e909ff9ae728022ff7d72d5a..90813884f7581604a6eaca24f6482e83
  }  // namespace blender::gpu::tests
 diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7974f69810531a0e2363f2ba42d98b4b1f74c873
+index 0000000000000000000000000000000000000000..9a87c774c8d1babd16a57a9179b3d21525223282
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_backend.cc
-@@ -0,0 +1,342 @@
+@@ -0,0 +1,349 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17024,8 +17024,15 @@ index 0000000000000000000000000000000000000000..7974f69810531a0e2363f2ba42d98b4b
 +  const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
 +                                        shader->explicit_bind_group_layout() :
 +                                        pipeline.GetBindGroupLayout(0);
++  const wgpu::BindGroup candidate = webgpu::transient_resource_create_scoped(
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_scheduler_get(),
++      "compute bind group",
++      [&]() { return ctx->create_bind_group_checked(bgl, entries); },
++      [](bool) {});
 +  if (!webgpu::transient_handle_publish_if_valid(
-+          ctx->create_bind_group_checked(bgl, entries), r_bind_group))
++          candidate, r_bind_group))
 +  {
 +    return false;
 +  }

@@ -899,3 +899,16 @@ staged encoding and submission rejection, caller-buffer mutation after schedulin
 cleanup, and clean retry on native and wasm32. Use a real non-null pinned-Dawn validation error only
 as explicitly software-control non-receipt evidence. See `sandbox/wgpu-buffer-integrated-smoke/`
 and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 62 — a command scope cannot capture an earlier resource error
+
+Signature: compute assembles a bind group before opening the dispatch command's implementation
+error scopes, accepts Dawn's non-null validation-error object as a usable handle, and only then
+encodes the pass. The later command scope cannot retroactively capture the resource-creation error,
+so it reaches the device's uncaptured callback even if command submission eventually fails. Reserve
+an ordered transient resource gate, push validation/out-of-memory/internal scopes around
+`CreateBindGroup`, and place the dependent command behind that gate. A rejected group cancels only
+its frame epoch; a clean later epoch recreates the group and may publish the dispatch. Exercise
+direct and indirect paths with non-null error objects, an uncaptured-error counter, cancellation,
+and clean retry on native and wasm32; use pinned software Dawn only as explicit non-receipt control.
+See `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.

@@ -934,6 +934,95 @@ bool transient_resource_gate_contract()
   return true;
 }
 
+bool compute_bind_group_scope_contract()
+{
+  enum class DispatchKind : uint8_t {
+    Direct,
+    Indirect,
+  };
+
+  int scope_begins = 0;
+  int creations = 0;
+  int accepted = 0;
+  int published = 0;
+  int canceled = 0;
+  int uncaptured_errors = 0;
+
+  for (const DispatchKind kind : {DispatchKind::Direct, DispatchKind::Indirect}) {
+    bw::OrderedQueueScheduler scheduler;
+    for (const bool valid_scope : {false, true}) {
+      if (valid_scope) {
+        scheduler.begin_epoch();
+      }
+
+      bool scope_active = false;
+      bool completed = false;
+      bool result = true;
+      std::function<void(bool)> settle;
+      const CacheHandleProbe candidate = bw::transient_resource_gate_scoped(
+          scheduler,
+          [&]() {
+            scope_begins++;
+            scope_active = true;
+          },
+          [&]() {
+            creations++;
+            if (!scope_active) {
+              uncaptured_errors++;
+            }
+            /* Validation failures return a non-null WebGPU error object. */
+            return CacheHandleProbe(kind == DispatchKind::Direct ? 101 : 202);
+          },
+          [&](auto completion) {
+            scope_active = false;
+            settle = std::move(completion);
+          },
+          [&](const bool valid) {
+            completed = true;
+            result = valid;
+            accepted += int(valid);
+          });
+      scheduler.enqueue(
+          [&](auto done) {
+            published++;
+            done(true);
+          },
+          [&]() { canceled++; });
+
+      if (!require(candidate != nullptr, "compute bind-group probe must model an error object") ||
+          !require(!completed && published == accepted,
+                   "compute dispatch published before bind-group scope completion") ||
+          !require(bool(settle), "compute bind-group scope did not retain completion"))
+      {
+        return false;
+      }
+
+      settle(valid_scope);
+      if (!require(completed && result == valid_scope,
+                   "compute bind-group scope result was not propagated") ||
+          !require(published == accepted,
+                   "compute dispatch publication did not follow accepted bind-group creation") ||
+          !require(canceled == creations - accepted,
+                   "rejected compute bind group did not cancel its dispatch") ||
+          !require(scheduler.pending_count() == 0,
+                   "compute bind-group dispatch transaction did not drain"))
+      {
+        return false;
+      }
+    }
+  }
+
+  if (!require(scope_begins == 4 && creations == 4 && accepted == 2 && published == 2 &&
+                   canceled == 2 && uncaptured_errors == 0,
+               "compute bind-group direct/indirect scope census"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT compute_bind_group_scope PASS cases=4 dispatch_kinds=2 "
+            "error_objects=2 uncaptured=0 published=2 canceled=2 retry=accepted");
+  return true;
+}
+
 bool compute_pipeline_cache_publication_contract()
 {
   bw::ScopedHandleCache<std::string, CacheHandleProbe> cache;
@@ -3536,6 +3625,7 @@ int main()
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
       !transient_resource_gate_contract() ||
+      !compute_bind_group_scope_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
@@ -3556,7 +3646,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=35 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=36 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -3564,7 +3654,7 @@ int main()
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
-      "transient_resource_gates=3 "
+      "transient_resource_gates=3 compute_bind_group_scope_cases=4 "
       "compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 "
       "layered_clear_orders=4 "
       "shader_lifetimes=4096 alias_keys=2");

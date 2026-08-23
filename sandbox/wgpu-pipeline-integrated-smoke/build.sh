@@ -7,6 +7,7 @@
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
 # shader-module/pipeline cache publication, scoped transient bind-group validation,
 # exact surviving-WGSL bind-group completeness,
+# direct/indirect compute bind-group scope ordering,
 # layered load-action commit,
 # ordinary load-action submission transactions,
 # layered clear-before-draw ordering,
@@ -499,6 +500,23 @@ if compute.count(append) != 1 or compute.count(guard) != 1:
     raise SystemExit("ERROR: compute bind-group completeness transaction is ambiguous")
 if not (compute.index(append) < compute.index(guard) < compute.index("if (entries.empty())")):
     raise SystemExit("ERROR: compute confuses missing resources with an empty layout")
+resource_scope = "webgpu::transient_resource_create_scoped("
+raw_create = "ctx->create_bind_group_checked(bgl, entries)"
+if compute.count(resource_scope) != 1 or compute.count(raw_create) != 1:
+    raise SystemExit("ERROR: compute bind-group creation is outside one scoped resource gate")
+if compute.index(resource_scope) >= compute.index(raw_create):
+    raise SystemExit("ERROR: compute bind-group scope begins after resource creation")
+
+for label, body in (
+    ("direct compute", method(backend, "void WGPUBackend::compute_dispatch(int groups_x_len,")),
+    ("indirect compute", method(backend, "void WGPUBackend::compute_dispatch_indirect(")),
+):
+    build = "if (!build_compute_bind_group(ctx, shader, pipeline, bind_group, have_bg)) {"
+    scoped_command = "webgpu::command_pass_encode_submit_scoped("
+    if body.count(build) != 1 or body.count(scoped_command) != 1:
+        raise SystemExit(f"ERROR: {label} bind/command transaction is ambiguous")
+    if body.index(build) >= body.index(scoped_command):
+        raise SystemExit(f"ERROR: {label} reserves command work before bind-group validation")
 
 for label, body, expected in (
     ("direct batch", method(batch, "void WGPUBatch::draw(int vertex_first,"), 2),
@@ -1818,7 +1836,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 36 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 37 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1853,6 +1871,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 error_object=blocked dependent=1 canceled=2 retry=accepted' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT compute_bind_group_scope PASS cases=4 dispatch_kinds=2 error_objects=2 uncaptured=0 published=2 canceled=2 retry=accepted' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT compute_pipeline_cache_publication PASS cases=3 error_object=rejected retry=published entries=2' \
@@ -1909,7 +1930,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=35 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=36 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

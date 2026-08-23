@@ -27,6 +27,8 @@
 
 namespace {
 
+std::atomic<int> g_uncaptured_error_count{0};
+
 std::string to_string(wgpu::StringView value)
 {
   if (value.data == nullptr) {
@@ -181,6 +183,12 @@ int main()
   auto loss_state =
       std::make_shared<std::atomic<ghost_web::DeviceState>>(ghost_web::DeviceState::Active);
   wgpu::DeviceDescriptor device_descriptor = {};
+  device_descriptor.SetUncapturedErrorCallback(
+      [](const wgpu::Device &, const wgpu::ErrorType type, wgpu::StringView) {
+        if (type != wgpu::ErrorType::NoError) {
+          g_uncaptured_error_count.fetch_add(1, std::memory_order_acq_rel);
+        }
+      });
   device_descriptor.SetDeviceLostCallback(
       wgpu::CallbackMode::WaitAnyOnly,
       [loss_state](const wgpu::Device &,
@@ -976,6 +984,8 @@ int main()
   }
   bw::OrderedQueueScheduler transient_bind_group_scheduler;
   int transient_bind_group_cases = 0;
+  const int bind_group_uncaptured_before =
+      g_uncaptured_error_count.load(std::memory_order_acquire);
   for (const bool valid_case : {false, true}) {
     if (valid_case) {
       transient_bind_group_scheduler.begin_epoch();
@@ -988,8 +998,8 @@ int main()
         instance,
         device,
         transient_bind_group_scheduler,
-        valid_case ? "audit valid transient bind group" :
-                     "audit invalid transient bind group",
+        valid_case ? "audit valid compute bind group" :
+                     "audit invalid compute bind group",
         [&]() {
           wgpu::BindGroupDescriptor descriptor = {};
           descriptor.layout = valid_case ? empty_layout : required_layout;
@@ -1018,6 +1028,12 @@ int main()
       return 32;
     }
     transient_bind_group_cases++;
+  }
+  if (!require(bind_group_uncaptured_before == 0 &&
+                   g_uncaptured_error_count.load(std::memory_order_acquire) == 0,
+               "scoped compute bind-group retry emitted an uncaptured error"))
+  {
+    return 32;
   }
 
   bw::OrderedQueueScheduler transient_texture_scheduler;
@@ -1404,7 +1420,8 @@ int main()
             << transient_buffer_cases
             << " transient_buffer_error_object_blocked=1 scoped_transient_bind_group_cases="
             << transient_bind_group_cases
-            << " transient_bind_group_error_object_blocked=1 scoped_transient_texture_cases="
+            << " transient_bind_group_error_object_blocked=1"
+            << " compute_bind_group_uncaptured=0 scoped_transient_texture_cases="
             << transient_texture_cases
             << " transient_texture_error_object_blocked=1 scoped_transient_view_cases="
             << transient_view_cases

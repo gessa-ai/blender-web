@@ -1979,10 +1979,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 parity, exact shipping-source binds, canonical replay, real product rebuild/no-work,
   OFF preflight, and compliance are verified. See
   `notes/m3-gpu-layered-clear-order-20260823.md`.
-- [ ] **AUDIT-R7-GPU-UPLOAD-COMMIT [gpu-backend, blocked-by: none]:** make direct and staged
-  buffer upload completion explicit; retain VBO/UBO dirty state and owned bytes until completed
-  validation/OOM/internal scopes accept the operation, then prove rejected uploads retry in a
-  clean epoch without premature CPU-state discard in native and wasm32 builds.
+- [x] **AUDIT-R7-GPU-UPLOAD-COMMIT [gpu-backend, blocked-by: none] COMPLETE (c9cddfa,
+  patch 0242):** direct and staged buffer uploads now publish explicit pending/accepted/rejected
+  transaction state, while the buffer owns exact retry bytes and VBO/UBO frontends preserve dirty
+  or attached data until implementation-scope acceptance. Native/wasm32 rejection/retry parity,
+  source-bound frontend cleanup order, non-null pinned-Dawn rejection, canonical replay, real
+  product rebuild/no-work, OFF preflight, and compliance are verified. See
+  `notes/m3-gpu-upload-commit-20260823.md`.
 - [ ] **AUDIT-R7-GPU-COMPUTE-BIND-SCOPE [gpu-backend, blocked-by: none]:** create direct and
   indirect compute bind groups inside implementation error scopes before dispatch publication.
   Add a non-null error-object regression with an uncaptured-error counter and require a clean retry

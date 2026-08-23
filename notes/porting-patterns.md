@@ -884,3 +884,18 @@ group cannot consume a replacement bind. Exercise clear failure, draw failure, c
 generation replacement through the real FIFO on native and wasm32, then source-bind every direct,
 indirect, multi-viewport, and immediate caller to preparation-before-command order. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 61 — scheduling an upload is not an ownership commit
+
+Signature: `Queue::WriteBuffer` or a mapped staging copy returns normally, so a VBO clears its dirty
+range or a deferred UBO frees its attached CPU data before the surrounding browser implementation
+error scope settles. A later validation, out-of-memory, or internal error then leaves no exact bytes
+for retry; Emscripten is especially exposed because the scope callback cannot complete within the
+synchronous frontend call. Give every upload a durable pending/accepted/rejected transaction, copy
+its exact byte range into callback-owned queue state, and release that copy only on accepted scope
+completion. Rejection retains the entry for a new scheduler epoch, while frontend dirty/attached
+ownership remains live until the retry accepts. Exercise delayed direct writes, direct rejection,
+staged encoding and submission rejection, caller-buffer mutation after scheduling, deferred UBO
+cleanup, and clean retry on native and wasm32. Use a real non-null pinned-Dawn validation error only
+as explicitly software-control non-receipt evidence. See `sandbox/wgpu-buffer-integrated-smoke/`
+and `sandbox/dawn-probe/probe_error_handles.cc`.

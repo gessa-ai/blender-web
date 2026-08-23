@@ -414,6 +414,140 @@ int main()
     scoped_cases++;
   }
 
+  int resize_cases = 0;
+  wgpu::Texture resize_backbuffer = texture;
+  uint32_t resize_authoritative_width = 1;
+  uint32_t resize_authoritative_height = 1;
+  uint32_t resize_backbuffer_width = 1;
+  uint32_t resize_backbuffer_height = 1;
+  constexpr uint32_t resize_requested_width = 2;
+  constexpr uint32_t resize_requested_height = 2;
+  bool resize_configured = true;
+  int resize_configure_calls = 0;
+  bool resize_configure_saw_old_state = true;
+  for (const bool valid_case : {false, true}) {
+    wgpu::Future scope_future = {};
+    bool candidate_nonnull = false;
+    bool completed = false;
+    ghost_web::SurfaceResizeResult resize_result = ghost_web::SurfaceResizeResult::Rejected;
+    if (!require(ghost_web::surface_resize_candidate_needed(resize_configured,
+                                                            resize_authoritative_width,
+                                                            resize_authoritative_height,
+                                                            resize_requested_width,
+                                                            resize_requested_height,
+                                                            false,
+                                                            resize_backbuffer != nullptr,
+                                                            resize_backbuffer_width,
+                                                            resize_backbuffer_height),
+                 "shipping resize state did not retain its pending request"))
+    {
+      return 41;
+    }
+    ghost_web::scoped_handle_create(
+        [&]() { device.PushErrorScope(wgpu::ErrorFilter::Validation); },
+        [&]() {
+          wgpu::TextureDescriptor descriptor = {};
+          descriptor.size = {resize_requested_width, resize_requested_height, 1};
+          descriptor.dimension = wgpu::TextureDimension::e2D;
+          descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+          descriptor.mipLevelCount = 1;
+          descriptor.sampleCount = 1;
+          descriptor.usage = valid_case ? wgpu::TextureUsage::RenderAttachment :
+                                          wgpu::TextureUsage::None;
+          wgpu::Texture candidate = device.CreateTexture(&descriptor);
+          candidate_nonnull = candidate != nullptr;
+          return candidate;
+        },
+        [&](auto completion) {
+          auto shared_completion = std::make_shared<std::function<void(bool)>>(
+              std::move(completion));
+          scope_future = device.PopErrorScope(
+              wgpu::CallbackMode::WaitAnyOnly,
+              [shared_completion](wgpu::PopErrorScopeStatus status,
+                                  wgpu::ErrorType type,
+                                  wgpu::StringView) {
+                (*shared_completion)(status == wgpu::PopErrorScopeStatus::Success &&
+                                     type == wgpu::ErrorType::NoError);
+              });
+        },
+        [&](const bool valid, wgpu::Texture candidate) {
+          completed = true;
+          resize_result = ghost_web::surface_resize_commit_if_current(
+              valid,
+              std::move(candidate),
+              resize_requested_width,
+              resize_requested_height,
+              resize_requested_width,
+              resize_requested_height,
+              [&](const uint32_t width, const uint32_t height) {
+                resize_configure_calls++;
+                resize_configure_saw_old_state &= width == resize_requested_width &&
+                                                  height == resize_requested_height &&
+                                                  resize_authoritative_width == 1 &&
+                                                  resize_authoritative_height == 1 &&
+                                                  resize_backbuffer_width == 1 &&
+                                                  resize_backbuffer_height == 1;
+              },
+              resize_backbuffer,
+              resize_backbuffer_width,
+              resize_backbuffer_height,
+              resize_authoritative_width,
+              resize_authoritative_height,
+              resize_configured);
+        });
+    if (!require(candidate_nonnull && !completed && resize_backbuffer.GetWidth() == 1 &&
+                     resize_authoritative_width == 1 && resize_authoritative_height == 1,
+                 "shipping resize published before its texture scope completed") ||
+        !require(instance.WaitAny(scope_future, UINT64_MAX) == wgpu::WaitStatus::Success,
+                 "shipping resize validation future did not settle"))
+    {
+      return 41;
+    }
+    const ghost_web::SurfaceResizeResult expected =
+        valid_case ? ghost_web::SurfaceResizeResult::Committed :
+                     ghost_web::SurfaceResizeResult::Rejected;
+    if (!require(completed && resize_result == expected,
+                 "shipping resize acceptance did not follow validation status") ||
+        !require(valid_case ?
+                     resize_backbuffer.GetWidth() == resize_requested_width &&
+                         resize_backbuffer.GetHeight() == resize_requested_height &&
+                         resize_authoritative_width == resize_requested_width &&
+                         resize_authoritative_height == resize_requested_height &&
+                         resize_backbuffer_width == resize_requested_width &&
+                         resize_backbuffer_height == resize_requested_height &&
+                         resize_configure_calls == 1 && resize_configure_saw_old_state :
+                     resize_backbuffer.GetWidth() == 1 && resize_backbuffer.GetHeight() == 1 &&
+                         resize_authoritative_width == 1 && resize_authoritative_height == 1 &&
+                         resize_backbuffer_width == 1 && resize_backbuffer_height == 1 &&
+                         resize_configure_calls == 0,
+                 "shipping resize did not preserve or atomically replace its complete state"))
+    {
+      return 41;
+    }
+    resize_cases++;
+  }
+  if (!require(!ghost_web::surface_resize_candidate_needed(resize_configured,
+                                                            resize_authoritative_width,
+                                                            resize_authoritative_height,
+                                                            resize_requested_width,
+                                                            resize_requested_height,
+                                                            false,
+                                                            resize_backbuffer != nullptr,
+                                                            resize_backbuffer_width,
+                                                            resize_backbuffer_height) &&
+                   ghost_web::surface_resize_present_coherent(resize_configured,
+                                                               resize_authoritative_width,
+                                                               resize_authoritative_height,
+                                                               resize_backbuffer != nullptr,
+                                                               resize_backbuffer_width,
+                                                               resize_backbuffer_height,
+                                                               resize_requested_width,
+                                                               resize_requested_height),
+               "shipping resize retry did not settle into a presentable extent"))
+  {
+    return 41;
+  }
+
   for (const bool valid_case : {false, true}) {
     wgpu::Future encode_future = {};
     wgpu::Future submit_future = {};
@@ -1100,6 +1234,8 @@ int main()
 
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
+            << " scoped_resize_cases=" << resize_cases
+            << " resize_error_object_rejected=1 resize_retry_committed=1"
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
             << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
             << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"

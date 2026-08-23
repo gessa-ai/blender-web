@@ -78,7 +78,10 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   exact mapped dummy-vertex-buffer factory and the persistent buffer wrapper's composite
   handle/metadata value. The short-lived buffer control then proves the shipping ordered resource
   gate blocks dependent work after a real non-null buffer error object and releases a clean
-  next-epoch retry. Matching bind-group, texture, and texture-view controls prove the same ordered
+  next-epoch retry. The GHOST resize control feeds a real non-null texture error object through the
+  shipping scope and resize helpers, preserving the old authoritative/surface/backbuffer state
+  before a clean replacement commits every extent together. Matching bind-group, texture, and
+  texture-view controls prove the same ordered
   gate blocks their non-null error objects, while composite texture/view and
   bind-group/pipeline-layout caches prove pair rejection is atomic and clean replacements publish
   on retry. Shader-module-set plus render- and compute-pipeline caches repeat that proof with real

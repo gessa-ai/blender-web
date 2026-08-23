@@ -791,3 +791,19 @@ stale callback cannot consume a newer frontend bind, and keep the shared tracker
 capturing the framebuffer. Exercise failure at a later attachment view and bind group, same-epoch
 load behavior, clean retry, and generation replacement on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 55 — resize requests and configured extents are different state
+
+Signature: a browser resize immediately publishes new authoritative dimensions and configures the
+surface, then asynchronously validates the matching persistent backbuffer. Rejection preserves only
+the old texture, leaving a new surface paired with stale source dimensions; a fullscreen
+`textureLoad` can then read beyond the old allocation. Store the latest requested extent separately
+from the last complete configured surface/backbuffer state. Allocate and validate the candidate
+first, discard a superseded candidate, and configure plus publish every size-bound field only for
+the current accepted candidate. Presentation may continue on the old state only while the acquired
+surface and backbuffer both exactly match its authoritative extent. Retry rejected requests from
+the next present tick, so recovery does not depend on a duplicate browser resize event. Exercise
+rejection preservation, supersession, atomic commit, exact present coherence, and no-event retry on
+native and wasm32, then pass a real non-null texture error object through the same helper on pinned
+Dawn as explicitly software-only non-receipt evidence. See
+`sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.

@@ -394,38 +394,11 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   if (w == 0 || h == 0) {
     return;
   }
-  /* Idempotent: skip a redundant Configure when the extent is unchanged (repeated
-   * resize events commonly report the same size). */
-  if (configured_ && w == width_ && h == height_) {
-    /* A transient resize allocation failure leaves the prior texture and extent
-     * intact. Retry that one missing publication without redundantly configuring
-     * the already-current surface. */
-    ensureBackbuffer();
-    return;
-  }
-  width_ = w;
-  height_ = h;
-
-  wgpu::SurfaceConfiguration config = {};
-  config.device = device_;
-  config.format = surface_format_;
-  /* RenderAttachment is what the compositor draws into; CopySrc additionally lets the
-   * frame be read back — OffscreenCanvas.convertToBlob() (the worker-side M4 capture path,
-   * platform_web/shell/wgpu-preinit-worker.js) otherwise fails with "Readback of the source
-   * image has failed" because a RenderAttachment-only canvas texture cannot be copied out.
-   * The per-frame present (presentBackbuffer) is a RENDER PASS into the surface, NOT a
-   * CopyTextureToTexture, so CopyDst is deliberately NOT requested: emdawnwebgpu rejects a
-   * CopyDst canvas surface (the copy silently fails validation and the canvas stays stuck on
-   * its last render-pass content). Both requested usages are universally supported. */
-  config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
-  config.width = width_;
-  config.height = height_;
-  config.presentMode = wgpu::PresentMode::Fifo;
-  config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
-  surface_.Configure(&config);
-  configured_ = true;
-
-  /* Match the persistent offscreen back-buffer to the new surface extent. */
+  /* Keep the latest browser request separate from the last complete published
+   * surface/backbuffer state. ensureBackbuffer() allocates and validates first;
+   * only its current-candidate callback may configure and publish the new extent. */
+  requested_width_ = w;
+  requested_height_ = h;
   ensureBackbuffer();
 }
 
@@ -433,17 +406,21 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
 
 void GHOST_ContextWGPUWeb::ensureBackbuffer()
 {
-  if (device_ == nullptr || width_ == 0 || height_ == 0) {
+  if (device_ == nullptr ||
+      !ghost_web::surface_resize_candidate_needed(configured_,
+                                                   width_,
+                                                   height_,
+                                                   requested_width_,
+                                                   requested_height_,
+                                                   backbuffer_pending_,
+                                                   backbuffer_ != nullptr,
+                                                   backbuffer_w_,
+                                                   backbuffer_h_))
+  {
     return;
   }
-  if (backbuffer_ != nullptr && backbuffer_w_ == width_ && backbuffer_h_ == height_) {
-    return; /* already the right size */
-  }
-  if (backbuffer_pending_) {
-    return;
-  }
-  const uint32_t candidate_width = width_;
-  const uint32_t candidate_height = height_;
+  const uint32_t candidate_width = requested_width_;
+  const uint32_t candidate_height = requested_height_;
   wgpu::TextureDescriptor td = {};
   td.label = "wgpu_web_backbuffer";
   td.dimension = wgpu::TextureDimension::e2D;
@@ -472,21 +449,46 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
           return;
         }
         backbuffer_pending_ = false;
-        if (!valid) {
+        const ghost_web::SurfaceResizeResult result =
+            ghost_web::surface_resize_commit_if_current(
+                valid,
+                std::move(candidate),
+                candidate_width,
+                candidate_height,
+                requested_width_,
+                requested_height_,
+                [this](const uint32_t width, const uint32_t height) {
+                  wgpu::SurfaceConfiguration config = {};
+                  config.device = device_;
+                  config.format = surface_format_;
+                  /* RenderAttachment is what the compositor draws into; CopySrc additionally
+                   * lets the frame be read back. CopyDst remains deliberately absent because
+                   * emdawnwebgpu rejects it for browser canvas surfaces. */
+                  config.usage =
+                      wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
+                  config.width = width;
+                  config.height = height;
+                  config.presentMode = wgpu::PresentMode::Fifo;
+                  config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
+                  surface_.Configure(&config);
+                },
+                backbuffer_,
+                backbuffer_w_,
+                backbuffer_h_,
+                width_,
+                height_,
+                configured_);
+        if (result == ghost_web::SurfaceResizeResult::Rejected) {
           std::printf("WGPUWeb: CreateTexture rejected for %ux%u backbuffer\n",
                       candidate_width,
                       candidate_height);
           return;
         }
-        /* A newer resize may have arrived while the scope was pending. Never publish a texture
-         * under the wrong authoritative extent; immediately retry the newest dimensions. */
-        if (width_ != candidate_width || height_ != candidate_height) {
+        /* A newer resize arrived while validation was pending. Its dimensions remain
+         * requested, so start that candidate without waiting for another browser event. */
+        if (result == ghost_web::SurfaceResizeResult::Superseded) {
           ensureBackbuffer();
-          return;
         }
-        backbuffer_ = std::move(candidate);
-        backbuffer_w_ = candidate_width;
-        backbuffer_h_ = candidate_height;
       });
 }
 
@@ -579,12 +581,36 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
 
 void GHOST_ContextWGPUWeb::presentBackbuffer()
 {
-  if (surface_ == nullptr || device_ == nullptr || backbuffer_ == nullptr || present_pending_) {
+  if (surface_ == nullptr || device_ == nullptr || present_pending_) {
+    return;
+  }
+
+  /* A rejected resize remains requested. Every later frame can recreate it, so
+   * recovery does not depend on the browser delivering a duplicate resize event. */
+  ensureBackbuffer();
+  if (!configured_ || backbuffer_ == nullptr) {
     return;
   }
   wgpu::SurfaceTexture st = {};
   surface_.GetCurrentTexture(&st);
   if (st.texture == nullptr) {
+    return;
+  }
+  const uint32_t surface_width = st.texture.GetWidth();
+  const uint32_t surface_height = st.texture.GetHeight();
+  if (!ghost_web::surface_resize_present_coherent(configured_,
+                                                   width_,
+                                                   height_,
+                                                   backbuffer_ != nullptr,
+                                                   backbuffer_w_,
+                                                   backbuffer_h_,
+                                                   surface_width,
+                                                   surface_height))
+  {
+    /* The live canvas can change independently of a GHOST resize callback. Record
+     * what GetCurrentTexture observed and begin a coherent replacement, but never
+     * sample the stale backbuffer into the mismatched surface. */
+    configureSurface(surface_width, surface_height);
     return;
   }
   ensurePresentPipeline();
@@ -598,8 +624,6 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
   const wgpu::Texture target_texture = st.texture;
   const wgpu::BindGroupLayout bind_group_layout = present_bgl_;
   const wgpu::RenderPipeline pipeline = present_pipeline_;
-  const uint32_t surface_width = st.texture.GetWidth();
-  const uint32_t surface_height = st.texture.GetHeight();
   const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
   present_pending_ = true;
   ghost_web::present_frame_encode_submit_scoped(

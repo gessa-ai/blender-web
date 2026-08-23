@@ -2602,6 +2602,216 @@ bool ghost_present_resource_transaction_contract()
   return true;
 }
 
+bool ghost_resize_coherence_contract()
+{
+  GhostHandleProbe backbuffer(71);
+  uint32_t authoritative_width = 640;
+  uint32_t authoritative_height = 480;
+  uint32_t backbuffer_width = 640;
+  uint32_t backbuffer_height = 480;
+  uint32_t requested_width = 640;
+  uint32_t requested_height = 480;
+  bool configured = true;
+
+  if (!require(!gw::surface_resize_candidate_needed(configured,
+                                                     authoritative_width,
+                                                     authoritative_height,
+                                                     requested_width,
+                                                     requested_height,
+                                                     false,
+                                                     backbuffer != nullptr,
+                                                     backbuffer_width,
+                                                     backbuffer_height),
+               "GHOST coherent settled resize needs no candidate"))
+  {
+    return false;
+  }
+
+  requested_width = 1280;
+  requested_height = 720;
+  if (!require(gw::surface_resize_candidate_needed(configured,
+                                                    authoritative_width,
+                                                    authoritative_height,
+                                                    requested_width,
+                                                    requested_height,
+                                                    false,
+                                                    backbuffer != nullptr,
+                                                    backbuffer_width,
+                                                    backbuffer_height),
+               "GHOST new resize needs a candidate") ||
+      !require(!gw::surface_resize_candidate_needed(configured,
+                                                     authoritative_width,
+                                                     authoritative_height,
+                                                     requested_width,
+                                                     requested_height,
+                                                     true,
+                                                     backbuffer != nullptr,
+                                                     backbuffer_width,
+                                                     backbuffer_height),
+               "GHOST pending resize suppresses duplicate candidates"))
+  {
+    return false;
+  }
+
+  int configure_calls = 0;
+  uint32_t configured_width = 0;
+  uint32_t configured_height = 0;
+  bool configure_saw_old_publication = true;
+  const auto configure = [&](const uint32_t width, const uint32_t height) {
+    configure_calls++;
+    configured_width = width;
+    configured_height = height;
+    configure_saw_old_publication &= backbuffer.identity() == 71 &&
+                                     authoritative_width == 640 && authoritative_height == 480 &&
+                                     backbuffer_width == 640 && backbuffer_height == 480;
+  };
+
+  auto result = gw::surface_resize_commit_if_current(false,
+                                                      GhostHandleProbe(72),
+                                                      1280,
+                                                      720,
+                                                      requested_width,
+                                                      requested_height,
+                                                      configure,
+                                                      backbuffer,
+                                                      backbuffer_width,
+                                                      backbuffer_height,
+                                                      authoritative_width,
+                                                      authoritative_height,
+                                                      configured);
+  if (!require(result == gw::SurfaceResizeResult::Rejected && configure_calls == 0 &&
+                   backbuffer.identity() == 71 && authoritative_width == 640 &&
+                   authoritative_height == 480 && backbuffer_width == 640 &&
+                   backbuffer_height == 480,
+               "GHOST non-null error texture preserves coherent old state") ||
+      !require(gw::surface_resize_candidate_needed(configured,
+                                                    authoritative_width,
+                                                    authoritative_height,
+                                                    requested_width,
+                                                    requested_height,
+                                                    false,
+                                                    backbuffer != nullptr,
+                                                    backbuffer_width,
+                                                    backbuffer_height),
+               "GHOST rejected resize remains retryable without a new request") ||
+      !require(gw::surface_resize_present_coherent(
+                   true, 640, 480, true, 640, 480, 640, 480),
+               "GHOST rejected resize preserves the old presentable state"))
+  {
+    return false;
+  }
+
+  result = gw::surface_resize_commit_if_current(true,
+                                                GhostHandleProbe(),
+                                                1280,
+                                                720,
+                                                requested_width,
+                                                requested_height,
+                                                configure,
+                                                backbuffer,
+                                                backbuffer_width,
+                                                backbuffer_height,
+                                                authoritative_width,
+                                                authoritative_height,
+                                                configured);
+  if (!require(result == gw::SurfaceResizeResult::Rejected && configure_calls == 0 &&
+                   backbuffer.identity() == 71 && authoritative_width == 640 &&
+                   authoritative_height == 480,
+               "GHOST null resize texture preserves coherent old state"))
+  {
+    return false;
+  }
+
+  result = gw::surface_resize_commit_if_current(true,
+                                                GhostHandleProbe(73),
+                                                800,
+                                                600,
+                                                requested_width,
+                                                requested_height,
+                                                configure,
+                                                backbuffer,
+                                                backbuffer_width,
+                                                backbuffer_height,
+                                                authoritative_width,
+                                                authoritative_height,
+                                                configured);
+  if (!require(result == gw::SurfaceResizeResult::Superseded && configure_calls == 0 &&
+                   backbuffer.identity() == 71 && authoritative_width == 640 &&
+                   authoritative_height == 480,
+               "GHOST superseded resize cannot publish stale extents") ||
+      !require(gw::surface_resize_candidate_needed(configured,
+                                                    authoritative_width,
+                                                    authoritative_height,
+                                                    requested_width,
+                                                    requested_height,
+                                                    false,
+                                                    backbuffer != nullptr,
+                                                    backbuffer_width,
+                                                    backbuffer_height),
+               "GHOST superseded resize keeps the newest request retryable"))
+  {
+    return false;
+  }
+
+  result = gw::surface_resize_commit_if_current(true,
+                                                GhostHandleProbe(74),
+                                                1280,
+                                                720,
+                                                requested_width,
+                                                requested_height,
+                                                configure,
+                                                backbuffer,
+                                                backbuffer_width,
+                                                backbuffer_height,
+                                                authoritative_width,
+                                                authoritative_height,
+                                                configured);
+  if (!require(result == gw::SurfaceResizeResult::Committed && configure_calls == 1 &&
+                   configured_width == 1280 && configured_height == 720 &&
+                   configure_saw_old_publication && backbuffer.identity() == 74 &&
+                   authoritative_width == 1280 && authoritative_height == 720 &&
+                   backbuffer_width == 1280 && backbuffer_height == 720 && configured,
+               "GHOST accepted resize configures then publishes one coherent state") ||
+      !require(!gw::surface_resize_candidate_needed(configured,
+                                                     authoritative_width,
+                                                     authoritative_height,
+                                                     requested_width,
+                                                     requested_height,
+                                                     false,
+                                                     backbuffer != nullptr,
+                                                     backbuffer_width,
+                                                     backbuffer_height),
+               "GHOST committed resize stops retrying"))
+  {
+    return false;
+  }
+
+  if (!require(gw::surface_resize_present_coherent(true, 1280, 720, true, 1280, 720, 1280, 720),
+               "GHOST exact extents may present") ||
+      !require(!gw::surface_resize_present_coherent(
+                   false, 1280, 720, true, 1280, 720, 1280, 720),
+               "GHOST unconfigured surface cannot present") ||
+      !require(!gw::surface_resize_present_coherent(
+                   true, 1280, 720, false, 1280, 720, 1280, 720),
+               "GHOST missing backbuffer cannot present") ||
+      !require(!gw::surface_resize_present_coherent(
+                   true, 1280, 720, true, 640, 480, 1280, 720),
+               "GHOST stale backbuffer cannot present") ||
+      !require(!gw::surface_resize_present_coherent(
+                   true, 1280, 720, true, 1280, 720, 640, 720),
+               "GHOST mismatched surface width cannot present") ||
+      !require(!gw::surface_resize_present_coherent(
+                   true, 1280, 720, true, 1280, 720, 1280, 480),
+               "GHOST mismatched surface height cannot present"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_resize_coherence PASS cases=17 candidates=10 present=7 "
+            "failure=preserved superseded=retried commit=atomic retry=no_event");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -2922,6 +3132,7 @@ int main()
       !buffer_command_transaction_contract() ||
       !ghost_window_publication_transaction_contract() ||
       !ghost_present_resource_transaction_contract() ||
+      !ghost_resize_coherence_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -2929,11 +3140,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=30 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=31 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
-      "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

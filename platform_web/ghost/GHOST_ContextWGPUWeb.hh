@@ -135,7 +135,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   static void popErrorScopes(const wgpu::Device &device,
                              std::string label,
                              ErrorScopeCallback on_complete);
-  /* (Re)create the persistent offscreen back-buffer to match width_ x height_. */
+  /* (Re)create the persistent offscreen back-buffer for the latest requested extent. */
   void ensureBackbuffer();
   /* Lazily build the fullscreen-triangle present pipeline (once). */
   void ensurePresentPipeline();
@@ -147,6 +147,11 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   uint32_t width_ = 0;
   uint32_t height_ = 0;
   bool configured_ = false; /* surface_.Configure has run at width_ x height_ */
+  /* Latest live-canvas extent requested by configureSurface(). This remains
+   * separate from the authoritative configured extent until a validated
+   * backbuffer candidate can publish the complete size-bound state. */
+  uint32_t requested_width_ = 0;
+  uint32_t requested_height_ = 0;
 
   wgpu::Instance instance_;
   wgpu::Adapter adapter_;

@@ -135,7 +135,11 @@ complete cleanly. Present encoding finishes under one completed scope before its
 reach `Queue::Submit`; a second scope covers submission itself, and first-pixel/keepalive counters
 advance only after that scope succeeds. The contract covers literal null failures, non-null error
 objects, pending-state publication, encode-before-submit ordering, submit failure, and one clean
-commit. The pinned-Dawn software control exercises the same shipping helper against real non-null
+commit. Resize requests remain separate from the last configured surface extent: a current validated
+candidate configures and publishes the surface/backbuffer state atomically, stale candidates retry
+the newest request, rejected candidates retry from the next present without another resize event,
+and presentation requires exact authoritative, backbuffer, and acquired-surface extents. The
+pinned-Dawn software control exercises the same shipping helpers against real non-null
 error objects but remains explicitly non-receipt evidence.
 The Blender GPU backend now applies that completed-scope rule to every short-lived command and
 direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can

@@ -1513,6 +1513,8 @@ require_fixed_count 0 'ghost_web::present_frame_encode_submit_if_valid(' "$GHOST
 require_fixed_count 3 'device.PushErrorScope(' "$GHOST_SOURCE"
 require_fixed_count 3 'device.PopErrorScope(' "$GHOST_SOURCE"
 require_fixed_count 1 'bool backbuffer_pending_ = false;' "$GHOST_HEADER"
+require_fixed_count 1 'uint32_t requested_width_ = 0;' "$GHOST_HEADER"
+require_fixed_count 1 'uint32_t requested_height_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pipeline_pending_ = false;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pending_ = false;' "$GHOST_HEADER"
 "$PYBIN" - "$GHOST_SOURCE" <<'PY'
@@ -1537,9 +1539,16 @@ def method(marker: str) -> str:
     raise SystemExit(f"ERROR: unterminated GHOST method: {marker}")
 
 
+configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)")
 backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
 pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
 present = method("void GHOST_ContextWGPUWeb::presentBackbuffer()")
+
+for needle in ("requested_width_ = w;", "requested_height_ = h;", "ensureBackbuffer();"):
+    if configure.count(needle) != 1:
+        raise SystemExit(f"ERROR: resize request lacks one exact pending-state boundary: {needle}")
+if "surface_.Configure(&config);" in configure:
+    raise SystemExit("ERROR: resize configures the surface before candidate validation")
 
 for label, body, helper, scope_label, pending in (
     ("backbuffer", backbuffer, "ghost_web::scoped_handle_create(",
@@ -1549,6 +1558,16 @@ for label, body, helper, scope_label, pending in (
 ):
     if body.count(helper) != 1 or body.count(scope_label) != 1 or body.count(pending) < 2:
         raise SystemExit(f"ERROR: {label} is not bound to one completed error-scope publication")
+
+for needle in (
+    "const uint32_t candidate_width = requested_width_;",
+    "const uint32_t candidate_height = requested_height_;",
+    "ghost_web::surface_resize_commit_if_current(",
+    "surface_.Configure(&config);",
+    "if (result == ghost_web::SurfaceResizeResult::Superseded) {",
+):
+    if backbuffer.count(needle) != 1:
+        raise SystemExit(f"ERROR: backbuffer resize lacks one exact coherence boundary: {needle}")
 
 for needle in (
     "ghost_web::present_frame_encode_submit_scoped(",
@@ -1570,6 +1589,22 @@ positions = [
 ]
 if positions != sorted(positions):
     raise SystemExit("ERROR: present validation/submission/commit boundaries are reordered")
+
+for needle in (
+    "ensureBackbuffer();",
+    "ghost_web::surface_resize_present_coherent(",
+    "configureSurface(surface_width, surface_height);",
+):
+    if present.count(needle) != 1:
+        raise SystemExit(f"ERROR: present resize coherence lacks one exact boundary: {needle}")
+resize_positions = [
+    present.index("ensureBackbuffer();"),
+    present.index("surface_.GetCurrentTexture(&st);"),
+    present.index("ghost_web::surface_resize_present_coherent("),
+    present.index("ensurePresentPipeline();"),
+]
+if resize_positions != sorted(resize_positions):
+    raise SystemExit("ERROR: present acquires or encodes before resize coherence is established")
 PY
 if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2
@@ -1654,7 +1689,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 31 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 32 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1721,6 +1756,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_resize_coherence PASS cases=17 candidates=10 present=7 failure=preserved superseded=retried commit=atomic retry=no_event' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT index_buffer_handle_resolution PASS cases=3 required=2 failure=atomic optional=empty' \
        "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
@@ -1730,7 +1768,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=30 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=31 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

@@ -10,6 +10,86 @@
 
 namespace ghost_web {
 
+enum class SurfaceResizeResult {
+  Rejected,
+  Superseded,
+  Committed,
+};
+
+/** Whether the latest requested extent still needs a backbuffer candidate. */
+inline bool surface_resize_candidate_needed(const bool configured,
+                                            const uint32_t authoritative_width,
+                                            const uint32_t authoritative_height,
+                                            const uint32_t requested_width,
+                                            const uint32_t requested_height,
+                                            const bool candidate_pending,
+                                            const bool backbuffer_valid,
+                                            const uint32_t backbuffer_width,
+                                            const uint32_t backbuffer_height)
+{
+  if (candidate_pending || requested_width == 0 || requested_height == 0) {
+    return false;
+  }
+  return !configured || !backbuffer_valid || authoritative_width != requested_width ||
+         authoritative_height != requested_height || backbuffer_width != requested_width ||
+         backbuffer_height != requested_height;
+}
+
+/**
+ * Configure and publish one size-bound surface/backbuffer state only when the
+ * validated candidate still matches the latest browser resize request.
+ */
+template<typename TextureT, typename ConfigureFn>
+SurfaceResizeResult surface_resize_commit_if_current(const bool candidate_valid,
+                                                      TextureT candidate,
+                                                      const uint32_t candidate_width,
+                                                      const uint32_t candidate_height,
+                                                      const uint32_t requested_width,
+                                                      const uint32_t requested_height,
+                                                      ConfigureFn &&configure,
+                                                      TextureT &r_backbuffer,
+                                                      uint32_t &r_backbuffer_width,
+                                                      uint32_t &r_backbuffer_height,
+                                                      uint32_t &r_authoritative_width,
+                                                      uint32_t &r_authoritative_height,
+                                                      bool &r_configured)
+{
+  if (!candidate_valid || candidate == nullptr) {
+    return SurfaceResizeResult::Rejected;
+  }
+  if (candidate_width != requested_width || candidate_height != requested_height) {
+    return SurfaceResizeResult::Superseded;
+  }
+
+  /* The previous complete state remains published while Configure executes. The
+   * caller runs on the WebGPU-owning worker, so the following field publication
+   * cannot be observed halfway through this synchronous commit. */
+  std::forward<ConfigureFn>(configure)(candidate_width, candidate_height);
+  r_backbuffer = std::move(candidate);
+  r_backbuffer_width = candidate_width;
+  r_backbuffer_height = candidate_height;
+  r_authoritative_width = candidate_width;
+  r_authoritative_height = candidate_height;
+  r_configured = true;
+  return SurfaceResizeResult::Committed;
+}
+
+/** Require one exact authoritative/surface/backbuffer extent before textureLoad. */
+inline bool surface_resize_present_coherent(const bool configured,
+                                            const uint32_t authoritative_width,
+                                            const uint32_t authoritative_height,
+                                            const bool backbuffer_valid,
+                                            const uint32_t backbuffer_width,
+                                            const uint32_t backbuffer_height,
+                                            const uint32_t surface_width,
+                                            const uint32_t surface_height)
+{
+  return configured && authoritative_width != 0 && authoritative_height != 0 &&
+         backbuffer_valid && backbuffer_width == authoritative_width &&
+         backbuffer_height == authoritative_height && surface_width == authoritative_width &&
+         surface_height == authoritative_height;
+}
+
 /** Publish drawing-context validity only from the context setter's exact status. */
 template<typename StatusT, typename InitializeFn>
 bool drawing_context_initialize_if_valid(const StatusT success, InitializeFn &&initialize)

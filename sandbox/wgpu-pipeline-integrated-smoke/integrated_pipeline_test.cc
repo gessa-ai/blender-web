@@ -2782,6 +2782,84 @@ bool ghost_device_loss_state_contract()
   return true;
 }
 
+bool ghost_device_loss_inflight_cancel_contract()
+{
+  struct Trace {
+    int configure = 0;
+    int backbuffer_publications = 0;
+    int pipeline_publications = 0;
+    int submits = 0;
+    int present_notes = 0;
+
+    int total() const
+    {
+      return configure + backbuffer_publications + pipeline_publications + submits +
+             present_notes;
+    }
+  };
+
+  const auto exercise = [](const bool lose_before_completion) {
+    auto state = std::make_shared<std::atomic<gw::DeviceState>>(gw::DeviceState::Active);
+    Trace trace;
+    std::array<std::function<void()>, 5> completions = {{
+        [state, &trace]() {
+          if (!gw::device_state_allows_callback_work(state)) {
+            return;
+          }
+          trace.configure++;
+        },
+        [state, &trace]() {
+          if (!gw::device_state_allows_callback_work(state)) {
+            return;
+          }
+          trace.backbuffer_publications++;
+        },
+        [state, &trace]() {
+          if (!gw::device_state_allows_callback_work(state)) {
+            return;
+          }
+          trace.pipeline_publications++;
+        },
+        [state, &trace]() {
+          if (!gw::device_state_allows_callback_work(state)) {
+            return;
+          }
+          trace.submits++;
+        },
+        [state, &trace]() {
+          if (!gw::device_state_allows_callback_work(state)) {
+            return;
+          }
+          trace.present_notes++;
+        },
+    }};
+
+    if (lose_before_completion) {
+      gw::device_state_mark_lost(*state);
+    }
+    for (const std::function<void()> &complete : completions) {
+      complete();
+    }
+    return trace;
+  };
+
+  const Trace active = exercise(false);
+  const Trace lost = exercise(true);
+  if (!require(active.configure == 1 && active.backbuffer_publications == 1 &&
+                   active.pipeline_publications == 1 && active.submits == 1 &&
+                   active.present_notes == 1,
+               "GHOST active in-flight callbacks complete") ||
+      !require(lost.total() == 0,
+               "GHOST terminal loss cancels every in-flight callback before owner work"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_device_loss_inflight_cancel PASS cases=10 active=5 lost=5 "
+            "configure=0 publication=0 submit=0 present=0");
+  return true;
+}
+
 class GhostHandleProbe {
  public:
   GhostHandleProbe() = default;
@@ -3637,6 +3715,7 @@ int main()
       !ghost_surface_publication_status_contract() ||
       !ghost_surface_acquisition_status_contract() ||
       !ghost_device_loss_state_contract() ||
+      !ghost_device_loss_inflight_cancel_contract() ||
       !ghost_present_resource_transaction_contract() ||
       !ghost_resize_coherence_contract() ||
       !format_32bit_contract() ||
@@ -3646,11 +3725,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=36 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=37 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
-      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

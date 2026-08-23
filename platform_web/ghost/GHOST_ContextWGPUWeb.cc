@@ -631,15 +631,18 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
   backbuffer_pending_ = true;
   const wgpu::Device device = device_;
   const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
   ghost_web::scoped_handle_create(
       [device]() { pushErrorScopes(device); },
       [device, &td]() { return device.CreateTexture(&td); },
       [device](auto completion) {
         popErrorScopes(device, "backbuffer creation", std::move(completion));
       },
-      [this, lifetime, candidate_width, candidate_height](const bool valid,
-                                                          wgpu::Texture candidate) {
-        if (!lifetime->load(std::memory_order_acquire)) {
+      [this, lifetime, device_state, candidate_width, candidate_height](
+          const bool valid, wgpu::Texture candidate) {
+        if (!lifetime->load(std::memory_order_acquire) ||
+            !ghost_web::device_state_allows_callback_work(device_state))
+        {
           return;
         }
         if (!valid || candidate == nullptr) {
@@ -677,10 +680,13 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
             "surface configuration",
             [this,
              lifetime,
+             device_state,
              candidate = std::move(candidate),
              candidate_width,
              candidate_height](const bool configuration_valid) mutable {
-              if (!lifetime->load(std::memory_order_acquire)) {
+              if (!lifetime->load(std::memory_order_acquire) ||
+                  !ghost_web::device_state_allows_callback_work(device_state))
+              {
                 return;
               }
               backbuffer_pending_ = false;
@@ -751,6 +757,7 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
   const wgpu::Device device = device_;
   const wgpu::TextureFormat surface_format = surface_format_;
   const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
   ghost_web::present_pipeline_create_scoped(
           [device]() { pushErrorScopes(device); },
           [device, wgsl]() {
@@ -798,10 +805,12 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
           [device](auto completion) {
             popErrorScopes(device, "present pipeline creation", std::move(completion));
           },
-          [this, lifetime](const bool valid,
-                           wgpu::BindGroupLayout bind_group_layout,
-                           wgpu::RenderPipeline pipeline) {
-            if (!lifetime->load(std::memory_order_acquire)) {
+          [this, lifetime, device_state](const bool valid,
+                                         wgpu::BindGroupLayout bind_group_layout,
+                                         wgpu::RenderPipeline pipeline) {
+            if (!lifetime->load(std::memory_order_acquire) ||
+                !ghost_web::device_state_allows_callback_work(device_state))
+            {
               return;
             }
             present_pipeline_pending_ = false;
@@ -876,6 +885,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const wgpu::BindGroupLayout bind_group_layout = present_bgl_;
   const wgpu::RenderPipeline pipeline = present_pipeline_;
   const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
   present_pending_ = true;
   ghost_web::present_frame_encode_submit_scoped(
           [device]() { pushErrorScopes(device); },
@@ -912,17 +922,25 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
             popErrorScopes(device, "present command encoding", std::move(completion));
           },
           [device]() { pushErrorScopes(device); },
-          [lifetime, queue](const wgpu::CommandBuffer &command_buffer) {
-            if (lifetime->load(std::memory_order_acquire)) {
+          [lifetime, device_state, queue](const wgpu::CommandBuffer &command_buffer) {
+            if (lifetime->load(std::memory_order_acquire) &&
+                ghost_web::device_state_allows_callback_work(device_state))
+            {
               queue.Submit(1, &command_buffer);
             }
           },
           [device](auto completion) {
             popErrorScopes(device, "present queue submission", std::move(completion));
           },
-          [this, lifetime, surface_width, surface_height, reconfigure_after_present](
-              const bool valid) {
-            if (!lifetime->load(std::memory_order_acquire)) {
+          [this,
+           lifetime,
+           device_state,
+           surface_width,
+           surface_height,
+           reconfigure_after_present](const bool valid) {
+            if (!lifetime->load(std::memory_order_acquire) ||
+                !ghost_web::device_state_allows_callback_work(device_state))
+            {
               return;
             }
             present_pending_ = false;

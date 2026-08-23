@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -86,6 +87,14 @@ inline void device_state_mark_lost(std::atomic<DeviceState> &state)
 inline bool device_state_allows_work(const DeviceState state)
 {
   return state == DeviceState::Active;
+}
+
+/** Browser completions must observe loss directly, before later owner-side cleanup runs. */
+inline bool device_state_allows_callback_work(
+    const std::shared_ptr<std::atomic<DeviceState>> &state)
+{
+  return state != nullptr &&
+         device_state_allows_work(state->load(std::memory_order_acquire));
 }
 
 /** Exact pre-main browser presentation stage observed by synchronous GHOST setup. */

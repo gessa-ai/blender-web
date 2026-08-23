@@ -12,6 +12,7 @@
 # ordinary load-action submission transactions,
 # layered clear-before-draw ordering,
 # fallback adapter/device owner-lifetime invalidation,
+# fallback device-loss in-flight transaction cancellation,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -1581,6 +1582,9 @@ require_fixed_count 1 \
   'std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime_;' \
   "$GHOST_HEADER"
 require_fixed_count 1 \
+  'inline bool device_state_allows_callback_work(' \
+  "$GHOST_TRANSACTION_HEADER"
+require_fixed_count 1 \
   'acquisition_lifetime_(std::make_shared<FallbackAcquisitionLifetime>(*this))' \
   "$GHOST_SOURCE"
 require_fixed_count 2 \
@@ -1590,6 +1594,9 @@ require_fixed_count 1 'uint32_t imported_device_loss_generation_ = 0;' "$GHOST_H
 require_fixed_count 1 'desc.SetDeviceLostCallback(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::device_state_after_loss_signal(' "$GHOST_SOURCE"
 require_fixed_count 3 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
+require_fixed_count 5 \
+  'ghost_web::device_state_allows_callback_work(device_state)' \
+  "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
@@ -1687,6 +1694,34 @@ for label, body, helper, scope_label, pending in (
 ):
     if body.count(helper) != 1 or body.count(scope_label) != 1 or body.count(pending) < 2:
         raise SystemExit(f"ERROR: {label} is not bound to one completed error-scope publication")
+
+terminal_guard = "ghost_web::device_state_allows_callback_work(device_state)"
+if backbuffer.count(terminal_guard) != 2:
+    raise SystemExit("ERROR: resize callbacks do not both consult terminal device state")
+backbuffer_guards = [
+    backbuffer.index(terminal_guard),
+    backbuffer.index(terminal_guard, backbuffer.index(terminal_guard) + 1),
+]
+if not (
+    backbuffer_guards[0] < backbuffer.index("surface_.Configure(&config);")
+    < backbuffer_guards[1] < backbuffer.index("ghost_web::surface_resize_commit_if_current(")
+):
+    raise SystemExit("ERROR: terminal resize guards do not precede Configure and publication")
+if pipeline.count(terminal_guard) != 1 or pipeline.index(terminal_guard) > pipeline.index(
+    "present_bgl_ = std::move(bind_group_layout);"
+):
+    raise SystemExit("ERROR: terminal pipeline guard does not precede handle publication")
+if present.count(terminal_guard) != 2:
+    raise SystemExit("ERROR: present submission and completion do not both consult terminal state")
+present_guards = [
+    present.index(terminal_guard),
+    present.index(terminal_guard, present.index(terminal_guard) + 1),
+]
+if not (
+    present_guards[0] < present.index("queue.Submit(1, &command_buffer);")
+    < present_guards[1] < present.index("ghost_web::note_present();")
+):
+    raise SystemExit("ERROR: terminal present guards do not precede Submit and present commit")
 
 for needle in (
     "const uint32_t candidate_width = requested_width_;",
@@ -1907,7 +1942,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 37 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 38 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1986,6 +2021,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_device_loss_state PASS cases=13 transitions=7 lost=6 work=3 generation=bound terminal=sticky callback=lifetime_safe' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_device_loss_inflight_cancel PASS cases=10 active=5 lost=5 configure=0 publication=0 submit=0 present=0' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
@@ -2001,7 +2039,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=36 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=37 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

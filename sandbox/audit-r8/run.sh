@@ -79,6 +79,9 @@ grep -Fqx \
   "CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked" \
   "$AUDIT_TMP/accepted-native.log"
 grep -Fqx \
+  "CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1" \
+  "$AUDIT_TMP/accepted-native.log"
+grep -Fqx \
   "CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block" \
   "$AUDIT_TMP/accepted-native.log"
 
@@ -97,4 +100,4 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-owner-race.log"; then
   exit 1
 fi
 
-echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 owner_concurrent=1 owner_reentrant=1 unsafe_asan=1"
+echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 owner_concurrent=1 owner_serialized=1 nested=1 owner_reentrant=1 unsafe_asan=1"

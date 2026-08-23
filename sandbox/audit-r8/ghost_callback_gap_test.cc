@@ -208,6 +208,53 @@ bool run_self_destruction_contract()
   return delivered && callback_ran && !lifetime->deliver([](OwnerProbe &) {});
 }
 
+bool run_serialized_owner_contract()
+{
+  auto owner = std::make_unique<OwnerProbe>();
+  const std::shared_ptr<OwnerProbe::Lifetime> lifetime = owner->lifetime();
+  std::atomic<int> active{0};
+  std::atomic<int> peak{0};
+  std::atomic<bool> first_entered{false};
+  std::atomic<bool> release_first{false};
+  std::atomic<bool> second_entered{false};
+
+  const auto enter = [&](std::atomic<bool> &entered, const bool wait) {
+    return lifetime->deliver([&](OwnerProbe & /*loaded_owner*/) {
+      const int current = active.fetch_add(1, std::memory_order_acq_rel) + 1;
+      int observed_peak = peak.load(std::memory_order_acquire);
+      while (observed_peak < current &&
+             !peak.compare_exchange_weak(observed_peak, current, std::memory_order_acq_rel))
+      {
+      }
+      entered.store(true, std::memory_order_release);
+      while (wait && !release_first.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      active.fetch_sub(1, std::memory_order_acq_rel);
+    });
+  };
+
+  std::thread first([&]() { enter(first_entered, true); });
+  if (!wait_for(first_entered)) {
+    release_first.store(true, std::memory_order_release);
+    first.join();
+    return false;
+  }
+  std::thread second([&]() { enter(second_entered, false); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  const bool second_waited = !second_entered.load(std::memory_order_acquire);
+  release_first.store(true, std::memory_order_release);
+  first.join();
+  second.join();
+
+  bool nested_ran = false;
+  const bool outer_delivered = lifetime->deliver([&](OwnerProbe & /*loaded_owner*/) {
+    nested_ran = lifetime->deliver([](OwnerProbe & /*nested_owner*/) {});
+  });
+  return second_waited && second_entered.load(std::memory_order_acquire) &&
+         peak.load(std::memory_order_acquire) == 1 && outer_delivered && nested_ran;
+}
+
 bool run_imported_loss_contract()
 {
   constexpr uint32_t generation = 7;
@@ -254,11 +301,16 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "FAIL: reentrant owner destruction contract\n");
     return 1;
   }
+  if (!run_serialized_owner_contract()) {
+    std::fprintf(stderr, "FAIL: serialized owner delivery contract\n");
+    return 1;
+  }
   if (!run_imported_loss_contract()) {
     std::fprintf(stderr, "FAIL: imported-device loss callback contract\n");
     return 1;
   }
   std::puts("CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked");
+  std::puts("CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1");
   std::puts("CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block");
   return 0;
 }

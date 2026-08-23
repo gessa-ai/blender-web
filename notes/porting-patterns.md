@@ -977,3 +977,16 @@ sticky terminal transition. Fallback devices retain the same state object withou
 observer. Exercise pending, settled, sticky, and replacement observations on native and wasm32, and
 source-bind every configuration/publication/submission completion to the callback-owned state. See
 `platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.
+
+## Class 68 — lifetime-safe callbacks may still race their shared owner
+
+Signature: a callback lifetime gate registers concurrent deliveries and makes destruction wait,
+but releases its mutex before invoking either completion. `AllowSpontaneous` explicitly permits
+delivery on arbitrary threads, so two resize, pipeline, or present completions can concurrently
+read and mutate the same non-atomic GHOST context fields even though neither can outlive the owner.
+Serialize owner access for the whole delivery with a recursive mutex: invalidation from another
+thread waits for the active callback, while nested delivery and self-destruction on the callback
+thread remain reentrant. Keep cancellation as a state-only operation so terminal loss can reject
+future deliveries without waiting for one already running. Exercise two held concurrent callbacks,
+require peak owner access of one, then require nested delivery and concurrent destruction to finish
+on native and wasm32. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.

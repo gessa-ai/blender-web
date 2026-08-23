@@ -5,15 +5,12 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
 namespace ghost_web {
@@ -38,82 +35,41 @@ template<typename OwnerT> class OwnerCallbackLifetime {
   /** Stop future deliveries without waiting for an already-running owner callback. */
   void cancel()
   {
-    std::lock_guard lock(mutex_);
+    std::lock_guard lock(state_mutex_);
     accepting_ = false;
   }
 
   void invalidate()
   {
-    std::unique_lock lock(mutex_);
+    /* A recursive lock lets a callback destroy its own owner. Another thread
+     * cannot release the owner until the active delivery has returned. */
+    std::lock_guard delivery_lock(delivery_mutex_);
+    std::lock_guard state_lock(state_mutex_);
     accepting_ = false;
     owner_ = nullptr;
-    const std::thread::id caller = std::this_thread::get_id();
-    idle_.wait(lock, [this, caller]() {
-      const auto caller_it = deliveries_by_thread_.find(caller);
-      const size_t caller_deliveries = caller_it == deliveries_by_thread_.end() ?
-                                           0 :
-                                           caller_it->second;
-      return active_deliveries_ == caller_deliveries;
-    });
   }
 
   template<typename Callback> bool deliver(Callback &&callback) const
   {
+    /* AllowSpontaneous callbacks may arrive on arbitrary threads. Serialize
+     * their owner access, while recursive delivery on one thread remains legal. */
+    std::lock_guard delivery_lock(delivery_mutex_);
     OwnerT *owner;
-    std::thread::id delivery_thread;
     {
-      std::lock_guard lock(mutex_);
+      std::lock_guard state_lock(state_mutex_);
       owner = owner_;
       if (!accepting_ || owner == nullptr) {
         return false;
       }
-      delivery_thread = std::this_thread::get_id();
-      active_deliveries_++;
-      deliveries_by_thread_[delivery_thread]++;
     }
 
-    ActiveDelivery delivery(*this, delivery_thread);
     std::forward<Callback>(callback)(*owner);
     return true;
   }
 
  private:
-  class ActiveDelivery {
-   public:
-    ActiveDelivery(const OwnerCallbackLifetime &lifetime, const std::thread::id thread)
-        : lifetime_(lifetime), thread_(thread)
-    {
-    }
-    ~ActiveDelivery()
-    {
-      lifetime_.finish_delivery(thread_);
-    }
-
-   private:
-    const OwnerCallbackLifetime &lifetime_;
-    const std::thread::id thread_;
-  };
-
-  void finish_delivery(const std::thread::id thread) const
-  {
-    std::lock_guard lock(mutex_);
-    active_deliveries_--;
-    const auto thread_it = deliveries_by_thread_.find(thread);
-    if (thread_it != deliveries_by_thread_.end()) {
-      if (thread_it->second <= 1) {
-        deliveries_by_thread_.erase(thread_it);
-      }
-      else {
-        thread_it->second--;
-      }
-    }
-    idle_.notify_all();
-  }
-
-  mutable std::mutex mutex_;
-  mutable std::condition_variable idle_;
-  mutable size_t active_deliveries_ = 0;
-  mutable std::unordered_map<std::thread::id, size_t> deliveries_by_thread_;
+  mutable std::recursive_mutex delivery_mutex_;
+  mutable std::mutex state_mutex_;
   bool accepting_ = true;
   OwnerT *owner_;
 };

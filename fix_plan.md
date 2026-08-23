@@ -1911,10 +1911,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   build/no-work, CAPTURE preflight, REUSE, M3 scope, and container-backed regression are verified.
   Live hardware proof remains blocked by s7. See
   `notes/m3-gpu-bind-group-completeness-20260823.md`.
-- [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
-  `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
-  command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
-  **blocked-by: none; resource error-object prerequisite complete; highest priority.**
+- [x] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend] (4a1821b):** ordinary color/depth
+  `CLEAR` actions are now per-command reservations that commit only after every later attachment,
+  bind-group, command-buffer, and submission boundary succeeds. Late-view and late-bind failures
+  release the reservation for retry, same-epoch commands observe `LOAD`, and generation matching
+  isolates newer frontend binds from stale callbacks. Native/wasm32 parity, exact shipping-source
+  order guards, isolated patch round trip, canonical freeze/replay, real product rebuild/no-work,
+  OFF preflight, REUSE, M3 scope, and container-backed regression are verified. Live hardware proof
+  remains blocked by s7. See
+  `notes/m3-gpu-framebuffer-load-action-transaction-20260823.md`.
 - [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
   backbuffer extents coherent across replacement failure, require matching extents before
   present, and retry a pending resize without depending on a second browser resize event.

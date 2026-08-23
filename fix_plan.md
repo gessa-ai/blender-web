@@ -1708,6 +1708,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   are verified. Live clear/pixel proof remains blocked by no conformant hardware Vulkan ICD in
   WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn). See
   `notes/m3-t10-framebuffer-scissored-command-transaction-20260823.md`.
+- [x] **M3.T10-FRAMEBUFFER-FULL-CLEAR-COMMAND-TRANSACTION [gpu-backend] (b922d87):** patch
+  0219 routes multi-attachment and dedicated single-color full clears through the checked
+  encoder/pass/finish/submit transaction. The unchanged source fails first; the shared four-case
+  native/wasm32 transaction plus exact two-method guards prove failed handles stop before
+  dependent pass work or submission. Canonical replay/reverse, the real product rebuild/no-work
+  check, OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live
+  clear/pixel proof remains blocked by no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships
+  none; Mesa dzn rejected by Dawn). See
+  `notes/m3-t10-framebuffer-full-clear-command-transaction-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

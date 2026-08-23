@@ -185,7 +185,11 @@ static void on_device_ready(bool ok)
   /* 1. Onscreen: render + present to the canvas surface. */
   wgpu::SurfaceTexture st = {};
   g_ctx->getSurface().GetCurrentTexture(&st);
-  if (st.texture != nullptr) {
+  const bool surface_ready =
+      (st.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal ||
+       st.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal) &&
+      st.texture != nullptr;
+  if (surface_ready) {
     wgpu::RenderPipeline pipe = make_pipeline(dev, g_ctx->getSurfaceFormat());
     wgpu::CommandEncoder enc = dev.CreateCommandEncoder();
     draw_triangle(enc, st.texture.CreateView(), pipe);

@@ -148,6 +148,11 @@ handles, and preserves device acquisition only for the separately selected devic
 seven-case pinned-Node mock covers device, canvas, surface, configuration, error-object/null
 backbuffer, and successful publication; the native/wasm32 decision table independently rejects
 every partial status before the existing window-publication transaction can run.
+Surface acquisition is a separate per-frame transaction. The status contract accepts a texture
+only for optimal or suboptimal success, retries a timeout without poisoning the configured state,
+reconfigures outdated/error or malformed-success results, and recreates a lost surface. The
+synchronous GHOST swap result reports whether this frame actually reached the asynchronous
+validation transaction instead of manufacturing success for an acquisition that never started.
 The Blender GPU backend now applies that completed-scope rule to every short-lived command and
 direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can
 yield, so a delayed submission cannot move behind a later `WriteBuffer` or `WriteTexture` call.

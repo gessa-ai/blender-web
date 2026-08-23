@@ -25,6 +25,52 @@ enum class PreinitializedPresentationStatus : uint8_t {
   Ready = 5,
 };
 
+/** WebGPU's exact per-frame surface acquisition result, kept API-neutral for native/wasm tests. */
+enum class SurfaceAcquireStatus : uint8_t {
+  SuccessOptimal,
+  SuccessSuboptimal,
+  Timeout,
+  Outdated,
+  Lost,
+  Error,
+};
+
+/** Recovery required before a surface texture may reach present command encoding. */
+enum class SurfaceAcquireAction : uint8_t {
+  Present,
+  PresentAndReconfigure,
+  Retry,
+  Reconfigure,
+  Recreate,
+};
+
+inline SurfaceAcquireAction surface_acquire_action(const SurfaceAcquireStatus status,
+                                                   const bool texture_valid)
+{
+  if (status == SurfaceAcquireStatus::Timeout) {
+    return SurfaceAcquireAction::Retry;
+  }
+  if (status == SurfaceAcquireStatus::Lost) {
+    return SurfaceAcquireAction::Recreate;
+  }
+  if (!texture_valid) {
+    return SurfaceAcquireAction::Reconfigure;
+  }
+  if (status == SurfaceAcquireStatus::SuccessOptimal) {
+    return SurfaceAcquireAction::Present;
+  }
+  if (status == SurfaceAcquireStatus::SuccessSuboptimal) {
+    return SurfaceAcquireAction::PresentAndReconfigure;
+  }
+  return SurfaceAcquireAction::Reconfigure;
+}
+
+inline bool surface_acquire_can_present(const SurfaceAcquireAction action)
+{
+  return action == SurfaceAcquireAction::Present ||
+         action == SurfaceAcquireAction::PresentAndReconfigure;
+}
+
 /**
  * A device-only context is valid once its device exists. A presentable window
  * additionally requires the complete pre-main surface transaction and non-zero

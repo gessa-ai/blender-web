@@ -1560,7 +1560,8 @@ initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingConte
 finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
 backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
 pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
-present = method("void GHOST_ContextWGPUWeb::presentBackbuffer()")
+swap_release = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()")
+present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 
 for needle in ("requested_width_ = w;", "requested_height_ = h;", "ensureBackbuffer();"):
     if configure.count(needle) != 1:
@@ -1637,6 +1638,17 @@ for needle in (
 ):
     if present.count(needle) != 1:
         raise SystemExit(f"ERROR: present resize coherence lacks one exact boundary: {needle}")
+for needle in (
+    "ghost_web::surface_acquire_action(",
+    "st.status",
+    "st.texture != nullptr",
+    "ghost_web::SurfaceAcquireAction::Reconfigure",
+    "ghost_web::SurfaceAcquireAction::Recreate",
+):
+    if present.count(needle) < 1:
+        raise SystemExit(f"ERROR: surface acquisition failure lacks one exact propagation boundary: {needle}")
+if swap_release.count("return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;") != 1:
+    raise SystemExit("ERROR: GHOST swap status does not propagate the immediate present result")
 resize_positions = [
     present.index("ensureBackbuffer();"),
     present.index("surface_.GetCurrentTexture(&st);"),
@@ -1737,7 +1749,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 33 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 34 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1804,6 +1816,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_surface_publication_status PASS cases=13 accepted=2 canvas=required surface=required configuration=required backbuffer=required device_only=explicit' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_surface_acquisition_status PASS cases=12 optimal=1 suboptimal=1 retry=2 reconfigure=6 recreate=2 failure=propagated' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
@@ -1819,7 +1834,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=32 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=33 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

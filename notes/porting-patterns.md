@@ -822,3 +822,17 @@ does not imply a surface. Exercise every partial stage, non-null error-object cl
 forwarding, and complete publication under the pinned JavaScript runtime; separately compile the
 same status decision for native and wasm32. See `platform_web/shell/wgpu-preinit-worker.js` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 57 — surface acquisition status is part of the present transaction
+
+Signature: a present path calls `GetCurrentTexture()`, checks only whether the returned texture
+handle is null, discards every early-return result, and then reports swap success unconditionally.
+The browser binding converts a `GPUCanvasContext.getCurrentTexture()` exception into an explicit
+`Error` status plus a null texture. Treat only optimal/suboptimal success with a live texture as
+presentable; retry `Timeout` without changing configuration, force `Outdated`/`Error` through a
+fresh configuration, and recreate a `Lost` surface. A suboptimal texture may present once but must
+request reconfiguration after its transaction settles. Return whether command validation was
+actually scheduled so the synchronous GHOST boundary does not manufacture success for an
+acquisition that never began. Exercise every status with both valid and malformed texture presence
+on native and wasm32. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

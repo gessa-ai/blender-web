@@ -68,8 +68,8 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   GHOST_TSuccess initializeDrawingContext() override;
   GHOST_TSuccess releaseNativeHandles() override;
   GHOST_TSuccess swapBufferAcquire() override;
-  /** No-op on the web: the browser auto-presents the configured canvas on
-   * event-loop yield (wgpu-context note delta #3). */
+  /** Schedule the persistent-backbuffer blit. Immediate acquisition failures are
+   * returned synchronously; the browser auto-presents accepted work on event-loop yield. */
   GHOST_TSuccess swapBufferRelease() override;
   /** No-op: WebGPU's implicit device model has no "current context" to activate. */
   GHOST_TSuccess activateDrawingContext() override;
@@ -146,7 +146,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   void ensurePresentPipeline();
   /* Present: render-pass blit the offscreen back-buffer onto the surface's current texture
    * and submit, within the caller's rAF tick (swapBufferRelease). */
-  void presentBackbuffer();
+  bool presentBackbuffer();
 
   std::string canvas_selector_;
   ghost_web::DrawingContextMode mode_ = ghost_web::DrawingContextMode::PresentableWindow;

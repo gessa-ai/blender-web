@@ -2423,6 +2423,57 @@ bool ghost_surface_publication_status_contract()
   return true;
 }
 
+bool ghost_surface_acquisition_status_contract()
+{
+  struct Case {
+    gw::SurfaceAcquireStatus status;
+    bool texture_valid;
+    gw::SurfaceAcquireAction expected;
+  };
+  constexpr std::array<Case, 12> cases = {{
+      {gw::SurfaceAcquireStatus::SuccessOptimal, true, gw::SurfaceAcquireAction::Present},
+      {gw::SurfaceAcquireStatus::SuccessSuboptimal,
+       true,
+       gw::SurfaceAcquireAction::PresentAndReconfigure},
+      {gw::SurfaceAcquireStatus::Timeout, false, gw::SurfaceAcquireAction::Retry},
+      {gw::SurfaceAcquireStatus::Outdated, false, gw::SurfaceAcquireAction::Reconfigure},
+      {gw::SurfaceAcquireStatus::Lost, false, gw::SurfaceAcquireAction::Recreate},
+      {gw::SurfaceAcquireStatus::Error, false, gw::SurfaceAcquireAction::Reconfigure},
+      {gw::SurfaceAcquireStatus::SuccessOptimal, false, gw::SurfaceAcquireAction::Reconfigure},
+      {gw::SurfaceAcquireStatus::SuccessSuboptimal,
+       false,
+       gw::SurfaceAcquireAction::Reconfigure},
+      {gw::SurfaceAcquireStatus::Timeout, true, gw::SurfaceAcquireAction::Retry},
+      {gw::SurfaceAcquireStatus::Outdated, true, gw::SurfaceAcquireAction::Reconfigure},
+      {gw::SurfaceAcquireStatus::Lost, true, gw::SurfaceAcquireAction::Recreate},
+      {gw::SurfaceAcquireStatus::Error, true, gw::SurfaceAcquireAction::Reconfigure},
+  }};
+
+  std::array<size_t, 5> action_counts = {};
+  for (const Case &test : cases) {
+    const gw::SurfaceAcquireAction action =
+        gw::surface_acquire_action(test.status, test.texture_valid);
+    if (!require(action == test.expected, "GHOST surface acquisition action")) {
+      return false;
+    }
+    action_counts[size_t(action)]++;
+  }
+  if (!require(action_counts == std::array<size_t, 5>{1, 1, 2, 6, 2},
+               "GHOST surface acquisition action census") ||
+      !require(gw::surface_acquire_can_present(gw::SurfaceAcquireAction::Present) &&
+                   gw::surface_acquire_can_present(
+                       gw::SurfaceAcquireAction::PresentAndReconfigure) &&
+                   !gw::surface_acquire_can_present(gw::SurfaceAcquireAction::Retry),
+               "GHOST surface acquisition present boundary"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_surface_acquisition_status PASS cases=12 optimal=1 suboptimal=1 "
+            "retry=2 reconfigure=6 recreate=2 failure=propagated");
+  return true;
+}
+
 class GhostHandleProbe {
  public:
   GhostHandleProbe() = default;
@@ -3274,6 +3325,7 @@ int main()
       !buffer_command_transaction_contract() ||
       !ghost_window_publication_transaction_contract() ||
       !ghost_surface_publication_status_contract() ||
+      !ghost_surface_acquisition_status_contract() ||
       !ghost_present_resource_transaction_contract() ||
       !ghost_resize_coherence_contract() ||
       !format_32bit_contract() ||
@@ -3283,11 +3335,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=32 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=33 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
-      "ghost_window_cases=5 ghost_surface_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

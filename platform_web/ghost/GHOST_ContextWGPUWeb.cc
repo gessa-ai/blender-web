@@ -34,6 +34,26 @@
  * presentBackbuffer, readers just need a coherent recent value. */
 namespace {
 std::atomic<uint64_t> g_present_count{0};
+
+ghost_web::SurfaceAcquireStatus surface_acquire_status(
+    const wgpu::SurfaceGetCurrentTextureStatus status)
+{
+  switch (status) {
+    case wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal:
+      return ghost_web::SurfaceAcquireStatus::SuccessOptimal;
+    case wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal:
+      return ghost_web::SurfaceAcquireStatus::SuccessSuboptimal;
+    case wgpu::SurfaceGetCurrentTextureStatus::Timeout:
+      return ghost_web::SurfaceAcquireStatus::Timeout;
+    case wgpu::SurfaceGetCurrentTextureStatus::Outdated:
+      return ghost_web::SurfaceAcquireStatus::Outdated;
+    case wgpu::SurfaceGetCurrentTextureStatus::Lost:
+      return ghost_web::SurfaceAcquireStatus::Lost;
+    case wgpu::SurfaceGetCurrentTextureStatus::Error:
+    default:
+      return ghost_web::SurfaceAcquireStatus::Error;
+  }
+}
 }  // namespace
 
 namespace ghost_web {
@@ -308,8 +328,10 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
    * event-loop yield. Because acquire+copy+submit all happen in-tick and nothing else
    * ever references the surface, the per-frame "Destroyed texture … WebgpuSwapChainTexture
    * used in a submit" family (725x/boot pre-M4.T21) cannot occur. */
-  presentBackbuffer();
-  return GHOST_kSuccess;
+  if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
+    return GHOST_kSuccess;
+  }
+  return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()
@@ -684,23 +706,39 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
           });
 }
 
-void GHOST_ContextWGPUWeb::presentBackbuffer()
+bool GHOST_ContextWGPUWeb::presentBackbuffer()
 {
   if (surface_ == nullptr || device_ == nullptr || present_pending_) {
-    return;
+    return false;
   }
 
   /* A rejected resize remains requested. Every later frame can recreate it, so
    * recovery does not depend on the browser delivering a duplicate resize event. */
   ensureBackbuffer();
   if (backbuffer_pending_ || !configured_ || backbuffer_ == nullptr) {
-    return;
+    return false;
   }
   wgpu::SurfaceTexture st = {};
   surface_.GetCurrentTexture(&st);
-  if (st.texture == nullptr) {
-    return;
+  const ghost_web::SurfaceAcquireAction acquire_action =
+      ghost_web::surface_acquire_action(surface_acquire_status(st.status), st.texture != nullptr);
+  if (!ghost_web::surface_acquire_can_present(acquire_action)) {
+    if (acquire_action == ghost_web::SurfaceAcquireAction::Reconfigure) {
+      /* emdawnwebgpu maps a browser getCurrentTexture() exception to Error. Force
+       * a fresh Configure on the next frame instead of retrying broken state forever. */
+      configured_ = false;
+    }
+    else if (acquire_action == ghost_web::SurfaceAcquireAction::Recreate) {
+      /* A lost surface cannot be repaired by Configure alone. Recreate it from the
+       * still-live transferred canvas; the async backbuffer/configuration path gates use. */
+      configured_ = false;
+      surface_ = nullptr;
+      finishSetup();
+    }
+    return false;
   }
+  const bool reconfigure_after_present =
+      acquire_action == ghost_web::SurfaceAcquireAction::PresentAndReconfigure;
   const uint32_t surface_width = st.texture.GetWidth();
   const uint32_t surface_height = st.texture.GetHeight();
   if (!ghost_web::surface_resize_present_coherent(configured_,
@@ -716,11 +754,11 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
      * what GetCurrentTexture observed and begin a coherent replacement, but never
      * sample the stale backbuffer into the mismatched surface. */
     configureSurface(surface_width, surface_height);
-    return;
+    return false;
   }
   ensurePresentPipeline();
   if (present_pipeline_ == nullptr) {
-    return;
+    return false;
   }
 
   const wgpu::Device device = device_;
@@ -774,11 +812,15 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
           [device](auto completion) {
             popErrorScopes(device, "present queue submission", std::move(completion));
           },
-          [this, lifetime, surface_width, surface_height](const bool valid) {
+          [this, lifetime, surface_width, surface_height, reconfigure_after_present](
+              const bool valid) {
             if (!lifetime->load(std::memory_order_acquire)) {
               return;
             }
             present_pending_ = false;
+            if (reconfigure_after_present) {
+              configured_ = false;
+            }
             if (!valid) {
               std::printf("WGPUWeb: present transaction rejected\n");
               return;
@@ -800,4 +842,5 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
           });
   /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
    * render pass, and one validation-gated submit all settle before the next frame. */
+  return true;
 }

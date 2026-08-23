@@ -1920,10 +1920,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   OFF preflight, REUSE, M3 scope, and container-backed regression are verified. Live hardware proof
   remains blocked by s7. See
   `notes/m3-gpu-framebuffer-load-action-transaction-20260823.md`.
-- [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
-  backbuffer extents coherent across replacement failure, require matching extents before
-  present, and retry a pending resize without depending on a second browser resize event.
-  **blocked-by: none; GHOST error-object prerequisite complete.**
+- [x] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web] (a52f311):** requested canvas extents now
+  remain separate from the last complete configured surface/backbuffer state. Only a validated
+  current candidate configures and publishes every size-bound field; rejected and superseded
+  candidates preserve the old coherent state, exact extent matching gates present, and the next
+  frame retries without another browser resize event. Native/wasm32 parity, a real pinned-Dawn
+  non-null texture error-object control, product rebuild/no-work, OFF preflight, canonical replay,
+  REUSE, scoped M4, and Docker-backed regression are verified. Live pixels remain blocked by s7.
+  See `notes/m4-ghost-resize-coherence-20260823.md`.
 - [ ] **AUDIT-R6-GHOST-SURFACE-PUBLICATION [ghost-web]:** propagate unresolved-canvas,
   surface-creation, configuration, and initial-backbuffer failure through drawing-context status;
   destroy rather than publish a window that cannot present. Keep any device-only mode explicit

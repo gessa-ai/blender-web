@@ -17262,10 +17262,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1ef431a91eedeaec8b2a02601c5769060d1baadd
+index 0000000000000000000000000000000000000000..e619c24e8f3765b0fc7aa2c604a9d6300a65033d
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,880 @@
+@@ -0,0 +1,883 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17388,6 +17388,9 @@ index 0000000000000000000000000000000000000000..1ef431a91eedeaec8b2a02601c576906
 +  wgpu::ShaderModuleDescriptor shader_descriptor = {};
 +  shader_descriptor.nextInChain = &wgsl;
 +  wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);
++  if (module == nullptr) {
++    return nullptr;
++  }
 +  wgpu::ComputePipelineDescriptor pipeline_descriptor = {};
 +  pipeline_descriptor.compute.module = module;
 +  pipeline_descriptor.compute.entryPoint = "main";
@@ -17463,15 +17466,15 @@ index 0000000000000000000000000000000000000000..1ef431a91eedeaec8b2a02601c576906
 +    return false;
 +  }
 +
-+  wgpu::CommandEncoder encoder = ctx.device_get().CreateCommandEncoder();
-+  wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-+  pass.SetPipeline(pipeline);
-+  pass.SetBindGroup(0, group);
-+  pass.DispatchWorkgroups(1);
-+  pass.End();
-+  wgpu::CommandBuffer command_buffer = encoder.Finish();
-+  ctx.queue_get().Submit(1, &command_buffer);
-+  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      ctx.device_get(),
++      ctx.queue_get(),
++      [](auto &encoder) { return encoder.BeginComputePass(); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetBindGroup(0, group);
++        pass.DispatchWorkgroups(1);
++      });
 +}
 +
 +void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int instance_count)

@@ -5,8 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit resource guards, dummy-attribute binding plan,
-# and shader-lifetime cache separation.
+# cache publication, color-blit and indexed-fan resource guards, dummy-attribute
+# binding plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -233,6 +233,40 @@ require_fixed_count 2 \
 require_fixed_count 0 \
   'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
+require_fixed_count 1 \
+  'if (module == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'return webgpu::command_pass_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 \
+  'wgpu::CommandEncoder encoder = ctx.device_get().CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 0 \
+  'wgpu::ComputePassEncoder pass = encoder.BeginComputePass();' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+FAN_MODULE_CREATE_LINE="$(grep -nF \
+  'wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+FAN_MODULE_GUARD_LINE="$(grep -nF \
+  'if (module == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+FAN_PIPELINE_CREATE_LINE="$(grep -nF \
+  'pipeline = device.CreateComputePipeline(&pipeline_descriptor);' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+FAN_BIND_GUARD_LINE="$(grep -nF \
+  'if (group == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+FAN_COMMAND_TRANSACTION_LINE="$(grep -nF \
+  'return webgpu::command_pass_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
+if [ -z "$FAN_MODULE_CREATE_LINE" ] || [ -z "$FAN_MODULE_GUARD_LINE" ] ||
+   [ -z "$FAN_PIPELINE_CREATE_LINE" ] || [ -z "$FAN_BIND_GUARD_LINE" ] ||
+   [ -z "$FAN_COMMAND_TRANSACTION_LINE" ] ||
+   [ "$FAN_MODULE_CREATE_LINE" -ge "$FAN_MODULE_GUARD_LINE" ] ||
+   [ "$FAN_MODULE_GUARD_LINE" -ge "$FAN_PIPELINE_CREATE_LINE" ] ||
+   [ "$FAN_BIND_GUARD_LINE" -ge "$FAN_COMMAND_TRANSACTION_LINE" ]
+then
+  echo "ERROR: indexed triangle-fan resource guards do not precede dependent work" >&2
+  exit 1
+fi
 require_fixed_count 1 'struct DirectDrawPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \

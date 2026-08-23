@@ -938,3 +938,6 @@
 # 0211: preserve native write-only RG16Float storage images while promoting
 # read-write RG16Float consistently across declarations and interface metadata.
 0211-gpu-webgpu-storage-format-access.patch
+# 0212: reject a missing indexed-fan shader module before pipeline creation and
+# route its expansion through the checked encoder/pass/finish/submit transaction.
+0212-gpu-webgpu-indexed-fan-resource-transaction.patch

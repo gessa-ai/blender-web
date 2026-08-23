@@ -32,6 +32,10 @@ the missing uniform before `WriteBuffer`, a missing bind group before command-en
 work, and failed compute encoder/pass/command-buffer creation before dependent work or submission
 work. The source-order checks bind all three guards to the shipping method while the shared
 native/Wasm allocation contract proves failure leaves the caller's buffer handle unchanged.
+The indexed triangle-fan expansion likewise rejects a missing shader module before compute-
+pipeline creation and uses the same tested encoder/pass/finish transaction, so any failed command
+handle stops before expansion work or queue submission. Exact source-order checks bind both guards
+to the shipping fan method.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.

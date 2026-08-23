@@ -5,7 +5,7 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit/indexed-fan resource guards, immediate-draw
+# cache publication, color-blit/indexed-fan resource guards, batch/immediate-draw
 # command transactions, dummy-attribute binding plan, and shader-lifetime cache
 # separation.
 # Invoke through buildwrap.sh.
@@ -247,6 +247,77 @@ require_fixed_count 0 \
 require_fixed_count 0 \
   'wgpu::ComputePassEncoder pass = encoder.BeginComputePass();' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 \
+  'if (mv_enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 \
+  'if (mv_cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 \
+  'if (enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 \
+  'if (cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_batch.cc" <<'PY'
+from pathlib import Path
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def method_body(marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise ValueError(f"unterminated method: {marker}")
+
+
+paths = (
+    (
+        "multi-viewport",
+        "wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();",
+        "if (mv_enc == nullptr) {",
+        "wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);",
+        "wgpu::CommandBuffer mv_cb = mv_enc.Finish();",
+        "if (mv_cb == nullptr) {",
+        "ctx->queue_get().Submit(1, &mv_cb);",
+    ),
+    (
+        "ordinary",
+        "wgpu::CommandEncoder enc = device.CreateCommandEncoder();",
+        "if (enc == nullptr) {",
+        "wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);",
+        "wgpu::CommandBuffer cb = enc.Finish();",
+        "if (cb == nullptr) {",
+        "ctx->queue_get().Submit(1, &cb);",
+    ),
+)
+
+for method_marker in (
+    "void WGPUBatch::draw(",
+    "void WGPUBatch::multi_draw_indirect(",
+):
+    body = method_body(method_marker)
+    for path_name, *needles in paths:
+        positions = [body.find(needle) for needle in needles]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            raise SystemExit(
+                "ERROR: batch "
+                + method_marker.removeprefix("void WGPUBatch::").rstrip("(")
+                + f" {path_name} command guards do not precede dependent work"
+            )
+        if any(body.count(needle) != 1 for needle in needles):
+            raise SystemExit(
+                "ERROR: batch "
+                + method_marker.removeprefix("void WGPUBatch::").rstrip("(")
+                + f" {path_name} command transaction is ambiguous"
+            )
+PY
 FAN_MODULE_CREATE_LINE="$(grep -nF \
   'wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"

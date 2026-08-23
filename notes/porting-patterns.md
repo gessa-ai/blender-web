@@ -869,3 +869,18 @@ frontend create/update call, multiple pending update/clear operations, non-null 
 resource-only retry, and exact sentinel ordering on native and wasm32. Use pinned Dawn only as an
 explicit software error-object control. See `sandbox/wgpu-buffer-integrated-smoke/` and
 `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 60 — nested prerequisite commands cannot reserve behind their consumer
+
+Signature: an ordered draw transaction reserves its FIFO ticket before invoking its encode
+callback, while framebuffer pass assembly inside that callback discovers an all-layer clear and
+opens a second command transaction. The draw therefore submits first even though its staged load
+action encodes `LOAD`; the later clear reads as a prerequisite in source but behaves as a
+post-draw overwrite on the queue. Preflight the complete load pass, reserve every materialized
+clear before reserving the dependent draw, and join their asynchronous results in one idempotent
+completion group. Commit the shared load-action generation only when all clears and the draw
+validate; any rejected or canceled member rolls the generation back for a later epoch, and a stale
+group cannot consume a replacement bind. Exercise clear failure, draw failure, clean order, and
+generation replacement through the real FIFO on native and wasm32, then source-bind every direct,
+indirect, multi-viewport, and immediate caller to preparation-before-command order. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

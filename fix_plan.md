@@ -1972,10 +1972,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   frontend native/wasm32 parity, sentinel ordering, non-null pinned-Dawn rejection/retry, canonical
   replay, real product rebuild/no-work, OFF preflight, and compliance are verified. See
   `notes/m3-gpu-pending-buffer-payload-20260823.md`.
-- [ ] **AUDIT-R7-GPU-LAYERED-CLEAR-ORDER [gpu-backend, blocked-by: none]:** reserve and submit
-  every materialized all-layer load clear before the draw that observes the staged action as
-  `LOAD`; reject/rollback either half without committing a newer generation. Add a scheduler trace
-  proving clear-before-draw plus native/wasm32 failure-order parity and exact shipping-source bind.
+- [x] **AUDIT-R7-GPU-LAYERED-CLEAR-ORDER [gpu-backend, blocked-by: none] COMPLETE (b8ce1e7,
+  patch 0241):** every materialized all-layer load clear now reserves ahead of its dependent draw,
+  and one idempotent completion group commits the shared load-action generation only after all
+  clears and the draw validate. Real-FIFO clean/failure/cancellation/generation-isolation traces,
+  native/wasm32 parity, exact shipping-source binds, canonical replay, real product rebuild/no-work,
+  OFF preflight, and compliance are verified. See
+  `notes/m3-gpu-layered-clear-order-20260823.md`.
 - [ ] **AUDIT-R7-GPU-UPLOAD-COMMIT [gpu-backend, blocked-by: none]:** make direct and staged
   buffer upload completion explicit; retain VBO/UBO dirty state and owned bytes until completed
   validation/OOM/internal scopes accept the operation, then prove rejected uploads retry in a

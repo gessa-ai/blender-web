@@ -1840,12 +1840,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, OFF preflight, canonical replay, and reverse application are verified. This
   closes the command/queue half only; live hardware proof remains blocked by s7. See
   `notes/m3-gpu-command-error-object-contract-20260823.md`.
+- [x] **AUDIT-R6-GPU-SAMPLER-ERROR-OBJECT-CONTRACT [gpu-backend] (3d67aa6):** sampler cache misses
+  now remain pending until completed validation/OOM/internal scopes accept them. Duplicate pending
+  misses are suppressed, non-null error objects remain unpublished, rejected keys retry cleanly,
+  and accepted cached handles remain stable. Native/wasm32 parity, the exact pinned-Dawn llvmpipe
+  non-receipt control, canonical freeze, product rebuild/no-work, OFF preflight, REUSE, scoped M3,
+  and container-backed regression are verified. This closes the sampler slice only; live hardware
+  proof remains blocked by s7. See `notes/m3-gpu-sampler-error-object-contract-20260823.md`.
 - [ ] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace remaining null-only
-  buffer, texture/view, sampler, bind-group/layout, pipeline-layout, and pipeline creation/cache
-  publication with completed error-scope status. Preserve old resources and CPU retry state until
+  buffer, texture/view, bind-group/layout, pipeline-layout, and pipeline creation/cache publication
+  with completed error-scope status. Preserve old resources and CPU retry state until
   validation/OOM/internal scopes settle, and reject error objects before dependent command work or
-  one-shot commits. Reuse the pinned-Dawn control; do not infer browser success from it.
-  **blocked-by: none; highest priority.**
+  one-shot commits. Reuse the pinned-Dawn control; do not infer browser success from it. The sampler
+  cache slice is complete in `3d67aa6`. **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport
   bindings), distinguish a genuinely empty layout from missing/partial resources, and reject

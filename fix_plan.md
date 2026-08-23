@@ -2007,10 +2007,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Fail-first source binding, active/lost native/wasm32 parity, standalone/product builds, OFF
   preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.
   See `notes/m4-ghost-loss-inflight-cancel-20260823.md`.
-- [ ] **AUDIT-R7-GPU-SCHEDULER-FAILURE-DRAIN [gpu-backend, blocked-by: none]:** replace recursive
-  same-epoch cancellation with an iterative bounded-stack drain and prune failed epochs as soon as
-  no queued entry can reference them. Regress a failed head plus 100,000 resolved followers and a
-  long sequence of failed epochs in native/wasm32 builds.
+- [x] **AUDIT-R7-GPU-SCHEDULER-FAILURE-DRAIN [gpu-backend, blocked-by: none] COMPLETE (a15900d,
+  patch 0244):** synchronous operation completion and same-epoch cancellation now share one
+  iterative drain owner, while exact queued-epoch references prune failures once neither current
+  nor reachable. Native/wasm32 parity cancels 100,000 followers with bounded stack use, retains at
+  most one of 100,000 sequential failed epochs, and accepts a clean retry. Canonical replay, the
+  real product rebuild/no-work, OFF preflight, compliance, scoped M3, and container-backed
+  regression are verified. The R7 device-free corrective queue is complete. See
+  `notes/m3-gpu-scheduler-failure-drain-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

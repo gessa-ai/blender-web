@@ -1780,6 +1780,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
   Live draw/pixel proof remains blocked by the named s7 hardware-adapter condition. See
   `notes/m3-t10-index-buffer-resource-transaction-20260823.md`.
+- [x] **M3.T7-SHADER-LAYOUT-RESOURCE-TRANSACTION [gpu-backend] (8bb9908):** patch 0228
+  separates intentional semantic auto-layout fallback from null bind-group-layout or
+  pipeline-layout resource failures, and publishes the two handles only as one valid pair. The
+  fail-first source guard, three-case native/wasm32 transaction, root/descendant parity,
+  wrong-Node control, self-check, canonical replay, numbered forward/reverse checks, real product
+  rebuild/no-work, OFF preflight, scoped M3, and container-backed regression are verified. Live
+  layout/pipeline/draw proof remains blocked by the named s7 hardware-adapter condition. See
+  `notes/m3-t7-shader-layout-resource-transaction-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

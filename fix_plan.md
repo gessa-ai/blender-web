@@ -1795,6 +1795,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   registry, REUSE, M3 scope, and container-backed regression are verified; M0 is 6/6 GREEN while
   M1-M8 remain honestly RED. No software adapter, receipt, result flag, tolerance, golden,
   blacklist, or promise changed. See `notes/s7-wsl2-hardware-blocker-20260822.md`.
+- [x] **M4.T21-GHOST-PRESENT-RESOURCE-TRANSACTION [ghost-web] (844e683):** the browser
+  compositor preserves the last usable resize texture until replacement succeeds, publishes its
+  bind-group layout/pipeline only as a complete pair, and rejects failed per-frame views, bind
+  group, encoder, pass, or finished command buffer before dependent work or submission. The
+  first-pixels marker and keepalive counter now advance only after submit. A 14-case fail-first
+  native/wasm32 contract, descendant replay, wrong-Node zero-evidence control, real product
+  rebuild/no-work, OFF preflight, REUSE, scoped M4, and container-backed regression are verified.
+  Live present/pixel proof remains blocked by the named s7 hardware-adapter condition. See
+  `notes/m4-t21-ghost-present-resource-transaction-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

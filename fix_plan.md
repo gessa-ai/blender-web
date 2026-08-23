@@ -1928,10 +1928,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   non-null texture error-object control, product rebuild/no-work, OFF preflight, canonical replay,
   REUSE, scoped M4, and Docker-backed regression are verified. Live pixels remain blocked by s7.
   See `notes/m4-ghost-resize-coherence-20260823.md`.
-- [ ] **AUDIT-R6-GHOST-SURFACE-PUBLICATION [ghost-web]:** propagate unresolved-canvas,
-  surface-creation, configuration, and initial-backbuffer failure through drawing-context status;
-  destroy rather than publish a window that cannot present. Keep any device-only mode explicit
-  and separate. **blocked-by: none.**
+- [x] **AUDIT-R6-GHOST-SURFACE-PUBLICATION [ghost-web] (0b8c500):** the pre-main WM worker
+  validates the transferred canvas, surface configuration, acquired surface texture, and initial
+  persistent backbuffer before synchronous GHOST setup. Presentable contexts import only the
+  complete bundle; every partial stage fails child initialization and is destroyed before window
+  publication, while offscreen contexts select an explicit device-only mode. Native/wasm32 status
+  parity, a seven-case pinned-Node worker transaction, canonical replay, real product
+  rebuild/no-work, OFF preflight, REUSE, scoped M4, and container-backed regression are verified.
+  Live pixels remain blocked by s7. See `notes/m4-ghost-surface-publication-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

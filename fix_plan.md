@@ -1855,12 +1855,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live hardware
   proof remains blocked by s7. See
   `notes/m3-gpu-dummy-buffer-error-object-contract-20260823.md`.
+- [x] **AUDIT-R6-GPU-PERSISTENT-BUFFER-ERROR-OBJECT-CONTRACT [gpu-backend] (b3a0abb):** persistent
+  index, vertex, uniform, storage, texel-expansion, and push-constant buffers now publish one
+  composite handle/metadata allocation only after validation/OOM/internal scopes accept it.
+  Pending calls deduplicate, rejected non-null candidates retry, and initial index bytes remain
+  owned until accepted publication. Native/wasm32 parity, the exact pinned-Dawn llvmpipe
+  non-receipt control, canonical freeze, isolated numbered application, product rebuild/no-work,
+  OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live hardware
+  proof remains blocked by s7. See
+  `notes/m3-gpu-persistent-buffer-error-object-contract-20260823.md`.
 - [ ] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace remaining null-only
-  persistent/transient buffer, texture/view, bind-group/layout, pipeline-layout, and pipeline
+  transient buffer, texture/view, bind-group/layout, pipeline-layout, and pipeline
   creation/cache publication with completed error-scope status. Preserve old resources and CPU retry state until
   validation/OOM/internal scopes settle, and reject error objects before dependent command work or
   one-shot commits. Reuse the pinned-Dawn control; do not infer browser success from it. The sampler
-  cache and shared dummy-buffer slices are complete in `3d67aa6` and `d8cd71d`.
+  cache, shared dummy-buffer, and persistent-buffer slices are complete in `3d67aa6`, `d8cd71d`,
+  and `b3a0abb`; the short-lived batch/immediate buffer transaction is the next smallest slice.
   **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport

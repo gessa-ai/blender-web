@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 #include <utility>
 
 namespace ghost_web {
@@ -37,23 +38,25 @@ WindowT *window_publish_if_valid(WindowT *window,
   return window;
 }
 
-/** Replace a size-bound texture only after its complete WebGPU handle exists. */
-template<typename TextureT, typename CreateTextureFn>
-bool texture_replace_if_valid(CreateTextureFn &&create_texture,
-                              TextureT &r_texture,
-                              const uint32_t width,
-                              const uint32_t height,
-                              uint32_t &r_width,
-                              uint32_t &r_height)
+/**
+ * Create one handle inside an implementation error scope. A WebGPU implementation may return a
+ * non-null error object, so publication is deferred until the scope completes without an error.
+ */
+template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn, typename CompleteFn>
+void scoped_handle_create(BeginScopeFn &&begin_scope,
+                          CreateFn &&create,
+                          EndScopeFn &&end_scope,
+                          CompleteFn &&complete)
 {
-  TextureT texture = std::forward<CreateTextureFn>(create_texture)();
-  if (texture == nullptr) {
-    return false;
-  }
-  r_texture = std::move(texture);
-  r_width = width;
-  r_height = height;
-  return true;
+  std::forward<BeginScopeFn>(begin_scope)();
+  auto candidate = std::forward<CreateFn>(create)();
+  const bool handle_valid = candidate != nullptr;
+  std::forward<EndScopeFn>(end_scope)(
+      [candidate = std::move(candidate),
+       handle_valid,
+       complete = std::forward<CompleteFn>(complete)](const bool scope_valid) mutable {
+        complete(handle_valid && scope_valid, std::move(candidate));
+      });
 }
 
 /**
@@ -61,42 +64,63 @@ bool texture_replace_if_valid(CreateTextureFn &&create_texture,
  * transaction. Transient module and pipeline-layout handles stay local; the
  * reusable bind-group layout and pipeline are published only as a valid pair.
  */
-template<typename BindGroupLayoutT,
-         typename PipelineT,
+template<typename BeginScopeFn,
          typename CreateShaderModuleFn,
          typename CreateBindGroupLayoutFn,
          typename CreatePipelineLayoutFn,
-         typename CreatePipelineFn>
-bool present_pipeline_create_if_valid(
+         typename CreatePipelineFn,
+         typename EndScopeFn,
+         typename CompleteFn>
+void present_pipeline_create_scoped(
+    BeginScopeFn &&begin_scope,
     CreateShaderModuleFn &&create_shader_module,
     CreateBindGroupLayoutFn &&create_bind_group_layout,
     CreatePipelineLayoutFn &&create_pipeline_layout,
     CreatePipelineFn &&create_pipeline,
-    BindGroupLayoutT &r_bind_group_layout,
-    PipelineT &r_pipeline)
+    EndScopeFn &&end_scope,
+    CompleteFn &&complete)
 {
-  auto shader_module = std::forward<CreateShaderModuleFn>(create_shader_module)();
-  if (shader_module == nullptr) {
-    return false;
+  using ShaderModuleT = std::decay_t<decltype(create_shader_module())>;
+  using BindGroupLayoutT = std::decay_t<decltype(create_bind_group_layout())>;
+  using PipelineLayoutT = std::decay_t<decltype(
+      create_pipeline_layout(std::declval<const BindGroupLayoutT &>()))>;
+  using PipelineT = std::decay_t<decltype(create_pipeline(
+      std::declval<const ShaderModuleT &>(), std::declval<const PipelineLayoutT &>()))>;
+
+  std::forward<BeginScopeFn>(begin_scope)();
+  ShaderModuleT shader_module = std::forward<CreateShaderModuleFn>(create_shader_module)();
+  BindGroupLayoutT bind_group_layout;
+  PipelineLayoutT pipeline_layout;
+  PipelineT pipeline;
+  bool handles_valid = shader_module != nullptr;
+  if (handles_valid) {
+    bind_group_layout = std::forward<CreateBindGroupLayoutFn>(create_bind_group_layout)();
+    handles_valid = bind_group_layout != nullptr;
   }
-  BindGroupLayoutT bind_group_layout =
-      std::forward<CreateBindGroupLayoutFn>(create_bind_group_layout)();
-  if (bind_group_layout == nullptr) {
-    return false;
+  if (handles_valid) {
+    pipeline_layout =
+        std::forward<CreatePipelineLayoutFn>(create_pipeline_layout)(bind_group_layout);
+    handles_valid = pipeline_layout != nullptr;
   }
-  auto pipeline_layout =
-      std::forward<CreatePipelineLayoutFn>(create_pipeline_layout)(bind_group_layout);
-  if (pipeline_layout == nullptr) {
-    return false;
+  if (handles_valid) {
+    pipeline = std::forward<CreatePipelineFn>(create_pipeline)(shader_module, pipeline_layout);
+    handles_valid = pipeline != nullptr;
   }
-  PipelineT pipeline =
-      std::forward<CreatePipelineFn>(create_pipeline)(shader_module, pipeline_layout);
-  if (pipeline == nullptr) {
-    return false;
-  }
-  r_bind_group_layout = std::move(bind_group_layout);
-  r_pipeline = std::move(pipeline);
-  return true;
+
+  std::forward<EndScopeFn>(end_scope)(
+      [shader_module = std::move(shader_module),
+       bind_group_layout = std::move(bind_group_layout),
+       pipeline_layout = std::move(pipeline_layout),
+       pipeline = std::move(pipeline),
+       handles_valid,
+       complete = std::forward<CompleteFn>(complete)](const bool scope_valid) mutable {
+        /* Retain the complete dependency chain until the scope reports its result. */
+        (void)shader_module;
+        (void)pipeline_layout;
+        complete(scope_valid && handles_valid,
+                 std::move(bind_group_layout),
+                 std::move(pipeline));
+      });
 }
 
 /**
@@ -104,50 +128,106 @@ bool present_pipeline_create_if_valid(
  * command handle is valid. A failure discards the local encoder and any work it
  * already contains; only the complete command buffer reaches the queue.
  */
-template<typename CreateSourceViewFn,
+template<typename BeginEncodeScopeFn,
+         typename CreateSourceViewFn,
          typename CreateTargetViewFn,
          typename CreateBindGroupFn,
          typename CreateCommandEncoderFn,
          typename BeginRenderPassFn,
          typename EncodePassFn,
-         typename SubmitFn>
-bool present_frame_encode_submit_if_valid(
+         typename EndEncodeScopeFn,
+         typename BeginSubmitScopeFn,
+         typename SubmitFn,
+         typename EndSubmitScopeFn,
+         typename CompleteFn>
+void present_frame_encode_submit_scoped(
+    BeginEncodeScopeFn &&begin_encode_scope,
     CreateSourceViewFn &&create_source_view,
     CreateTargetViewFn &&create_target_view,
     CreateBindGroupFn &&create_bind_group,
     CreateCommandEncoderFn &&create_command_encoder,
     BeginRenderPassFn &&begin_render_pass,
     EncodePassFn &&encode_pass,
-    SubmitFn &&submit)
+    EndEncodeScopeFn &&end_encode_scope,
+    BeginSubmitScopeFn &&begin_submit_scope,
+    SubmitFn &&submit,
+    EndSubmitScopeFn &&end_submit_scope,
+    CompleteFn &&complete)
 {
+  using CommandEncoderT = std::decay_t<decltype(create_command_encoder())>;
+  using CommandBufferT = std::decay_t<decltype(std::declval<CommandEncoderT &>().Finish())>;
+
+  std::forward<BeginEncodeScopeFn>(begin_encode_scope)();
   auto source_view = std::forward<CreateSourceViewFn>(create_source_view)();
-  if (source_view == nullptr) {
-    return false;
+  using SourceViewT = std::decay_t<decltype(source_view)>;
+  using TargetViewT = std::decay_t<decltype(create_target_view())>;
+  using BindGroupT = std::decay_t<decltype(create_bind_group(
+      std::declval<const SourceViewT &>()))>;
+  using RenderPassT = std::decay_t<decltype(begin_render_pass(
+      std::declval<CommandEncoderT &>(), std::declval<const TargetViewT &>()))>;
+
+  TargetViewT target_view;
+  BindGroupT bind_group;
+  CommandEncoderT encoder;
+  RenderPassT pass;
+  CommandBufferT command_buffer;
+  bool handles_valid = source_view != nullptr;
+  if (handles_valid) {
+    target_view = std::forward<CreateTargetViewFn>(create_target_view)();
+    handles_valid = target_view != nullptr;
   }
-  auto target_view = std::forward<CreateTargetViewFn>(create_target_view)();
-  if (target_view == nullptr) {
-    return false;
+  if (handles_valid) {
+    bind_group = std::forward<CreateBindGroupFn>(create_bind_group)(source_view);
+    handles_valid = bind_group != nullptr;
   }
-  auto bind_group = std::forward<CreateBindGroupFn>(create_bind_group)(source_view);
-  if (bind_group == nullptr) {
-    return false;
+  if (handles_valid) {
+    encoder = std::forward<CreateCommandEncoderFn>(create_command_encoder)();
+    handles_valid = encoder != nullptr;
   }
-  auto encoder = std::forward<CreateCommandEncoderFn>(create_command_encoder)();
-  if (encoder == nullptr) {
-    return false;
+  if (handles_valid) {
+    pass = std::forward<BeginRenderPassFn>(begin_render_pass)(encoder, target_view);
+    handles_valid = pass != nullptr;
   }
-  auto pass = std::forward<BeginRenderPassFn>(begin_render_pass)(encoder, target_view);
-  if (pass == nullptr) {
-    return false;
+  if (handles_valid) {
+    std::forward<EncodePassFn>(encode_pass)(pass, bind_group);
+    pass.End();
+    command_buffer = encoder.Finish();
+    handles_valid = command_buffer != nullptr;
   }
-  std::forward<EncodePassFn>(encode_pass)(pass, bind_group);
-  pass.End();
-  auto command_buffer = encoder.Finish();
-  if (command_buffer == nullptr) {
-    return false;
-  }
-  std::forward<SubmitFn>(submit)(command_buffer);
-  return true;
+
+  std::forward<EndEncodeScopeFn>(end_encode_scope)(
+      [source_view = std::move(source_view),
+       target_view = std::move(target_view),
+       bind_group = std::move(bind_group),
+       encoder = std::move(encoder),
+       pass = std::move(pass),
+       command_buffer = std::move(command_buffer),
+       handles_valid,
+       begin_submit_scope = std::forward<BeginSubmitScopeFn>(begin_submit_scope),
+       submit = std::forward<SubmitFn>(submit),
+       end_submit_scope = std::forward<EndSubmitScopeFn>(end_submit_scope),
+       complete = std::forward<CompleteFn>(complete)](const bool encode_scope_valid) mutable {
+        /* Retain all encoded dependencies until the first scope has completed. */
+        (void)source_view;
+        (void)target_view;
+        (void)bind_group;
+        (void)encoder;
+        (void)pass;
+        if (!handles_valid || !encode_scope_valid) {
+          complete(false);
+          return;
+        }
+
+        begin_submit_scope();
+        submit(command_buffer);
+        end_submit_scope(
+            [command_buffer = std::move(command_buffer),
+             complete = std::move(complete)](const bool submit_scope_valid) mutable {
+              /* Queue submission can itself report validation asynchronously. */
+              (void)command_buffer;
+              complete(submit_scope_valid);
+            });
+      });
 }
 
 }  // namespace ghost_web

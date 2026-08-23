@@ -73,6 +73,9 @@ target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})
 # semantics for validation failures. This target intentionally accepts a
 # software Vulkan adapter and therefore cannot bind any M3/M4 receipt.
 add_executable(dawn_error_handle_probe probe_error_handles.cc)
+target_include_directories(dawn_error_handle_probe PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../platform_web/ghost
+)
 target_link_libraries(dawn_error_handle_probe PRIVATE dawn::webgpu_dawn)
 
 # Optional device-free native halves of the cross-compiled shader-chain parity

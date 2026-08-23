@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdio>
+#include <functional>
 #include <limits>
 #include <unordered_set>
 
@@ -1589,8 +1590,49 @@ class GhostHandleProbe {
   int identity_ = 0;
 };
 
+class GhostScopeProbe {
+ public:
+  void begin()
+  {
+    begins_++;
+  }
+
+  template<typename CompleteFn> void end(CompleteFn &&complete)
+  {
+    ends_++;
+    completion_ = std::forward<CompleteFn>(complete);
+  }
+
+  bool pending() const
+  {
+    return bool(completion_);
+  }
+
+  void resolve(const bool valid)
+  {
+    std::function<void(bool)> completion = std::move(completion_);
+    completion_ = nullptr;
+    completion(valid);
+  }
+
+  int begins() const
+  {
+    return begins_;
+  }
+
+  int ends() const
+  {
+    return ends_;
+  }
+
+ private:
+  int begins_ = 0;
+  int ends_ = 0;
+  std::function<void(bool)> completion_;
+};
+
 struct GhostFrameTrace {
-  int failure_stage = 6;
+  int failure_stage = 8;
   uint64_t signature = 0;
   bool dependencies_valid = true;
   int submits = 0;
@@ -1646,40 +1688,60 @@ bool ghost_present_resource_transaction_contract()
 {
   int accepted = 0;
 
-  GhostHandleProbe texture(71);
-  uint32_t texture_width = 17;
-  uint32_t texture_height = 19;
-  if (!require(!gw::texture_replace_if_valid(
-                   []() { return GhostHandleProbe(); },
-                   texture,
-                   1280,
-                   720,
-                   texture_width,
-                   texture_height),
-               "failed GHOST backbuffer replacement is rejected") ||
-      !require(texture.identity() == 71 && texture_width == 17 && texture_height == 19,
-               "failed GHOST backbuffer replacement preserves state") ||
-      !require(gw::texture_replace_if_valid(
-                   []() { return GhostHandleProbe(72); },
-                   texture,
-                   1280,
-                   720,
-                   texture_width,
-                   texture_height),
-               "valid GHOST backbuffer replacement is accepted") ||
-      !require(texture.identity() == 72 && texture_width == 1280 && texture_height == 720,
-               "valid GHOST backbuffer replacement publishes complete state"))
-  {
-    return false;
+  for (int texture_case = 0; texture_case < 3; texture_case++) {
+    GhostScopeProbe scope;
+    GhostHandleProbe texture(71);
+    uint32_t texture_width = 17;
+    uint32_t texture_height = 19;
+    bool completed = false;
+    bool result = false;
+    gw::scoped_handle_create(
+        [&]() { scope.begin(); },
+        [&]() {
+          return texture_case == 0 ? GhostHandleProbe() : GhostHandleProbe(72);
+        },
+        [&](auto completion) { scope.end(std::move(completion)); },
+        [&](const bool valid, GhostHandleProbe candidate) {
+          completed = true;
+          result = valid;
+          if (valid) {
+            texture = std::move(candidate);
+            texture_width = 1280;
+            texture_height = 720;
+          }
+        });
+    if (!require(scope.begins() == 1 && scope.ends() == 1 && scope.pending(),
+                 "GHOST backbuffer scope is balanced and pending") ||
+        !require(!completed && texture.identity() == 71 && texture_width == 17 &&
+                     texture_height == 19,
+                 "GHOST backbuffer is unpublished before scope completion"))
+    {
+      return false;
+    }
+    scope.resolve(texture_case == 2);
+    const bool expect_success = texture_case == 2;
+    if (!require(completed && result == expect_success,
+                 "GHOST backbuffer scope controls publication") ||
+        !require(expect_success ?
+                     texture.identity() == 72 && texture_width == 1280 && texture_height == 720 :
+                     texture.identity() == 71 && texture_width == 17 && texture_height == 19,
+                 "GHOST backbuffer publication is atomic"))
+    {
+      return false;
+    }
+    accepted += int(expect_success);
   }
-  accepted++;
 
-  for (int failure_stage = 0; failure_stage <= 4; failure_stage++) {
+  for (int failure_stage = 0; failure_stage <= 5; failure_stage++) {
+    GhostScopeProbe scope;
     uint64_t signature = 0;
     bool dependencies_valid = true;
     GhostHandleProbe bind_group_layout(81);
     GhostHandleProbe pipeline(82);
-    const bool result = gw::present_pipeline_create_if_valid(
+    bool completed = false;
+    bool result = false;
+    gw::present_pipeline_create_scoped(
+        [&]() { scope.begin(); },
         [&]() {
           signature = signature * 10 + 1;
           return failure_stage == 0 ? GhostHandleProbe() : GhostHandleProbe(11);
@@ -1698,13 +1760,29 @@ bool ghost_present_resource_transaction_contract()
           dependencies_valid &= module.identity() == 11 && layout.identity() == 13;
           return failure_stage == 3 ? GhostHandleProbe() : GhostHandleProbe(14);
         },
-        bind_group_layout,
-        pipeline);
-    const bool expect_success = failure_stage == 4;
+        [&](auto completion) { scope.end(std::move(completion)); },
+        [&](const bool valid, GhostHandleProbe candidate_layout, GhostHandleProbe candidate_pipeline) {
+          completed = true;
+          result = valid;
+          if (valid) {
+            bind_group_layout = std::move(candidate_layout);
+            pipeline = std::move(candidate_pipeline);
+          }
+        });
+    if (!require(scope.begins() == 1 && scope.ends() == 1 && scope.pending(),
+                 "GHOST pipeline scope is balanced and pending") ||
+        !require(!completed && bind_group_layout.identity() == 81 && pipeline.identity() == 82,
+                 "GHOST pipeline is unpublished before scope completion"))
+    {
+      return false;
+    }
+    scope.resolve(failure_stage != 4);
+    const bool expect_success = failure_stage == 5;
     const uint64_t expected_signature = failure_stage == 0 ? 1 :
                                         failure_stage == 1 ? 12 :
                                         failure_stage == 2 ? 123 : 1234;
-    if (!require(result == expect_success, "GHOST pipeline transaction result") ||
+    if (!require(completed && result == expect_success,
+                 "GHOST pipeline transaction result") ||
         !require(signature == expected_signature, "GHOST pipeline transaction call order") ||
         !require(dependencies_valid, "GHOST pipeline transaction dependency handles") ||
         !require(expect_success ?
@@ -1717,12 +1795,17 @@ bool ghost_present_resource_transaction_contract()
     accepted += int(expect_success);
   }
 
-  constexpr std::array<uint64_t, 7> expected_frame_signatures = {
-      1, 12, 123, 1234, 12345, 12345678, 123456789};
-  for (int failure_stage = 0; failure_stage <= 6; failure_stage++) {
+  constexpr std::array<uint64_t, 9> expected_before_scope = {
+      1, 12, 123, 1234, 12345, 12345678, 12345678, 12345678, 12345678};
+  for (int failure_stage = 0; failure_stage <= 8; failure_stage++) {
     GhostFrameTrace trace;
     trace.failure_stage = failure_stage;
-    const bool result = gw::present_frame_encode_submit_if_valid(
+    GhostScopeProbe encode_scope;
+    GhostScopeProbe submit_scope;
+    bool completed = false;
+    bool result = false;
+    gw::present_frame_encode_submit_scoped(
+        [&]() { encode_scope.begin(); },
         [&]() {
           trace.step(1);
           return failure_stage == 0 ? GhostHandleProbe() : GhostHandleProbe(21);
@@ -1749,17 +1832,52 @@ bool ghost_present_resource_transaction_contract()
           trace.step(6);
           trace.dependencies_valid &= !(pass == nullptr) && bind_group.identity() == 23;
         },
+        [&](auto completion) { encode_scope.end(std::move(completion)); },
+        [&]() { submit_scope.begin(); },
         [&](const GhostHandleProbe &command_buffer) {
           trace.step(9);
           trace.dependencies_valid &= command_buffer.identity() == 35;
           trace.submits++;
+        },
+        [&](auto completion) { submit_scope.end(std::move(completion)); },
+        [&](const bool valid) {
+          completed = true;
+          result = valid;
         });
-    const bool expect_success = failure_stage == 6;
-    if (!require(result == expect_success, "GHOST frame transaction result") ||
-        !require(trace.signature == expected_frame_signatures[size_t(failure_stage)],
-                 "GHOST frame transaction call order") ||
+    if (!require(encode_scope.begins() == 1 && encode_scope.ends() == 1 &&
+                     encode_scope.pending(),
+                 "GHOST frame encode scope is balanced and pending") ||
+        !require(!completed && trace.submits == 0,
+                 "GHOST frame cannot submit before encode validation") ||
+        !require(trace.signature == expected_before_scope[size_t(failure_stage)],
+                 "GHOST frame pre-scope call order"))
+    {
+      return false;
+    }
+
+    encode_scope.resolve(failure_stage != 6);
+    const bool reaches_submit = failure_stage >= 7;
+    if (!require(trace.submits == int(reaches_submit),
+                 "GHOST validation-error command buffer is rejected before submit") ||
+        !require(submit_scope.pending() == reaches_submit,
+                 "GHOST submit scope exists only for a validated command buffer"))
+    {
+      return false;
+    }
+    if (reaches_submit) {
+      if (!require(!completed, "GHOST present remains pending through submit validation")) {
+        return false;
+      }
+      submit_scope.resolve(failure_stage == 8);
+    }
+
+    const bool expect_success = failure_stage == 8;
+    const uint64_t expected_signature = reaches_submit ? 123456789 :
+                                                         expected_before_scope[size_t(failure_stage)];
+    if (!require(completed && result == expect_success, "GHOST frame transaction result") ||
+        !require(trace.signature == expected_signature, "GHOST frame transaction call order") ||
         !require(trace.dependencies_valid, "GHOST frame transaction dependency handles") ||
-        !require(trace.submits == int(expect_success), "GHOST frame transaction submit count"))
+        !require(trace.submits == int(reaches_submit), "GHOST frame transaction submit count"))
     {
       return false;
     }
@@ -1769,8 +1887,8 @@ bool ghost_present_resource_transaction_contract()
   if (!require(accepted == 3, "GHOST present transaction success census")) {
     return false;
   }
-  std::puts("CONTRACT ghost_present_resource_transaction PASS cases=14 backbuffer=2 "
-            "pipeline=5 frame=7 failure=atomic submit=1");
+  std::puts("CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 "
+            "pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1");
   return true;
 }
 

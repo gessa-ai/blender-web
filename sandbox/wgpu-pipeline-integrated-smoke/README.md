@@ -96,6 +96,14 @@ direct and indirect batches instead of silently omitting `DrawIndexed` or reinte
 20-byte indexed indirect command as a 16-byte non-indexed command; triangle-fan batch and immediate
 paths bind the same resolved transient handle. Failure preserves the caller-owned handle and the
 non-indexed case publishes an explicit empty handle.
+The browser compositor additionally treats handle truthiness as only a provisional result:
+backbuffer and present-pipeline candidates remain unpublished until validation/OOM/internal scopes
+complete cleanly. Present encoding finishes under one completed scope before its command buffer can
+reach `Queue::Submit`; a second scope covers submission itself, and first-pixel/keepalive counters
+advance only after that scope succeeds. The contract covers literal null failures, non-null error
+objects, pending-state publication, encode-before-submit ordering, submit failure, and one clean
+commit. The pinned-Dawn software control exercises the same shipping helper against real non-null
+error objects but remains explicitly non-receipt evidence.
 The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip

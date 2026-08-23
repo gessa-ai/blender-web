@@ -20,6 +20,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 WEBGPU_SOURCE="$ROOT/upstream/source/blender/gpu/webgpu"
 GHOST_SOURCE="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc"
+GHOST_HEADER="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
 GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
 GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
@@ -117,6 +118,7 @@ source_digest()
     upstream_digest="$(cd "$ROOT/upstream" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')"
     ghost_digest="$(cd "$ROOT" && \
       sha256sum platform_web/ghost/GHOST_ContextWGPUWeb.cc \
+                platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                 platform_web/ghost/GHOST_WindowWeb.cc \
                 platform_web/ghost/GHOST_SystemWeb.cc \
                 platform_web/ghost/GHOST_WGPUTransaction.hh | sha256sum | awk '{print $1}')"
@@ -126,6 +128,7 @@ source_digest()
       shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')"
     ghost_digest="$(cd "$ROOT" && \
       shasum -a 256 platform_web/ghost/GHOST_ContextWGPUWeb.cc \
+                    platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                     platform_web/ghost/GHOST_WindowWeb.cc \
                     platform_web/ghost/GHOST_SystemWeb.cc \
                     platform_web/ghost/GHOST_WGPUTransaction.hh | \
@@ -141,6 +144,7 @@ require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_pipeline_test.cc"
 require_file "$GHOST_SOURCE"
+require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
 require_file "$GHOST_TRANSACTION_HEADER"
@@ -1192,9 +1196,73 @@ require_fixed_count 1 '#include "GHOST_WGPUTransaction.hh"' "$GHOST_WINDOW_SOURC
 require_fixed_count 1 '#include "GHOST_WGPUTransaction.hh"' "$GHOST_SYSTEM_SOURCE"
 require_fixed_count 1 'ghost_web::drawing_context_initialize_if_valid(' "$GHOST_WINDOW_SOURCE"
 require_fixed_count 1 'ghost_web::window_publish_if_valid(' "$GHOST_SYSTEM_SOURCE"
-require_fixed_count 1 'ghost_web::texture_replace_if_valid(' "$GHOST_SOURCE"
-require_fixed_count 1 'ghost_web::present_pipeline_create_if_valid(' "$GHOST_SOURCE"
-require_fixed_count 1 'ghost_web::present_frame_encode_submit_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
+require_fixed_count 0 'ghost_web::texture_replace_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 0 'ghost_web::present_pipeline_create_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 0 'ghost_web::present_frame_encode_submit_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 3 'device.PushErrorScope(' "$GHOST_SOURCE"
+require_fixed_count 3 'device.PopErrorScope(' "$GHOST_SOURCE"
+require_fixed_count 1 'bool backbuffer_pending_ = false;' "$GHOST_HEADER"
+require_fixed_count 1 'bool present_pipeline_pending_ = false;' "$GHOST_HEADER"
+require_fixed_count 1 'bool present_pending_ = false;' "$GHOST_HEADER"
+"$PYBIN" - "$GHOST_SOURCE" <<'PY'
+from pathlib import Path
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def method(marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise SystemExit(f"ERROR: unterminated GHOST method: {marker}")
+
+
+backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
+pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
+present = method("void GHOST_ContextWGPUWeb::presentBackbuffer()")
+
+for label, body, helper, scope_label, pending in (
+    ("backbuffer", backbuffer, "ghost_web::scoped_handle_create(",
+     'popErrorScopes(device, "backbuffer creation"', "backbuffer_pending_"),
+    ("pipeline", pipeline, "ghost_web::present_pipeline_create_scoped(",
+     'popErrorScopes(device, "present pipeline creation"', "present_pipeline_pending_"),
+):
+    if body.count(helper) != 1 or body.count(scope_label) != 1 or body.count(pending) < 2:
+        raise SystemExit(f"ERROR: {label} is not bound to one completed error-scope publication")
+
+for needle in (
+    "ghost_web::present_frame_encode_submit_scoped(",
+    'popErrorScopes(device, "present command encoding"',
+    'popErrorScopes(device, "present queue submission"',
+    "queue.Submit(1, &command_buffer);",
+    "if (!valid) {",
+    "ghost_web::note_present();",
+):
+    if present.count(needle) != 1:
+        raise SystemExit(f"ERROR: present transaction lacks one exact boundary: {needle}")
+
+positions = [
+    present.index('popErrorScopes(device, "present command encoding"'),
+    present.index("queue.Submit(1, &command_buffer);"),
+    present.index('popErrorScopes(device, "present queue submission"'),
+    present.index("if (!valid) {"),
+    present.index("ghost_web::note_present();"),
+]
+if positions != sorted(positions):
+    raise SystemExit("ERROR: present validation/submission/commit boundaries are reordered")
+PY
 if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2
   exit 1
@@ -1327,7 +1395,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 windows=3 accepted=2 invalid=destroyed publication=atomic' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT ghost_present_resource_transaction PASS cases=14 backbuffer=2 pipeline=5 frame=7 failure=atomic submit=1' \
+       'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT index_buffer_handle_resolution PASS cases=3 required=2 failure=atomic optional=empty' \

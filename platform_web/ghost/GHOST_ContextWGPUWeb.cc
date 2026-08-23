@@ -13,6 +13,7 @@
 #include "GHOST_ContextWGPUWeb.hh"
 #include "GHOST_WGPUTransaction.hh"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
@@ -96,7 +97,60 @@ GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_pa
 {
 }
 
-GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb() = default;
+GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()
+{
+  callback_lifetime_->store(false, std::memory_order_release);
+}
+
+void GHOST_ContextWGPUWeb::pushErrorScopes(const wgpu::Device &device)
+{
+  /* Pop in reverse order. Validation is innermost because descriptor/command errors are the
+   * common path; OOM and internal failures must also prevent publication. */
+  device.PushErrorScope(wgpu::ErrorFilter::Internal);
+  device.PushErrorScope(wgpu::ErrorFilter::OutOfMemory);
+  device.PushErrorScope(wgpu::ErrorFilter::Validation);
+}
+
+void GHOST_ContextWGPUWeb::popErrorScopes(const wgpu::Device &device,
+                                          std::string label,
+                                          ErrorScopeCallback on_complete)
+{
+  struct ScopeResult {
+    std::atomic<int> pending{3};
+    std::atomic<bool> valid{true};
+    std::string label;
+    ErrorScopeCallback complete;
+  };
+
+  auto result = std::make_shared<ScopeResult>();
+  result->label = std::move(label);
+  result->complete = std::move(on_complete);
+  auto settle = [result](wgpu::PopErrorScopeStatus status,
+                         wgpu::ErrorType type,
+                         wgpu::StringView message) {
+    if (status != wgpu::PopErrorScopeStatus::Success || type != wgpu::ErrorType::NoError) {
+      result->valid.store(false, std::memory_order_release);
+      const size_t message_length =
+          message.data == nullptr ?
+              0 :
+              (message.length == WGPU_STRLEN ? std::char_traits<char>::length(message.data) :
+                                               message.length);
+      std::printf("WGPUWeb: %s rejected (status %d, type %d): %.*s\n",
+                  result->label.c_str(),
+                  int(status),
+                  int(type),
+                  int(std::min<size_t>(message_length, size_t(INT32_MAX))),
+                  message.data ? message.data : "");
+    }
+    if (result->pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      result->complete(result->valid.load(std::memory_order_acquire));
+    }
+  };
+
+  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
+  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
+  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
+}
 
 /* --- GHOST_Context surface --------------------------------------------------- */
 
@@ -385,10 +439,15 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
   if (backbuffer_ != nullptr && backbuffer_w_ == width_ && backbuffer_h_ == height_) {
     return; /* already the right size */
   }
+  if (backbuffer_pending_) {
+    return;
+  }
+  const uint32_t candidate_width = width_;
+  const uint32_t candidate_height = height_;
   wgpu::TextureDescriptor td = {};
   td.label = "wgpu_web_backbuffer";
   td.dimension = wgpu::TextureDimension::e2D;
-  td.size = {width_, height_, 1};
+  td.size = {candidate_width, candidate_height, 1};
   td.format = surface_format_; /* BGRA8Unorm — same format the surface presents */
   td.mipLevelCount = 1;
   td.sampleCount = 1;
@@ -398,21 +457,42 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
    * instead of the destroyed transient surface). */
   td.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding |
              wgpu::TextureUsage::CopySrc;
-  if (!ghost_web::texture_replace_if_valid(
-          [&]() { return device_.CreateTexture(&td); },
-          backbuffer_,
-          width_,
-          height_,
-          backbuffer_w_,
-          backbuffer_h_))
-  {
-    std::printf("WGPUWeb: CreateTexture failed for %ux%u backbuffer\n", width_, height_);
-  }
+  backbuffer_pending_ = true;
+  const wgpu::Device device = device_;
+  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  ghost_web::scoped_handle_create(
+      [device]() { pushErrorScopes(device); },
+      [device, &td]() { return device.CreateTexture(&td); },
+      [device](auto completion) {
+        popErrorScopes(device, "backbuffer creation", std::move(completion));
+      },
+      [this, lifetime, candidate_width, candidate_height](const bool valid,
+                                                          wgpu::Texture candidate) {
+        if (!lifetime->load(std::memory_order_acquire)) {
+          return;
+        }
+        backbuffer_pending_ = false;
+        if (!valid) {
+          std::printf("WGPUWeb: CreateTexture rejected for %ux%u backbuffer\n",
+                      candidate_width,
+                      candidate_height);
+          return;
+        }
+        /* A newer resize may have arrived while the scope was pending. Never publish a texture
+         * under the wrong authoritative extent; immediately retry the newest dimensions. */
+        if (width_ != candidate_width || height_ != candidate_height) {
+          ensureBackbuffer();
+          return;
+        }
+        backbuffer_ = std::move(candidate);
+        backbuffer_w_ = candidate_width;
+        backbuffer_h_ = candidate_height;
+      });
 }
 
 void GHOST_ContextWGPUWeb::ensurePresentPipeline()
 {
-  if (present_pipeline_ != nullptr) {
+  if (present_pipeline_ != nullptr || present_pipeline_pending_) {
     return;
   }
   /* Fullscreen-triangle blit. The fragment shader textureLoad()s the offscreen at the
@@ -430,15 +510,20 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
       "@fragment fn fs(@builtin(position) c: vec4<f32>) -> @location(0) vec4<f32> {\n"
       "  return textureLoad(src, vec2<i32>(i32(c.x), i32(c.y)), 0);\n"
       "}\n";
-  if (!ghost_web::present_pipeline_create_if_valid(
-          [&]() {
+  present_pipeline_pending_ = true;
+  const wgpu::Device device = device_;
+  const wgpu::TextureFormat surface_format = surface_format_;
+  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  ghost_web::present_pipeline_create_scoped(
+          [device]() { pushErrorScopes(device); },
+          [device, wgsl]() {
             wgpu::ShaderSourceWGSL wgsl_src = {};
             wgsl_src.code = wgsl;
             wgpu::ShaderModuleDescriptor sm_desc = {};
             sm_desc.nextInChain = &wgsl_src;
-            return device_.CreateShaderModule(&sm_desc);
+            return device.CreateShaderModule(&sm_desc);
           },
-          [&]() {
+          [device]() {
             wgpu::BindGroupLayoutEntry bgl_entry = {};
             bgl_entry.binding = 0;
             bgl_entry.visibility = wgpu::ShaderStage::Fragment;
@@ -447,17 +532,18 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
             wgpu::BindGroupLayoutDescriptor bgl_desc = {};
             bgl_desc.entryCount = 1;
             bgl_desc.entries = &bgl_entry;
-            return device_.CreateBindGroupLayout(&bgl_desc);
+            return device.CreateBindGroupLayout(&bgl_desc);
           },
-          [&](const wgpu::BindGroupLayout &bind_group_layout) {
+          [device](const wgpu::BindGroupLayout &bind_group_layout) {
             wgpu::PipelineLayoutDescriptor pl_desc = {};
             pl_desc.bindGroupLayoutCount = 1;
             pl_desc.bindGroupLayouts = &bind_group_layout;
-            return device_.CreatePipelineLayout(&pl_desc);
+            return device.CreatePipelineLayout(&pl_desc);
           },
-          [&](const wgpu::ShaderModule &module, const wgpu::PipelineLayout &pipeline_layout) {
+          [device, surface_format](const wgpu::ShaderModule &module,
+                                   const wgpu::PipelineLayout &pipeline_layout) {
             wgpu::ColorTargetState color_target = {};
-            color_target.format = surface_format_;
+            color_target.format = surface_format;
             wgpu::FragmentState frag = {};
             frag.module = module;
             frag.entryPoint = "fs";
@@ -470,18 +556,30 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
             rp_desc.vertex.entryPoint = "vs";
             rp_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
             rp_desc.fragment = &frag;
-            return device_.CreateRenderPipeline(&rp_desc);
+            return device.CreateRenderPipeline(&rp_desc);
           },
-          present_bgl_,
-          present_pipeline_))
-  {
-    return;
-  }
+          [device](auto completion) {
+            popErrorScopes(device, "present pipeline creation", std::move(completion));
+          },
+          [this, lifetime](const bool valid,
+                           wgpu::BindGroupLayout bind_group_layout,
+                           wgpu::RenderPipeline pipeline) {
+            if (!lifetime->load(std::memory_order_acquire)) {
+              return;
+            }
+            present_pipeline_pending_ = false;
+            if (!valid) {
+              std::printf("WGPUWeb: present pipeline creation rejected\n");
+              return;
+            }
+            present_bgl_ = std::move(bind_group_layout);
+            present_pipeline_ = std::move(pipeline);
+          });
 }
 
 void GHOST_ContextWGPUWeb::presentBackbuffer()
 {
-  if (surface_ == nullptr || device_ == nullptr || backbuffer_ == nullptr) {
+  if (surface_ == nullptr || device_ == nullptr || backbuffer_ == nullptr || present_pending_) {
     return;
   }
   wgpu::SurfaceTexture st = {};
@@ -494,21 +592,32 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
     return;
   }
 
-  if (!ghost_web::present_frame_encode_submit_if_valid(
-          [&]() { return backbuffer_.CreateView(); },
-          [&]() { return st.texture.CreateView(); },
-          [&](const wgpu::TextureView &source_view) {
+  const wgpu::Device device = device_;
+  const wgpu::Queue queue = queue_;
+  const wgpu::Texture source_texture = backbuffer_;
+  const wgpu::Texture target_texture = st.texture;
+  const wgpu::BindGroupLayout bind_group_layout = present_bgl_;
+  const wgpu::RenderPipeline pipeline = present_pipeline_;
+  const uint32_t surface_width = st.texture.GetWidth();
+  const uint32_t surface_height = st.texture.GetHeight();
+  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+  present_pending_ = true;
+  ghost_web::present_frame_encode_submit_scoped(
+          [device]() { pushErrorScopes(device); },
+          [source_texture]() { return source_texture.CreateView(); },
+          [target_texture]() { return target_texture.CreateView(); },
+          [device, bind_group_layout](const wgpu::TextureView &source_view) {
             wgpu::BindGroupEntry bg_entry = {};
             bg_entry.binding = 0;
             bg_entry.textureView = source_view;
             wgpu::BindGroupDescriptor bg_desc = {};
-            bg_desc.layout = present_bgl_;
+            bg_desc.layout = bind_group_layout;
             bg_desc.entryCount = 1;
             bg_desc.entries = &bg_entry;
-            return device_.CreateBindGroup(&bg_desc);
+            return device.CreateBindGroup(&bg_desc);
           },
-          [&]() { return device_.CreateCommandEncoder(); },
-          [&](wgpu::CommandEncoder &encoder, const wgpu::TextureView &target_view) {
+          [device]() { return device.CreateCommandEncoder(); },
+          [](wgpu::CommandEncoder &encoder, const wgpu::TextureView &target_view) {
             wgpu::RenderPassColorAttachment ca = {};
             ca.view = target_view;
             ca.loadOp = wgpu::LoadOp::Clear;
@@ -519,32 +628,47 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
             rp.colorAttachments = &ca;
             return encoder.BeginRenderPass(&rp);
           },
-          [&](wgpu::RenderPassEncoder &pass, const wgpu::BindGroup &bind_group) {
-            pass.SetPipeline(present_pipeline_);
+          [pipeline](wgpu::RenderPassEncoder &pass, const wgpu::BindGroup &bind_group) {
+            pass.SetPipeline(pipeline);
             pass.SetBindGroup(0, bind_group);
             pass.Draw(3);
           },
-          [&](const wgpu::CommandBuffer &command_buffer) {
-            queue_.Submit(1, &command_buffer);
-          }))
-  {
-    return;
-  }
-
-  /* Bounded "present path live" marker (first 2 frames only): confirms a complete
-   * command buffer reached the queue. Capped so 120 fps cannot flood. */
-  static int present_log_count = 0;
-  if (present_log_count < 2) {
-    std::printf("WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas (offscreen blit)\n",
-                present_log_count,
-                st.texture.GetWidth(),
-                st.texture.GetHeight());
-    present_log_count++;
-  }
-  /* ghost-keepalive: record the present so the idle keepalive can tell frames are being
-   * produced and the no-idle-burn proof can show they are NOT at idle. */
-  ghost_web::note_present();
+          [device](auto completion) {
+            popErrorScopes(device, "present command encoding", std::move(completion));
+          },
+          [device]() { pushErrorScopes(device); },
+          [lifetime, queue](const wgpu::CommandBuffer &command_buffer) {
+            if (lifetime->load(std::memory_order_acquire)) {
+              queue.Submit(1, &command_buffer);
+            }
+          },
+          [device](auto completion) {
+            popErrorScopes(device, "present queue submission", std::move(completion));
+          },
+          [this, lifetime, surface_width, surface_height](const bool valid) {
+            if (!lifetime->load(std::memory_order_acquire)) {
+              return;
+            }
+            present_pending_ = false;
+            if (!valid) {
+              std::printf("WGPUWeb: present transaction rejected\n");
+              return;
+            }
+            /* Bounded "present path live" marker (first 2 frames only): confirms a validated
+             * command buffer reached the queue without a submit-scope error. */
+            static int present_log_count = 0;
+            if (present_log_count < 2) {
+              std::printf(
+                  "WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas "
+                  "(offscreen blit)\n",
+                  present_log_count,
+                  surface_width,
+                  surface_height);
+              present_log_count++;
+            }
+            /* ghost-keepalive advances only after the submission scope completes cleanly. */
+            ghost_web::note_present();
+          });
   /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
-   * render pass, one submit, all in-tick, so nothing references the surface after it is
-   * destroyed. */
+   * render pass, and one validation-gated submit all settle before the next frame. */
 }

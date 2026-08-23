@@ -11,12 +11,15 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <utility>
 
 #include "webgpu/webgpu_cpp.h"
 
+#include "GHOST_WGPUTransaction.hh"
 #include "probe_platform.hh"
 
 namespace {
@@ -286,7 +289,147 @@ int main()
   }
   passed++;
 
+  int scoped_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    wgpu::Future scope_future = {};
+    bool candidate_nonnull = false;
+    bool completed = false;
+    bool accepted = false;
+    wgpu::Buffer published;
+    ghost_web::scoped_handle_create(
+        [&]() { device.PushErrorScope(wgpu::ErrorFilter::Validation); },
+        [&]() {
+          wgpu::BufferDescriptor descriptor = {};
+          descriptor.size = 4;
+          descriptor.usage = valid_case ? wgpu::BufferUsage::CopyDst : wgpu::BufferUsage::None;
+          wgpu::Buffer candidate = device.CreateBuffer(&descriptor);
+          candidate_nonnull = candidate != nullptr;
+          return candidate;
+        },
+        [&](auto completion) {
+          auto shared_completion = std::make_shared<std::function<void(bool)>>(
+              std::move(completion));
+          scope_future = device.PopErrorScope(
+              wgpu::CallbackMode::WaitAnyOnly,
+              [shared_completion](wgpu::PopErrorScopeStatus status,
+                                  wgpu::ErrorType type,
+                                  wgpu::StringView) {
+                (*shared_completion)(status == wgpu::PopErrorScopeStatus::Success &&
+                                     type == wgpu::ErrorType::NoError);
+              });
+        },
+        [&](const bool valid, wgpu::Buffer candidate) {
+          completed = true;
+          accepted = valid;
+          if (valid) {
+            published = std::move(candidate);
+          }
+        });
+    if (!require(candidate_nonnull && !completed && published == nullptr,
+                 "scoped handle remained unpublished before scope completion") ||
+        !require(instance.WaitAny(scope_future, UINT64_MAX) == wgpu::WaitStatus::Success,
+                 "scoped handle validation future did not settle") ||
+        !require(completed && accepted == valid_case,
+                 "scoped handle acceptance did not follow validation status") ||
+        !require(valid_case ? published != nullptr : published == nullptr,
+                 "scoped handle publication mismatch"))
+    {
+      return 15;
+    }
+    scoped_cases++;
+  }
+
+  for (const bool valid_case : {false, true}) {
+    wgpu::Future encode_future = {};
+    wgpu::Future submit_future = {};
+    bool submit_scope_started = false;
+    int submit_attempts = 0;
+    bool completed = false;
+    bool accepted = false;
+    ghost_web::present_frame_encode_submit_scoped(
+        [&]() { device.PushErrorScope(wgpu::ErrorFilter::Validation); },
+        [&]() { return texture.CreateView(); },
+        [&]() { return texture.CreateView(); },
+        [&](const wgpu::TextureView &source_view) { return source_view; },
+        [&]() { return device.CreateCommandEncoder(); },
+        [&](wgpu::CommandEncoder &candidate_encoder, const wgpu::TextureView &target_view) {
+          wgpu::RenderPassColorAttachment color = {};
+          color.view = target_view;
+          color.depthSlice = valid_case ? wgpu::kDepthSliceUndefined : 0;
+          color.loadOp = wgpu::LoadOp::Clear;
+          color.storeOp = wgpu::StoreOp::Store;
+          wgpu::RenderPassDescriptor descriptor = {};
+          descriptor.colorAttachmentCount = 1;
+          descriptor.colorAttachments = &color;
+          return candidate_encoder.BeginRenderPass(&descriptor);
+        },
+        [](wgpu::RenderPassEncoder &, const wgpu::TextureView &) {},
+        [&](auto completion) {
+          auto shared_completion = std::make_shared<std::function<void(bool)>>(
+              std::move(completion));
+          encode_future = device.PopErrorScope(
+              wgpu::CallbackMode::WaitAnyOnly,
+              [shared_completion](wgpu::PopErrorScopeStatus status,
+                                  wgpu::ErrorType type,
+                                  wgpu::StringView) {
+                (*shared_completion)(status == wgpu::PopErrorScopeStatus::Success &&
+                                     type == wgpu::ErrorType::NoError);
+              });
+        },
+        [&]() {
+          submit_scope_started = true;
+          device.PushErrorScope(wgpu::ErrorFilter::Validation);
+        },
+        [&](const wgpu::CommandBuffer &candidate) {
+          submit_attempts++;
+          device.GetQueue().Submit(1, &candidate);
+        },
+        [&](auto completion) {
+          auto shared_completion = std::make_shared<std::function<void(bool)>>(
+              std::move(completion));
+          submit_future = device.PopErrorScope(
+              wgpu::CallbackMode::WaitAnyOnly,
+              [shared_completion](wgpu::PopErrorScopeStatus status,
+                                  wgpu::ErrorType type,
+                                  wgpu::StringView) {
+                (*shared_completion)(status == wgpu::PopErrorScopeStatus::Success &&
+                                     type == wgpu::ErrorType::NoError);
+              });
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    if (!require(!completed && !submit_scope_started && submit_attempts == 0,
+                 "frame transaction acted before encoding scope completion") ||
+        !require(instance.WaitAny(encode_future, UINT64_MAX) == wgpu::WaitStatus::Success,
+                 "frame encoding validation future did not settle"))
+    {
+      return 16;
+    }
+    if (!valid_case) {
+      if (!require(completed && !accepted && !submit_scope_started && submit_attempts == 0,
+                   "non-null error command buffer reached queue submission"))
+      {
+        return 17;
+      }
+    }
+    else {
+      if (!require(!completed && submit_scope_started && submit_attempts == 1,
+                   "validated command buffer did not enter submit scope") ||
+          !require(instance.WaitAny(submit_future, UINT64_MAX) == wgpu::WaitStatus::Success,
+                   "frame submission validation future did not settle") ||
+          !require(completed && accepted && submit_attempts == 1,
+                   "clean submission did not complete exactly once"))
+      {
+        return 18;
+      }
+    }
+    scoped_cases++;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
-            << " null_guards_miss_validation=8 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
+            << " error_object_submit_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

@@ -32,7 +32,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <string>
 
 #include <webgpu/webgpu_cpp.h>
@@ -122,9 +124,17 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   }
 
  private:
+  using ErrorScopeCallback = std::function<void(bool)>;
+
   void requestAdapter();
   void requestDevice();
   void finishSetup();
+  /** Push/pop the validation, OOM, and internal scopes used by every fallible present
+   * transaction. Completion is asynchronous in the browser. */
+  static void pushErrorScopes(const wgpu::Device &device);
+  static void popErrorScopes(const wgpu::Device &device,
+                             std::string label,
+                             ErrorScopeCallback on_complete);
   /* (Re)create the persistent offscreen back-buffer to match width_ x height_. */
   void ensureBackbuffer();
   /* Lazily build the fullscreen-triangle present pipeline (once). */
@@ -148,6 +158,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::Texture backbuffer_;
   uint32_t backbuffer_w_ = 0;
   uint32_t backbuffer_h_ = 0;
+  bool backbuffer_pending_ = false;
 
   /* Present blit: a fullscreen-triangle render pass that textureLoad()s the offscreen
    * back-buffer 1:1 into the surface's RenderAttachment. Uses only RenderAttachment (dst)
@@ -156,7 +167,12 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
    * canvas stuck on its last render-pass content). Built lazily, once. */
   wgpu::RenderPipeline present_pipeline_;
   wgpu::BindGroupLayout present_bgl_;
+  bool present_pipeline_pending_ = false;
+  bool present_pending_ = false;
 
   ReadyCallback on_ready_;
   bool ready_ = false;
+  /** Error-scope callbacks may resolve after this C++ object starts destruction. */
+  std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
+      std::make_shared<std::atomic<bool>>(true);
 };

@@ -648,3 +648,17 @@ clear helpers; retain the pending action on any failure; and commit it only afte
 layer reached the queue. Exercise fail-first retention followed by a successful retry on native and
 wasm32, then source-bind the materializer to the exact commit helper. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 46 — non-null WebGPU handles can still be validation-error objects
+
+Signature: a resource or command helper treats `handle != nullptr` as successful creation,
+publishes the object, submits the finished command buffer, or advances one-shot state. Dawn and
+browser WebGPU instead return opaque non-null error objects for validation failures; the error is
+observable only through a completed error scope. Wrap creation and command encoding in validation,
+OOM, and internal scopes, retain candidates locally until all scopes settle cleanly, validate a
+finished command before submitting it under a second scope, and commit liveness/state only after
+that submit scope succeeds. Browser callbacks are asynchronous, so pending publication must be an
+explicit state rather than a synchronous boolean. Exercise non-null rejected and clean accepted
+objects plus pre-submit rejection on pinned Dawn, and preserve a device-free native/wasm32 model.
+See `sandbox/dawn-probe/probe_error_handles.cc` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

@@ -1050,7 +1050,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     and typed-blit routing, 3D slices, physical 1D arrays with matching shader lowering, and
     guarded RG11/D32S8 capabilities. All 15 added WebGPU tests pass, actual Dawn optional-RG11
     and depth-route controls pass, and Workbench pixel controls remain native-faithful with zero
-    GPU errors. Next is the frozen 0144 Phase A-prime rebase and its EEVEE acceptance matrix,
+    GPU errors. Patch 0211 (`2aab304`) closes a Phase A-prime storage-interface seam: write-only
+    RG16Float DoF images retain their native format, while physically promoted read-write
+    RG16Float resources now carry RGBA16Float consistently through GLSL, shader-interface, and
+    bind-group metadata. The exhaustive native/Wasm contract, canonical replay, full product
+    rebuild/no-work, and REUSE are GREEN; this is device-free proof and claims no pixel result.
+    Next is the frozen 0144 Phase A-prime rebase and its EEVEE acceptance matrix,
     followed by the public async API and caller continuation. No EEVEE pixel-pass claim until a
     non-black result reaches the pinned comparator.
   - [~] **M6.EEVEE-B [gpu-backend, L2, own lane]:** the virtual-shadow-map SSBO-atomic

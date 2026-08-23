@@ -87,6 +87,11 @@ complete command scope. Literal null guards still preserve caller state. Exact s
 bind the pre-command gate to all three context render helpers, both scissored-clear paths, and the
 indexed-fan expansion, while the existing scoped command checks cover both compute dispatches, all
 four direct/indirect ordinary/multi-viewport batch paths, mip generation, and immediate draws.
+Before any of those compute, batch, or immediate encoders is allocated, the unique assembled
+group-0 binding IDs must also equal the shader's exact surviving final-WGSL set. This keeps a
+genuinely empty layout distinct from missing or partial resources and includes the injected
+push-constant and multi-viewport uniforms. The six-case native/wasm32 contract covers empty,
+complete, required-but-empty, partial, extra, and duplicate-assembled sets.
 Framebuffer load-pass construction uses that same atomic publication rule before applying its
 ordinary viewport or scissor. Callers therefore receive either a valid initialized pass or a
 null result, without a failed `BeginRenderPass` handle being used inside the factory first.

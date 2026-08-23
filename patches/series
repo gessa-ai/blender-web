@@ -1017,3 +1017,6 @@
 # 0237: retain WGSL/module and pipeline retry state, publishing reusable shader
 # modules and render/compute pipelines only after implementation scopes accept them.
 0237-gpu-webgpu-shader-pipeline-error-object-contract.patch
+# 0238: require the unique assembled group-0 binding IDs to match the shader's exact
+# surviving WGSL set before compute, batch, or immediate command encoding begins.
+0238-gpu-webgpu-bind-group-completeness.patch

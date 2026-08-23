@@ -6,6 +6,7 @@
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
 # shader-module/pipeline cache publication, scoped transient bind-group validation,
+# exact surviving-WGSL bind-group completeness,
 # layered load-action commit,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
@@ -19,7 +20,8 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-WEBGPU_SOURCE="$ROOT/upstream/source/blender/gpu/webgpu"
+WEBGPU_SOURCE="${WEBGPU_SOURCE:-$ROOT/upstream/source/blender/gpu/webgpu}"
+SOURCE_REPLAY_DRIVER="${SOURCE_REPLAY_DRIVER:-$ROOT/sandbox/series-replay/verify.py}"
 GHOST_SOURCE="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 GHOST_HEADER="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
 GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
@@ -86,22 +88,24 @@ require_fixed_count()
 
 source_digest()
 {
-  local files=(
-    source/blender/gpu/webgpu/wgpu_pipeline.cc
-    source/blender/gpu/webgpu/wgpu_pipeline.hh
-    source/blender/gpu/webgpu/wgpu_common.hh
-    source/blender/gpu/webgpu/wgpu_buffer.cc
-    source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-    source/blender/gpu/webgpu/wgpu_backend.cc
-    source/blender/gpu/webgpu/wgpu_context.cc
-    source/blender/gpu/webgpu/wgpu_context.hh
-    source/blender/gpu/webgpu/wgpu_batch.cc
-    source/blender/gpu/webgpu/wgpu_immediate.cc
-    source/blender/gpu/webgpu/wgpu_framebuffer.cc
-    source/blender/gpu/webgpu/wgpu_texture.cc
-    source/blender/gpu/webgpu/wgpu_shader.cc
-    source/blender/gpu/webgpu/wgpu_shader.hh
-    source/blender/gpu/webgpu/wgpu_state_table.hh
+  local webgpu_files=(
+    wgpu_pipeline.cc
+    wgpu_pipeline.hh
+    wgpu_common.hh
+    wgpu_buffer.cc
+    wgpu_storage_buffer.cc
+    wgpu_backend.cc
+    wgpu_context.cc
+    wgpu_context.hh
+    wgpu_batch.cc
+    wgpu_immediate.cc
+    wgpu_framebuffer.cc
+    wgpu_texture.cc
+    wgpu_shader.cc
+    wgpu_shader.hh
+    wgpu_state_table.hh
+  )
+  local upstream_files=(
     source/blender/gpu/intern/gpu_shader_interface.hh
     source/blender/gpu/intern/gpu_state_private.hh
     source/blender/gpu/intern/gpu_vertex_format.cc
@@ -113,20 +117,24 @@ source_digest()
     source/blender/blenlib/BLI_assert.h
     source/blender/blenlib/intern/BLI_assert.cc
   )
+  local webgpu_digest
   local upstream_digest
   local ghost_digest
   if command -v sha256sum >/dev/null 2>&1; then
-    upstream_digest="$(cd "$ROOT/upstream" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')"
+    webgpu_digest="$(cd "$WEBGPU_SOURCE" && sha256sum "${webgpu_files[@]}" | sha256sum | awk '{print $1}')"
+    upstream_digest="$(cd "$ROOT/upstream" && sha256sum "${upstream_files[@]}" | sha256sum | awk '{print $1}')"
     ghost_digest="$(cd "$ROOT" && \
       sha256sum platform_web/ghost/GHOST_ContextWGPUWeb.cc \
                 platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                 platform_web/ghost/GHOST_WindowWeb.cc \
                 platform_web/ghost/GHOST_SystemWeb.cc \
                 platform_web/ghost/GHOST_WGPUTransaction.hh | sha256sum | awk '{print $1}')"
-    printf '%s\n%s\n' "$upstream_digest" "$ghost_digest" | sha256sum | awk '{print $1}'
+    printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | sha256sum | awk '{print $1}'
   else
+    webgpu_digest="$(cd "$WEBGPU_SOURCE" && \
+      shasum -a 256 "${webgpu_files[@]}" | shasum -a 256 | awk '{print $1}')"
     upstream_digest="$(cd "$ROOT/upstream" && \
-      shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')"
+      shasum -a 256 "${upstream_files[@]}" | shasum -a 256 | awk '{print $1}')"
     ghost_digest="$(cd "$ROOT" && \
       shasum -a 256 platform_web/ghost/GHOST_ContextWGPUWeb.cc \
                     platform_web/ghost/GHOST_ContextWGPUWeb.hh \
@@ -134,7 +142,7 @@ source_digest()
                     platform_web/ghost/GHOST_SystemWeb.cc \
                     platform_web/ghost/GHOST_WGPUTransaction.hh | \
       shasum -a 256 | awk '{print $1}')"
-    printf '%s\n%s\n' "$upstream_digest" "$ghost_digest" | \
+    printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | \
       shasum -a 256 | awk '{print $1}'
   fi
 }
@@ -143,6 +151,19 @@ require_file "$PYBIN"
 require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
+require_file "$SOURCE_REPLAY_DRIVER"
+if ! cmp -s "$ROOT/sandbox/series-replay/verify.py" "$SOURCE_REPLAY_DRIVER"; then
+  echo "ERROR: source replay driver differs from the checked-in verifier" >&2
+  exit 1
+fi
+SOURCE_REPLAY_ROOT="$(cd "$(dirname "$SOURCE_REPLAY_DRIVER")/../.." && pwd -P)"
+WEBGPU_SOURCE_ROOT="$(cd "$WEBGPU_SOURCE/../../../.." && pwd -P)"
+if [ "$(cd "$SOURCE_REPLAY_ROOT/patches" && pwd -P)" != "$(cd "$ROOT/patches" && pwd -P)" ] ||
+   [ "$(cd "$SOURCE_REPLAY_ROOT/upstream" && pwd -P)" != "$WEBGPU_SOURCE_ROOT" ]
+then
+  echo "ERROR: source replay root does not bind the checked-in patches and selected source" >&2
+  exit 1
+fi
 require_file "$HERE/integrated_pipeline_test.cc"
 require_file "$GHOST_SOURCE"
 require_file "$GHOST_HEADER"
@@ -417,6 +438,80 @@ PY
 require_fixed_count 1 \
   'inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool bind_group_binding_ids_complete(' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'bool bind_group_entries_complete(' \
+  "$WEBGPU_SOURCE/wgpu_shader.hh"
+require_fixed_count 1 \
+  'if (webgpu::bind_group_binding_ids_complete(surviving_bindings_,' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 \
+  'if (!shader->bind_group_entries_complete(entries)) {' \
+  "$WEBGPU_SOURCE/wgpu_backend.cc"
+require_fixed_count 4 \
+  'if (!shader->bind_group_entries_complete(entries)) {' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'if (!shader->bind_group_entries_complete(entries)) {' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 2 \
+  'mv_entry.binding = shader->multi_viewport_binding();' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_backend.cc" "$WEBGPU_SOURCE/wgpu_batch.cc" \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc" <<'PY'
+from pathlib import Path
+import sys
+
+
+def method(source: str, marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise SystemExit(f"ERROR: unterminated method: {marker}")
+
+
+backend = Path(sys.argv[1]).read_text(encoding="utf-8")
+batch = Path(sys.argv[2]).read_text(encoding="utf-8")
+immediate = Path(sys.argv[3]).read_text(encoding="utf-8")
+guard = "if (!shader->bind_group_entries_complete(entries)) {"
+append = "ctx->append_resource_bind_entries(shader, entries);"
+command = "webgpu::command_encode_submit_scoped("
+
+compute = method(backend, "static bool build_compute_bind_group(")
+if compute.count(append) != 1 or compute.count(guard) != 1:
+    raise SystemExit("ERROR: compute bind-group completeness transaction is ambiguous")
+if not (compute.index(append) < compute.index(guard) < compute.index("if (entries.empty())")):
+    raise SystemExit("ERROR: compute confuses missing resources with an empty layout")
+
+for label, body, expected in (
+    ("direct batch", method(batch, "void WGPUBatch::draw(int vertex_first,"), 2),
+    ("indirect batch", method(batch, "void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,"), 2),
+    ("immediate", method(immediate, "void WGPUImmediate::end()"), 1),
+):
+    guards = []
+    commands = []
+    start = 0
+    while (position := body.find(guard, start)) >= 0:
+        guards.append(position)
+        start = position + len(guard)
+    start = 0
+    while (position := body.find(command, start)) >= 0:
+        commands.append(position)
+        start = position + len(command)
+    if len(guards) != expected or len(commands) != expected:
+        raise SystemExit(f"ERROR: {label} completeness/command census differs")
+    if any(guard_position >= command_position for guard_position, command_position in zip(guards, commands)):
+        raise SystemExit(f"ERROR: {label} checks binding completeness after encoder work")
+PY
 require_fixed_count 1 \
   'inline bool framebuffer_load_action_commit_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
@@ -1395,7 +1490,7 @@ fi
 
 # Bind every shipping source byte to the canonical clean-pin reconstruction
 # before any evidence directory is allocated.
-SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/series-replay/verify.py" --canonical-only)"
+SOURCE_PROOF="$("$PYBIN" "$SOURCE_REPLAY_DRIVER" --canonical-only)"
 case "$SOURCE_PROOF" in
   CANONICAL_REPLAY_PASS\ *) ;;
   *)
@@ -1467,7 +1562,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 29 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 30 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1478,6 +1573,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT bind_group_completeness PASS cases=6 accepted=3 rejected=3 internal=2 unique=deduplicated' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT framebuffer_load_action_commit PASS cases=2 failure=pending retry=committed' \
@@ -1537,7 +1635,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=29 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

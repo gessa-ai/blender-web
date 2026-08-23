@@ -764,3 +764,16 @@ dependent command transaction, so rejection cancels the current frame epoch. Exe
 non-null rejection, atomic clean retry, stable accepted entries, and distinct pipeline keys on
 native and wasm32; use pinned Dawn only as explicitly software-control non-receipt evidence. See
 `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 53 — sanitized bind entries are not a complete shader resource set
+
+Signature: the bind-group assembler drops absent, stale, invalid, or wrong-kind resources, then a
+draw or dispatch treats the resulting empty list as proof that the shader has an empty group-0
+layout. A partial non-empty list is equally unsafe: WebGPU requires every binding retained by the
+final WGSL, including backend-injected push-constant and multi-viewport uniforms. Retain the exact
+sorted surviving binding IDs during shader finalization, collect the unique IDs of entries that
+carry live resources, and require the sets to be equal before allocating an encoder or pass. Only
+an expected-empty and assembled-empty pair may skip bind-group creation. Exercise genuinely empty,
+complete, required-but-empty, partial, extra, and duplicate-assembled cases on native and wasm32,
+then source-bind compute, direct/indirect batch, multi-viewport, and immediate callers to the same
+pre-command guard. See `sandbox/wgpu-pipeline-integrated-smoke/`.

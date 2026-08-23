@@ -298,6 +298,36 @@ bool transient_handle_publication_contract()
   return true;
 }
 
+bool bind_group_completeness_contract()
+{
+  const std::vector<uint32_t> empty;
+  const std::vector<uint32_t> complete_expected = {3, 12, 13, 257};
+  const std::vector<uint32_t> complete_assembled = {257, 13, 3, 12};
+  const std::vector<uint32_t> duplicate_assembled = {13, 3, 257, 12, 13};
+  const std::vector<uint32_t> partial_assembled = {3, 12, 257};
+  const std::vector<uint32_t> extra_assembled = {3, 12, 13, 42, 257};
+
+  if (!require(bw::bind_group_binding_ids_complete(empty, empty),
+               "genuinely empty bind-group layout is complete") ||
+      !require(bw::bind_group_binding_ids_complete(complete_expected, complete_assembled),
+               "complete bind-group IDs are order-independent") ||
+      !require(bw::bind_group_binding_ids_complete(complete_expected, duplicate_assembled),
+               "assembled bind-group IDs are compared as a unique set") ||
+      !require(!bw::bind_group_binding_ids_complete(complete_expected, empty),
+               "required-but-empty bind group is rejected") ||
+      !require(!bw::bind_group_binding_ids_complete(complete_expected, partial_assembled),
+               "partial bind group is rejected") ||
+      !require(!bw::bind_group_binding_ids_complete(complete_expected, extra_assembled),
+               "bind group with an undeclared extra binding is rejected"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT bind_group_completeness PASS cases=6 accepted=3 rejected=3 internal=2 unique=deduplicated");
+  return true;
+}
+
 bool framebuffer_load_action_commit_contract()
 {
   blender::GPULoadOp load_action = blender::GPU_LOADACTION_CLEAR;
@@ -2796,6 +2826,7 @@ int main()
       !multiview_uniform_allocation_contract() ||
       !dummy_vertex_buffer_creation_contract() ||
       !transient_handle_publication_contract() ||
+      !bind_group_completeness_contract() ||
       !framebuffer_load_action_commit_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
@@ -2818,12 +2849,13 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=29 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
+      "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
       "transient_resource_gates=3 "
       "compute_cache_publications=3 load_action_commits=2 "

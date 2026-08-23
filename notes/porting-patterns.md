@@ -749,3 +749,18 @@ non-null pair rejection, atomic clean retry, and same-epoch dependent-work cance
 and wasm32, then confirm the exact generic gates against pinned Dawn as software-only non-receipt
 evidence. See `sandbox/wgpu-shader-frontend-integrated-smoke/`,
 `sandbox/wgpu-pipeline-integrated-smoke/`, and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 52 — shader compilation and WebGPU resource readiness are separate stages
+
+Signature: shaderc/Tint returns valid WGSL, `CreateShaderModule` and pipeline factories return
+non-null handles, and finalize or a cache miss immediately publishes them. Browser validation can
+still reject any handle asynchronously, so a shader that discards its WGSL cannot retry and a
+pipeline cache can permanently retain an error object. Preserve the final WGSL as CPU retry state,
+scope the complete required module set as one atomic cache value, and let draw/dispatch lookup stop
+while that set is pending. Only an accepted module set may enter a separately scoped render- or
+specialization-keyed compute-pipeline cache. Keep accepted keys stable while failed keys retry. A
+one-shot module/pipeline chain instead reserves an ordered transient resource gate before any
+dependent command transaction, so rejection cancels the current frame epoch. Exercise pending,
+non-null rejection, atomic clean retry, stable accepted entries, and distinct pipeline keys on
+native and wasm32; use pinned Dawn only as explicitly software-control non-receipt evidence. See
+`sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.

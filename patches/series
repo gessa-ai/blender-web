@@ -1014,3 +1014,6 @@
 # 0236: scope transient bind groups ahead of dependent queue work and publish
 # each shader's explicit bind-group/pipeline-layout pair only after validation.
 0236-gpu-webgpu-bind-group-layout-error-object-contract.patch
+# 0237: retain WGSL/module and pipeline retry state, publishing reusable shader
+# modules and render/compute pipelines only after implementation scopes accept them.
+0237-gpu-webgpu-shader-pipeline-error-object-contract.patch

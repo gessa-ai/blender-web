@@ -124,6 +124,21 @@ struct LayoutAllocation {
   }
 };
 
+struct ShaderModuleAllocation {
+  wgpu::ShaderModule vertex;
+  wgpu::ShaderModule fragment;
+  wgpu::ShaderModule compute;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return vertex == nullptr && fragment == nullptr && compute == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return !(*this == nullptr);
+  }
+};
+
 }  // namespace
 
 int main()
@@ -945,6 +960,144 @@ int main()
     return 34;
   }
 
+  bw::ScopedHandleCache<uint8_t, ShaderModuleAllocation> shader_module_cache;
+  int shader_module_cases = 0;
+  bool invalid_shader_set_nonnull = false;
+  const ShaderModuleAllocation rejected_shader_set = shader_module_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid shader module set", [&]() {
+        wgpu::ShaderSourceWGSL source = {};
+        source.code = "this is still not WGSL";
+        wgpu::ShaderModuleDescriptor descriptor = {};
+        descriptor.nextInChain = &source;
+        ShaderModuleAllocation candidate;
+        candidate.vertex = device.CreateShaderModule(&descriptor);
+        invalid_shader_set_nonnull = candidate.vertex != nullptr;
+        return candidate;
+      });
+  shader_module_cases++;
+  if (!require(rejected_shader_set == nullptr && invalid_shader_set_nonnull &&
+                   shader_module_cache.size() == 0 &&
+                   !shader_module_cache.pending(uint8_t(0)),
+               "shipping scoped cache published a non-null shader-module error set"))
+  {
+    return 35;
+  }
+
+  const ShaderModuleAllocation accepted_shader_set = shader_module_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid shader module set", [&]() {
+        ShaderModuleAllocation candidate;
+        wgpu::ShaderSourceWGSL vertex_source = {};
+        vertex_source.code =
+            "@vertex fn vs_main() -> @builtin(position) vec4f { return vec4f(0.0); }";
+        wgpu::ShaderModuleDescriptor vertex_descriptor = {};
+        vertex_descriptor.nextInChain = &vertex_source;
+        candidate.vertex = device.CreateShaderModule(&vertex_descriptor);
+
+        wgpu::ShaderSourceWGSL fragment_source = {};
+        fragment_source.code =
+            "@fragment fn fs_main() -> @location(0) vec4f { return vec4f(1.0); }";
+        wgpu::ShaderModuleDescriptor fragment_descriptor = {};
+        fragment_descriptor.nextInChain = &fragment_source;
+        candidate.fragment = device.CreateShaderModule(&fragment_descriptor);
+
+        wgpu::ShaderSourceWGSL compute_source = {};
+        compute_source.code = "@compute @workgroup_size(1) fn main() {}";
+        wgpu::ShaderModuleDescriptor compute_descriptor = {};
+        compute_descriptor.nextInChain = &compute_source;
+        candidate.compute = device.CreateShaderModule(&compute_descriptor);
+        return candidate;
+      });
+  shader_module_cases++;
+  if (!require(accepted_shader_set.vertex != nullptr &&
+                   accepted_shader_set.fragment != nullptr &&
+                   accepted_shader_set.compute != nullptr && shader_module_cache.size() == 1 &&
+                   !shader_module_cache.pending(uint8_t(0)),
+               "shipping scoped cache did not atomically publish a clean shader-module retry"))
+  {
+    return 36;
+  }
+
+  bw::ScopedHandleCache<uint8_t, wgpu::RenderPipeline> render_pipeline_cache;
+  int render_pipeline_cases = 0;
+  bool invalid_render_pipeline_nonnull = false;
+  const wgpu::RenderPipeline rejected_render_pipeline = render_pipeline_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid render pipeline", [&]() {
+        wgpu::RenderPipelineDescriptor descriptor = {};
+        descriptor.vertex.module = accepted_shader_set.vertex;
+        descriptor.vertex.entryPoint = "missing";
+        wgpu::RenderPipeline candidate = device.CreateRenderPipeline(&descriptor);
+        invalid_render_pipeline_nonnull = candidate != nullptr;
+        return candidate;
+      });
+  render_pipeline_cases++;
+  if (!require(rejected_render_pipeline == nullptr && invalid_render_pipeline_nonnull &&
+                   render_pipeline_cache.size() == 0 &&
+                   !render_pipeline_cache.pending(uint8_t(0)),
+               "shipping scoped cache published a non-null render-pipeline error object"))
+  {
+    return 37;
+  }
+
+  const wgpu::RenderPipeline accepted_render_pipeline = render_pipeline_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid render pipeline", [&]() {
+        wgpu::ColorTargetState target = {};
+        target.format = wgpu::TextureFormat::RGBA8Unorm;
+        wgpu::FragmentState fragment = {};
+        fragment.module = accepted_shader_set.fragment;
+        fragment.entryPoint = "fs_main";
+        fragment.targetCount = 1;
+        fragment.targets = &target;
+        wgpu::RenderPipelineDescriptor descriptor = {};
+        descriptor.vertex.module = accepted_shader_set.vertex;
+        descriptor.vertex.entryPoint = "vs_main";
+        descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+        descriptor.fragment = &fragment;
+        return device.CreateRenderPipeline(&descriptor);
+      });
+  render_pipeline_cases++;
+  if (!require(accepted_render_pipeline != nullptr && render_pipeline_cache.size() == 1 &&
+                   !render_pipeline_cache.pending(uint8_t(0)),
+               "shipping scoped cache did not publish a clean render-pipeline retry"))
+  {
+    return 38;
+  }
+
+  bw::ScopedHandleCache<std::string, wgpu::ComputePipeline> compute_pipeline_cache;
+  int compute_pipeline_cases = 0;
+  bool invalid_compute_pipeline_nonnull = false;
+  const wgpu::ComputePipeline rejected_compute_pipeline = compute_pipeline_cache.get_or_create(
+      instance, device, std::string("default"), "audit invalid compute pipeline", [&]() {
+        wgpu::ComputePipelineDescriptor descriptor = {};
+        descriptor.compute.module = accepted_shader_set.compute;
+        descriptor.compute.entryPoint = "missing";
+        wgpu::ComputePipeline candidate = device.CreateComputePipeline(&descriptor);
+        invalid_compute_pipeline_nonnull = candidate != nullptr;
+        return candidate;
+      });
+  compute_pipeline_cases++;
+  if (!require(rejected_compute_pipeline == nullptr && invalid_compute_pipeline_nonnull &&
+                   compute_pipeline_cache.size() == 0 &&
+                   !compute_pipeline_cache.pending(std::string("default")),
+               "shipping scoped cache published a non-null compute-pipeline error object"))
+  {
+    return 39;
+  }
+
+  const wgpu::ComputePipeline accepted_compute_pipeline = compute_pipeline_cache.get_or_create(
+      instance, device, std::string("default"), "audit valid compute pipeline", [&]() {
+        wgpu::ComputePipelineDescriptor descriptor = {};
+        descriptor.compute.module = accepted_shader_set.compute;
+        descriptor.compute.entryPoint = "main";
+        return device.CreateComputePipeline(&descriptor);
+      });
+  compute_pipeline_cases++;
+  if (!require(accepted_compute_pipeline != nullptr && compute_pipeline_cache.size() == 1 &&
+                   !compute_pipeline_cache.pending(std::string("default")),
+               "shipping scoped cache did not publish a clean compute-pipeline retry"))
+  {
+    return 40;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
@@ -963,6 +1116,12 @@ int main()
             << texture_view_pair_cases
             << " texture_view_pair_error_object_rejected=1 scoped_layout_pair_cases="
             << layout_pair_cases
-            << " layout_pair_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " layout_pair_error_object_rejected=1 scoped_shader_module_cases="
+            << shader_module_cases
+            << " shader_module_error_object_rejected=1 scoped_render_pipeline_cases="
+            << render_pipeline_cases
+            << " render_pipeline_error_object_rejected=1 scoped_compute_pipeline_cases="
+            << compute_pipeline_cases
+            << " compute_pipeline_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

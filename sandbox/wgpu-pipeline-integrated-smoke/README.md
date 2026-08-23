@@ -58,9 +58,13 @@ Native synchronous texture readback uses the same checked copy transaction befor
 staging buffer, so encoder or finished-buffer failure cannot reach mapping or queue submission.
 Root texture copies retain their per-mip compatibility skips inside one checked command
 transaction, so a failed encoder or finished buffer cannot be dereferenced or submitted.
-Likewise, a null sampler or render-pipeline candidate must remain absent from its
-cache so the same key can retry and publish a later valid handle. The source guard
-binds that transaction to every context and process-wide pipeline cache site.
+Shader modules and render/compute pipelines use the scoped cache rather than null-only
+publication. A shader retains its final WGSL while the complete required module set is pending;
+a non-null error module rejects the set atomically, and draw/dispatch lookup recreates it before
+pipeline creation. Every context, framebuffer, per-shader specialization, and process-wide
+pipeline cache likewise publishes only after validation, out-of-memory, and internal scopes
+settle. The one-shot mipmap module/pipeline pair instead reserves an ordered transient gate before
+dependent command work. Rejected keys retry without disturbing accepted entries.
 Sampler cache misses additionally remain pending while validation, out-of-memory, and
 internal scopes settle. A second lookup deduplicates the pending key; a non-null error
 object is discarded, and a clean retry is published without exposing a provisional handle.

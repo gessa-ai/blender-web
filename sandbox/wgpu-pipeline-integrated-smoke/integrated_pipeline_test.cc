@@ -441,33 +441,84 @@ bool index_buffer_handle_resolution_contract()
   return true;
 }
 
-bool cache_handle_publication_contract()
+struct ShaderModuleSetProbe {
+  CacheHandleProbe vertex;
+  CacheHandleProbe fragment;
+  CacheHandleProbe compute;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return vertex == nullptr && fragment == nullptr && compute == nullptr;
+  }
+
+  bool operator!=(std::nullptr_t) const
+  {
+    return !(*this == nullptr);
+  }
+};
+
+bool shader_module_set_cache_contract()
 {
-  std::unordered_map<uint32_t, CacheHandleProbe> cache;
-  cache.emplace(3u, CacheHandleProbe(31));
+  bw::ScopedHandleCache<uint8_t, ShaderModuleSetProbe> cache;
+  std::function<void(bool)> settle;
+  int creates = 0;
 
-  const CacheHandleProbe failed_candidate;
-  if (!require(!bw::cache_handle_if_valid(cache, 7u, failed_candidate),
-               "null cache candidate is rejected") ||
-      !require(cache.size() == 1 && cache.find(7u) == cache.end(),
-               "null cache candidate is not published") ||
-      !require(cache.at(3u).identity() == 31, "failed publication preserves cache"))
+  ShaderModuleSetProbe modules = cache.get_or_create_scoped(
+      uint8_t(0),
+      []() {},
+      [&]() {
+        creates++;
+        return ShaderModuleSetProbe{
+            CacheHandleProbe(11), CacheHandleProbe(13), CacheHandleProbe()};
+      },
+      [&](auto completion) { settle = std::move(completion); });
+  if (!require(modules == nullptr && cache.pending(uint8_t(0)) && cache.size() == 0,
+               "shader module set remains unpublished while validation is pending") ||
+      !require(creates == 1 && bool(settle), "shader module set begins one scoped creation"))
   {
     return false;
   }
 
-  const CacheHandleProbe retry_candidate(73);
-  if (!require(bw::cache_handle_if_valid(cache, 7u, retry_candidate),
-               "valid retry candidate is accepted") ||
-      !require(cache.size() == 2 && cache.at(7u).identity() == 73,
-               "valid retry candidate is published") ||
-      !require(retry_candidate.identity() == 73, "publication preserves caller handle"))
+  settle(false);
+  if (!require(!cache.pending(uint8_t(0)) && cache.size() == 0,
+               "rejected non-null module set remains unpublished"))
   {
     return false;
   }
 
-  std::puts(
-      "CONTRACT cache_handle_publication PASS attempts=2 failure=unpublished retry=published entries=2");
+  modules = cache.get_or_create_scoped(
+      uint8_t(0),
+      []() {},
+      [&]() {
+        creates++;
+        return ShaderModuleSetProbe{
+            CacheHandleProbe(17), CacheHandleProbe(19), CacheHandleProbe()};
+      },
+      [](auto completion) { completion(true); });
+  if (!require(modules.vertex.identity() == 17 && modules.fragment.identity() == 19 &&
+                   modules.compute == nullptr && cache.size() == 1 && creates == 2,
+               "clean shader module retry publishes the complete required set"))
+  {
+    return false;
+  }
+
+  const ShaderModuleSetProbe stable = cache.get_or_create_scoped(
+      uint8_t(0),
+      []() {},
+      [&]() {
+        creates++;
+        return ShaderModuleSetProbe{
+            CacheHandleProbe(23), CacheHandleProbe(29), CacheHandleProbe()};
+      },
+      [](auto completion) { completion(true); });
+  if (!require(stable.vertex.identity() == 17 && stable.fragment.identity() == 19 && creates == 2,
+               "accepted shader module set remains stable without recreation"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT shader_module_set_cache PASS cases=4 creates=2 "
+            "error_object=rejected retry=atomic stable=preserved");
   return true;
 }
 
@@ -656,42 +707,58 @@ bool transient_resource_gate_contract()
   return true;
 }
 
-struct ComputePipelineVariantProbe {
-  std::vector<uint32_t> key;
-  CacheHandleProbe pipeline;
-};
-
 bool compute_pipeline_cache_publication_contract()
 {
-  std::vector<ComputePipelineVariantProbe> cache;
-  cache.push_back({{3u}, CacheHandleProbe(31)});
+  bw::ScopedHandleCache<std::string, CacheHandleProbe> cache;
+  const std::string stable_key("\x03\0\0\0", 4);
+  const std::string retry_key("\x07\0\0\0\x0b\0\0\0", 8);
+  int creates = 0;
 
-  const std::vector<uint32_t> retry_key = {7u, 11u};
-  const CacheHandleProbe failed_candidate;
-  if (!require(!bw::cache_variant_if_valid(cache, retry_key, failed_candidate),
-               "null compute-pipeline candidate is rejected") ||
-      !require(cache.size() == 1 && cache.front().key == std::vector<uint32_t>{3u},
-               "null compute-pipeline candidate is not published") ||
-      !require(cache.front().pipeline.identity() == 31,
-               "failed compute-pipeline publication preserves cache"))
+  CacheHandleProbe pipeline = cache.get_or_create_scoped(
+      stable_key,
+      []() {},
+      [&]() {
+        creates++;
+        return CacheHandleProbe(31);
+      },
+      [](auto completion) { completion(true); });
+  if (!require(pipeline.identity() == 31 && cache.size() == 1 && creates == 1,
+               "accepted compute pipeline baseline is published"))
   {
     return false;
   }
 
-  const CacheHandleProbe retry_candidate(73);
-  if (!require(bw::cache_variant_if_valid(cache, retry_key, retry_candidate),
-               "valid compute-pipeline retry is accepted") ||
-      !require(cache.size() == 2 && cache.back().key == retry_key &&
-                   cache.back().pipeline.identity() == 73,
-               "valid compute-pipeline retry is published") ||
-      !require(retry_candidate.identity() == 73,
-               "compute-pipeline publication preserves caller handle"))
+  pipeline = cache.get_or_create_scoped(
+      retry_key,
+      []() {},
+      [&]() {
+        creates++;
+        return CacheHandleProbe(41);
+      },
+      [](auto completion) { completion(false); });
+  if (!require(pipeline == nullptr && cache.size() == 1 && !cache.pending(retry_key) &&
+                   cache.lookup(stable_key).identity() == 31 && creates == 2,
+               "non-null compute pipeline error object is rejected without disturbing old keys"))
+  {
+    return false;
+  }
+
+  pipeline = cache.get_or_create_scoped(
+      retry_key,
+      []() {},
+      [&]() {
+        creates++;
+        return CacheHandleProbe(73);
+      },
+      [](auto completion) { completion(true); });
+  if (!require(pipeline.identity() == 73 && cache.size() == 2 && creates == 3,
+               "clean compute pipeline retry publishes its specialization key"))
   {
     return false;
   }
 
   std::puts(
-      "CONTRACT compute_pipeline_cache_publication PASS attempts=2 failure=unpublished retry=published entries=2");
+      "CONTRACT compute_pipeline_cache_publication PASS cases=3 error_object=rejected retry=published entries=2");
   return true;
 }
 
@@ -2732,7 +2799,7 @@ int main()
       !framebuffer_load_action_commit_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
-      !cache_handle_publication_contract() ||
+      !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
       !transient_resource_gate_contract() ||
       !compute_pipeline_cache_publication_contract() ||
@@ -2757,9 +2824,9 @@ int main()
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
-      "index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 "
+      "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
       "transient_resource_gates=3 "
-      "compute_cache_publications=2 load_action_commits=2 "
+      "compute_cache_publications=3 load_action_commits=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

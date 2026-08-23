@@ -5,7 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, scoped transient bind-group validation, layered load-action commit,
+# shader-module/pipeline cache publication, scoped transient bind-group validation,
+# layered load-action commit,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -281,6 +282,30 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   '!shader->ensure_explicit_layout(instance, device))' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'if (info.shader->explicit_layout_required() &&' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  '!info.shader->ensure_explicit_layout(instance, device))' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 1 \
+  'bool WGPUShader::ensure_shader_modules(const wgpu::Instance &instance,' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 \
+  'shader_module_cache_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 \
+  'compute_pipeline_cache_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 \
+  'cache_.get_or_create(instance,' \
+  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 2 \
+  'shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get())' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get())' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 2 \
   'shader->compute_pipeline(ctx->instance_get(), device);' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
@@ -1000,13 +1025,16 @@ for method_marker, multi_label, ordinary_label in methods:
     if not helpers[0] < passes[0] < ends[0] < helpers[1] < passes[1] < ends[1]:
         raise SystemExit(f"ERROR: {method_marker} draw work escaped its scoped transaction")
 PY
+FAN_CACHE_LINE="$(grep -nF \
+  'return pipeline_cache.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_MODULE_CREATE_LINE="$(grep -nF \
   'wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_MODULE_GUARD_LINE="$(grep -nF \
   'if (module == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_PIPELINE_CREATE_LINE="$(grep -nF \
-  'pipeline = device.CreateComputePipeline(&pipeline_descriptor);' \
+  'return device.CreateComputePipeline(&pipeline_descriptor);' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_BIND_SCOPE_LINE="$(grep -nF \
   'const wgpu::BindGroup group = webgpu::transient_resource_create_scoped(' \
@@ -1016,10 +1044,12 @@ FAN_BIND_GUARD_LINE="$(grep -nF \
 FAN_COMMAND_TRANSACTION_LINE="$(grep -nF \
   'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
-if [ -z "$FAN_MODULE_CREATE_LINE" ] || [ -z "$FAN_MODULE_GUARD_LINE" ] ||
+if [ -z "$FAN_CACHE_LINE" ] || [ -z "$FAN_MODULE_CREATE_LINE" ] ||
+   [ -z "$FAN_MODULE_GUARD_LINE" ] ||
    [ -z "$FAN_PIPELINE_CREATE_LINE" ] || [ -z "$FAN_BIND_GUARD_LINE" ] ||
    [ -z "$FAN_BIND_SCOPE_LINE" ] ||
    [ -z "$FAN_COMMAND_TRANSACTION_LINE" ] ||
+   [ "$FAN_CACHE_LINE" -ge "$FAN_MODULE_CREATE_LINE" ] ||
    [ "$FAN_MODULE_CREATE_LINE" -ge "$FAN_MODULE_GUARD_LINE" ] ||
    [ "$FAN_MODULE_GUARD_LINE" -ge "$FAN_PIPELINE_CREATE_LINE" ] ||
    [ "$FAN_PIPELINE_CREATE_LINE" -ge "$FAN_BIND_SCOPE_LINE" ] ||
@@ -1100,18 +1130,26 @@ require_fixed_count 1 \
 require_fixed_count 0 \
   'wgpu::Buffer blit_uniform = device_.CreateBuffer(&bd);' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
-require_fixed_count 2 \
+require_fixed_count 1 \
   'if (selected_module == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 3 \
   'if (bind_group == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc"
+COLOR_MODULE_CACHE_LINE="$(grep -nF \
+  'const wgpu::ShaderModule selected_module = blit_modules_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
 COLOR_MODULE_CREATE_LINE="$(grep -nF \
-  'selected_module = device_.CreateShaderModule(&md);' \
+  'return device_.CreateShaderModule(&md);' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
 COLOR_MODULE_GUARD_LINE="$(grep -nF \
   'if (selected_module == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | tail -n 1 | cut -d: -f1)"
 COLOR_PIPELINE_KEY_LINE="$(grep -nF \
   'const uint32_t fmt_key = uint32_t(dst_format)' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_PIPELINE_CACHE_LINE="$(grep -nF \
+  'const wgpu::RenderPipeline pipeline = blit_pipelines_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+COLOR_PIPELINE_GUARD_LINE="$(grep -nF \
+  'if (pipeline == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
 COLOR_UNIFORM_GUARD_LINE="$(grep -nF \
   'if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
@@ -1126,12 +1164,18 @@ COLOR_BIND_GUARD_LINE="$(grep -nF \
 COLOR_COMMAND_TRANSACTION_LINE="$(grep -nF \
   'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
-if [ -z "$COLOR_MODULE_CREATE_LINE" ] || [ -z "$COLOR_MODULE_GUARD_LINE" ] ||
+if [ -z "$COLOR_MODULE_CACHE_LINE" ] || [ -z "$COLOR_MODULE_CREATE_LINE" ] ||
+   [ -z "$COLOR_MODULE_GUARD_LINE" ] ||
    [ -z "$COLOR_PIPELINE_KEY_LINE" ] || [ -z "$COLOR_UNIFORM_GUARD_LINE" ] ||
+   [ -z "$COLOR_PIPELINE_CACHE_LINE" ] || [ -z "$COLOR_PIPELINE_GUARD_LINE" ] ||
    [ -z "$COLOR_QUEUE_WRITE_LINE" ] || [ -z "$COLOR_BIND_CREATE_LINE" ] ||
    [ -z "$COLOR_BIND_GUARD_LINE" ] || [ -z "$COLOR_COMMAND_TRANSACTION_LINE" ] ||
+   [ "$COLOR_MODULE_CACHE_LINE" -ge "$COLOR_MODULE_CREATE_LINE" ] ||
    [ "$COLOR_MODULE_CREATE_LINE" -ge "$COLOR_MODULE_GUARD_LINE" ] ||
    [ "$COLOR_MODULE_GUARD_LINE" -ge "$COLOR_PIPELINE_KEY_LINE" ] ||
+   [ "$COLOR_PIPELINE_KEY_LINE" -ge "$COLOR_PIPELINE_CACHE_LINE" ] ||
+   [ "$COLOR_PIPELINE_CACHE_LINE" -ge "$COLOR_PIPELINE_GUARD_LINE" ] ||
+   [ "$COLOR_PIPELINE_GUARD_LINE" -ge "$COLOR_UNIFORM_GUARD_LINE" ] ||
    [ "$COLOR_UNIFORM_GUARD_LINE" -ge "$COLOR_QUEUE_WRITE_LINE" ] ||
    [ "$COLOR_BIND_CREATE_LINE" -ge "$COLOR_BIND_GUARD_LINE" ] ||
    [ "$COLOR_BIND_GUARD_LINE" -ge "$COLOR_COMMAND_TRANSACTION_LINE" ]
@@ -1139,24 +1183,25 @@ then
   echo "ERROR: color-blit resource guards do not precede queue and command work" >&2
   exit 1
 fi
-require_fixed_count 1 \
+require_fixed_count 0 \
   'inline bool cache_handle_if_valid(' "$WEBGPU_SOURCE/wgpu_common.hh"
-require_fixed_count 1 \
+require_fixed_count 0 \
   'inline bool cache_variant_if_valid(' "$WEBGPU_SOURCE/wgpu_common.hh"
-require_fixed_count 1 \
-  'if (!webgpu::cache_handle_if_valid(blit_pipelines_, fmt_key, pipeline)) {' \
-  "$WEBGPU_SOURCE/wgpu_context.cc"
-require_fixed_count 1 \
-  'if (!cache_handle_if_valid(cache_, key, pipeline)) {' \
-  "$WEBGPU_SOURCE/wgpu_pipeline.cc"
-require_fixed_count 3 \
-  'if (!webgpu::cache_handle_if_valid(' "$WEBGPU_SOURCE/wgpu_context.cc"
-require_fixed_count 1 \
-  'depth_blit_pipelines_, uint32_t(dst_format), pipeline))' \
-  "$WEBGPU_SOURCE/wgpu_context.cc"
-require_fixed_count 1 \
-  'depth_upload_pipelines_, uint32_t(format), pipeline))' \
-  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 'blit_modules_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 2 'blit_pipelines_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 'depth_blit_module_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 'depth_blit_pipelines_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 'depth_upload_module_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 'depth_upload_pipelines_.get_or_create(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 2 'scissored_clear_modules_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 'scissored_color_clear_pipelines_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 'scissored_depth_clear_pipelines_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 'pipeline_cache.get_or_create(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 '"texture mipmap shader/pipeline creation"' \
+  "$WEBGPU_SOURCE/wgpu_texture.cc"
 require_fixed_count 0 'sampler_cache_[key] = sampler;' "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 0 'blit_pipelines_[fmt_key] = pipeline;' "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 0 \
@@ -1166,11 +1211,20 @@ require_fixed_count 0 \
   'depth_upload_pipelines_[uint32_t(format)] = pipeline;' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 0 'cache_.emplace(key, pipeline);' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
-require_fixed_count 1 \
-  'if (!wgi::cache_variant_if_valid(compute_pipelines_, key, pipeline)) {' \
-  "$WEBGPU_SOURCE/wgpu_shader.cc"
 require_fixed_count 0 \
   'compute_pipelines_.push_back({key, pipeline});' "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 0 'compute_pipelines_' "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 'device.CreateShaderModule(&desc)' "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 'device.CreateComputePipeline(&desc)' "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 'device.CreateRenderPipeline(&desc)' "$WEBGPU_SOURCE/wgpu_pipeline.cc"
+require_fixed_count 3 'device_.CreateShaderModule(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 3 'device_.CreateRenderPipeline(' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 2 'device.CreateShaderModule(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 2 'device.CreateRenderPipeline(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 'device.CreateShaderModule(' "$WEBGPU_SOURCE/wgpu_texture.cc"
+require_fixed_count 1 'device.CreateRenderPipeline(' "$WEBGPU_SOURCE/wgpu_texture.cc"
+require_fixed_count 1 'device.CreateShaderModule(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 'device.CreateComputePipeline(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
   'using WindowViewportPlan = FramebufferViewportPlan;' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -1432,7 +1486,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT cache_handle_publication PASS attempts=2 failure=unpublished retry=published entries=2' \
+       'CONTRACT shader_module_set_cache PASS cases=4 creates=2 error_object=rejected retry=atomic stable=preserved' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated error_object=rejected retry=published' \
@@ -1441,7 +1495,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 error_object=blocked dependent=1 canceled=2 retry=accepted' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT compute_pipeline_cache_publication PASS attempts=2 failure=unpublished retry=published entries=2' \
+       'CONTRACT compute_pipeline_cache_publication PASS cases=3 error_object=rejected retry=published entries=2' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT indirect_draw_span PASS cases=19 accepted=7 rejected=12 first_sum=36 stride_sum=144 end_sum=380' \
@@ -1483,7 +1537,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

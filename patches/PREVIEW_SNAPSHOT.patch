@@ -16849,10 +16849,10 @@ index 993239c0bc984e87e909ff9ae728022ff7d72d5a..90813884f7581604a6eaca24f6482e83
  }  // namespace blender::gpu::tests
 diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2aff395285caf39e379a7e8e3c2373a2b22e4ee7
+index 0000000000000000000000000000000000000000..0632dc7f2fdf8d93e347ad50e57eb9b5a50ab6fc
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_backend.cc
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,339 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17048,8 +17048,7 @@ index 0000000000000000000000000000000000000000..2aff395285caf39e379a7e8e3c2373a2
 +    return;
 +  }
 +  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
-+  /* A failed compile leaves a null module — cannot build a pipeline. */
-+  if (shader == nullptr || shader->compute_module() == nullptr) {
++  if (shader == nullptr) {
 +    return;
 +  }
 +
@@ -17090,7 +17089,7 @@ index 0000000000000000000000000000000000000000..2aff395285caf39e379a7e8e3c2373a2
 +    return;
 +  }
 +  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
-+  if (shader == nullptr || shader->compute_module() == nullptr) {
++  if (shader == nullptr) {
 +    return;
 +  }
 +  /* The indirect buffer is a StorageBuf carrying the [x,y,z] group counts; its
@@ -17277,10 +17276,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73d2442c84
+index 0000000000000000000000000000000000000000..fe8bc259bec46526a7bbc8df480e381d26cb64c7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,986 @@
+@@ -0,0 +1,992 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17334,14 +17333,12 @@ index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73
 +  return pool;
 +}
 +
-+static wgpu::ComputePipeline triangle_fan_index_pipeline(const wgpu::Device &device)
++static wgpu::ComputePipeline triangle_fan_index_pipeline(const wgpu::Instance &instance,
++                                                         const wgpu::Device &device)
 +{
 +  /* The application owns one WebGPU device. Match the render-pipeline pool's
 +   * device-lifetime assumption and compile this small topology kernel once. */
-+  static wgpu::ComputePipeline pipeline;
-+  if (pipeline != nullptr) {
-+    return pipeline;
-+  }
++  static webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> pipeline_cache;
 +  static constexpr const char *source = R"(
 +struct Params {
 +  first : u32,
@@ -17398,19 +17395,21 @@ index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73
 +  }
 +}
 +)";
-+  wgpu::ShaderSourceWGSL wgsl = {};
-+  wgsl.code = source;
-+  wgpu::ShaderModuleDescriptor shader_descriptor = {};
-+  shader_descriptor.nextInChain = &wgsl;
-+  wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);
-+  if (module == nullptr) {
-+    return nullptr;
-+  }
-+  wgpu::ComputePipelineDescriptor pipeline_descriptor = {};
-+  pipeline_descriptor.compute.module = module;
-+  pipeline_descriptor.compute.entryPoint = "main";
-+  pipeline = device.CreateComputePipeline(&pipeline_descriptor);
-+  return pipeline;
++  return pipeline_cache.get_or_create(
++      instance, device, uint8_t(0), "indexed triangle-fan compute-pipeline creation", [&]() {
++        wgpu::ShaderSourceWGSL wgsl = {};
++        wgsl.code = source;
++        wgpu::ShaderModuleDescriptor shader_descriptor = {};
++        shader_descriptor.nextInChain = &wgsl;
++        wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);
++        if (module == nullptr) {
++          return wgpu::ComputePipeline{};
++        }
++        wgpu::ComputePipelineDescriptor pipeline_descriptor = {};
++        pipeline_descriptor.compute.module = module;
++        pipeline_descriptor.compute.entryPoint = "main";
++        return device.CreateComputePipeline(&pipeline_descriptor);
++      });
 +}
 +
 +static bool expand_indexed_triangle_fan(WGPUContext &ctx,
@@ -17464,7 +17463,8 @@ index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73
 +    return false;
 +  }
 +
-+  const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx.device_get());
++  const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx.instance_get(),
++                                                                     ctx.device_get());
 +  if (pipeline == nullptr) {
 +    return false;
 +  }
@@ -17527,8 +17527,11 @@ index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
-+  /* A failed shader compile leaves null modules — cannot build a pipeline. */
-+  if (shader->vertex_module() == nullptr || shader->fragment_module() == nullptr) {
++  /* Browser module validation can still be pending after finalize(). Retry from the retained
++   * WGSL, but never expose a provisional/error module to pipeline creation. */
++  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
++      shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
++  {
 +    return;
 +  }
 +
@@ -17965,7 +17968,9 @@ index 0000000000000000000000000000000000000000..bfef677acba227fd0494b42b86abed73
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
-+  if (shader->vertex_module() == nullptr || shader->fragment_module() == nullptr) {
++  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
++      shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
++  {
 +    return;
 +  }
 +
@@ -18831,10 +18836,10 @@ index 0000000000000000000000000000000000000000..0999dad99ac0437e6555a234fc1ec512
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..b74f33584d3794c668ca1904279da3aced3c5e52
+index 0000000000000000000000000000000000000000..a0e5d11f4204580aada2013d4fa1d5784f269dba
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2020 @@
+@@ -0,0 +1,1995 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19786,31 +19791,6 @@ index 0000000000000000000000000000000000000000..b74f33584d3794c668ca1904279da3ac
 +  descriptor.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 +
 +  return buffer_create_if_valid(device, descriptor, result);
-+}
-+
-+/** Publish a fallible WebGPU handle only after creation succeeds. A null sampler or pipeline
-+ * must remain absent so the same cache key can retry after a transient allocation failure.
-+ * Templated so the exact transaction remains device-free testable on native and Wasm. */
-+template<typename CacheT, typename KeyT, typename HandleT>
-+inline bool cache_handle_if_valid(CacheT &cache, const KeyT &key, const HandleT &handle)
-+{
-+  if (handle == nullptr) {
-+    return false;
-+  }
-+  cache.emplace(key, handle);
-+  return true;
-+}
-+
-+/** Append a specialization-keyed pipeline variant only after fallible creation succeeds. A null
-+ * variant must stay absent so a later request for the same key retries creation. */
-+template<typename CacheT, typename KeyT, typename HandleT>
-+inline bool cache_variant_if_valid(CacheT &cache, const KeyT &key, const HandleT &handle)
-+{
-+  if (handle == nullptr) {
-+    return false;
-+  }
-+  cache.push_back({key, handle});
-+  return true;
 +}
 +
 +/** One signed viewport plus its WebGPU-valid unsigned framebuffer intersection. */
@@ -20857,10 +20837,10 @@ index 0000000000000000000000000000000000000000..b74f33584d3794c668ca1904279da3ac
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac990aa6bc8
+index 0000000000000000000000000000000000000000..d75a3190daf788a0207fb744c0afbb5d33ac9033
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1332 @@
+@@ -0,0 +1,1321 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21267,80 +21247,77 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +   * fullscreen triangle's interpolated Y flipped to match top-left textureLoad
 +   * coordinates. The window compositor is different: Blender's region offscreens
 +   * intentionally carry bottom-up content and must retain the direct Y mapping.
-+   * Select the mapping per call; the clamp keeps the 1.0 edge inside the extent. */
++  * Select the mapping per call; the clamp keeps the 1.0 edge inside the extent. */
 +  const uint32_t module_key = uint32_t(src_class) | (source_3d ? 4u : 0u);
-+  wgpu::ShaderModule &selected_module = blit_modules_[module_key];
-+  if (selected_module == nullptr) {
-+    const char *scalar = (src_class == BlitClass::Uint) ? "u32" :
-+                         (src_class == BlitClass::Sint) ? "i32" :
-+                                                         "f32";
-+    const char *result = (src_class == BlitClass::Uint) ? "vec4u" :
-+                         (src_class == BlitClass::Sint) ? "vec4i" :
-+                                                         "vec4f";
-+    std::string code =
-+        "struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f, };\n";
-+    code += "struct Params { extent : vec2u, z : u32, flip_y : u32, };\n";
-+    code +=
-+        "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
-+        "  var o : VOut;\n"
-+        "  let x = f32((vid << 1u) & 2u);\n"
-+        "  let y = f32(vid & 2u);\n"
-+        "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
-+        "  o.uv = vec2f(x, y);\n"
-+        "  return o;\n"
-+        "}\n";
-+    code += "@group(0) @binding(0) var src_tex : texture_";
-+    code += source_3d ? "3d<" : "2d<";
-+    code += scalar;
-+    code += ">;\n";
-+    code += "@group(0) @binding(1) var<uniform> params : Params;\n";
-+    code += "@fragment fn fs_main(i : VOut) -> @location(0) ";
-+    code += result;
-+    code +=
-+        " {\n"
-+        "  let copy_y = select(i.uv.y, 1.0 - i.uv.y, params.flip_y != 0u);\n"
-+        "  let copy_uv = vec2f(i.uv.x, copy_y);\n"
-+        "  let uv = clamp(copy_uv, vec2f(0.0), vec2f(0.99999994));\n"
-+        "  let xy = vec2i(vec2u(uv * vec2f(params.extent)));\n";
-+    code += source_3d ? "  return textureLoad(src_tex, vec3i(xy, i32(params.z)), 0);\n" :
-+                        "  return textureLoad(src_tex, xy, 0);\n";
-+    code += "}\n";
-+    wgpu::ShaderSourceWGSL wgsl;
-+    wgsl.code = code.c_str();
-+    wgpu::ShaderModuleDescriptor md;
-+    md.nextInChain = &wgsl;
-+    selected_module = device_.CreateShaderModule(&md);
-+  }
++  const wgpu::ShaderModule selected_module = blit_modules_.get_or_create(
++      instance_, device_, module_key, "color blit shader-module creation", [&]() {
++        const char *scalar = (src_class == BlitClass::Uint) ? "u32" :
++                             (src_class == BlitClass::Sint) ? "i32" :
++                                                             "f32";
++        const char *result = (src_class == BlitClass::Uint) ? "vec4u" :
++                             (src_class == BlitClass::Sint) ? "vec4i" :
++                                                             "vec4f";
++        std::string code =
++            "struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f, };\n";
++        code += "struct Params { extent : vec2u, z : u32, flip_y : u32, };\n";
++        code +=
++            "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
++            "  var o : VOut;\n"
++            "  let x = f32((vid << 1u) & 2u);\n"
++            "  let y = f32(vid & 2u);\n"
++            "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++            "  o.uv = vec2f(x, y);\n"
++            "  return o;\n"
++            "}\n";
++        code += "@group(0) @binding(0) var src_tex : texture_";
++        code += source_3d ? "3d<" : "2d<";
++        code += scalar;
++        code += ">;\n";
++        code += "@group(0) @binding(1) var<uniform> params : Params;\n";
++        code += "@fragment fn fs_main(i : VOut) -> @location(0) ";
++        code += result;
++        code +=
++            " {\n"
++            "  let copy_y = select(i.uv.y, 1.0 - i.uv.y, params.flip_y != 0u);\n"
++            "  let copy_uv = vec2f(i.uv.x, copy_y);\n"
++            "  let uv = clamp(copy_uv, vec2f(0.0), vec2f(0.99999994));\n"
++            "  let xy = vec2i(vec2u(uv * vec2f(params.extent)));\n";
++        code += source_3d ?
++                    "  return textureLoad(src_tex, vec3i(xy, i32(params.z)), 0);\n" :
++                    "  return textureLoad(src_tex, xy, 0);\n";
++        code += "}\n";
++        wgpu::ShaderSourceWGSL wgsl;
++        wgsl.code = code.c_str();
++        wgpu::ShaderModuleDescriptor md;
++        md.nextInChain = &wgsl;
++        return device_.CreateShaderModule(&md);
++      });
 +  if (selected_module == nullptr) {
 +    return false;
 +  }
 +  /* Pipeline cached per destination format (auto layout: one sampled texture and
 +   * one copy-extent/slice uniform in group 0). */
 +  const uint32_t fmt_key = uint32_t(dst_format) | (module_key << 24);
-+  wgpu::RenderPipeline pipeline;
-+  auto found = blit_pipelines_.find(fmt_key);
-+  if (found != blit_pipelines_.end()) {
-+    pipeline = found->second;
-+  }
-+  else {
-+    wgpu::ColorTargetState target = {};
-+    target.format = dst_format;
-+    target.writeMask = wgpu::ColorWriteMask::All;
-+    wgpu::FragmentState fragment = {};
-+    fragment.module = selected_module;
-+    fragment.entryPoint = "fs_main";
-+    fragment.targetCount = 1;
-+    fragment.targets = &target;
-+    wgpu::RenderPipelineDescriptor pd = {};
-+    pd.layout = nullptr;
-+    pd.vertex.module = selected_module;
-+    pd.vertex.entryPoint = "vs_main";
-+    pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+    pd.fragment = &fragment;
-+    pipeline = device_.CreateRenderPipeline(&pd);
-+    if (!webgpu::cache_handle_if_valid(blit_pipelines_, fmt_key, pipeline)) {
-+      return false;
-+    }
++  const wgpu::RenderPipeline pipeline = blit_pipelines_.get_or_create(
++      instance_, device_, fmt_key, "color blit render-pipeline creation", [&]() {
++        wgpu::ColorTargetState target = {};
++        target.format = dst_format;
++        target.writeMask = wgpu::ColorWriteMask::All;
++        wgpu::FragmentState fragment = {};
++        fragment.module = selected_module;
++        fragment.entryPoint = "fs_main";
++        fragment.targetCount = 1;
++        fragment.targets = &target;
++        wgpu::RenderPipelineDescriptor pd = {};
++        pd.layout = nullptr;
++        pd.vertex.module = selected_module;
++        pd.vertex.entryPoint = "vs_main";
++        pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        pd.fragment = &fragment;
++        return device_.CreateRenderPipeline(&pd);
++      });
++  if (pipeline == nullptr) {
++    return false;
 +  }
 +
 +  wgpu::BindGroupEntry entries[2] = {};
@@ -21451,8 +21428,10 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +    return false;
 +  }
 +
-+  if (depth_blit_module_ == nullptr) {
-+    static constexpr const char *wgsl_source =
++  static constexpr uint8_t depth_blit_module_key = 0;
++  const wgpu::ShaderModule depth_blit_module = depth_blit_module_.get_or_create(
++      instance_, device_, depth_blit_module_key, "depth blit shader-module creation", [&]() {
++        static constexpr const char *wgsl_source =
 +        "struct VOut { @builtin(position) pos : vec4f, };\n"
 +        "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
 +        "  var o : VOut;\n"
@@ -21467,53 +21446,47 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +        "  let xy = vec2i(min(vec2u(i.pos.xy), hi));\n"
 +        "  return textureLoad(src_tex, xy, 0);\n"
 +        "}\n";
-+    wgpu::ShaderSourceWGSL source = {};
-+    source.code = wgsl_source;
-+    wgpu::ShaderModuleDescriptor module_desc = {};
-+    module_desc.nextInChain = &source;
-+    depth_blit_module_ = device_.CreateShaderModule(&module_desc);
-+  }
-+  if (depth_blit_module_ == nullptr) {
++        wgpu::ShaderSourceWGSL source = {};
++        source.code = wgsl_source;
++        wgpu::ShaderModuleDescriptor module_desc = {};
++        module_desc.nextInChain = &source;
++        return device_.CreateShaderModule(&module_desc);
++      });
++  if (depth_blit_module == nullptr) {
 +    return false;
 +  }
 +
-+  wgpu::RenderPipeline pipeline;
-+  auto found = depth_blit_pipelines_.find(uint32_t(dst_format));
-+  if (found != depth_blit_pipelines_.end()) {
-+    pipeline = found->second;
-+  }
-+  else {
-+    wgpu::FragmentState fragment = {};
-+    fragment.module = depth_blit_module_;
-+    fragment.entryPoint = "fs_main";
-+    wgpu::DepthStencilState depth_stencil = {};
-+    depth_stencil.format = dst_format;
-+    depth_stencil.depthWriteEnabled = wgpu::OptionalBool::True;
-+    depth_stencil.depthCompare = wgpu::CompareFunction::Always;
-+    if (dst_format == wgpu::TextureFormat::Depth32FloatStencil8 ||
-+        dst_format == wgpu::TextureFormat::Depth24PlusStencil8)
-+    {
-+      depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
-+      depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.depthFailOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.passOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilBack = depth_stencil.stencilFront;
-+      depth_stencil.stencilReadMask = 0u;
-+      depth_stencil.stencilWriteMask = 0u;
-+    }
-+    wgpu::RenderPipelineDescriptor pipeline_desc = {};
-+    pipeline_desc.layout = nullptr;
-+    pipeline_desc.vertex.module = depth_blit_module_;
-+    pipeline_desc.vertex.entryPoint = "vs_main";
-+    pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+    pipeline_desc.fragment = &fragment;
-+    pipeline_desc.depthStencil = &depth_stencil;
-+    pipeline = device_.CreateRenderPipeline(&pipeline_desc);
-+    if (!webgpu::cache_handle_if_valid(
-+            depth_blit_pipelines_, uint32_t(dst_format), pipeline))
-+    {
-+      return false;
-+    }
++  const wgpu::RenderPipeline pipeline = depth_blit_pipelines_.get_or_create(
++      instance_, device_, uint32_t(dst_format), "depth blit render-pipeline creation", [&]() {
++        wgpu::FragmentState fragment = {};
++        fragment.module = depth_blit_module;
++        fragment.entryPoint = "fs_main";
++        wgpu::DepthStencilState depth_stencil = {};
++        depth_stencil.format = dst_format;
++        depth_stencil.depthWriteEnabled = wgpu::OptionalBool::True;
++        depth_stencil.depthCompare = wgpu::CompareFunction::Always;
++        if (dst_format == wgpu::TextureFormat::Depth32FloatStencil8 ||
++            dst_format == wgpu::TextureFormat::Depth24PlusStencil8)
++        {
++          depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
++          depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.depthFailOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.passOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilBack = depth_stencil.stencilFront;
++          depth_stencil.stencilReadMask = 0u;
++          depth_stencil.stencilWriteMask = 0u;
++        }
++        wgpu::RenderPipelineDescriptor pipeline_desc = {};
++        pipeline_desc.layout = nullptr;
++        pipeline_desc.vertex.module = depth_blit_module;
++        pipeline_desc.vertex.entryPoint = "vs_main";
++        pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        pipeline_desc.fragment = &fragment;
++        pipeline_desc.depthStencil = &depth_stencil;
++        return device_.CreateRenderPipeline(&pipeline_desc);
++      });
++  if (pipeline == nullptr) {
++    return false;
 +  }
 +
 +  wgpu::BindGroupEntry entry = {};
@@ -21592,8 +21565,10 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +    return false;
 +  }
 +
-+  if (depth_upload_module_ == nullptr) {
-+    static constexpr const char *wgsl_source =
++  static constexpr uint8_t depth_upload_module_key = 0;
++  const wgpu::ShaderModule depth_upload_module = depth_upload_module_.get_or_create(
++      instance_, device_, depth_upload_module_key, "depth upload shader-module creation", [&]() {
++        static constexpr const char *wgsl_source =
 +        "struct VOut { @builtin(position) pos : vec4f, };\n"
 +        "struct Params { origin : vec2u, extent : vec2u, };\n"
 +        "@group(0) @binding(0) var<storage, read> values : array<f32>;\n"
@@ -21609,51 +21584,45 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +        "  let xy = vec2u(i.pos.xy) - params.origin;\n"
 +        "  return values[xy.y * params.extent.x + xy.x];\n"
 +        "}\n";
-+    wgpu::ShaderSourceWGSL source = {};
-+    source.code = wgsl_source;
-+    wgpu::ShaderModuleDescriptor module_desc = {};
-+    module_desc.nextInChain = &source;
-+    depth_upload_module_ = device_.CreateShaderModule(&module_desc);
-+  }
-+  if (depth_upload_module_ == nullptr) {
++        wgpu::ShaderSourceWGSL source = {};
++        source.code = wgsl_source;
++        wgpu::ShaderModuleDescriptor module_desc = {};
++        module_desc.nextInChain = &source;
++        return device_.CreateShaderModule(&module_desc);
++      });
++  if (depth_upload_module == nullptr) {
 +    return false;
 +  }
 +
-+  wgpu::RenderPipeline pipeline;
-+  auto found = depth_upload_pipelines_.find(uint32_t(format));
-+  if (found != depth_upload_pipelines_.end()) {
-+    pipeline = found->second;
-+  }
-+  else {
-+    wgpu::FragmentState fragment = {};
-+    fragment.module = depth_upload_module_;
-+    fragment.entryPoint = "fs_main";
-+    wgpu::DepthStencilState depth_stencil = {};
-+    depth_stencil.format = format;
-+    depth_stencil.depthWriteEnabled = wgpu::OptionalBool::True;
-+    depth_stencil.depthCompare = wgpu::CompareFunction::Always;
-+    if (format == wgpu::TextureFormat::Depth32FloatStencil8) {
-+      depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
-+      depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.depthFailOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.passOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilBack = depth_stencil.stencilFront;
-+      depth_stencil.stencilReadMask = 0u;
-+      depth_stencil.stencilWriteMask = 0u;
-+    }
-+    wgpu::RenderPipelineDescriptor pipeline_desc = {};
-+    pipeline_desc.layout = nullptr;
-+    pipeline_desc.vertex.module = depth_upload_module_;
-+    pipeline_desc.vertex.entryPoint = "vs_main";
-+    pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+    pipeline_desc.fragment = &fragment;
-+    pipeline_desc.depthStencil = &depth_stencil;
-+    pipeline = device_.CreateRenderPipeline(&pipeline_desc);
-+    if (!webgpu::cache_handle_if_valid(
-+            depth_upload_pipelines_, uint32_t(format), pipeline))
-+    {
-+      return false;
-+    }
++  const wgpu::RenderPipeline pipeline = depth_upload_pipelines_.get_or_create(
++      instance_, device_, uint32_t(format), "depth upload render-pipeline creation", [&]() {
++        wgpu::FragmentState fragment = {};
++        fragment.module = depth_upload_module;
++        fragment.entryPoint = "fs_main";
++        wgpu::DepthStencilState depth_stencil = {};
++        depth_stencil.format = format;
++        depth_stencil.depthWriteEnabled = wgpu::OptionalBool::True;
++        depth_stencil.depthCompare = wgpu::CompareFunction::Always;
++        if (format == wgpu::TextureFormat::Depth32FloatStencil8) {
++          depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
++          depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.depthFailOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.passOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilBack = depth_stencil.stencilFront;
++          depth_stencil.stencilReadMask = 0u;
++          depth_stencil.stencilWriteMask = 0u;
++        }
++        wgpu::RenderPipelineDescriptor pipeline_desc = {};
++        pipeline_desc.layout = nullptr;
++        pipeline_desc.vertex.module = depth_upload_module;
++        pipeline_desc.vertex.entryPoint = "vs_main";
++        pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        pipeline_desc.fragment = &fragment;
++        pipeline_desc.depthStencil = &depth_stencil;
++        return device_.CreateRenderPipeline(&pipeline_desc);
++      });
++  if (pipeline == nullptr) {
++    return false;
 +  }
 +
 +  const uint64_t value_bytes = uint64_t(w) * uint64_t(h) * sizeof(float);
@@ -22195,7 +22164,7 @@ index 0000000000000000000000000000000000000000..8d9e04e3cb59e2096b67b49203caaac9
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..34b03dee38c9b100517e236cbeb1381f1dd08577
+index 0000000000000000000000000000000000000000..0f034818521b58e3ff1fe3d5e151d6a5ae2406ed
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
 @@ -0,0 +1,363 @@
@@ -22537,15 +22506,15 @@ index 0000000000000000000000000000000000000000..34b03dee38c9b100517e236cbeb1381f
 +
 +  /* --- Cross-format colour blit (blit_color_render) ------------------------- */
 +  /** Typed textureLoad blit modules keyed by source sample class and dimension. */
-+  std::unordered_map<uint32_t, wgpu::ShaderModule> blit_modules_;
++  webgpu::ScopedHandleCache<uint32_t, wgpu::ShaderModule> blit_modules_;
 +  /** Blit render pipeline cache keyed by module class + destination format. */
-+  std::unordered_map<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
++  webgpu::ScopedHandleCache<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
 +  /** Full-subresource depth blit module and pipelines keyed by destination format. */
-+  wgpu::ShaderModule depth_blit_module_ = nullptr;
-+  std::unordered_map<uint32_t, wgpu::RenderPipeline> depth_blit_pipelines_;
++  webgpu::ScopedHandleCache<uint8_t, wgpu::ShaderModule> depth_blit_module_;
++  webgpu::ScopedHandleCache<uint32_t, wgpu::RenderPipeline> depth_blit_pipelines_;
 +  /** Host-depth upload module and pipelines keyed by destination format. */
-+  wgpu::ShaderModule depth_upload_module_ = nullptr;
-+  std::unordered_map<uint32_t, wgpu::RenderPipeline> depth_upload_pipelines_;
++  webgpu::ScopedHandleCache<uint8_t, wgpu::ShaderModule> depth_upload_module_;
++  webgpu::ScopedHandleCache<uint32_t, wgpu::RenderPipeline> depth_upload_pipelines_;
 +
 +  /** Scope-validated shared default buffer backing dummy vertex-attribute slots (see
 +   * dummy_vertex_buffer). */
@@ -22950,10 +22919,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24ded44032d
+index 0000000000000000000000000000000000000000..460f491ceb297b04e2f48797be260871261357bf
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1841 @@
+@@ -0,0 +1,1840 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23196,30 +23165,25 @@ index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24d
 +  const webgpu::FramebufferClearShaderType shader_type =
 +      webgpu::framebuffer_clear_color_shader_type(bool(format_flags & GPU_FORMAT_INTEGER),
 +                                                  bool(format_flags & GPU_FORMAT_SIGNED));
-+  wgpu::ShaderModule *module = nullptr;
-+  switch (shader_type) {
-+    case webgpu::FramebufferClearShaderType::Uint:
-+      module = &scissored_clear_uint_module_;
-+      break;
-+    case webgpu::FramebufferClearShaderType::Sint:
-+      module = &scissored_clear_sint_module_;
-+      break;
-+    case webgpu::FramebufferClearShaderType::Float:
-+      module = &scissored_clear_float_module_;
-+      break;
-+    case webgpu::FramebufferClearShaderType::Depth:
-+      return false;
++  if (shader_type == webgpu::FramebufferClearShaderType::Depth) {
++    return false;
 +  }
 +
 +  wgpu::Device device = ctx->device_get();
-+  if (*module == nullptr) {
-+    wgpu::ShaderSourceWGSL source = {};
-+    source.code = webgpu::framebuffer_clear_shader_source(shader_type);
-+    wgpu::ShaderModuleDescriptor descriptor = {};
-+    descriptor.nextInChain = &source;
-+    *module = device.CreateShaderModule(&descriptor);
-+  }
-+  if (*module == nullptr) {
++  const uint32_t module_key = uint32_t(shader_type);
++  const wgpu::ShaderModule module = scissored_clear_modules_.get_or_create(
++      ctx->instance_get(),
++      device,
++      module_key,
++      "scissored color-clear shader-module creation",
++      [&]() {
++        wgpu::ShaderSourceWGSL source = {};
++        source.code = webgpu::framebuffer_clear_shader_source(shader_type);
++        wgpu::ShaderModuleDescriptor descriptor = {};
++        descriptor.nextInChain = &source;
++        return device.CreateShaderModule(&descriptor);
++      });
++  if (module == nullptr) {
 +    return false;
 +  }
 +
@@ -23229,32 +23193,31 @@ index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24d
 +    return false;
 +  }
 +  const uint64_t pipeline_key = uint64_t(uint32_t(format)) | (uint64_t(sample_count) << 32);
-+  wgpu::RenderPipeline pipeline;
-+  const auto found = scissored_color_clear_pipelines_.find(pipeline_key);
-+  if (found != scissored_color_clear_pipelines_.end()) {
-+    pipeline = found->second;
-+  }
-+  else {
-+    wgpu::ColorTargetState target = {};
-+    target.format = format;
-+    target.writeMask = wgpu::ColorWriteMask::All;
-+    wgpu::FragmentState fragment = {};
-+    fragment.module = *module;
-+    fragment.entryPoint = "fs_main";
-+    fragment.targetCount = 1;
-+    fragment.targets = &target;
-+    wgpu::RenderPipelineDescriptor descriptor = {};
-+    descriptor.layout = nullptr;
-+    descriptor.vertex.module = *module;
-+    descriptor.vertex.entryPoint = "vs_main";
-+    descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+    descriptor.multisample.count = sample_count;
-+    descriptor.fragment = &fragment;
-+    pipeline = device.CreateRenderPipeline(&descriptor);
-+    if (pipeline == nullptr) {
-+      return false;
-+    }
-+    scissored_color_clear_pipelines_[pipeline_key] = pipeline;
++  const wgpu::RenderPipeline pipeline = scissored_color_clear_pipelines_.get_or_create(
++      ctx->instance_get(),
++      device,
++      pipeline_key,
++      "scissored color-clear render-pipeline creation",
++      [&]() {
++        wgpu::ColorTargetState target = {};
++        target.format = format;
++        target.writeMask = wgpu::ColorWriteMask::All;
++        wgpu::FragmentState fragment = {};
++        fragment.module = module;
++        fragment.entryPoint = "fs_main";
++        fragment.targetCount = 1;
++        fragment.targets = &target;
++        wgpu::RenderPipelineDescriptor descriptor = {};
++        descriptor.layout = nullptr;
++        descriptor.vertex.module = module;
++        descriptor.vertex.entryPoint = "vs_main";
++        descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        descriptor.multisample.count = sample_count;
++        descriptor.fragment = &fragment;
++        return device.CreateRenderPipeline(&descriptor);
++      });
++  if (pipeline == nullptr) {
++    return false;
 +  }
 +
 +  uint32_t clear_payload[4] = {};
@@ -23373,60 +23336,65 @@ index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24d
 +  }
 +
 +  wgpu::Device device = ctx->device_get();
-+  if (scissored_clear_depth_module_ == nullptr) {
-+    wgpu::ShaderSourceWGSL source = {};
-+    source.code = webgpu::framebuffer_clear_shader_source(
-+        webgpu::FramebufferClearShaderType::Depth);
-+    wgpu::ShaderModuleDescriptor descriptor = {};
-+    descriptor.nextInChain = &source;
-+    scissored_clear_depth_module_ = device.CreateShaderModule(&descriptor);
-+  }
-+  if (scissored_clear_depth_module_ == nullptr) {
++  const uint32_t module_key = uint32_t(webgpu::FramebufferClearShaderType::Depth);
++  const wgpu::ShaderModule module = scissored_clear_modules_.get_or_create(
++      ctx->instance_get(),
++      device,
++      module_key,
++      "scissored depth-stencil-clear shader-module creation",
++      [&]() {
++        wgpu::ShaderSourceWGSL source = {};
++        source.code = webgpu::framebuffer_clear_shader_source(
++            webgpu::FramebufferClearShaderType::Depth);
++        wgpu::ShaderModuleDescriptor descriptor = {};
++        descriptor.nextInChain = &source;
++        return device.CreateShaderModule(&descriptor);
++      });
++  if (module == nullptr) {
 +    return false;
 +  }
 +
 +  const uint64_t pipeline_key = uint64_t(uint32_t(format)) | (uint64_t(sample_count) << 32) |
 +                                (uint64_t(clear_depth ? 1u : 0u) << 48) |
 +                                (uint64_t(clear_stencil ? 1u : 0u) << 49);
-+  wgpu::RenderPipeline pipeline;
-+  const auto found = scissored_depth_clear_pipelines_.find(pipeline_key);
-+  if (found != scissored_depth_clear_pipelines_.end()) {
-+    pipeline = found->second;
-+  }
-+  else {
-+    wgpu::FragmentState fragment = {};
-+    fragment.module = scissored_clear_depth_module_;
-+    fragment.entryPoint = "fs_main";
-+    wgpu::DepthStencilState depth_stencil = {};
-+    depth_stencil.format = format;
-+    depth_stencil.depthWriteEnabled = clear_depth ? wgpu::OptionalBool::True :
-+                                                   wgpu::OptionalBool::False;
-+    depth_stencil.depthCompare = wgpu::CompareFunction::Always;
-+    if (combined) {
-+      depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
-+      depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.depthFailOp = clear_stencil ?
-+                                                   wgpu::StencilOperation::Replace :
-+                                                   wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilFront.passOp = clear_stencil ? wgpu::StencilOperation::Replace :
-+                                                         wgpu::StencilOperation::Keep;
-+      depth_stencil.stencilBack = depth_stencil.stencilFront;
-+      depth_stencil.stencilReadMask = 0xffu;
-+      depth_stencil.stencilWriteMask = clear_stencil ? 0xffu : 0u;
-+    }
-+    wgpu::RenderPipelineDescriptor descriptor = {};
-+    descriptor.layout = nullptr;
-+    descriptor.vertex.module = scissored_clear_depth_module_;
-+    descriptor.vertex.entryPoint = "vs_main";
-+    descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+    descriptor.multisample.count = sample_count;
-+    descriptor.fragment = &fragment;
-+    descriptor.depthStencil = &depth_stencil;
-+    pipeline = device.CreateRenderPipeline(&descriptor);
-+    if (pipeline == nullptr) {
-+      return false;
-+    }
-+    scissored_depth_clear_pipelines_[pipeline_key] = pipeline;
++  const wgpu::RenderPipeline pipeline = scissored_depth_clear_pipelines_.get_or_create(
++      ctx->instance_get(),
++      device,
++      pipeline_key,
++      "scissored depth-stencil-clear render-pipeline creation",
++      [&]() {
++        wgpu::FragmentState fragment = {};
++        fragment.module = module;
++        fragment.entryPoint = "fs_main";
++        wgpu::DepthStencilState depth_stencil = {};
++        depth_stencil.format = format;
++        depth_stencil.depthWriteEnabled = clear_depth ? wgpu::OptionalBool::True :
++                                                       wgpu::OptionalBool::False;
++        depth_stencil.depthCompare = wgpu::CompareFunction::Always;
++        if (combined) {
++          depth_stencil.stencilFront.compare = wgpu::CompareFunction::Always;
++          depth_stencil.stencilFront.failOp = wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.depthFailOp = clear_stencil ?
++                                                       wgpu::StencilOperation::Replace :
++                                                       wgpu::StencilOperation::Keep;
++          depth_stencil.stencilFront.passOp = clear_stencil ? wgpu::StencilOperation::Replace :
++                                                             wgpu::StencilOperation::Keep;
++          depth_stencil.stencilBack = depth_stencil.stencilFront;
++          depth_stencil.stencilReadMask = 0xffu;
++          depth_stencil.stencilWriteMask = clear_stencil ? 0xffu : 0u;
++        }
++        wgpu::RenderPipelineDescriptor descriptor = {};
++        descriptor.layout = nullptr;
++        descriptor.vertex.module = module;
++        descriptor.vertex.entryPoint = "vs_main";
++        descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        descriptor.multisample.count = sample_count;
++        descriptor.fragment = &fragment;
++        descriptor.depthStencil = &depth_stencil;
++        return device.CreateRenderPipeline(&descriptor);
++      });
++  if (pipeline == nullptr) {
++    return false;
 +  }
 +
 +  const float depth_payload[4] = {
@@ -24797,10 +24765,10 @@ index 0000000000000000000000000000000000000000..8a51f2a9f5600d098de06e84902cf24d
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..c1ec948ce232f2c43b52a313f61fb1b2e07eb0ff
+index 0000000000000000000000000000000000000000..7596e36e360d3e6b51fdd64bb2fb31bcb04eebce
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,202 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -24834,7 +24802,6 @@ index 0000000000000000000000000000000000000000..c1ec948ce232f2c43b52a313f61fb1b2
 +#include <atomic>
 +#include <functional>
 +#include <memory>
-+#include <unordered_map>
 +
 +namespace blender::gpu {
 +
@@ -24991,12 +24958,9 @@ index 0000000000000000000000000000000000000000..c1ec948ce232f2c43b52a313f61fb1b2
 +                                            uint clear_stencil_value,
 +                                            const webgpu::FramebufferClearPlan &plan);
 +
-+  wgpu::ShaderModule scissored_clear_float_module_;
-+  wgpu::ShaderModule scissored_clear_uint_module_;
-+  wgpu::ShaderModule scissored_clear_sint_module_;
-+  wgpu::ShaderModule scissored_clear_depth_module_;
-+  std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_color_clear_pipelines_;
-+  std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_depth_clear_pipelines_;
++  webgpu::ScopedHandleCache<uint32_t, wgpu::ShaderModule> scissored_clear_modules_;
++  webgpu::ScopedHandleCache<uint64_t, wgpu::RenderPipeline> scissored_color_clear_pipelines_;
++  webgpu::ScopedHandleCache<uint64_t, wgpu::RenderPipeline> scissored_depth_clear_pipelines_;
 +
 +  /** Pending asynchronous all-layer load clears and callback lifetime. */
 +  std::atomic<uint32_t> layered_load_clear_pending_mask_{0};
@@ -25009,10 +24973,10 @@ index 0000000000000000000000000000000000000000..c1ec948ce232f2c43b52a313f61fb1b2
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..dd4410fd1895379fc9f0efbca0cecabb26c5fc09
+index 0000000000000000000000000000000000000000..59d802918616f85bd6e0635f8312213377aa742b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,269 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -25095,7 +25059,9 @@ index 0000000000000000000000000000000000000000..dd4410fd1895379fc9f0efbca0cecabb
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
-+  if (shader->vertex_module() == nullptr || shader->fragment_module() == nullptr) {
++  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
++      shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
++  {
 +    return;
 +  }
 +
@@ -25611,10 +25577,10 @@ index 0000000000000000000000000000000000000000..83c56ca794607d1f959297e526054415
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a7bc5a337a12371ea0638f74d93b4ce24e45108e
+index 0000000000000000000000000000000000000000..99e080986fafe071c3d710f77e21f648733fadac
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
-@@ -0,0 +1,604 @@
+@@ -0,0 +1,608 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26206,25 +26172,29 @@ index 0000000000000000000000000000000000000000..a7bc5a337a12371ea0638f74d93b4ce2
 +  BLI_assert(info.shader != nullptr);
 +  BLI_assert(info.shader_cache_identity != 0);
 +  BLI_assert(info.shader_cache_identity == info.shader->pipeline_cache_identity());
-+  const uint64_t key = pipeline_hash(info);
-+  auto it = cache_.find(key);
-+  if (it != cache_.end()) {
-+    return it->second;
-+  }
-+  wgpu::RenderPipeline pipeline = build_pipeline(instance, device, info);
-+  if (!cache_handle_if_valid(cache_, key, pipeline)) {
++  if (!info.shader->ensure_shader_modules(instance, device)) {
 +    return nullptr;
 +  }
-+  return pipeline;
++  if (info.shader->explicit_layout_required() &&
++      !info.shader->ensure_explicit_layout(instance, device))
++  {
++    return nullptr;
++  }
++  const uint64_t key = pipeline_hash(info);
++  return cache_.get_or_create(instance,
++                              device,
++                              key,
++                              "render pipeline creation",
++                              [&]() { return build_pipeline(instance, device, info); });
 +}
 +
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..8a8de8015b6c1a0f4bff52e4f1c33c1ee4c3d631
+index 0000000000000000000000000000000000000000..9a5e06a2af4bd5cd18748f31d2a48c16b3376fa6
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,147 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26247,7 +26217,6 @@ index 0000000000000000000000000000000000000000..8a8de8015b6c1a0f4bff52e4f1c33c1e
 +#pragma once
 +
 +#include <cstdint>
-+#include <unordered_map>
 +#include <vector>
 +
 +#include "webgpu/webgpu_cpp.h"
@@ -26258,6 +26227,8 @@ index 0000000000000000000000000000000000000000..8a8de8015b6c1a0f4bff52e4f1c33c1e
 +#include "GPU_vertex_format.hh"
 +
 +#include "gpu_state_private.hh" /* GPUState / GPUStateMutable */
++
++#include "wgpu_common.hh"
 +
 +namespace blender::gpu {
 +
@@ -26329,7 +26300,7 @@ index 0000000000000000000000000000000000000000..8a8de8015b6c1a0f4bff52e4f1c33c1e
 +                           const PipelineInfo &info);
 +
 + private:
-+  std::unordered_map<uint64_t, wgpu::RenderPipeline> cache_;
++  ScopedHandleCache<uint64_t, wgpu::RenderPipeline> cache_;
 +};
 +
 +/* --- Pure enum mappings (exposed for tests) -------------------------------- */
@@ -27866,10 +27837,10 @@ index 0000000000000000000000000000000000000000..972573105d2165c30962d278d53473a6
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316decb8c5018
+index 0000000000000000000000000000000000000000..bebe325013382431476fde2e3998873ca246e67e
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2968 @@
+@@ -0,0 +1,3006 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30246,6 +30217,51 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +  return device.CreateShaderModule(&desc);
 +}
 +
++bool WGPUShader::ensure_shader_modules(const wgpu::Instance &instance,
++                                       const wgpu::Device &device)
++{
++  if (instance == nullptr || device == nullptr ||
++      (vertex_wgsl_.empty() && fragment_wgsl_.empty() && compute_wgsl_.empty()))
++  {
++    return false;
++  }
++  if (shader_module_cache_.lookup(kShaderModuleKey) != nullptr) {
++    return true;
++  }
++  if (shader_module_cache_.pending(kShaderModuleKey)) {
++    return false;
++  }
++
++  const ShaderModuleHandles modules = shader_module_cache_.get_or_create(
++      instance,
++      device,
++      kShaderModuleKey,
++      "shader module-set creation",
++      [&]() {
++        ShaderModuleHandles candidate;
++        if (!vertex_wgsl_.empty()) {
++          candidate.vertex = make_module(device, vertex_wgsl_);
++          if (candidate.vertex == nullptr) {
++            return ShaderModuleHandles{};
++          }
++        }
++        if (!fragment_wgsl_.empty()) {
++          candidate.fragment = make_module(device, fragment_wgsl_);
++          if (candidate.fragment == nullptr) {
++            return ShaderModuleHandles{};
++          }
++        }
++        if (!compute_wgsl_.empty()) {
++          candidate.compute = make_module(device, compute_wgsl_);
++          if (candidate.compute == nullptr) {
++            return ShaderModuleHandles{};
++          }
++        }
++        return candidate;
++      });
++  return modules != nullptr;
++}
++
 +static bool wgsl_has_override_id(const std::string &wgsl, const uint32_t constant_id)
 +{
 +  const std::string marker = "@id(" + std::to_string(constant_id) + ")";
@@ -30342,24 +30358,13 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +    }
 +  }
 +
-+  if (!result.vertex_wgsl.empty()) {
-+    vertex_module_ = make_module(device, result.vertex_wgsl);
-+    if (vertex_module_ == nullptr) {
-+      return false;
-+    }
-+  }
-+  if (!result.fragment_wgsl.empty()) {
-+    fragment_module_ = make_module(device, result.fragment_wgsl);
-+    if (fragment_module_ == nullptr) {
-+      return false;
-+    }
-+  }
-+  if (!result.compute_wgsl.empty()) {
-+    compute_module_ = make_module(device, result.compute_wgsl);
-+    if (compute_module_ == nullptr) {
-+      return false;
-+    }
-+  }
++  vertex_wgsl_ = std::move(result.vertex_wgsl);
++  fragment_wgsl_ = std::move(result.fragment_wgsl);
++  compute_wgsl_ = std::move(result.compute_wgsl);
++  /* Native Dawn publishes synchronously; browser callbacks leave the set pending. Compilation is
++   * still complete in either case, and draw/dispatch lookup retries from these retained sources
++   * without exposing provisional modules. */
++  ensure_shader_modules(instance, device);
 +
 +  /* Build the name→location interface + push-constant std140 layout (needed for
 +   * uniform_* and for lane B's bind-group assembly). */
@@ -30397,7 +30402,11 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Instance &instance,
 +                                                   const wgpu::Device &device)
 +{
-+  if (compute_module_ == nullptr) {
++  if (!ensure_shader_modules(instance, device)) {
++    return nullptr;
++  }
++  const wgpu::ShaderModule compute_module = this->compute_module();
++  if (compute_module == nullptr) {
 +    return nullptr;
 +  }
 +  if (explicit_layout_required() && !ensure_explicit_layout(instance, device)) {
@@ -30412,10 +30421,9 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +      key.push_back(v.u);
 +    }
 +  }
-+  for (const ComputePipelineVariant &variant : compute_pipelines_) {
-+    if (variant.key == key) {
-+      return variant.pipeline;
-+    }
++  std::string cache_key;
++  if (!key.empty()) {
++    cache_key.assign(reinterpret_cast<const char *>(key.data()), key.size() * sizeof(uint32_t));
 +  }
 +
 +  /* Miss: build the variant. Each create-info specialization constant became a WGSL
@@ -30450,17 +30458,18 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +  /* Explicit group-0 layout (interface-map-derived, correct resource types) when the
 +   * shader has full coverage; else Dawn's auto layout inferred from the compute WGSL. */
 +  desc.layout = has_explicit_layout() ? explicit_pipeline_layout() : nullptr;
-+  desc.compute.module = compute_module_;
++  desc.compute.module = compute_module;
 +  /* Tint names the compute entry point "main" (from the GLSL main); the standalone
 +   * T7.pre proof created its compute pipeline with the same explicit entry point. */
 +  desc.compute.entryPoint = "main";
 +  desc.compute.constantCount = constants.size();
 +  desc.compute.constants = constants.empty() ? nullptr : constants.data();
-+  wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&desc);
-+  if (!wgi::cache_variant_if_valid(compute_pipelines_, key, pipeline)) {
-+    return nullptr;
-+  }
-+  return pipeline;
++  return compute_pipeline_cache_.get_or_create(
++      instance,
++      device,
++      cache_key,
++      "compute pipeline creation",
++      [&]() { return device.CreateComputePipeline(&desc); });
 +}
 +
 +/* -------------------------------------------------------------------------- */
@@ -30840,10 +30849,10 @@ index 0000000000000000000000000000000000000000..16d3ab1057c4f9170aeb5784624316de
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..109b20728edca2451b31dbff0d8b9fb0fd833628
+index 0000000000000000000000000000000000000000..a6cb323d29d64ee15861b5b28a9280dea66a36ff
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.hh
-@@ -0,0 +1,334 @@
+@@ -0,0 +1,351 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30945,18 +30954,22 @@ index 0000000000000000000000000000000000000000..109b20728edca2451b31dbff0d8b9fb0
 +  std::string geometry_layout_declare(const shader::ShaderCreateInfo &info) const override;
 +  std::string compute_layout_declare(const shader::ShaderCreateInfo &info) const override;
 +
-+  const wgpu::ShaderModule &vertex_module() const
++  wgpu::ShaderModule vertex_module() const
 +  {
-+    return vertex_module_;
++    return shader_module_cache_.lookup(kShaderModuleKey).vertex;
 +  }
-+  const wgpu::ShaderModule &fragment_module() const
++  wgpu::ShaderModule fragment_module() const
 +  {
-+    return fragment_module_;
++    return shader_module_cache_.lookup(kShaderModuleKey).fragment;
 +  }
-+  const wgpu::ShaderModule &compute_module() const
++  wgpu::ShaderModule compute_module() const
 +  {
-+    return compute_module_;
++    return shader_module_cache_.lookup(kShaderModuleKey).compute;
 +  }
++  /** Ensure the shader's WGSL module set has completed validation/OOM/internal scopes. Browser
++   * validation can remain pending after finalize(); rejected candidates stay unpublished and are
++   * recreated from the retained WGSL on the next draw or dispatch. */
++  bool ensure_shader_modules(const wgpu::Instance &instance, const wgpu::Device &device);
 +  /** The compute pipeline for this shader, built lazily from the compute module on
 +   * first dispatch and cached for the shader's lifetime. WebGPU compute uses an auto
 +   * layout inferred from the WGSL, so the bind group the backend assembles via
@@ -31084,22 +31097,35 @@ index 0000000000000000000000000000000000000000..109b20728edca2451b31dbff0d8b9fb0
 +  /* Unique for this object lifetime; never derived from the allocator address. */
 +  uint64_t pipeline_cache_identity_ = 0;
 +
-+  /* Compiled WGSL modules (produced by finalize via the shaderc→Tint chain). */
-+  wgpu::ShaderModule vertex_module_;
-+  wgpu::ShaderModule fragment_module_;
-+  wgpu::ShaderModule compute_module_;
++  struct ShaderModuleHandles {
++    wgpu::ShaderModule vertex;
++    wgpu::ShaderModule fragment;
++    wgpu::ShaderModule compute;
 +
-+  /* Compute pipelines built lazily from compute_module_ and cached PER
++    bool operator==(std::nullptr_t) const
++    {
++      return vertex == nullptr && fragment == nullptr && compute == nullptr;
++    }
++    bool operator!=(std::nullptr_t) const
++    {
++      return !(*this == nullptr);
++    }
++  };
++
++  /* Compiled WGSL is CPU retry state. The complete required module set publishes atomically only
++   * after Dawn's implementation error scopes settle cleanly. */
++  static constexpr uint8_t kShaderModuleKey = 0;
++  std::string vertex_wgsl_;
++  std::string fragment_wgsl_;
++  std::string compute_wgsl_;
++  webgpu::ScopedHandleCache<uint8_t, ShaderModuleHandles> shader_module_cache_;
++
++  /* Compute pipelines built lazily from the accepted compute module and cached PER
 +   * specialization-constant value set (see compute_pipeline()). WebGPU applies
 +   * `override` constants at pipeline creation, so distinct spec-constant values need
-+   * distinct pipeline variants; the key is the raw override bit patterns. Value sets
-+   * per shader are few, so a linear-searched vector is enough (and sidesteps hashing
-+   * a Vector key). */
-+  struct ComputePipelineVariant {
-+    std::vector<uint32_t> key;
-+    wgpu::ComputePipeline pipeline;
-+  };
-+  std::vector<ComputePipelineVariant> compute_pipelines_;
++   * distinct pipeline variants. The raw override bit patterns are retained as an
++   * exact byte-string key while scoped creation is pending or retrying. */
++  webgpu::ScopedHandleCache<std::string, wgpu::ComputePipeline> compute_pipeline_cache_;
 +  /* Specialization constants captured by the most recent bind(); consumed by
 +   * compute_pipeline() to select/create the matching variant. Null = defaults. The
 +   * pointee is owned by the caller and stays valid across the bind()->dispatch call
@@ -33406,10 +33432,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cc07960d8fd22f8fa1d95760f2c171c5c12e91f2
+index 0000000000000000000000000000000000000000..78cc643494dfc8098a09bf920b2587060021a4f4
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2767 @@
+@@ -0,0 +1,2774 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -36082,26 +36108,33 @@ index 0000000000000000000000000000000000000000..cc07960d8fd22f8fa1d95760f2c171c5
 +  wgpu::ShaderModuleDescriptor module_desc = {};
 +  module_desc.nextInChain = &source;
 +  wgpu::Device device = ctx->device_get();
-+  wgpu::ShaderModule module = device.CreateShaderModule(&module_desc);
-+  if (module == nullptr) {
-+    return;
-+  }
-+
-+  wgpu::ColorTargetState target = {};
-+  target.format = subresources_.view_format;
-+  target.writeMask = wgpu::ColorWriteMask::All;
-+  wgpu::FragmentState fragment = {};
-+  fragment.module = module;
-+  fragment.entryPoint = "fs_main";
-+  fragment.targetCount = 1;
-+  fragment.targets = &target;
-+  wgpu::RenderPipelineDescriptor pipeline_desc = {};
-+  pipeline_desc.layout = nullptr;
-+  pipeline_desc.vertex.module = module;
-+  pipeline_desc.vertex.entryPoint = "vs_main";
-+  pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-+  pipeline_desc.fragment = &fragment;
-+  wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pipeline_desc);
++  const wgpu::RenderPipeline pipeline = webgpu::transient_resource_create_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_scheduler_get(),
++      "texture mipmap shader/pipeline creation",
++      [&]() {
++        wgpu::ShaderModule module = device.CreateShaderModule(&module_desc);
++        if (module == nullptr) {
++          return wgpu::RenderPipeline{};
++        }
++        wgpu::ColorTargetState target = {};
++        target.format = subresources_.view_format;
++        target.writeMask = wgpu::ColorWriteMask::All;
++        wgpu::FragmentState fragment = {};
++        fragment.module = module;
++        fragment.entryPoint = "fs_main";
++        fragment.targetCount = 1;
++        fragment.targets = &target;
++        wgpu::RenderPipelineDescriptor pipeline_desc = {};
++        pipeline_desc.layout = nullptr;
++        pipeline_desc.vertex.module = module;
++        pipeline_desc.vertex.entryPoint = "vs_main";
++        pipeline_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++        pipeline_desc.fragment = &fragment;
++        return device.CreateRenderPipeline(&pipeline_desc);
++      },
++      [](bool) {});
 +  if (pipeline == nullptr) {
 +    return;
 +  }

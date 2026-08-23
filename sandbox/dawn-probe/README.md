@@ -81,8 +81,9 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   next-epoch retry. Matching bind-group, texture, and texture-view controls prove the same ordered
   gate blocks their non-null error objects, while composite texture/view and
   bind-group/pipeline-layout caches prove pair rejection is atomic and clean replacements publish
-  on retry. Its output is explicitly non-receipt evidence and cannot satisfy the hardware success
-  criterion above.
+  on retry. Shader-module-set plus render- and compute-pipeline caches repeat that proof with real
+  non-null Dawn error objects before clean retries. Its output is explicitly non-receipt evidence
+  and cannot satisfy the hardware success criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

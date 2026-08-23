@@ -912,3 +912,16 @@ its frame epoch; a clean later epoch recreates the group and may publish the dis
 direct and indirect paths with non-null error objects, an uncaptured-error counter, cancellation,
 and clean retry on native and wasm32; use pinned software Dawn only as explicit non-receipt control.
 See `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 63 — spontaneous acquisition callbacks cannot own a raw platform context
+
+Signature: an asynchronous browser adapter or device request captures a raw platform-context
+pointer, while context destruction invalidates only later error-scope callbacks. Delivering either
+request after destruction dereferences freed state; an adapter success can also start a device
+request and a device success can publish readiness after the owner is gone. Give both request
+callbacks one shared owner-lifetime gate, invalidate it first in the context destructor, and route
+all owner access, completion, and follow-on acquisition through the gate. A delayed callback then
+discards its returned WebGPU handle without touching the owner. Exercise delayed adapter and device
+delivery after destruction under AddressSanitizer, retain an unsafe raw-owner control that ASan
+must reject, and compile the accepted contract for native and wasm32. See
+`platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/wgpu-pipeline-integrated-smoke/`.

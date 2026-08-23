@@ -170,12 +170,14 @@ GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_pa
                                            const ghost_web::DrawingContextMode mode)
     : GHOST_Context(context_params),
       canvas_selector_(canvas_selector ? canvas_selector : "#canvas"),
-      mode_(mode)
+      mode_(mode),
+      acquisition_lifetime_(std::make_shared<FallbackAcquisitionLifetime>(*this))
 {
 }
 
 GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()
 {
+  acquisition_lifetime_->invalidate();
   callback_lifetime_->store(false, std::memory_order_release);
 }
 
@@ -387,18 +389,23 @@ void GHOST_ContextWGPUWeb::requestAdapter()
 {
   wgpu::RequestAdapterOptions opts = {};
   opts.powerPreference = wgpu::PowerPreference::HighPerformance;
+  const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =
+      acquisition_lifetime_;
 
   instance_.RequestAdapter(
       &opts,
       wgpu::CallbackMode::AllowSpontaneous,
-      [this](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView msg) {
-        if (status != wgpu::RequestAdapterStatus::Success || a == nullptr) {
-          std::printf("WGPUWeb: RequestAdapter failed: %.*s\n", int(msg.length), msg.data);
-          completeInitialization(false);
-          return;
-        }
-        adapter_ = std::move(a);
-        requestDevice();
+      [acquisition_lifetime](
+          wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView msg) {
+        acquisition_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+          if (status != wgpu::RequestAdapterStatus::Success || a == nullptr) {
+            std::printf("WGPUWeb: RequestAdapter failed: %.*s\n", int(msg.length), msg.data);
+            owner.completeInitialization(false);
+            return;
+          }
+          owner.adapter_ = std::move(a);
+          owner.requestDevice();
+        });
       });
 }
 
@@ -418,27 +425,32 @@ void GHOST_ContextWGPUWeb::requestDevice()
         std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
       });
 
+  const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =
+      acquisition_lifetime_;
   adapter_.RequestDevice(
       &desc,
       wgpu::CallbackMode::AllowSpontaneous,
-      [this](wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView msg) {
-        if (status != wgpu::RequestDeviceStatus::Success || d == nullptr) {
-          std::printf("WGPUWeb: RequestDevice failed: %.*s\n", int(msg.length), msg.data);
-          completeInitialization(false);
-          return;
-        }
-        device_ = std::move(d);
-        queue_ = device_.GetQueue();
-        if (!deviceIsUsable()) {
-          completeInitialization(false);
-          return;
-        }
-        if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
-          completeInitialization(true);
-        }
-        else {
-          finishSetup();
-        }
+      [acquisition_lifetime](
+          wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView msg) {
+        acquisition_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+          if (status != wgpu::RequestDeviceStatus::Success || d == nullptr) {
+            std::printf("WGPUWeb: RequestDevice failed: %.*s\n", int(msg.length), msg.data);
+            owner.completeInitialization(false);
+            return;
+          }
+          owner.device_ = std::move(d);
+          owner.queue_ = owner.device_.GetQueue();
+          if (!owner.deviceIsUsable()) {
+            owner.completeInitialization(false);
+            return;
+          }
+          if (owner.mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
+            owner.completeInitialization(true);
+          }
+          else {
+            owner.finishSetup();
+          }
+        });
       });
 }
 

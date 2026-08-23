@@ -148,6 +148,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
  private:
   using ErrorScopeCallback = std::function<void(bool)>;
+  using FallbackAcquisitionLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;
 
   void requestAdapter();
   void requestDevice();
@@ -212,6 +213,8 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   uint32_t imported_device_loss_generation_ = 0;
   bool imported_device_loss_signal_required_ = false;
   bool device_loss_propagated_ = false;
+  /** Adapter/device completions retain this gate, never the raw GHOST context. */
+  std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime_;
   /** Error-scope callbacks may resolve after this C++ object starts destruction. */
   std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
       std::make_shared<std::atomic<bool>>(true);

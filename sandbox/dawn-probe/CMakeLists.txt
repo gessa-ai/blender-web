@@ -507,6 +507,28 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
   )
   target_link_options(wgpu_pipeline_integrated_test PRIVATE -Wl,--gc-sections)
   target_link_libraries(wgpu_pipeline_integrated_test PRIVATE dawn::webgpu_dawn)
+
+  # Focused delayed-callback lifetime seam. AddressSanitizer makes the unsafe
+  # raw-owner control observable while the accepted path includes only the
+  # shipping owner-lifetime primitive and creates no Dawn device.
+  set(_bw_ghost_acquisition_lifetime_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-pipeline-integrated-smoke/ghost_acquisition_lifetime_test.cc"
+  )
+  if(NOT IS_ABSOLUTE "${_bw_ghost_acquisition_lifetime_test}" OR
+     NOT EXISTS "${_bw_ghost_acquisition_lifetime_test}")
+    message(FATAL_ERROR "GHOST acquisition lifetime test is missing")
+  endif()
+  add_executable(ghost_acquisition_lifetime_asan "${_bw_ghost_acquisition_lifetime_test}")
+  target_compile_definitions(ghost_acquisition_lifetime_asan PRIVATE
+    BW_GHOST_PRESENT_TRANSACTION_HEADER="${BW_GHOST_PRESENT_TRANSACTION_HEADER}"
+  )
+  target_compile_options(ghost_acquisition_lifetime_asan PRIVATE
+    -O1
+    -g
+    -fsanitize=address
+    -fno-omit-frame-pointer
+  )
+  target_link_options(ghost_acquisition_lifetime_asan PRIVATE -fsanitize=address)
 endif()
 
 # Optional device-free contract for the canonical in-tree vertex-buffer CPU

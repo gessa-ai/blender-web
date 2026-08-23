@@ -11,6 +11,7 @@
 # layered load-action commit,
 # ordinary load-action submission transactions,
 # layered clear-before-draw ordering,
+# fallback adapter/device owner-lifetime invalidation,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -172,6 +173,7 @@ then
   exit 1
 fi
 require_file "$HERE/integrated_pipeline_test.cc"
+require_file "$HERE/ghost_acquisition_lifetime_test.cc"
 require_file "$GHOST_SOURCE"
 require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
@@ -1575,6 +1577,15 @@ require_fixed_count 1 'device.lost.then(function (info) {' "$WGPU_PREINIT_SOURCE
 require_fixed_count 1 \
   'std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state_' \
   "$GHOST_HEADER"
+require_fixed_count 1 \
+  'std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime_;' \
+  "$GHOST_HEADER"
+require_fixed_count 1 \
+  'acquisition_lifetime_(std::make_shared<FallbackAcquisitionLifetime>(*this))' \
+  "$GHOST_SOURCE"
+require_fixed_count 2 \
+  'const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =' \
+  "$GHOST_SOURCE"
 require_fixed_count 1 'uint32_t imported_device_loss_generation_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'desc.SetDeviceLostCallback(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::device_state_after_loss_signal(' "$GHOST_SOURCE"
@@ -1615,7 +1626,9 @@ def method(marker: str) -> str:
 
 
 configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)")
+destructor = method("GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()")
 initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()")
+request_adapter = method("void GHOST_ContextWGPUWeb::requestAdapter()")
 request_device = method("void GHOST_ContextWGPUWeb::requestDevice()")
 finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
 backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
@@ -1625,6 +1638,27 @@ swap_acquire = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()"
 device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
+
+if destructor.count("acquisition_lifetime_->invalidate();") != 1:
+    raise SystemExit("ERROR: context destruction does not invalidate fallback acquisition")
+if destructor.index("acquisition_lifetime_->invalidate();") > destructor.index(
+    "callback_lifetime_->store(false, std::memory_order_release);"
+):
+    raise SystemExit("ERROR: fallback acquisition invalidation is not the first callback boundary")
+
+for label, body, call, follow_on in (
+    ("adapter", request_adapter, "instance_.RequestAdapter(", "owner.requestDevice();"),
+    ("device", request_device, "adapter_.RequestDevice(", "owner.completeInitialization("),
+):
+    completion = body[body.index(call) :]
+    if completion.count("[acquisition_lifetime]") != 1 or completion.count(
+        "acquisition_lifetime->deliver("
+    ) != 1:
+        raise SystemExit(f"ERROR: fallback {label} completion lacks one shared lifetime gate")
+    if "[this]" in completion or "this->" in completion:
+        raise SystemExit(f"ERROR: fallback {label} completion captures the raw GHOST owner")
+    if follow_on not in completion:
+        raise SystemExit(f"ERROR: fallback {label} completion is not routed through its live owner")
 
 for needle in ("requested_width_ = w;", "requested_height_ = h;", "ensureBackbuffer();"):
     if configure.count(needle) != 1:
@@ -1814,7 +1848,8 @@ echo "== [1/3] canonical native render-pipeline mappings =="
   -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
-"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_pipeline_integrated_test
+"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" \
+  wgpu_pipeline_integrated_test ghost_acquisition_lifetime_asan
 
 echo "== [2/3] canonical Wasm render-pipeline mappings =="
 "$EMSDK/upstream/emscripten/emcmake" "$HOST_CMAKE" -G Ninja \
@@ -1825,7 +1860,8 @@ echo "== [2/3] canonical Wasm render-pipeline mappings =="
   -DBW_INTEGRATED_PIPELINE_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
-"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_pipeline_integrated_smoke
+"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" \
+  wgpu_pipeline_integrated_smoke ghost_acquisition_lifetime_wasm
 
 echo "== [3/3] exact native/Wasm parity =="
 NATIVE_STDOUT="$OUT/native.stdout"
@@ -1834,6 +1870,41 @@ WASM_STDOUT="$OUT/wasm.stdout"
 WASM_STDERR="$OUT/wasm.stderr"
 "$NATIVE_BUILD/wgpu_pipeline_integrated_test" >"$NATIVE_STDOUT" 2>"$NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
+
+ACQUISITION_NATIVE_STDOUT="$OUT/acquisition-native.stdout"
+ACQUISITION_NATIVE_STDERR="$OUT/acquisition-native.stderr"
+ACQUISITION_WASM_STDOUT="$OUT/acquisition-wasm.stdout"
+ACQUISITION_WASM_STDERR="$OUT/acquisition-wasm.stderr"
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+  "$NATIVE_BUILD/ghost_acquisition_lifetime_asan" \
+  >"$ACQUISITION_NATIVE_STDOUT" 2>"$ACQUISITION_NATIVE_STDERR"
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+  "$NODE" "$WASM_BUILD/ghost_acquisition_lifetime.js" \
+  >"$ACQUISITION_WASM_STDOUT" 2>"$ACQUISITION_WASM_STDERR"
+ACQUISITION_VERDICT='CONTRACT ghost_acquisition_lifetime PASS cases=4 delayed=2 live=2 owner_access_after_invalidate=0 completion_after_invalidate=0 follow_on_after_invalidate=0'
+for acquisition_stdout in "$ACQUISITION_NATIVE_STDOUT" "$ACQUISITION_WASM_STDOUT"; do
+  if ! grep -qx "$ACQUISITION_VERDICT" "$acquisition_stdout"; then
+    echo "ERROR: GHOST acquisition lifetime evidence differs: $acquisition_stdout" >&2
+    exit 1
+  fi
+done
+if ! cmp -s "$ACQUISITION_NATIVE_STDOUT" "$ACQUISITION_WASM_STDOUT"; then
+  echo "ERROR: native and Wasm GHOST acquisition lifetime evidence differs" >&2
+  exit 1
+fi
+ASAN_UNSAFE_STDOUT="$OUT/acquisition-unsafe.stdout"
+ASAN_UNSAFE_STDERR="$OUT/acquisition-unsafe.stderr"
+if ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+     "$NATIVE_BUILD/ghost_acquisition_lifetime_asan" --unsafe-control \
+     >"$ASAN_UNSAFE_STDOUT" 2>"$ASAN_UNSAFE_STDERR"
+then
+  echo "ERROR: unsafe raw-owner acquisition control escaped AddressSanitizer" >&2
+  exit 1
+fi
+if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
+  echo "ERROR: unsafe acquisition control did not produce the expected ASan diagnosis" >&2
+  exit 1
+fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 37 ] ||
@@ -1961,7 +2032,9 @@ then
 fi
 
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" -n wgpu_pipeline_integrated_test
+"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" -n ghost_acquisition_lifetime_asan
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" -n wgpu_pipeline_integrated_smoke
+"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" -n ghost_acquisition_lifetime_wasm
 
 OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"

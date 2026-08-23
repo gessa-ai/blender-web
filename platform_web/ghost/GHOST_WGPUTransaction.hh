@@ -16,6 +16,37 @@ enum class DrawingContextMode {
   DeviceOnly,
 };
 
+/**
+ * Shared validity gate for browser callbacks whose C++ owner is not reference-counted.
+ *
+ * Emdawnwebgpu resolves fallback adapter/device requests from the same browser event loop that
+ * destroys the GHOST context. Each browser callback retains this gate instead of the raw owner;
+ * context destruction invalidates it before releasing any other callback state. Delayed
+ * completions can therefore discard their handles without touching the dead context.
+ */
+template<typename OwnerT> class OwnerCallbackLifetime {
+ public:
+  explicit OwnerCallbackLifetime(OwnerT &owner) : owner_(&owner) {}
+
+  void invalidate()
+  {
+    owner_.store(nullptr, std::memory_order_release);
+  }
+
+  template<typename Callback> bool deliver(Callback &&callback) const
+  {
+    OwnerT *owner = owner_.load(std::memory_order_acquire);
+    if (owner == nullptr) {
+      return false;
+    }
+    std::forward<Callback>(callback)(*owner);
+    return true;
+  }
+
+ private:
+  std::atomic<OwnerT *> owner_;
+};
+
 /** Terminal state shared by callbacks without retaining a GHOST context pointer. */
 enum class DeviceState : uint8_t {
   Active,

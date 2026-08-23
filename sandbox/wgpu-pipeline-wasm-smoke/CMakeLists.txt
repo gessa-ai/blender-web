@@ -95,3 +95,32 @@ target_link_options(wgpu_pipeline_integrated_smoke PRIVATE
   "-sALLOW_MEMORY_GROWTH=1"
   "-sPTHREAD_POOL_SIZE=1"
 )
+
+set(_bw_ghost_acquisition_lifetime_test
+  "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-pipeline-integrated-smoke/ghost_acquisition_lifetime_test.cc"
+)
+if(NOT EXISTS "${_bw_ghost_acquisition_lifetime_test}")
+  message(FATAL_ERROR "GHOST acquisition lifetime test is missing")
+endif()
+add_executable(ghost_acquisition_lifetime_wasm "${_bw_ghost_acquisition_lifetime_test}")
+target_compile_definitions(ghost_acquisition_lifetime_wasm PRIVATE
+  BW_GHOST_PRESENT_TRANSACTION_HEADER="${BW_GHOST_PRESENT_TRANSACTION_HEADER}"
+)
+set_target_properties(ghost_acquisition_lifetime_wasm PROPERTIES
+  CXX_STANDARD 20
+  CXX_STANDARD_REQUIRED ON
+  OUTPUT_NAME ghost_acquisition_lifetime
+  SUFFIX .js
+)
+target_compile_options(ghost_acquisition_lifetime_wasm PRIVATE
+  -O1
+  -g
+  -fsanitize=address
+  -fno-omit-frame-pointer
+)
+target_link_options(ghost_acquisition_lifetime_wasm PRIVATE
+  -fsanitize=address
+  "-sENVIRONMENT=node"
+  "-sEXIT_RUNTIME=1"
+  "-sALLOW_MEMORY_GROWTH=1"
+)

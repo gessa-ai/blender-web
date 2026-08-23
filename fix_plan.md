@@ -1892,23 +1892,24 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
   Live hardware proof remains blocked by s7. See
   `notes/m3-gpu-bind-group-layout-error-object-contract-20260823.md`.
-- [ ] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace remaining null-only
-  shader-module and render/compute-pipeline creation/cache publication with completed error-scope
-  status. Preserve old resources and CPU retry state until validation/OOM/internal scopes settle,
-  and reject error objects before dependent command work or one-shot commits. Reuse the pinned-Dawn
-  control; do not infer browser success from it. The sampler, dummy-buffer, persistent-buffer,
-  transient-buffer, texture/view, and bind-group/layout slices are complete in `3d67aa6`,
-  `d8cd71d`, `b3a0abb`, `d7b7db1`, `8443017`, and `424c9f2`; shader-module and pipeline
-  creation/cache publication is the next smallest slice.
-  **blocked-by: none; highest priority.**
+- [x] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend] (46a1eb0):** every remaining
+  shader-module and render/compute-pipeline factory now publishes through completed
+  validation/OOM/internal scopes. Final WGSL, explicit layouts, and specialization keys remain CPU
+  retry state; required shader modules publish atomically, persistent caches deduplicate pending
+  keys and preserve accepted entries, and the one-shot mipmap pair reserves the ordered transient
+  gate before command work. Native/wasm32 parity, real non-null pinned-Dawn llvmpipe rejection and
+  clean retries, canonical freeze/replay, numbered patch round trip, product rebuild/no-work, OFF
+  preflight, REUSE, scoped M3, and container-backed regression are verified. This closes the R6
+  GPU resource error-object prerequisite only; live hardware proof remains blocked by s7. See
+  `notes/m3-gpu-shader-pipeline-error-object-contract-20260823.md`.
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport
   bindings), distinguish a genuinely empty layout from missing/partial resources, and reject
-  before encoder/pass work. **blocked-by: none.**
+  before encoder/pass work. **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
   `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
   command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
-  **blocked-by: AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT.**
+  **blocked-by: none; resource error-object prerequisite complete.**
 - [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
   backbuffer extents coherent across replacement failure, require matching extents before
   present, and retry a pending resize without depending on a second browser resize event.

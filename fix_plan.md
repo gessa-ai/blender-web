@@ -2015,6 +2015,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   real product rebuild/no-work, OFF preflight, compliance, scoped M3, and container-backed
   regression are verified. The R7 device-free corrective queue is complete. See
   `notes/m3-gpu-scheduler-failure-drain-20260823.md`.
+- [x] **AUDIT-R8-GHOST-CALLBACK-LIFECYCLE [ghost-web, blocked-by: none] COMPLETE (938ade4):**
+  all seven asynchronous context completions now register with one synchronized owner gate, so
+  destruction blocks new delivery and waits for concurrent owner access without deadlocking a
+  self-destroying callback. Their shared device state samples the exact imported JavaScript loss
+  generation at callback time and makes settled/replaced signals sticky terminal. Fail-first
+  source binding, byte-identical native/wasm32 concurrency and loss contracts, unsafe ASan control,
+  canonical integrated parity, real product rebuild/no-work, and compliance are verified. See
+  `notes/m4-ghost-callback-lifecycle-r8-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

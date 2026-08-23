@@ -157,14 +157,19 @@ synchronous GHOST swap result reports whether this frame actually reached the as
 validation transaction instead of manufacturing success for an acquisition that never started.
 Device loss is stronger than that surface result. The pre-main worker now owns the imported
 browser device's `lost` promise in its creation realm and publishes a generation-bound terminal
-record before the device; a stale promise cannot overwrite a replacement record. GHOST samples
-that exact record before swap, surface acquisition, or present encoding, disables outstanding
-callbacks, and clears its handles on the first terminal observation. The fallback C++ acquisition
-path installs a descriptor callback that captures only shared atomic state. Eleven pinned-Node
+record before the device; a stale promise cannot overwrite a replacement record. The callback-owned
+state samples that exact record before every queued configuration, publication, submission, and
+present completion as well as each public swap boundary, then clears the context handles on the
+first owner-side terminal propagation. The fallback C++ acquisition path installs a descriptor
+callback that captures only the same shared state. Eleven pinned-Node
 cases cover pending, pre-entry, post-entry unknown/destroyed, and stale loss order; a 13-case
 native/wasm32 contract covers generation binding, sticky state, apparently successful surface
 status override, and callback lifetime. Pinned Dawn's software control additionally forces a real
 loss and proves a non-null post-loss error texture is blocked, without creating a receipt.
+Every completion that can outlive the non-reference-counted GHOST context also registers with one
+synchronized owner gate. Destruction stops new delivery, waits for concurrent delivery on other
+threads, and remains reentrant when the active callback destroys its own context; no completion
+retains a raw `this` pointer.
 The Blender GPU backend now applies that completed-scope rule to every short-lived command and
 direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can
 yield, so a delayed submission cannot move behind a later `WriteBuffer` or `WriteTexture` call.

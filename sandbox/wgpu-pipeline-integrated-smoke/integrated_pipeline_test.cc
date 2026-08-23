@@ -1195,6 +1195,128 @@ bool compute_command_transaction_contract()
   return true;
 }
 
+struct BufferCommandTrace {
+  bool encoder_success = true;
+  bool command_success = true;
+  int encoder_creates = 0;
+  int copies = 0;
+  int finishes = 0;
+  int submits = 0;
+};
+
+class BufferCommandBufferProbe {
+ public:
+  BufferCommandBufferProbe() = default;
+  explicit BufferCommandBufferProbe(const bool valid) : valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+ private:
+  bool valid_ = false;
+};
+
+class BufferCommandEncoderProbe {
+ public:
+  BufferCommandEncoderProbe() = default;
+  BufferCommandEncoderProbe(BufferCommandTrace *trace, const bool valid)
+      : trace_(trace), valid_(valid)
+  {
+  }
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  void CopyBufferToBuffer()
+  {
+    trace_->copies++;
+  }
+
+  BufferCommandBufferProbe Finish()
+  {
+    trace_->finishes++;
+    return BufferCommandBufferProbe(trace_->command_success);
+  }
+
+ private:
+  BufferCommandTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+class BufferCommandDeviceProbe {
+ public:
+  explicit BufferCommandDeviceProbe(BufferCommandTrace &trace) : trace_(&trace) {}
+
+  BufferCommandEncoderProbe CreateCommandEncoder() const
+  {
+    trace_->encoder_creates++;
+    return BufferCommandEncoderProbe(trace_, trace_->encoder_success);
+  }
+
+ private:
+  BufferCommandTrace *trace_ = nullptr;
+};
+
+class BufferCommandQueueProbe {
+ public:
+  explicit BufferCommandQueueProbe(BufferCommandTrace &trace) : trace_(&trace) {}
+
+  void Submit(const size_t count, const BufferCommandBufferProbe *command_buffer) const
+  {
+    if (count == 1 && command_buffer != nullptr && !(*command_buffer == nullptr)) {
+      trace_->submits++;
+    }
+  }
+
+ private:
+  BufferCommandTrace *trace_ = nullptr;
+};
+
+bool buffer_command_transaction_contract()
+{
+  struct FailureCase {
+    bool encoder_success;
+    bool command_success;
+    int expected_copies;
+    int expected_finishes;
+  };
+  constexpr std::array<FailureCase, 3> cases = {
+      {{false, true, 0, 0}, {true, false, 1, 1}, {true, true, 1, 1}}};
+
+  int accepted = 0;
+  for (const FailureCase &test : cases) {
+    BufferCommandTrace trace;
+    trace.encoder_success = test.encoder_success;
+    trace.command_success = test.command_success;
+    const BufferCommandDeviceProbe device(trace);
+    const BufferCommandQueueProbe queue(trace);
+
+    const bool result = bw::command_encode_submit_if_valid(
+        device, queue, [](auto &encoder) { encoder.CopyBufferToBuffer(); });
+    const bool expect_success = test.encoder_success && test.command_success;
+    if (!require(result == expect_success, "buffer command transaction result") ||
+        !require(trace.encoder_creates == 1, "buffer command encoder creation count") ||
+        !require(trace.copies == test.expected_copies, "buffer command copy count") ||
+        !require(trace.finishes == test.expected_finishes, "buffer command finish count") ||
+        !require(trace.submits == int(expect_success), "buffer command submit count"))
+    {
+      return false;
+    }
+    accepted += int(expect_success);
+  }
+
+  if (!require(accepted == 1, "buffer command transaction success census")) {
+    return false;
+  }
+  std::puts("CONTRACT buffer_command_transaction PASS cases=3 accepted=1 "
+            "encoder_fail=closed command_fail=closed");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -1503,6 +1625,7 @@ int main()
       !offscreen_viewport_scissor_plan_contract() ||
       !compute_dispatch_range_contract() ||
       !compute_command_transaction_contract() ||
+      !buffer_command_transaction_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -1510,10 +1633,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=18 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 compute_command_cases=4 formats=96 i10=12 dummy=32 cache_publications=2 "
+      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=3 formats=96 i10=12 "
+      "dummy=32 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

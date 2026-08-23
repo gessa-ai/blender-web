@@ -5,9 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit/indexed-fan resource guards, batch/immediate-draw
-# command transactions, dummy-attribute binding plan, and shader-lifetime cache
-# separation.
+# cache publication, color-blit/indexed-fan resource guards, buffer/batch/immediate-draw
+# command transactions, dummy-attribute binding plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -79,6 +78,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_pipeline.cc
     source/blender/gpu/webgpu/wgpu_pipeline.hh
     source/blender/gpu/webgpu/wgpu_common.hh
+    source/blender/gpu/webgpu/wgpu_buffer.cc
     source/blender/gpu/webgpu/wgpu_backend.cc
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_context.hh
@@ -128,6 +128,7 @@ for source_name in \
   wgpu_pipeline.cc \
   wgpu_pipeline.hh \
   wgpu_common.hh \
+  wgpu_buffer.cc \
   wgpu_backend.cc \
   wgpu_context.cc \
   wgpu_context.hh \
@@ -230,6 +231,63 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'inline bool command_pass_encode_submit_if_valid(const DeviceT &device,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool command_encode_submit_if_valid(const DeviceT &device,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 0 \
+  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_buffer.cc" <<'PY'
+from pathlib import Path
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def method_body(marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise ValueError(f"unterminated method: {marker}")
+
+
+blocks = (
+    (
+        "bool Buffer::update_sub(",
+        """if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+        encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
+      }))
+  {
+    return false;
+  }""",
+    ),
+    (
+        "std::vector<uint8_t> Buffer::read(",
+        """if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+        encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
+      }))
+  {
+    return out;
+  }""",
+    ),
+)
+
+for marker, block in blocks:
+    body = method_body(marker)
+    if body.count(block) != 1:
+        raise SystemExit(f"ERROR: {marker} does not contain one exact command transaction")
+PY
 require_fixed_count 2 \
   'if (!webgpu::command_pass_encode_submit_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
@@ -677,7 +735,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 19 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 20 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -710,6 +768,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT compute_command_transaction PASS cases=4 accepted=1 encoder_fail=closed pass_fail=closed command_fail=closed' \
        "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT buffer_command_transaction PASS cases=3 accepted=1 encoder_fail=closed command_fail=closed' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
@@ -717,7 +778,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=18 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=3 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

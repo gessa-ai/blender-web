@@ -18221,10 +18221,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..807751c45d9009a95d8d67575d08363aa1a755b4
+index 0000000000000000000000000000000000000000..851cb368be66040d12065e697a316aa58ec8499a
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,254 @@
+@@ -0,0 +1,258 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18403,10 +18403,12 @@ index 0000000000000000000000000000000000000000..807751c45d9009a95d8d67575d08363a
 +  }
 +  std::memcpy(mapped, data, size);
 +  staging.Unmap();
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  enc.CopyBufferToBuffer(staging, 0, handle_, offset, size);
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  queue.Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++      }))
++  {
++    return false;
++  }
 +  return true;
 +}
 +
@@ -18455,10 +18457,12 @@ index 0000000000000000000000000000000000000000..807751c45d9009a95d8d67575d08363a
 +  if (staging == nullptr) {
 +    return out;
 +  }
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  enc.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  queue.Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++      }))
++  {
++    return out;
++  }
 +
 +  bool ok = false;
 +  wgpu::Future f = staging.MapAsync(

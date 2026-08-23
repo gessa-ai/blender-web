@@ -1,0 +1,42 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -173,13 +173,15 @@ bool Buffer::update_sub(const wgpu::Device &device,
+   void *mapped = staging.GetMappedRange(0, size);
+   if (mapped == nullptr) {
+     return false;
+   }
+   std::memcpy(mapped, data, size);
+   staging.Unmap();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  enc.CopyBufferToBuffer(staging, 0, handle_, offset, size);
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  queue.Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++      }))
++  {
++    return false;
++  }
+   return true;
+ }
+ 
+@@ -227,12 +229,14 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+   wgpu::Buffer staging = device.CreateBuffer(&sd);
+   if (staging == nullptr) {
+     return out;
+   }
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  enc.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  queue.Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++      }))
++  {
++    return out;
++  }
+ 
+   bool ok = false;
+   wgpu::Future f = staging.MapAsync(
+       wgpu::MapMode::Read, 0, copy, wgpu::CallbackMode::WaitAnyOnly,

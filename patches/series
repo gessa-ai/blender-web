@@ -947,3 +947,6 @@
 # 0214: reject failed direct/indirect batch command encoders and finished
 # command buffers in both ordinary and multi-viewport render paths.
 0214-gpu-webgpu-batch-command-transaction.patch
+# 0215: route staged buffer uploads and native readback copies through the
+# checked command-encoder/finish/submission transaction.
+0215-gpu-webgpu-buffer-command-transaction.patch

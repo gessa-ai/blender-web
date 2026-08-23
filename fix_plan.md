@@ -1640,6 +1640,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compute dispatch and pixel proof remain blocked by no conformant hardware Vulkan ICD in WSL2
   (NVIDIA ships none; Mesa dzn rejected by Dawn). See
   `notes/m3-t8-compute-command-transaction-20260822.md`.
+- [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
+  `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
+  `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the
+  M8 size/latency blocker remains independently active. The fail-first/final contract, unique JSON
+  registry, REUSE, M3 scope, and container-backed regression are verified; M0 is 6/6 GREEN while
+  M1-M8 remain honestly RED. No software adapter, receipt, result flag, tolerance, golden,
+  blacklist, or promise changed. See `notes/s7-wsl2-hardware-blocker-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

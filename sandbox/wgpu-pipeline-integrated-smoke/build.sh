@@ -507,6 +507,24 @@ for label, branch in zip(("depth", "color"), branches, strict=True):
     )
     if any(needle in branch for needle in forbidden):
         raise SystemExit(f"ERROR: texture {label} clear retains a partial command path")
+
+read_body = method_body("void WGPUTexture::read_sub(")
+helper = "if (!webgpu::command_encode_submit_if_valid("
+copy = "encoder.CopyTextureToBuffer(&src, &dst, &copy_size);"
+mapping = "wgpu::Future f = staging.MapAsync("
+if read_body.count(helper) != 1 or read_body.count(copy) != 1:
+    raise SystemExit("ERROR: native texture readback lacks one checked copy transaction")
+positions = [read_body.find(needle) for needle in (helper, copy, mapping)]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("ERROR: native texture readback command transaction is missing or reordered")
+forbidden = (
+    "wgpu::CommandEncoder enc = device.CreateCommandEncoder();",
+    "enc.CopyTextureToBuffer(",
+    "wgpu::CommandBuffer cb = enc.Finish();",
+    "ctx->queue_get().Submit(1, &cb);",
+)
+if any(needle in read_body for needle in forbidden):
+    raise SystemExit("ERROR: native texture readback retains an unchecked command operation")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \

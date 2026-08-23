@@ -47,6 +47,8 @@ operations to those two transactions.
 Layered depth/stencil and renderable-color texture clears use one abortable encoder transaction.
 Failure at the encoder, any per-layer view/pass, or the finished command buffer discards the whole
 clear before submission, while the successful path retains one command buffer for every layer.
+Native synchronous texture readback uses the same checked copy transaction before mapping its
+staging buffer, so encoder or finished-buffer failure cannot reach mapping or queue submission.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.

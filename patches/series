@@ -968,3 +968,6 @@
 # 0221: preserve one-command-buffer layered texture clears while aborting before
 # partial submission on failed encoder, view, pass, or finished-buffer handles.
 0221-gpu-webgpu-texture-render-clear-transaction.patch
+# 0222: route native synchronous texture readback through the checked encoder,
+# finish, and submission transaction before mapping the staging buffer.
+0222-gpu-webgpu-texture-readback-command-transaction.patch

@@ -31974,10 +31974,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..fc0590d08a8fde89d778ab4609d7c7ca60a8df19
+index 0000000000000000000000000000000000000000..d37e9881692cb83032a4791bc1389d5009a4f2e7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2663 @@
+@@ -0,0 +1,2666 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -34376,10 +34376,13 @@ index 0000000000000000000000000000000000000000..fc0590d08a8fde89d778ab4609d7c7ca
 +  dst.layout.rowsPerImage = ey;
 +
 +  wgpu::Extent3D copy_size = {ex, ey, ez};
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  enc.CopyTextureToBuffer(&src, &dst, &copy_size);
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  ctx->queue_get().Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(
++          device, ctx->queue_get(), [&](auto &encoder) {
++            encoder.CopyTextureToBuffer(&src, &dst, &copy_size);
++          }))
++  {
++    return;
++  }
 +
 +  bool ok = false;
 +  wgpu::Future f = staging.MapAsync(wgpu::MapMode::Read,

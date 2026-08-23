@@ -1604,27 +1604,33 @@ require_fixed_count 1 \
   "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'device.lost.then(function (info) {' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 \
-  'std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state_' \
+  'std::shared_ptr<ghost_web::DeviceCallbackState> device_state_' \
   "$GHOST_HEADER"
 require_fixed_count 1 \
-  'std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime_;' \
+  'std::shared_ptr<CallbackLifetime> callback_lifetime_;' \
   "$GHOST_HEADER"
-require_fixed_count 1 \
+require_fixed_count 2 \
   'inline bool device_state_allows_callback_work(' \
   "$GHOST_TRANSACTION_HEADER"
 require_fixed_count 1 \
-  'acquisition_lifetime_(std::make_shared<FallbackAcquisitionLifetime>(*this))' \
+  'callback_lifetime_(std::make_shared<CallbackLifetime>(*this))' \
   "$GHOST_SOURCE"
 require_fixed_count 2 \
-  'const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =' \
+  'const std::shared_ptr<CallbackLifetime> callback_lifetime =' \
   "$GHOST_SOURCE"
-require_fixed_count 1 'uint32_t imported_device_loss_generation_ = 0;' "$GHOST_HEADER"
+require_fixed_count 1 \
+  'std::make_shared<ghost_web::DeviceCallbackState>(' \
+  "$GHOST_SOURCE"
+require_fixed_count 1 \
+  'ghost_web_preinit_device_loss_generation(), imported_device_loss_observation' \
+  "$GHOST_SOURCE"
 require_fixed_count 1 'desc.SetDeviceLostCallback(' "$GHOST_SOURCE"
-require_fixed_count 1 'ghost_web::device_state_after_loss_signal(' "$GHOST_SOURCE"
-require_fixed_count 3 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
+require_fixed_count 2 'device_state_after_loss_signal(' "$GHOST_TRANSACTION_HEADER"
+require_fixed_count 2 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
 require_fixed_count 5 \
   'ghost_web::device_state_allows_callback_work(device_state)' \
   "$GHOST_SOURCE"
+require_fixed_count 7 'lifetime->deliver' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
@@ -1674,20 +1680,16 @@ device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 
-if destructor.count("acquisition_lifetime_->invalidate();") != 1:
-    raise SystemExit("ERROR: context destruction does not invalidate fallback acquisition")
-if destructor.index("acquisition_lifetime_->invalidate();") > destructor.index(
-    "callback_lifetime_->store(false, std::memory_order_release);"
-):
-    raise SystemExit("ERROR: fallback acquisition invalidation is not the first callback boundary")
+if destructor.count("callback_lifetime_->invalidate();") != 1:
+    raise SystemExit("ERROR: context destruction does not synchronize callback invalidation")
 
 for label, body, call, follow_on in (
     ("adapter", request_adapter, "instance_.RequestAdapter(", "owner.requestDevice();"),
     ("device", request_device, "adapter_.RequestDevice(", "owner.completeInitialization("),
 ):
     completion = body[body.index(call) :]
-    if completion.count("[acquisition_lifetime]") != 1 or completion.count(
-        "acquisition_lifetime->deliver("
+    if completion.count("[callback_lifetime]") != 1 or completion.count(
+        "callback_lifetime->deliver("
     ) != 1:
         raise SystemExit(f"ERROR: fallback {label} completion lacks one shared lifetime gate")
     if "[this]" in completion or "this->" in completion:
@@ -1722,6 +1724,16 @@ for label, body, helper, scope_label, pending in (
 ):
     if body.count(helper) != 1 or body.count(scope_label) != 1 or body.count(pending) < 2:
         raise SystemExit(f"ERROR: {label} is not bound to one completed error-scope publication")
+
+for label, body, deliveries in (
+    ("backbuffer", backbuffer, 2),
+    ("pipeline", pipeline, 1),
+    ("present", present, 2),
+):
+    if body.count("lifetime->deliver") != deliveries:
+        raise SystemExit(f"ERROR: {label} callbacks do not all retain the synchronized owner gate")
+if "[this" in source or "[&this" in source:
+    raise SystemExit("ERROR: asynchronous GHOST source retains a raw owner capture")
 
 terminal_guard = "ghost_web::device_state_allows_callback_work(device_state)"
 if backbuffer.count(terminal_guard) != 2:
@@ -1763,7 +1775,7 @@ for needle in (
 configuration_positions = [
     backbuffer.index("pushErrorScopes(device);"),
     backbuffer.index("surface_.Configure(&config);"),
-    backbuffer.index('popErrorScopes(\n            device,\n            "surface configuration"'),
+    backbuffer.index('"surface configuration"'),
     backbuffer.index("ghost_web::surface_resize_commit_if_current("),
 ]
 if configuration_positions != sorted(configuration_positions):
@@ -1812,13 +1824,18 @@ if swap_release.count("return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFail
 if swap_acquire.count("deviceIsUsable()") != 1 or swap_release.count("deviceIsUsable()") != 1:
     raise SystemExit("ERROR: GHOST swap boundaries do not propagate terminal device state")
 for needle in (
-    "ghost_web_preinit_device_loss_generation()",
-    "ghost_web_preinit_device_loss_status()",
-    "ghost_web::device_state_after_loss_signal(",
+    "ghost_web::device_state_allows_callback_work(device_state_)",
     "propagateDeviceLoss();",
 ):
     if device_usable.count(needle) != 1:
         raise SystemExit(f"ERROR: imported device loss lacks one exact owned-state boundary: {needle}")
+for needle in (
+    "ghost_web_preinit_device_loss_generation()",
+    "imported_device_loss_observation",
+    "std::make_shared<ghost_web::DeviceCallbackState>(",
+):
+    if initialize.count(needle) != 1:
+        raise SystemExit(f"ERROR: imported device state lacks one callback-time observer: {needle}")
 loss_callback = request_device[
     request_device.index("desc.SetDeviceLostCallback("):
     request_device.index("desc.SetUncapturedErrorCallback(")
@@ -1826,7 +1843,7 @@ loss_callback = request_device[
 if "[device_state]" not in loss_callback or "this" in loss_callback:
     raise SystemExit("ERROR: fallback device-loss callback retains the GHOST context")
 for needle in (
-    "callback_lifetime_->store(false, std::memory_order_release);",
+    "callback_lifetime_->cancel();",
     "ready_ = false;",
     "device_ = nullptr;",
 ):

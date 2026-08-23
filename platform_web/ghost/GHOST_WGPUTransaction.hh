@@ -5,9 +5,15 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 namespace ghost_web {
@@ -29,23 +35,87 @@ template<typename OwnerT> class OwnerCallbackLifetime {
  public:
   explicit OwnerCallbackLifetime(OwnerT &owner) : owner_(&owner) {}
 
+  /** Stop future deliveries without waiting for an already-running owner callback. */
+  void cancel()
+  {
+    std::lock_guard lock(mutex_);
+    accepting_ = false;
+  }
+
   void invalidate()
   {
-    owner_.store(nullptr, std::memory_order_release);
+    std::unique_lock lock(mutex_);
+    accepting_ = false;
+    owner_ = nullptr;
+    const std::thread::id caller = std::this_thread::get_id();
+    idle_.wait(lock, [this, caller]() {
+      const auto caller_it = deliveries_by_thread_.find(caller);
+      const size_t caller_deliveries = caller_it == deliveries_by_thread_.end() ?
+                                           0 :
+                                           caller_it->second;
+      return active_deliveries_ == caller_deliveries;
+    });
   }
 
   template<typename Callback> bool deliver(Callback &&callback) const
   {
-    OwnerT *owner = owner_.load(std::memory_order_acquire);
-    if (owner == nullptr) {
-      return false;
+    OwnerT *owner;
+    std::thread::id delivery_thread;
+    {
+      std::lock_guard lock(mutex_);
+      owner = owner_;
+      if (!accepting_ || owner == nullptr) {
+        return false;
+      }
+      delivery_thread = std::this_thread::get_id();
+      active_deliveries_++;
+      deliveries_by_thread_[delivery_thread]++;
     }
+
+    ActiveDelivery delivery(*this, delivery_thread);
     std::forward<Callback>(callback)(*owner);
     return true;
   }
 
  private:
-  std::atomic<OwnerT *> owner_;
+  class ActiveDelivery {
+   public:
+    ActiveDelivery(const OwnerCallbackLifetime &lifetime, const std::thread::id thread)
+        : lifetime_(lifetime), thread_(thread)
+    {
+    }
+    ~ActiveDelivery()
+    {
+      lifetime_.finish_delivery(thread_);
+    }
+
+   private:
+    const OwnerCallbackLifetime &lifetime_;
+    const std::thread::id thread_;
+  };
+
+  void finish_delivery(const std::thread::id thread) const
+  {
+    std::lock_guard lock(mutex_);
+    active_deliveries_--;
+    const auto thread_it = deliveries_by_thread_.find(thread);
+    if (thread_it != deliveries_by_thread_.end()) {
+      if (thread_it->second <= 1) {
+        deliveries_by_thread_.erase(thread_it);
+      }
+      else {
+        thread_it->second--;
+      }
+    }
+    idle_.notify_all();
+  }
+
+  mutable std::mutex mutex_;
+  mutable std::condition_variable idle_;
+  mutable size_t active_deliveries_ = 0;
+  mutable std::unordered_map<std::thread::id, size_t> deliveries_by_thread_;
+  bool accepting_ = true;
+  OwnerT *owner_;
 };
 
 /** Terminal state shared by callbacks without retaining a GHOST context pointer. */
@@ -89,12 +159,75 @@ inline bool device_state_allows_work(const DeviceState state)
   return state == DeviceState::Active;
 }
 
+struct ImportedDeviceLossObservation {
+  uint32_t generation = 0;
+  ImportedDeviceLossStatus status = ImportedDeviceLossStatus::Unknown;
+};
+
+/**
+ * Callback-owned terminal state for either a fallback Dawn device or an imported browser device.
+ *
+ * An imported device's `GPUDevice.lost` promise lives in JavaScript, so every callback samples
+ * that immutable generation binding directly instead of waiting for a later owner-side poll to
+ * update the C++ atomic. The first missing, replaced, or settled signal makes loss sticky.
+ */
+class DeviceCallbackState {
+ public:
+  using ImportedLossObserver = std::function<ImportedDeviceLossObservation()>;
+
+  DeviceCallbackState() = default;
+  DeviceCallbackState(const uint32_t imported_generation, ImportedLossObserver observer)
+      : imported_generation_(imported_generation), imported_loss_observer_(std::move(observer))
+  {
+  }
+
+  DeviceState load(const std::memory_order order) const
+  {
+    return state_.load(order);
+  }
+
+  void mark_lost()
+  {
+    state_.store(DeviceState::Lost, std::memory_order_release);
+  }
+
+  bool allows_work()
+  {
+    DeviceState current = state_.load(std::memory_order_acquire);
+    if (current == DeviceState::Active && imported_loss_observer_) {
+      const ImportedDeviceLossObservation observation = imported_loss_observer_();
+      current = device_state_after_loss_signal(
+          current, imported_generation_, observation.generation, observation.status);
+      if (current == DeviceState::Lost) {
+        mark_lost();
+      }
+    }
+    return device_state_allows_work(current);
+  }
+
+ private:
+  std::atomic<DeviceState> state_{DeviceState::Active};
+  const uint32_t imported_generation_ = 0;
+  const ImportedLossObserver imported_loss_observer_;
+};
+
+inline void device_state_mark_lost(DeviceCallbackState &state)
+{
+  state.mark_lost();
+}
+
 /** Browser completions must observe loss directly, before later owner-side cleanup runs. */
 inline bool device_state_allows_callback_work(
     const std::shared_ptr<std::atomic<DeviceState>> &state)
 {
   return state != nullptr &&
          device_state_allows_work(state->load(std::memory_order_acquire));
+}
+
+inline bool device_state_allows_callback_work(
+    const std::shared_ptr<DeviceCallbackState> &state)
+{
+  return state != nullptr && state->allows_work();
 }
 
 /** Exact pre-main browser presentation stage observed by synchronous GHOST setup. */

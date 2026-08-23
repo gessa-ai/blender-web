@@ -84,8 +84,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
   bool isReady() const
   {
-    return ready_ && ghost_web::device_state_allows_work(
-                         device_state_->load(std::memory_order_acquire));
+    return ready_ && ghost_web::device_state_allows_callback_work(device_state_);
   }
 
   /** (Re)configure the canvas surface for the current size. */
@@ -93,36 +92,31 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
   wgpu::Instance getInstance() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                instance_ :
                wgpu::Instance();
   }
   wgpu::Adapter getAdapter() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                adapter_ :
                wgpu::Adapter();
   }
   wgpu::Device getDevice() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                device_ :
                wgpu::Device();
   }
   wgpu::Queue getQueue() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                queue_ :
                wgpu::Queue();
   }
   wgpu::Surface getSurface() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                surface_ :
                wgpu::Surface();
   }
@@ -140,15 +134,14 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
    * Null until configureSurface() has run. */
   wgpu::Texture getBackbufferTexture() const
   {
-    return ghost_web::device_state_allows_work(
-               device_state_->load(std::memory_order_acquire)) ?
+    return ghost_web::device_state_allows_callback_work(device_state_) ?
                backbuffer_ :
                wgpu::Texture();
   }
 
  private:
   using ErrorScopeCallback = std::function<void(bool)>;
-  using FallbackAcquisitionLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;
+  using CallbackLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;
 
   void requestAdapter();
   void requestDevice();
@@ -208,14 +201,9 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   ReadyCallback on_ready_;
   bool ready_ = false;
   bool initialization_settled_ = false;
-  std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state_ =
-      std::make_shared<std::atomic<ghost_web::DeviceState>>(ghost_web::DeviceState::Active);
-  uint32_t imported_device_loss_generation_ = 0;
-  bool imported_device_loss_signal_required_ = false;
+  std::shared_ptr<ghost_web::DeviceCallbackState> device_state_ =
+      std::make_shared<ghost_web::DeviceCallbackState>();
   bool device_loss_propagated_ = false;
-  /** Adapter/device completions retain this gate, never the raw GHOST context. */
-  std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime_;
-  /** Error-scope callbacks may resolve after this C++ object starts destruction. */
-  std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
-      std::make_shared<std::atomic<bool>>(true);
+  /** Every browser completion retains this synchronized gate, never a bare owner pointer. */
+  std::shared_ptr<CallbackLifetime> callback_lifetime_;
 };

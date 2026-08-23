@@ -952,3 +952,28 @@ per epoch, retain a failed epoch while it remains current so newly reserved same
 cancels, and prune it once a later epoch is current and no queued entry can carry it. Exercise a
 failed head plus 100,000 resolved followers, then 100,000 distinct failed epochs and a clean retry
 on native and wasm32. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 66 — callback validity must exclude in-flight owner access
+
+Signature: a delayed completion loads a non-null owner from a shared atomic gate, context
+destruction clears that gate and frees the owner, and the completion then dereferences the pointer
+it loaded before invalidation. A check-then-use token prevents new delivery but does not synchronize
+an already-running callback. Register each delivery while holding the lifetime gate, stop acceptance
+and clear the owner before destruction, and wait for deliveries running on other threads before
+releasing owner storage. Destruction from inside a callback must exclude the caller's active delivery
+from that wait so a reentrant completion cannot deadlock. Exercise concurrent destruction, delayed
+post-invalidation delivery, reentrant self-destruction, and an unsafe AddressSanitizer control; bind
+every asynchronous shipping completion to the same gate and require native/wasm32 parity. See
+`sandbox/audit-r8/`.
+
+## Class 67 — imported device loss belongs in callback-owned state
+
+Signature: JavaScript owns an imported browser device's `GPUDevice.lost` promise, while C++ copies
+only an initially active atomic state. The owner polls the JavaScript signal at public entry points,
+but callbacks already queued between those polls see the stale atomic and may still configure,
+publish, or submit. Give the shared callback state the exact imported generation and a loss observer;
+every completion samples the observer before work and makes missing, replaced, or settled signals a
+sticky terminal transition. Fallback devices retain the same state object without an imported
+observer. Exercise pending, settled, sticky, and replacement observations on native and wasm32, and
+source-bind every configuration/publication/submission completion to the callback-owned state. See
+`platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.

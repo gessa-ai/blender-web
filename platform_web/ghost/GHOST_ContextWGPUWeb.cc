@@ -104,6 +104,20 @@ EM_JS(int, ghost_web_preinit_device_loss_status, (), {
   return signal ? signal["status"] | 0 : 0;
 });
 
+namespace {
+ghost_web::ImportedDeviceLossObservation imported_device_loss_observation()
+{
+  const int raw_status = ghost_web_preinit_device_loss_status();
+  const ghost_web::ImportedDeviceLossStatus status =
+      raw_status == int(ghost_web::ImportedDeviceLossStatus::Pending) ?
+          ghost_web::ImportedDeviceLossStatus::Pending :
+      raw_status == int(ghost_web::ImportedDeviceLossStatus::Destroyed) ?
+          ghost_web::ImportedDeviceLossStatus::Destroyed :
+          ghost_web::ImportedDeviceLossStatus::Unknown;
+  return {ghost_web_preinit_device_loss_generation(), status};
+}
+}  // namespace
+
 EM_JS(int, ghost_web_preinit_surface_width, (), {
   return (typeof Module !== "undefined" && Module["preinitializedWebGPUSurfaceWidth"]) ?
              Module["preinitializedWebGPUSurfaceWidth"] | 0 :
@@ -171,14 +185,13 @@ GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_pa
     : GHOST_Context(context_params),
       canvas_selector_(canvas_selector ? canvas_selector : "#canvas"),
       mode_(mode),
-      acquisition_lifetime_(std::make_shared<FallbackAcquisitionLifetime>(*this))
+      callback_lifetime_(std::make_shared<CallbackLifetime>(*this))
 {
 }
 
 GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()
 {
-  acquisition_lifetime_->invalidate();
-  callback_lifetime_->store(false, std::memory_order_release);
+  callback_lifetime_->invalidate();
 }
 
 void GHOST_ContextWGPUWeb::pushErrorScopes(const wgpu::Device &device)
@@ -274,8 +287,8 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
   /* emdawnwebgpu explicitly rejects GetLostFuture() on imported devices. The pre-main
    * worker therefore owns the browser-native `device.lost` promise and publishes a
    * generation-bound monotonic signal beside the device before this import. */
-  imported_device_loss_signal_required_ = true;
-  imported_device_loss_generation_ = ghost_web_preinit_device_loss_generation();
+  device_state_ = std::make_shared<ghost_web::DeviceCallbackState>(
+      ghost_web_preinit_device_loss_generation(), imported_device_loss_observation);
   queue_ = device_.GetQueue();
   if (!deviceIsUsable()) {
     std::printf("WGPUWeb: imported device has no active owned loss signal\n");
@@ -389,15 +402,14 @@ void GHOST_ContextWGPUWeb::requestAdapter()
 {
   wgpu::RequestAdapterOptions opts = {};
   opts.powerPreference = wgpu::PowerPreference::HighPerformance;
-  const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =
-      acquisition_lifetime_;
+  const std::shared_ptr<CallbackLifetime> callback_lifetime = callback_lifetime_;
 
   instance_.RequestAdapter(
       &opts,
       wgpu::CallbackMode::AllowSpontaneous,
-      [acquisition_lifetime](
+      [callback_lifetime](
           wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView msg) {
-        acquisition_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+        callback_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
           if (status != wgpu::RequestAdapterStatus::Success || a == nullptr) {
             std::printf("WGPUWeb: RequestAdapter failed: %.*s\n", int(msg.length), msg.data);
             owner.completeInitialization(false);
@@ -412,7 +424,7 @@ void GHOST_ContextWGPUWeb::requestAdapter()
 void GHOST_ContextWGPUWeb::requestDevice()
 {
   wgpu::DeviceDescriptor desc = {};
-  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
+  const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
   desc.SetDeviceLostCallback(
       wgpu::CallbackMode::AllowSpontaneous,
       [device_state](const wgpu::Device & /*device*/,
@@ -425,14 +437,13 @@ void GHOST_ContextWGPUWeb::requestDevice()
         std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
       });
 
-  const std::shared_ptr<FallbackAcquisitionLifetime> acquisition_lifetime =
-      acquisition_lifetime_;
+  const std::shared_ptr<CallbackLifetime> callback_lifetime = callback_lifetime_;
   adapter_.RequestDevice(
       &desc,
       wgpu::CallbackMode::AllowSpontaneous,
-      [acquisition_lifetime](
+      [callback_lifetime](
           wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView msg) {
-        acquisition_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+        callback_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
           if (status != wgpu::RequestDeviceStatus::Success || d == nullptr) {
             std::printf("WGPUWeb: RequestDevice failed: %.*s\n", int(msg.length), msg.data);
             owner.completeInitialization(false);
@@ -468,25 +479,7 @@ void GHOST_ContextWGPUWeb::completeInitialization(const bool success)
 
 bool GHOST_ContextWGPUWeb::deviceIsUsable()
 {
-  ghost_web::DeviceState state = device_state_->load(std::memory_order_acquire);
-  if (state == ghost_web::DeviceState::Active && imported_device_loss_signal_required_) {
-    const uint32_t observed_generation = ghost_web_preinit_device_loss_generation();
-    const int raw_status = ghost_web_preinit_device_loss_status();
-    const ghost_web::ImportedDeviceLossStatus status =
-        raw_status == int(ghost_web::ImportedDeviceLossStatus::Pending) ?
-            ghost_web::ImportedDeviceLossStatus::Pending :
-        raw_status == int(ghost_web::ImportedDeviceLossStatus::Destroyed) ?
-            ghost_web::ImportedDeviceLossStatus::Destroyed :
-            ghost_web::ImportedDeviceLossStatus::Unknown;
-    state = ghost_web::device_state_after_loss_signal(state,
-                                                       imported_device_loss_generation_,
-                                                       observed_generation,
-                                                       status);
-    if (state == ghost_web::DeviceState::Lost) {
-      ghost_web::device_state_mark_lost(*device_state_);
-    }
-  }
-  if (!ghost_web::device_state_allows_work(state)) {
+  if (!ghost_web::device_state_allows_callback_work(device_state_)) {
     propagateDeviceLoss();
     return false;
   }
@@ -500,7 +493,7 @@ void GHOST_ContextWGPUWeb::propagateDeviceLoss()
   }
   device_loss_propagated_ = true;
   ghost_web::device_state_mark_lost(*device_state_);
-  callback_lifetime_->store(false, std::memory_order_release);
+  callback_lifetime_->cancel();
   ready_ = false;
   configured_ = false;
   backbuffer_pending_ = false;
@@ -630,103 +623,104 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
              wgpu::TextureUsage::CopySrc;
   backbuffer_pending_ = true;
   const wgpu::Device device = device_;
-  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
-  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
   ghost_web::scoped_handle_create(
       [device]() { pushErrorScopes(device); },
       [device, &td]() { return device.CreateTexture(&td); },
       [device](auto completion) {
         popErrorScopes(device, "backbuffer creation", std::move(completion));
       },
-      [this, lifetime, device_state, candidate_width, candidate_height](
-          const bool valid, wgpu::Texture candidate) {
-        if (!lifetime->load(std::memory_order_acquire) ||
-            !ghost_web::device_state_allows_callback_work(device_state))
-        {
-          return;
-        }
-        if (!valid || candidate == nullptr) {
-          backbuffer_pending_ = false;
-          std::printf("WGPUWeb: CreateTexture rejected for %ux%u backbuffer\n",
-                      candidate_width,
-                      candidate_height);
-          if (!initialization_settled_) {
-            completeInitialization(false);
+      [lifetime, device_state, candidate_width, candidate_height](
+          const bool valid, wgpu::Texture candidate) mutable {
+        lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+          if (!ghost_web::device_state_allows_callback_work(device_state)) {
+            return;
           }
-          return;
-        }
-        if (candidate_width != requested_width_ || candidate_height != requested_height_) {
-          backbuffer_pending_ = false;
-          ensureBackbuffer();
-          return;
-        }
+          if (!valid || candidate == nullptr) {
+            owner.backbuffer_pending_ = false;
+            std::printf("WGPUWeb: CreateTexture rejected for %ux%u backbuffer\n",
+                        candidate_width,
+                        candidate_height);
+            if (!owner.initialization_settled_) {
+              owner.completeInitialization(false);
+            }
+            return;
+          }
+          if (candidate_width != owner.requested_width_ ||
+              candidate_height != owner.requested_height_)
+          {
+            owner.backbuffer_pending_ = false;
+            owner.ensureBackbuffer();
+            return;
+          }
 
-        wgpu::SurfaceConfiguration config = {};
-        config.device = device_;
-        config.format = surface_format_;
-        /* RenderAttachment is what the compositor draws into; CopySrc additionally
-         * lets the frame be read back. CopyDst remains deliberately absent because
-         * emdawnwebgpu rejects it for browser canvas surfaces. */
-        config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
-        config.width = candidate_width;
-        config.height = candidate_height;
-        config.presentMode = wgpu::PresentMode::Fifo;
-        config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
-        const wgpu::Device device = device_;
-        pushErrorScopes(device);
-        surface_.Configure(&config);
-        popErrorScopes(
-            device,
-            "surface configuration",
-            [this,
-             lifetime,
-             device_state,
-             candidate = std::move(candidate),
-             candidate_width,
-             candidate_height](const bool configuration_valid) mutable {
-              if (!lifetime->load(std::memory_order_acquire) ||
-                  !ghost_web::device_state_allows_callback_work(device_state))
-              {
-                return;
-              }
-              backbuffer_pending_ = false;
-              const ghost_web::SurfaceResizeResult result =
-                  ghost_web::surface_resize_commit_if_current(
-                      configuration_valid,
-                      std::move(candidate),
-                      candidate_width,
-                      candidate_height,
-                      requested_width_,
-                      requested_height_,
-                      [](const uint32_t /*width*/, const uint32_t /*height*/) {},
-                      backbuffer_,
-                      backbuffer_w_,
-                      backbuffer_h_,
-                      width_,
-                      height_,
-                      configured_);
-              if (result == ghost_web::SurfaceResizeResult::Rejected) {
-                /* A failed Configure leaves its prior state implementation-defined.
-                 * Stop presenting until a later request validates a complete replacement. */
-                configured_ = false;
-                std::printf("WGPUWeb: Surface::Configure rejected for %ux%u\n",
-                            candidate_width,
-                            candidate_height);
-                if (!initialization_settled_) {
-                  completeInitialization(false);
-                }
-                return;
-              }
-              if (result == ghost_web::SurfaceResizeResult::Superseded) {
-                /* Configure already ran for the stale candidate. Block presentation and
-                 * immediately validate/configure the latest requested extent. */
-                configured_ = false;
-                ensureBackbuffer();
-              }
-              else if (!initialization_settled_) {
-                completeInitialization(true);
-              }
-            });
+          wgpu::SurfaceConfiguration config = {};
+          config.device = owner.device_;
+          config.format = owner.surface_format_;
+          /* RenderAttachment is what the compositor draws into; CopySrc additionally
+           * lets the frame be read back. CopyDst remains deliberately absent because
+           * emdawnwebgpu rejects it for browser canvas surfaces. */
+          config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
+          config.width = candidate_width;
+          config.height = candidate_height;
+          config.presentMode = wgpu::PresentMode::Fifo;
+          config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
+          const wgpu::Device device = owner.device_;
+          pushErrorScopes(device);
+          owner.surface_.Configure(&config);
+          popErrorScopes(
+              device,
+              "surface configuration",
+              [lifetime,
+               device_state,
+               candidate = std::move(candidate),
+               candidate_width,
+               candidate_height](const bool configuration_valid) mutable {
+                lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+                  if (!ghost_web::device_state_allows_callback_work(device_state)) {
+                    return;
+                  }
+                  owner.backbuffer_pending_ = false;
+                  const ghost_web::SurfaceResizeResult result =
+                      ghost_web::surface_resize_commit_if_current(
+                          configuration_valid,
+                          std::move(candidate),
+                          candidate_width,
+                          candidate_height,
+                          owner.requested_width_,
+                          owner.requested_height_,
+                          [](const uint32_t /*width*/, const uint32_t /*height*/) {},
+                          owner.backbuffer_,
+                          owner.backbuffer_w_,
+                          owner.backbuffer_h_,
+                          owner.width_,
+                          owner.height_,
+                          owner.configured_);
+                  if (result == ghost_web::SurfaceResizeResult::Rejected) {
+                    /* A failed Configure leaves its prior state implementation-defined.
+                     * Stop presenting until a later request validates a complete replacement. */
+                    owner.configured_ = false;
+                    std::printf("WGPUWeb: Surface::Configure rejected for %ux%u\n",
+                                candidate_width,
+                                candidate_height);
+                    if (!owner.initialization_settled_) {
+                      owner.completeInitialization(false);
+                    }
+                    return;
+                  }
+                  if (result == ghost_web::SurfaceResizeResult::Superseded) {
+                    /* Configure already ran for the stale candidate. Block presentation and
+                     * immediately validate/configure the latest requested extent. */
+                    owner.configured_ = false;
+                    owner.ensureBackbuffer();
+                  }
+                  else if (!owner.initialization_settled_) {
+                    owner.completeInitialization(true);
+                  }
+                });
+              });
+        });
       });
 }
 
@@ -756,8 +750,8 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
   present_pipeline_pending_ = true;
   const wgpu::Device device = device_;
   const wgpu::TextureFormat surface_format = surface_format_;
-  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
-  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
   ghost_web::present_pipeline_create_scoped(
           [device]() { pushErrorScopes(device); },
           [device, wgsl]() {
@@ -805,21 +799,21 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
           [device](auto completion) {
             popErrorScopes(device, "present pipeline creation", std::move(completion));
           },
-          [this, lifetime, device_state](const bool valid,
-                                         wgpu::BindGroupLayout bind_group_layout,
-                                         wgpu::RenderPipeline pipeline) {
-            if (!lifetime->load(std::memory_order_acquire) ||
-                !ghost_web::device_state_allows_callback_work(device_state))
-            {
-              return;
-            }
-            present_pipeline_pending_ = false;
-            if (!valid) {
-              std::printf("WGPUWeb: present pipeline creation rejected\n");
-              return;
-            }
-            present_bgl_ = std::move(bind_group_layout);
-            present_pipeline_ = std::move(pipeline);
+          [lifetime, device_state](const bool valid,
+                                   wgpu::BindGroupLayout bind_group_layout,
+                                   wgpu::RenderPipeline pipeline) mutable {
+            lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+              if (!ghost_web::device_state_allows_callback_work(device_state)) {
+                return;
+              }
+              owner.present_pipeline_pending_ = false;
+              if (!valid) {
+                std::printf("WGPUWeb: present pipeline creation rejected\n");
+                return;
+              }
+              owner.present_bgl_ = std::move(bind_group_layout);
+              owner.present_pipeline_ = std::move(pipeline);
+            });
           });
 }
 
@@ -884,8 +878,8 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const wgpu::Texture target_texture = st.texture;
   const wgpu::BindGroupLayout bind_group_layout = present_bgl_;
   const wgpu::RenderPipeline pipeline = present_pipeline_;
-  const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
-  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
   present_pending_ = true;
   ghost_web::present_frame_encode_submit_scoped(
           [device]() { pushErrorScopes(device); },
@@ -923,48 +917,47 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
           },
           [device]() { pushErrorScopes(device); },
           [lifetime, device_state, queue](const wgpu::CommandBuffer &command_buffer) {
-            if (lifetime->load(std::memory_order_acquire) &&
-                ghost_web::device_state_allows_callback_work(device_state))
-            {
-              queue.Submit(1, &command_buffer);
-            }
+            lifetime->deliver([&](GHOST_ContextWGPUWeb & /*owner*/) {
+              if (ghost_web::device_state_allows_callback_work(device_state)) {
+                queue.Submit(1, &command_buffer);
+              }
+            });
           },
           [device](auto completion) {
             popErrorScopes(device, "present queue submission", std::move(completion));
           },
-          [this,
-           lifetime,
+          [lifetime,
            device_state,
            surface_width,
            surface_height,
            reconfigure_after_present](const bool valid) {
-            if (!lifetime->load(std::memory_order_acquire) ||
-                !ghost_web::device_state_allows_callback_work(device_state))
-            {
-              return;
-            }
-            present_pending_ = false;
-            if (reconfigure_after_present) {
-              configured_ = false;
-            }
-            if (!valid) {
-              std::printf("WGPUWeb: present transaction rejected\n");
-              return;
-            }
-            /* Bounded "present path live" marker (first 2 frames only): confirms a validated
-             * command buffer reached the queue without a submit-scope error. */
-            static int present_log_count = 0;
-            if (present_log_count < 2) {
-              std::printf(
-                  "WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas "
-                  "(offscreen blit)\n",
-                  present_log_count,
-                  surface_width,
-                  surface_height);
-              present_log_count++;
-            }
-            /* ghost-keepalive advances only after the submission scope completes cleanly. */
-            ghost_web::note_present();
+            lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+              if (!ghost_web::device_state_allows_callback_work(device_state)) {
+                return;
+              }
+              owner.present_pending_ = false;
+              if (reconfigure_after_present) {
+                owner.configured_ = false;
+              }
+              if (!valid) {
+                std::printf("WGPUWeb: present transaction rejected\n");
+                return;
+              }
+              /* Bounded "present path live" marker (first 2 frames only): confirms a validated
+               * command buffer reached the queue without a submit-scope error. */
+              static int present_log_count = 0;
+              if (present_log_count < 2) {
+                std::printf(
+                    "WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas "
+                    "(offscreen blit)\n",
+                    present_log_count,
+                    surface_width,
+                    surface_height);
+                present_log_count++;
+              }
+              /* ghost-keepalive advances only after the submission scope completes cleanly. */
+              ghost_web::note_present();
+            });
           });
   /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
    * render pass, and one validation-gated submit all settle before the next frame. */

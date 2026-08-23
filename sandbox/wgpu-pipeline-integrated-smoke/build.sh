@@ -6,7 +6,8 @@
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
 # cache publication, color-blit/indexed-fan resource guards, buffer/storage/context-render/
-# framebuffer full/scissored-clear and copy, batch, and immediate-draw command transactions,
+# framebuffer full/scissored-clear and copy, texture render-clear, batch, and immediate-draw
+# command transactions,
 # dummy-attribute binding
 # plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
@@ -88,6 +89,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_batch.cc
     source/blender/gpu/webgpu/wgpu_immediate.cc
     source/blender/gpu/webgpu/wgpu_framebuffer.cc
+    source/blender/gpu/webgpu/wgpu_texture.cc
     source/blender/gpu/webgpu/wgpu_shader.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
     source/blender/gpu/webgpu/wgpu_state_table.hh
@@ -139,6 +141,7 @@ for source_name in \
   wgpu_batch.cc \
   wgpu_immediate.cc \
   wgpu_framebuffer.cc \
+  wgpu_texture.cc \
   wgpu_shader.cc \
   wgpu_shader.hh \
   wgpu_state_table.hh
@@ -436,6 +439,74 @@ if any(
     )
 ):
     raise SystemExit("ERROR: framebuffer copy transaction is ambiguous")
+PY
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_texture.cc" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def method_body(marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise ValueError(f"unterminated method: {marker}")
+
+
+def braced_block(body: str, marker: str) -> str:
+    start = body.index(marker)
+    opening = body.index("{", start)
+    depth = 0
+    for offset in range(opening, len(body)):
+        if body[offset] == "{":
+            depth += 1
+        elif body[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return body[start : offset + 1]
+    raise ValueError(f"unterminated block: {marker}")
+
+
+clear_body = method_body("void WGPUTexture::clear(const double4 data)")
+branches = (
+    braced_block(clear_body, "if (format_flag_ & GPU_FORMAT_DEPTH)"),
+    braced_block(clear_body, "if (can_render_clear)"),
+)
+helper = "if (!webgpu::command_encode_submit_if_valid("
+for label, branch in zip(("depth", "color"), branches, strict=True):
+    if branch.count(helper) != 1:
+        raise SystemExit(f"ERROR: texture {label} clear lacks one checked command transaction")
+    required = (
+        "wgpu::TextureView view =",
+        "wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);",
+        "pass.End();",
+        "return true;",
+    )
+    positions = [branch.find(needle) for needle in required]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        raise SystemExit(f"ERROR: texture {label} clear transaction is missing or reordered")
+    for handle in ("view", "pass"):
+        guard = rf"if \({handle} == nullptr\) \{{\s+return false;\s+\}}"
+        if len(re.findall(guard, branch)) != 1:
+            raise SystemExit(f"ERROR: texture {label} clear lacks one {handle} failure guard")
+    forbidden = (
+        "device.CreateCommandEncoder()",
+        ".Finish()",
+        ".Submit(1,",
+        "if (view == nullptr) {\n          continue;\n        }",
+    )
+    if any(needle in branch for needle in forbidden):
+        raise SystemExit(f"ERROR: texture {label} clear retains a partial command path")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \
@@ -1017,7 +1088,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT compute_command_transaction PASS cases=4 accepted=1 encoder_fail=closed pass_fail=closed command_fail=closed' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT buffer_command_transaction PASS cases=3 accepted=1 encoder_fail=closed command_fail=closed' \
+       'CONTRACT buffer_command_transaction PASS cases=4 accepted=1 encoder_fail=closed encode_fail=discarded command_fail=closed' \
        "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
@@ -1026,7 +1097,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=3 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

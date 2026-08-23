@@ -965,3 +965,6 @@
 # 0220: route stencil-bridge and raw framebuffer texture copies through the
 # checked encoder/finish/submission transaction.
 0220-gpu-webgpu-framebuffer-copy-command-transaction.patch
+# 0221: preserve one-command-buffer layered texture clears while aborting before
+# partial submission on failed encoder, view, pass, or finished-buffer handles.
+0221-gpu-webgpu-texture-render-clear-transaction.patch

@@ -1197,6 +1197,7 @@ bool compute_command_transaction_contract()
 
 struct BufferCommandTrace {
   bool encoder_success = true;
+  bool encode_success = true;
   bool command_success = true;
   int encoder_creates = 0;
   int copies = 0;
@@ -1280,24 +1281,32 @@ bool buffer_command_transaction_contract()
 {
   struct FailureCase {
     bool encoder_success;
+    bool encode_success;
     bool command_success;
     int expected_copies;
     int expected_finishes;
   };
-  constexpr std::array<FailureCase, 3> cases = {
-      {{false, true, 0, 0}, {true, false, 1, 1}, {true, true, 1, 1}}};
+  constexpr std::array<FailureCase, 4> cases = {{{false, true, true, 0, 0},
+                                                 {true, false, true, 1, 0},
+                                                 {true, true, false, 1, 1},
+                                                 {true, true, true, 1, 1}}};
 
   int accepted = 0;
   for (const FailureCase &test : cases) {
     BufferCommandTrace trace;
     trace.encoder_success = test.encoder_success;
+    trace.encode_success = test.encode_success;
     trace.command_success = test.command_success;
     const BufferCommandDeviceProbe device(trace);
     const BufferCommandQueueProbe queue(trace);
 
     const bool result = bw::command_encode_submit_if_valid(
-        device, queue, [](auto &encoder) { encoder.CopyBufferToBuffer(); });
-    const bool expect_success = test.encoder_success && test.command_success;
+        device, queue, [&](auto &encoder) {
+          encoder.CopyBufferToBuffer();
+          return trace.encode_success;
+        });
+    const bool expect_success =
+        test.encoder_success && test.encode_success && test.command_success;
     if (!require(result == expect_success, "buffer command transaction result") ||
         !require(trace.encoder_creates == 1, "buffer command encoder creation count") ||
         !require(trace.copies == test.expected_copies, "buffer command copy count") ||
@@ -1312,8 +1321,8 @@ bool buffer_command_transaction_contract()
   if (!require(accepted == 1, "buffer command transaction success census")) {
     return false;
   }
-  std::puts("CONTRACT buffer_command_transaction PASS cases=3 accepted=1 "
-            "encoder_fail=closed command_fail=closed");
+  std::puts("CONTRACT buffer_command_transaction PASS cases=4 accepted=1 "
+            "encoder_fail=closed encode_fail=discarded command_fail=closed");
   return true;
 }
 
@@ -1636,7 +1645,7 @@ int main()
       "INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=3 formats=96 i10=12 "
+      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 "
       "dummy=32 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");

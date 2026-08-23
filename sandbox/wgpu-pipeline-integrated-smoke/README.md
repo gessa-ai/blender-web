@@ -44,6 +44,9 @@ Framebuffer blits likewise use the checked copy transaction for both the two-ste
 bridge and the raw texture-to-texture path. Encoder failure stops before either copy, and finished-
 command-buffer failure stops before queue submission; exact method-body checks bind all three copy
 operations to those two transactions.
+Layered depth/stencil and renderable-color texture clears use one abortable encoder transaction.
+Failure at the encoder, any per-layer view/pass, or the finished command buffer discards the whole
+clear before submission, while the successful path retains one command buffer for every layer.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.
@@ -90,7 +93,7 @@ byte-identical.
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline,
 16/20-byte indirect draw-range, viewport/scissor, and direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching native/Wasm fmt headers, Blender's canonical clean-pin replay,
-and 21 exact pipeline/batch/framebuffer/vertex-format/enum/assert source inputs before
+and 25 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert source inputs before
 evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish

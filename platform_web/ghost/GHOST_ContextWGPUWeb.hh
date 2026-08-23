@@ -40,6 +40,7 @@
 #include <webgpu/webgpu_cpp.h>
 
 #include "GHOST_Context.hh"
+#include "GHOST_WGPUTransaction.hh"
 
 /* M4 T4: promoted to derive GHOST_Context so it can be returned from
  * GHOST_WindowWeb::newDrawingContext() / GHOST_SystemWeb::createOffscreenContext()
@@ -52,16 +53,18 @@
  * notes/ghost-web-wgpu-context.md + notes/m4-integration.md. */
 class GHOST_ContextWGPUWeb : public GHOST_Context {
  public:
-  /** Called once with success=true after device+surface are ready, or false on failure. */
+  /** Called once after the selected device-only or presentable initialization settles. */
   using ReadyCallback = std::function<void(bool success)>;
 
-  GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params, const char *canvas_selector);
+  GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
+                       const char *canvas_selector,
+                       ghost_web::DrawingContextMode mode);
   ~GHOST_ContextWGPUWeb() override;
 
   /* --- GHOST_Context surface (6 pure virtuals) -------------------------------- */
 
-  /** Synchronous GHOST entry. Requires the device to be pre-acquired via a startup
-   * initAsync() await (see class note); returns success once ready. */
+  /** Synchronous GHOST entry. The pre-main worker supplies a device for every mode and a
+   * validated surface/backbuffer bundle for PresentableWindow mode. */
   GHOST_TSuccess initializeDrawingContext() override;
   GHOST_TSuccess releaseNativeHandles() override;
   GHOST_TSuccess swapBufferAcquire() override;
@@ -73,8 +76,9 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   GHOST_TSuccess releaseDrawingContext() override;
 
   /**
-   * Acquire instance -> adapter -> device -> queue and the canvas surface, then
-   * invoke \a on_ready. Returns immediately; the work completes off the event loop.
+   * Acquire instance -> adapter -> device -> queue and, for PresentableWindow mode,
+   * the canvas surface plus initial backbuffer, then invoke \a on_ready. Returns
+   * immediately; the work completes off the event loop.
    */
   void initAsync(uint32_t width, uint32_t height, ReadyCallback on_ready);
 
@@ -129,6 +133,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   void requestAdapter();
   void requestDevice();
   void finishSetup();
+  void completeInitialization(bool success);
   /** Push/pop the validation, OOM, and internal scopes used by every fallible present
    * transaction. Completion is asynchronous in the browser. */
   static void pushErrorScopes(const wgpu::Device &device);
@@ -144,6 +149,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   void presentBackbuffer();
 
   std::string canvas_selector_;
+  ghost_web::DrawingContextMode mode_ = ghost_web::DrawingContextMode::PresentableWindow;
   uint32_t width_ = 0;
   uint32_t height_ = 0;
   bool configured_ = false; /* surface_.Configure has run at width_ x height_ */
@@ -177,6 +183,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
   ReadyCallback on_ready_;
   bool ready_ = false;
+  bool initialization_settled_ = false;
   /** Error-scope callbacks may resolve after this C++ object starts destruction. */
   std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
       std::make_shared<std::atomic<bool>>(true);

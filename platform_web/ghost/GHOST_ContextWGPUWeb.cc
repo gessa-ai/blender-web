@@ -65,6 +65,49 @@ EM_JS(int, ghost_web_has_preinit_device, (), {
   return (typeof Module !== "undefined" && Module["preinitializedWebGPUDevice"]) ? 1 : 0;
 });
 
+EM_JS(int, ghost_web_preinit_presentation_status, (), {
+  return (typeof Module !== "undefined" &&
+          Module["preinitializedWebGPUPresentationStatus"]) ?
+             Module["preinitializedWebGPUPresentationStatus"] | 0 :
+             0;
+});
+
+EM_JS(int, ghost_web_preinit_surface_width, (), {
+  return (typeof Module !== "undefined" && Module["preinitializedWebGPUSurfaceWidth"]) ?
+             Module["preinitializedWebGPUSurfaceWidth"] | 0 :
+             0;
+});
+
+EM_JS(int, ghost_web_preinit_surface_height, (), {
+  return (typeof Module !== "undefined" && Module["preinitializedWebGPUSurfaceHeight"]) ?
+             Module["preinitializedWebGPUSurfaceHeight"] | 0 :
+             0;
+});
+
+EM_JS(WGPUSurface, ghost_web_take_preinit_surface, (), {
+  if (typeof Module === "undefined" || typeof WebGPU === "undefined") {
+    return 0;
+  }
+  var surface = Module["preinitializedWebGPUSurface"];
+  if (!surface) {
+    return 0;
+  }
+  Module["preinitializedWebGPUSurface"] = null;
+  return WebGPU.importJsSurface(surface);
+});
+
+EM_JS(WGPUTexture, ghost_web_take_preinit_backbuffer, (WGPUDevice parent_device), {
+  if (typeof Module === "undefined" || typeof WebGPU === "undefined") {
+    return 0;
+  }
+  var backbuffer = Module["preinitializedWebGPUBackbuffer"];
+  if (!backbuffer) {
+    return 0;
+  }
+  Module["preinitializedWebGPUBackbuffer"] = null;
+  return WebGPU.importJsTexture(backbuffer, parent_device);
+});
+
 /* Whether the canvas selector resolves on THIS thread, mirroring emdawnwebgpu's
  * findCanvasEventTarget lookup ORDER exactly (built JS: findCanvasEventTarget). On the
  * WM worker the DOM `#canvas` is transferred as an OffscreenCanvas (OFFSCREENCANVAS_
@@ -91,9 +134,11 @@ EM_JS(int, ghost_web_canvas_resolvable, (const char *selector), {
 });
 
 GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
-                                           const char *canvas_selector)
+                                           const char *canvas_selector,
+                                           const ghost_web::DrawingContextMode mode)
     : GHOST_Context(context_params),
-      canvas_selector_(canvas_selector ? canvas_selector : "#canvas")
+      canvas_selector_(canvas_selector ? canvas_selector : "#canvas"),
+      mode_(mode)
 {
 }
 
@@ -197,42 +242,50 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
    * so Dawn logs uncaptured errors to the browser console instead. */
   queue_ = device_.GetQueue();
 
-  /* Canvas size: emscripten_get_canvas_element_size only resolves on a worker once the
-   * canvas is transferred as an OffscreenCanvas (surface step below, not wired this
-   * round); fall back to a sane default so a later surface configure has extents. */
-  int cw = 0, ch = 0;
-  emscripten_get_canvas_element_size(canvas_selector_.c_str(), &cw, &ch);
-  if (cw > 0) {
-    width_ = uint32_t(cw);
-  }
-  if (ch > 0) {
-    height_ = uint32_t(ch);
-  }
-  if (width_ == 0) {
-    width_ = 1280;
-  }
-  if (height_ == 0) {
-    height_ = 720;
+  const auto presentation_status = static_cast<ghost_web::PreinitializedPresentationStatus>(
+      ghost_web_preinit_presentation_status());
+  if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
+    const bool valid = ghost_web::drawing_context_status_is_ready(mode_,
+                                                                  device_ != nullptr,
+                                                                  presentation_status,
+                                                                  false,
+                                                                  false,
+                                                                  0,
+                                                                  0);
+    completeInitialization(valid);
+    return valid ? GHOST_kSuccess : GHOST_kFailure;
   }
 
-  /* Surface is BEST-EFFORT this round. A live device already satisfies
-   * GPU_context_create / GPU_init — WGPUContext reads instance/device/queue + device
-   * limits, never the surface (wgpu_context.cc). The WM worker has no DOM canvas until
-   * OffscreenCanvas is wired, and emdawnwebgpu's CreateSurface would ABORT (not return
-   * null) on an unresolvable selector (library_webgpu.js:1998-2002), so guard it. Skip
-   * → device stays live, ready_=true, and the boot advances past drawing-context
-   * creation into GPU_init + the main loop; the surface is the next characterized
-   * blocker (needs OFFSCREENCANVAS_SUPPORT + OFFSCREENCANVASES_TO_PTHREAD). */
-  if (ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
-    finishSetup(); /* creates + configures the surface, sets ready_ + on_ready_ */
+  const uint32_t candidate_width = uint32_t(std::max(ghost_web_preinit_surface_width(), 0));
+  const uint32_t candidate_height = uint32_t(std::max(ghost_web_preinit_surface_height(), 0));
+  wgpu::Surface candidate_surface;
+  wgpu::Texture candidate_backbuffer;
+  if (presentation_status == ghost_web::PreinitializedPresentationStatus::Ready) {
+    candidate_surface = wgpu::Surface::Acquire(ghost_web_take_preinit_surface());
+    candidate_backbuffer =
+        wgpu::Texture::Acquire(ghost_web_take_preinit_backbuffer(device_.Get()));
   }
-  else {
-    std::printf("WGPUWeb: surface deferred — canvas '%s' not resolvable on the WM worker "
-                "(no OffscreenCanvas yet); device is live, continuing\n",
-                canvas_selector_.c_str());
+  const bool valid = ghost_web::drawing_context_status_is_ready(mode_,
+                                                                device_ != nullptr,
+                                                                presentation_status,
+                                                                candidate_surface != nullptr,
+                                                                candidate_backbuffer != nullptr,
+                                                                candidate_width,
+                                                                candidate_height);
+  if (!valid) {
+    std::printf("WGPUWeb: presentable preinit failed for '%s' at stage %d\n",
+                canvas_selector_.c_str(),
+                int(presentation_status));
+    completeInitialization(false);
+    return GHOST_kFailure;
   }
 
-  ready_ = true;
+  surface_ = std::move(candidate_surface);
+  backbuffer_ = std::move(candidate_backbuffer);
+  width_ = requested_width_ = backbuffer_w_ = candidate_width;
+  height_ = requested_height_ = backbuffer_h_ = candidate_height;
+  configured_ = true;
+  completeInitialization(true);
   return GHOST_kSuccess;
 }
 
@@ -280,9 +333,7 @@ void GHOST_ContextWGPUWeb::initAsync(uint32_t width, uint32_t height, ReadyCallb
   instance_ = wgpu::CreateInstance(nullptr);
   if (instance_ == nullptr) {
     std::printf("WGPUWeb: CreateInstance failed\n");
-    if (on_ready_) {
-      on_ready_(false);
-    }
+    completeInitialization(false);
     return;
   }
   requestAdapter();
@@ -299,9 +350,7 @@ void GHOST_ContextWGPUWeb::requestAdapter()
       [this](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView msg) {
         if (status != wgpu::RequestAdapterStatus::Success || a == nullptr) {
           std::printf("WGPUWeb: RequestAdapter failed: %.*s\n", int(msg.length), msg.data);
-          if (on_ready_) {
-            on_ready_(false);
-          }
+          completeInitialization(false);
           return;
         }
         adapter_ = std::move(a);
@@ -323,19 +372,41 @@ void GHOST_ContextWGPUWeb::requestDevice()
       [this](wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView msg) {
         if (status != wgpu::RequestDeviceStatus::Success || d == nullptr) {
           std::printf("WGPUWeb: RequestDevice failed: %.*s\n", int(msg.length), msg.data);
-          if (on_ready_) {
-            on_ready_(false);
-          }
+          completeInitialization(false);
           return;
         }
         device_ = std::move(d);
         queue_ = device_.GetQueue();
-        finishSetup();
+        if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
+          completeInitialization(true);
+        }
+        else {
+          finishSetup();
+        }
       });
+}
+
+void GHOST_ContextWGPUWeb::completeInitialization(const bool success)
+{
+  if (initialization_settled_) {
+    return;
+  }
+  initialization_settled_ = true;
+  ready_ = success;
+  if (on_ready_) {
+    on_ready_(success);
+  }
 }
 
 void GHOST_ContextWGPUWeb::finishSetup()
 {
+  if (!ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
+    std::printf("WGPUWeb: canvas '%s' is not resolvable for a presentable context\n",
+                canvas_selector_.c_str());
+    completeInitialization(false);
+    return;
+  }
+
   /* The canvas-surface source is the key emdawnwebgpu-specific struct: native Dawn
    * spells it `SurfaceSourceCanvasHTMLSelector` (or platform SurfaceSource*), whereas
    * emdawnwebgpu uses `EmscriptenSurfaceSourceCanvasHTMLSelector`. See notes. */
@@ -348,9 +419,7 @@ void GHOST_ContextWGPUWeb::finishSetup()
 
   if (surface_ == nullptr) {
     std::printf("WGPUWeb: CreateSurface failed for '%s'\n", canvas_selector_.c_str());
-    if (on_ready_) {
-      on_ready_(false);
-    }
+    completeInitialization(false);
     return;
   }
 
@@ -367,11 +436,6 @@ void GHOST_ContextWGPUWeb::finishSetup()
    * finishSetup re-runs (it can fire more than once during boot), leaving the canvas teal
    * instead of the Blender UI. The whole OffscreenCanvas -> device -> surface path is now
    * proven by the live UI compositing, not by a debug clear. */
-
-  ready_ = true;
-  if (on_ready_) {
-    on_ready_(true);
-  }
 }
 
 void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
@@ -392,6 +456,9 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   const uint32_t w = (cw > 0) ? uint32_t(cw) : width;
   const uint32_t h = (ch > 0) ? uint32_t(ch) : height;
   if (w == 0 || h == 0) {
+    if (!initialization_settled_) {
+      completeInitialization(false);
+    }
     return;
   }
   /* Keep the latest browser request separate from the last complete published
@@ -448,47 +515,85 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
         if (!lifetime->load(std::memory_order_acquire)) {
           return;
         }
-        backbuffer_pending_ = false;
-        const ghost_web::SurfaceResizeResult result =
-            ghost_web::surface_resize_commit_if_current(
-                valid,
-                std::move(candidate),
-                candidate_width,
-                candidate_height,
-                requested_width_,
-                requested_height_,
-                [this](const uint32_t width, const uint32_t height) {
-                  wgpu::SurfaceConfiguration config = {};
-                  config.device = device_;
-                  config.format = surface_format_;
-                  /* RenderAttachment is what the compositor draws into; CopySrc additionally
-                   * lets the frame be read back. CopyDst remains deliberately absent because
-                   * emdawnwebgpu rejects it for browser canvas surfaces. */
-                  config.usage =
-                      wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
-                  config.width = width;
-                  config.height = height;
-                  config.presentMode = wgpu::PresentMode::Fifo;
-                  config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
-                  surface_.Configure(&config);
-                },
-                backbuffer_,
-                backbuffer_w_,
-                backbuffer_h_,
-                width_,
-                height_,
-                configured_);
-        if (result == ghost_web::SurfaceResizeResult::Rejected) {
+        if (!valid || candidate == nullptr) {
+          backbuffer_pending_ = false;
           std::printf("WGPUWeb: CreateTexture rejected for %ux%u backbuffer\n",
                       candidate_width,
                       candidate_height);
+          if (!initialization_settled_) {
+            completeInitialization(false);
+          }
           return;
         }
-        /* A newer resize arrived while validation was pending. Its dimensions remain
-         * requested, so start that candidate without waiting for another browser event. */
-        if (result == ghost_web::SurfaceResizeResult::Superseded) {
+        if (candidate_width != requested_width_ || candidate_height != requested_height_) {
+          backbuffer_pending_ = false;
           ensureBackbuffer();
+          return;
         }
+
+        wgpu::SurfaceConfiguration config = {};
+        config.device = device_;
+        config.format = surface_format_;
+        /* RenderAttachment is what the compositor draws into; CopySrc additionally
+         * lets the frame be read back. CopyDst remains deliberately absent because
+         * emdawnwebgpu rejects it for browser canvas surfaces. */
+        config.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
+        config.width = candidate_width;
+        config.height = candidate_height;
+        config.presentMode = wgpu::PresentMode::Fifo;
+        config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
+        const wgpu::Device device = device_;
+        pushErrorScopes(device);
+        surface_.Configure(&config);
+        popErrorScopes(
+            device,
+            "surface configuration",
+            [this,
+             lifetime,
+             candidate = std::move(candidate),
+             candidate_width,
+             candidate_height](const bool configuration_valid) mutable {
+              if (!lifetime->load(std::memory_order_acquire)) {
+                return;
+              }
+              backbuffer_pending_ = false;
+              const ghost_web::SurfaceResizeResult result =
+                  ghost_web::surface_resize_commit_if_current(
+                      configuration_valid,
+                      std::move(candidate),
+                      candidate_width,
+                      candidate_height,
+                      requested_width_,
+                      requested_height_,
+                      [](const uint32_t /*width*/, const uint32_t /*height*/) {},
+                      backbuffer_,
+                      backbuffer_w_,
+                      backbuffer_h_,
+                      width_,
+                      height_,
+                      configured_);
+              if (result == ghost_web::SurfaceResizeResult::Rejected) {
+                /* A failed Configure leaves its prior state implementation-defined.
+                 * Stop presenting until a later request validates a complete replacement. */
+                configured_ = false;
+                std::printf("WGPUWeb: Surface::Configure rejected for %ux%u\n",
+                            candidate_width,
+                            candidate_height);
+                if (!initialization_settled_) {
+                  completeInitialization(false);
+                }
+                return;
+              }
+              if (result == ghost_web::SurfaceResizeResult::Superseded) {
+                /* Configure already ran for the stale candidate. Block presentation and
+                 * immediately validate/configure the latest requested extent. */
+                configured_ = false;
+                ensureBackbuffer();
+              }
+              else if (!initialization_settled_) {
+                completeInitialization(true);
+              }
+            });
       });
 }
 
@@ -588,7 +693,7 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
   /* A rejected resize remains requested. Every later frame can recreate it, so
    * recovery does not depend on the browser delivering a duplicate resize event. */
   ensureBackbuffer();
-  if (!configured_ || backbuffer_ == nullptr) {
+  if (backbuffer_pending_ || !configured_ || backbuffer_ == nullptr) {
     return;
   }
   wgpu::SurfaceTexture st = {};

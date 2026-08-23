@@ -533,7 +533,8 @@ GHOST_IContext *GHOST_SystemWeb::createOffscreenContext(GHOST_GPUSettings gpu_se
   if (gpu_settings.context_type == GHOST_kDrawingContextTypeWebGPU) {
 #  ifdef __EMSCRIPTEN__
     /* Device pre-acquired by the startup await (notes/m4-integration.md). */
-    GHOST_Context *context = new GHOST_ContextWGPUWeb(params, canvas_selector_.c_str());
+    GHOST_Context *context = new GHOST_ContextWGPUWeb(
+        params, canvas_selector_.c_str(), ghost_web::DrawingContextMode::DeviceOnly);
 #  else
     GHOST_Context *context = new GHOST_ContextWGPU(params);
 #  endif

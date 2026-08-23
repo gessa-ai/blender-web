@@ -10,6 +10,45 @@
 
 namespace ghost_web {
 
+enum class DrawingContextMode {
+  PresentableWindow,
+  DeviceOnly,
+};
+
+/** Exact pre-main browser presentation stage observed by synchronous GHOST setup. */
+enum class PreinitializedPresentationStatus : uint8_t {
+  NotAttempted = 0,
+  CanvasUnresolved = 1,
+  SurfaceCreationFailed = 2,
+  ConfigurationFailed = 3,
+  BackbufferFailed = 4,
+  Ready = 5,
+};
+
+/**
+ * A device-only context is valid once its device exists. A presentable window
+ * additionally requires the complete pre-main surface transaction and non-zero
+ * dimensions; no partial browser setup may satisfy the synchronous GHOST status.
+ */
+inline bool drawing_context_status_is_ready(
+    const DrawingContextMode mode,
+    const bool device_ready,
+    const PreinitializedPresentationStatus presentation_status,
+    const bool surface_valid,
+    const bool backbuffer_valid,
+    const uint32_t width,
+    const uint32_t height)
+{
+  if (!device_ready) {
+    return false;
+  }
+  if (mode == DrawingContextMode::DeviceOnly) {
+    return true;
+  }
+  return presentation_status == PreinitializedPresentationStatus::Ready && surface_valid &&
+         backbuffer_valid && width != 0 && height != 0;
+}
+
 enum class SurfaceResizeResult {
   Rejected,
   Superseded,

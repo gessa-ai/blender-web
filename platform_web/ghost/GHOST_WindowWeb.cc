@@ -288,8 +288,10 @@ GHOST_Context *GHOST_WindowWeb::newDrawingContext(GHOST_TDrawingContextType type
 #  ifdef __EMSCRIPTEN__
     /* Async emdawnwebgpu context; device pre-acquired by the system's one-time
      * startup await (notes/m4-integration.md), so the sync init succeeds here. */
-    GHOST_Context *context = new GHOST_ContextWGPUWeb(context_params_web_,
-                                                      canvas_selector_.c_str());
+    GHOST_Context *context = new GHOST_ContextWGPUWeb(
+        context_params_web_,
+        canvas_selector_.c_str(),
+        ghost_web::DrawingContextMode::PresentableWindow);
 #  else
     GHOST_Context *context = new GHOST_ContextWGPU(context_params_web_);
 #  endif

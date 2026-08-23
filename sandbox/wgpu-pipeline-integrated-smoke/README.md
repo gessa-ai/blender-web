@@ -141,6 +141,13 @@ the newest request, rejected candidates retry from the next present without anot
 and presentation requires exact authoritative, backbuffer, and acquired-surface extents. The
 pinned-Dawn software control exercises the same shipping helpers against real non-null
 error objects but remains explicitly non-receipt evidence.
+The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
+presentation bundle. Its worker-side transaction awaits canvas configuration and initial
+backbuffer validation before main starts, records the exact failed stage without exposing partial
+handles, and preserves device acquisition only for the separately selected device-only mode. A
+seven-case pinned-Node mock covers device, canvas, surface, configuration, error-object/null
+backbuffer, and successful publication; the native/wasm32 decision table independently rejects
+every partial status before the existing window-publication transaction can run.
 The Blender GPU backend now applies that completed-scope rule to every short-lived command and
 direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can
 yield, so a delayed submission cannot move behind a later `WriteBuffer` or `WriteTexture` call.
@@ -172,7 +179,7 @@ byte-identical.
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline,
 16/20-byte indirect draw-range, viewport/scissor, and direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching native/Wasm fmt headers, Blender's canonical clean-pin replay,
-and 26 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert source inputs before
+and 27 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert/presentation source inputs before
 evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish

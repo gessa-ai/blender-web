@@ -2281,6 +2281,148 @@ bool ghost_window_publication_transaction_contract()
   return true;
 }
 
+bool ghost_surface_publication_status_contract()
+{
+  struct Case {
+    gw::DrawingContextMode mode;
+    bool device_ready;
+    gw::PreinitializedPresentationStatus presentation_status;
+    bool surface_valid;
+    bool backbuffer_valid;
+    uint32_t width;
+    uint32_t height;
+    bool expected;
+  };
+  constexpr std::array<Case, 13> cases = {{
+      {gw::DrawingContextMode::DeviceOnly,
+       false,
+       gw::PreinitializedPresentationStatus::NotAttempted,
+       false,
+       false,
+       0,
+       0,
+       false},
+      {gw::DrawingContextMode::DeviceOnly,
+       true,
+       gw::PreinitializedPresentationStatus::NotAttempted,
+       false,
+       false,
+       0,
+       0,
+       true},
+      {gw::DrawingContextMode::PresentableWindow,
+       false,
+       gw::PreinitializedPresentationStatus::Ready,
+       true,
+       true,
+       1280,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::NotAttempted,
+       false,
+       false,
+       0,
+       0,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::CanvasUnresolved,
+       false,
+       false,
+       0,
+       0,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::SurfaceCreationFailed,
+       false,
+       false,
+       0,
+       0,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::ConfigurationFailed,
+       true,
+       false,
+       1280,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::BackbufferFailed,
+       true,
+       false,
+       1280,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::Ready,
+       false,
+       true,
+       1280,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::Ready,
+       true,
+       false,
+       1280,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::Ready,
+       true,
+       true,
+       0,
+       720,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::Ready,
+       true,
+       true,
+       1280,
+       0,
+       false},
+      {gw::DrawingContextMode::PresentableWindow,
+       true,
+       gw::PreinitializedPresentationStatus::Ready,
+       true,
+       true,
+       1280,
+       720,
+       true},
+  }};
+
+  size_t accepted = 0;
+  for (const Case &test : cases) {
+    const bool result = gw::drawing_context_status_is_ready(test.mode,
+                                                            test.device_ready,
+                                                            test.presentation_status,
+                                                            test.surface_valid,
+                                                            test.backbuffer_valid,
+                                                            test.width,
+                                                            test.height);
+    if (!require(result == test.expected, "GHOST surface publication status")) {
+      return false;
+    }
+    accepted += result ? 1 : 0;
+  }
+  if (!require(accepted == 2, "GHOST device-only/presentable acceptance census")) {
+    return false;
+  }
+  std::puts("CONTRACT ghost_surface_publication_status PASS cases=13 accepted=2 "
+            "canvas=required surface=required configuration=required backbuffer=required "
+            "device_only=explicit");
+  return true;
+}
+
 class GhostHandleProbe {
  public:
   GhostHandleProbe() = default;
@@ -3131,6 +3273,7 @@ int main()
       !compute_command_transaction_contract() ||
       !buffer_command_transaction_contract() ||
       !ghost_window_publication_transaction_contract() ||
+      !ghost_surface_publication_status_contract() ||
       !ghost_present_resource_transaction_contract() ||
       !ghost_resize_coherence_contract() ||
       !format_32bit_contract() ||
@@ -3140,11 +3283,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=31 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=32 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
-      "ghost_window_cases=5 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_surface_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

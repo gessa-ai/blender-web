@@ -28,6 +28,8 @@ GHOST_HEADER="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
 GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
 GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
+WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
+WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -129,7 +131,8 @@ source_digest()
                 platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                 platform_web/ghost/GHOST_WindowWeb.cc \
                 platform_web/ghost/GHOST_SystemWeb.cc \
-                platform_web/ghost/GHOST_WGPUTransaction.hh | sha256sum | awk '{print $1}')"
+                platform_web/ghost/GHOST_WGPUTransaction.hh \
+                platform_web/shell/wgpu-preinit-worker.js | sha256sum | awk '{print $1}')"
     printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | sha256sum | awk '{print $1}'
   else
     webgpu_digest="$(cd "$WEBGPU_SOURCE" && \
@@ -141,7 +144,8 @@ source_digest()
                     platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                     platform_web/ghost/GHOST_WindowWeb.cc \
                     platform_web/ghost/GHOST_SystemWeb.cc \
-                    platform_web/ghost/GHOST_WGPUTransaction.hh | \
+                    platform_web/ghost/GHOST_WGPUTransaction.hh \
+                    platform_web/shell/wgpu-preinit-worker.js | \
       shasum -a 256 | awk '{print $1}')"
     printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | \
       shasum -a 256 | awk '{print $1}'
@@ -171,6 +175,8 @@ require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
 require_file "$GHOST_TRANSACTION_HEADER"
+require_file "$WGPU_PREINIT_SOURCE"
+require_file "$WGPU_PREINIT_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
@@ -1504,6 +1510,16 @@ require_fixed_count 1 '#include "GHOST_WGPUTransaction.hh"' "$GHOST_WINDOW_SOURC
 require_fixed_count 1 '#include "GHOST_WGPUTransaction.hh"' "$GHOST_SYSTEM_SOURCE"
 require_fixed_count 1 'ghost_web::drawing_context_initialize_if_valid(' "$GHOST_WINDOW_SOURCE"
 require_fixed_count 1 'ghost_web::window_publish_if_valid(' "$GHOST_SYSTEM_SOURCE"
+require_fixed_count 2 'ghost_web::drawing_context_status_is_ready(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::DrawingContextMode::PresentableWindow' "$GHOST_WINDOW_SOURCE"
+require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM_SOURCE"
+for status in 1 2 3 4 5; do
+  require_fixed_count 1 \
+    "Module[\"preinitializedWebGPUPresentationStatus\"] = ${status};" \
+    "$WGPU_PREINIT_SOURCE"
+done
+require_fixed_count 1 'Module["preinitializedWebGPUSurface"] = surface;' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'Module["preinitializedWebGPUBackbuffer"] = backbuffer;' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
@@ -1540,6 +1556,8 @@ def method(marker: str) -> str:
 
 
 configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)")
+initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()")
+finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
 backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
 pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
 present = method("void GHOST_ContextWGPUWeb::presentBackbuffer()")
@@ -1549,6 +1567,19 @@ for needle in ("requested_width_ = w;", "requested_height_ = h;", "ensureBackbuf
         raise SystemExit(f"ERROR: resize request lacks one exact pending-state boundary: {needle}")
 if "surface_.Configure(&config);" in configure:
     raise SystemExit("ERROR: resize configures the surface before candidate validation")
+
+for needle in (
+    "ghost_web_preinit_presentation_status()",
+    "ghost_web_take_preinit_surface()",
+    "ghost_web_take_preinit_backbuffer(device_.Get())",
+    "ghost_web::drawing_context_status_is_ready(",
+):
+    if needle not in initialize:
+        raise SystemExit(f"ERROR: synchronous context setup lacks pre-main presentation binding: {needle}")
+if "surface deferred" in initialize or "finishSetup();" in initialize:
+    raise SystemExit("ERROR: synchronous window setup still publishes a deferred surface")
+if finish.count("ghost_web_canvas_resolvable(canvas_selector_.c_str())") != 1:
+    raise SystemExit("ERROR: asynchronous surface setup does not reject an unresolved canvas")
 
 for label, body, helper, scope_label, pending in (
     ("backbuffer", backbuffer, "ghost_web::scoped_handle_create(",
@@ -1568,6 +1599,14 @@ for needle in (
 ):
     if backbuffer.count(needle) != 1:
         raise SystemExit(f"ERROR: backbuffer resize lacks one exact coherence boundary: {needle}")
+configuration_positions = [
+    backbuffer.index("pushErrorScopes(device);"),
+    backbuffer.index("surface_.Configure(&config);"),
+    backbuffer.index('popErrorScopes(\n            device,\n            "surface configuration"'),
+    backbuffer.index("ghost_web::surface_resize_commit_if_current("),
+]
+if configuration_positions != sorted(configuration_positions):
+    raise SystemExit("ERROR: surface configuration is not validated before resize publication")
 
 for needle in (
     "ghost_web::present_frame_encode_submit_scoped(",
@@ -1592,6 +1631,7 @@ if positions != sorted(positions):
 
 for needle in (
     "ensureBackbuffer();",
+    "backbuffer_pending_",
     "ghost_web::surface_resize_present_coherent(",
     "configureSurface(surface_width, surface_height);",
 ):
@@ -1650,6 +1690,14 @@ fi
 
 mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
+"$NODE" "$WGPU_PREINIT_TEST" "$WGPU_PREINIT_SOURCE" >"$OUT/preinit-worker.txt"
+if ! grep -qx \
+  'CONTRACT ghost_preinit_worker PASS cases=7 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved entry=once' \
+  "$OUT/preinit-worker.txt"
+then
+  echo "ERROR: worker preinit transaction evidence differs" >&2
+  exit 1
+fi
 
 CCACHE_ARGS=()
 if command -v ccache >/dev/null 2>&1; then
@@ -1689,7 +1737,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 32 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 33 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1753,6 +1801,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 windows=3 accepted=2 invalid=destroyed publication=atomic' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_surface_publication_status PASS cases=13 accepted=2 canvas=required surface=required configuration=required backbuffer=required device_only=explicit' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
@@ -1768,7 +1819,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=31 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=32 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

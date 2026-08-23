@@ -198,7 +198,8 @@ int main()
   GPU_backend_type_selection_set(GPU_BACKEND_WEBGPU);
 
   GHOST_ContextParams params = {};
-  g_ctx = new GHOST_ContextWGPUWeb(params, "#gpucanvas");
+  g_ctx = new GHOST_ContextWGPUWeb(
+      params, "#gpucanvas", ghost_web::DrawingContextMode::PresentableWindow);
   g_ctx->initAsync(W, H, on_device_ready);
   return 0; /* EXIT_RUNTIME=0 — spontaneous callbacks drive the rest */
 }

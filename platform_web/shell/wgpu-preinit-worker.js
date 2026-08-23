@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// M4.T11 (ADR-007) — worker-side pre-main WebGPU device acquisition.
+// M4.T11 / audit R6 — worker-side pre-main WebGPU device and presentation acquisition.
 //
 // Baked into blender_browser.js as a --post-js, so it runs at the END of the module
 // body in BOTH the browser main thread and every pthread Web Worker. It only acts in a
@@ -17,8 +17,10 @@
 // (blender_browser.js). We intercept that message, await navigator.gpu.request{Adapter,
 // Device}() (probe (iii): a dedicated worker HAS navigator.gpu here), stash the device
 // in this worker's Module.preinitializedWebGPUDevice, and only THEN dispatch cmd:2 so
-// main() runs. GHOST_ContextWGPUWeb::initializeDrawingContext() then pulls it
-// synchronously via emscripten_webgpu_get_device().
+// main() runs. While the event loop is still available, it also validates the transferred
+// canvas, configuration, and initial backbuffer. GHOST_ContextWGPUWeb then imports the
+// complete bundle synchronously; a presentable window is never published from device-only
+// state.
 //
 // Interception mechanism: we OWN self.onmessage via an accessor. Emscripten registers
 // its handler (handleMessage) at self.onmessage in the module body (BEFORE this post-js)
@@ -56,6 +58,42 @@
   var log = function (m) {
     try { if (typeof err === "function") { err(m); return; } } catch (e) {}
     try { postMessage({ cmd: 9, handler: "printErr", args: [m] }); } catch (e) {}
+  };
+
+  // Run one synchronous WebGPU operation under all three implementation error
+  // scopes, then await their browser promises while this worker is still pre-main.
+  // C++ cannot truthfully perform this wait once Blender enters its straight-line
+  // PROXY_TO_PTHREAD main loop (ADR-006/007).
+  var validateScoped = async function (device, operation, discard) {
+    device.pushErrorScope("internal");
+    device.pushErrorScope("out-of-memory");
+    device.pushErrorScope("validation");
+    var result;
+    var failure = null;
+    try {
+      result = operation();
+    }
+    catch (ex) {
+      failure = ex;
+    }
+    for (var i = 0; i < 3; i++) {
+      try {
+        var scopedError = await device.popErrorScope();
+        if (!failure && scopedError) {
+          failure = scopedError;
+        }
+      }
+      catch (ex) {
+        if (!failure) {
+          failure = ex;
+        }
+      }
+    }
+    if (failure) {
+      try { if (discard) { discard(result); } } catch (ignored) {}
+      throw failure;
+    }
+    return result;
   };
 
   var inner = nativeDesc.get.call(self); // Emscripten's current handler (handleMessage)
@@ -127,6 +165,86 @@
               requiredLimits.maxStorageTexturesPerShaderStage +
               " maxStorageBuffersPerShaderStage=" +
               requiredLimits.maxStorageBuffersPerShaderStage);
+
+          // A presentable GHOST window is a stronger contract than a live device.
+          // Resolve/configure the transferred canvas and validate its first persistent
+          // backbuffer while this worker can still await promises. Only a complete bundle
+          // is published for the synchronous C++ constructor to import.
+          Module["preinitializedWebGPUPresentationStatus"] = 1;
+          var surface = null;
+          var backbuffer = null;
+          try {
+            var canvas = null;
+            if (typeof GL !== "undefined" && GL.offscreenCanvases) {
+              canvas = GL.offscreenCanvases["canvas"] || null;
+            }
+            if (!canvas && typeof specialHTMLTargets !== "undefined") {
+              canvas = specialHTMLTargets["#canvas"] || null;
+            }
+            if (canvas && canvas.offscreenCanvas) {
+              canvas = canvas.offscreenCanvas;
+            }
+            if (!canvas || typeof canvas.getContext !== "function") {
+              throw new Error("transferred #canvas is not resolvable on the WM worker");
+            }
+
+            Module["preinitializedWebGPUPresentationStatus"] = 2;
+            surface = canvas.getContext("webgpu");
+            if (!surface) {
+              throw new Error("#canvas.getContext('webgpu') returned null");
+            }
+
+            Module["preinitializedWebGPUPresentationStatus"] = 3;
+            var surfaceWidth = canvas.width | 0;
+            var surfaceHeight = canvas.height | 0;
+            if (surfaceWidth <= 0 || surfaceHeight <= 0) {
+              throw new Error("#canvas has a zero drawing-buffer extent");
+            }
+            await validateScoped(device, function () {
+              surface.configure({
+                device: device,
+                format: "bgra8unorm",
+                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+                alphaMode: "opaque",
+              });
+              return surface.getCurrentTexture();
+            });
+
+            Module["preinitializedWebGPUPresentationStatus"] = 4;
+            backbuffer = await validateScoped(
+              device,
+              function () {
+                return device.createTexture({
+                  label: "wgpu_web_backbuffer",
+                  size: { width: surfaceWidth, height: surfaceHeight, depthOrArrayLayers: 1 },
+                  dimension: "2d",
+                  format: "bgra8unorm",
+                  mipLevelCount: 1,
+                  sampleCount: 1,
+                  usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING |
+                         GPUTextureUsage.COPY_SRC,
+                });
+              },
+              function (candidate) { if (candidate) { candidate.destroy(); } });
+            if (!backbuffer) {
+              throw new Error("initial backbuffer creation returned null");
+            }
+
+            Module["preinitializedWebGPUSurface"] = surface;
+            Module["preinitializedWebGPUBackbuffer"] = backbuffer;
+            Module["preinitializedWebGPUSurfaceWidth"] = surfaceWidth;
+            Module["preinitializedWebGPUSurfaceHeight"] = surfaceHeight;
+            Module["preinitializedWebGPUPresentationStatus"] = 5;
+            log("[bw] WM-worker WebGPU presentation pre-acquired; canvas=" +
+                surfaceWidth + "x" + surfaceHeight);
+          }
+          catch (ex) {
+            try { if (backbuffer) { backbuffer.destroy(); } } catch (ignored) {}
+            try { if (surface) { surface.unconfigure(); } } catch (ignored) {}
+            log("[bw] WM-worker WebGPU presentation preinit FAILED stage=" +
+                Module["preinitializedWebGPUPresentationStatus"] + ": " +
+                (ex && ex.message ? ex.message : ex));
+          }
         }
         catch (ex) {
           log("[bw] WM-worker WebGPU preinit FAILED: " + (ex && ex.message ? ex.message : ex));

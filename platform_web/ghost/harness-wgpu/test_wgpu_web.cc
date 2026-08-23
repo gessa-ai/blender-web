@@ -209,7 +209,8 @@ int main()
 {
   wgpu_report("[harness] creating GHOST_ContextWGPUWeb on '#gpucanvas'");
   GHOST_ContextParams params = {}; /* GHOST_Context base params (unused by the web ctx) */
-  g_ctx = new GHOST_ContextWGPUWeb(params, "#gpucanvas");
+  g_ctx = new GHOST_ContextWGPUWeb(
+      params, "#gpucanvas", ghost_web::DrawingContextMode::PresentableWindow);
   g_ctx->initAsync(320, 240, on_device_ready);
   /* EXIT_RUNTIME=0: keep the runtime alive for the spontaneous callbacks. */
   return 0;

@@ -807,3 +807,18 @@ rejection preservation, supersession, atomic commit, exact present coherence, an
 native and wasm32, then pass a real non-null texture error object through the same helper on pinned
 Dawn as explicitly software-only non-receipt evidence. See
 `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 56 — synchronous window publication needs an asynchronously validated preflight
+
+Signature: a synchronous platform-window constructor imports a pre-acquired browser GPU device,
+then treats an unresolved canvas or merely scheduled surface/backbuffer setup as a successful
+drawing context. Browser validation arrives through promises after the constructor returns, so a
+window with no present path reaches the manager and event queue. Use the pre-main worker interval,
+where the event loop is still available, to await canvas-context configuration and initial
+backbuffer error scopes. Publish one complete import bundle only after every stage succeeds, carry
+an exact failure-stage status into the synchronous constructor, and reject the child context before
+parent window publication. Keep device-only offscreen contexts as an explicit mode whose success
+does not imply a surface. Exercise every partial stage, non-null error-object cleanup, single entry
+forwarding, and complete publication under the pinned JavaScript runtime; separately compile the
+same status decision for native and wasm32. See `platform_web/shell/wgpu-preinit-worker.js` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

@@ -586,3 +586,15 @@ bind the proven list without nullable branches. Preserve an empty plan for proce
 Exercise fail-fast, atomic-output, ordered-success, and empty-plan behavior device-free, then bind
 direct batch, indirect batch, and immediate paths to the same helper. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 41 — index allocation failure must not change draw semantics
+
+Signature: an indexed batch uploads its deferred index data, then derives `indexed` from whether
+the resulting backend handle is valid. Allocation failure consequently falls through to a
+non-indexed draw (and, for indirect draws, reinterprets a 20-byte indexed command as a 16-byte
+non-indexed command), while other paths reach `SetIndexBuffer` through unchecked transient
+handles. Resolve the required index handle before pipeline selection or command encoding; reject
+a missing required handle without changing caller-owned state; make the non-indexed case explicit;
+and bind only the resolved handle in direct, indirect, triangle-fan, and immediate paths. Exercise
+missing-required, valid-required, and non-indexed cases device-free, then bind the exact shipping
+source order. See `sandbox/wgpu-pipeline-integrated-smoke/`.

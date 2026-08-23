@@ -86,6 +86,12 @@ dummy-attribute plan and requires a zero-stride, vertex-stepped binding that rem
 constant for arbitrary vertex and instance ranges. Before direct/indirect batch or immediate
 command encoding, the complete vertex plan must resolve into an ordered non-null handle list;
 failure preserves the caller-owned list, while an empty plan remains valid for procedural draws.
+The matching index-buffer transaction distinguishes a required indexed draw from a valid
+non-indexed draw before pipeline or command work. A failed frontend index upload therefore rejects
+direct and indirect batches instead of silently omitting `DrawIndexed` or reinterpreting a
+20-byte indexed indirect command as a 16-byte non-indexed command; triangle-fan batch and immediate
+paths bind the same resolved transient handle. Failure preserves the caller-owned handle and the
+non-indexed case publishes an explicit empty handle.
 The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip

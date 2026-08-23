@@ -5,7 +5,7 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, transient bind-group publication, fail-closed vertex-buffer resolution,
+# cache publication, transient bind-group publication, fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
 # framebuffer full/scissored-clear and copy, texture render-clear, batch, and immediate-draw
@@ -251,12 +251,70 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool index_buffer_handle_resolve_if_required(const bool required,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 \
   'if (!webgpu::vertex_buffer_handles_resolve_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
   'if (!webgpu::vertex_buffer_handles_resolve_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 2 \
+  'if (!webgpu::index_buffer_handle_resolve_if_required(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'if (!webgpu::index_buffer_handle_resolve_if_required(' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_batch.cc" "$WEBGPU_SOURCE/wgpu_immediate.cc" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+
+def method(source: str, marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise SystemExit(f"ERROR: unterminated method: {marker}")
+
+
+batch = Path(sys.argv[1]).read_text(encoding="utf-8")
+immediate = Path(sys.argv[2]).read_text(encoding="utf-8")
+direct = method(batch, "void WGPUBatch::draw(int vertex_first,")
+indirect = method(batch, "void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,")
+immediate_end = method(immediate, "void WGPUImmediate::end()")
+guard = "if (!webgpu::index_buffer_handle_resolve_if_required("
+
+for label, body, set_count in (
+    ("direct batch", direct, 4),
+    ("indirect batch", indirect, 1),
+    ("immediate", immediate_end, 1),
+):
+    if body.count(guard) != 1:
+        raise SystemExit(f"ERROR: {label} lacks one index-buffer resolution transaction")
+    if body.index(guard) >= body.index("wgpu::RenderPipeline pipeline"):
+        raise SystemExit(f"ERROR: {label} resolves its index buffer after pipeline work")
+    bindings = re.findall(r"SetIndexBuffer\(([^,\n]+)", body)
+    if len(bindings) != set_count or any(binding.strip() != "index_buffer" for binding in bindings):
+        raise SystemExit(f"ERROR: {label} does not bind only the resolved index buffer")
+
+if "emulate_triangle_fan || elem != nullptr" not in direct:
+    raise SystemExit("ERROR: direct batch index requirement omits fan or frontend index state")
+if "const bool indexed = elem != nullptr;" not in indirect:
+    raise SystemExit("ERROR: indirect batch still infers indexed semantics from allocation success")
+if indirect.index(guard) >= indirect.index("webgpu::IndirectDrawSpan indirect_span;"):
+    raise SystemExit("ERROR: indirect batch resolves its index buffer after command-shape selection")
+if immediate_end.index(guard) >= immediate_end.index("webgpu::Buffer vbo;"):
+    raise SystemExit("ERROR: immediate draw resolves its index buffer after vertex allocation")
+PY
 require_fixed_count 1 \
   'if (!webgpu::transient_handle_publish_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
@@ -1164,7 +1222,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 22 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 23 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1206,6 +1264,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT buffer_command_transaction PASS cases=4 accepted=1 encoder_fail=closed encode_fail=discarded command_fail=closed' \
        "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT index_buffer_handle_resolution PASS cases=3 required=2 failure=atomic optional=empty' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
@@ -1213,7 +1274,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=21 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=22 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

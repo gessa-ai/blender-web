@@ -244,6 +244,46 @@ bool vertex_buffer_handle_resolution_contract()
   return true;
 }
 
+bool index_buffer_handle_resolution_contract()
+{
+  CacheHandleProbe missing_output(97);
+  if (!require(
+          !bw::index_buffer_handle_resolve_if_required(
+              true, CacheHandleProbe(), missing_output),
+          "missing required index buffer is rejected") ||
+      !require(missing_output.identity() == 97,
+               "failed required index resolution preserves output"))
+  {
+    return false;
+  }
+
+  CacheHandleProbe unindexed_output(101);
+  if (!require(
+          bw::index_buffer_handle_resolve_if_required(
+              false, CacheHandleProbe(53), unindexed_output),
+          "non-indexed draw is accepted") ||
+      !require(unindexed_output == nullptr,
+               "non-indexed resolution publishes an empty handle"))
+  {
+    return false;
+  }
+
+  CacheHandleProbe indexed_output(103);
+  if (!require(
+          bw::index_buffer_handle_resolve_if_required(
+              true, CacheHandleProbe(59), indexed_output),
+          "valid required index buffer is accepted") ||
+      !require(indexed_output.identity() == 59,
+               "valid required index buffer is published"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT index_buffer_handle_resolution PASS cases=3 required=2 failure=atomic optional=empty");
+  return true;
+}
+
 bool cache_handle_publication_contract()
 {
   std::unordered_map<uint32_t, CacheHandleProbe> cache;
@@ -1712,6 +1752,7 @@ int main()
       !multiview_uniform_allocation_contract() ||
       !transient_handle_publication_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
+      !index_buffer_handle_resolution_contract() ||
       !cache_handle_publication_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
@@ -1727,11 +1768,12 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=21 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=22 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 "
-      "dummy=32 transient_publications=2 vertex_binding_resolutions=3 cache_publications=2 "
+      "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
+      "index_binding_resolutions=3 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

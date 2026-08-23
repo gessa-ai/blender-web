@@ -983,3 +983,6 @@
 # 0226: resolve every real or dummy buffer required by the vertex plan before
 # direct/indirect batch or immediate command encoding begins.
 0226-gpu-webgpu-vertex-buffer-resource-transaction.patch
+# 0227: resolve required index-buffer handles before direct/indirect batch or
+# immediate command encoding, and never downgrade failed indexed uploads.
+0227-gpu-webgpu-index-buffer-resource-transaction.patch

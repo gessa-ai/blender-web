@@ -265,6 +265,97 @@ static bool qualifier_contract()
   return true;
 }
 
+template<int Tag> class LayoutHandleProbe {
+ public:
+  LayoutHandleProbe() = default;
+  explicit LayoutHandleProbe(const int identity) : identity_(identity) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return identity_ == 0;
+  }
+
+  int identity() const
+  {
+    return identity_;
+  }
+
+ private:
+  int identity_ = 0;
+};
+
+static bool explicit_layout_resource_transaction_contract()
+{
+  using BindGroupLayoutProbe = LayoutHandleProbe<1>;
+  using PipelineLayoutProbe = LayoutHandleProbe<2>;
+
+  BindGroupLayoutProbe bind_group_output(41);
+  PipelineLayoutProbe pipeline_output(43);
+  int bind_group_calls = 0;
+  int pipeline_calls = 0;
+  if (explicit_layout_handles_create_if_valid(
+          [&]() {
+            bind_group_calls++;
+            return BindGroupLayoutProbe();
+          },
+          [&](const BindGroupLayoutProbe &) {
+            pipeline_calls++;
+            return PipelineLayoutProbe(17);
+          },
+          bind_group_output,
+          pipeline_output) ||
+      bind_group_calls != 1 || pipeline_calls != 0 || bind_group_output.identity() != 41 ||
+      pipeline_output.identity() != 43)
+  {
+    std::cerr << "explicit-layout bind-group failure was not atomic\n";
+    return false;
+  }
+
+  bind_group_calls = 0;
+  pipeline_calls = 0;
+  if (explicit_layout_handles_create_if_valid(
+          [&]() {
+            bind_group_calls++;
+            return BindGroupLayoutProbe(11);
+          },
+          [&](const BindGroupLayoutProbe &bind_group) {
+            pipeline_calls++;
+            return bind_group.identity() == 11 ? PipelineLayoutProbe() : PipelineLayoutProbe(19);
+          },
+          bind_group_output,
+          pipeline_output) ||
+      bind_group_calls != 1 || pipeline_calls != 1 || bind_group_output.identity() != 41 ||
+      pipeline_output.identity() != 43)
+  {
+    std::cerr << "explicit-layout pipeline failure was not atomic\n";
+    return false;
+  }
+
+  bind_group_calls = 0;
+  pipeline_calls = 0;
+  if (!explicit_layout_handles_create_if_valid(
+          [&]() {
+            bind_group_calls++;
+            return BindGroupLayoutProbe(13);
+          },
+          [&](const BindGroupLayoutProbe &bind_group) {
+            pipeline_calls++;
+            return bind_group.identity() == 13 ? PipelineLayoutProbe(23) : PipelineLayoutProbe();
+          },
+          bind_group_output,
+          pipeline_output) ||
+      bind_group_calls != 1 || pipeline_calls != 1 || bind_group_output.identity() != 13 ||
+      pipeline_output.identity() != 23)
+  {
+    std::cerr << "explicit-layout success was not published\n";
+    return false;
+  }
+
+  std::cout << "CONTRACT explicit-layout-resource-transaction PASS cases=3 "
+               "bind-group-fail=closed pipeline-fail=closed success=published\n";
+  return true;
+}
+
 struct LayoutCase {
   Type type;
   uint32_t align;
@@ -746,12 +837,13 @@ int main()
 {
   using namespace blender::gpu::webgpu::frontend_test;
   if (!image_type_contract() || !storage_format_contract() || !qualifier_contract() ||
-      !std140_contract() || !push_array_packing_contract() || !push_mat3_packing_contract() ||
+      !explicit_layout_resource_transaction_contract() || !std140_contract() ||
+      !push_array_packing_contract() || !push_mat3_packing_contract() ||
       !buffer_helper_rewrite_contract() || !integer_sampler_rewrite_contract() ||
       !one_d_array_rewrite_contract() || !finite_builtin_rewrite_contract())
   {
     return 1;
   }
-  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=646\n";
+  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=11 cases=649\n";
   return 0;
 }

@@ -115,6 +115,19 @@ then
   echo "ERROR: storage-image format promotion is not bound to all three shipping interfaces" >&2
   exit 1
 fi
+if [ "$(grep -F -c \
+       'static bool explicit_layout_handles_create_if_valid(' \
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+   [ "$(grep -F -c \
+       'if (!build_explicit_layout(device,' \
+       "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 1 ] ||
+   [ "$(grep -F -c \
+       'bool build_explicit_layout(const wgpu::Device &device,' \
+       "$WEBGPU_SOURCE/wgpu_shader.hh")" -ne 1 ]
+then
+  echo "ERROR: explicit shader-layout resource transaction is not wired exactly once" >&2
+  exit 1
+fi
 for source_path in \
   source/blender/gpu/intern/gpu_shader_create_info.hh \
   source/blender/gpu/intern/gpu_shader_private.hh \
@@ -247,13 +260,16 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_shader_frontend.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 11 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 12 ] ||
      ! grep -qx \
        'CONTRACT image-types PASS cases=39 bindings=78 signed-atomic-array=1' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT storage-formats PASS formats=63 qualifiers=8 helper-cases=504 promotions=18 spellings=32 shipping-call-sites=3' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT qualifiers PASS bit-patterns=8 outputs=16 writeonly-promoted=1' "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT explicit-layout-resource-transaction PASS cases=3 bind-group-fail=closed pipeline-fail=closed success=published' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT std140 PASS cases=30 scalars=15 arrays=15' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT push-array-packing PASS arrays=5 elements=19 payload=148 padding=156 block=304' \
@@ -268,7 +284,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=646' "$stdout_file"
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=11 cases=649' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1

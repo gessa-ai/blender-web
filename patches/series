@@ -986,3 +986,6 @@
 # 0227: resolve required index-buffer handles before direct/indirect batch or
 # immediate command encoding, and never downgrade failed indexed uploads.
 0227-gpu-webgpu-index-buffer-resource-transaction.patch
+# 0228: distinguish intentional shader auto-layout fallback from failed WebGPU
+# layout allocation, publishing the bind-group/pipeline-layout pair atomically.
+0228-gpu-webgpu-shader-layout-resource-transaction.patch

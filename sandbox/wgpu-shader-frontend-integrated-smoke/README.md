@@ -10,7 +10,10 @@ format, qualifier, std140 layout, texel-buffer helper, integer-sampler, physical
 `WGPUShader::push_constant_set` method byte-for-byte and executes it in a minimal
 device-free class, covering five std140 arrays (19 elements, 148 payload bytes, and
 156 padding bytes) plus the four pinned float3x3 push constants (12 columns, 144 payload
-bytes, and 48 padding bytes). Native and Wasm executions must produce byte-identical evidence.
+bytes, and 48 padding bytes). The same contract injects null bind-group-layout and
+pipeline-layout handles into the shipping explicit-layout publication helper: either failure
+must preserve both caller outputs, while a complete pair is published together. Native and Wasm
+executions must produce byte-identical evidence.
 Live-device sections are discarded at link;
 the driver creates no WebGPU instance, adapter, device, shader module, pipeline,
 or M3 receipt.

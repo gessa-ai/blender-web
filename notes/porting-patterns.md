@@ -598,3 +598,16 @@ a missing required handle without changing caller-owned state; make the non-inde
 and bind only the resolved handle in direct, indirect, triangle-fan, and immediate paths. Exercise
 missing-required, valid-required, and non-indexed cases device-free, then bind the exact shipping
 source order. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 42 — semantic fallback must not absorb resource-creation failure
+
+Signature: a shader intentionally permits automatic pipeline-layout inference when its reflected
+interface cannot describe a surviving binding, but the same helper also falls back after
+`CreateBindGroupLayout` or `CreatePipelineLayout` returns null. The semantic fallback is valid;
+the resource failure is not. Conflating them can silently restore the depth-texture and
+unfilterable-float inference defects that required an explicit layout in the first place. Return
+success only for the intentional uncovered-binding branch. Create both layout handles into local
+candidates, preserve caller outputs on either failure, publish the pair only after both succeed,
+and make a null resource fail shader finalization. Exercise first-handle failure, second-handle
+failure, and ordered pair publication device-free on native and wasm32. See
+`sandbox/wgpu-shader-frontend-integrated-smoke/`.

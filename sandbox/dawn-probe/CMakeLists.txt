@@ -69,6 +69,12 @@ add_executable(dawn_bindmap_probe probe_bindmap.cc)
 target_include_directories(dawn_bindmap_probe PRIVATE ${DAWN_SRC_DIR})
 target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})
 
+# Audit-only control: prove the native Dawn API's synchronous return-value
+# semantics for validation failures. This target intentionally accepts a
+# software Vulkan adapter and therefore cannot bind any M3/M4 receipt.
+add_executable(dawn_error_handle_probe probe_error_handles.cc)
+target_link_libraries(dawn_error_handle_probe PRIVATE dawn::webgpu_dawn)
+
 # Optional device-free native halves of the cross-compiled shader-chain parity
 # smokes. Keeping them in this project reuses Dawn's exact generated Tint target
 # graph instead of rediscovering or manually ordering native archives.

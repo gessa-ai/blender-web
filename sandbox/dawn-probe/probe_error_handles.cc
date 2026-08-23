@@ -1,0 +1,292 @@
+// SPDX-FileCopyrightText: 2026 blender-web contributors
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/**
+ * Audit-only Dawn error-handle control.
+ *
+ * This deliberately runs on the available software Vulkan adapter. It proves
+ * API return-value semantics only and MUST NOT bind a receipt, profile, or
+ * milestone result.
+ */
+
+#include <array>
+#include <cstdint>
+#include <iostream>
+#include <string>
+#include <utility>
+
+#include "webgpu/webgpu_cpp.h"
+
+#include "probe_platform.hh"
+
+namespace {
+
+std::string to_string(wgpu::StringView value)
+{
+  if (value.data == nullptr) {
+    return {};
+  }
+  if (value.length == WGPU_STRLEN) {
+    return std::string(value.data);
+  }
+  return std::string(value.data, value.length);
+}
+
+template<typename Fn>
+bool captures_validation(const wgpu::Instance &instance,
+                         const wgpu::Device &device,
+                         Fn &&operation,
+                         std::string &r_message)
+{
+  bool callback_called = false;
+  wgpu::ErrorType error_type = wgpu::ErrorType::NoError;
+  device.PushErrorScope(wgpu::ErrorFilter::Validation);
+  std::forward<Fn>(operation)();
+  const wgpu::Future future = device.PopErrorScope(
+      wgpu::CallbackMode::WaitAnyOnly,
+      [&](wgpu::PopErrorScopeStatus status, wgpu::ErrorType type, wgpu::StringView message) {
+        callback_called = status == wgpu::PopErrorScopeStatus::Success;
+        error_type = type;
+        r_message = to_string(message);
+      });
+  instance.WaitAny(future, UINT64_MAX);
+  return callback_called && error_type == wgpu::ErrorType::Validation;
+}
+
+bool require(const bool condition, const char *message)
+{
+  if (!condition) {
+    std::cerr << "AUDIT_FAIL " << message << '\n';
+  }
+  return condition;
+}
+
+}  // namespace
+
+int main()
+{
+  wgpu::InstanceDescriptor instance_descriptor = {};
+  static constexpr auto timed_wait = wgpu::InstanceFeatureName::TimedWaitAny;
+  instance_descriptor.requiredFeatureCount = 1;
+  instance_descriptor.requiredFeatures = &timed_wait;
+  wgpu::Instance instance = wgpu::CreateInstance(&instance_descriptor);
+  if (!require(instance != nullptr, "CreateInstance returned null")) {
+    return 2;
+  }
+
+  wgpu::RequestAdapterOptions adapter_options = {};
+  adapter_options.backendType = blender_web::dawn_probe::kBackendType;
+  adapter_options.featureLevel = wgpu::FeatureLevel::Core;
+  wgpu::Adapter adapter;
+  instance.WaitAny(
+      instance.RequestAdapter(
+          &adapter_options,
+          wgpu::CallbackMode::WaitAnyOnly,
+          [&](wgpu::RequestAdapterStatus status, wgpu::Adapter candidate, wgpu::StringView) {
+            if (status == wgpu::RequestAdapterStatus::Success) {
+              adapter = std::move(candidate);
+            }
+          }),
+      UINT64_MAX);
+  if (!require(adapter != nullptr, "software-control adapter unavailable")) {
+    return 3;
+  }
+
+  wgpu::AdapterInfo adapter_info = {};
+  adapter.GetInfo(&adapter_info);
+  std::cout << "AUDIT_CONTROL adapter=\"" << to_string(adapter_info.device)
+            << "\" type=" << static_cast<int>(adapter_info.adapterType)
+            << " SOFTWARE_CONTROL_NON_RECEIPT\n";
+
+  wgpu::DeviceDescriptor device_descriptor = {};
+  wgpu::Device device;
+  instance.WaitAny(
+      adapter.RequestDevice(
+          &device_descriptor,
+          wgpu::CallbackMode::WaitAnyOnly,
+          [&](wgpu::RequestDeviceStatus status, wgpu::Device candidate, wgpu::StringView) {
+            if (status == wgpu::RequestDeviceStatus::Success) {
+              device = std::move(candidate);
+            }
+          }),
+      UINT64_MAX);
+  if (!require(device != nullptr, "software-control device unavailable")) {
+    return 4;
+  }
+
+  int passed = 0;
+  std::string error;
+
+  wgpu::Buffer invalid_buffer;
+  error.clear();
+  const bool buffer_error = captures_validation(instance, device, [&]() {
+    wgpu::BufferDescriptor descriptor = {};
+    descriptor.size = 4;
+    descriptor.usage = wgpu::BufferUsage::None;
+    invalid_buffer = device.CreateBuffer(&descriptor);
+  }, error);
+  if (!require(invalid_buffer != nullptr && buffer_error,
+               "invalid buffer did not return a non-null error object"))
+  {
+    return 5;
+  }
+  passed++;
+
+  wgpu::BindGroupLayout invalid_layout;
+  error.clear();
+  const bool layout_error = captures_validation(instance, device, [&]() {
+    wgpu::BindGroupLayoutEntry entries[2] = {};
+    for (wgpu::BindGroupLayoutEntry &entry : entries) {
+      entry.binding = 0;
+      entry.visibility = wgpu::ShaderStage::Vertex;
+      entry.buffer.type = wgpu::BufferBindingType::Uniform;
+    }
+    wgpu::BindGroupLayoutDescriptor descriptor = {};
+    descriptor.entryCount = 2;
+    descriptor.entries = entries;
+    invalid_layout = device.CreateBindGroupLayout(&descriptor);
+  }, error);
+  if (!require(invalid_layout != nullptr && layout_error,
+               "invalid bind-group layout did not return a non-null error object"))
+  {
+    return 6;
+  }
+  passed++;
+
+  wgpu::PipelineLayout invalid_pipeline_layout;
+  error.clear();
+  const bool pipeline_layout_error = captures_validation(instance, device, [&]() {
+    const std::array<wgpu::BindGroupLayout, 1> layouts = {invalid_layout};
+    wgpu::PipelineLayoutDescriptor descriptor = {};
+    descriptor.bindGroupLayoutCount = layouts.size();
+    descriptor.bindGroupLayouts = layouts.data();
+    invalid_pipeline_layout = device.CreatePipelineLayout(&descriptor);
+  }, error);
+  if (!require(invalid_pipeline_layout != nullptr && pipeline_layout_error,
+               "invalid pipeline layout did not return a non-null error object"))
+  {
+    return 7;
+  }
+  passed++;
+
+  wgpu::BindGroupLayoutEntry required_entry = {};
+  required_entry.binding = 0;
+  required_entry.visibility = wgpu::ShaderStage::Vertex;
+  required_entry.buffer.type = wgpu::BufferBindingType::Uniform;
+  wgpu::BindGroupLayoutDescriptor required_layout_descriptor = {};
+  required_layout_descriptor.entryCount = 1;
+  required_layout_descriptor.entries = &required_entry;
+  const wgpu::BindGroupLayout required_layout =
+      device.CreateBindGroupLayout(&required_layout_descriptor);
+  if (!require(required_layout != nullptr, "valid bind-group layout setup failed")) {
+    return 8;
+  }
+
+  wgpu::BindGroup invalid_bind_group;
+  error.clear();
+  const bool bind_group_error = captures_validation(instance, device, [&]() {
+    wgpu::BindGroupDescriptor descriptor = {};
+    descriptor.layout = required_layout;
+    invalid_bind_group = device.CreateBindGroup(&descriptor);
+  }, error);
+  if (!require(invalid_bind_group != nullptr && bind_group_error,
+               "invalid bind group did not return a non-null error object"))
+  {
+    return 9;
+  }
+  passed++;
+
+  wgpu::ShaderModule invalid_shader;
+  error.clear();
+  const bool shader_error = captures_validation(instance, device, [&]() {
+    wgpu::ShaderSourceWGSL source = {};
+    source.code = "this is not WGSL";
+    wgpu::ShaderModuleDescriptor descriptor = {};
+    descriptor.nextInChain = &source;
+    invalid_shader = device.CreateShaderModule(&descriptor);
+  }, error);
+  if (!require(invalid_shader != nullptr && shader_error,
+               "invalid shader did not return a non-null error object"))
+  {
+    return 10;
+  }
+  passed++;
+
+  wgpu::Texture invalid_texture;
+  error.clear();
+  const bool texture_error = captures_validation(instance, device, [&]() {
+    wgpu::TextureDescriptor descriptor = {};
+    descriptor.size = {1, 1, 1};
+    descriptor.dimension = wgpu::TextureDimension::e2D;
+    descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+    descriptor.mipLevelCount = 1;
+    descriptor.sampleCount = 1;
+    descriptor.usage = wgpu::TextureUsage::None;
+    invalid_texture = device.CreateTexture(&descriptor);
+  }, error);
+  if (!require(invalid_texture != nullptr && texture_error,
+               "invalid texture did not return a non-null error object"))
+  {
+    return 11;
+  }
+  passed++;
+
+  wgpu::TextureDescriptor texture_descriptor = {};
+  texture_descriptor.size = {1, 1, 1};
+  texture_descriptor.dimension = wgpu::TextureDimension::e2D;
+  texture_descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+  texture_descriptor.mipLevelCount = 1;
+  texture_descriptor.sampleCount = 1;
+  texture_descriptor.usage = wgpu::TextureUsage::RenderAttachment;
+  const wgpu::Texture texture = device.CreateTexture(&texture_descriptor);
+  const wgpu::TextureView texture_view = texture.CreateView();
+  if (!require(texture != nullptr && texture_view != nullptr,
+               "valid render attachment setup failed"))
+  {
+    return 12;
+  }
+
+  wgpu::TextureView invalid_view;
+  error.clear();
+  const bool view_error = captures_validation(instance, device, [&]() {
+    wgpu::TextureViewDescriptor descriptor = {};
+    descriptor.dimension = wgpu::TextureViewDimension::e3D;
+    invalid_view = texture.CreateView(&descriptor);
+  }, error);
+  if (!require(invalid_view != nullptr && view_error,
+               "invalid texture view did not return a non-null error object"))
+  {
+    return 13;
+  }
+  passed++;
+
+  wgpu::CommandEncoder encoder;
+  wgpu::RenderPassEncoder pass;
+  wgpu::CommandBuffer command_buffer;
+  error.clear();
+  const bool command_error = captures_validation(instance, device, [&]() {
+    encoder = device.CreateCommandEncoder();
+    wgpu::RenderPassColorAttachment color = {};
+    color.view = texture_view;
+    color.depthSlice = 0;
+    color.loadOp = wgpu::LoadOp::Clear;
+    color.storeOp = wgpu::StoreOp::Store;
+    wgpu::RenderPassDescriptor descriptor = {};
+    descriptor.colorAttachmentCount = 1;
+    descriptor.colorAttachments = &color;
+    pass = encoder.BeginRenderPass(&descriptor);
+    pass.End();
+    command_buffer = encoder.Finish();
+    device.GetQueue().Submit(1, &command_buffer);
+  }, error);
+  if (!require(encoder != nullptr && pass != nullptr && command_buffer != nullptr && command_error,
+               "invalid pass/command path did not retain non-null error objects"))
+  {
+    return 14;
+  }
+  passed++;
+
+  std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
+            << " null_guards_miss_validation=8 SOFTWARE_CONTROL_NON_RECEIPT\n";
+  return 0;
+}

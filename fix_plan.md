@@ -1993,10 +1993,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   same-epoch cancellation, and clean retry; pinned-Dawn software control, canonical replay, real
   product rebuild/no-work, OFF preflight, compliance, scoped M3, and regression are verified. See
   `notes/m3-gpu-compute-bind-scope-20260823.md`.
-- [ ] **AUDIT-R7-GHOST-ACQUISITION-LIFETIME [ghost-web, blocked-by: none]:** remove raw-owner
-  access from spontaneous fallback adapter/device request completions. Delay each callback,
-  destroy the context, and deliver under ASan/native+wasm32 lifetime seams with zero owner access,
-  completion, or follow-on request after invalidation.
+- [x] **AUDIT-R7-GHOST-ACQUISITION-LIFETIME [ghost-web, blocked-by: none] COMPLETE (8822ef2):**
+  spontaneous fallback adapter/device request completions now capture one shared owner-lifetime
+  gate instead of the raw GHOST context, and destruction invalidates it before every other callback
+  boundary. Delayed native-ASan/wasm32 delivery performs zero owner access, initialization
+  completion, or follow-on request; the unsafe raw-owner control is caught by ASan. Source binding,
+  standalone/product builds, OFF preflight, canonical replay, compliance, scoped M4, and
+  container-backed regression are verified. See
+  `notes/m4-ghost-acquisition-lifetime-20260823.md`.
 - [ ] **AUDIT-R7-GHOST-LOSS-INFLIGHT-CANCEL [ghost-web, blocked-by: none]:** make pending fallback
   resize, pipeline, and present closures consult the shared terminal device state immediately.
   Signal loss between transaction start and completion and prove no Configure, handle publication,

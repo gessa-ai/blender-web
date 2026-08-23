@@ -2166,6 +2166,147 @@ bool mipmap_odd_kernel_contract()
   return true;
 }
 
+struct TextureResourceProbe {
+  int id = 0;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return id == 0;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return id != 0;
+  }
+};
+
+struct TextureViewPairProbe {
+  TextureResourceProbe texture;
+  TextureResourceProbe view;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return texture == nullptr || view == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return !(*this == nullptr);
+  }
+};
+
+bool texture_view_error_object_contract()
+{
+  size_t transient_cases = 0;
+  size_t dependent_work = 0;
+  size_t canceled_work = 0;
+
+  /* Root textures and stand-alone views both return provisional non-null handles. Their
+   * completed scope result, not handle truthiness, controls all later queue work. */
+  for (int resource_kind = 0; resource_kind < 2; resource_kind++) {
+    for (const bool scope_valid : {false, true}) {
+      bw::OrderedQueueScheduler scheduler;
+      std::function<void(bool)> settle_scope;
+      int begin_calls = 0;
+      int completion_calls = 0;
+      int8_t status = 0;
+      const TextureResourceProbe candidate = bw::transient_resource_gate_scoped(
+          scheduler,
+          [&]() { begin_calls++; },
+          [&]() { return TextureResourceProbe{resource_kind + 1}; },
+          [&](auto completion) { settle_scope = std::move(completion); },
+          [&](const bool valid) {
+            completion_calls++;
+            status = valid ? int8_t(1) : int8_t(-1);
+          });
+      scheduler.enqueue(
+          [&](auto done) {
+            dependent_work++;
+            done(true);
+          },
+          [&]() { canceled_work++; });
+
+      if (!require(candidate != nullptr, "texture/view provisional handle") ||
+          !require(begin_calls == 1 && completion_calls == 0 && status == 0,
+                   "texture/view pending scope state") ||
+          !require(scheduler.pending_count() == 2,
+                   "texture/view gate precedes dependent work") ||
+          !require(bool(settle_scope), "texture/view scope completion captured"))
+      {
+        return false;
+      }
+      settle_scope(scope_valid);
+      if (!require(completion_calls == 1 && status == (scope_valid ? 1 : -1),
+                   "texture/view completed scope status") ||
+          !require(scheduler.pending_count() == 0, "texture/view queue drained"))
+      {
+        return false;
+      }
+      transient_cases++;
+    }
+  }
+
+  if (!require(dependent_work == 2 && canceled_work == 2,
+               "texture/view rejected work remains canceled"))
+  {
+    return false;
+  }
+
+  /* The private attachment publishes its texture and view as one cache value. A non-null
+   * rejected pair clears only pending state, so the same size can retry and publish atomically. */
+  bw::ScopedHandleCache<uint32_t, TextureViewPairProbe> pair_cache;
+  std::function<void(bool)> settle_pair;
+  int pair_creates = 0;
+  TextureViewPairProbe pair = pair_cache.get_or_create_scoped(
+      7u,
+      []() {},
+      [&]() {
+        pair_creates++;
+        return TextureViewPairProbe{{11}, {12}};
+      },
+      [&](auto completion) { settle_pair = std::move(completion); });
+  if (!require(pair == nullptr && pair_cache.pending(7u) && pair_cache.size() == 0,
+               "rejected texture/view pair remains unpublished") ||
+      !require(bool(settle_pair), "texture/view pair rejection captured"))
+  {
+    return false;
+  }
+  settle_pair(false);
+  if (!require(!pair_cache.pending(7u) && pair_cache.size() == 0,
+               "rejected texture/view pair can retry"))
+  {
+    return false;
+  }
+
+  pair = pair_cache.get_or_create_scoped(
+      7u,
+      []() {},
+      [&]() {
+        pair_creates++;
+        return TextureViewPairProbe{{21}, {22}};
+      },
+      [&](auto completion) { settle_pair = std::move(completion); });
+  if (!require(pair == nullptr && pair_cache.pending(7u) && pair_cache.size() == 0,
+               "clean texture/view pair waits for scope") ||
+      !require(bool(settle_pair), "texture/view pair acceptance captured"))
+  {
+    return false;
+  }
+  settle_pair(true);
+  pair = pair_cache.lookup(7u);
+  if (!require(pair != nullptr && pair.texture.id == 21 && pair.view.id == 22 &&
+                   pair_cache.size() == 1 && !pair_cache.pending(7u) && pair_creates == 2,
+               "clean texture/view pair published atomically"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT texture-view-error-object PASS cases=7 transient=%zu "
+              "error_objects=3 dependent=%zu canceled=%zu pair_retry=published\n",
+              transient_cases,
+              dependent_work,
+              canceled_work);
+  return true;
+}
+
 }  // namespace
 
 int main()
@@ -2182,12 +2323,13 @@ int main()
       !component_swizzle_contract() || !framebuffer_layered_clear_contract() ||
       !framebuffer_scissored_clear_plan_contract() ||
       !framebuffer_layered_draw_contract() || !framebuffer_load_clear_scope_contract() ||
-      !mipmap_odd_kernel_contract() || !run_integrated_mipmap_resource_contracts())
+      !mipmap_odd_kernel_contract() || !texture_view_error_object_contract() ||
+      !run_integrated_mipmap_resource_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_TEXTURE_PASS contracts=24 formats=63 creation_cases=448 allocation_limits=26 "
+      "INTEGRATED_TEXTURE_PASS contracts=25 formats=63 creation_cases=448 allocation_limits=26 "
       "upload_layouts=14 upload_regions=13 clear_layouts=6 "
       "srgb_clear=12 "
       "readback_layouts=15 "
@@ -2196,6 +2338,7 @@ int main()
       "framebuffer_scissored_layers=4 framebuffer_draw_cases=16 "
       "framebuffer_load_clear_cases=10 mipmap_resource_cases=9 "
       "promotions=13 "
-      "view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10\n");
+      "view_pairs=10 texture_view_scope_cases=7 rgb9e5=10 rg11b10=25 packed_rows=6 "
+      "compressed_layouts=7 swizzles=10\n");
   return 0;
 }

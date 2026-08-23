@@ -33,13 +33,13 @@ def main() -> int:
     required = (
         "device.CreateShaderModule(&module_desc)",
         "device.CreateRenderPipeline(&pipeline_desc)",
-        "device.CreateCommandEncoder()",
-        "sampled_attachment_view(int(mip - 1), int(layer))",
-        "attachment_view(int(mip), int(layer))",
+        "webgpu::command_encode_submit_scoped(",
+        "ctx->queue_scheduler_get()",
+        "int(mip - 1), int(layer), TextureViewValidationScope::EnclosingCommand)",
+        "int(mip), int(layer), TextureViewValidationScope::EnclosingCommand)",
         "device.CreateBindGroup(&bind_desc)",
         "enc.BeginRenderPass(&pass_desc)",
-        "enc.Finish()",
-        "ctx->queue_get().Submit(1, &cb)",
+        '"texture mipmap generation"',
     )
     missing = [needle for needle in required if needle not in method]
     if missing:

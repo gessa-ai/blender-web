@@ -322,7 +322,9 @@ if [ "$(grep -Fc 'enum class FramebufferLoadClearScope : uint8_t {' "$COMMON_HEA
    [ "$(grep -Fc 'bool materialize_layered_loadstore_clears();' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'bool WGPUFrameBuffer::materialize_layered_loadstore_clears()' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_load_clear_scope(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'clear_attachment_full(static_cast<GPUAttachmentType>(index), clear_value);' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (!clear_attachment_full(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'layered_load_clear_pending_mask_.fetch_or(pending_bit' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR)' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'if (!materialize_layered_loadstore_clears()) {' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
 then
   echo "ERROR: canonical framebuffer layered load-clear wiring differs" >&2
@@ -410,7 +412,7 @@ CLEAR_BUFFER_LINE="$(grep -nF \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
 CLEAR_WRITE_LINE="$(awk '
   /^void WGPUTexture::clear\(const double4 data\)/ { in_clear = 1 }
-  in_clear && /ctx->queue_get\(\)\.WriteTexture/ { print NR }
+  in_clear && /webgpu::queue_write_texture_scoped/ { print NR }
   /^bool WGPUTexture::resolve_read_region\(/ { exit }
 ' "$RGB9E5_TEXTURE_SOURCE")"
 if [ -z "$CLEAR_LAYOUT_LINE" ] || [ -z "$CLEAR_BUFFER_LINE" ] || [ -z "$CLEAR_WRITE_LINE" ] ||
@@ -438,7 +440,7 @@ CREATION_GUARD_LINE="$(grep -nF 'if (!format_creation_supported(fi.gate, format_
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
 ALLOCATION_GUARD_LINE="$(grep -nF '!texture_allocation_supported(' \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
-CREATE_TEXTURE_LINE="$(grep -nF 'texture_ = device.CreateTexture(&desc);' \
+CREATE_TEXTURE_LINE="$(grep -nF 'texture_ = transient_resource_create_scoped(' \
   "$RGB9E5_TEXTURE_SOURCE" | cut -d: -f1)"
 if [ -z "$CREATION_GUARD_LINE" ] || [ -z "$ALLOCATION_GUARD_LINE" ] ||
    [ -z "$CREATE_TEXTURE_LINE" ] ||
@@ -447,7 +449,21 @@ if [ -z "$CREATION_GUARD_LINE" ] || [ -z "$ALLOCATION_GUARD_LINE" ] ||
    [ "$(sed -n "$((CREATION_GUARD_LINE + 1))p" "$RGB9E5_TEXTURE_SOURCE")" != \
      '    return false;' ]
 then
-  echo "ERROR: format creation guard is not fail-closed before CreateTexture" >&2
+  echo "ERROR: format creation guard is not fail-closed before scoped CreateTexture" >&2
+  exit 1
+fi
+
+if [ "$(grep -Fc 'texture_ = transient_resource_create_scoped(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'std::shared_ptr<std::atomic<int8_t>> creation_scope_status;' "$TEXTURE_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'wgpu::TextureView WGPUTexture::create_view_scoped(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'return create_view_scoped(d,' "$RGB9E5_TEXTURE_SOURCE")" -ne 4 ] ||
+   [ "$(grep -Fc 'TextureViewValidationScope::EnclosingCommand' "$RGB9E5_TEXTURE_SOURCE")" -ne 5 ] ||
+   [ "$(grep -Fc '.CreateView(' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'ScopedHandleCache<uint64_t, EmptyRenderAttachment>' "$FRAMEBUFFER_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'empty_render_attachment_cache_.get_or_create(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc '.CreateView(' "$FRAMEBUFFER_SOURCE")" -ne 1 ]
+then
+  echo "ERROR: texture/view error-object scope wiring differs" >&2
   exit 1
 fi
 
@@ -459,7 +475,7 @@ if [ "$(grep -Ec '^bool compressed_upload_layout\(' "$FORMAT_SOURCE")" -ne 1 ] |
    [ "$(grep -Fc 'FeatureName::TextureCompressionBC' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'case GPU_TEXTURE_ARRAY:' "$FORMAT_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'case GPU_TEXTURE_BUFFER:' "$FORMAT_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'compressed_layout.data_size, &layout, &write_size' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'compressed_layout.data_size,' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'if (repr == Repr::Compressed || repr == Repr::Unsupported)' "$RGB9E5_TEXTURE_SOURCE")" -ne 3 ]
 then
   echo "ERROR: canonical block-compressed upload wiring differs" >&2
@@ -632,13 +648,13 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_TEXTURE_PASS contracts=24 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 framebuffer_clear_formats=4 framebuffer_scissored_layers=4 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 mipmap_resource_cases=9 promotions=13 view_pairs=10 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
+    'INTEGRATED_TEXTURE_PASS contracts=25 formats=63 creation_cases=448 allocation_limits=26 upload_layouts=14 upload_regions=13 clear_layouts=6 srgb_clear=12 readback_layouts=15 framebuffer_reads=13 framebuffer_clear_cases=11 framebuffer_clear_plans=18 framebuffer_clear_formats=4 framebuffer_scissored_layers=4 framebuffer_draw_cases=16 framebuffer_load_clear_cases=10 mipmap_resource_cases=9 promotions=13 view_pairs=10 texture_view_scope_cases=7 rgb9e5=10 rg11b10=25 packed_rows=6 compressed_layouts=7 swizzles=10' \
     "$stdout_file"
   then
     echo "ERROR: integrated texture PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 24 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 25 ]; then
     echo "ERROR: integrated texture evidence census differs: $stdout_file" >&2
     exit 1
   fi

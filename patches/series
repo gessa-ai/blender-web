@@ -1007,3 +1007,7 @@
 # 0234: gate short-lived batch/immediate buffers ahead of dependent queue work
 # until validation, OOM, and internal scopes accept their provisional handles.
 0234-gpu-webgpu-transient-buffer-error-object-contract.patch
+# 0235: gate root textures and standalone views ahead of dependent queue work,
+# cover command-local views with the enclosing scope, and atomically publish
+# the private framebuffer texture/view pair only after all scopes accept it.
+0235-gpu-webgpu-texture-view-error-object-contract.patch

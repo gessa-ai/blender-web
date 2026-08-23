@@ -715,3 +715,20 @@ queue entry releases it. Never capture the stack-owned wrapper from the callback
 null, a non-null rejected object, clean next-epoch retry, both completion orders, native/wasm32
 parity, and the exact helper on pinned Dawn as explicitly software-only non-receipt evidence. See
 `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 50 — texture validity has two publication shapes
+
+Signature: a root texture or view returns a non-null Dawn error object, and callers immediately
+encode work or publish a related handle before browser error scopes settle. A root Blender texture
+cannot wait for an asynchronous callback without changing the frontend API, so reserve the ordered
+queue gate first, keep shared accepted/rejected state in every copied subresource range, and allow
+the provisional handle only for CPU encoding behind that gate. A standalone view uses the same
+gate; a view created inside `command_encode_submit_scoped` must instead remain inside that one
+enclosing scope so the complete command is rejected before submission. A private replacement that
+owns both a texture and its view has a different boundary: cache and publish the composite pair
+atomically, preserving the accepted old pair while a resize is pending and clearing only pending
+state after rejection. Never capture a stack-owned texture wrapper in a scope callback. Exercise
+pending queue order, non-null root/view rejection, clean retry, and pair-level atomic publication
+on native and wasm32, then confirm the exact factories against pinned Dawn as explicitly
+software-only non-receipt evidence. See `sandbox/wgpu-texture-integrated-smoke/` and
+`sandbox/dawn-probe/probe_error_handles.cc`.

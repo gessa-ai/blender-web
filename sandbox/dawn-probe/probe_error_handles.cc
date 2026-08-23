@@ -96,6 +96,20 @@ struct PersistentBufferAllocation {
   }
 };
 
+struct TextureViewAllocation {
+  wgpu::Texture texture;
+  wgpu::TextureView view;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return texture == nullptr || view == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return !(*this == nullptr);
+  }
+};
+
 }  // namespace
 
 int main()
@@ -664,6 +678,155 @@ int main()
     transient_buffer_cases++;
   }
 
+  bw::OrderedQueueScheduler transient_texture_scheduler;
+  int transient_texture_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    if (valid_case) {
+      transient_texture_scheduler.begin_epoch();
+    }
+    bool completed = false;
+    bool accepted = false;
+    int dependent_work = 0;
+    int canceled_work = 0;
+    const wgpu::Texture candidate = bw::transient_resource_create_scoped(
+        instance,
+        device,
+        transient_texture_scheduler,
+        valid_case ? "audit valid transient texture" : "audit invalid transient texture",
+        [&]() {
+          wgpu::TextureDescriptor descriptor = {};
+          descriptor.size = {1, 1, 1};
+          descriptor.dimension = wgpu::TextureDimension::e2D;
+          descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+          descriptor.mipLevelCount = 1;
+          descriptor.sampleCount = 1;
+          descriptor.usage = valid_case ? wgpu::TextureUsage::RenderAttachment :
+                                          wgpu::TextureUsage::None;
+          return device.CreateTexture(&descriptor);
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    transient_texture_scheduler.enqueue(
+        [&](auto done) {
+          dependent_work++;
+          done(true);
+        },
+        [&]() { canceled_work++; });
+    if (!require(candidate != nullptr,
+                 "Dawn transient-texture control did not return a non-null candidate") ||
+        !require(completed && accepted == valid_case,
+                 "shipping transient-texture gate ignored completed scope status") ||
+        !require(dependent_work == (valid_case ? 1 : 0) &&
+                     canceled_work == (valid_case ? 0 : 1),
+                 "shipping transient-texture gate released rejected dependent work") ||
+        !require(transient_texture_scheduler.pending_count() == 0,
+                 "shipping transient-texture gate left ordered work pending"))
+    {
+      return 27;
+    }
+    transient_texture_cases++;
+  }
+
+  bw::OrderedQueueScheduler transient_view_scheduler;
+  int transient_view_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    if (valid_case) {
+      transient_view_scheduler.begin_epoch();
+    }
+    bool completed = false;
+    bool accepted = false;
+    int dependent_work = 0;
+    int canceled_work = 0;
+    const wgpu::TextureView candidate = bw::transient_resource_create_scoped(
+        instance,
+        device,
+        transient_view_scheduler,
+        valid_case ? "audit valid transient texture view" :
+                     "audit invalid transient texture view",
+        [&]() {
+          if (valid_case) {
+            return texture.CreateView();
+          }
+          wgpu::TextureViewDescriptor descriptor = {};
+          descriptor.dimension = wgpu::TextureViewDimension::e3D;
+          return texture.CreateView(&descriptor);
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    transient_view_scheduler.enqueue(
+        [&](auto done) {
+          dependent_work++;
+          done(true);
+        },
+        [&]() { canceled_work++; });
+    if (!require(candidate != nullptr,
+                 "Dawn transient-view control did not return a non-null candidate") ||
+        !require(completed && accepted == valid_case,
+                 "shipping transient-view gate ignored completed scope status") ||
+        !require(dependent_work == (valid_case ? 1 : 0) &&
+                     canceled_work == (valid_case ? 0 : 1),
+                 "shipping transient-view gate released rejected dependent work") ||
+        !require(transient_view_scheduler.pending_count() == 0,
+                 "shipping transient-view gate left ordered work pending"))
+    {
+      return 28;
+    }
+    transient_view_cases++;
+  }
+
+  bw::ScopedHandleCache<uint8_t, TextureViewAllocation> texture_view_pair_cache;
+  int texture_view_pair_cases = 0;
+  bool invalid_pair_handles_nonnull = false;
+  const TextureViewAllocation invalid_pair = texture_view_pair_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid texture/view pair", [&]() {
+        TextureViewAllocation candidate;
+        wgpu::TextureDescriptor descriptor = {};
+        descriptor.size = {1, 1, 1};
+        descriptor.dimension = wgpu::TextureDimension::e2D;
+        descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+        descriptor.mipLevelCount = 1;
+        descriptor.sampleCount = 1;
+        descriptor.usage = wgpu::TextureUsage::None;
+        candidate.texture = device.CreateTexture(&descriptor);
+        candidate.view = candidate.texture.CreateView();
+        invalid_pair_handles_nonnull = candidate.texture != nullptr && candidate.view != nullptr;
+        return candidate;
+      });
+  texture_view_pair_cases++;
+  if (!require(invalid_pair == nullptr && invalid_pair_handles_nonnull &&
+                   texture_view_pair_cache.size() == 0 &&
+                   !texture_view_pair_cache.pending(uint8_t(0)),
+               "shipping scoped cache published a non-null texture/view error pair"))
+  {
+    return 29;
+  }
+
+  const TextureViewAllocation valid_pair = texture_view_pair_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid texture/view pair", [&]() {
+        TextureViewAllocation candidate;
+        wgpu::TextureDescriptor descriptor = {};
+        descriptor.size = {1, 1, 1};
+        descriptor.dimension = wgpu::TextureDimension::e2D;
+        descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+        descriptor.mipLevelCount = 1;
+        descriptor.sampleCount = 1;
+        descriptor.usage = wgpu::TextureUsage::RenderAttachment;
+        candidate.texture = device.CreateTexture(&descriptor);
+        candidate.view = candidate.texture.CreateView();
+        return candidate;
+      });
+  texture_view_pair_cases++;
+  if (!require(valid_pair != nullptr && texture_view_pair_cache.size() == 1 &&
+                   !texture_view_pair_cache.pending(uint8_t(0)),
+               "shipping scoped cache did not atomically publish a clean texture/view retry"))
+  {
+    return 30;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
@@ -672,6 +835,12 @@ int main()
             << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
             << " persistent_buffer_error_object_rejected=1 scoped_transient_buffer_cases="
             << transient_buffer_cases
-            << " transient_buffer_error_object_blocked=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " transient_buffer_error_object_blocked=1 scoped_transient_texture_cases="
+            << transient_texture_cases
+            << " transient_texture_error_object_blocked=1 scoped_transient_view_cases="
+            << transient_view_cases
+            << " transient_view_error_object_blocked=1 scoped_texture_view_pair_cases="
+            << texture_view_pair_cases
+            << " texture_view_pair_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

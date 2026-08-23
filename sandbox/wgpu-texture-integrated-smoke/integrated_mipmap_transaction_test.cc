@@ -69,6 +69,8 @@ enum class Failure : uint8_t {
   Finish,
 };
 
+enum class TextureViewValidationScope : uint8_t { Standalone, EnclosingCommand };
+
 struct Trace {
   Failure failure = Failure::None;
   uint32_t fail_call = 0;
@@ -364,6 +366,41 @@ class Texture {
 
 }  // namespace wgpu
 
+namespace webgpu {
+
+struct Instance {};
+struct OrderedQueueScheduler {};
+
+template<typename InstanceT,
+         typename DeviceT,
+         typename QueueT,
+         typename SchedulerT,
+         typename EncodeFn,
+         typename CompleteFn>
+void command_encode_submit_scoped(const InstanceT & /*instance*/,
+                                  const DeviceT &device,
+                                  QueueT &queue,
+                                  SchedulerT & /*scheduler*/,
+                                  const char * /*label*/,
+                                  EncodeFn &&encode,
+                                  CompleteFn &&complete)
+{
+  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+  if (encoder == nullptr || !encode(encoder)) {
+    complete(false);
+    return;
+  }
+  wgpu::CommandBuffer command_buffer = encoder.Finish();
+  if (command_buffer == nullptr) {
+    complete(false);
+    return;
+  }
+  queue.Submit(1, &command_buffer);
+  complete(true);
+}
+
+}  // namespace webgpu
+
 class WGPUContext {
  public:
   explicit WGPUContext(Trace &trace) : device_(&trace), queue_(&trace) {}
@@ -378,9 +415,20 @@ class WGPUContext {
     return queue_;
   }
 
+  webgpu::Instance instance_get() const
+  {
+    return {};
+  }
+
+  webgpu::OrderedQueueScheduler &queue_scheduler_get()
+  {
+    return scheduler_;
+  }
+
  private:
   wgpu::Device device_;
   wgpu::Queue queue_;
+  webgpu::OrderedQueueScheduler scheduler_;
 };
 
 static WGPUContext *active_context_value = nullptr;
@@ -402,15 +450,23 @@ class MipmapHarness {
     return false;
   }
 
-  wgpu::TextureView sampled_attachment_view(int /*mip*/, int /*layer*/)
+  wgpu::TextureView sampled_attachment_view(
+      int /*mip*/, int /*layer*/, TextureViewValidationScope validation_scope)
   {
+    if (validation_scope != TextureViewValidationScope::EnclosingCommand) {
+      trace_.invalid_uses++;
+    }
     const uint32_t call = trace_.source_view_calls++;
     const bool failed = trace_.failure == Failure::SourceView && call == trace_.fail_call;
     return wgpu::TextureView(&trace_, !failed);
   }
 
-  wgpu::TextureView attachment_view(int /*mip*/, int /*layer*/)
+  wgpu::TextureView attachment_view(
+      int /*mip*/, int /*layer*/, TextureViewValidationScope validation_scope)
   {
+    if (validation_scope != TextureViewValidationScope::EnclosingCommand) {
+      trace_.invalid_uses++;
+    }
     const uint32_t call = trace_.destination_view_calls++;
     const bool failed = trace_.failure == Failure::DestinationView && call == trace_.fail_call;
     return wgpu::TextureView(&trace_, !failed);

@@ -1666,6 +1666,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   regression are verified. Live immediate draw/pixel proof remains blocked by no conformant
   hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn). See
   `notes/m3-t10-immediate-command-guards-20260823.md`.
+- [x] **M3.T10-BATCH-COMMAND-TRANSACTION [gpu-backend] (036e976):** patch 0214 rejects failed
+  command encoders before pass creation and failed finished command buffers before submission in
+  all four direct/indirect ordinary/multi-viewport batch paths. The unchanged source fails first;
+  exact source ordering, native/wasm32 parity, canonical replay/reverse, the real product rebuild
+  and no-work check, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
+  Live draw/pixel proof remains blocked by no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships
+  none; Mesa dzn rejected by Dawn). See
+  `notes/m3-t10-batch-command-transaction-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

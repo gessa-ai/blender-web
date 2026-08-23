@@ -1053,9 +1053,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     GPU errors. Next is the frozen 0144 Phase A-prime rebase and its EEVEE acceptance matrix,
     followed by the public async API and caller continuation. No EEVEE pixel-pass claim until a
     non-black result reaches the pinned comparator.
-  - [ ] **M6.EEVEE-B [gpu-backend, L2, own lane]:** virtual-shadow-map atlas SSBO-atomic
-    emulation (0089-class GPU_WEBGPU-guarded restructure + atlas-as-SSBO bind), yield the
-    4 shadow scenes -> 30/30. Gate on shadow goldens; atlas addressing must match exactly.
+  - [~] **M6.EEVEE-B [gpu-backend, L2, own lane]:** the virtual-shadow-map SSBO-atomic
+    implementation is present but remains pixel-partial. Patch 0210 (`3d093db`) closes a
+    device-free READY handoff defect: if the atlas receipt settled after `Instance::init()` had
+    synced unbound passes, the image-render state machine now rebuilds them exactly once before
+    entering sample rendering. The fail-first/final source contract, shipping Wasm rebuild/no-work,
+    canonical clean-pin replay, and REUSE are GREEN. The four shadow-scene goldens still require
+    the deferred conformant hardware receipt; no pixel or M6 pass is claimed.
   - [x] **GPU-fallback dialog re-triage [driver, diagnosis-only]:** the inherited non-Apple
     `UserDef.gpu_backend` default is OpenGL, and `wm_gpu_backend_override_from_userdef()` inserts
     it before the compiled-in WebGPU backend. Detection rejects that compiled-out override, sets

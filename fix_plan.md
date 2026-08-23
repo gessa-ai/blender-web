@@ -2023,6 +2023,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   source binding, byte-identical native/wasm32 concurrency and loss contracts, unsafe ASan control,
   canonical integrated parity, real product rebuild/no-work, and compliance are verified. See
   `notes/m4-ghost-callback-lifecycle-r8-20260823.md`.
+- [x] **AUDIT-R8-GHOST-CALLBACK-SERIALIZATION [ghost-web, blocked-by: none] COMPLETE (5652eff):**
+  arbitrary-thread `AllowSpontaneous` completions now hold one reentrant serialized owner slot for
+  their complete callback, preventing concurrent mutation of non-atomic GHOST context state while
+  preserving nested delivery, self-destruction, and non-waiting loss cancellation. Fail-first and
+  final native/wasm32 concurrency contracts, unsafe ASan control, canonical integrated parity,
+  real product rebuild/no-work, OFF preflight, canonical replay, and compliance are verified. See
+  `notes/m4-ghost-callback-serialization-r8-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

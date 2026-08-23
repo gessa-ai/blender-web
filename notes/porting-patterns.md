@@ -667,3 +667,17 @@ copy upload bytes and capture reference-counted state. Exercise non-null rejecte
 accepted objects plus pre-submit rejection on pinned Dawn, and preserve a device-free
 native/wasm32 model. See `sandbox/dawn-probe/probe_error_handles.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 47 — an asynchronous resource cache needs a durable pending state
+
+Signature: a browser-side resource factory creates a non-null handle under an error scope, but
+the cache either publishes it before `PopErrorScope` resolves or returns a provisional handle to
+dependent command work. A synchronous bool cannot represent browser validation because the
+callback runs only after the creating stack returns. Give each cache key one explicit pending
+state, deduplicate repeated misses, retain the candidate in callback-owned storage, and publish
+only after validation, out-of-memory, and internal scopes all settle cleanly. Rejection must erase
+only the pending marker so the same key can retry; accepted old entries must remain untouched.
+Callback state must outlive the owning context without capturing it. Exercise pending
+deduplication, a non-null rejected object, clean retry, and cache-hit preservation device-free on
+native and wasm32, then prove the exact helper against pinned Dawn. See
+`sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.

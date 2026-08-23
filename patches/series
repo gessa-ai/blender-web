@@ -995,3 +995,6 @@
 # 0230: serialize command submission and direct queue writes behind completed
 # validation/OOM/internal scopes; cancel the remainder of a failed frame epoch.
 0230-gpu-webgpu-command-error-object-contract.patch
+# 0231: keep sampler cache misses pending until validation/OOM/internal scopes
+# settle, rejecting non-null error objects while preserving retryable keys.
+0231-gpu-webgpu-sampler-error-object-contract.patch

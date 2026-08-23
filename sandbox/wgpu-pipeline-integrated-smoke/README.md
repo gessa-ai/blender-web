@@ -60,6 +60,10 @@ transaction, so a failed encoder or finished buffer cannot be dereferenced or su
 Likewise, a null sampler or render-pipeline candidate must remain absent from its
 cache so the same key can retry and publish a later valid handle. The source guard
 binds that transaction to every context and process-wide pipeline cache site.
+Sampler cache misses additionally remain pending while validation, out-of-memory, and
+internal scopes settle. A second lookup deduplicates the pending key; a non-null error
+object is discarded, and a clean retry is published without exposing a provisional handle.
+The cache owns callback state independently of the context lifetime.
 The same rule applies to each specialization-keyed compute pipeline: a transient null
 creation result must not become a retained variant that suppresses every later retry.
 Every non-empty compute or draw bind-group assembly likewise rejects a null group before
@@ -135,7 +139,7 @@ byte-identical.
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline,
 16/20-byte indirect draw-range, viewport/scissor, and direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching native/Wasm fmt headers, Blender's canonical clean-pin replay,
-and 25 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert source inputs before
+and 26 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert source inputs before
 evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish

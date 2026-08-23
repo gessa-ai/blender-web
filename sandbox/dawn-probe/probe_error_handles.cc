@@ -498,9 +498,40 @@ int main()
     gpu_scoped_cases++;
   }
 
+  bw::ScopedHandleCache<uint32_t, wgpu::Sampler> scoped_sampler_cache;
+  int sampler_creates = 0;
+  wgpu::Sampler invalid_sampler = scoped_sampler_cache.get_or_create(
+      instance, device, 7u, "audit invalid sampler", [&]() {
+        sampler_creates++;
+        wgpu::SamplerDescriptor descriptor = {};
+        descriptor.lodMinClamp = 2.0f;
+        descriptor.lodMaxClamp = 1.0f;
+        return device.CreateSampler(&descriptor);
+      });
+  if (!require(invalid_sampler == nullptr && scoped_sampler_cache.size() == 0 &&
+                   !scoped_sampler_cache.pending(7u) && sampler_creates == 1,
+               "shipping scoped cache published a non-null sampler error object"))
+  {
+    return 20;
+  }
+
+  wgpu::Sampler valid_sampler = scoped_sampler_cache.get_or_create(
+      instance, device, 7u, "audit valid sampler", [&]() {
+        sampler_creates++;
+        wgpu::SamplerDescriptor descriptor = {};
+        return device.CreateSampler(&descriptor);
+      });
+  if (!require(valid_sampler != nullptr && scoped_sampler_cache.size() == 1 &&
+                   !scoped_sampler_cache.pending(7u) && sampler_creates == 2,
+               "shipping scoped cache did not publish a clean sampler retry"))
+  {
+    return 21;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
-            << " gpu_error_object_submit_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
+            << " sampler_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

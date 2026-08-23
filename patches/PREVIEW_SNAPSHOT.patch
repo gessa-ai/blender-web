@@ -18699,10 +18699,10 @@ index 0000000000000000000000000000000000000000..9bb5e8605897bf3e15d719c4a03fd865
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba3ecf033e31e2afc310ca0ac919f278e06cf1d7
+index 0000000000000000000000000000000000000000..c47dfa80e16b8afb90d6179e68fde2274f8ee388
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1743 @@
+@@ -0,0 +1,1846 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19135,6 +19135,109 @@ index 0000000000000000000000000000000000000000..ba3ecf033e31e2afc310ca0ac919f278
 +  }
 +#endif
 +}
++
++/**
++ * Cache a reusable WebGPU handle only after its implementation error scopes settle cleanly.
++ *
++ * Browser scope callbacks resolve after the creating C++ stack returns, so a cache miss is an
++ * explicit pending state. Repeated lookups for the same key do not create duplicates, a rejected
++ * non-null error object clears the pending state for retry, and an accepted candidate is published
++ * atomically. Callback state is shared independently of the owning context's lifetime.
++ */
++template<typename KeyT,
++         typename HandleT,
++         typename HashT = std::hash<KeyT>,
++         typename EqualT = std::equal_to<KeyT>>
++class ScopedHandleCache {
++ private:
++  struct State {
++    std::mutex mutex;
++    std::unordered_map<KeyT, HandleT, HashT, EqualT> handles;
++    std::unordered_set<KeyT, HashT, EqualT> pending;
++  };
++
++ public:
++  HandleT lookup(const KeyT &key) const
++  {
++    std::lock_guard lock(state_->mutex);
++    const auto found = state_->handles.find(key);
++    return found == state_->handles.end() ? HandleT{} : found->second;
++  }
++
++  bool pending(const KeyT &key) const
++  {
++    std::lock_guard lock(state_->mutex);
++    return state_->pending.find(key) != state_->pending.end();
++  }
++
++  size_t size() const
++  {
++    std::lock_guard lock(state_->mutex);
++    return state_->handles.size();
++  }
++
++  template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn>
++  HandleT get_or_create_scoped(const KeyT &key,
++                               BeginScopeFn &&begin_scope,
++                               CreateFn &&create,
++                               EndScopeFn &&end_scope)
++  {
++    {
++      std::lock_guard lock(state_->mutex);
++      const auto found = state_->handles.find(key);
++      if (found != state_->handles.end()) {
++        return found->second;
++      }
++      if (!state_->pending.emplace(key).second) {
++        return HandleT{};
++      }
++    }
++
++    std::forward<BeginScopeFn>(begin_scope)();
++    HandleT candidate = std::forward<CreateFn>(create)();
++    const bool handle_valid = candidate != nullptr;
++    const std::shared_ptr<State> state = state_;
++    auto completed = std::make_shared<std::atomic<bool>>(false);
++    std::forward<EndScopeFn>(end_scope)(
++        [state,
++         key,
++         candidate = std::move(candidate),
++         handle_valid,
++         completed](const bool scope_valid) mutable {
++          if (completed->exchange(true, std::memory_order_acq_rel)) {
++            return;
++          }
++          std::lock_guard lock(state->mutex);
++          state->pending.erase(key);
++          if (handle_valid && scope_valid) {
++            state->handles.emplace(key, std::move(candidate));
++          }
++        });
++    return lookup(key);
++  }
++
++  template<typename InstanceT, typename DeviceT, typename CreateFn>
++  HandleT get_or_create(const InstanceT &instance,
++                        const DeviceT &device,
++                        const KeyT &key,
++                        const char *label,
++                        CreateFn &&create)
++  {
++    std::string operation_label = label ? label : "";
++    return get_or_create_scoped(
++        key,
++        [&device]() { webgpu_error_scopes_push(device); },
++        std::forward<CreateFn>(create),
++        [&instance, &device, operation_label = std::move(operation_label)](
++            auto completion) mutable {
++          webgpu_error_scopes_pop(
++              instance, device, std::move(operation_label), std::move(completion));
++        });
++  }
++
++ private:
++  std::shared_ptr<State> state_ = std::make_shared<State>();
++};
 +
 +/** Encode and submit one short-lived command buffer only after its validation scopes complete.
 + * The ordered scheduler keeps later queue writes behind this pending submission. */
@@ -20448,10 +20551,10 @@ index 0000000000000000000000000000000000000000..ba3ecf033e31e2afc310ca0ac919f278
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..dee51bbcc9a7102a54bf3a8f86328b59dd66280e
+index 0000000000000000000000000000000000000000..8b49f68f2aeb135db749570c2729e2778babb720
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1323 @@
+@@ -0,0 +1,1324 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -20708,9 +20811,12 @@ index 0000000000000000000000000000000000000000..dee51bbcc9a7102a54bf3a8f86328b59
 +wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
 +{
 +  const uint32_t key = state.as_uint();
-+  auto it = sampler_cache_.find(key);
-+  if (it != sampler_cache_.end()) {
-+    return it->second;
++  const wgpu::Sampler cached = sampler_cache_.lookup(key);
++  if (cached != nullptr) {
++    return cached;
++  }
++  if (instance_ == nullptr || device_ == nullptr) {
++    return nullptr;
 +  }
 +
 +  /* Mirrors VKSampler::create (vk_sampler.cc). Defaults to point sampling; the
@@ -20761,11 +20867,9 @@ index 0000000000000000000000000000000000000000..dee51bbcc9a7102a54bf3a8f86328b59
 +    }
 +  }
 +
-+  wgpu::Sampler sampler = device_.CreateSampler(&d);
-+  if (!webgpu::cache_handle_if_valid(sampler_cache_, key, sampler)) {
-+    return nullptr;
-+  }
-+  return sampler;
++  return sampler_cache_.get_or_create(instance_, device_, key, "sampler creation", [&]() {
++    return device_.CreateSampler(&d);
++  });
 +}
 +
 +/* --- Dummy vertex buffer (unbound-attribute constant) ---------------------- */
@@ -21777,7 +21881,7 @@ index 0000000000000000000000000000000000000000..dee51bbcc9a7102a54bf3a8f86328b59
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..168f433e31208794a5abeaddc5e44d60f38fe50d
+index 0000000000000000000000000000000000000000..a6457a9085706ece1ab1692d6b008a59ae98626e
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
 @@ -0,0 +1,362 @@
@@ -22114,8 +22218,8 @@ index 0000000000000000000000000000000000000000..168f433e31208794a5abeaddc5e44d60
 +  std::unordered_map<uint64_t, BoundBufferSSBO> bound_buffer_ssbos_;
 +  /** Separately-bound uniform buffers keyed by WGSL @binding slot. */
 +  std::unordered_map<int, WGPUUniformBuffer *> bound_uniform_buffers_;
-+  /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
-+  std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
++  /** Scope-validated sampler cache keyed by GPUSamplerState::as_uint(). */
++  webgpu::ScopedHandleCache<uint32_t, wgpu::Sampler> sampler_cache_;
 +
 +  /* --- Cross-format colour blit (blit_color_render) ------------------------- */
 +  /** Typed textureLoad blit modules keyed by source sample class and dimension. */

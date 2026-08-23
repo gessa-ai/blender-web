@@ -362,6 +362,98 @@ bool cache_handle_publication_contract()
   return true;
 }
 
+bool scoped_handle_cache_contract()
+{
+  bw::ScopedHandleCache<uint32_t, CacheHandleProbe> cache;
+  std::function<void(bool)> settle;
+  int scope_begins = 0;
+  int scope_ends = 0;
+  int creates = 0;
+
+  CacheHandleProbe result = cache.get_or_create_scoped(
+      7u,
+      [&]() { scope_begins++; },
+      [&]() {
+        creates++;
+        return CacheHandleProbe(41);
+      },
+      [&](auto completion) {
+        scope_ends++;
+        settle = std::move(completion);
+      });
+  if (!require(result == nullptr && cache.size() == 0 && cache.pending(7u),
+               "scoped cache keeps candidate unpublished while validation is pending") ||
+      !require(scope_begins == 1 && scope_ends == 1 && creates == 1 && bool(settle),
+               "scoped cache begins and ends one creation scope"))
+  {
+    return false;
+  }
+
+  result = cache.get_or_create_scoped(
+      7u,
+      [&]() { scope_begins++; },
+      [&]() {
+        creates++;
+        return CacheHandleProbe(43);
+      },
+      [&](auto completion) {
+        scope_ends++;
+        completion(true);
+      });
+  if (!require(result == nullptr && scope_begins == 1 && scope_ends == 1 && creates == 1,
+               "scoped cache deduplicates a pending key"))
+  {
+    return false;
+  }
+
+  settle(false);
+  if (!require(cache.size() == 0 && !cache.pending(7u),
+               "non-null error object remains uncached after scope rejection"))
+  {
+    return false;
+  }
+
+  result = cache.get_or_create_scoped(
+      7u,
+      [&]() { scope_begins++; },
+      [&]() {
+        creates++;
+        return CacheHandleProbe(73);
+      },
+      [&](auto completion) {
+        scope_ends++;
+        completion(true);
+      });
+  if (!require(result.identity() == 73 && cache.size() == 1 && !cache.pending(7u),
+               "clean retry publishes the scoped cache candidate") ||
+      !require(scope_begins == 2 && scope_ends == 2 && creates == 2,
+               "scoped cache retry creation census"))
+  {
+    return false;
+  }
+
+  result = cache.get_or_create_scoped(
+      7u,
+      [&]() { scope_begins++; },
+      [&]() {
+        creates++;
+        return CacheHandleProbe(79);
+      },
+      [&](auto completion) {
+        scope_ends++;
+        completion(true);
+      });
+  if (!require(result.identity() == 73 && scope_begins == 2 && scope_ends == 2 && creates == 2,
+               "scoped cache hit preserves the accepted handle without recreation"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated "
+            "error_object=rejected retry=published");
+  return true;
+}
+
 struct ComputePipelineVariantProbe {
   std::vector<uint32_t> key;
   CacheHandleProbe pipeline;
@@ -2438,6 +2530,7 @@ int main()
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
       !cache_handle_publication_contract() ||
+      !scoped_handle_cache_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
@@ -2454,13 +2547,13 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=26 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
-      "index_binding_resolutions=3 cache_publications=2 "
+      "index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 "
       "compute_cache_publications=2 load_action_commits=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

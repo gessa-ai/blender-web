@@ -73,8 +73,9 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   validation failures return non-null Dawn error objects. It also runs the shipping
   GHOST scope helper and the shipping GPU ordered-command helper against rejected/accepted
   command/submission paths, proving an error command buffer never reaches the queue and a new
-  frame epoch can retry. Its output is explicitly non-receipt evidence and cannot satisfy the
-  hardware success criterion above.
+  frame epoch can retry. It also proves the shipping scoped-handle cache rejects a real non-null
+  sampler error object before publishing a clean retry. Its output is explicitly non-receipt
+  evidence and cannot satisfy the hardware success criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

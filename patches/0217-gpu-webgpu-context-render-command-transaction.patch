@@ -1,0 +1,90 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -516,17 +516,17 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+   rp.colorAttachmentCount = 1;
+   rp.colorAttachments = &ca;
+ 
+-  wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
+-  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+-  pass.SetPipeline(pipeline);
+-  pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
+-  pass.SetScissorRect(dst_x, dst_y, w, h);
+-  pass.SetBindGroup(0, bind_group);
+-  pass.Draw(3, 1, 0, 0);
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  queue_.Submit(1, &cb);
+-  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      device_,
++      queue_,
++      [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
++        pass.SetScissorRect(dst_x, dst_y, w, h);
++        pass.SetBindGroup(0, bind_group);
++        pass.Draw(3, 1, 0, 0);
++      });
+ }
+ 
+ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+@@ -661,17 +661,17 @@ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+   }
+   wgpu::RenderPassDescriptor pass_desc = {};
+   pass_desc.depthStencilAttachment = &attachment;
+-  wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
+-  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_desc);
+-  pass.SetPipeline(pipeline);
+-  pass.SetBindGroup(0, bind_group);
+-  pass.SetViewport(0.0f, 0.0f, float(w), float(h), 0.0f, 1.0f);
+-  pass.SetScissorRect(0, 0, w, h);
+-  pass.Draw(3, 1, 0, 0);
+-  pass.End();
+-  wgpu::CommandBuffer command = encoder.Finish();
+-  queue_.Submit(1, &command);
+-  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      device_,
++      queue_,
++      [&](auto &encoder) { return encoder.BeginRenderPass(&pass_desc); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetBindGroup(0, bind_group);
++        pass.SetViewport(0.0f, 0.0f, float(w), float(h), 0.0f, 1.0f);
++        pass.SetScissorRect(0, 0, w, h);
++        pass.Draw(3, 1, 0, 0);
++      });
+ }
+ 
+ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+@@ -817,17 +817,17 @@ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+   }
+   wgpu::RenderPassDescriptor pass_desc = {};
+   pass_desc.depthStencilAttachment = &attachment;
+-  wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
+-  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_desc);
+-  pass.SetPipeline(pipeline);
+-  pass.SetBindGroup(0, bind_group);
+-  pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
+-  pass.SetScissorRect(dst_x, dst_y, w, h);
+-  pass.Draw(3, 1, 0, 0);
+-  pass.End();
+-  wgpu::CommandBuffer command = encoder.Finish();
+-  queue_.Submit(1, &command);
+-  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      device_,
++      queue_,
++      [&](auto &encoder) { return encoder.BeginRenderPass(&pass_desc); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetBindGroup(0, bind_group);
++        pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
++        pass.SetScissorRect(dst_x, dst_y, w, h);
++        pass.Draw(3, 1, 0, 0);
++      });
+ }
+ 
+ wgpu::BindGroup WGPUContext::create_bind_group_checked(

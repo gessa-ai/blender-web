@@ -953,3 +953,6 @@
 # 0216: route vertex-to-storage copies through the checked command-encoder,
 # finish, and submission transaction.
 0216-gpu-webgpu-storage-command-transaction.patch
+# 0217: route color/depth blits and depth uploads through the checked encoder,
+# render-pass, finish, and submission transaction and propagate failure.
+0217-gpu-webgpu-context-render-command-transaction.patch

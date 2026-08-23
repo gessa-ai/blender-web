@@ -956,3 +956,6 @@
 # 0217: route color/depth blits and depth uploads through the checked encoder,
 # render-pass, finish, and submission transaction and propagate failure.
 0217-gpu-webgpu-context-render-command-transaction.patch
+# 0218: route scissored framebuffer color and depth/stencil clears through the
+# checked encoder, render-pass, finish, and submission transaction.
+0218-gpu-webgpu-framebuffer-scissored-command-transaction.patch

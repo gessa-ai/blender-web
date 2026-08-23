@@ -5,9 +5,9 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit/indexed-fan resource guards, buffer/storage/context-render/batch/
-# immediate-draw command transactions, dummy-attribute binding plan, and shader-lifetime cache
-# separation.
+# cache publication, color-blit/indexed-fan resource guards, buffer/storage/context-render/
+# framebuffer-scissored-clear/batch/immediate-draw command transactions, dummy-attribute binding
+# plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -301,6 +301,73 @@ transactions = (
 for marker, begin_pass, pass_body in transactions:
     body = method_body(marker)
     helper = "return webgpu::command_pass_encode_submit_if_valid("
+    if body.count(helper) != 1 or body.count(begin_pass) != 1:
+        raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
+    forbidden = (
+        "CreateCommandEncoder()",
+        ".Finish()",
+        ".Submit(1,",
+        ".End();",
+    )
+    if any(needle in body for needle in forbidden):
+        raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
+    helper_offset = body.index(helper)
+    positions = [body.find(needle, helper_offset) for needle in pass_body]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
+PY
+require_fixed_count 2 \
+  'return webgpu::command_pass_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_framebuffer.cc" <<'PY'
+from pathlib import Path
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def method_body(marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise ValueError(f"unterminated method: {marker}")
+
+
+transactions = (
+    (
+        "bool WGPUFrameBuffer::submit_scissored_color_clear(",
+        (
+            "pass.SetPipeline(pipeline);",
+            "pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);",
+            "pass.SetBindGroup(0, bind_group);",
+            "pass.Draw(3, 1, 0, 0);",
+        ),
+    ),
+    (
+        "bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(",
+        (
+            "pass.SetPipeline(pipeline);",
+            "pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);",
+            "pass.SetBindGroup(0, bind_group);",
+            "if (clear_stencil) {",
+            "pass.SetStencilReference(clear_stencil_value);",
+            "pass.Draw(3, 1, 0, 0);",
+        ),
+    ),
+)
+
+for marker, pass_body in transactions:
+    body = method_body(marker)
+    helper = "return webgpu::command_pass_encode_submit_if_valid("
+    begin_pass = "[&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); }"
     if body.count(helper) != 1 or body.count(begin_pass) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
     forbidden = (

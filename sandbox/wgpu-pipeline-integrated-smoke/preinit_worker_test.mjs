@@ -18,6 +18,13 @@ const cases = [
   { name: "backbuffer_error", backbufferError: true, status: 4, device: true },
   { name: "backbuffer_null", backbufferNull: true, status: 4, device: true },
   { name: "ready", status: 5, device: true, ready: true },
+  { name: "lost_preentry", lossBeforeEntry: "unknown", status: 3, device: true, lossStatus: 1 },
+  { name: "lost_unknown", lossAfterEntry: "unknown", status: 5, device: true, ready: true,
+    lossStatus: 1 },
+  { name: "lost_destroyed", lossAfterEntry: "destroyed", status: 5, device: true, ready: true,
+    lossStatus: 2 },
+  { name: "lost_stale", lossAfterEntry: "destroyed", staleLoss: true, status: 5, device: true,
+    ready: true, lossStatus: 0 },
 ];
 
 function assert(condition, message) {
@@ -65,6 +72,8 @@ async function run(test) {
     null,
     null,
   ];
+  let resolveLoss;
+  const pendingLoss = new Promise((resolve) => { resolveLoss = resolve; });
   const device = {
     limits: {
       maxStorageTexturesPerShaderStage: 8,
@@ -78,7 +87,8 @@ async function run(test) {
       maxComputeInvocationsPerWorkgroup: 256,
       maxComputeWorkgroupSizeX: 256,
     },
-    lost: new Promise(() => {}),
+    lost: test.lossBeforeEntry ?
+      Promise.resolve({ reason: test.lossBeforeEntry, message: "lost before entry" }) : pendingLoss,
     addEventListener() {},
     pushErrorScope() {},
     async popErrorScope() { return popErrors.shift() ?? null; },
@@ -134,11 +144,41 @@ async function run(test) {
          `${test.name}: wrong surface cleanup`);
   assert(rejectedBackbufferDestroys === (test.backbufferError ? 1 : 0),
          `${test.name}: rejected backbuffer was not discarded`);
+  const initialLossSignal = moduleState.preinitializedWebGPUDeviceLoss;
+  assert(Boolean(initialLossSignal) === test.device,
+         `${test.name}: wrong device-loss signal publication`);
+  if (test.device) {
+    assert((initialLossSignal.generation >>> 0) === 1,
+           `${test.name}: wrong initial device-loss generation`);
+    if (test.staleLoss) {
+      moduleState.preinitializedWebGPUDeviceLoss = {
+        generation: 2,
+        status: 0,
+        reason: "",
+        message: "",
+      };
+    }
+    if (test.lossAfterEntry) {
+      resolveLoss({ reason: test.lossAfterEntry, message: "lost after entry" });
+      await Promise.resolve();
+    }
+    const finalLossSignal = moduleState.preinitializedWebGPUDeviceLoss;
+    assert((finalLossSignal.status | 0) === (test.lossStatus || 0),
+           `${test.name}: wrong final device-loss status`);
+    assert((finalLossSignal.generation >>> 0) === (test.staleLoss ? 2 : 1),
+           `${test.name}: stale device-loss callback changed the current generation`);
+    if (test.lossAfterEntry && !test.staleLoss) {
+      assert(finalLossSignal.reason === test.lossAfterEntry &&
+               finalLossSignal.message === "lost after entry",
+             `${test.name}: device-loss detail was not retained`);
+    }
+  }
   assert(logs.length > 0, `${test.name}: expected a diagnostic`);
 }
 
 for (const test of cases) {
   await run(test);
 }
-console.log("CONTRACT ghost_preinit_worker PASS cases=7 statuses=0,1,2,3,4,5 " +
-            "partial=unpublished device_only=preserved entry=once");
+console.log("CONTRACT ghost_preinit_worker PASS cases=11 statuses=0,1,2,3,4,5 " +
+            "partial=unpublished device_only=preserved loss=pending,unknown,destroyed " +
+            "stale=ignored preentry=unpublished entry=once");

@@ -836,3 +836,21 @@ actually scheduled so the synchronous GHOST boundary does not manufacture succes
 acquisition that never began. Exercise every status with both valid and malformed texture presence
 on native and wasm32. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 58 — imported browser devices need an owned terminal-loss signal
+
+Signature: a browser worker creates a native `GPUDevice`, emdawnwebgpu later imports it into C++,
+and presentation relies on surface status plus handle truthiness after the device has been lost.
+The port explicitly rejects `GetLostFuture()` on an imported device, while Dawn may retain non-null
+error objects after loss; logging `device.lost` therefore does not give the GHOST context a usable
+terminal state. In the device-creation realm, publish a monotonic generation-bound loss record
+before publishing the device and update it from the browser promise only if that exact record is
+still current. Sample the record before acquire or present work, treat missing/replaced/settled
+records as terminal, disable outstanding callbacks, and clear every context-owned GPU handle once.
+For devices created through the C++ fallback, install the descriptor callback at creation and let
+it capture only shared atomic state, never the context pointer. Exercise pre-entry and post-entry
+loss, stale promise order, sticky terminal state, and callback lifetime on native and wasm32; a
+real forced-loss software-Dawn control may prove non-null error-object behavior but remains a
+non-receipt. See `platform_web/shell/wgpu-preinit-worker.js`,
+`platform_web/ghost/GHOST_WGPUTransaction.hh`, and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

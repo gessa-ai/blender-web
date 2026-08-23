@@ -9,9 +9,11 @@
  * replay. */
 
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <unordered_set>
 
 #ifndef BW_WGPU_PIPELINE_SOURCE
@@ -2474,6 +2476,107 @@ bool ghost_surface_acquisition_status_contract()
   return true;
 }
 
+bool ghost_device_loss_state_contract()
+{
+  struct Case {
+    gw::DeviceState current;
+    uint32_t bound_generation;
+    uint32_t observed_generation;
+    gw::ImportedDeviceLossStatus status;
+    gw::DeviceState expected;
+  };
+  constexpr std::array<Case, 7> cases = {{
+      {gw::DeviceState::Active,
+       7,
+       7,
+       gw::ImportedDeviceLossStatus::Pending,
+       gw::DeviceState::Active},
+      {gw::DeviceState::Active,
+       7,
+       7,
+       gw::ImportedDeviceLossStatus::Unknown,
+       gw::DeviceState::Lost},
+      {gw::DeviceState::Active,
+       7,
+       7,
+       gw::ImportedDeviceLossStatus::Destroyed,
+       gw::DeviceState::Lost},
+      {gw::DeviceState::Active,
+       7,
+       8,
+       gw::ImportedDeviceLossStatus::Pending,
+       gw::DeviceState::Lost},
+      {gw::DeviceState::Active,
+       7,
+       0,
+       gw::ImportedDeviceLossStatus::Pending,
+       gw::DeviceState::Lost},
+      {gw::DeviceState::Active,
+       0,
+       0,
+       gw::ImportedDeviceLossStatus::Pending,
+       gw::DeviceState::Lost},
+      {gw::DeviceState::Lost,
+       7,
+       7,
+       gw::ImportedDeviceLossStatus::Pending,
+       gw::DeviceState::Lost},
+  }};
+
+  size_t lost = 0;
+  for (const Case &test : cases) {
+    const gw::DeviceState result = gw::device_state_after_loss_signal(test.current,
+                                                                      test.bound_generation,
+                                                                      test.observed_generation,
+                                                                      test.status);
+    if (!require(result == test.expected, "GHOST device-loss transition")) {
+      return false;
+    }
+    lost += result == gw::DeviceState::Lost ? 1 : 0;
+  }
+
+  if (!require(lost == 6, "GHOST device-loss transition census") ||
+      !require(gw::device_state_allows_work(gw::DeviceState::Active),
+               "GHOST active device permits work") ||
+      !require(!gw::device_state_allows_work(gw::DeviceState::Lost),
+               "GHOST lost device blocks work") ||
+      !require(gw::surface_acquire_can_present(
+                   gw::surface_acquire_action(gw::SurfaceAcquireStatus::SuccessOptimal, true)) &&
+                   !gw::device_state_allows_work(gw::DeviceState::Lost),
+               "GHOST device loss overrides apparently successful surface acquisition"))
+  {
+    return false;
+  }
+
+  std::weak_ptr<std::atomic<gw::DeviceState>> weak_state;
+  std::function<void()> delayed_loss;
+  {
+    auto callback_state = std::make_shared<std::atomic<gw::DeviceState>>(gw::DeviceState::Active);
+    weak_state = callback_state;
+    delayed_loss = [callback_state]() { gw::device_state_mark_lost(*callback_state); };
+  }
+  if (!require(!weak_state.expired(), "GHOST loss callback retains only shared terminal state")) {
+    return false;
+  }
+  delayed_loss();
+  auto callback_state = weak_state.lock();
+  if (!require(callback_state != nullptr &&
+                   callback_state->load(std::memory_order_acquire) == gw::DeviceState::Lost,
+               "GHOST delayed loss callback marks terminal state after owner lifetime"))
+  {
+    return false;
+  }
+  callback_state.reset();
+  delayed_loss = nullptr;
+  if (!require(weak_state.expired(), "GHOST loss callback releases shared state after delivery")) {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_device_loss_state PASS cases=13 transitions=7 lost=6 work=3 "
+            "generation=bound terminal=sticky callback=lifetime_safe");
+  return true;
+}
+
 class GhostHandleProbe {
  public:
   GhostHandleProbe() = default;
@@ -3326,6 +3429,7 @@ int main()
       !ghost_window_publication_transaction_contract() ||
       !ghost_surface_publication_status_contract() ||
       !ghost_surface_acquisition_status_contract() ||
+      !ghost_device_loss_state_contract() ||
       !ghost_present_resource_transaction_contract() ||
       !ghost_resize_coherence_contract() ||
       !format_32bit_contract() ||
@@ -3335,11 +3439,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=33 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=34 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
-      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

@@ -92,6 +92,18 @@ EM_JS(int, ghost_web_preinit_presentation_status, (), {
              0;
 });
 
+EM_JS(uint32_t, ghost_web_preinit_device_loss_generation, (), {
+  var signal = (typeof Module !== "undefined") ?
+    Module["preinitializedWebGPUDeviceLoss"] : null;
+  return signal ? signal["generation"] >>> 0 : 0;
+});
+
+EM_JS(int, ghost_web_preinit_device_loss_status, (), {
+  var signal = (typeof Module !== "undefined") ?
+    Module["preinitializedWebGPUDeviceLoss"] : null;
+  return signal ? signal["status"] | 0 : 0;
+});
+
 EM_JS(int, ghost_web_preinit_surface_width, (), {
   return (typeof Module !== "undefined" && Module["preinitializedWebGPUSurfaceWidth"]) ?
              Module["preinitializedWebGPUSurfaceWidth"] | 0 :
@@ -224,7 +236,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
   /* If a prior initAsync() already acquired the device (callback path, e.g. the
    * standalone harness), we are done. */
   if (ready_) {
-    return GHOST_kSuccess;
+    return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
   }
 
   /* Windowed (GHOST) path under ADR-006/ADR-007. This runs straight-line on the
@@ -257,10 +269,17 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
     return GHOST_kFailure;
   }
   device_ = wgpu::Device::Acquire(raw_device);
-  /* NB: the uncaptured-error callback can only be set via DeviceDescriptor at device
-   * creation; an imported device inherits the one set where it was created (none here),
-   * so Dawn logs uncaptured errors to the browser console instead. */
+  /* emdawnwebgpu explicitly rejects GetLostFuture() on imported devices. The pre-main
+   * worker therefore owns the browser-native `device.lost` promise and publishes a
+   * generation-bound monotonic signal beside the device before this import. */
+  imported_device_loss_signal_required_ = true;
+  imported_device_loss_generation_ = ghost_web_preinit_device_loss_generation();
   queue_ = device_.GetQueue();
+  if (!deviceIsUsable()) {
+    std::printf("WGPUWeb: imported device has no active owned loss signal\n");
+    completeInitialization(false);
+    return GHOST_kFailure;
+  }
 
   const auto presentation_status = static_cast<ghost_web::PreinitializedPresentationStatus>(
       ghost_web_preinit_presentation_status());
@@ -316,7 +335,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
 {
-  return GHOST_kSuccess;
+  return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
@@ -328,6 +347,9 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
    * event-loop yield. Because acquire+copy+submit all happen in-tick and nothing else
    * ever references the surface, the per-frame "Destroyed texture … WebgpuSwapChainTexture
    * used in a submit" family (725x/boot pre-M4.T21) cannot occur. */
+  if (!deviceIsUsable()) {
+    return GHOST_kFailure;
+  }
   if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
     return GHOST_kSuccess;
   }
@@ -336,7 +358,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()
 {
-  return GHOST_kSuccess;
+  return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::releaseDrawingContext()
@@ -383,6 +405,14 @@ void GHOST_ContextWGPUWeb::requestAdapter()
 void GHOST_ContextWGPUWeb::requestDevice()
 {
   wgpu::DeviceDescriptor desc = {};
+  const std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state = device_state_;
+  desc.SetDeviceLostCallback(
+      wgpu::CallbackMode::AllowSpontaneous,
+      [device_state](const wgpu::Device & /*device*/,
+                     wgpu::DeviceLostReason /*reason*/,
+                     wgpu::StringView /*message*/) {
+        ghost_web::device_state_mark_lost(*device_state);
+      });
   desc.SetUncapturedErrorCallback(
       [](const wgpu::Device & /*d*/, wgpu::ErrorType type, wgpu::StringView msg) {
         std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
@@ -399,6 +429,10 @@ void GHOST_ContextWGPUWeb::requestDevice()
         }
         device_ = std::move(d);
         queue_ = device_.GetQueue();
+        if (!deviceIsUsable()) {
+          completeInitialization(false);
+          return;
+        }
         if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
           completeInitialization(true);
         }
@@ -420,8 +454,61 @@ void GHOST_ContextWGPUWeb::completeInitialization(const bool success)
   }
 }
 
+bool GHOST_ContextWGPUWeb::deviceIsUsable()
+{
+  ghost_web::DeviceState state = device_state_->load(std::memory_order_acquire);
+  if (state == ghost_web::DeviceState::Active && imported_device_loss_signal_required_) {
+    const uint32_t observed_generation = ghost_web_preinit_device_loss_generation();
+    const int raw_status = ghost_web_preinit_device_loss_status();
+    const ghost_web::ImportedDeviceLossStatus status =
+        raw_status == int(ghost_web::ImportedDeviceLossStatus::Pending) ?
+            ghost_web::ImportedDeviceLossStatus::Pending :
+        raw_status == int(ghost_web::ImportedDeviceLossStatus::Destroyed) ?
+            ghost_web::ImportedDeviceLossStatus::Destroyed :
+            ghost_web::ImportedDeviceLossStatus::Unknown;
+    state = ghost_web::device_state_after_loss_signal(state,
+                                                       imported_device_loss_generation_,
+                                                       observed_generation,
+                                                       status);
+    if (state == ghost_web::DeviceState::Lost) {
+      ghost_web::device_state_mark_lost(*device_state_);
+    }
+  }
+  if (!ghost_web::device_state_allows_work(state)) {
+    propagateDeviceLoss();
+    return false;
+  }
+  return device_ != nullptr;
+}
+
+void GHOST_ContextWGPUWeb::propagateDeviceLoss()
+{
+  if (device_loss_propagated_) {
+    return;
+  }
+  device_loss_propagated_ = true;
+  ghost_web::device_state_mark_lost(*device_state_);
+  callback_lifetime_->store(false, std::memory_order_release);
+  ready_ = false;
+  configured_ = false;
+  backbuffer_pending_ = false;
+  present_pipeline_pending_ = false;
+  present_pending_ = false;
+  present_pipeline_ = nullptr;
+  present_bgl_ = nullptr;
+  backbuffer_ = nullptr;
+  surface_ = nullptr;
+  queue_ = nullptr;
+  device_ = nullptr;
+  std::printf("WGPUWeb: terminal device loss propagated; context disabled\n");
+}
+
 void GHOST_ContextWGPUWeb::finishSetup()
 {
+  if (!deviceIsUsable()) {
+    completeInitialization(false);
+    return;
+  }
   if (!ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
     std::printf("WGPUWeb: canvas '%s' is not resolvable for a presentable context\n",
                 canvas_selector_.c_str());
@@ -462,6 +549,9 @@ void GHOST_ContextWGPUWeb::finishSetup()
 
 void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
 {
+  if (!deviceIsUsable()) {
+    return;
+  }
   if (surface_ == nullptr || device_ == nullptr) {
     return;
   }
@@ -495,6 +585,9 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
 
 void GHOST_ContextWGPUWeb::ensureBackbuffer()
 {
+  if (!deviceIsUsable()) {
+    return;
+  }
   if (device_ == nullptr ||
       !ghost_web::surface_resize_candidate_needed(configured_,
                                                    width_,
@@ -621,6 +714,9 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
 
 void GHOST_ContextWGPUWeb::ensurePresentPipeline()
 {
+  if (!deviceIsUsable()) {
+    return;
+  }
   if (present_pipeline_ != nullptr || present_pipeline_pending_) {
     return;
   }
@@ -708,7 +804,7 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
 
 bool GHOST_ContextWGPUWeb::presentBackbuffer()
 {
-  if (surface_ == nullptr || device_ == nullptr || present_pending_) {
+  if (!deviceIsUsable() || surface_ == nullptr || present_pending_) {
     return false;
   }
 

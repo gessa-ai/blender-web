@@ -10,6 +10,7 @@
  */
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -176,7 +177,14 @@ int main()
             << "\" type=" << static_cast<int>(adapter_info.adapterType)
             << " SOFTWARE_CONTROL_NON_RECEIPT\n";
 
+  auto loss_state =
+      std::make_shared<std::atomic<ghost_web::DeviceState>>(ghost_web::DeviceState::Active);
   wgpu::DeviceDescriptor device_descriptor = {};
+  device_descriptor.SetDeviceLostCallback(
+      wgpu::CallbackMode::WaitAnyOnly,
+      [loss_state](const wgpu::Device &,
+                   wgpu::DeviceLostReason,
+                   wgpu::StringView) { ghost_web::device_state_mark_lost(*loss_state); });
   wgpu::Device device;
   instance.WaitAny(
       adapter.RequestDevice(
@@ -1232,6 +1240,37 @@ int main()
     return 40;
   }
 
+  /* Dawn keeps returning non-null error objects after ForceLoss; the callback-owned
+   * terminal state must therefore override an apparently presentable texture/status pair. */
+  const wgpu::Future loss_future = device.GetLostFuture();
+  device.ForceLoss(wgpu::DeviceLostReason::Unknown, "blender-web device-loss control");
+  if (!require(instance.WaitAny(loss_future, UINT64_MAX) == wgpu::WaitStatus::Success &&
+                   loss_state->load(std::memory_order_acquire) == ghost_web::DeviceState::Lost,
+               "owned device-loss callback did not publish terminal state"))
+  {
+    return 42;
+  }
+
+  wgpu::TextureDescriptor lost_texture_descriptor = {};
+  lost_texture_descriptor.size = {1, 1, 1};
+  lost_texture_descriptor.dimension = wgpu::TextureDimension::e2D;
+  lost_texture_descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+  lost_texture_descriptor.mipLevelCount = 1;
+  lost_texture_descriptor.sampleCount = 1;
+  lost_texture_descriptor.usage = wgpu::TextureUsage::RenderAttachment;
+  const wgpu::Texture lost_texture = device.CreateTexture(&lost_texture_descriptor);
+  const ghost_web::SurfaceAcquireAction apparent_surface_action =
+      ghost_web::surface_acquire_action(ghost_web::SurfaceAcquireStatus::SuccessOptimal,
+                                        lost_texture != nullptr);
+  if (!require(lost_texture != nullptr &&
+                   ghost_web::surface_acquire_can_present(apparent_surface_action) &&
+                   !ghost_web::device_state_allows_work(
+                       loss_state->load(std::memory_order_acquire)),
+               "terminal device state did not override a non-null error texture"))
+  {
+    return 42;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " scoped_resize_cases=" << resize_cases
@@ -1258,6 +1297,7 @@ int main()
             << render_pipeline_cases
             << " render_pipeline_error_object_rejected=1 scoped_compute_pipeline_cases="
             << compute_pipeline_cases
-            << " compute_pipeline_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " compute_pipeline_error_object_rejected=1 device_loss_callback_cases=2"
+            << " device_loss_error_texture_blocked=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

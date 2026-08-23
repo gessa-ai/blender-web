@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
@@ -14,6 +15,47 @@ enum class DrawingContextMode {
   PresentableWindow,
   DeviceOnly,
 };
+
+/** Terminal state shared by callbacks without retaining a GHOST context pointer. */
+enum class DeviceState : uint8_t {
+  Active,
+  Lost,
+};
+
+/** Browser-native `GPUDevice.lost` state exported by the pre-main worker. */
+enum class ImportedDeviceLossStatus : uint8_t {
+  Pending = 0,
+  Unknown = 1,
+  Destroyed = 2,
+};
+
+/** A context may use only the exact still-pending signal bound to its imported device. */
+inline DeviceState device_state_after_loss_signal(const DeviceState current,
+                                                  const uint32_t bound_generation,
+                                                  const uint32_t observed_generation,
+                                                  const ImportedDeviceLossStatus status)
+{
+  if (current == DeviceState::Lost) {
+    return DeviceState::Lost;
+  }
+  if (bound_generation == 0 || observed_generation != bound_generation ||
+      status != ImportedDeviceLossStatus::Pending)
+  {
+    return DeviceState::Lost;
+  }
+  return DeviceState::Active;
+}
+
+/** Callback-safe terminal transition; loss is monotonic and cannot be retried in-place. */
+inline void device_state_mark_lost(std::atomic<DeviceState> &state)
+{
+  state.store(DeviceState::Lost, std::memory_order_release);
+}
+
+inline bool device_state_allows_work(const DeviceState state)
+{
+  return state == DeviceState::Active;
+}
 
 /** Exact pre-main browser presentation stage observed by synchronous GHOST setup. */
 enum class PreinitializedPresentationStatus : uint8_t {

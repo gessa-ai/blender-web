@@ -1520,6 +1520,17 @@ for status in 1 2 3 4 5; do
 done
 require_fixed_count 1 'Module["preinitializedWebGPUSurface"] = surface;' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'Module["preinitializedWebGPUBackbuffer"] = backbuffer;' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 \
+  'Module["preinitializedWebGPUDeviceLoss"] = deviceLossSignal;' \
+  "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'device.lost.then(function (info) {' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 \
+  'std::shared_ptr<std::atomic<ghost_web::DeviceState>> device_state_' \
+  "$GHOST_HEADER"
+require_fixed_count 1 'uint32_t imported_device_loss_generation_ = 0;' "$GHOST_HEADER"
+require_fixed_count 1 'desc.SetDeviceLostCallback(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::device_state_after_loss_signal(' "$GHOST_SOURCE"
+require_fixed_count 3 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
@@ -1557,10 +1568,14 @@ def method(marker: str) -> str:
 
 configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)")
 initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()")
+request_device = method("void GHOST_ContextWGPUWeb::requestDevice()")
 finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
 backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
 pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
 swap_release = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()")
+swap_acquire = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()")
+device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
+propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 
 for needle in ("requested_width_ = w;", "requested_height_ = h;", "ensureBackbuffer();"):
@@ -1649,7 +1664,31 @@ for needle in (
         raise SystemExit(f"ERROR: surface acquisition failure lacks one exact propagation boundary: {needle}")
 if swap_release.count("return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;") != 1:
     raise SystemExit("ERROR: GHOST swap status does not propagate the immediate present result")
+if swap_acquire.count("deviceIsUsable()") != 1 or swap_release.count("deviceIsUsable()") != 1:
+    raise SystemExit("ERROR: GHOST swap boundaries do not propagate terminal device state")
+for needle in (
+    "ghost_web_preinit_device_loss_generation()",
+    "ghost_web_preinit_device_loss_status()",
+    "ghost_web::device_state_after_loss_signal(",
+    "propagateDeviceLoss();",
+):
+    if device_usable.count(needle) != 1:
+        raise SystemExit(f"ERROR: imported device loss lacks one exact owned-state boundary: {needle}")
+loss_callback = request_device[
+    request_device.index("desc.SetDeviceLostCallback("):
+    request_device.index("desc.SetUncapturedErrorCallback(")
+]
+if "[device_state]" not in loss_callback or "this" in loss_callback:
+    raise SystemExit("ERROR: fallback device-loss callback retains the GHOST context")
+for needle in (
+    "callback_lifetime_->store(false, std::memory_order_release);",
+    "ready_ = false;",
+    "device_ = nullptr;",
+):
+    if propagate_loss.count(needle) != 1:
+        raise SystemExit(f"ERROR: terminal device-loss propagation lacks one exact boundary: {needle}")
 resize_positions = [
+    present.index("deviceIsUsable()"),
     present.index("ensureBackbuffer();"),
     present.index("surface_.GetCurrentTexture(&st);"),
     present.index("ghost_web::surface_resize_present_coherent("),
@@ -1704,7 +1743,7 @@ mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 "$NODE" "$WGPU_PREINIT_TEST" "$WGPU_PREINIT_SOURCE" >"$OUT/preinit-worker.txt"
 if ! grep -qx \
-  'CONTRACT ghost_preinit_worker PASS cases=7 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved entry=once' \
+  'CONTRACT ghost_preinit_worker PASS cases=11 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved loss=pending,unknown,destroyed stale=ignored preentry=unpublished entry=once' \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker preinit transaction evidence differs" >&2
@@ -1749,7 +1788,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 34 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 35 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1819,6 +1858,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_surface_acquisition_status PASS cases=12 optimal=1 suboptimal=1 retry=2 reconfigure=6 recreate=2 failure=propagated' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_device_loss_state PASS cases=13 transitions=7 lost=6 work=3 generation=bound terminal=sticky callback=lifetime_safe' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
@@ -1834,7 +1876,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=33 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=34 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

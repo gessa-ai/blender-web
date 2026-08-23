@@ -153,6 +153,16 @@ only for optimal or suboptimal success, retries a timeout without poisoning the 
 reconfigures outdated/error or malformed-success results, and recreates a lost surface. The
 synchronous GHOST swap result reports whether this frame actually reached the asynchronous
 validation transaction instead of manufacturing success for an acquisition that never started.
+Device loss is stronger than that surface result. The pre-main worker now owns the imported
+browser device's `lost` promise in its creation realm and publishes a generation-bound terminal
+record before the device; a stale promise cannot overwrite a replacement record. GHOST samples
+that exact record before swap, surface acquisition, or present encoding, disables outstanding
+callbacks, and clears its handles on the first terminal observation. The fallback C++ acquisition
+path installs a descriptor callback that captures only shared atomic state. Eleven pinned-Node
+cases cover pending, pre-entry, post-entry unknown/destroyed, and stale loss order; a 13-case
+native/wasm32 contract covers generation binding, sticky state, apparently successful surface
+status override, and callback lifetime. Pinned Dawn's software control additionally forces a real
+loss and proves a non-null post-loss error texture is blocked, without creating a receipt.
 The Blender GPU backend now applies that completed-scope rule to every short-lived command and
 direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can
 yield, so a delayed submission cannot move behind a later `WriteBuffer` or `WriteTexture` call.
@@ -184,7 +194,7 @@ byte-identical.
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline,
 16/20-byte indirect draw-range, viewport/scissor, and direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching native/Wasm fmt headers, Blender's canonical clean-pin replay,
-and 27 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert/presentation source inputs before
+and 31 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert/presentation source inputs before
 evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish

@@ -136,6 +136,42 @@
             requiredFeatures: requiredFeatures,
             requiredLimits: requiredLimits,
           });
+          // Imported emdawnwebgpu devices cannot use wgpuDeviceGetLostFuture (the port
+          // rejects that call). Own the browser-native promise here, before publication,
+          // and bind it to one monotonically numbered device record. The promise callback
+          // retains no C++ pointer and a stale device cannot poison a newer record.
+          var priorLossGeneration = Module["preinitializedWebGPUDeviceLossGeneration"] >>> 0;
+          var deviceLossGeneration = (priorLossGeneration + 1) >>> 0;
+          if (!deviceLossGeneration) {
+            deviceLossGeneration = 1;
+          }
+          Module["preinitializedWebGPUDeviceLossGeneration"] = deviceLossGeneration;
+          var deviceLossSignal = {
+            "generation": deviceLossGeneration,
+            "status": 0,
+            "reason": "",
+            "message": "",
+          };
+          Module["preinitializedWebGPUDeviceLoss"] = deviceLossSignal;
+          device.lost.then(function (info) {
+            if (Module["preinitializedWebGPUDeviceLoss"] !== deviceLossSignal ||
+                (deviceLossSignal["status"] | 0) !== 0) {
+              return;
+            }
+            var reason = info && info.reason ? String(info.reason) : "unknown";
+            var message = info && info.message ? String(info.message) : "";
+            deviceLossSignal["status"] = reason === "destroyed" ? 2 : 1;
+            deviceLossSignal["reason"] = reason;
+            deviceLossSignal["message"] = message;
+            log("[bw][GPU-LOST] reason=" + reason + " " + message);
+          });
+          var requireDeviceActive = function (stage) {
+            if (Module["preinitializedWebGPUDeviceLoss"] !== deviceLossSignal ||
+                (deviceLossSignal["status"] | 0) !== 0) {
+              throw new Error("WebGPU device lost during " + stage);
+            }
+          };
+
           // VISIBILITY (M4.T18, r21): route the WM-worker device's uncaptured
           // validation/OOM errors to the PAGE console. This worker owns all GPU work, but
           // its console.error is NOT proxied to the tab — only log() (Emscripten err() ->
@@ -149,10 +185,6 @@
               var nm = (er && er.constructor && er.constructor.name) ? er.constructor.name
                                                                      : "GPUError";
               log("[bw][GPU-ERROR] " + nm + ": " + (er && er.message ? er.message : er));
-            });
-            device.lost.then(function (info) {
-              log("[bw][GPU-LOST] reason=" + (info && info.reason) + " " +
-                  (info && info.message ? info.message : ""));
             });
           }
           catch (e) {}
@@ -209,6 +241,7 @@
               });
               return surface.getCurrentTexture();
             });
+            requireDeviceActive("initial surface configuration");
 
             Module["preinitializedWebGPUPresentationStatus"] = 4;
             backbuffer = await validateScoped(
@@ -226,6 +259,7 @@
                 });
               },
               function (candidate) { if (candidate) { candidate.destroy(); } });
+            requireDeviceActive("initial backbuffer creation");
             if (!backbuffer) {
               throw new Error("initial backbuffer creation returned null");
             }

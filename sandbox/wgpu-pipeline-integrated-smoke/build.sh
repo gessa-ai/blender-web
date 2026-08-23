@@ -6,7 +6,8 @@
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
 # cache publication, color-blit/indexed-fan resource guards, buffer/storage/context-render/
-# framebuffer-scissored-clear/batch/immediate-draw command transactions, dummy-attribute binding
+# framebuffer full/scissored-clear, batch, and immediate-draw command transactions,
+# dummy-attribute binding
 # plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
@@ -319,6 +320,9 @@ PY
 require_fixed_count 2 \
   'return webgpu::command_pass_encode_submit_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 2 \
+  'if (!webgpu::command_pass_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_framebuffer.cc" <<'PY'
 from pathlib import Path
 import sys
@@ -382,6 +386,27 @@ for marker, pass_body in transactions:
     positions = [body.find(needle, helper_offset) for needle in pass_body]
     if any(position < 0 for position in positions) or positions != sorted(positions):
         raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
+
+full_clear_transactions = (
+    "void WGPUFrameBuffer::submit_clear(",
+    "void WGPUFrameBuffer::clear_attachment_full(",
+)
+
+for marker in full_clear_transactions:
+    body = method_body(marker)
+    helper = "if (!webgpu::command_pass_encode_submit_if_valid("
+    begin_pass = "[&](auto &encoder) { return encoder.BeginRenderPass(&rp); }"
+    empty_pass_body = "[](auto & /*pass*/) {}"
+    if body.count(helper) != 1 or body.count(begin_pass) != 1 or body.count(empty_pass_body) != 1:
+        raise SystemExit(f"ERROR: {marker} does not contain one checked full-clear transaction")
+    forbidden = (
+        "CreateCommandEncoder()",
+        ".Finish()",
+        ".Submit(1,",
+        ".End();",
+    )
+    if any(needle in body for needle in forbidden):
+        raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \

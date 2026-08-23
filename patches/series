@@ -959,3 +959,6 @@
 # 0218: route scissored framebuffer color and depth/stencil clears through the
 # checked encoder, render-pass, finish, and submission transaction.
 0218-gpu-webgpu-framebuffer-scissored-command-transaction.patch
+# 0219: route full framebuffer clears through the checked encoder, render-pass,
+# finish, and submission transaction.
+0219-gpu-webgpu-framebuffer-full-clear-command-transaction.patch

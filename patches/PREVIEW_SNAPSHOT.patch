@@ -21894,10 +21894,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8af7f80fbe46c0b1310061bac76704cfe4758619
+index 0000000000000000000000000000000000000000..729cc7b708927ca2b060da1bd06c35c6f8694025
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1637 @@
+@@ -0,0 +1,1643 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -22640,11 +22640,14 @@ index 0000000000000000000000000000000000000000..8af7f80fbe46c0b1310061bac76704cf
 +    if (color_atts.empty() && !has_depth) {
 +      return;
 +    }
-+    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+    wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
-+    pass.End();
-+    wgpu::CommandBuffer cb = enc.Finish();
-+    ctx->queue_get().Submit(1, &cb);
++    if (!webgpu::command_pass_encode_submit_if_valid(
++            device,
++            ctx->queue_get(),
++            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
++            [](auto & /*pass*/) {}))
++    {
++      return;
++    }
 +  }
 +}
 +
@@ -22796,11 +22799,14 @@ index 0000000000000000000000000000000000000000..8af7f80fbe46c0b1310061bac76704cf
 +    wgpu::RenderPassDescriptor rp = {};
 +    rp.colorAttachmentCount = 1;
 +    rp.colorAttachments = &ca;
-+    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+    wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
-+    pass.End();
-+    wgpu::CommandBuffer cb = enc.Finish();
-+    ctx->queue_get().Submit(1, &cb);
++    if (!webgpu::command_pass_encode_submit_if_valid(
++            device,
++            ctx->queue_get(),
++            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
++            [](auto & /*pass*/) {}))
++    {
++      return;
++    }
 +  }
 +}
 +

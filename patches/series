@@ -974,3 +974,6 @@
 # 0223: preserve the per-mip texture-copy loop inside one checked encoder,
 # finish, and submission transaction.
 0223-gpu-webgpu-texture-copy-command-transaction.patch
+# 0224: reject failed transient bind groups before compute, batch, or immediate
+# pass work and publish only a valid handle.
+0224-gpu-webgpu-bind-group-resource-transaction.patch

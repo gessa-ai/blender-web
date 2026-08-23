@@ -12,6 +12,8 @@ the two-case transient uniform-buffer allocation transaction shared by
 multi-viewport emulation and cross-format color blits,
 the fail-first/retry transactions shared by sampler/render-pipeline caches and the
 per-shader compute-pipeline variant cache,
+the atomic transient-handle publication shared by compute, direct/indirect batch, and
+immediate bind-group builders,
 16 direct-draw decisions, 28 multi-viewport/scissor decisions, 32 bottom-origin
 window-backbuffer decisions, 21 ordinary offscreen viewport/scissor decisions, and
 19 exact indirect-draw span decisions. Direct draws
@@ -56,6 +58,10 @@ cache so the same key can retry and publish a later valid handle. The source gua
 binds that transaction to every context and process-wide pipeline cache site.
 The same rule applies to each specialization-keyed compute pipeline: a transient null
 creation result must not become a retained variant that suppresses every later retry.
+Every non-empty compute or draw bind-group assembly likewise rejects a null group before
+command/pass work, preserves the caller's prior handle on failure, and publishes only a valid
+candidate. Exact source-order checks bind the tested transaction to both compute dispatches,
+all four direct/indirect ordinary/multi-viewport batch paths, and immediate draws.
 Window-backbuffer rectangles preserve that same raster transform while converting
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; a legal

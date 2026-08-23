@@ -552,3 +552,14 @@ pass before invoking its body, end only a valid pass, validate `Finish()` before
 submit exactly once only on success. Exercise deterministic failure at every handle boundary and
 exact successful ordering with device-free native/wasm32 probes, then bind every duplicated
 shipping caller to that transaction. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 38 — a sanitizing resource builder is still a fallible factory
+
+Signature: a shared bind-group builder filters null inputs before calling WebGPU, but its callers
+assume the returned bind group is valid and pass it directly into compute, batch, or immediate
+pass work. Input sanitation prevents a JavaScript-marshalling failure; it does not make the final
+resource allocation infallible. Publish the transient candidate only after a non-null result, and
+abort before the first dependent pass operation on failure. If an empty resource list is valid,
+keep that state distinct from a required group whose creation failed. Census every caller of the
+shared builder, exercise atomic failure/success on native and wasm32, and bind each caller to the
+tested transaction with exact source-order checks. See `sandbox/wgpu-pipeline-integrated-smoke/`.

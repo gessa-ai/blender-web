@@ -161,6 +161,28 @@ class CacheHandleProbe {
   int identity_ = 0;
 };
 
+bool transient_handle_publication_contract()
+{
+  CacheHandleProbe output(31);
+  if (!require(!bw::transient_handle_publish_if_valid(CacheHandleProbe(), output),
+               "null transient handle is rejected") ||
+      !require(output.identity() == 31, "failed transient publication preserves output"))
+  {
+    return false;
+  }
+
+  if (!require(bw::transient_handle_publish_if_valid(CacheHandleProbe(73), output),
+               "valid transient handle is accepted") ||
+      !require(output.identity() == 73, "valid transient handle is published"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published");
+  return true;
+}
+
 bool cache_handle_publication_contract()
 {
   std::unordered_map<uint32_t, CacheHandleProbe> cache;
@@ -1627,6 +1649,7 @@ int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
+      !transient_handle_publication_contract() ||
       !cache_handle_publication_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
@@ -1642,11 +1665,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=19 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=20 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 "
-      "dummy=32 cache_publications=2 "
+      "dummy=32 transient_publications=2 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

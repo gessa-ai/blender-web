@@ -1632,6 +1632,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   regression are verified. Live readback/pixel proof remains blocked by no conformant hardware
   Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn). See
   `notes/m3-t6-t9-readback-command-transaction-20260822.md`.
+- [x] **M3.T8-COMPUTE-COMMAND-TRANSACTION [gpu-backend] (76227cc):** patch 0209 routes direct
+  and indirect compute dispatch through one checked encoder/pass/finish/submit transaction. The
+  fail-first source guard and four-case native/wasm32 contract prove every failed handle stops
+  before dependent work or submission. Canonical replay/reverse, the real product rebuild/no-work
+  check, OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live
+  compute dispatch and pixel proof remain blocked by no conformant hardware Vulkan ICD in WSL2
+  (NVIDIA ships none; Mesa dzn rejected by Dawn). See
+  `notes/m3-t8-compute-command-transaction-20260822.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

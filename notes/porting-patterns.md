@@ -541,3 +541,14 @@ with a specific terminal error, release every pinned backend handle, and install
 Exercise encoder failure, finished-buffer failure, and exact successful ordering with a
 device-free native/wasm32 seam, then bind every texture and buffer kick to it. See
 `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 37 — pass creation is part of the command submission transaction
+
+Signature: a compute or render path validates its pipeline, then assumes command-encoder,
+pass-encoder, and finished-command-buffer creation all succeed. A null encoder is dereferenced, a
+null pass receives dependent work, or a null finished buffer reaches queue submission. Treat the
+complete sequence as one transaction: validate the encoder before beginning a pass, validate the
+pass before invoking its body, end only a valid pass, validate `Finish()` before submission, and
+submit exactly once only on success. Exercise deterministic failure at every handle boundary and
+exact successful ordering with device-free native/wasm32 probes, then bind every duplicated
+shipping caller to that transaction. See `sandbox/wgpu-pipeline-integrated-smoke/`.

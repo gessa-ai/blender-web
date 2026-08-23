@@ -794,12 +794,14 @@ int main()
               [&](const uint32_t,
                   const size_t offset,
                   const void *data,
-                  const size_t size) {
+                  const size_t size,
+                  std::function<void(bool)> complete) {
                 persistent_payload_exact =
                     offset == 0 && size == pending_sentinel.size() &&
                     std::memcmp(data, pending_sentinel.data(), pending_sentinel.size()) == 0;
                 device.GetQueue().WriteBuffer(accepted.handle, offset, data, size);
                 persistent_payload_writes++;
+                complete(true);
                 return true;
               });
         }
@@ -840,12 +842,14 @@ int main()
               [&](const uint32_t,
                   const size_t offset,
                   const void *data,
-                  const size_t size) {
+                  const size_t size,
+                  std::function<void(bool)> complete) {
                 persistent_payload_exact =
                     offset == 0 && size == pending_sentinel.size() &&
                     std::memcmp(data, pending_sentinel.data(), pending_sentinel.size()) == 0;
                 device.GetQueue().WriteBuffer(accepted.handle, offset, data, size);
                 persistent_payload_writes++;
+                complete(true);
                 return true;
               });
         }
@@ -860,6 +864,61 @@ int main()
                "shipping scoped cache did not atomically publish a clean persistent retry"))
   {
     return 25;
+  }
+
+  bw::PendingBufferPayloadQueue<uint32_t> rejected_upload_payloads;
+  bw::BufferUpdateTransaction rejected_upload_transaction;
+  bw::OrderedQueueScheduler rejected_upload_scheduler;
+  int rejected_upload_attempts = 0;
+  if (!require(rejected_upload_payloads.begin(pending_sentinel.size()) &&
+                   rejected_upload_payloads.retain(11u,
+                                                   0,
+                                                   pending_sentinel.data(),
+                                                   pending_sentinel.size(),
+                                                   &rejected_upload_transaction),
+               "shipping upload transaction rejected its sentinel setup"))
+  {
+    return 26;
+  }
+  auto replay_upload = [&](const bool invalid_range) {
+    return rejected_upload_payloads.replay(
+        pending_sentinel.size(),
+        [&](const uint32_t,
+            const size_t offset,
+            const void *data,
+            const size_t size,
+            std::function<void(bool)> complete) {
+          rejected_upload_attempts++;
+          bw::queue_write_buffer_scoped(instance,
+                                        device,
+                                        device.GetQueue(),
+                                        rejected_upload_scheduler,
+                                        valid_persistent.handle,
+                                        invalid_range ? uint64_t(4) : uint64_t(offset),
+                                        data,
+                                        size,
+                                        invalid_range ? "audit invalid persistent upload" :
+                                                        "audit valid persistent upload",
+                                        std::move(complete));
+          return true;
+        });
+  };
+  if (!require(replay_upload(true) == 1 && rejected_upload_transaction.rejected() &&
+                   rejected_upload_payloads.size() == 1 &&
+                   rejected_upload_payloads.retryable() && rejected_upload_attempts == 1 &&
+                   rejected_upload_scheduler.pending_count() == 0,
+               "non-null buffer upload error did not retain its exact retry transaction"))
+  {
+    return 26;
+  }
+  rejected_upload_scheduler.begin_epoch();
+  if (!require(replay_upload(false) == 1 && rejected_upload_transaction.accepted() &&
+                   rejected_upload_payloads.size() == 0 &&
+                   !rejected_upload_payloads.retryable() && rejected_upload_attempts == 2 &&
+                   rejected_upload_scheduler.pending_count() == 0,
+               "clean buffer upload retry did not commit the retained transaction"))
+  {
+    return 26;
   }
 
   bw::OrderedQueueScheduler transient_buffer_scheduler;
@@ -1340,6 +1399,7 @@ int main()
             << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"
             << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
             << " persistent_buffer_error_object_rejected=1 persistent_payload_replayed=1"
+            << " upload_error_object_rejected=1 upload_retry_committed=1"
             << " scoped_transient_buffer_cases="
             << transient_buffer_cases
             << " transient_buffer_error_object_blocked=1 scoped_transient_bind_group_cases="

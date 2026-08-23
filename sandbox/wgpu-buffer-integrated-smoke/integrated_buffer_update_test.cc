@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <deque>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -48,6 +50,7 @@ struct BufferDescriptor {
 struct Trace {
   bool create_success = true;
   bool map_success = true;
+  bool defer_scopes = false;
   size_t create_calls = 0;
   size_t map_calls = 0;
   size_t unmap_calls = 0;
@@ -64,6 +67,7 @@ struct Trace {
   std::vector<uint8_t> mapped_bytes;
   std::vector<uint8_t> written_bytes;
   std::vector<Event> events;
+  std::deque<std::function<void(bool)>> scope_callbacks;
 };
 
 class Buffer {
@@ -175,9 +179,17 @@ class Device {
   template<typename Callback>
   int PopErrorScope(wgpu::CallbackMode /*mode*/, Callback &&callback) const
   {
-    std::forward<Callback>(callback)(wgpu::PopErrorScopeStatus::Success,
-                                     wgpu::ErrorType::NoError,
-                                     wgpu::StringView{});
+    auto settle = [callback = std::forward<Callback>(callback)](const bool valid) mutable {
+      callback(wgpu::PopErrorScopeStatus::Success,
+               valid ? wgpu::ErrorType::NoError : wgpu::ErrorType::Validation,
+               wgpu::StringView{});
+    };
+    if (trace_->defer_scopes) {
+      trace_->scope_callbacks.push_back(std::move(settle));
+    }
+    else {
+      settle(true);
+    }
     return 1;
   }
 
@@ -271,12 +283,29 @@ class BufferUpdateHarness {
                   const void *data,
                   size_t size);
 
+  bool update_sub(const update_mock::Instance &instance,
+                  const update_mock::Device &device,
+                  const update_mock::Queue &queue,
+                  OrderedQueueScheduler &scheduler,
+                  size_t offset,
+                  const void *data,
+                  size_t size,
+                  BufferUpdateTransaction &transaction);
+
+  size_t retry_pending_updates();
+
+  size_t pending_update_count() const
+  {
+    return pending_updates_->size();
+  }
+
  private:
   static bool update_allocation(PendingUpdateContext context,
                                 const Allocation &allocation,
                                 size_t offset,
                                 const void *data,
-                                size_t size);
+                                size_t size,
+                                std::function<void(bool)> complete);
 
   static constexpr uint8_t kAllocationKey = 0;
   AllocationCache allocation_cache_;
@@ -306,6 +335,22 @@ bool no_device_work(const update_mock::Trace &trace)
   return trace.create_calls == 0 && trace.map_calls == 0 && trace.unmap_calls == 0 &&
          trace.encoder_calls == 0 && trace.copy_calls == 0 && trace.finish_calls == 0 &&
          trace.write_calls == 0 && trace.submit_calls == 0;
+}
+
+bool settle_scope_batch(update_mock::Trace &trace, const bool valid)
+{
+  if (trace.scope_callbacks.size() < 3) {
+    return false;
+  }
+  std::array<std::function<void(bool)>, 3> callbacks;
+  for (std::function<void(bool)> &callback : callbacks) {
+    callback = std::move(trace.scope_callbacks.front());
+    trace.scope_callbacks.pop_front();
+  }
+  callbacks[0](valid);
+  callbacks[1](true);
+  callbacks[2](true);
+  return true;
 }
 
 }  // namespace
@@ -439,9 +484,127 @@ bool run_integrated_buffer_update_contracts()
     }
   }
 
+  {
+    update_mock::Trace trace;
+    trace.defer_scopes = true;
+    BufferUpdateHarness buffer(trace, 16);
+    OrderedQueueScheduler scheduler;
+    BufferUpdateTransaction transaction;
+    std::array<uint8_t, 16> payload = {0x00, 0x11, 0x22, 0x33,
+                                       0x44, 0x55, 0x66, 0x77,
+                                       0x88, 0x99, 0xaa, 0xbb,
+                                       0xcc, 0xdd, 0xee, 0xff};
+    if (!require(!buffer.update_sub(update_mock::Instance(),
+                                    update_mock::Device(&trace),
+                                    update_mock::Queue(&trace),
+                                    scheduler,
+                                    0,
+                                    payload.data(),
+                                    payload.size(),
+                                    transaction) &&
+                     transaction.pending() && buffer.pending_update_count() == 1 &&
+                     scheduler.pending_count() == 1,
+                 "direct upload remains pending until implementation scopes settle") ||
+        !require(settle_scope_batch(trace, true) && transaction.accepted() &&
+                     buffer.pending_update_count() == 0 && scheduler.pending_count() == 0,
+                 "direct upload commits only after accepted scopes"))
+    {
+      return false;
+    }
+  }
+
+  {
+    update_mock::Trace trace;
+    trace.defer_scopes = true;
+    BufferUpdateHarness buffer(trace, 16);
+    OrderedQueueScheduler scheduler;
+    BufferUpdateTransaction transaction;
+    const std::array<uint8_t, 16> original = {0xf0, 0xe1, 0xd2, 0xc3,
+                                              0xb4, 0xa5, 0x96, 0x87,
+                                              0x78, 0x69, 0x5a, 0x4b,
+                                              0x3c, 0x2d, 0x1e, 0x0f};
+    std::array<uint8_t, 16> caller = original;
+    if (!require(!buffer.update_sub(update_mock::Instance(),
+                                    update_mock::Device(&trace),
+                                    update_mock::Queue(&trace),
+                                    scheduler,
+                                    0,
+                                    caller.data(),
+                                    caller.size(),
+                                    transaction) &&
+                     transaction.pending(),
+                 "rejectable direct upload starts pending"))
+    {
+      return false;
+    }
+    caller.fill(0x5a);
+    if (!require(settle_scope_batch(trace, false) && transaction.rejected() &&
+                     buffer.pending_update_count() == 1,
+                 "rejected direct upload retains retry state"))
+    {
+      return false;
+    }
+    scheduler.begin_epoch();
+    if (!require(buffer.retry_pending_updates() == 1 && transaction.pending() &&
+                     trace.written_bytes == std::vector<uint8_t>(original.begin(), original.end()),
+                 "clean epoch retries the original direct-upload bytes") ||
+        !require(settle_scope_batch(trace, true) && transaction.accepted() &&
+                     buffer.pending_update_count() == 0,
+                 "clean direct retry commits once accepted"))
+    {
+      return false;
+    }
+  }
+
+  {
+    update_mock::Trace trace;
+    trace.defer_scopes = true;
+    BufferUpdateHarness buffer(trace, large_payload.size());
+    OrderedQueueScheduler scheduler;
+    BufferUpdateTransaction transaction;
+    const std::vector<uint8_t> original = large_payload;
+    std::vector<uint8_t> caller = original;
+    if (!require(!buffer.update_sub(update_mock::Instance(),
+                                    update_mock::Device(&trace),
+                                    update_mock::Queue(&trace),
+                                    scheduler,
+                                    0,
+                                    caller.data(),
+                                    caller.size(),
+                                    transaction) &&
+                     transaction.pending() && trace.submit_calls == 0,
+                 "staged upload waits for encoding scopes before submission") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 1,
+                 "accepted encoding advances staged upload to submission validation"))
+    {
+      return false;
+    }
+    caller.assign(caller.size(), 0x6b);
+    if (!require(settle_scope_batch(trace, false) && transaction.rejected() &&
+                     buffer.pending_update_count() == 1,
+                 "rejected staged submission retains owned bytes"))
+    {
+      return false;
+    }
+    scheduler.begin_epoch();
+    if (!require(buffer.retry_pending_updates() == 1 && transaction.pending() &&
+                     trace.mapped_bytes == original,
+                 "clean epoch remaps the exact retained staged bytes") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 2,
+                 "staged retry validates encoding before its second submission") ||
+        !require(settle_scope_batch(trace, true) && transaction.accepted() &&
+                     buffer.pending_update_count() == 0,
+                 "accepted staged retry commits exact owned bytes"))
+    {
+      return false;
+    }
+  }
+
   std::printf(
-      "CONTRACT buffer-staging-map PASS cases=9 large_bytes=%zu map_failure=reject "
-      "writes=1 submits=1\n",
+      "CONTRACT buffer-staging-map PASS cases=12 large_bytes=%zu map_failure=reject "
+      "writes=validated submits=validated retry=owned\n",
       large_payload.size());
   return true;
 }

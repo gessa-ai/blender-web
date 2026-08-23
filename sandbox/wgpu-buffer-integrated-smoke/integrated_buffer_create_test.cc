@@ -282,8 +282,10 @@ class BufferCreateHarness {
                                 const Allocation &,
                                 size_t,
                                 const void *,
-                                size_t)
+                                size_t,
+                                std::function<void(bool)> complete)
   {
+    complete(true);
     return true;
   }
 
@@ -544,6 +546,7 @@ namespace pending_frontend_mock {
 
 using BufferKind = webgpu::BufferKind;
 using BufferUpdatePayload = webgpu::BufferUpdatePayload;
+using BufferUpdateTransaction = webgpu::BufferUpdateTransaction;
 using UsageType = webgpu::UsageType;
 using webgpu::align_up;
 using webgpu::buffer_update_payload;
@@ -558,6 +561,7 @@ struct Trace {
 
   size_t creates = 0;
   size_t next_sequence = 0;
+  bool upload_valid = true;
   std::vector<Write> writes;
 };
 
@@ -613,20 +617,55 @@ class Buffer {
            typename DeviceT,
            typename QueueT,
            typename SchedulerT>
+  bool update_sub(const InstanceT &instance,
+                  const DeviceT &device,
+                  const QueueT &queue,
+                  SchedulerT &scheduler,
+                  const size_t offset,
+                  const void *data,
+                  const size_t size)
+  {
+    BufferUpdateTransaction transaction;
+    return update_sub(instance, device, queue, scheduler, offset, data, size, transaction);
+  }
+
+  template<typename InstanceT,
+           typename DeviceT,
+           typename QueueT,
+           typename SchedulerT>
   bool update_sub(const InstanceT &,
                   const DeviceT &,
                   const QueueT &,
                   SchedulerT &,
                   const size_t offset,
                   const void *data,
-                  const size_t size)
+                  const size_t size,
+                  BufferUpdateTransaction &transaction)
   {
     const size_t sequence = trace_->next_sequence++;
-    if (valid_) {
-      record(sequence, offset, data, size);
-      return true;
+    if (!payloads_.retain(sequence, offset, data, size, &transaction)) {
+      return false;
     }
-    return payloads_.retain(sequence, offset, data, size);
+    retry_pending_updates();
+    return transaction.accepted();
+  }
+
+  size_t retry_pending_updates()
+  {
+    if (!valid_) {
+      return 0;
+    }
+    return payloads_.replay(
+        allocation_size_,
+        [this](const size_t sequence,
+               const size_t offset,
+               const void *data,
+               const size_t size,
+               std::function<void(bool)> complete) {
+          record(sequence, offset, data, size);
+          complete(trace_->upload_valid);
+          return true;
+        });
   }
 
   void settle(const bool accepted)
@@ -641,8 +680,13 @@ class Buffer {
     valid_ = true;
     payloads_.replay(
         allocation_size_,
-        [this](const size_t sequence, const size_t offset, const void *data, const size_t size) {
+        [this](const size_t sequence,
+               const size_t offset,
+               const void *data,
+               const size_t size,
+               std::function<void(bool)> complete) {
           record(sequence, offset, data, size);
+          complete(trace_->upload_valid);
           return true;
         });
   }
@@ -784,6 +828,7 @@ class UniformFrontendHarness {
   void *data_ = nullptr;
   std::string label_;
   pending_frontend_mock::Buffer buffer_;
+  pending_frontend_mock::BufferUpdateTransaction deferred_upload_transaction_;
 };
 
 static constexpr size_t kUboMinBindingPad = 16384;
@@ -921,17 +966,31 @@ bool run_pending_buffer_payload_contracts()
     auto trace = std::make_shared<Trace>();
     UniformFrontendHarness uniform(uniform_a.size(), trace);
     uniform.attach_for_test(uniform_b.data());
-    if (!require(!uniform.ensure_updated() && !uniform.has_attached_data() &&
+    trace->upload_valid = false;
+    if (!require(!uniform.ensure_updated() && uniform.has_attached_data() &&
                      uniform.retained() == 1,
-                 "attached uniform ownership transfers to the pending queue"))
+                 "attached uniform ownership remains pending until upload acceptance"))
     {
       return false;
     }
     uniform.settle(true);
-    if (!require(trace->writes.size() == 1 && trace->writes[0].bytes ==
+    if (!require(uniform.has_attached_data() && trace->writes.size() == 1 &&
+                     trace->writes[0].bytes ==
                                                    std::vector<uint8_t>(uniform_b.begin(),
                                                                         uniform_b.end()),
-                 "attached uniform payload replays without a second bind"))
+                 "rejected upload preserves the host owner and exact attempted bytes") ||
+        !require(uniform.retained() == 1,
+                 "rejected deferred upload remains retryable with its owner intact"))
+    {
+      return false;
+    }
+    trace->upload_valid = true;
+    if (!require(uniform.ensure_updated() && !uniform.has_attached_data() &&
+                     trace->writes.size() == 2 &&
+                     trace->writes[1].bytes ==
+                         std::vector<uint8_t>(uniform_b.begin(), uniform_b.end()) &&
+                     uniform.retained() == 0,
+                 "attached uniform ownership commits only after a clean accepted retry"))
     {
       return false;
     }
@@ -946,7 +1005,7 @@ bool run_pending_buffer_payload_contracts()
       cases,
       creates,
       payloads);
-  return cases == 4 && creates == 5 && payloads == 8;
+  return cases == 4 && creates == 5 && payloads == 9;
 }
 
 }  // namespace blender::gpu::webgpu

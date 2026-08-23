@@ -286,11 +286,37 @@ require_fixed_count 1 '.create_scoped(ctx->instance_get(),' \
 require_fixed_count 1 'return buffer_.create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 require_fixed_count 1 'class PendingBufferPayloadQueue {' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 'class BufferUpdateTransaction {' "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 'size_t retry_pending_updates();' "$WEBGPU_SOURCE/wgpu_buffer.hh"
+require_fixed_count 1 'webgpu::BufferUpdateTransaction upload_transaction_;' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.hh"
+require_fixed_count 1 'webgpu::BufferUpdateTransaction deferred_upload_transaction_;' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.hh"
+require_fixed_count 1 'payload.transfer_size,' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 2 'upload_transaction_) ||' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 2 'deferred_upload_transaction_.accepted()' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
+VERTEX_UPLOAD_ACCEPT_LINE="$(grep -nF 'if (!upload_transaction_.accepted())' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | cut -d: -f1)"
+VERTEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE(data_);' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | tail -n 1 | cut -d: -f1)"
+UNIFORM_UPLOAD_ACCEPT_LINE="$(grep -nF '!deferred_upload_transaction_.accepted()' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc" | tail -n 1 | cut -d: -f1)"
+UNIFORM_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE_VOID(data_);' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc" | tail -n 1 | cut -d: -f1)"
+if [ -z "$VERTEX_UPLOAD_ACCEPT_LINE" ] || [ -z "$VERTEX_UPLOAD_CLEANUP_LINE" ] ||
+   [ "$VERTEX_UPLOAD_ACCEPT_LINE" -ge "$VERTEX_UPLOAD_CLEANUP_LINE" ] ||
+   [ -z "$UNIFORM_UPLOAD_ACCEPT_LINE" ] || [ -z "$UNIFORM_UPLOAD_CLEANUP_LINE" ] ||
+   [ "$UNIFORM_UPLOAD_ACCEPT_LINE" -ge "$UNIFORM_UPLOAD_CLEANUP_LINE" ]
+then
+  echo "ERROR: VBO/UBO upload acceptance does not precede CPU-state commit" >&2
+  exit 1
+fi
 require_fixed_count 1 'pending_updates_->retain(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'pending_updates->replay(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 2 'allocation_ready || buffer_.creation_pending_or_retryable()' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
-require_fixed_count 3 'allocation_ready || buffer_.creation_pending_or_retryable()' \
+require_fixed_count 4 'allocation_ready || buffer_.creation_pending_or_retryable()' \
   "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
 require_fixed_count 1 'push_constants_buffer_.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_shader.cc"
@@ -551,15 +577,22 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NATIVE_BUILD/wgpu_buffer_integrated_test" >"$NATIVE_STDOUT" 2>"$NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/integrated_buffer.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
-for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
-  if [ -s "$stderr_file" ]; then
-    echo "ERROR: integrated buffer contract wrote stderr: $stderr_file" >&2
-    exit 1
-  fi
-done
+if ! cmp -s "$NATIVE_STDERR" "$WASM_STDERR"; then
+  echo "ERROR: native and Wasm integrated buffer stderr differs" >&2
+  diff -u "$NATIVE_STDERR" "$WASM_STDERR" | head -n 40 >&2
+  exit 1
+fi
+if [ "$(grep -Fc '[WebGPU] buffer sub-update rejected' "$NATIVE_STDERR")" -ne 1 ] ||
+   [ "$(grep -Fc '[WebGPU] staged buffer sub-update submission rejected' \
+       "$NATIVE_STDERR")" -ne 1 ] ||
+   [ "$(wc -l <"$NATIVE_STDERR" | tr -d ' ')" -ne 2 ]
+then
+  echo "ERROR: integrated buffer rejection diagnostics differ" >&2
+  exit 1
+fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=9 index_cases=4 index_upload_cases=7' \
+    'INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=12 index_cases=4 index_upload_cases=7' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -574,10 +607,10 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry bytes=6 allocation=8' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT pending-buffer-payload PASS cases=4 creates=5 payloads=8 order=exact retry=retained frontend_calls=one-shot' \
+    'CONTRACT pending-buffer-payload PASS cases=4 creates=5 payloads=9 order=exact retry=retained frontend_calls=one-shot' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT buffer-staging-map PASS cases=9 large_bytes=65540 map_failure=reject writes=1 submits=1' \
+    'CONTRACT buffer-staging-map PASS cases=12 large_bytes=65540 map_failure=reject writes=validated submits=validated retry=owned' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \

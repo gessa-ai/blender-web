@@ -46,7 +46,9 @@ def main() -> int:
     method = method.replace("Buffer::update_allocation(",
                             "BufferUpdateHarness::update_allocation(")
     method = method.replace("bool Buffer::update_sub(",
-                            "bool BufferUpdateHarness::update_sub(", 1)
+                            "bool BufferUpdateHarness::update_sub(")
+    method = method.replace("size_t Buffer::retry_pending_updates(",
+                            "size_t BufferUpdateHarness::retry_pending_updates(")
     payload = (
         "/* Generated from canonical wgpu_buffer.cc; do not edit. */\n" + method
     ).encode("utf-8")

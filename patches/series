@@ -1029,3 +1029,6 @@
 # 0241: reserve materialized all-layer load clears before their dependent draw
 # and commit the shared load-action generation only after both stages validate.
 0241-gpu-webgpu-layered-clear-order.patch
+# 0242: retain direct and staged buffer-upload bytes plus VBO/UBO commit state
+# until completed implementation scopes accept the operation; rejected uploads retry.
+0242-gpu-webgpu-upload-commit.patch

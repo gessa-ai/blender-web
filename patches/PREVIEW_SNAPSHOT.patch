@@ -18362,10 +18362,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bda4721a4c
+index 0000000000000000000000000000000000000000..ab78ab6bba83ddd233cf9df9b289a8719c7f8466
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,390 @@
+@@ -0,0 +1,423 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18577,8 +18577,10 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +            [accepted](const PendingUpdateContext &context,
 +                       const size_t offset,
 +                       const void *data,
-+                       const size_t size) {
-+              return Buffer::update_allocation(context, accepted, offset, data, size);
++                       const size_t size,
++                       std::function<void(bool)> complete) {
++              return Buffer::update_allocation(
++                  context, accepted, offset, data, size, std::move(complete));
 +            });
 +      });
 +  return allocation != nullptr;
@@ -18588,7 +18590,8 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +                               const Allocation &allocation,
 +                               const size_t offset,
 +                               const void *data,
-+                               const size_t size)
++                               const size_t size,
++                               std::function<void(bool)> complete)
 +{
 +  if (allocation == nullptr || data == nullptr) {
 +    return false;
@@ -18611,7 +18614,7 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +                              data,
 +                              size,
 +                              "buffer sub-update",
-+                              [](bool) {});
++                              std::move(complete));
 +    return true;
 +  }
 +
@@ -18631,7 +18634,6 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +  }
 +  std::memcpy(mapped, data, size);
 +  staging.Unmap();
-+  const auto accepted = std::make_shared<std::atomic<bool>>(true);
 +  command_encode_submit_scoped(context.instance,
 +                               context.device,
 +                               context.queue,
@@ -18641,14 +18643,7 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +                                 encoder.CopyBufferToBuffer(
 +                                     staging, 0, allocation.handle, offset, size);
 +                               },
-+                               [accepted](const bool valid) {
-+                                 accepted->store(valid, std::memory_order_release);
-+                               });
-+#ifndef __EMSCRIPTEN__
-+  if (!accepted->load(std::memory_order_acquire)) {
-+    return false;
-+  }
-+#endif
++                               std::move(complete));
 +  return true;
 +}
 +
@@ -18660,6 +18655,20 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +                        const void *data,
 +                        size_t size)
 +{
++  BufferUpdateTransaction transaction;
++  return update_sub(instance, device, queue, scheduler, offset, data, size, transaction);
++}
++
++bool Buffer::update_sub(const wgpu::Instance &instance,
++                        const wgpu::Device &device,
++                        const wgpu::Queue &queue,
++                        OrderedQueueScheduler &scheduler,
++                        size_t offset,
++                        const void *data,
++                        size_t size,
++                        BufferUpdateTransaction &transaction)
++{
++  transaction.reset();
 +  if (data == nullptr || (offset % kCopyAlignment) != 0 ||
 +      (size % kCopyAlignment) != 0)
 +  {
@@ -18668,10 +18677,34 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +
 +  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
 +  PendingUpdateContext context{instance, device, queue, scheduler};
-+  if (allocation == nullptr) {
-+    return pending_updates_->retain(std::move(context), offset, data, size);
++  if (allocation != nullptr && !pending_updates_->begin(allocation.size)) {
++    return false;
 +  }
-+  return update_allocation(context, allocation, offset, data, size);
++  if (!pending_updates_->retain(std::move(context), offset, data, size, &transaction)) {
++    return false;
++  }
++  if (allocation != nullptr) {
++    retry_pending_updates();
++  }
++  return transaction.accepted();
++}
++
++size_t Buffer::retry_pending_updates()
++{
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  if (allocation == nullptr) {
++    return 0;
++  }
++  return pending_updates_->replay(
++      allocation.size,
++      [allocation](const PendingUpdateContext &context,
++                   const size_t offset,
++                   const void *data,
++                   const size_t size,
++                   std::function<void(bool)> complete) {
++        return Buffer::update_allocation(
++            context, allocation, offset, data, size, std::move(complete));
++      });
 +}
 +
 +std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
@@ -18758,10 +18791,10 @@ index 0000000000000000000000000000000000000000..432e48a7dfe9e2dd814189d6cf4526bd
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..dc2efffc22ec1dde56f6b0c7f86d34a10edbc6f0
+index 0000000000000000000000000000000000000000..42f6679bf6047b944c9e56f87de78ca9e449bcc6
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,194 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18835,7 +18868,8 @@ index 0000000000000000000000000000000000000000..dc2efffc22ec1dde56f6b0c7f86d34a1
 +
 +  /** Partial update: writes `size` bytes at `offset`. Uses queue.writeBuffer for
 +   * small writes, a staging buffer + copy for large ones. offset/size must be
-+   * 4-aligned. Returns false on misuse. */
++   * 4-aligned. Returns true only after synchronous scope acceptance; callers that
++   * own commit state must use the transaction overload below. */
 +  bool update_sub(const wgpu::Instance &instance,
 +                  const wgpu::Device &device,
 +                  const wgpu::Queue &queue,
@@ -18843,6 +18877,21 @@ index 0000000000000000000000000000000000000000..dc2efffc22ec1dde56f6b0c7f86d34a1
 +                  size_t offset,
 +                  const void *data,
 +                  size_t size);
++
++  /** Partial update with an explicit asynchronous completion token. Returns true only when the
++   * validation/OOM/internal scopes have already accepted the write; browser-pending work returns
++   * false while `transaction` retains its eventual status. */
++  bool update_sub(const wgpu::Instance &instance,
++                  const wgpu::Device &device,
++                  const wgpu::Queue &queue,
++                  OrderedQueueScheduler &scheduler,
++                  size_t offset,
++                  const void *data,
++                  size_t size,
++                  BufferUpdateTransaction &transaction);
++
++  /** Retry every retained rejected update against the published allocation. */
++  size_t retry_pending_updates();
 +
 +  /** Read `size` bytes at `offset` back to host via a MAP_READ staging buffer.
 +   * Requires the buffer was created `readable`. Blocks on the instance. */
@@ -18914,7 +18963,8 @@ index 0000000000000000000000000000000000000000..dc2efffc22ec1dde56f6b0c7f86d34a1
 +                                const Allocation &allocation,
 +                                size_t offset,
 +                                const void *data,
-+                                size_t size);
++                                size_t size,
++                                std::function<void(bool)> complete);
 +
 +  static constexpr uint8_t kAllocationKey = 0;
 +  Allocation allocation_get() const
@@ -18941,10 +18991,10 @@ index 0000000000000000000000000000000000000000..dc2efffc22ec1dde56f6b0c7f86d34a1
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..a8162611c5fbd02d61af0a66cecc4fa6049fcc3c
+index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373ede97d3cb
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2349 @@
+@@ -0,0 +1,2450 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21124,18 +21174,63 @@ index 0000000000000000000000000000000000000000..a8162611c5fbd02d61af0a66cecc4fa6
 +  }
 +};
 +
-+/** Ordered owned writes that arrive while one persistent allocation is unresolved.
++/** Durable completion token for one ordered buffer upload.
 + *
-+ * Browser error-scope callbacks settle only after the frontend update call has returned, so the
-+ * caller's bytes cannot remain borrowed. Rejection deliberately leaves the queue retryable; an
-+ * accepted allocation drains each retained payload once in frontend order. `ContextT` carries the
-+ * queue/device state needed by the backend replay without retaining its owning Buffer object. */
++ * Browser error scopes settle after the frontend call returns. Callers that own one-shot CPU
++ * state must therefore distinguish an accepted upload from one that is merely queued, and retain
++ * that state across rejection until a clean epoch retries the exact bytes. */
++class BufferUpdateTransaction {
++ public:
++  bool started() const
++  {
++    return status_ != nullptr;
++  }
++
++  bool pending() const
++  {
++    return status_ && status_->load(std::memory_order_acquire) == 0;
++  }
++
++  bool accepted() const
++  {
++    return status_ && status_->load(std::memory_order_acquire) > 0;
++  }
++
++  bool rejected() const
++  {
++    return status_ && status_->load(std::memory_order_acquire) < 0;
++  }
++
++  void reset()
++  {
++    status_.reset();
++  }
++
++ private:
++  template<typename ContextT> friend class PendingBufferPayloadQueue;
++  std::shared_ptr<std::atomic<int8_t>> status_;
++};
++
++/** Ordered owned writes that are not yet accepted by browser implementation scopes.
++ *
++ * The queue owns every payload from frontend submission through completed validation/OOM/internal
++ * scopes, including writes that arrive while persistent allocation is unresolved. Rejection
++ * retains the same entry for a later clean-epoch retry; acceptance alone releases its bytes.
++ * `ContextT` carries the queue/device state needed by replay without retaining the owning Buffer. */
 +template<typename ContextT> class PendingBufferPayloadQueue {
 + private:
 +  struct Entry {
 +    ContextT context;
 +    size_t offset = 0;
 +    std::vector<uint8_t> bytes;
++    std::shared_ptr<std::atomic<int8_t>> status;
++    bool in_flight = false;
++  };
++
++  struct State {
++    mutable std::mutex mutex;
++    std::deque<std::shared_ptr<Entry>> entries;
++    size_t allocation_size = 0;
 +  };
 +
 + public:
@@ -21144,90 +21239,146 @@ index 0000000000000000000000000000000000000000..a8162611c5fbd02d61af0a66cecc4fa6
 +    if (allocation_size == 0) {
 +      return false;
 +    }
-+    std::lock_guard lock(mutex_);
-+    if (!entries_.empty() && allocation_size_ != 0 && allocation_size_ != allocation_size) {
++    std::lock_guard lock(state_->mutex);
++    prune_accepted_locked(*state_);
++    if (!state_->entries.empty() && state_->allocation_size != 0 &&
++        state_->allocation_size != allocation_size)
++    {
 +      return false;
 +    }
-+    allocation_size_ = allocation_size;
-+    retryable_ = true;
++    state_->allocation_size = allocation_size;
 +    return true;
 +  }
 +
-+  bool retain(ContextT context, const size_t offset, const void *data, const size_t size)
++  bool retain(ContextT context,
++              const size_t offset,
++              const void *data,
++              const size_t size,
++              BufferUpdateTransaction *transaction = nullptr)
 +  {
 +    if (data == nullptr || (offset % kCopyAlignment) != 0 ||
 +        (size % kCopyAlignment) != 0)
 +    {
 +      return false;
 +    }
-+    std::lock_guard lock(mutex_);
-+    if (!retryable_ || !range_fits(offset, size, allocation_size_)) {
++    std::lock_guard lock(state_->mutex);
++    prune_accepted_locked(*state_);
++    if (state_->allocation_size == 0 ||
++        !range_fits(offset, size, state_->allocation_size))
++    {
 +      return false;
 +    }
-+    Entry entry{std::move(context), offset, {}};
++    auto status = std::make_shared<std::atomic<int8_t>>(0);
++    auto entry = std::make_shared<Entry>(
++        Entry{std::move(context), offset, {}, status, false});
 +    const uint8_t *source = static_cast<const uint8_t *>(data);
-+    entry.bytes.assign(source, source + size);
-+    entries_.push_back(std::move(entry));
++    entry->bytes.assign(source, source + size);
++    state_->entries.push_back(std::move(entry));
++    if (transaction != nullptr) {
++      transaction->status_ = std::move(status);
++    }
 +    return true;
 +  }
 +
 +  bool retryable() const
 +  {
-+    std::lock_guard lock(mutex_);
-+    return retryable_;
++    std::lock_guard lock(state_->mutex);
++    return std::any_of(state_->entries.begin(), state_->entries.end(), [](const auto &entry) {
++      return entry->status->load(std::memory_order_acquire) <= 0;
++    });
 +  }
 +
 +  size_t allocation_size() const
 +  {
-+    std::lock_guard lock(mutex_);
-+    return allocation_size_;
++    std::lock_guard lock(state_->mutex);
++    return state_->allocation_size;
 +  }
 +
 +  size_t size() const
 +  {
-+    std::lock_guard lock(mutex_);
-+    return entries_.size();
++    std::lock_guard lock(state_->mutex);
++    return size_t(
++        std::count_if(state_->entries.begin(), state_->entries.end(), [](const auto &entry) {
++          return entry->status->load(std::memory_order_acquire) <= 0;
++        }));
 +  }
 +
 +  template<typename ReplayFn>
 +  size_t replay(const size_t allocation_size, ReplayFn &&replay)
 +  {
-+    std::deque<Entry> entries;
++    std::vector<std::shared_ptr<Entry>> pending;
 +    {
-+      std::lock_guard lock(mutex_);
-+      if (!retryable_ || allocation_size_ != allocation_size) {
++      std::lock_guard lock(state_->mutex);
++      prune_accepted_locked(*state_);
++      if (state_->allocation_size != allocation_size) {
 +        return 0;
 +      }
-+      retryable_ = false;
-+      entries.swap(entries_);
++      for (const std::shared_ptr<Entry> &entry : state_->entries) {
++        if (entry->in_flight || entry->status->load(std::memory_order_acquire) > 0) {
++          continue;
++        }
++        entry->in_flight = true;
++        entry->status->store(0, std::memory_order_release);
++        pending.push_back(entry);
++      }
 +    }
 +
-+    size_t replayed = 0;
-+    for (size_t index = 0; index < entries.size(); index++) {
-+      Entry &entry = entries[index];
-+      if (replay(entry.context, entry.offset, entry.bytes.data(), entry.bytes.size()))
++    size_t started = 0;
++    const std::shared_ptr<State> state = state_;
++    for (size_t index = 0; index < pending.size(); index++) {
++      const std::shared_ptr<Entry> &entry = pending[index];
++      auto complete = [state, entry](const bool valid) {
++        std::lock_guard lock(state->mutex);
++        if (!entry->in_flight) {
++          return;
++        }
++        entry->in_flight = false;
++        entry->status->store(valid ? int8_t(1) : int8_t(-1), std::memory_order_release);
++        if (valid) {
++          state->entries.erase(
++              std::remove(state->entries.begin(), state->entries.end(), entry),
++              state->entries.end());
++        }
++      };
++      if (replay(entry->context,
++                 entry->offset,
++                 entry->bytes.data(),
++                 entry->bytes.size(),
++                 complete))
 +      {
-+        replayed++;
-+        continue;
++        started++;
 +      }
-+
-+      /* Preserve the failed payload and every later payload ahead of any update retained by a
-+       * concurrent frontend call while this replay was outside the lock. */
-+      std::lock_guard lock(mutex_);
-+      for (size_t pending = entries.size(); pending > index; pending--) {
-+        entries_.push_front(std::move(entries[pending - 1]));
++      else {
++        complete(false);
++        /* A synchronous setup failure reserved no scheduler entry, so later payloads would
++         * otherwise overtake it. Leave every unattempted entry rejected and retryable. */
++        std::lock_guard lock(state->mutex);
++        for (size_t pending_index = index + 1; pending_index < pending.size(); pending_index++) {
++          const std::shared_ptr<Entry> &unattempted = pending[pending_index];
++          if (unattempted->in_flight) {
++            unattempted->in_flight = false;
++            unattempted->status->store(int8_t(-1), std::memory_order_release);
++          }
++        }
++        break;
 +      }
-+      retryable_ = true;
-+      break;
 +    }
-+    return replayed;
++    return started;
 +  }
 +
 + private:
-+  mutable std::mutex mutex_;
-+  std::deque<Entry> entries_;
-+  size_t allocation_size_ = 0;
-+  bool retryable_ = false;
++  static void prune_accepted_locked(State &state)
++  {
++    state.entries.erase(std::remove_if(state.entries.begin(),
++                                       state.entries.end(),
++                                       [](const auto &entry) {
++                                         return !entry->in_flight &&
++                                                entry->status->load(std::memory_order_acquire) > 0;
++                                       }),
++                        state.entries.end());
++  }
++
++  std::shared_ptr<State> state_ = std::make_shared<State>();
 +};
 +
 +/** Copy one complete caller-owned payload into a mapped-at-creation buffer. Mapping can fail
@@ -28337,10 +28488,10 @@ index 0000000000000000000000000000000000000000..972573105d2165c30962d278d53473a6
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..10f04dca55178632983a6e3a46fb51ba457240ce
+index 0000000000000000000000000000000000000000..6bc6fc8828484b750191b2168aa98f7381abf825
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,3027 @@
+@@ -0,0 +1,3028 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -31350,6 +31501,7 @@ index 0000000000000000000000000000000000000000..10f04dca55178632983a6e3a46fb51ba
 +    }
 +    push_constants_dirty_ = true;
 +  }
++  push_constants_buffer_.retry_pending_updates();
 +  if (push_constants_dirty_) {
 +    push_constants_buffer_.update_sub(
 +        ctx->instance_get(),
@@ -33554,10 +33706,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..647b88219c8111370822d2255bd63b1bdce72c1c
+index 0000000000000000000000000000000000000000..f63b804779f297d126a761681a384c13b0c98619
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,330 @@
+@@ -0,0 +1,331 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -33680,6 +33832,7 @@ index 0000000000000000000000000000000000000000..647b88219c8111370822d2255bd63b1b
 +bool WGPUStorageBuffer::ensure()
 +{
 +  if (buffer_.valid()) {
++    buffer_.retry_pending_updates();
 +    return true;
 +  }
 +  WGPUContext *ctx = active_context();
@@ -37641,10 +37794,10 @@ index 0000000000000000000000000000000000000000..048e6ba7120ac6765cdb2fe335187e9f
 +/* clang-format on */
 diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b63c8c1829f65195c73c38e190dff871f9b2ba89
+index 0000000000000000000000000000000000000000..9b59b24745c7cf89d948989f7d2b0e910645ff49
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,199 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37699,6 +37852,7 @@ index 0000000000000000000000000000000000000000..b63c8c1829f65195c73c38e190dff871
 +bool WGPUUniformBuffer::ensure()
 +{
 +  if (buffer_.valid()) {
++    buffer_.retry_pending_updates();
 +    return true;
 +  }
 +  WGPUContext *ctx = active_context();
@@ -37718,11 +37872,25 @@ index 0000000000000000000000000000000000000000..b63c8c1829f65195c73c38e190dff871
 +
 +bool WGPUUniformBuffer::ensure_updated()
 +{
-+  if (data_ != nullptr) {
-+    WGPUContext *ctx = active_context();
-+    if (ctx == nullptr) {
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return false;
++  }
++
++  if (deferred_upload_transaction_.started()) {
++    const bool allocation_ready = ensure();
++    if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
 +      return false;
 +    }
++    if (!deferred_upload_transaction_.accepted()) {
++      return false;
++    }
++    deferred_upload_transaction_.reset();
++    MEM_SAFE_DELETE_VOID(data_);
++    return allocation_ready;
++  }
++
++  if (data_ != nullptr) {
 +    const bool allocation_ready = ensure();
 +    if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
 +      return false;
@@ -37734,10 +37902,13 @@ index 0000000000000000000000000000000000000000..b63c8c1829f65195c73c38e190dff871
 +                            ctx->queue_scheduler_get(),
 +                            0,
 +                            data_,
-+                            n))
++                            n,
++                            deferred_upload_transaction_) ||
++        !deferred_upload_transaction_.accepted())
 +    {
 +      return false;
 +    }
++    deferred_upload_transaction_.reset();
 +    MEM_SAFE_DELETE_VOID(data_);
 +    return allocation_ready;
 +  }
@@ -37828,10 +37999,10 @@ index 0000000000000000000000000000000000000000..b63c8c1829f65195c73c38e190dff871
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh b/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..7310d7f3ae34a3b335f8541ee916e623c9cd9383
+index 0000000000000000000000000000000000000000..975a418eb8c0512a1a7285c8bc55467fd269ca28
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,63 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37885,6 +38056,9 @@ index 0000000000000000000000000000000000000000..7310d7f3ae34a3b335f8541ee916e623
 +  bool ensure_updated();
 +
 +  webgpu::Buffer buffer_;
++  /** Completion of the upload that owns `data_`; the host allocation remains live until this
++   * transaction is accepted, and a rejected transaction retries its retained bytes. */
++  webgpu::BufferUpdateTransaction deferred_upload_transaction_;
 +  /** Full label; UniformBuf::name_ is intentionally truncated in release builds. */
 +  std::string label_;
 +
@@ -37894,10 +38068,10 @@ index 0000000000000000000000000000000000000000..7310d7f3ae34a3b335f8541ee916e623
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c33684c4c
+index 0000000000000000000000000000000000000000..b5bd0f62c99559d293e50898d865d91862bbeb34
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
-@@ -0,0 +1,548 @@
+@@ -0,0 +1,572 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -38188,6 +38362,7 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +      return; /* allocation failed (e.g. no active context). */
 +    }
 +  }
++  buffer_.retry_pending_updates();
 +
 +  /* DEVICE_ONLY buffers hold no host copy and are never uploaded from host. */
 +  if (!ELEM(usage_ & 0x3, GPU_USAGE_STATIC, GPU_USAGE_STREAM, GPU_USAGE_DYNAMIC)) {
@@ -38196,39 +38371,50 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +
 +  if (flag & GPU_VERTBUF_DATA_DIRTY) {
 +    buffer_texture_buffer_dirty_ = true;
-+    const size_t used = size_used_get();
-+    if (data_ != nullptr && used > 0) {
-+      WGPUContext *ctx = active_context();
-+      if (ctx == nullptr) {
-+        return;
-+      }
-+      /* Signed packed normals (GPU_COMP_I10) have no native WebGPU vertex format; transcode
-+       * them to Snorm8x4 in a scratch copy so `data_` (which DYNAMIC/STREAM buffers keep and
-+       * re-upload) is never mutated. See transcode_i10_attrs. */
-+      const void *upload_data = data_;
-+      std::vector<uint8_t> scratch;
-+      if (format_has_norm_i10(format)) {
-+        scratch.assign(data_, data_ + used);
-+        transcode_i10_attrs(scratch.data(), used, format, vertex_len);
-+        upload_data = scratch.data();
-+      }
-+
-+      /* GPUVertFormat::pack() does not guarantee that the final logical byte count is
-+       * four-aligned. Preserve exactly those caller-owned bytes and zero-fill only the
-+       * transfer tail; do not discard the host copy or dirty state if the upload fails. */
-+      webgpu::BufferUpdatePayload payload;
-+      if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload) ||
-+          !buffer_.update_sub(ctx->instance_get(),
-+                              ctx->device_get(),
-+                              ctx->queue_get(),
-+                              ctx->queue_scheduler_get(),
-+                              0,
-+                              payload.data(upload_data),
-+                              payload.transfer_size))
-+      {
++    if (upload_transaction_.started()) {
++      if (!upload_transaction_.accepted()) {
 +        return;
 +      }
 +    }
++    else {
++      const size_t used = size_used_get();
++      if (data_ != nullptr && used > 0) {
++        WGPUContext *ctx = active_context();
++        if (ctx == nullptr) {
++          return;
++        }
++        /* Signed packed normals (GPU_COMP_I10) have no native WebGPU vertex format; transcode
++         * them to Snorm8x4 in a scratch copy so `data_` (which DYNAMIC/STREAM buffers keep and
++         * re-upload) is never mutated. See transcode_i10_attrs. */
++        const void *upload_data = data_;
++        std::vector<uint8_t> scratch;
++        if (format_has_norm_i10(format)) {
++          scratch.assign(data_, data_ + used);
++          transcode_i10_attrs(scratch.data(), used, format, vertex_len);
++          upload_data = scratch.data();
++        }
++
++        /* GPUVertFormat::pack() does not guarantee that the final logical byte count is
++         * four-aligned. Preserve exactly those caller-owned bytes and zero-fill only the
++         * transfer tail; do not discard the host copy or dirty state until the implementation
++         * scopes accept the exact retained transfer. */
++        webgpu::BufferUpdatePayload payload;
++        if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload) ||
++            !buffer_.update_sub(ctx->instance_get(),
++                                ctx->device_get(),
++                                ctx->queue_get(),
++                                ctx->queue_scheduler_get(),
++                                0,
++                                payload.data(upload_data),
++                                payload.transfer_size,
++                                upload_transaction_) ||
++            !upload_transaction_.accepted())
++        {
++          return;
++        }
++      }
++    }
++    upload_transaction_.reset();
 +    if ((usage_ & 0x3) == GPU_USAGE_STATIC) {
 +      MEM_SAFE_DELETE(data_);
 +    }
@@ -38244,6 +38430,7 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +    return;
 +  }
 +  WGPUContext *ctx = active_context();
++  buffer_.retry_pending_updates();
 +  if (format_has_norm_i10(format)) {
 +    const uint8_t *source = static_cast<const uint8_t *>(data);
 +    std::vector<uint8_t> scratch(source, source + len);
@@ -38373,6 +38560,14 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +    return;
 +  }
 +  webgpu::Buffer *binding_buffer = &buffer_;
++  buffer_texture_buffer_.retry_pending_updates();
++  if (buffer_texture_upload_transaction_.started()) {
++    if (!buffer_texture_upload_transaction_.accepted()) {
++      return;
++    }
++    buffer_texture_upload_transaction_.reset();
++    buffer_texture_buffer_dirty_ = false;
++  }
 +  if (format.attr_len == 1 && format.attrs[0].type.comp_type() == GPU_COMP_F32 &&
 +      format.attrs[0].type.comp_len() < 4)
 +  {
@@ -38422,10 +38617,13 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +                                                   ctx->queue_scheduler_get(),
 +                                                   0,
 +                                                   expanded.data(),
-+                                                   expanded.size() * sizeof(float)))
++                                                   expanded.size() * sizeof(float),
++                                                   buffer_texture_upload_transaction_) ||
++               !buffer_texture_upload_transaction_.accepted())
 +      {
 +        return;
 +      }
++      buffer_texture_upload_transaction_.reset();
 +      buffer_texture_buffer_dirty_ = false;
 +    }
 +    binding_buffer = &buffer_texture_buffer_;
@@ -38448,10 +38646,10 @@ index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..ebc73edede0d9436622f0233b3111b9f582846f1
+index 0000000000000000000000000000000000000000..30d4a277145ccd6cfd380012ed7b5acf4e6365cb
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,77 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -38514,8 +38712,11 @@ index 0000000000000000000000000000000000000000..ebc73edede0d9436622f0233b3111b9f
 +   * components are expanded lazily into this storage backing at bind time. */
 +  webgpu::Buffer buffer_texture_buffer_;
 +  bool buffer_texture_buffer_dirty_ = true;
++  webgpu::BufferUpdateTransaction buffer_texture_upload_transaction_;
 +  bool data_uploaded_ = false;
 +  bool track_next_allocation_ = false;
++  /** Initial host upload remains uncommitted until browser implementation scopes accept it. */
++  webgpu::BufferUpdateTransaction upload_transaction_;
 +
 +  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUVertexBuffer")
 +};

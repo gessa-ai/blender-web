@@ -982,7 +982,7 @@ int main()
   }
   std::printf(
       "INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 "
-      "buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=9 index_cases=4 "
+      "buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=12 index_cases=4 "
       "index_upload_cases=7\n");
   return 0;
 }

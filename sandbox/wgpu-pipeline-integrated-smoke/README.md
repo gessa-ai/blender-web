@@ -104,6 +104,14 @@ advance only after that scope succeeds. The contract covers literal null failure
 objects, pending-state publication, encode-before-submit ordering, submit failure, and one clean
 commit. The pinned-Dawn software control exercises the same shipping helper against real non-null
 error objects but remains explicitly non-receipt evidence.
+The Blender GPU backend now applies that completed-scope rule to every short-lived command and
+direct queue write. A FIFO scheduler reserves queue chronology before browser error scopes can
+yield, so a delayed submission cannot move behind a later `WriteBuffer` or `WriteTexture` call.
+An encoding or submission failure cancels all later queue mutations from the same frame epoch;
+`begin_frame()` opens a retry epoch. The six-case compute and buffer models cover null encoder,
+pass, and command handles, non-null encoding and submission error objects, clean submission,
+same-epoch cancellation, and next-epoch retry. Shipping-source checks require the sole direct
+`Submit`, `WriteBuffer`, and `WriteTexture` calls to remain inside those scoped helpers.
 The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip

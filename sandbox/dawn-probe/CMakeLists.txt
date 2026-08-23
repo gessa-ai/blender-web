@@ -75,6 +75,7 @@ target_link_libraries(dawn_bindmap_probe PRIVATE ${_dawn_probe_libs})
 add_executable(dawn_error_handle_probe probe_error_handles.cc)
 target_include_directories(dawn_error_handle_probe PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../../platform_web/ghost
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../upstream/source/blender/gpu/webgpu
 )
 target_link_libraries(dawn_error_handle_probe PRIVATE dawn::webgpu_dawn)
 

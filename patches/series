@@ -992,3 +992,6 @@
 # 0229: consume an all-layer framebuffer load clear only after every selected
 # layer's checked clear transaction reaches the queue, retaining failed work for retry.
 0229-gpu-webgpu-framebuffer-layered-load-commit.patch
+# 0230: serialize command submission and direct queue writes behind completed
+# validation/OOM/internal scopes; cancel the remainder of a failed frame epoch.
+0230-gpu-webgpu-command-error-object-contract.patch

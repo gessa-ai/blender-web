@@ -658,7 +658,12 @@ observable only through a completed error scope. Wrap creation and command encod
 OOM, and internal scopes, retain candidates locally until all scopes settle cleanly, validate a
 finished command before submitting it under a second scope, and commit liveness/state only after
 that submit scope succeeds. Browser callbacks are asynchronous, so pending publication must be an
-explicit state rather than a synchronous boolean. Exercise non-null rejected and clean accepted
-objects plus pre-submit rejection on pinned Dawn, and preserve a device-free native/wasm32 model.
-See `sandbox/dawn-probe/probe_error_handles.cc` and
+explicit state rather than a synchronous boolean. Command scopes introduce an additional ordering
+hazard: if submission waits for a callback while a later direct queue write executes immediately,
+the queue chronology changes. Reserve every command, `WriteBuffer`, and `WriteTexture` mutation in
+one FIFO before starting validation; poison and cancel the remainder of the failed frame epoch,
+then allow a later epoch to retry. Never let an asynchronous callback retain a stack reference;
+copy upload bytes and capture reference-counted state. Exercise non-null rejected and clean
+accepted objects plus pre-submit rejection on pinned Dawn, and preserve a device-free
+native/wasm32 model. See `sandbox/dawn-probe/probe_error_handles.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.

@@ -21,6 +21,7 @@
 
 #include "GHOST_WGPUTransaction.hh"
 #include "probe_platform.hh"
+#include "wgpu_common.hh"
 
 namespace {
 
@@ -63,6 +64,22 @@ bool require(const bool condition, const char *message)
   }
   return condition;
 }
+
+struct CountingQueue {
+  wgpu::Queue queue;
+  int *submit_attempts = nullptr;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return queue == nullptr;
+  }
+
+  void Submit(const size_t count, const wgpu::CommandBuffer *commands) const
+  {
+    (*submit_attempts)++;
+    queue.Submit(count, commands);
+  }
+};
 
 }  // namespace
 
@@ -428,8 +445,62 @@ int main()
     scoped_cases++;
   }
 
+  namespace bw = blender::gpu::webgpu;
+  bw::OrderedQueueScheduler gpu_scheduler;
+  int gpu_scoped_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    if (valid_case) {
+      /* The rejected command poisons only its frame epoch; a new Blender frame must be able to
+       * retry cleanly without allowing any later work from the failed epoch through. */
+      gpu_scheduler.begin_epoch();
+    }
+    int submit_attempts = 0;
+    bool completed = false;
+    bool accepted = false;
+    const CountingQueue queue{device.GetQueue(), &submit_attempts};
+    bw::command_encode_submit_scoped(
+        instance,
+        device,
+        queue,
+        gpu_scheduler,
+        valid_case ? "audit valid GPU command" : "audit invalid GPU command",
+        [&](auto &candidate_encoder) {
+          wgpu::RenderPassColorAttachment color = {};
+          color.view = texture_view;
+          color.depthSlice = valid_case ? wgpu::kDepthSliceUndefined : 0;
+          color.loadOp = wgpu::LoadOp::Clear;
+          color.storeOp = wgpu::StoreOp::Store;
+          wgpu::RenderPassDescriptor descriptor = {};
+          descriptor.colorAttachmentCount = 1;
+          descriptor.colorAttachments = &color;
+          wgpu::RenderPassEncoder candidate_pass =
+              candidate_encoder.BeginRenderPass(&descriptor);
+          if (candidate_pass == nullptr) {
+            return false;
+          }
+          candidate_pass.End();
+          return true;
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    if (!require(completed, "shipping GPU command scope did not complete synchronously") ||
+        !require(accepted == valid_case,
+                 "shipping GPU command acceptance did not follow completed scopes") ||
+        !require(submit_attempts == (valid_case ? 1 : 0),
+                 "shipping GPU helper submitted a rejected error object") ||
+        !require(gpu_scheduler.pending_count() == 0,
+                 "shipping GPU command left ordered queue work pending"))
+    {
+      return 19;
+    }
+    gpu_scoped_cases++;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
-            << " error_object_submit_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
+            << " gpu_error_object_submit_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

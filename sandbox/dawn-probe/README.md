@@ -71,9 +71,10 @@ host exposed only a software/CPU adapter; that result is not a receipt.
 - `probe.cc` — the in-process chain + headless Dawn device + validation.
 - `probe_error_handles.cc` — an audit-only software-adapter control proving that
   validation failures return non-null Dawn error objects. It also runs the shipping
-  GHOST scope helper against rejected/accepted creation and command/submission paths,
-  proving an error command buffer never reaches the queue. Its output is explicitly
-  non-receipt evidence and cannot satisfy the hardware success criterion above.
+  GHOST scope helper and the shipping GPU ordered-command helper against rejected/accepted
+  command/submission paths, proving an error command buffer never reaches the queue and a new
+  frame epoch can retry. Its output is explicitly non-receipt evidence and cannot satisfy the
+  hardware success criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

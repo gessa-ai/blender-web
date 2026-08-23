@@ -1204,6 +1204,119 @@ bool compute_dispatch_range_contract()
   return true;
 }
 
+class CommandScopeFutureProbe {
+ public:
+  explicit CommandScopeFutureProbe(const size_t index = 0) : index_(index) {}
+  size_t index() const
+  {
+    return index_;
+  }
+
+ private:
+  size_t index_ = 0;
+};
+
+class CommandScopeProbe {
+ public:
+  using Callback = std::function<void(wgpu::PopErrorScopeStatus,
+                                      wgpu::ErrorType,
+                                      wgpu::StringView)>;
+
+  void push(wgpu::ErrorFilter)
+  {
+    pushes_++;
+  }
+
+  template<typename CallbackT>
+  CommandScopeFutureProbe pop(CallbackT callback)
+  {
+    const int group = pops_ / 3;
+    const bool valid = group == 0 ? encode_valid_ : submit_valid_;
+    records_.push_back({valid, false, Callback(std::move(callback))});
+    pops_++;
+    return CommandScopeFutureProbe(records_.size() - 1);
+  }
+
+  wgpu::WaitStatus wait(const CommandScopeFutureProbe future)
+  {
+    resolve(future.index());
+    return wgpu::WaitStatus::Success;
+  }
+
+  void resolve_all()
+  {
+    while (true) {
+      size_t unresolved = records_.size();
+      for (size_t i = 0; i < records_.size(); i++) {
+        if (!records_[i].resolved) {
+          unresolved = i;
+          break;
+        }
+      }
+      if (unresolved == records_.size()) {
+        return;
+      }
+      const size_t group_end = std::min(unresolved + 3, records_.size());
+      for (size_t i = unresolved; i < group_end; i++) {
+        resolve(i);
+      }
+    }
+  }
+
+  void set_results(const bool encode_valid, const bool submit_valid)
+  {
+    encode_valid_ = encode_valid;
+    submit_valid_ = submit_valid;
+  }
+
+  int pushes() const
+  {
+    return pushes_;
+  }
+  int pops() const
+  {
+    return pops_;
+  }
+
+ private:
+  struct Record {
+    bool valid;
+    bool resolved;
+    Callback callback;
+  };
+
+  void resolve(const size_t index)
+  {
+    if (index >= records_.size() || records_[index].resolved) {
+      return;
+    }
+    Record &record = records_[index];
+    record.resolved = true;
+    record.callback(wgpu::PopErrorScopeStatus::Success,
+                    record.valid ? wgpu::ErrorType::NoError : wgpu::ErrorType::Validation,
+                    wgpu::StringView{});
+  }
+
+  bool encode_valid_ = true;
+  bool submit_valid_ = true;
+  int pushes_ = 0;
+  int pops_ = 0;
+  std::vector<Record> records_;
+};
+
+class CommandScopeInstanceProbe {
+ public:
+  explicit CommandScopeInstanceProbe(CommandScopeProbe &scope) : scope_(&scope) {}
+
+  wgpu::WaitStatus WaitAny(const CommandScopeFutureProbe future, uint64_t) const
+  {
+    return scope_->wait(future);
+  }
+
+ private:
+  CommandScopeProbe *scope_ = nullptr;
+};
+
 struct ComputeCommandTrace {
   bool encoder_success = false;
   bool pass_success = false;
@@ -1287,7 +1400,26 @@ class ComputeCommandEncoderProbe {
 
 class ComputeCommandDeviceProbe {
  public:
-  explicit ComputeCommandDeviceProbe(ComputeCommandTrace &trace) : trace_(&trace) {}
+  ComputeCommandDeviceProbe(ComputeCommandTrace &trace, CommandScopeProbe &scope)
+      : trace_(&trace), scope_(&scope)
+  {
+  }
+
+  bool operator==(std::nullptr_t) const
+  {
+    return trace_ == nullptr;
+  }
+
+  void PushErrorScope(const wgpu::ErrorFilter filter) const
+  {
+    scope_->push(filter);
+  }
+
+  template<typename CallbackT>
+  CommandScopeFutureProbe PopErrorScope(wgpu::CallbackMode, CallbackT callback) const
+  {
+    return scope_->pop(std::move(callback));
+  }
 
   ComputeCommandEncoderProbe CreateCommandEncoder() const
   {
@@ -1297,11 +1429,17 @@ class ComputeCommandDeviceProbe {
 
  private:
   ComputeCommandTrace *trace_ = nullptr;
+  CommandScopeProbe *scope_ = nullptr;
 };
 
 class ComputeCommandQueueProbe {
  public:
   explicit ComputeCommandQueueProbe(ComputeCommandTrace &trace) : trace_(&trace) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return trace_ == nullptr;
+  }
 
   void Submit(const size_t count, const ComputeCommandBufferProbe *command_buffer) const
   {
@@ -1320,15 +1458,19 @@ bool compute_command_transaction_contract()
     bool encoder_success;
     bool pass_success;
     bool command_success;
+    bool encode_scope_success;
+    bool submit_scope_success;
     int expected_begins;
     int expected_work;
     int expected_ends;
     int expected_finishes;
   };
-  constexpr std::array<FailureCase, 4> cases = {{{false, true, true, 0, 0, 0, 0},
-                                                 {true, false, true, 1, 0, 0, 0},
-                                                 {true, true, false, 1, 1, 1, 1},
-                                                 {true, true, true, 1, 1, 1, 1}}};
+  constexpr std::array<FailureCase, 6> cases = {{{false, true, true, true, true, 0, 0, 0, 0},
+                                                 {true, false, true, true, true, 1, 0, 0, 0},
+                                                 {true, true, false, true, true, 1, 1, 1, 1},
+                                                 {true, true, true, false, true, 1, 1, 1, 1},
+                                                 {true, true, true, true, false, 1, 1, 1, 1},
+                                                 {true, true, true, true, true, 1, 1, 1, 1}}};
 
   int accepted = 0;
   for (const FailureCase &test : cases) {
@@ -1336,22 +1478,48 @@ bool compute_command_transaction_contract()
     trace.encoder_success = test.encoder_success;
     trace.pass_success = test.pass_success;
     trace.command_success = test.command_success;
-    const ComputeCommandDeviceProbe device(trace);
+    CommandScopeProbe scope;
+    scope.set_results(test.encode_scope_success, test.submit_scope_success);
+    const CommandScopeInstanceProbe instance(scope);
+    const ComputeCommandDeviceProbe device(trace, scope);
     const ComputeCommandQueueProbe queue(trace);
+    bw::OrderedQueueScheduler scheduler;
+    bool completed = false;
+    bool result = false;
 
-    const bool result = bw::command_pass_encode_submit_if_valid(
+    bw::command_pass_encode_submit_scoped(
+        instance,
         device,
         queue,
+        scheduler,
+        "",
         [](auto &encoder) { return encoder.BeginComputePass(); },
-        [](auto &pass) { pass.Work(); });
-    const bool expect_success = test.encoder_success && test.pass_success && test.command_success;
-    if (!require(result == expect_success, "compute command transaction result") ||
+        [](auto &pass) { pass.Work(); },
+        [&](const bool valid) {
+          completed = true;
+          result = valid;
+        });
+#ifdef __EMSCRIPTEN__
+    if (!require(!completed && trace.submits == 0,
+                 "compute command waits for browser error scopes"))
+    {
+      return false;
+    }
+    scope.resolve_all();
+#endif
+    const bool encoded = test.encoder_success && test.pass_success && test.command_success &&
+                         test.encode_scope_success;
+    const bool expect_success = encoded && test.submit_scope_success;
+    if (!require(completed && result == expect_success, "compute command transaction result") ||
         !require(trace.encoder_creates == 1, "compute command encoder creation count") ||
         !require(trace.pass_begins == test.expected_begins, "compute pass begin count") ||
         !require(trace.pass_work == test.expected_work, "compute pass dependent work count") ||
         !require(trace.pass_ends == test.expected_ends, "compute pass end count") ||
         !require(trace.finishes == test.expected_finishes, "compute command finish count") ||
-        !require(trace.submits == int(expect_success), "compute command submit count"))
+        !require(trace.submits == int(encoded), "compute command submit count") ||
+        !require(scope.pushes() == (encoded ? 6 : 3), "compute command scope push count") ||
+        !require(scope.pops() == (encoded ? 6 : 3), "compute command scope pop count") ||
+        !require(scheduler.pending_count() == 0, "compute command scheduler drained"))
     {
       return false;
     }
@@ -1361,8 +1529,8 @@ bool compute_command_transaction_contract()
   if (!require(accepted == 1, "compute command transaction success census")) {
     return false;
   }
-  std::puts("CONTRACT compute_command_transaction PASS cases=4 accepted=1 "
-            "encoder_fail=closed pass_fail=closed command_fail=closed");
+  std::puts("CONTRACT compute_command_transaction PASS cases=6 accepted=1 "
+            "error_objects=2 encoder_fail=closed pass_fail=closed command_fail=closed");
   return true;
 }
 
@@ -1421,7 +1589,26 @@ class BufferCommandEncoderProbe {
 
 class BufferCommandDeviceProbe {
  public:
-  explicit BufferCommandDeviceProbe(BufferCommandTrace &trace) : trace_(&trace) {}
+  BufferCommandDeviceProbe(BufferCommandTrace &trace, CommandScopeProbe &scope)
+      : trace_(&trace), scope_(&scope)
+  {
+  }
+
+  bool operator==(std::nullptr_t) const
+  {
+    return trace_ == nullptr;
+  }
+
+  void PushErrorScope(const wgpu::ErrorFilter filter) const
+  {
+    scope_->push(filter);
+  }
+
+  template<typename CallbackT>
+  CommandScopeFutureProbe PopErrorScope(wgpu::CallbackMode, CallbackT callback) const
+  {
+    return scope_->pop(std::move(callback));
+  }
 
   BufferCommandEncoderProbe CreateCommandEncoder() const
   {
@@ -1431,11 +1618,17 @@ class BufferCommandDeviceProbe {
 
  private:
   BufferCommandTrace *trace_ = nullptr;
+  CommandScopeProbe *scope_ = nullptr;
 };
 
 class BufferCommandQueueProbe {
  public:
   explicit BufferCommandQueueProbe(BufferCommandTrace &trace) : trace_(&trace) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return trace_ == nullptr;
+  }
 
   void Submit(const size_t count, const BufferCommandBufferProbe *command_buffer) const
   {
@@ -1454,46 +1647,93 @@ bool buffer_command_transaction_contract()
     bool encoder_success;
     bool encode_success;
     bool command_success;
+    bool encode_scope_success;
+    bool submit_scope_success;
     int expected_copies;
     int expected_finishes;
   };
-  constexpr std::array<FailureCase, 4> cases = {{{false, true, true, 0, 0},
-                                                 {true, false, true, 1, 0},
-                                                 {true, true, false, 1, 1},
-                                                 {true, true, true, 1, 1}}};
+  constexpr std::array<FailureCase, 6> cases = {{{false, true, true, true, true, 0, 0},
+                                                 {true, false, true, true, true, 1, 0},
+                                                 {true, true, false, true, true, 1, 1},
+                                                 {true, true, true, false, true, 1, 1},
+                                                 {true, true, true, true, false, 1, 1},
+                                                 {true, true, true, true, true, 1, 1}}};
 
   int accepted = 0;
+  int ordered_followups = 0;
+  int canceled_followups = 0;
+  int retry_epochs = 0;
   for (const FailureCase &test : cases) {
     BufferCommandTrace trace;
     trace.encoder_success = test.encoder_success;
     trace.encode_success = test.encode_success;
     trace.command_success = test.command_success;
-    const BufferCommandDeviceProbe device(trace);
+    CommandScopeProbe scope;
+    scope.set_results(test.encode_scope_success, test.submit_scope_success);
+    const CommandScopeInstanceProbe instance(scope);
+    const BufferCommandDeviceProbe device(trace, scope);
     const BufferCommandQueueProbe queue(trace);
+    bw::OrderedQueueScheduler scheduler;
+    bool completed = false;
+    bool result = false;
 
-    const bool result = bw::command_encode_submit_if_valid(
-        device, queue, [&](auto &encoder) {
+    bw::command_encode_submit_scoped(
+        instance,
+        device,
+        queue,
+        scheduler,
+        "",
+        [&](auto &encoder) {
           encoder.CopyBufferToBuffer();
           return trace.encode_success;
+        },
+        [&](const bool valid) {
+          completed = true;
+          result = valid;
         });
-    const bool expect_success =
-        test.encoder_success && test.encode_success && test.command_success;
-    if (!require(result == expect_success, "buffer command transaction result") ||
-        !require(trace.encoder_creates == 1, "buffer command encoder creation count") ||
-        !require(trace.copies == test.expected_copies, "buffer command copy count") ||
-        !require(trace.finishes == test.expected_finishes, "buffer command finish count") ||
-        !require(trace.submits == int(expect_success), "buffer command submit count"))
+    scheduler.enqueue(
+        [&](std::function<void(bool)> done) {
+          ordered_followups++;
+          done(true);
+        },
+        [&]() { canceled_followups++; });
+#ifdef __EMSCRIPTEN__
+    if (!require(!completed && ordered_followups + canceled_followups == int(&test - cases.data()),
+                 "later queue work waits for browser validation"))
     {
       return false;
     }
+    scope.resolve_all();
+#endif
+    const bool encoded = test.encoder_success && test.encode_success && test.command_success &&
+                         test.encode_scope_success;
+    const bool expect_success = encoded && test.submit_scope_success;
+    if (!require(completed && result == expect_success, "buffer command transaction result") ||
+        !require(trace.encoder_creates == 1, "buffer command encoder creation count") ||
+        !require(trace.copies == test.expected_copies, "buffer command copy count") ||
+        !require(trace.finishes == test.expected_finishes, "buffer command finish count") ||
+        !require(trace.submits == int(encoded), "buffer command submit count") ||
+        !require(scheduler.pending_count() == 0, "buffer command scheduler drained"))
+    {
+      return false;
+    }
+    scheduler.begin_epoch();
+    scheduler.enqueue([&](std::function<void(bool)> done) {
+      retry_epochs++;
+      done(true);
+    });
     accepted += int(expect_success);
   }
 
-  if (!require(accepted == 1, "buffer command transaction success census")) {
+  if (!require(accepted == 1, "buffer command transaction success census") ||
+      !require(ordered_followups == 1 && canceled_followups == 5,
+               "failed epoch cancels later queue work") ||
+      !require(retry_epochs == 6, "new epoch retries after failure"))
+  {
     return false;
   }
-  std::puts("CONTRACT buffer_command_transaction PASS cases=4 accepted=1 "
-            "encoder_fail=closed encode_fail=discarded command_fail=closed");
+  std::puts("CONTRACT buffer_command_transaction PASS cases=6 accepted=1 error_objects=2 "
+            "ordered=1 canceled=5 retry_epochs=6");
   return true;
 }
 
@@ -2217,7 +2457,7 @@ int main()
       "INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 "
+      "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "index_binding_resolutions=3 cache_publications=2 "

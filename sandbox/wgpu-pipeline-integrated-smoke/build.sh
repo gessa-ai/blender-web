@@ -270,11 +270,57 @@ require_fixed_count 1 \
   'if (!webgpu::compute_indirect_dispatch_range(0, indirect_gpu.size()))' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
 require_fixed_count 1 \
-  'inline bool command_pass_encode_submit_if_valid(const DeviceT &device,' \
+  'class OrderedQueueScheduler {' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
-  'inline bool command_encode_submit_if_valid(const DeviceT &device,' \
+  'inline void command_pass_encode_submit_scoped(const InstanceT &instance,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline void command_encode_submit_scoped(const InstanceT &instance,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 0 \
+  'command_pass_encode_submit_if_valid' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 0 \
+  'command_encode_submit_if_valid' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+"$PYBIN" - "$WEBGPU_SOURCE" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+sources = tuple(root.glob("*.cc")) + tuple(root.glob("*.hh"))
+common = root / "wgpu_common.hh"
+for path in sources:
+    text = path.read_text(encoding="utf-8")
+    for obsolete in (
+        "command_encode_submit_if_valid",
+        "command_pass_encode_submit_if_valid",
+    ):
+        if obsolete in text:
+            raise SystemExit(f"ERROR: {path.name} retains obsolete {obsolete}")
+    if path != common:
+        for direct in (".Submit(", ".WriteBuffer(", ".WriteTexture("):
+            if direct in text:
+                raise SystemExit(f"ERROR: {path.name} bypasses ordered queue helper with {direct}")
+
+common_text = common.read_text(encoding="utf-8")
+for direct in (".Submit(", ".WriteBuffer(", ".WriteTexture("):
+    if common_text.count(direct) != 1:
+        raise SystemExit(f"ERROR: common queue boundary is ambiguous for {direct}")
+if common_text.count("device.PushErrorScope(") != 3:
+    raise SystemExit("ERROR: command helper does not push validation/OOM/internal scopes")
+if common_text.count("device.PopErrorScope(") != 6:
+    raise SystemExit("ERROR: command helper does not pop all scopes on native and Wasm")
+for marker in (
+    "wgpu::CallbackMode::WaitAnyOnly",
+    "wgpu::CallbackMode::AllowSpontaneous",
+    "state->failed_epochs.insert(epoch);",
+    "state_->current_epoch++;",
+):
+    if marker not in common_text:
+        raise SystemExit(f"ERROR: ordered scope boundary is missing {marker}")
+PY
 require_fixed_count 1 \
   'inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
@@ -367,7 +413,7 @@ require_fixed_count 0 \
   'SetBindGroup(0, ctx->create_bind_group_checked' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 3 \
-  'return webgpu::command_pass_encode_submit_if_valid(' \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_context.cc" <<'PY'
 from pathlib import Path
@@ -429,7 +475,7 @@ transactions = (
 
 for marker, begin_pass, pass_body in transactions:
     body = method_body(marker)
-    helper = "return webgpu::command_pass_encode_submit_if_valid("
+    helper = "webgpu::command_pass_encode_submit_scoped("
     if body.count(helper) != 1 or body.count(begin_pass) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
     forbidden = (
@@ -445,11 +491,8 @@ for marker, begin_pass, pass_body in transactions:
     if any(position < 0 for position in positions) or positions != sorted(positions):
         raise SystemExit(f"ERROR: {marker} render body is missing or reordered")
 PY
-require_fixed_count 2 \
-  'return webgpu::command_pass_encode_submit_if_valid(' \
-  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
-require_fixed_count 2 \
-  'if (!webgpu::command_pass_encode_submit_if_valid(' \
+require_fixed_count 4 \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_framebuffer.cc" <<'PY'
 from pathlib import Path
@@ -498,7 +541,7 @@ transactions = (
 
 for marker, pass_body in transactions:
     body = method_body(marker)
-    helper = "return webgpu::command_pass_encode_submit_if_valid("
+    helper = "webgpu::command_pass_encode_submit_scoped("
     begin_pass = "[&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); }"
     if body.count(helper) != 1 or body.count(begin_pass) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked render transaction")
@@ -522,8 +565,8 @@ full_clear_transactions = (
 
 for marker in full_clear_transactions:
     body = method_body(marker)
-    helper = "if (!webgpu::command_pass_encode_submit_if_valid("
-    begin_pass = "[&](auto &encoder) { return encoder.BeginRenderPass(&rp); }"
+    helper = "webgpu::command_pass_encode_submit_scoped("
+    begin_pass = "return encoder.BeginRenderPass(&rp);"
     empty_pass_body = "[](auto & /*pass*/) {}"
     if body.count(helper) != 1 or body.count(begin_pass) != 1 or body.count(empty_pass_body) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one checked full-clear transaction")
@@ -537,18 +580,21 @@ for marker in full_clear_transactions:
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
 
 materialize_body = method_body("bool WGPUFrameBuffer::materialize_layered_loadstore_clears(")
-commit_call = "if (!webgpu::framebuffer_load_action_commit_if_valid("
-if materialize_body.count(commit_call) != 1:
-    raise SystemExit("ERROR: layered load clear does not use one checked commit transaction")
-for needle in (
-    "return clear_attachment_full(",
-    "GPU_LOADACTION_LOAD,",
-    "load_store_[index].load_action))",
-):
-    if materialize_body.count(needle) != 1:
-        raise SystemExit(f"ERROR: layered load clear commit is missing exact input: {needle}")
-if "load_store_[index].load_action = GPU_LOADACTION_LOAD;" in materialize_body:
-    raise SystemExit("ERROR: layered load clear still commits outside the checked transaction")
+ordered_commit = (
+    "layered_load_clear_pending_mask_.fetch_or(pending_bit",
+    "if (!clear_attachment_full(",
+    "[this, lifetime, index, pending_bit](const bool valid)",
+    "layered_load_clear_pending_mask_.fetch_and(~pending_bit",
+    "if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR)",
+    "load_store_[index].load_action = GPU_LOADACTION_LOAD;",
+)
+positions = [materialize_body.find(needle) for needle in ordered_commit]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("ERROR: layered load clear is not committed by its scoped completion")
+if materialize_body.count("load_store_[index].load_action = GPU_LOADACTION_LOAD;") != 1:
+    raise SystemExit("ERROR: layered load clear completion commit is ambiguous")
+if "framebuffer_load_action_commit_if_valid(" in materialize_body:
+    raise SystemExit("ERROR: layered load clear retains a synchronous handle-only commit")
 
 load_pass_body = method_body("wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(")
 load_pass_publication = """wgpu::RenderPassEncoder pass;
@@ -575,7 +621,7 @@ if any(position < 0 for position in load_pass_positions) or load_pass_positions 
     raise SystemExit("ERROR: framebuffer load-pass guard does not precede dependent work")
 
 blit_body = method_body("void WGPUFrameBuffer::blit_to(")
-helper = "if (!webgpu::command_encode_submit_if_valid("
+helper = "webgpu::command_encode_submit_scoped("
 if blit_body.count(helper) != 2:
     raise SystemExit("ERROR: framebuffer blit does not contain two checked copy transactions")
 forbidden = (
@@ -645,7 +691,7 @@ branches = (
     braced_block(clear_body, "if (format_flag_ & GPU_FORMAT_DEPTH)"),
     braced_block(clear_body, "if (can_render_clear)"),
 )
-helper = "if (!webgpu::command_encode_submit_if_valid("
+helper = "webgpu::command_encode_submit_scoped("
 for label, branch in zip(("depth", "color"), branches, strict=True):
     if branch.count(helper) != 1:
         raise SystemExit(f"ERROR: texture {label} clear lacks one checked command transaction")
@@ -672,7 +718,7 @@ for label, branch in zip(("depth", "color"), branches, strict=True):
         raise SystemExit(f"ERROR: texture {label} clear retains a partial command path")
 
 read_body = method_body("void WGPUTexture::read_sub(")
-helper = "if (!webgpu::command_encode_submit_if_valid("
+helper = "webgpu::command_encode_submit_scoped("
 copy = "encoder.CopyTextureToBuffer(&src, &dst, &copy_size);"
 mapping = "wgpu::Future f = staging.MapAsync("
 if read_body.count(helper) != 1 or read_body.count(copy) != 1:
@@ -690,7 +736,7 @@ if any(needle in read_body for needle in forbidden):
     raise SystemExit("ERROR: native texture readback retains an unchecked command operation")
 
 copy_body = method_body("void WGPUTexture::copy_to(")
-helper = "if (!webgpu::command_encode_submit_if_valid("
+helper = "webgpu::command_encode_submit_scoped("
 mip_loop = "for (const int64_t mip : mip_levels) {"
 compatibility = (
     "!resolve_subresource(int(mip), -1, src_region)",
@@ -723,7 +769,7 @@ if any(needle in copy_body for needle in forbidden):
     raise SystemExit("ERROR: texture copy retains an unchecked command operation")
 PY
 require_fixed_count 2 \
-  'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \
+  'command_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 0 \
   'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
@@ -753,31 +799,26 @@ def method_body(marker: str) -> str:
 blocks = (
     (
         "bool Buffer::update_sub(",
-        """if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
-        encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
-      }))
-  {
-    return false;
-  }""",
+        "encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);",
     ),
     (
         "std::vector<uint8_t> Buffer::read(",
-        """if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
-        encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
-      }))
-  {
-    return out;
-  }""",
+        "encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);",
     ),
 )
 
-for marker, block in blocks:
+for marker, copy in blocks:
     body = method_body(marker)
-    if body.count(block) != 1:
-        raise SystemExit(f"ERROR: {marker} does not contain one exact command transaction")
+    helper = "command_encode_submit_scoped("
+    if body.count(helper) != 1 or body.count(copy) != 1:
+        raise SystemExit(f"ERROR: {marker} does not contain one scoped command transaction")
+    if body.index(helper) >= body.index(copy):
+        raise SystemExit(f"ERROR: {marker} copy escaped its scoped command transaction")
+    if marker.startswith("std::vector") and body.index(copy) >= body.index("staging.MapAsync("):
+        raise SystemExit("ERROR: buffer read maps before its scoped copy completes")
 PY
 require_fixed_count 1 \
-  'if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {' \
+  'webgpu::command_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 require_fixed_count 0 \
   'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
@@ -806,23 +847,18 @@ for offset in range(opening, len(source)):
 else:
     raise SystemExit("ERROR: unterminated WGPUStorageBuffer::copy_sub method")
 
-block = """if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {
-        encoder.CopyBufferToBuffer(
-            src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
-      }))
-  {
-    return;
-  }"""
-if body.count(block) != 1:
+helper = "webgpu::command_encode_submit_scoped("
+copy = "encoder.CopyBufferToBuffer("
+if body.count(helper) != 1 or body.count(copy) != 1:
     raise SystemExit(
-        "ERROR: WGPUStorageBuffer::copy_sub does not contain one exact command transaction"
+        "ERROR: WGPUStorageBuffer::copy_sub does not contain one scoped command transaction"
     )
 range_guard = "if (!webgpu::buffer_copy_range_valid(src_offset,"
-if body.count(range_guard) != 1 or body.index(range_guard) >= body.index(block):
+if body.count(range_guard) != 1 or not body.index(range_guard) < body.index(helper) < body.index(copy):
     raise SystemExit("ERROR: storage command transaction does not follow range validation")
 PY
 require_fixed_count 2 \
-  'if (!webgpu::command_pass_encode_submit_if_valid(' \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
 require_fixed_count 0 \
   'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
@@ -830,7 +866,7 @@ require_fixed_count 0 \
 require_fixed_count 1 \
   'if (module == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
-  'return webgpu::command_pass_encode_submit_if_valid(' \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 \
   'wgpu::CommandEncoder encoder = ctx.device_get().CreateCommandEncoder();' \
@@ -838,14 +874,8 @@ require_fixed_count 0 \
 require_fixed_count 0 \
   'wgpu::ComputePassEncoder pass = encoder.BeginComputePass();' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
-require_fixed_count 2 \
-  'if (mv_enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
-require_fixed_count 2 \
-  'if (mv_cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
-require_fixed_count 2 \
-  'if (enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
-require_fixed_count 2 \
-  'if (cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 4 \
+  'webgpu::command_encode_submit_scoped(' "$WEBGPU_SOURCE/wgpu_batch.cc"
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_batch.cc" <<'PY'
 from pathlib import Path
 import sys
@@ -868,46 +898,33 @@ def method_body(marker: str) -> str:
     raise ValueError(f"unterminated method: {marker}")
 
 
-paths = (
+methods = (
+    ("void WGPUBatch::draw(", "direct multi-viewport draw", "direct batch draw"),
     (
-        "multi-viewport",
-        "wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();",
-        "if (mv_enc == nullptr) {",
-        "wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);",
-        "wgpu::CommandBuffer mv_cb = mv_enc.Finish();",
-        "if (mv_cb == nullptr) {",
-        "ctx->queue_get().Submit(1, &mv_cb);",
-    ),
-    (
-        "ordinary",
-        "wgpu::CommandEncoder enc = device.CreateCommandEncoder();",
-        "if (enc == nullptr) {",
-        "wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);",
-        "wgpu::CommandBuffer cb = enc.Finish();",
-        "if (cb == nullptr) {",
-        "ctx->queue_get().Submit(1, &cb);",
+        "void WGPUBatch::multi_draw_indirect(",
+        "indirect multi-viewport draw",
+        "indirect batch draw",
     ),
 )
 
-for method_marker in (
-    "void WGPUBatch::draw(",
-    "void WGPUBatch::multi_draw_indirect(",
-):
+for method_marker, multi_label, ordinary_label in methods:
     body = method_body(method_marker)
-    for path_name, *needles in paths:
-        positions = [body.find(needle) for needle in needles]
-        if any(position < 0 for position in positions) or positions != sorted(positions):
-            raise SystemExit(
-                "ERROR: batch "
-                + method_marker.removeprefix("void WGPUBatch::").rstrip("(")
-                + f" {path_name} command guards do not precede dependent work"
-            )
-        if any(body.count(needle) != 1 for needle in needles):
-            raise SystemExit(
-                "ERROR: batch "
-                + method_marker.removeprefix("void WGPUBatch::").rstrip("(")
-                + f" {path_name} command transaction is ambiguous"
-            )
+    helper = "webgpu::command_encode_submit_scoped("
+    if body.count(helper) != 2:
+        raise SystemExit(f"ERROR: {method_marker} lacks two scoped draw transactions")
+    for label in (multi_label, ordinary_label):
+        if body.count(f'"{label}"') != 1:
+            raise SystemExit(f"ERROR: {method_marker} lacks scoped transaction {label}")
+    if any(needle in body for needle in ("CreateCommandEncoder()", ".Finish()", ".Submit(1,")):
+        raise SystemExit(f"ERROR: {method_marker} retains an unchecked command operation")
+    helpers = [body.index(helper), body.index(helper, body.index(helper) + len(helper))]
+    passes = [body.index("fb->begin_load_pass(", offset) for offset in helpers]
+    ends = [
+        body.index("mv_pass.End();", helpers[0]),
+        body.index("pass.End();", helpers[1]),
+    ]
+    if not helpers[0] < passes[0] < ends[0] < helpers[1] < passes[1] < ends[1]:
+        raise SystemExit(f"ERROR: {method_marker} draw work escaped its scoped transaction")
 PY
 FAN_MODULE_CREATE_LINE="$(grep -nF \
   'wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);' \
@@ -920,7 +937,7 @@ FAN_PIPELINE_CREATE_LINE="$(grep -nF \
 FAN_BIND_GUARD_LINE="$(grep -nF \
   'if (group == nullptr) {' "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 FAN_COMMAND_TRANSACTION_LINE="$(grep -nF \
-  'return webgpu::command_pass_encode_submit_if_valid(' \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1)"
 if [ -z "$FAN_MODULE_CREATE_LINE" ] || [ -z "$FAN_MODULE_GUARD_LINE" ] ||
    [ -z "$FAN_PIPELINE_CREATE_LINE" ] || [ -z "$FAN_BIND_GUARD_LINE" ] ||
@@ -933,50 +950,23 @@ then
   exit 1
 fi
 require_fixed_count 1 \
-  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  'webgpu::command_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
-require_fixed_count 1 \
-  'if (enc == nullptr) {' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc"
-require_fixed_count 1 \
-  'wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc"
-require_fixed_count 1 \
-  'wgpu::CommandBuffer cb = enc.Finish();' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc"
-require_fixed_count 1 \
-  'if (cb == nullptr) {' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc"
-require_fixed_count 1 \
-  'ctx->queue_get().Submit(1, &cb);' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc"
-IMMEDIATE_ENCODER_CREATE_LINE="$(grep -nF \
-  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-IMMEDIATE_ENCODER_GUARD_LINE="$(grep -nF \
-  'if (enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-IMMEDIATE_PASS_BEGIN_LINE="$(grep -nF \
-  'wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-IMMEDIATE_FINISH_LINE="$(grep -nF \
-  'wgpu::CommandBuffer cb = enc.Finish();' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-IMMEDIATE_FINISH_GUARD_LINE="$(grep -nF \
-  'if (cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-IMMEDIATE_SUBMIT_LINE="$(grep -nF \
-  'ctx->queue_get().Submit(1, &cb);' \
-  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
-if [ -z "$IMMEDIATE_ENCODER_CREATE_LINE" ] || [ -z "$IMMEDIATE_ENCODER_GUARD_LINE" ] ||
-   [ -z "$IMMEDIATE_PASS_BEGIN_LINE" ] || [ -z "$IMMEDIATE_FINISH_LINE" ] ||
-   [ -z "$IMMEDIATE_FINISH_GUARD_LINE" ] || [ -z "$IMMEDIATE_SUBMIT_LINE" ] ||
-   [ "$IMMEDIATE_ENCODER_CREATE_LINE" -ge "$IMMEDIATE_ENCODER_GUARD_LINE" ] ||
-   [ "$IMMEDIATE_ENCODER_GUARD_LINE" -ge "$IMMEDIATE_PASS_BEGIN_LINE" ] ||
-   [ "$IMMEDIATE_FINISH_LINE" -ge "$IMMEDIATE_FINISH_GUARD_LINE" ] ||
-   [ "$IMMEDIATE_FINISH_GUARD_LINE" -ge "$IMMEDIATE_SUBMIT_LINE" ]
-then
-  echo "ERROR: immediate draw command guards do not precede dependent work" >&2
-  exit 1
-fi
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_immediate.cc" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("void WGPUImmediate::end()")
+body = source[start : source.index("\n}", start) + 2]
+helper = "webgpu::command_encode_submit_scoped("
+ordered = (helper, "fb->begin_load_pass(", "pass.Draw")
+positions = [body.find(needle) for needle in ordered]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("ERROR: immediate draw work escaped its scoped transaction")
+if any(needle in body for needle in ("CreateCommandEncoder()", ".Finish()", ".Submit(1,")):
+    raise SystemExit("ERROR: immediate draw retains an unchecked command operation")
+PY
 require_fixed_count 1 'struct DirectDrawPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -1007,7 +997,7 @@ mapfile -t MULTIVIEW_ALLOCATION_LINES < <(
     "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1
 )
 mapfile -t MULTIVIEW_WRITE_LINES < <(
-  grep -nF 'WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));' \
+  grep -nF 'webgpu::queue_write_buffer_scoped(ctx->instance_get(),' \
     "$WEBGPU_SOURCE/wgpu_batch.cc" | cut -d: -f1
 )
 mapfile -t PUSH_CONSTANT_FLUSH_LINES < <(
@@ -1046,15 +1036,15 @@ COLOR_UNIFORM_GUARD_LINE="$(grep -nF \
   'if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
 COLOR_QUEUE_WRITE_LINE="$(grep -nF \
-  'queue_.WriteBuffer(blit_uniform, 0, blit_data, sizeof(blit_data));' \
-  "$WEBGPU_SOURCE/wgpu_context.cc" | cut -d: -f1)"
+  'webgpu::queue_write_buffer_scoped(instance_,' \
+  "$WEBGPU_SOURCE/wgpu_context.cc" | tail -n 1 | cut -d: -f1)"
 COLOR_BIND_CREATE_LINE="$(grep -nF \
   'wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
 COLOR_BIND_GUARD_LINE="$(grep -nF \
   'if (bind_group == nullptr) {' "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
 COLOR_COMMAND_TRANSACTION_LINE="$(grep -nF \
-  'return webgpu::command_pass_encode_submit_if_valid(' \
+  'webgpu::command_pass_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_context.cc" | head -n 1 | cut -d: -f1)"
 if [ -z "$COLOR_MODULE_CREATE_LINE" ] || [ -z "$COLOR_MODULE_GUARD_LINE" ] ||
    [ -z "$COLOR_PIPELINE_KEY_LINE" ] || [ -z "$COLOR_UNIFORM_GUARD_LINE" ] ||
@@ -1117,7 +1107,7 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'if (!webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
-  'if (!webgpu::framebuffer_load_action_commit_if_valid(' \
+  'layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(vp[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(sc[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
@@ -1386,10 +1376,10 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 indirect_cases=13 accepted=5 rejected=8 group_sum=40' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT compute_command_transaction PASS cases=4 accepted=1 encoder_fail=closed pass_fail=closed command_fail=closed' \
+       'CONTRACT compute_command_transaction PASS cases=6 accepted=1 error_objects=2 encoder_fail=closed pass_fail=closed command_fail=closed' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT buffer_command_transaction PASS cases=4 accepted=1 encoder_fail=closed encode_fail=discarded command_fail=closed' \
+       'CONTRACT buffer_command_transaction PASS cases=6 accepted=1 error_objects=2 ordered=1 canceled=5 retry_epochs=6' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 windows=3 accepted=2 invalid=destroyed publication=atomic' \
@@ -1407,7 +1397,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=25 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

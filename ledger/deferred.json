@@ -251,6 +251,60 @@
       "evidence": "source/blender/gpu/webgpu/wgpu_query.{cc,hh}; source/blender/gpu/intern/gpu_select_sample_query.cc synchronous result consumption; source/blender/windowmanager/gizmo/intern/wm_gizmo_map.cc legacy caller; sandbox/final-m0-m3/gpu_webgpu_tests.txt conservative fallback identity; notes/m3-t10-query-integrated-linux-reconcile-20260821.md"
     },
     {
+      "id": "wsl2-hardware-webgpu-m3",
+      "status": "deferred",
+      "milestone": "M3",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "The fresh strict native-Dawn/Vulkan adapter, device, GPU-test, shader-cache, and final no-work receipt cannot be produced inside this WSL instance. Device-free native/wasm32 contracts remain valid but do not satisfy the live M3 receipt.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
+      "id": "wsl2-hardware-webgpu-m4",
+      "status": "deferred",
+      "milestone": "M4",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "The strict CAPTURE profiles, hardware-bound APPLY product, and fresh splash/workspace pixel receipt cannot be produced here. The historical macOS PASS remains historical and no software Chromium capture can replace it.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
+      "id": "wsl2-hardware-webgpu-m5",
+      "status": "deferred",
+      "milestone": "M5",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "The interaction-parity, canvas, click-pick, and latency producers require the hardware-bound APPLY product and reject software adapters before evidence allocation. Authored sessions and device-free producer contracts remain valid but are not a live M5 receipt.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
+      "id": "wsl2-hardware-webgpu-m6-gpu",
+      "status": "deferred",
+      "milestone": "M6",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "Cycles-CPU remains 27/27 GREEN in immutable Linux receipt m6-cycles-ornith-linux-20260820-r5. Only the 20-row Workbench and 30-row EEVEE browser matrices lack a truthful hardware-GPU receipt; software pixels bind none.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
+      "id": "wsl2-hardware-webgpu-m7",
+      "status": "deferred",
+      "milestone": "M7",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "The device-free OPFS/FSA/file-bridge contracts and CPU IO evidence remain valid, but the strict browser files/pipeline receipt must run on the hardware-bound APPLY product. The current producers reject fallback adapters and an absent APPLY manifest before allocation.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
+      "id": "wsl2-hardware-webgpu-m8",
+      "status": "deferred",
+      "milestone": "M8",
+      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
+      "impact": "The hardware Chrome/Edge product, performance, staged-capture, and soak receipts cannot be produced in WSL. The independent m8-wasm-15mb-bar size/latency blocker remains active, so this external deferral alone does not satisfy M8 or authorize a launch claim.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+    },
+    {
       "id": "m8-wasm-15mb-bar",
       "status": "partial",
       "milestone": "M8",

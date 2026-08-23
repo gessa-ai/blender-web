@@ -1902,14 +1902,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   preflight, REUSE, scoped M3, and container-backed regression are verified. This closes the R6
   GPU resource error-object prerequisite only; live hardware proof remains blocked by s7. See
   `notes/m3-gpu-shader-pipeline-error-object-contract-20260823.md`.
-- [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
-  against the shader's exact surviving binding set (including internal push/multi-viewport
-  bindings), distinguish a genuinely empty layout from missing/partial resources, and reject
-  before encoder/pass work. **blocked-by: none; highest priority.**
+- [x] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend] (fd04ebb):** shader finalization's exact
+  surviving group-0 binding set is now compared with the unique live-resource entry IDs before
+  compute, direct/indirect batch, multi-viewport, or immediate command work. Genuinely empty,
+  complete, duplicate, required-but-empty, partial, and extra sets pass/fail exactly; injected
+  push-constant and multi-viewport uniforms participate in the same census. Native/wasm32 parity,
+  source-order binding, isolated patch round trip, clean-pin canonical replay, real product
+  build/no-work, CAPTURE preflight, REUSE, M3 scope, and container-backed regression are verified.
+  Live hardware proof remains blocked by s7. See
+  `notes/m3-gpu-bind-group-completeness-20260823.md`.
 - [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
   `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
   command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
-  **blocked-by: none; resource error-object prerequisite complete.**
+  **blocked-by: none; resource error-object prerequisite complete; highest priority.**
 - [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
   backbuffer extents coherent across replacement failure, require matching extents before
   present, and retry a pending resize without depending on a second browser resize event.

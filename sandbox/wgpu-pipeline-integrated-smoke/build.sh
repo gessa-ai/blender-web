@@ -5,7 +5,7 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit/indexed-fan resource guards, buffer/batch/immediate-draw
+# cache publication, color-blit/indexed-fan resource guards, buffer/storage/batch/immediate-draw
 # command transactions, dummy-attribute binding plan, and shader-lifetime cache separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
@@ -79,6 +79,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_pipeline.hh
     source/blender/gpu/webgpu/wgpu_common.hh
     source/blender/gpu/webgpu/wgpu_buffer.cc
+    source/blender/gpu/webgpu/wgpu_storage_buffer.cc
     source/blender/gpu/webgpu/wgpu_backend.cc
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_context.hh
@@ -129,6 +130,7 @@ for source_name in \
   wgpu_pipeline.hh \
   wgpu_common.hh \
   wgpu_buffer.cc \
+  wgpu_storage_buffer.cc \
   wgpu_backend.cc \
   wgpu_context.cc \
   wgpu_context.hh \
@@ -287,6 +289,51 @@ for marker, block in blocks:
     body = method_body(marker)
     if body.count(block) != 1:
         raise SystemExit(f"ERROR: {marker} does not contain one exact command transaction")
+PY
+require_fixed_count 1 \
+  'if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 0 \
+  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 0 \
+  'ctx->queue_get().Submit(1, &cb);' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_storage_buffer.cc" <<'PY'
+from pathlib import Path
+import sys
+
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+marker = "void WGPUStorageBuffer::copy_sub("
+start = source.index(marker)
+opening = source.index("{", start)
+depth = 0
+for offset in range(opening, len(source)):
+    if source[offset] == "{":
+        depth += 1
+    elif source[offset] == "}":
+        depth -= 1
+        if depth == 0:
+            body = source[start : offset + 1]
+            break
+else:
+    raise SystemExit("ERROR: unterminated WGPUStorageBuffer::copy_sub method")
+
+block = """if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {
+        encoder.CopyBufferToBuffer(
+            src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
+      }))
+  {
+    return;
+  }"""
+if body.count(block) != 1:
+    raise SystemExit(
+        "ERROR: WGPUStorageBuffer::copy_sub does not contain one exact command transaction"
+    )
+range_guard = "if (!webgpu::buffer_copy_range_valid(src_offset,"
+if body.count(range_guard) != 1 or body.index(range_guard) >= body.index(block):
+    raise SystemExit("ERROR: storage command transaction does not follow range validation")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_pass_encode_submit_if_valid(' \

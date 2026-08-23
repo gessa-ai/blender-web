@@ -31573,10 +31573,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e3e176c153d3bd1fcdba98fd78342f3d6e31fc35
+index 0000000000000000000000000000000000000000..bd795240d7f631c2e96ffebcdd0badfe904bc8cd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,293 @@
+@@ -0,0 +1,295 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -31788,11 +31788,13 @@ index 0000000000000000000000000000000000000000..e3e176c153d3bd1fcdba98fd78342f3d
 +  }
 +
 +  wgpu::Device device = ctx->device_get();
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  enc.CopyBufferToBuffer(
-+      src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  ctx->queue_get().Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(
++            src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
++      }))
++  {
++    return;
++  }
 +}
 +
 +void WGPUStorageBuffer::read(void *data)

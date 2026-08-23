@@ -1,0 +1,18 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -211,7 +211,9 @@ void WGPUStorageBuffer::copy_sub(VertBuf *src, uint dst_offset, uint src_offset,
+   wgpu::Device device = ctx->device_get();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  enc.CopyBufferToBuffer(
+-      src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  ctx->queue_get().Submit(1, &cb);
++  if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {
++        encoder.CopyBufferToBuffer(
++            src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
++      }))
++  {
++    return;
++  }
+ }

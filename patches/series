@@ -950,3 +950,6 @@
 # 0215: route staged buffer uploads and native readback copies through the
 # checked command-encoder/finish/submission transaction.
 0215-gpu-webgpu-buffer-command-transaction.patch
+# 0216: route vertex-to-storage copies through the checked command-encoder,
+# finish, and submission transaction.
+0216-gpu-webgpu-storage-command-transaction.patch

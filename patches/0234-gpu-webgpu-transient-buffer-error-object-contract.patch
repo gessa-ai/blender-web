@@ -1,0 +1,443 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 0a78c5b..b74f335 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -375,6 +375,118 @@ class OrderedQueueScheduler {
+   std::shared_ptr<State> state_ = std::make_shared<State>();
+ };
+ 
++/** Shared completion state for one transient resource gate. The resource scope may settle before
++ * its reserved queue entry reaches the front, or the entry may start first and wait for the
++ * browser callback. Either order releases the queue exactly once. */
++class TransientResourceGateState {
++ public:
++  explicit TransientResourceGateState(std::function<void(bool)> complete)
++      : complete_(std::move(complete))
++  {
++  }
++
++  void operation(std::function<void(bool)> done)
++  {
++    std::function<void(bool)> complete;
++    bool valid = false;
++    {
++      std::lock_guard lock(mutex_);
++      if (finished_) {
++        return;
++      }
++      done_ = std::move(done);
++      if (!scope_settled_) {
++        return;
++      }
++      finished_ = true;
++      valid = scope_valid_;
++      complete = std::move(complete_);
++      done = std::move(done_);
++    }
++    if (complete) {
++      complete(valid);
++    }
++    done(valid);
++  }
++
++  void settle(const bool valid)
++  {
++    std::function<void(bool)> complete;
++    std::function<void(bool)> done;
++    {
++      std::lock_guard lock(mutex_);
++      if (finished_ || scope_settled_) {
++        return;
++      }
++      scope_settled_ = true;
++      scope_valid_ = valid;
++      if (!done_) {
++        return;
++      }
++      finished_ = true;
++      complete = std::move(complete_);
++      done = std::move(done_);
++    }
++    if (complete) {
++      complete(valid);
++    }
++    done(valid);
++  }
++
++  void cancel()
++  {
++    std::function<void(bool)> complete;
++    {
++      std::lock_guard lock(mutex_);
++      if (finished_) {
++        return;
++      }
++      finished_ = true;
++      complete = std::move(complete_);
++    }
++    if (complete) {
++      complete(false);
++    }
++  }
++
++ private:
++  std::mutex mutex_;
++  bool scope_settled_ = false;
++  bool scope_valid_ = false;
++  bool finished_ = false;
++  std::function<void(bool)> done_;
++  std::function<void(bool)> complete_;
++};
++
++/** Reserve queue chronology before creating a short-lived resource. The provisional handle may
++ * be used only to encode work queued after this gate. A literal null or a completed error scope
++ * rejects the gate and cancels the remainder of the current frame epoch. */
++template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn, typename CompleteFn>
++inline auto transient_resource_gate_scoped(OrderedQueueScheduler &scheduler,
++                                           BeginScopeFn &&begin_scope,
++                                           CreateFn &&create,
++                                           EndScopeFn &&end_scope,
++                                           CompleteFn &&complete)
++{
++  using CandidateT = std::decay_t<decltype(std::forward<CreateFn>(create)())>;
++  auto state = std::make_shared<TransientResourceGateState>(
++      std::function<void(bool)>(std::forward<CompleteFn>(complete)));
++  OrderedQueueScheduler::Ticket ticket = scheduler.reserve();
++
++  std::forward<BeginScopeFn>(begin_scope)();
++  CandidateT candidate = std::forward<CreateFn>(create)();
++  const bool handle_valid = !(candidate == nullptr);
++  ticket.resolve(
++      [state](auto done) { state->operation(std::move(done)); },
++      [state]() { state->cancel(); });
++  std::forward<EndScopeFn>(end_scope)(
++      [state, retained_candidate = candidate, handle_valid](const bool scope_valid) mutable {
++        (void)retained_candidate;
++        state->settle(handle_valid && scope_valid);
++      });
++  return candidate;
++}
++
+ /** Push the three implementation-error classes which can turn a non-null WebGPU handle into an
+  * error object. Validation is innermost because descriptor/command rejection is the common path. */
+ template<typename DeviceT> inline void webgpu_error_scopes_push(const DeviceT &device)
+@@ -458,6 +570,29 @@ inline void webgpu_error_scopes_pop(const InstanceT &instance,
+ #endif
+ }
+ 
++/** Create one transient WebGPU resource under the standard validation/OOM/internal scope set and
++ * gate all later queue work on its completed status. */
++template<typename InstanceT, typename DeviceT, typename CreateFn, typename CompleteFn>
++inline auto transient_resource_create_scoped(const InstanceT &instance,
++                                              const DeviceT &device,
++                                              OrderedQueueScheduler &scheduler,
++                                              const char *label,
++                                              CreateFn &&create,
++                                              CompleteFn &&complete)
++{
++  std::string operation_label = label ? label : "";
++  return transient_resource_gate_scoped(
++      scheduler,
++      [&device]() { webgpu_error_scopes_push(device); },
++      std::forward<CreateFn>(create),
++      [&instance, &device, operation_label = std::move(operation_label)](
++          auto completion) mutable {
++        webgpu_error_scopes_pop(
++            instance, device, std::move(operation_label), std::move(completion));
++      },
++      std::forward<CompleteFn>(complete));
++}
++
+ /**
+  * Cache a reusable WebGPU handle only after its implementation error scopes settle cleanly.
+  *
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 6db2507..0999dad 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -42,16 +42,18 @@ class Buffer {
+   Buffer(Buffer &&other) noexcept;
+   Buffer &operator=(Buffer &&other) noexcept;
+ 
+-  /** Create a short-lived buffer whose complete work is encoded before this C++ stack returns.
+-   * This compatibility seam validates only immediate/null failure; persistent resources must use
+-   * `create_scoped()`. The transient error-object residual is tracked separately by the R6 audit. */
+-  bool create(const wgpu::Device &device,
+-              BufferKind kind,
+-              UsageType usage,
+-              size_t size,
+-              const void *initial_data,
+-              bool readable,
+-              const char *label = nullptr);
++  /** Create a short-lived buffer whose dependent queue work is reserved in the same frame epoch.
++   * The provisional handle is available for CPU-side command encoding, but the queue gate releases
++   * only after validation/OOM/internal scopes accept it. */
++  bool create_transient(const wgpu::Instance &instance,
++                        const wgpu::Device &device,
++                        OrderedQueueScheduler &scheduler,
++                        BufferKind kind,
++                        UsageType usage,
++                        size_t size,
++                        const void *initial_data,
++                        bool readable,
++                        const char *label = nullptr);
+ 
+   /** Create a persistent buffer of `size` bytes. If `initial_data` is non-null it is written
+    * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
+@@ -89,23 +91,25 @@ class Buffer {
+ 
+   wgpu::Buffer handle() const
+   {
+-    return allocation_cache_.lookup(kAllocationKey).handle;
++    return allocation_get().handle;
+   }
+   size_t size() const
+   {
+-    return allocation_cache_.lookup(kAllocationKey).size;
++    return allocation_get().size;
+   }
+   BufferKind kind() const
+   {
+-    return allocation_cache_.lookup(kAllocationKey).kind;
++    return allocation_get().kind;
+   }
+   bool valid() const
+   {
+-    return allocation_cache_.lookup(kAllocationKey) != nullptr;
++    return allocation_get() != nullptr;
+   }
+   bool creation_pending() const
+   {
+-    return allocation_cache_.pending(kAllocationKey);
++    return allocation_cache_.pending(kAllocationKey) ||
++           (transient_scope_status_ &&
++            transient_scope_status_->load(std::memory_order_acquire) == 0);
+   }
+ 
+  private:
+@@ -127,7 +131,23 @@ class Buffer {
+   };
+ 
+   static constexpr uint8_t kAllocationKey = 0;
++  Allocation allocation_get() const
++  {
++    const Allocation persistent = allocation_cache_.lookup(kAllocationKey);
++    if (persistent != nullptr) {
++      return persistent;
++    }
++    if (transient_scope_status_ &&
++        transient_scope_status_->load(std::memory_order_acquire) >= 0)
++    {
++      return transient_allocation_;
++    }
++    return {};
++  }
++
+   ScopedHandleCache<uint8_t, Allocation> allocation_cache_;
++  Allocation transient_allocation_;
++  std::shared_ptr<std::atomic<int8_t>> transient_scope_status_;
+ };
+ 
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 8e1fbb1..679b2f0 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -29,8 +29,11 @@ Buffer::~Buffer()
+ }
+ 
+ Buffer::Buffer(Buffer &&other) noexcept
+-    : allocation_cache_(std::move(other.allocation_cache_))
++    : allocation_cache_(std::move(other.allocation_cache_)),
++      transient_allocation_(std::move(other.transient_allocation_)),
++      transient_scope_status_(std::move(other.transient_scope_status_))
+ {
++  other.transient_allocation_ = {};
+ }
+ 
+ Buffer &Buffer::operator=(Buffer &&other) noexcept
+@@ -38,6 +41,9 @@ Buffer &Buffer::operator=(Buffer &&other) noexcept
+   if (this != &other) {
+     readback::forget_source(readback::SourceKind::Buffer, this);
+     allocation_cache_ = std::move(other.allocation_cache_);
++    transient_allocation_ = std::move(other.transient_allocation_);
++    transient_scope_status_ = std::move(other.transient_scope_status_);
++    other.transient_allocation_ = {};
+   }
+   return *this;
+ }
+@@ -81,25 +87,31 @@ wgpu::BufferUsage usage_flags(BufferKind kind, UsageType usage, bool readable)
+   return u;
+ }
+ 
+-bool Buffer::create(const wgpu::Device &device,
+-                    BufferKind kind,
+-                    UsageType usage,
+-                    size_t size,
+-                    const void *initial_data,
+-                    bool readable,
+-                    const char *label)
++bool Buffer::create_transient(const wgpu::Instance &instance,
++                              const wgpu::Device &device,
++                              OrderedQueueScheduler &scheduler,
++                              BufferKind kind,
++                              UsageType usage,
++                              size_t size,
++                              const void *initial_data,
++                              bool readable,
++                              const char *label)
+ {
+   wgpu::Limits limits = {};
+   size_t allocated_size;
+-  if (device == nullptr || !device.GetLimits(&limits) ||
++  if (instance == nullptr || device == nullptr || !device.GetLimits(&limits) ||
+       !buffer_allocation_size(size, limits.maxBufferSize, allocated_size))
+   {
+     return false;
+   }
+ 
+-  const Allocation allocation = allocation_cache_.get_or_create_scoped(
+-      kAllocationKey,
+-      []() {},
++  transient_scope_status_ = std::make_shared<std::atomic<int8_t>>(0);
++  const std::shared_ptr<std::atomic<int8_t>> scope_status = transient_scope_status_;
++  transient_allocation_ = transient_resource_create_scoped(
++      instance,
++      device,
++      scheduler,
++      label ? label : "transient buffer creation",
+       [&]() {
+         wgpu::BufferDescriptor descriptor = {};
+         if (label != nullptr) {
+@@ -128,8 +140,11 @@ bool Buffer::create(const wgpu::Device &device,
+         candidate.readable = readable;
+         return candidate;
+       },
+-      [](auto completion) { completion(true); });
+-  return allocation != nullptr;
++      [scope_status](const bool valid) {
++        scope_status->store(valid ? int8_t(1) : int8_t(-1), std::memory_order_release);
++      });
++  return transient_allocation_ != nullptr &&
++         scope_status->load(std::memory_order_acquire) >= 0;
+ }
+ 
+ bool Buffer::create_scoped(const wgpu::Instance &instance,
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 1afa777..b5e0301 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -151,12 +151,15 @@ static bool expand_indexed_triangle_fan(WGPUContext &ctx,
+     return false;
+   }
+   r_output_count = uint32_t(max_output_count);
+-  if (!r_output.create(ctx.device_get(),
+-                       webgpu::BufferKind::Index,
+-                       webgpu::UsageType::DeviceOnly,
+-                       size_t(max_output_count) * sizeof(uint32_t),
+-                       nullptr,
+-                       false))
++  if (!r_output.create_transient(ctx.instance_get(),
++                                 ctx.device_get(),
++                                 ctx.queue_scheduler_get(),
++                                 webgpu::BufferKind::Index,
++                                 webgpu::UsageType::DeviceOnly,
++                                 size_t(max_output_count) * sizeof(uint32_t),
++                                 nullptr,
++                                 false,
++                                 "indexed triangle-fan output buffer"))
+   {
+     return false;
+   }
+@@ -165,12 +168,15 @@ static bool expand_indexed_triangle_fan(WGPUContext &ctx,
+                               source.is_32bit() ? 0xffffffffu : 0xffffu,
+                               r_output_count};
+   webgpu::Buffer params_buffer;
+-  if (!params_buffer.create(ctx.device_get(),
+-                            webgpu::BufferKind::Uniform,
+-                            webgpu::UsageType::Static,
+-                            sizeof(params),
+-                            params,
+-                            false))
++  if (!params_buffer.create_transient(ctx.instance_get(),
++                                      ctx.device_get(),
++                                      ctx.queue_scheduler_get(),
++                                      webgpu::BufferKind::Uniform,
++                                      webgpu::UsageType::Static,
++                                      sizeof(params),
++                                      params,
++                                      false,
++                                      "indexed triangle-fan parameters"))
+   {
+     return false;
+   }
+@@ -317,12 +323,15 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         fan_indices.push_back(base + i + 1);
+       }
+       fan_index_count = uint32_t(fan_indices.size());
+-      if (!fan_index_buffer.create(ctx->device_get(),
+-                                   webgpu::BufferKind::Index,
+-                                   webgpu::UsageType::Static,
+-                                   fan_indices.size() * sizeof(uint32_t),
+-                                   fan_indices.data(),
+-                                   false))
++      if (!fan_index_buffer.create_transient(ctx->instance_get(),
++                                             ctx->device_get(),
++                                             ctx->queue_scheduler_get(),
++                                             webgpu::BufferKind::Index,
++                                             webgpu::UsageType::Static,
++                                             fan_indices.size() * sizeof(uint32_t),
++                                             fan_indices.data(),
++                                             false,
++                                             "triangle-fan index buffer"))
+       {
+         return;
+       }
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 7954af8..9504917 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -109,12 +109,15 @@ void WGPUImmediate::end()
+       fan_indices.push_back(i);
+       fan_indices.push_back(i + 1);
+     }
+-    if (!fan_index_buffer.create(ctx->device_get(),
+-                                 webgpu::BufferKind::Index,
+-                                 webgpu::UsageType::Static,
+-                                 fan_indices.size() * sizeof(uint32_t),
+-                                 fan_indices.data(),
+-                                 false))
++    if (!fan_index_buffer.create_transient(ctx->instance_get(),
++                                           ctx->device_get(),
++                                           ctx->queue_scheduler_get(),
++                                           webgpu::BufferKind::Index,
++                                           webgpu::UsageType::Static,
++                                           fan_indices.size() * sizeof(uint32_t),
++                                           fan_indices.data(),
++                                           false,
++                                           "immediate triangle-fan index buffer"))
+     {
+       return;
+     }
+@@ -130,12 +133,15 @@ void WGPUImmediate::end()
+   /* Upload the recorded vertices to a transient vertex buffer. */
+   const size_t data_size = vertex_buffer_size(&vertex_format, vertex_idx);
+   webgpu::Buffer vbo;
+-  if (!vbo.create(ctx->device_get(),
+-                  webgpu::BufferKind::Vertex,
+-                  webgpu::UsageType::Static,
+-                  data_size,
+-                  cpu_buffer_.data(),
+-                  false))
++  if (!vbo.create_transient(ctx->instance_get(),
++                            ctx->device_get(),
++                            ctx->queue_scheduler_get(),
++                            webgpu::BufferKind::Vertex,
++                            webgpu::UsageType::Static,
++                            data_size,
++                            cpu_buffer_.data(),
++                            false,
++                            "immediate vertex buffer"))
+   {
+     return;
+   }

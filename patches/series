@@ -1004,3 +1004,6 @@
 # 0233: publish persistent buffer handles and metadata only after validation,
 # OOM, and internal scopes settle; retain initial index data across pending/retry.
 0233-gpu-webgpu-persistent-buffer-error-object-contract.patch
+# 0234: gate short-lived batch/immediate buffers ahead of dependent queue work
+# until validation, OOM, and internal scopes accept their provisional handles.
+0234-gpu-webgpu-transient-buffer-error-object-contract.patch

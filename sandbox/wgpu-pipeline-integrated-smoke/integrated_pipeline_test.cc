@@ -563,6 +563,99 @@ bool scoped_handle_cache_contract()
   return true;
 }
 
+bool transient_resource_gate_contract()
+{
+  struct ResourceCase {
+    int identity;
+    bool scope_valid;
+    bool expected_valid;
+  };
+  constexpr std::array<ResourceCase, 3> cases = {{{0, true, false},
+                                                   {41, false, false},
+                                                   {73, true, true}}};
+
+  bw::OrderedQueueScheduler scheduler;
+  int scope_begins = 0;
+  int scope_ends = 0;
+  int completions = 0;
+  int dependent_work = 0;
+  int canceled_work = 0;
+
+  for (size_t case_index = 0; case_index < cases.size(); case_index++) {
+    const ResourceCase &test = cases[case_index];
+    bw::OrderedQueueScheduler::Ticket leading_ticket;
+    if (case_index == 2) {
+      /* Exercise the inverse callback order: validation settles while an earlier queue entry
+       * still owns the front, then the accepted gate releases only when its turn begins. */
+      leading_ticket = scheduler.reserve();
+    }
+    std::function<void(bool)> settle;
+    bool completed = false;
+    bool result = true;
+    const CacheHandleProbe candidate = bw::transient_resource_gate_scoped(
+        scheduler,
+        [&]() { scope_begins++; },
+        [&]() { return CacheHandleProbe(test.identity); },
+        [&](auto completion) {
+          scope_ends++;
+          settle = std::move(completion);
+        },
+        [&](const bool valid) {
+          completions++;
+          completed = true;
+          result = valid;
+        });
+    scheduler.enqueue(
+        [&](auto done) {
+          dependent_work++;
+          done(true);
+        },
+        [&]() { canceled_work++; });
+
+    if (!require(candidate.identity() == test.identity,
+                 "transient gate returns the provisional candidate") ||
+        !require(!completed && dependent_work == 0,
+                 "transient gate blocks dependent work while its scope is pending") ||
+        !require(scheduler.pending_count() == (case_index == 2 ? 3 : 2) && bool(settle),
+                 "transient gate reserves queue order before scope completion"))
+    {
+      return false;
+    }
+
+    settle(test.scope_valid);
+    if (case_index == 2) {
+      if (!require(!completed && dependent_work == 0,
+                   "settled transient gate waits for its reserved queue position"))
+      {
+        return false;
+      }
+      leading_ticket.resolve([](auto done) { done(true); });
+    }
+    if (!require(completed && result == test.expected_valid,
+                 "transient gate combines handle and scope validity") ||
+        !require(dependent_work == int(test.expected_valid),
+                 "only accepted transient resources release dependent work") ||
+        !require(canceled_work == int(case_index + 1 - size_t(dependent_work)),
+                 "rejected transient resources cancel same-epoch work") ||
+        !require(scheduler.pending_count() == 0, "transient resource gate drains"))
+    {
+      return false;
+    }
+    scheduler.begin_epoch();
+  }
+
+  if (!require(scope_begins == 3 && scope_ends == 3 && completions == 3,
+               "transient resource gate scope census") ||
+      !require(dependent_work == 1 && canceled_work == 2,
+               "clean retry epoch executes after two rejected resources"))
+  {
+    return false;
+  }
+  std::puts("CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 "
+            "error_object=blocked dependent=1 canceled=2 retry=accepted");
+  return true;
+}
+
 struct ComputePipelineVariantProbe {
   std::vector<uint32_t> key;
   CacheHandleProbe pipeline;
@@ -2641,6 +2734,7 @@ int main()
       !index_buffer_handle_resolution_contract() ||
       !cache_handle_publication_contract() ||
       !scoped_handle_cache_contract() ||
+      !transient_resource_gate_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
@@ -2657,13 +2751,14 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=27 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 "
+      "transient_resource_gates=3 "
       "compute_cache_publications=2 load_action_commits=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

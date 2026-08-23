@@ -617,12 +617,61 @@ int main()
     return 25;
   }
 
+  bw::OrderedQueueScheduler transient_buffer_scheduler;
+  int transient_buffer_cases = 0;
+  for (const bool valid_case : {false, true}) {
+    if (valid_case) {
+      transient_buffer_scheduler.begin_epoch();
+    }
+    bool completed = false;
+    bool accepted = false;
+    int dependent_work = 0;
+    int canceled_work = 0;
+    const wgpu::Buffer candidate = bw::transient_resource_create_scoped(
+        instance,
+        device,
+        transient_buffer_scheduler,
+        valid_case ? "audit valid transient buffer" : "audit invalid transient buffer",
+        [&]() {
+          wgpu::BufferDescriptor descriptor = {};
+          descriptor.size = 4;
+          descriptor.usage = valid_case ? wgpu::BufferUsage::CopyDst :
+                                          wgpu::BufferUsage::None;
+          return device.CreateBuffer(&descriptor);
+        },
+        [&](const bool valid) {
+          completed = true;
+          accepted = valid;
+        });
+    transient_buffer_scheduler.enqueue(
+        [&](auto done) {
+          dependent_work++;
+          done(true);
+        },
+        [&]() { canceled_work++; });
+    if (!require(candidate != nullptr,
+                 "Dawn transient-buffer control did not return a non-null candidate") ||
+        !require(completed && accepted == valid_case,
+                 "shipping transient-buffer gate ignored completed scope status") ||
+        !require(dependent_work == (valid_case ? 1 : 0) &&
+                     canceled_work == (valid_case ? 0 : 1),
+                 "shipping transient-buffer gate released rejected dependent work") ||
+        !require(transient_buffer_scheduler.pending_count() == 0,
+                 "shipping transient-buffer gate left ordered work pending"))
+    {
+      return 26;
+    }
+    transient_buffer_cases++;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
             << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
             << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"
             << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
-            << " persistent_buffer_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " persistent_buffer_error_object_rejected=1 scoped_transient_buffer_cases="
+            << transient_buffer_cases
+            << " transient_buffer_error_object_blocked=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

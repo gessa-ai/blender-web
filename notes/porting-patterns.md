@@ -700,3 +700,18 @@ invisibility, non-null rejection, clean retry, exact mapped bytes, and delayed o
 against the byte-extracted shipping methods on native and wasm32, then use pinned Dawn only as a
 software error-object control. See `sandbox/wgpu-buffer-integrated-smoke/` and
 `sandbox/dawn-probe/probe_error_handles.cc`.
+
+## Class 49 — transient resource validation must reserve queue chronology first
+
+Signature: a short-lived buffer is created for one batch/immediate draw, its non-null candidate is
+used to encode dependent work, and the browser reports only later that the candidate was a
+validation/OOM/internal error object. A persistent cache is the wrong lifetime, while waiting
+synchronously would deadlock the browser worker. Reserve an ordered frame-epoch gate before
+creation, keep the candidate callback-owned through scope completion, and permit its provisional
+handle only for CPU encoding whose submission is queued behind that gate. Rejection poisons the
+current epoch and cancels every dependent queue mutation; the next frame may recreate and retry.
+Support both completion orders: the scope can settle while its gate is active, or before an earlier
+queue entry releases it. Never capture the stack-owned wrapper from the callback. Exercise literal
+null, a non-null rejected object, clean next-epoch retry, both completion orders, native/wasm32
+parity, and the exact helper on pinned Dawn as explicitly software-only non-receipt evidence. See
+`sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.

@@ -311,6 +311,17 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'inline void command_encode_submit_scoped(const InstanceT &instance,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline auto transient_resource_gate_scoped(OrderedQueueScheduler &scheduler,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline auto transient_resource_create_scoped(const InstanceT &instance,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'bool Buffer::create_transient(const wgpu::Instance &instance,' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 3 '.create_transient(' "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 2 '.create_transient(' "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 0 \
   'command_pass_encode_submit_if_valid' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
@@ -832,11 +843,11 @@ def method_body(marker: str) -> str:
 blocks = (
     (
         "bool Buffer::update_sub(",
-        "encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);",
+        "encoder.CopyBufferToBuffer(\n                                     staging, 0, allocation.handle, offset, size);",
     ),
     (
         "std::vector<uint8_t> Buffer::read(",
-        "encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);",
+        "encoder.CopyBufferToBuffer(\n                                     allocation.handle, offset, staging, 0, copy);",
     ),
 )
 
@@ -1366,7 +1377,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 28 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 29 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1389,6 +1400,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated error_object=rejected retry=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 error_object=blocked dependent=1 canceled=2 retry=accepted' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT compute_pipeline_cache_publication PASS attempts=2 failure=unpublished retry=published entries=2' \
@@ -1433,7 +1447,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=27 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=28 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

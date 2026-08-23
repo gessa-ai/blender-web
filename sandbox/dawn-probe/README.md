@@ -76,8 +76,10 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   frame epoch can retry. It also proves the shipping scoped-handle cache rejects a real non-null
   sampler error object before publishing a clean retry, and repeats that rejection/retry with the
   exact mapped dummy-vertex-buffer factory and the persistent buffer wrapper's composite
-  handle/metadata value. Its output is explicitly non-receipt evidence and cannot satisfy the
-  hardware success criterion above.
+  handle/metadata value. The short-lived buffer control then proves the shipping ordered resource
+  gate blocks dependent work after a real non-null buffer error object and releases a clean
+  next-epoch retry. Its output is explicitly non-receipt evidence and cannot satisfy the hardware
+  success criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

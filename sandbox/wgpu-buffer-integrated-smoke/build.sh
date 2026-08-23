@@ -224,7 +224,7 @@ require_fixed_count 2 \
 require_fixed_count 0 \
   'wgpu::CommandEncoder encoder = device.CreateCommandEncoder();' \
   "$WEBGPU_SOURCE/wgpu_readback.cc"
-require_fixed_count 1 \
+require_fixed_count 2 \
   'if (instance == nullptr || device == nullptr || !device.GetLimits(&limits) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 2 \
@@ -259,6 +259,10 @@ then
   exit 1
 fi
 require_fixed_count 1 'bool Buffer::create_scoped(const wgpu::Instance &instance,' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'bool Buffer::create_transient(const wgpu::Instance &instance,' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'transient_allocation_ = transient_resource_create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'const Allocation allocation = allocation_cache_.get_or_create(' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"

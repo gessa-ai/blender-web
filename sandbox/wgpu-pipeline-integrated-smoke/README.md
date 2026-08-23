@@ -65,6 +65,11 @@ Sampler cache misses additionally remain pending while validation, out-of-memory
 internal scopes settle. A second lookup deduplicates the pending key; a non-null error
 object is discarded, and a clean retry is published without exposing a provisional handle.
 The cache owns callback state independently of the context lifetime.
+Short-lived batch and immediate buffers use a separate ordered resource gate. Their provisional
+handles may be consumed only by CPU-side encoding queued behind that gate; no dependent queue work
+can run until validation, out-of-memory, and internal scopes accept the candidate. A null candidate
+or non-null error object poisons only the current frame epoch, cancels every dependent submit, and
+leaves a later epoch free to recreate the resource and retry.
 The shared dummy vertex buffer uses the same scoped cache with one fixed key. Its
 `{0,0,0,1}` payload is installed through `mappedAtCreation` before the creation scope is
 popped, so no initialization write can overtake browser validation and no provisional buffer

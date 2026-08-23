@@ -1771,6 +1771,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   real product rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression
   are verified. Live draw/pixel proof remains blocked by the named s7 hardware-adapter condition.
   See `notes/m3-t10-vertex-buffer-resource-transaction-20260823.md`.
+- [x] **M3.T10-INDEX-BUFFER-RESOURCE-TRANSACTION [gpu-backend] (fb38385):** patch 0227
+  resolves the required index-buffer handle before direct batch, indirect batch, or immediate
+  pipeline/command work. Failed indexed uploads reject rather than silently changing direct or
+  indirect draw semantics, and all triangle-fan paths bind the resolved transient handle. The
+  fail-first source guard, three-case native/wasm32 transaction, root/descendant parity,
+  wrong-Node control, canonical replay, numbered forward/reverse checks, real product
+  rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
+  Live draw/pixel proof remains blocked by the named s7 hardware-adapter condition. See
+  `notes/m3-t10-index-buffer-resource-transaction-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

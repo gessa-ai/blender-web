@@ -525,6 +525,39 @@ forbidden = (
 )
 if any(needle in read_body for needle in forbidden):
     raise SystemExit("ERROR: native texture readback retains an unchecked command operation")
+
+copy_body = method_body("void WGPUTexture::copy_to(")
+helper = "if (!webgpu::command_encode_submit_if_valid("
+mip_loop = "for (const int64_t mip : mip_levels) {"
+compatibility = (
+    "!resolve_subresource(int(mip), -1, src_region)",
+    "!dst->resolve_subresource(int(mip), -1, dst_region)",
+    "src_region.width != dst_region.width",
+    "src_region.height != dst_region.height",
+    "src_region.depth != dst_region.depth",
+)
+skip = "continue;"
+copy = "encoder.CopyTextureToTexture(&s, &d, &size);"
+if (
+    copy_body.count(helper) != 1
+    or copy_body.count(mip_loop) != 1
+    or copy_body.count(copy) != 1
+):
+    raise SystemExit("ERROR: texture copy lacks one checked multi-mip command transaction")
+positions = [
+    copy_body.find(needle)
+    for needle in (helper, mip_loop, *compatibility, skip, copy)
+]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("ERROR: texture copy command transaction changed per-mip skip ordering")
+forbidden = (
+    "wgpu::CommandEncoder enc = device.CreateCommandEncoder();",
+    "enc.CopyTextureToTexture(",
+    "wgpu::CommandBuffer cb = enc.Finish();",
+    "ctx->queue_get().Submit(1, &cb);",
+)
+if any(needle in copy_body for needle in forbidden):
+    raise SystemExit("ERROR: texture copy retains an unchecked command operation")
 PY
 require_fixed_count 2 \
   'if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {' \

@@ -1,0 +1,81 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -2470,41 +2470,46 @@ void WGPUTexture::copy_to(Texture *tex, IndexRange mip_levels)
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  for (const int64_t mip : mip_levels) {
+-    ResolvedReadRegion src_region;
+-    ResolvedReadRegion dst_region;
+-    if (!resolve_subresource(int(mip), -1, src_region) ||
+-        !dst->resolve_subresource(int(mip), -1, dst_region) ||
+-        src_region.width != dst_region.width || src_region.height != dst_region.height ||
+-        src_region.depth != dst_region.depth)
+-    {
+-      continue;
+-    }
+-    const bool combined_depth_stencil =
+-        subresources_.backing_format == wgpu::TextureFormat::Depth32FloatStencil8 ||
+-        subresources_.backing_format == wgpu::TextureFormat::Depth24PlusStencil8;
+-    const wgpu::TextureAspect copy_aspect = combined_depth_stencil ?
+-                                                wgpu::TextureAspect::All :
+-                                                src_region.aspect;
++  if (!webgpu::command_encode_submit_if_valid(
++          device, ctx->queue_get(), [&](auto &encoder) {
++            for (const int64_t mip : mip_levels) {
++              ResolvedReadRegion src_region;
++              ResolvedReadRegion dst_region;
++              if (!resolve_subresource(int(mip), -1, src_region) ||
++                  !dst->resolve_subresource(int(mip), -1, dst_region) ||
++                  src_region.width != dst_region.width ||
++                  src_region.height != dst_region.height ||
++                  src_region.depth != dst_region.depth)
++              {
++                continue;
++              }
++              const bool combined_depth_stencil =
++                  subresources_.backing_format == wgpu::TextureFormat::Depth32FloatStencil8 ||
++                  subresources_.backing_format == wgpu::TextureFormat::Depth24PlusStencil8;
++              const wgpu::TextureAspect copy_aspect = combined_depth_stencil ?
++                                                          wgpu::TextureAspect::All :
++                                                          src_region.aspect;
+ 
+-    wgpu::TexelCopyTextureInfo s = {};
+-    s.texture = src_region.texture;
+-    s.mipLevel = src_region.mip_level;
+-    s.origin = {src_region.origin_x, src_region.origin_y, src_region.origin_z};
+-    s.aspect = copy_aspect;
++              wgpu::TexelCopyTextureInfo s = {};
++              s.texture = src_region.texture;
++              s.mipLevel = src_region.mip_level;
++              s.origin = {src_region.origin_x, src_region.origin_y, src_region.origin_z};
++              s.aspect = copy_aspect;
+ 
+-    wgpu::TexelCopyTextureInfo d = {};
+-    d.texture = dst_region.texture;
+-    d.mipLevel = dst_region.mip_level;
+-    d.origin = {dst_region.origin_x, dst_region.origin_y, dst_region.origin_z};
+-    d.aspect = copy_aspect;
++              wgpu::TexelCopyTextureInfo d = {};
++              d.texture = dst_region.texture;
++              d.mipLevel = dst_region.mip_level;
++              d.origin = {dst_region.origin_x, dst_region.origin_y, dst_region.origin_z};
++              d.aspect = copy_aspect;
+ 
+-    wgpu::Extent3D size = {src_region.width, src_region.height, src_region.depth};
+-    enc.CopyTextureToTexture(&s, &d, &size);
++              wgpu::Extent3D size = {
++                  src_region.width, src_region.height, src_region.depth};
++              encoder.CopyTextureToTexture(&s, &d, &size);
++            }
++          }))
++  {
++    return;
+   }
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  ctx->queue_get().Submit(1, &cb);
+ }
+ 
+ void WGPUTexture::generate_mipmap()

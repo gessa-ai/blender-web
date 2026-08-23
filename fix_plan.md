@@ -1986,10 +1986,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   source-bound frontend cleanup order, non-null pinned-Dawn rejection, canonical replay, real
   product rebuild/no-work, OFF preflight, and compliance are verified. See
   `notes/m3-gpu-upload-commit-20260823.md`.
-- [ ] **AUDIT-R7-GPU-COMPUTE-BIND-SCOPE [gpu-backend, blocked-by: none]:** create direct and
-  indirect compute bind groups inside implementation error scopes before dispatch publication.
-  Add a non-null error-object regression with an uncaptured-error counter and require a clean retry
-  to dispatch only after accepted bind-group creation.
+- [x] **AUDIT-R7-GPU-COMPUTE-BIND-SCOPE [gpu-backend, blocked-by: none] COMPLETE (88003fd,
+  patch 0243):** direct and indirect compute bind groups now reserve one ordered transient resource
+  gate and create under completed implementation scopes before their dependent command can submit.
+  Native/wasm32 parity covers non-null error-object rejection, zero uncaptured errors,
+  same-epoch cancellation, and clean retry; pinned-Dawn software control, canonical replay, real
+  product rebuild/no-work, OFF preflight, compliance, scoped M3, and regression are verified. See
+  `notes/m3-gpu-compute-bind-scope-20260823.md`.
 - [ ] **AUDIT-R7-GHOST-ACQUISITION-LIFETIME [ghost-web, blocked-by: none]:** remove raw-owner
   access from spontaneous fallback adapter/device request completions. Delay each callback,
   destroy the context, and deliver under ASan/native+wasm32 lifetime seams with zero owner access,

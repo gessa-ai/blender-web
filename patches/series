@@ -941,3 +941,6 @@
 # 0212: reject a missing indexed-fan shader module before pipeline creation and
 # route its expansion through the checked encoder/pass/finish/submit transaction.
 0212-gpu-webgpu-indexed-fan-resource-transaction.patch
+# 0213: reject failed immediate-draw command encoders before pass creation and
+# failed finished command buffers before queue submission.
+0213-gpu-webgpu-immediate-command-guards.patch

@@ -5,8 +5,9 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, color-blit and indexed-fan resource guards, dummy-attribute
-# binding plan, and shader-lifetime cache separation.
+# cache publication, color-blit/indexed-fan resource guards, immediate-draw
+# command transactions, dummy-attribute binding plan, and shader-lifetime cache
+# separation.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -82,6 +83,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/webgpu/wgpu_context.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
+    source/blender/gpu/webgpu/wgpu_immediate.cc
     source/blender/gpu/webgpu/wgpu_framebuffer.cc
     source/blender/gpu/webgpu/wgpu_shader.cc
     source/blender/gpu/webgpu/wgpu_shader.hh
@@ -130,6 +132,7 @@ for source_name in \
   wgpu_context.cc \
   wgpu_context.hh \
   wgpu_batch.cc \
+  wgpu_immediate.cc \
   wgpu_framebuffer.cc \
   wgpu_shader.cc \
   wgpu_shader.hh \
@@ -265,6 +268,51 @@ if [ -z "$FAN_MODULE_CREATE_LINE" ] || [ -z "$FAN_MODULE_GUARD_LINE" ] ||
    [ "$FAN_BIND_GUARD_LINE" -ge "$FAN_COMMAND_TRANSACTION_LINE" ]
 then
   echo "ERROR: indexed triangle-fan resource guards do not precede dependent work" >&2
+  exit 1
+fi
+require_fixed_count 1 \
+  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'if (enc == nullptr) {' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'wgpu::CommandBuffer cb = enc.Finish();' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'if (cb == nullptr) {' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'ctx->queue_get().Submit(1, &cb);' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+IMMEDIATE_ENCODER_CREATE_LINE="$(grep -nF \
+  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+IMMEDIATE_ENCODER_GUARD_LINE="$(grep -nF \
+  'if (enc == nullptr) {' "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+IMMEDIATE_PASS_BEGIN_LINE="$(grep -nF \
+  'wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+IMMEDIATE_FINISH_LINE="$(grep -nF \
+  'wgpu::CommandBuffer cb = enc.Finish();' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+IMMEDIATE_FINISH_GUARD_LINE="$(grep -nF \
+  'if (cb == nullptr) {' "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+IMMEDIATE_SUBMIT_LINE="$(grep -nF \
+  'ctx->queue_get().Submit(1, &cb);' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc" | cut -d: -f1)"
+if [ -z "$IMMEDIATE_ENCODER_CREATE_LINE" ] || [ -z "$IMMEDIATE_ENCODER_GUARD_LINE" ] ||
+   [ -z "$IMMEDIATE_PASS_BEGIN_LINE" ] || [ -z "$IMMEDIATE_FINISH_LINE" ] ||
+   [ -z "$IMMEDIATE_FINISH_GUARD_LINE" ] || [ -z "$IMMEDIATE_SUBMIT_LINE" ] ||
+   [ "$IMMEDIATE_ENCODER_CREATE_LINE" -ge "$IMMEDIATE_ENCODER_GUARD_LINE" ] ||
+   [ "$IMMEDIATE_ENCODER_GUARD_LINE" -ge "$IMMEDIATE_PASS_BEGIN_LINE" ] ||
+   [ "$IMMEDIATE_FINISH_LINE" -ge "$IMMEDIATE_FINISH_GUARD_LINE" ] ||
+   [ "$IMMEDIATE_FINISH_GUARD_LINE" -ge "$IMMEDIATE_SUBMIT_LINE" ]
+then
+  echo "ERROR: immediate draw command guards do not precede dependent work" >&2
   exit 1
 fi
 require_fixed_count 1 'struct DirectDrawPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"

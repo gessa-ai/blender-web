@@ -23688,10 +23688,10 @@ index 0000000000000000000000000000000000000000..8e683e2ea0450bea888e878da8c4c563
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f6fb17f1b9ef5dda90e8daf2faa4bc515600d492
+index 0000000000000000000000000000000000000000..e15905a999c44754cd346c10ad9f277d78f39ec1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,250 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23871,6 +23871,9 @@ index 0000000000000000000000000000000000000000..f6fb17f1b9ef5dda90e8daf2faa4bc51
 +
 +  wgpu::Device device = ctx->device_get();
 +  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
 +  wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
 +  if (pass == nullptr) {
 +    return;
@@ -23932,6 +23935,9 @@ index 0000000000000000000000000000000000000000..f6fb17f1b9ef5dda90e8daf2faa4bc51
 +  }
 +  pass.End();
 +  wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
 +  ctx->queue_get().Submit(1, &cb);
 +}
 +

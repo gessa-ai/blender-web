@@ -611,3 +611,16 @@ candidates, preserve caller outputs on either failure, publish the pair only aft
 and make a null resource fail shader finalization. Exercise first-handle failure, second-handle
 failure, and ordered pair publication device-free on native and wasm32. See
 `sandbox/wgpu-shader-frontend-integrated-smoke/`.
+
+## Class 43 — compositor liveness begins at successful submission
+
+Signature: a browser compositor directly replaces its persistent resize texture, publishes a
+bind-group layout before the dependent present pipeline exists, then logs first pixels before
+unchecked views, bind groups, encoders, passes, and command buffers reach the queue. A transient
+failure can discard the last usable resize texture, leave mismatched dimensions or partial cached
+state, dereference a null handle, and falsely release the loading UI. Keep the prior texture and
+extent until replacement succeeds; publish reusable layout/pipeline state only as a complete pair;
+encode every per-frame dependency inside one abortable transaction; and advance first-pixels and
+present counters only after the complete command buffer is submitted. Exercise each allocation and
+command boundary device-free on native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

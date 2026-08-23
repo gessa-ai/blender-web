@@ -23,6 +23,12 @@ if(NOT DEFINED BW_WASM_INCLUDE_DIR OR
    NOT EXISTS "${BW_WASM_INCLUDE_DIR}/fmt/ranges.h")
   message(FATAL_ERROR "BW_WASM_INCLUDE_DIR must name the harvested Wasm include root")
 endif()
+if(NOT DEFINED BW_GHOST_PRESENT_TRANSACTION_HEADER OR
+   NOT IS_ABSOLUTE "${BW_GHOST_PRESENT_TRANSACTION_HEADER}" OR
+   NOT EXISTS "${BW_GHOST_PRESENT_TRANSACTION_HEADER}")
+  message(FATAL_ERROR
+    "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header")
+endif()
 
 foreach(_bw_source wgpu_pipeline.cc wgpu_pipeline.hh)
   set(_bw_source_path "${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/${_bw_source}")
@@ -52,6 +58,7 @@ add_executable(wgpu_pipeline_integrated_smoke
 )
 target_compile_definitions(wgpu_pipeline_integrated_smoke PRIVATE
   BW_WGPU_PIPELINE_SOURCE="${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/wgpu_pipeline.cc"
+  BW_GHOST_PRESENT_TRANSACTION_HEADER="${BW_GHOST_PRESENT_TRANSACTION_HEADER}"
 )
 set_target_properties(wgpu_pipeline_integrated_smoke PROPERTIES
   CXX_STANDARD 20

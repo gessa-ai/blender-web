@@ -18,6 +18,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 WEBGPU_SOURCE="$ROOT/upstream/source/blender/gpu/webgpu"
+GHOST_SOURCE="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc"
+GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -106,10 +108,23 @@ source_digest()
     source/blender/blenlib/BLI_assert.h
     source/blender/blenlib/intern/BLI_assert.cc
   )
+  local upstream_digest
+  local ghost_digest
   if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$ROOT/upstream" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')
+    upstream_digest="$(cd "$ROOT/upstream" && sha256sum "${files[@]}" | sha256sum | awk '{print $1}')"
+    ghost_digest="$(cd "$ROOT" && \
+      sha256sum platform_web/ghost/GHOST_ContextWGPUWeb.cc \
+                platform_web/ghost/GHOST_WGPUTransaction.hh | sha256sum | awk '{print $1}')"
+    printf '%s\n%s\n' "$upstream_digest" "$ghost_digest" | sha256sum | awk '{print $1}'
   else
-    (cd "$ROOT/upstream" && shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')
+    upstream_digest="$(cd "$ROOT/upstream" && \
+      shasum -a 256 "${files[@]}" | shasum -a 256 | awk '{print $1}')"
+    ghost_digest="$(cd "$ROOT" && \
+      shasum -a 256 platform_web/ghost/GHOST_ContextWGPUWeb.cc \
+                    platform_web/ghost/GHOST_WGPUTransaction.hh | \
+      shasum -a 256 | awk '{print $1}')"
+    printf '%s\n%s\n' "$upstream_digest" "$ghost_digest" | \
+      shasum -a 256 | awk '{print $1}'
   fi
 }
 
@@ -118,6 +133,8 @@ require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_pipeline_test.cc"
+require_file "$GHOST_SOURCE"
+require_file "$GHOST_TRANSACTION_HEADER"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
@@ -1141,6 +1158,10 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   '/* Every dummy slot has arrayStride zero, so all vertex and instance ranges read the same' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 '#include "GHOST_WGPUTransaction.hh"' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::texture_replace_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::present_pipeline_create_if_valid(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::present_frame_encode_submit_if_valid(' "$GHOST_SOURCE"
 if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2
   exit 1
@@ -1199,6 +1220,7 @@ echo "== [1/3] canonical native render-pipeline mappings =="
   -DDAWN_SRC_DIR="$DAWN_SRC" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_PIPELINE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_pipeline_integrated_test
@@ -1210,6 +1232,7 @@ echo "== [2/3] canonical Wasm render-pipeline mappings =="
   "${CCACHE_ARGS[@]}" \
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_PIPELINE_SOURCE_DIR="$WEBGPU_SOURCE" \
+  -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_pipeline_integrated_smoke
 
@@ -1222,7 +1245,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 23 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 24 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1265,6 +1288,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT buffer_command_transaction PASS cases=4 accepted=1 encoder_fail=closed encode_fail=discarded command_fail=closed' \
        "$stdout_file" ||
      ! grep -qx \
+       'CONTRACT ghost_present_resource_transaction PASS cases=14 backbuffer=2 pipeline=5 frame=7 failure=atomic submit=1' \
+       "$stdout_file" ||
+     ! grep -qx \
        'CONTRACT index_buffer_handle_resolution PASS cases=3 required=2 failure=atomic optional=empty' \
        "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
@@ -1274,7 +1300,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=22 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=23 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

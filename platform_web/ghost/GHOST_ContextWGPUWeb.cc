@@ -11,6 +11,7 @@
  * Implementation of GHOST_ContextWGPUWeb (emdawnwebgpu + HTML canvas surface). */
 
 #include "GHOST_ContextWGPUWeb.hh"
+#include "GHOST_WGPUTransaction.hh"
 
 #include <atomic>
 #include <cstdint>
@@ -342,6 +343,10 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
   /* Idempotent: skip a redundant Configure when the extent is unchanged (repeated
    * resize events commonly report the same size). */
   if (configured_ && w == width_ && h == height_) {
+    /* A transient resize allocation failure leaves the prior texture and extent
+     * intact. Retry that one missing publication without redundantly configuring
+     * the already-current surface. */
+    ensureBackbuffer();
     return;
   }
   width_ = w;
@@ -393,9 +398,16 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
    * instead of the destroyed transient surface). */
   td.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding |
              wgpu::TextureUsage::CopySrc;
-  backbuffer_ = device_.CreateTexture(&td);
-  backbuffer_w_ = width_;
-  backbuffer_h_ = height_;
+  if (!ghost_web::texture_replace_if_valid(
+          [&]() { return device_.CreateTexture(&td); },
+          backbuffer_,
+          width_,
+          height_,
+          backbuffer_w_,
+          backbuffer_h_))
+  {
+    std::printf("WGPUWeb: CreateTexture failed for %ux%u backbuffer\n", width_, height_);
+  }
 }
 
 void GHOST_ContextWGPUWeb::ensurePresentPipeline()
@@ -418,42 +430,53 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
       "@fragment fn fs(@builtin(position) c: vec4<f32>) -> @location(0) vec4<f32> {\n"
       "  return textureLoad(src, vec2<i32>(i32(c.x), i32(c.y)), 0);\n"
       "}\n";
-  wgpu::ShaderSourceWGSL wgsl_src = {};
-  wgsl_src.code = wgsl;
-  wgpu::ShaderModuleDescriptor sm_desc = {};
-  sm_desc.nextInChain = &wgsl_src;
-  wgpu::ShaderModule module = device_.CreateShaderModule(&sm_desc);
+  if (!ghost_web::present_pipeline_create_if_valid(
+          [&]() {
+            wgpu::ShaderSourceWGSL wgsl_src = {};
+            wgsl_src.code = wgsl;
+            wgpu::ShaderModuleDescriptor sm_desc = {};
+            sm_desc.nextInChain = &wgsl_src;
+            return device_.CreateShaderModule(&sm_desc);
+          },
+          [&]() {
+            wgpu::BindGroupLayoutEntry bgl_entry = {};
+            bgl_entry.binding = 0;
+            bgl_entry.visibility = wgpu::ShaderStage::Fragment;
+            bgl_entry.texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+            bgl_entry.texture.viewDimension = wgpu::TextureViewDimension::e2D;
+            wgpu::BindGroupLayoutDescriptor bgl_desc = {};
+            bgl_desc.entryCount = 1;
+            bgl_desc.entries = &bgl_entry;
+            return device_.CreateBindGroupLayout(&bgl_desc);
+          },
+          [&](const wgpu::BindGroupLayout &bind_group_layout) {
+            wgpu::PipelineLayoutDescriptor pl_desc = {};
+            pl_desc.bindGroupLayoutCount = 1;
+            pl_desc.bindGroupLayouts = &bind_group_layout;
+            return device_.CreatePipelineLayout(&pl_desc);
+          },
+          [&](const wgpu::ShaderModule &module, const wgpu::PipelineLayout &pipeline_layout) {
+            wgpu::ColorTargetState color_target = {};
+            color_target.format = surface_format_;
+            wgpu::FragmentState frag = {};
+            frag.module = module;
+            frag.entryPoint = "fs";
+            frag.targetCount = 1;
+            frag.targets = &color_target;
 
-  wgpu::BindGroupLayoutEntry bgl_entry = {};
-  bgl_entry.binding = 0;
-  bgl_entry.visibility = wgpu::ShaderStage::Fragment;
-  bgl_entry.texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-  bgl_entry.texture.viewDimension = wgpu::TextureViewDimension::e2D;
-  wgpu::BindGroupLayoutDescriptor bgl_desc = {};
-  bgl_desc.entryCount = 1;
-  bgl_desc.entries = &bgl_entry;
-  present_bgl_ = device_.CreateBindGroupLayout(&bgl_desc);
-
-  wgpu::PipelineLayoutDescriptor pl_desc = {};
-  pl_desc.bindGroupLayoutCount = 1;
-  pl_desc.bindGroupLayouts = &present_bgl_;
-  wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pl_desc);
-
-  wgpu::ColorTargetState color_target = {};
-  color_target.format = surface_format_;
-  wgpu::FragmentState frag = {};
-  frag.module = module;
-  frag.entryPoint = "fs";
-  frag.targetCount = 1;
-  frag.targets = &color_target;
-
-  wgpu::RenderPipelineDescriptor rp_desc = {};
-  rp_desc.layout = pl;
-  rp_desc.vertex.module = module;
-  rp_desc.vertex.entryPoint = "vs";
-  rp_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-  rp_desc.fragment = &frag;
-  present_pipeline_ = device_.CreateRenderPipeline(&rp_desc);
+            wgpu::RenderPipelineDescriptor rp_desc = {};
+            rp_desc.layout = pipeline_layout;
+            rp_desc.vertex.module = module;
+            rp_desc.vertex.entryPoint = "vs";
+            rp_desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+            rp_desc.fragment = &frag;
+            return device_.CreateRenderPipeline(&rp_desc);
+          },
+          present_bgl_,
+          present_pipeline_))
+  {
+    return;
+  }
 }
 
 void GHOST_ContextWGPUWeb::presentBackbuffer()
@@ -471,8 +494,45 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
     return;
   }
 
-  /* Bounded "present path live" marker (first 2 frames only): confirms swapBufferRelease
-   * reaches the present and the surface texture is live. Capped so 120 fps cannot flood. */
+  if (!ghost_web::present_frame_encode_submit_if_valid(
+          [&]() { return backbuffer_.CreateView(); },
+          [&]() { return st.texture.CreateView(); },
+          [&](const wgpu::TextureView &source_view) {
+            wgpu::BindGroupEntry bg_entry = {};
+            bg_entry.binding = 0;
+            bg_entry.textureView = source_view;
+            wgpu::BindGroupDescriptor bg_desc = {};
+            bg_desc.layout = present_bgl_;
+            bg_desc.entryCount = 1;
+            bg_desc.entries = &bg_entry;
+            return device_.CreateBindGroup(&bg_desc);
+          },
+          [&]() { return device_.CreateCommandEncoder(); },
+          [&](wgpu::CommandEncoder &encoder, const wgpu::TextureView &target_view) {
+            wgpu::RenderPassColorAttachment ca = {};
+            ca.view = target_view;
+            ca.loadOp = wgpu::LoadOp::Clear;
+            ca.storeOp = wgpu::StoreOp::Store;
+            ca.clearValue = {0.0, 0.0, 0.0, 1.0};
+            wgpu::RenderPassDescriptor rp = {};
+            rp.colorAttachmentCount = 1;
+            rp.colorAttachments = &ca;
+            return encoder.BeginRenderPass(&rp);
+          },
+          [&](wgpu::RenderPassEncoder &pass, const wgpu::BindGroup &bind_group) {
+            pass.SetPipeline(present_pipeline_);
+            pass.SetBindGroup(0, bind_group);
+            pass.Draw(3);
+          },
+          [&](const wgpu::CommandBuffer &command_buffer) {
+            queue_.Submit(1, &command_buffer);
+          }))
+  {
+    return;
+  }
+
+  /* Bounded "present path live" marker (first 2 frames only): confirms a complete
+   * command buffer reached the queue. Capped so 120 fps cannot flood. */
   static int present_log_count = 0;
   if (present_log_count < 2) {
     std::printf("WGPUWeb: presentBackbuffer frame %d — surface %ux%u -> canvas (offscreen blit)\n",
@@ -481,34 +541,6 @@ void GHOST_ContextWGPUWeb::presentBackbuffer()
                 st.texture.GetHeight());
     present_log_count++;
   }
-
-  wgpu::TextureView src_view = backbuffer_.CreateView();
-  wgpu::BindGroupEntry bg_entry = {};
-  bg_entry.binding = 0;
-  bg_entry.textureView = src_view;
-  wgpu::BindGroupDescriptor bg_desc = {};
-  bg_desc.layout = present_bgl_;
-  bg_desc.entryCount = 1;
-  bg_desc.entries = &bg_entry;
-  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bg_desc);
-
-  wgpu::RenderPassColorAttachment ca = {};
-  ca.view = st.texture.CreateView();
-  ca.loadOp = wgpu::LoadOp::Clear;
-  ca.storeOp = wgpu::StoreOp::Store;
-  ca.clearValue = {0.0, 0.0, 0.0, 1.0};
-  wgpu::RenderPassDescriptor rp = {};
-  rp.colorAttachmentCount = 1;
-  rp.colorAttachments = &ca;
-
-  wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
-  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
-  pass.SetPipeline(present_pipeline_);
-  pass.SetBindGroup(0, bind_group);
-  pass.Draw(3);
-  pass.End();
-  wgpu::CommandBuffer cb = enc.Finish();
-  queue_.Submit(1, &cb);
   /* ghost-keepalive: record the present so the idle keepalive can tell frames are being
    * produced and the no-idle-burn proof can show they are NOT at idle. */
   ghost_web::note_present();

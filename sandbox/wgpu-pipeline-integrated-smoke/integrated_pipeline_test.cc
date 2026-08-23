@@ -16,12 +16,17 @@
 #ifndef BW_WGPU_PIPELINE_SOURCE
 #  error "BW_WGPU_PIPELINE_SOURCE must name the canonical wgpu_pipeline.cc"
 #endif
+#ifndef BW_GHOST_PRESENT_TRANSACTION_HEADER
+#  error "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header"
+#endif
 
 /* The dummy-binding helper intentionally has internal linkage. Including the
  * canonical translation unit keeps this contract on the shipping vertex plan. */
 #include BW_WGPU_PIPELINE_SOURCE
+#include BW_GHOST_PRESENT_TRANSACTION_HEADER
 
 namespace bw = blender::gpu::webgpu;
+namespace gw = ghost_web;
 
 namespace {
 
@@ -1449,6 +1454,210 @@ bool buffer_command_transaction_contract()
   return true;
 }
 
+class GhostHandleProbe {
+ public:
+  GhostHandleProbe() = default;
+  explicit GhostHandleProbe(const int identity) : identity_(identity) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return identity_ == 0;
+  }
+
+  int identity() const
+  {
+    return identity_;
+  }
+
+ private:
+  int identity_ = 0;
+};
+
+struct GhostFrameTrace {
+  int failure_stage = 6;
+  uint64_t signature = 0;
+  bool dependencies_valid = true;
+  int submits = 0;
+
+  void step(const uint64_t value)
+  {
+    signature = signature * 10 + value;
+  }
+};
+
+class GhostFramePassProbe {
+ public:
+  GhostFramePassProbe() = default;
+  GhostFramePassProbe(GhostFrameTrace *trace, const bool valid) : trace_(trace), valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  void End()
+  {
+    trace_->step(7);
+  }
+
+ private:
+  GhostFrameTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+class GhostFrameEncoderProbe {
+ public:
+  GhostFrameEncoderProbe() = default;
+  GhostFrameEncoderProbe(GhostFrameTrace *trace, const bool valid) : trace_(trace), valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  GhostHandleProbe Finish()
+  {
+    trace_->step(8);
+    return trace_->failure_stage == 5 ? GhostHandleProbe() : GhostHandleProbe(35);
+  }
+
+ private:
+  GhostFrameTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+bool ghost_present_resource_transaction_contract()
+{
+  int accepted = 0;
+
+  GhostHandleProbe texture(71);
+  uint32_t texture_width = 17;
+  uint32_t texture_height = 19;
+  if (!require(!gw::texture_replace_if_valid(
+                   []() { return GhostHandleProbe(); },
+                   texture,
+                   1280,
+                   720,
+                   texture_width,
+                   texture_height),
+               "failed GHOST backbuffer replacement is rejected") ||
+      !require(texture.identity() == 71 && texture_width == 17 && texture_height == 19,
+               "failed GHOST backbuffer replacement preserves state") ||
+      !require(gw::texture_replace_if_valid(
+                   []() { return GhostHandleProbe(72); },
+                   texture,
+                   1280,
+                   720,
+                   texture_width,
+                   texture_height),
+               "valid GHOST backbuffer replacement is accepted") ||
+      !require(texture.identity() == 72 && texture_width == 1280 && texture_height == 720,
+               "valid GHOST backbuffer replacement publishes complete state"))
+  {
+    return false;
+  }
+  accepted++;
+
+  for (int failure_stage = 0; failure_stage <= 4; failure_stage++) {
+    uint64_t signature = 0;
+    bool dependencies_valid = true;
+    GhostHandleProbe bind_group_layout(81);
+    GhostHandleProbe pipeline(82);
+    const bool result = gw::present_pipeline_create_if_valid(
+        [&]() {
+          signature = signature * 10 + 1;
+          return failure_stage == 0 ? GhostHandleProbe() : GhostHandleProbe(11);
+        },
+        [&]() {
+          signature = signature * 10 + 2;
+          return failure_stage == 1 ? GhostHandleProbe() : GhostHandleProbe(12);
+        },
+        [&](const GhostHandleProbe &candidate_layout) {
+          signature = signature * 10 + 3;
+          dependencies_valid &= candidate_layout.identity() == 12;
+          return failure_stage == 2 ? GhostHandleProbe() : GhostHandleProbe(13);
+        },
+        [&](const GhostHandleProbe &module, const GhostHandleProbe &layout) {
+          signature = signature * 10 + 4;
+          dependencies_valid &= module.identity() == 11 && layout.identity() == 13;
+          return failure_stage == 3 ? GhostHandleProbe() : GhostHandleProbe(14);
+        },
+        bind_group_layout,
+        pipeline);
+    const bool expect_success = failure_stage == 4;
+    const uint64_t expected_signature = failure_stage == 0 ? 1 :
+                                        failure_stage == 1 ? 12 :
+                                        failure_stage == 2 ? 123 : 1234;
+    if (!require(result == expect_success, "GHOST pipeline transaction result") ||
+        !require(signature == expected_signature, "GHOST pipeline transaction call order") ||
+        !require(dependencies_valid, "GHOST pipeline transaction dependency handles") ||
+        !require(expect_success ?
+                     bind_group_layout.identity() == 12 && pipeline.identity() == 14 :
+                     bind_group_layout.identity() == 81 && pipeline.identity() == 82,
+                 "GHOST pipeline transaction atomic publication"))
+    {
+      return false;
+    }
+    accepted += int(expect_success);
+  }
+
+  constexpr std::array<uint64_t, 7> expected_frame_signatures = {
+      1, 12, 123, 1234, 12345, 12345678, 123456789};
+  for (int failure_stage = 0; failure_stage <= 6; failure_stage++) {
+    GhostFrameTrace trace;
+    trace.failure_stage = failure_stage;
+    const bool result = gw::present_frame_encode_submit_if_valid(
+        [&]() {
+          trace.step(1);
+          return failure_stage == 0 ? GhostHandleProbe() : GhostHandleProbe(21);
+        },
+        [&]() {
+          trace.step(2);
+          return failure_stage == 1 ? GhostHandleProbe() : GhostHandleProbe(22);
+        },
+        [&](const GhostHandleProbe &source_view) {
+          trace.step(3);
+          trace.dependencies_valid &= source_view.identity() == 21;
+          return failure_stage == 2 ? GhostHandleProbe() : GhostHandleProbe(23);
+        },
+        [&]() {
+          trace.step(4);
+          return GhostFrameEncoderProbe(&trace, failure_stage != 3);
+        },
+        [&](GhostFrameEncoderProbe &encoder, const GhostHandleProbe &target_view) {
+          trace.step(5);
+          trace.dependencies_valid &= !(encoder == nullptr) && target_view.identity() == 22;
+          return GhostFramePassProbe(&trace, failure_stage != 4);
+        },
+        [&](GhostFramePassProbe &pass, const GhostHandleProbe &bind_group) {
+          trace.step(6);
+          trace.dependencies_valid &= !(pass == nullptr) && bind_group.identity() == 23;
+        },
+        [&](const GhostHandleProbe &command_buffer) {
+          trace.step(9);
+          trace.dependencies_valid &= command_buffer.identity() == 35;
+          trace.submits++;
+        });
+    const bool expect_success = failure_stage == 6;
+    if (!require(result == expect_success, "GHOST frame transaction result") ||
+        !require(trace.signature == expected_frame_signatures[size_t(failure_stage)],
+                 "GHOST frame transaction call order") ||
+        !require(trace.dependencies_valid, "GHOST frame transaction dependency handles") ||
+        !require(trace.submits == int(expect_success), "GHOST frame transaction submit count"))
+    {
+      return false;
+    }
+    accepted += int(expect_success);
+  }
+
+  if (!require(accepted == 3, "GHOST present transaction success census")) {
+    return false;
+  }
+  std::puts("CONTRACT ghost_present_resource_transaction PASS cases=14 backbuffer=2 "
+            "pipeline=5 frame=7 failure=atomic submit=1");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -1761,6 +1970,7 @@ int main()
       !compute_dispatch_range_contract() ||
       !compute_command_transaction_contract() ||
       !buffer_command_transaction_contract() ||
+      !ghost_present_resource_transaction_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -1768,10 +1978,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=22 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=23 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 "
+      "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 "
+      "ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "index_binding_resolutions=3 cache_publications=2 "
       "compute_cache_publications=2 "

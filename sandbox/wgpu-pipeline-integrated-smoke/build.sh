@@ -224,6 +224,15 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'if (!webgpu::compute_indirect_dispatch_range(0, indirect_gpu.size()))' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
+require_fixed_count 1 \
+  'inline bool command_pass_encode_submit_if_valid(const DeviceT &device,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::command_pass_encode_submit_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_backend.cc"
+require_fixed_count 0 \
+  'wgpu::CommandEncoder enc = device.CreateCommandEncoder();' \
+  "$WEBGPU_SOURCE/wgpu_backend.cc"
 require_fixed_count 1 'struct DirectDrawPlan {' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 'inline bool direct_draw_plan(' "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -515,7 +524,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 18 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 19 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -545,6 +554,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT compute_dispatch_range PASS direct_cases=15 accepted=6 rejected=9 indirect_cases=13 accepted=5 rejected=8 group_sum=40' \
        "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT compute_command_transaction PASS cases=4 accepted=1 encoder_fail=closed pass_fail=closed command_fail=closed' \
+       "$stdout_file" ||
      ! grep -qx 'CONTRACT format_32bit PASS cases=36' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_subword PASS cases=48' "$stdout_file" ||
      ! grep -qx 'CONTRACT format_i10 PASS cases=12 normalized=4' "$stdout_file" ||
@@ -552,7 +564,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=17 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=18 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 formats=96 i10=12 dummy=32 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

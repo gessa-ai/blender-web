@@ -28,7 +28,8 @@ indirect EEVEE-shadow paths. Their shared 16-byte `{layer,
 viewport}` uniform allocation must publish a handle only on success; both paths
 must return before queue or pass work when creation fails.
 The color-blit fallback additionally rejects a missing shader module before pipeline creation,
-the missing uniform before `WriteBuffer`, and a missing bind group before command-encoder/pass
+the missing uniform before `WriteBuffer`, a missing bind group before command-encoder/pass
+work, and failed compute encoder/pass/command-buffer creation before dependent work or submission
 work. The source-order checks bind all three guards to the shipping method while the shared
 native/Wasm allocation contract proves failure leaves the caller's buffer handle unchanged.
 Likewise, a null sampler or render-pipeline candidate must remain absent from its

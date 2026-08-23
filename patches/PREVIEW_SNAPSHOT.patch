@@ -16827,10 +16827,10 @@ index 993239c0bc984e87e909ff9ae728022ff7d72d5a..90813884f7581604a6eaca24f6482e83
  }  // namespace blender::gpu::tests
 diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5a806e863d4a947a40aa42098e2ec33f52433991
+index 0000000000000000000000000000000000000000..f47a10f7a0fbbbc0bd5a4c4b6d74337bd037bc75
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_backend.cc
-@@ -0,0 +1,317 @@
+@@ -0,0 +1,325 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -17033,16 +17033,20 @@ index 0000000000000000000000000000000000000000..5a806e863d4a947a40aa42098e2ec33f
 +  wgpu::BindGroup bind_group;
 +  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
 +
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
-+  pass.SetPipeline(pipeline);
-+  if (have_bg) {
-+    pass.SetBindGroup(0, bind_group);
++  if (!webgpu::command_pass_encode_submit_if_valid(
++          device,
++          ctx->queue_get(),
++          [](auto &encoder) { return encoder.BeginComputePass(); },
++          [&](auto &pass) {
++            pass.SetPipeline(pipeline);
++            if (have_bg) {
++              pass.SetBindGroup(0, bind_group);
++            }
++            pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
++          }))
++  {
++    return;
 +  }
-+  pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
-+  pass.End();
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  ctx->queue_get().Submit(1, &cb);
 +}
 +
 +void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
@@ -17076,16 +17080,20 @@ index 0000000000000000000000000000000000000000..5a806e863d4a947a40aa42098e2ec33f
 +  wgpu::BindGroup bind_group;
 +  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
 +
-+  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
-+  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
-+  pass.SetPipeline(pipeline);
-+  if (have_bg) {
-+    pass.SetBindGroup(0, bind_group);
++  if (!webgpu::command_pass_encode_submit_if_valid(
++          device,
++          ctx->queue_get(),
++          [](auto &encoder) { return encoder.BeginComputePass(); },
++          [&](auto &pass) {
++            pass.SetPipeline(pipeline);
++            if (have_bg) {
++              pass.SetBindGroup(0, bind_group);
++            }
++            pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
++          }))
++  {
++    return;
 +  }
-+  pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
-+  pass.End();
-+  wgpu::CommandBuffer cb = enc.Finish();
-+  ctx->queue_get().Submit(1, &cb);
 +}
 +
 +/* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */
@@ -18528,10 +18536,10 @@ index 0000000000000000000000000000000000000000..181befff16d7ae164163d95723192805
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..67c6318f47ec4aa27103467687cc7fed390ab155
+index 0000000000000000000000000000000000000000..f872092d72f107783e3467010e89b3f9e00d5603
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1230 @@
+@@ -0,0 +1,1257 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18688,6 +18696,33 @@ index 0000000000000000000000000000000000000000..67c6318f47ec4aa27103467687cc7fed
 +    return false;
 +  }
 +  std::forward<EncodeFn>(encode)(encoder);
++  auto command_buffer = encoder.Finish();
++  if (command_buffer == nullptr) {
++    return false;
++  }
++  queue.Submit(1, &command_buffer);
++  return true;
++}
++
++/** Encode one short-lived pass and submit it only after every fallible command handle succeeds.
++ * The pass body is not called after a failed encoder/pass, and a failed finished command buffer
++ * is never submitted. Templated so the complete transaction remains device-free testable. */
++template<typename DeviceT, typename QueueT, typename BeginPassFn, typename EncodeFn>
++inline bool command_pass_encode_submit_if_valid(const DeviceT &device,
++                                                const QueueT &queue,
++                                                BeginPassFn &&begin_pass,
++                                                EncodeFn &&encode)
++{
++  auto encoder = device.CreateCommandEncoder();
++  if (encoder == nullptr) {
++    return false;
++  }
++  auto pass = std::forward<BeginPassFn>(begin_pass)(encoder);
++  if (pass == nullptr) {
++    return false;
++  }
++  std::forward<EncodeFn>(encode)(pass);
++  pass.End();
 +  auto command_buffer = encoder.Finish();
 +  if (command_buffer == nullptr) {
 +    return false;

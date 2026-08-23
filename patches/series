@@ -929,3 +929,6 @@
 # 0208: fail both asynchronous readback kicks before mapping or submission when
 # command-encoder or finished-command-buffer creation returns a null handle.
 0208-gpu-webgpu-readback-command-transaction.patch
+# 0209: stop direct and indirect compute dispatch before dependent pass work or
+# submission when command-encoder, compute-pass, or finished-buffer creation fails.
+0209-gpu-webgpu-compute-command-transaction.patch

@@ -1033,6 +1033,168 @@ bool compute_dispatch_range_contract()
   return true;
 }
 
+struct ComputeCommandTrace {
+  bool encoder_success = false;
+  bool pass_success = false;
+  bool command_success = false;
+  int encoder_creates = 0;
+  int pass_begins = 0;
+  int pass_work = 0;
+  int pass_ends = 0;
+  int finishes = 0;
+  int submits = 0;
+};
+
+class ComputeCommandBufferProbe {
+ public:
+  ComputeCommandBufferProbe() = default;
+  explicit ComputeCommandBufferProbe(const bool valid) : valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+ private:
+  bool valid_ = false;
+};
+
+class ComputePassProbe {
+ public:
+  ComputePassProbe() = default;
+  ComputePassProbe(ComputeCommandTrace *trace, const bool valid) : trace_(trace), valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  void Work()
+  {
+    trace_->pass_work++;
+  }
+
+  void End()
+  {
+    trace_->pass_ends++;
+  }
+
+ private:
+  ComputeCommandTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+class ComputeCommandEncoderProbe {
+ public:
+  ComputeCommandEncoderProbe() = default;
+  ComputeCommandEncoderProbe(ComputeCommandTrace *trace, const bool valid)
+      : trace_(trace), valid_(valid)
+  {
+  }
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+  ComputePassProbe BeginComputePass()
+  {
+    trace_->pass_begins++;
+    return ComputePassProbe(trace_, trace_->pass_success);
+  }
+
+  ComputeCommandBufferProbe Finish()
+  {
+    trace_->finishes++;
+    return ComputeCommandBufferProbe(trace_->command_success);
+  }
+
+ private:
+  ComputeCommandTrace *trace_ = nullptr;
+  bool valid_ = false;
+};
+
+class ComputeCommandDeviceProbe {
+ public:
+  explicit ComputeCommandDeviceProbe(ComputeCommandTrace &trace) : trace_(&trace) {}
+
+  ComputeCommandEncoderProbe CreateCommandEncoder() const
+  {
+    trace_->encoder_creates++;
+    return ComputeCommandEncoderProbe(trace_, trace_->encoder_success);
+  }
+
+ private:
+  ComputeCommandTrace *trace_ = nullptr;
+};
+
+class ComputeCommandQueueProbe {
+ public:
+  explicit ComputeCommandQueueProbe(ComputeCommandTrace &trace) : trace_(&trace) {}
+
+  void Submit(const size_t count, const ComputeCommandBufferProbe *command_buffer) const
+  {
+    if (count == 1 && command_buffer != nullptr && !(*command_buffer == nullptr)) {
+      trace_->submits++;
+    }
+  }
+
+ private:
+  ComputeCommandTrace *trace_ = nullptr;
+};
+
+bool compute_command_transaction_contract()
+{
+  struct FailureCase {
+    bool encoder_success;
+    bool pass_success;
+    bool command_success;
+    int expected_begins;
+    int expected_work;
+    int expected_ends;
+    int expected_finishes;
+  };
+  constexpr std::array<FailureCase, 4> cases = {{{false, true, true, 0, 0, 0, 0},
+                                                 {true, false, true, 1, 0, 0, 0},
+                                                 {true, true, false, 1, 1, 1, 1},
+                                                 {true, true, true, 1, 1, 1, 1}}};
+
+  int accepted = 0;
+  for (const FailureCase &test : cases) {
+    ComputeCommandTrace trace;
+    trace.encoder_success = test.encoder_success;
+    trace.pass_success = test.pass_success;
+    trace.command_success = test.command_success;
+    const ComputeCommandDeviceProbe device(trace);
+    const ComputeCommandQueueProbe queue(trace);
+
+    const bool result = bw::command_pass_encode_submit_if_valid(
+        device,
+        queue,
+        [](auto &encoder) { return encoder.BeginComputePass(); },
+        [](auto &pass) { pass.Work(); });
+    const bool expect_success = test.encoder_success && test.pass_success && test.command_success;
+    if (!require(result == expect_success, "compute command transaction result") ||
+        !require(trace.encoder_creates == 1, "compute command encoder creation count") ||
+        !require(trace.pass_begins == test.expected_begins, "compute pass begin count") ||
+        !require(trace.pass_work == test.expected_work, "compute pass dependent work count") ||
+        !require(trace.pass_ends == test.expected_ends, "compute pass end count") ||
+        !require(trace.finishes == test.expected_finishes, "compute command finish count") ||
+        !require(trace.submits == int(expect_success), "compute command submit count"))
+    {
+      return false;
+    }
+    accepted += int(expect_success);
+  }
+
+  if (!require(accepted == 1, "compute command transaction success census")) {
+    return false;
+  }
+  std::puts("CONTRACT compute_command_transaction PASS cases=4 accepted=1 "
+            "encoder_fail=closed pass_fail=closed command_fail=closed");
+  return true;
+}
+
 wgpu::VertexFormat expected_32bit_format(const blender::GPUVertCompType component,
                                          const int component_len)
 {
@@ -1340,6 +1502,7 @@ int main()
       !viewport_scissor_plan_contract() || !window_viewport_scissor_plan_contract() ||
       !offscreen_viewport_scissor_plan_contract() ||
       !compute_dispatch_range_contract() ||
+      !compute_command_transaction_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
       !shader_lifetime_cache_contract() || !vertex_alias_cache_key_contract())
@@ -1347,10 +1510,10 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=17 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=18 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
-      "compute_indirect=13 formats=96 i10=12 dummy=32 cache_publications=2 "
+      "compute_indirect=13 compute_command_cases=4 formats=96 i10=12 dummy=32 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

@@ -23,6 +23,7 @@
 #include <emscripten/wasmfs.h>
 
 #include "GHOST_EventBridgeWeb.hh"
+#include "GHOST_WGPUTransaction.hh"
 #include "GHOST_WebDisplayState.hh"
 #include "GHOST_WindowWeb.hh"
 
@@ -575,25 +576,30 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
                                                 gpu_settings.context_type,
                                                 context_params,
                                                 canvas_selector_.c_str());
-  if (window_ == nullptr) {
-    window_ = window;
-    /* Bind HTML5 input to this (first) window's canvas. */
-    canvas_selector_ = window->getCanvasSelector();
-    registerCanvasCallbacks();
-  }
-  if (GHOST_WindowManager *wm = getWindowManager()) {
-    wm->addWindow(window);
-  }
-  /* Deliver an initial size/expose event, exactly as the native back-ends do when a
-   * window is first mapped (SDL posts SDL_WINDOWEVENT_EXPOSED/SIZE_CHANGED; X11 posts
-   * MapNotify + ConfigureNotify) — that first event is what makes Blender's WM build the
-   * drawable and paint frame one. GHOST_WindowWeb posted none, so at idle WM_main had no
-   * pending redraw and the canvas stayed black until the first mouse move happened to
-   * force a refresh (which only then reconciled the real client bounds). Posting the
-   * window-size event here makes the first composite happen unprompted and deterministic
-   * — a prerequisite for a headless golden capture, which would otherwise see black. */
-  pushEvent(std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowSize, window));
-  return window;
+  return ghost_web::window_publish_if_valid(
+      window,
+      [](GHOST_WindowWeb *invalid_window) { delete invalid_window; },
+      [&](GHOST_WindowWeb *valid_window) {
+        if (window_ == nullptr) {
+          window_ = valid_window;
+          /* Bind HTML5 input to this (first) valid window's canvas. */
+          canvas_selector_ = valid_window->getCanvasSelector();
+          registerCanvasCallbacks();
+        }
+        if (GHOST_WindowManager *wm = getWindowManager()) {
+          wm->addWindow(valid_window);
+        }
+        /* Deliver an initial size/expose event, exactly as the native back-ends do when a
+         * window is first mapped (SDL posts SDL_WINDOWEVENT_EXPOSED/SIZE_CHANGED; X11 posts
+         * MapNotify + ConfigureNotify) — that first event is what makes Blender's WM build the
+         * drawable and paint frame one. GHOST_WindowWeb posted none, so at idle WM_main had no
+         * pending redraw and the canvas stayed black until the first mouse move happened to
+         * force a refresh (which only then reconciled the real client bounds). Posting the
+         * window-size event here makes the first composite happen unprompted and deterministic
+         * — a prerequisite for a headless golden capture, which would otherwise see black. */
+        pushEvent(std::make_unique<GHOST_Event>(
+            getMilliSeconds(), GHOST_kEventWindowSize, valid_window));
+      });
 }
 
 GHOST_IWindow *GHOST_SystemWeb::getWindowUnderCursor(int32_t /*x*/, int32_t /*y*/)

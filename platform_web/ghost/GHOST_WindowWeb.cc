@@ -17,6 +17,7 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
+#include "GHOST_WGPUTransaction.hh"
 #include "GHOST_WebDisplayState.hh"
 
 #ifdef WITH_WEBGPU_BACKEND
@@ -83,7 +84,8 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
    * GHOST_ContextNone, whose uninitialized instance_ slot is garbage (misaligned) → the
    * first wgpuInstanceAddRef trapped. setDrawingContextType() → newDrawingContext(type)
    * → GHOST_ContextWGPUWeb::initializeDrawingContext(). */
-  setDrawingContextType(type);
+  valid_ = ghost_web::drawing_context_initialize_if_valid(
+      GHOST_kSuccess, [&]() { return setDrawingContextType(type); });
 }
 
 void GHOST_WindowWeb::setTitle(const char *title)

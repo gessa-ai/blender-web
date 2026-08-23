@@ -9,6 +9,34 @@
 
 namespace ghost_web {
 
+/** Publish drawing-context validity only from the context setter's exact status. */
+template<typename StatusT, typename InitializeFn>
+bool drawing_context_initialize_if_valid(const StatusT success, InitializeFn &&initialize)
+{
+  return std::forward<InitializeFn>(initialize)() == success;
+}
+
+/**
+ * Publish a newly-created window only after its drawing context made the window
+ * valid. Invalid windows are destroyed before any manager, callback, or event
+ * observes their pointer.
+ */
+template<typename WindowT, typename DestroyWindowFn, typename PublishWindowFn>
+WindowT *window_publish_if_valid(WindowT *window,
+                                 DestroyWindowFn &&destroy_window,
+                                 PublishWindowFn &&publish_window)
+{
+  if (window == nullptr) {
+    return nullptr;
+  }
+  if (!window->getValid()) {
+    std::forward<DestroyWindowFn>(destroy_window)(window);
+    return nullptr;
+  }
+  std::forward<PublishWindowFn>(publish_window)(window);
+  return window;
+}
+
 /** Replace a size-bound texture only after its complete WebGPU handle exists. */
 template<typename TextureT, typename CreateTextureFn>
 bool texture_replace_if_valid(CreateTextureFn &&create_texture,

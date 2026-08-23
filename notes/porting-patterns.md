@@ -624,3 +624,16 @@ encode every per-frame dependency inside one abortable transaction; and advance 
 present counters only after the complete command buffer is submitted. Exercise each allocation and
 command boundary device-free on native and wasm32. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 44 — child initialization failure must stop parent publication
+
+Signature: a platform window invokes `setDrawingContextType()` but ignores its status, keeps its
+default validity flag set, and is then registered with the system's window manager and event queue.
+The base class has already replaced the failed context with `GHOST_ContextNone`, so later code sees
+a non-null window and context even though the requested drawing backend never initialized. Derive
+window validity from the exact context-setter result, then validate the complete window before any
+active-window assignment, callback registration, manager insertion, or initial event publication.
+Destroy an invalid candidate without publishing its pointer. Exercise rejected/accepted context
+statuses plus null, invalid, and valid window candidates device-free on native and wasm32, and bind
+both shipping publication sites to the tested transaction. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

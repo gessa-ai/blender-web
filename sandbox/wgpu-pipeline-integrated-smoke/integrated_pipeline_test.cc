@@ -1454,6 +1454,80 @@ bool buffer_command_transaction_contract()
   return true;
 }
 
+class GhostWindowProbe {
+ public:
+  explicit GhostWindowProbe(const bool valid) : valid_(valid) {}
+
+  bool getValid() const
+  {
+    return valid_;
+  }
+
+ private:
+  bool valid_ = false;
+};
+
+bool ghost_window_publication_transaction_contract()
+{
+  int initialize_calls = 0;
+  const bool rejected_context = gw::drawing_context_initialize_if_valid(1, [&]() {
+    initialize_calls++;
+    return 0;
+  });
+  const bool accepted_context = gw::drawing_context_initialize_if_valid(1, [&]() {
+    initialize_calls++;
+    return 1;
+  });
+  if (!require(!rejected_context && accepted_context && initialize_calls == 2,
+               "GHOST drawing-context validity follows exact status"))
+  {
+    return false;
+  }
+
+  GhostWindowProbe invalid_window(false);
+  GhostWindowProbe valid_window(true);
+  std::array<GhostWindowProbe *, 3> windows = {nullptr, &invalid_window, &valid_window};
+  constexpr std::array<int, 3> expected_signatures = {0, 1, 2};
+  int destroyed = 0;
+  int published = 0;
+  for (size_t i = 0; i < windows.size(); i++) {
+    int signature = 0;
+    GhostWindowProbe *const result = gw::window_publish_if_valid(
+        windows[i],
+        [&](GhostWindowProbe *window) {
+          signature = signature * 10 + 1;
+          destroyed++;
+          if (window != &invalid_window) {
+            signature = -1;
+          }
+        },
+        [&](GhostWindowProbe *window) {
+          signature = signature * 10 + 2;
+          published++;
+          if (window != &valid_window) {
+            signature = -1;
+          }
+        });
+    const bool expect_publication = i == 2;
+    if (!require(result == (expect_publication ? &valid_window : nullptr),
+                 "GHOST window publication result") ||
+        !require(signature == expected_signatures[i],
+                 "GHOST window publication side-effect order"))
+    {
+      return false;
+    }
+  }
+  if (!require(destroyed == 1 && published == 1,
+               "GHOST invalid window destroyed before valid publication"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 "
+            "windows=3 accepted=2 invalid=destroyed publication=atomic");
+  return true;
+}
+
 class GhostHandleProbe {
  public:
   GhostHandleProbe() = default;
@@ -1970,6 +2044,7 @@ int main()
       !compute_dispatch_range_contract() ||
       !compute_command_transaction_contract() ||
       !buffer_command_transaction_contract() ||
+      !ghost_window_publication_transaction_contract() ||
       !ghost_present_resource_transaction_contract() ||
       !format_32bit_contract() ||
       !format_subword_contract() || !format_i10_contract() || !dummy_vertex_contract() ||
@@ -1978,11 +2053,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=23 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=24 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 "
-      "ghost_present_cases=14 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "index_binding_resolutions=3 cache_publications=2 "
       "compute_cache_publications=2 "

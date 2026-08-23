@@ -1734,6 +1734,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live pixel proof
   remains blocked by the named s7 hardware-adapter condition. See
   `notes/m3-t9-texture-render-clear-transaction-20260823.md`.
+- [x] **M3.T9-TEXTURE-READBACK-COMMAND-TRANSACTION [gpu-backend] (f134090):** patch 0222
+  routes native synchronous texture readback through the checked encoder/finish/submit helper and
+  returns before staging-map work on command failure. The unchanged source rejects first;
+  root/descendant native+wasm32 contracts, wrong-Node control, canonical replay/reverse, real
+  product rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression are
+  verified. Live copy/map/pixel proof remains blocked by the named s7 hardware-adapter condition.
+  See `notes/m3-t9-texture-readback-command-transaction-20260823.md`.
+- [ ] **M3.T9-TEXTURE-COPY-COMMAND-TRANSACTION [gpu-backend]:** `WGPUTexture::copy_to`
+  still dereferences a failed command encoder and submits an unchecked finished handle. Preserve
+  the existing per-mip compatibility/skip behavior while routing the copy loop through one checked
+  transaction; bind it fail-first to the native/wasm32 command contract. **blocked-by none.**
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

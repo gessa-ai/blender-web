@@ -12,7 +12,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-WEBGPU_SOURCE="$ROOT/upstream/source/blender/gpu/webgpu"
+WEBGPU_SOURCE="${WEBGPU_SOURCE:-$ROOT/upstream/source/blender/gpu/webgpu}"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -26,6 +26,7 @@ WASM_INCLUDE="$ROOT/lib/wasm/include"
 INDEX_STRIP_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_strip.inc"
 INDEX_UPLOAD_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_upload.inc"
 BUFFER_UPDATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_update.inc"
+BUFFER_CREATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_create.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -75,6 +76,10 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_readback.hh
     source/blender/gpu/webgpu/wgpu_storage_buffer.cc
     source/blender/gpu/webgpu/wgpu_storage_buffer.hh
+    source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+    source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+    source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
+    source/blender/gpu/webgpu/wgpu_shader.cc
     source/blender/gpu/webgpu/wgpu_index_buffer.cc
     source/blender/gpu/webgpu/wgpu_index_buffer.hh
     source/blender/gpu/webgpu/wgpu_batch.cc
@@ -111,6 +116,8 @@ require_file "$HERE/integrated_index_test.cc"
 require_file "$HERE/extract_index_strip.py"
 require_file "$HERE/extract_index_upload.py"
 require_file "$HERE/extract_buffer_update.py"
+require_file "$HERE/extract_buffer_create.py"
+require_file "$HERE/integrated_buffer_create_test.cc"
 require_file "$HERE/integrated_buffer_update_test.cc"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
@@ -206,10 +213,10 @@ require_fixed_count 1 \
   'inline bool buffer_allocation_size(size_t requested_size,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
-  'inline bool command_encode_submit_if_valid(const DeviceT &device,' \
+  'inline void command_encode_submit_scoped(const InstanceT &instance,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 \
-  'if (!webgpu::command_encode_submit_if_valid(' \
+  'webgpu::command_encode_submit_scoped(' \
   "$WEBGPU_SOURCE/wgpu_readback.cc"
 require_fixed_count 2 \
   'fail_reserved_pending(pending, TicketError::CommandEncodingFailed);' \
@@ -218,9 +225,9 @@ require_fixed_count 0 \
   'wgpu::CommandEncoder encoder = device.CreateCommandEncoder();' \
   "$WEBGPU_SOURCE/wgpu_readback.cc"
 require_fixed_count 1 \
-  'if (device == nullptr || !device.GetLimits(&limits) ||' \
+  'if (instance == nullptr || device == nullptr || !device.GetLimits(&limits) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
-require_fixed_count 1 \
+require_fixed_count 2 \
   '!buffer_allocation_size(size, limits.maxBufferSize, allocated_size))' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
@@ -251,35 +258,34 @@ then
   echo "ERROR: storage update payload guard does not precede transfer" >&2
   exit 1
 fi
-ALLOCATION_GUARD_LINE="$(grep -nF 'if (device == nullptr || !device.GetLimits(&limits) ||' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-STATE_MUTATION_LINE="$(grep -nF 'requested_ = size;' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-CREATE_BUFFER_LINE="$(grep -nF 'wgpu::Buffer handle = device.CreateBuffer(&bd);' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-UNMAP_BUFFER_LINE="$(grep -nF 'handle.Unmap();' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-PUBLISH_BUFFER_LINE="$(grep -nF 'handle_ = std::move(handle);' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
-if [ -z "$ALLOCATION_GUARD_LINE" ] || [ -z "$STATE_MUTATION_LINE" ] ||
-   [ -z "$CREATE_BUFFER_LINE" ] || [ -z "$UNMAP_BUFFER_LINE" ] ||
-   [ -z "$PUBLISH_BUFFER_LINE" ] ||
-   [ "$ALLOCATION_GUARD_LINE" -ge "$STATE_MUTATION_LINE" ] ||
-   [ "$ALLOCATION_GUARD_LINE" -ge "$CREATE_BUFFER_LINE" ] ||
-   [ "$CREATE_BUFFER_LINE" -ge "$UNMAP_BUFFER_LINE" ] ||
-   [ "$UNMAP_BUFFER_LINE" -ge "$STATE_MUTATION_LINE" ] ||
-   [ "$STATE_MUTATION_LINE" -ge "$PUBLISH_BUFFER_LINE" ] ||
-   [ "$(sed -n "$((STATE_MUTATION_LINE - 1))p" "$WEBGPU_SOURCE/wgpu_buffer.cc")" != \
-     '  readback::forget_source(readback::SourceKind::Buffer, this);' ]
-then
-  echo "ERROR: buffer creation is not fail-closed before state/handle publication" >&2
-  exit 1
-fi
-require_fixed_count 1 'if (!range_fits(offset, size, size_)) {' \
+require_fixed_count 1 'bool Buffer::create_scoped(const wgpu::Instance &instance,' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'const Allocation allocation = allocation_cache_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 2 'candidate.handle = device.CreateBuffer(&descriptor);' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 2 'candidate.size = allocated_size;' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'ScopedHandleCache<uint8_t, Allocation> allocation_cache_;' \
+  "$WEBGPU_SOURCE/wgpu_buffer.hh"
+require_fixed_count 2 '.create_scoped(ctx->instance_get(),' \
+  "$WEBGPU_SOURCE/wgpu_index_buffer.cc"
+require_fixed_count 2 '.create_scoped(ctx->instance_get(),' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 1 '.create_scoped(ctx->instance_get(),' \
+  "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
+require_fixed_count 1 'return buffer_.create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
+require_fixed_count 1 'push_constants_buffer_.create_scoped(ctx->instance_get(),' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 1 'return track_next_allocation_ && buffer_.creation_pending();' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 0 'PushErrorScope(' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 1 'if (!range_fits(offset, size, allocation.size)) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'void *mapped = staging.GetMappedRange(0, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
-require_fixed_count 1 'if (mapped == nullptr) {' \
+require_fixed_count 3 'if (mapped == nullptr) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'std::memcpy(mapped, data, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
@@ -292,9 +298,9 @@ require_fixed_count 0 '.GetMappedRange(' \
 STAGING_MAP_LINE="$(grep -nF 'void *mapped = staging.GetMappedRange(0, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 STAGING_MAP_GUARD_LINE="$(grep -nF 'if (mapped == nullptr) {' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | tail -n 1 | cut -d: -f1)"
 STAGING_COPY_LINE="$(grep -nF 'std::memcpy(mapped, data, size);' \
-  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | tail -n 1 | cut -d: -f1)"
 if [ -z "$STAGING_MAP_LINE" ] || [ -z "$STAGING_MAP_GUARD_LINE" ] ||
    [ -z "$STAGING_COPY_LINE" ] ||
    [ "$STAGING_MAP_LINE" -ge "$STAGING_MAP_GUARD_LINE" ] ||
@@ -307,7 +313,7 @@ require_fixed_count 1 \
   'if (!checked_align_up(size, kCopyAlignment, copy) ||' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
-  '!buffer_copy_range_valid(offset, 0, copy, size_, copy))' \
+  '!buffer_copy_range_valid(offset, 0, copy, allocation.size, copy))' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 \
   'inline bool buffer_copy_range_valid(size_t source_offset,' \
@@ -316,12 +322,12 @@ require_fixed_count 1 \
   'if (!webgpu::buffer_copy_range_valid(src_offset,' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 require_fixed_count 1 \
-  'if (!buffer_.create(ctx->device_get(),' \
+  'if (!buffer_.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_index_buffer.cc"
-INDEX_UPLOAD_GUARD_LINE="$(grep -nF 'if (!buffer_.create(ctx->device_get(),' \
+INDEX_UPLOAD_GUARD_LINE="$(grep -nF 'if (!buffer_.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_index_buffer.cc" | cut -d: -f1)"
 INDEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE_VOID(data_);' \
-  "$WEBGPU_SOURCE/wgpu_index_buffer.cc" | cut -d: -f1)"
+  "$WEBGPU_SOURCE/wgpu_index_buffer.cc" | tail -n 1 | cut -d: -f1)"
 if [ -z "$INDEX_UPLOAD_GUARD_LINE" ] || [ -z "$INDEX_UPLOAD_CLEANUP_LINE" ] ||
    [ "$INDEX_UPLOAD_GUARD_LINE" -ge "$INDEX_UPLOAD_CLEANUP_LINE" ]
 then
@@ -423,6 +429,26 @@ fi
   --source "$WEBGPU_SOURCE/wgpu_buffer.cc" \
   --output "$BUFFER_UPDATE_SOURCE"
 require_file "$BUFFER_UPDATE_SOURCE"
+
+BUFFER_CREATE_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/buffer-create.inc"
+if BUFFER_CREATE_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_buffer_create.py" \
+  --source "$WEBGPU_SOURCE/wgpu_buffer.hh" \
+  --output "$BUFFER_CREATE_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed scoped buffer-create source was accepted" >&2
+  exit 1
+fi
+if [ "$BUFFER_CREATE_NEGATIVE_MESSAGE" != \
+     "BUFFER_CREATE_EXTRACT_FAIL canonical scoped buffer-create method boundaries are not unique" ] ||
+   [ -e "$BUFFER_CREATE_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed scoped buffer-create rejection differs" >&2
+  exit 1
+fi
+"$PYBIN" "$HERE/extract_buffer_create.py" \
+  --source "$WEBGPU_SOURCE/wgpu_buffer.cc" \
+  --output "$BUFFER_CREATE_SOURCE"
+require_file "$BUFFER_CREATE_SOURCE"
 rmdir "$INDEX_NEGATIVE_DIR"
 
 NODE_VERSION="$("$NODE" --version)"
@@ -458,6 +484,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
+  -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
@@ -472,6 +499,7 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_INTEGRATED_BUFFER_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_WGPU_INDEX_STRIP_SOURCE="$INDEX_STRIP_SOURCE" \
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
+  -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
@@ -491,7 +519,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=17 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_update_cases=9 index_cases=4 index_upload_cases=6' \
+    'INTEGRATED_BUFFER_PASS contracts=18 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 buffer_update_cases=9 index_cases=4 index_upload_cases=7' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -500,7 +528,10 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT index-metadata PASS subranges=2 direct=u16@2+65536/u32@12+0 indirect=u16@0+65536/u32@0+0 device-u32=17' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT index-upload-commit PASS cases=6 creates=4 failure=retain retry=commit bytes=6' \
+    'CONTRACT index-upload-commit PASS cases=7 creates=5 failure=retain pending=retain retry=commit bytes=6' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry bytes=6 allocation=8' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT buffer-staging-map PASS cases=9 large_bytes=65540 map_failure=reject writes=1 submits=1' \
@@ -509,13 +540,13 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT readback-command PASS cases=3 copies=2 submits=1' \
+    'CONTRACT readback-command PASS cases=5 copies=4 submits=1 scopes=complete' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 17 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 18 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

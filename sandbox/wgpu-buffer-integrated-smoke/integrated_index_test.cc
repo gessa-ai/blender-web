@@ -67,6 +67,7 @@ class IndexStripHarness : public IndexBuf {
 namespace {
 
 struct IndexUploadDevice {};
+struct IndexUploadInstance {};
 
 class IndexUploadContext {
  public:
@@ -74,9 +75,14 @@ class IndexUploadContext {
   {
     return device_;
   }
+  const IndexUploadInstance &instance_get() const
+  {
+    return instance_;
+  }
 
  private:
   IndexUploadDevice device_;
+  IndexUploadInstance instance_;
 };
 
 static IndexUploadContext *index_upload_context = nullptr;
@@ -93,8 +99,9 @@ class IndexUploadBuffer {
     return valid_;
   }
 
-  template<typename Device>
-  bool create(const Device & /*device*/,
+  template<typename Instance, typename Device>
+  bool create_scoped(const Instance & /*instance*/,
+              const Device & /*device*/,
               const webgpu::BufferKind kind,
               const webgpu::UsageType usage,
               const size_t size,
@@ -111,6 +118,11 @@ class IndexUploadBuffer {
     return create_result_;
   }
 
+  bool creation_pending() const
+  {
+    return create_pending_;
+  }
+
   void set_valid(const bool valid)
   {
     valid_ = valid;
@@ -118,6 +130,10 @@ class IndexUploadBuffer {
   void set_create_result(const bool result)
   {
     create_result_ = result;
+  }
+  void set_create_pending(const bool pending)
+  {
+    create_pending_ = pending;
   }
   size_t create_calls() const
   {
@@ -143,6 +159,7 @@ class IndexUploadBuffer {
  private:
   bool valid_ = false;
   bool create_result_ = true;
+  bool create_pending_ = false;
   size_t create_calls_ = 0;
   webgpu::BufferKind last_kind_ = webgpu::BufferKind::Vertex;
   webgpu::UsageType last_usage_ = webgpu::UsageType::Dynamic;
@@ -180,6 +197,11 @@ class IndexUploadHarness {
   void set_create_result(const bool result)
   {
     buffer_.set_create_result(result);
+  }
+  void settle_pending_create()
+  {
+    buffer_.set_valid(true);
+    buffer_.set_create_pending(false);
   }
   void set_allocate_result(const bool result)
   {
@@ -227,6 +249,7 @@ class IndexUploadHarness {
   size_t size_ = 0;
   IndexUploadBuffer buffer_;
   bool data_uploaded_ = false;
+  bool initial_upload_pending_ = false;
   bool allocate_result_ = true;
   size_t allocate_calls_ = 0;
 };
@@ -506,6 +529,31 @@ bool index_upload_commit_contract()
   }
 
   {
+    IndexUploadHarness pending;
+    pending.seed_data(payload);
+    pending.set_create_result(false);
+    index_upload_context = &context;
+    pending.upload_data();
+    if (!require(pending.has_data() && !pending.uploaded() && !pending.buffer_valid(),
+                 "pending scoped create preserves host upload ownership") ||
+        !require(pending.create_calls() == 1,
+                 "pending scoped create allocates one candidate"))
+    {
+      return false;
+    }
+    pending.settle_pending_create();
+    pending.upload_data();
+    if (!require(!pending.has_data() && pending.uploaded() && pending.buffer_valid(),
+                 "settled scoped create commits host upload ownership") ||
+        !require(pending.create_calls() == 1,
+                 "settled scoped create does not allocate a duplicate"))
+    {
+      return false;
+    }
+    create_calls += pending.create_calls();
+  }
+
+  {
     IndexUploadHarness success;
     success.seed_data(payload);
     success.set_create_result(true);
@@ -521,10 +569,10 @@ bool index_upload_commit_contract()
 
   index_upload_context = nullptr;
   std::printf(
-      "CONTRACT index-upload-commit PASS cases=6 creates=%zu failure=retain retry=commit bytes=%zu\n",
+      "CONTRACT index-upload-commit PASS cases=7 creates=%zu failure=retain pending=retain retry=commit bytes=%zu\n",
       create_calls,
       payload.size());
-  return create_calls == 4;
+  return create_calls == 5;
 }
 
 }  // namespace

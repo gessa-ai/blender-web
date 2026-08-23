@@ -684,3 +684,19 @@ native and wasm32, then prove the exact helper against pinned Dawn. See
 For a reusable resource with fixed initial bytes, initialize the local candidate through
 `mappedAtCreation` before popping its creation scopes. A separate queued write can otherwise run
 before validation settles or require publishing the provisional handle merely to initialize it.
+
+## Class 48 — persistent resource metadata shares the handle's publication boundary
+
+Signature: a persistent buffer stores its handle, allocated size, requested size, usage kind, and
+readback capability in separate members immediately after `CreateBuffer`, or frees caller-owned
+initial bytes merely because creation returned non-null. A browser callback can later reject that
+error object, leaving published metadata without a valid resource and destroying the only retry
+payload. Cache one composite allocation under a durable fixed key, retain the candidate and all
+metadata until validation/OOM/internal scopes settle, and expose only the accepted composite.
+Pending calls must deduplicate, rejected calls must retry, and a moved-from wrapper must remain a
+safe empty object. When initial bytes are caller-owned, preserve them until the accepted composite
+is observable, including a callback that settles between frames. Exercise pending metadata
+invisibility, non-null rejection, clean retry, exact mapped bytes, and delayed ownership commit
+against the byte-extracted shipping methods on native and wasm32, then use pinned Dawn only as a
+software error-object control. See `sandbox/wgpu-buffer-integrated-smoke/` and
+`sandbox/dawn-probe/probe_error_handles.cc`.

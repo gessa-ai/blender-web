@@ -7,14 +7,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 `wgpu_pixel_buffer`, and `wgpu_readback` postimages directly for native Dawn and
-WebAssembly. It also extracts `Buffer::update_sub`,
+WebAssembly. It also extracts `Buffer::create_scoped`, `Buffer::update_sub`,
 `WGPUIndexBuffer::strip_restart_indices`, and `WGPUIndexBuffer::upload_data`
 byte-for-byte. The buffer method executes against deterministic WebGPU value fakes
-that reject a missing large-staging mapped range before memcpy, command encoding, or
-submission. The restart method executes through
+that model deferred browser error scopes and reject null creation, missing mapped ranges,
+scope-rejected non-null candidates, and a missing large-staging mapped range before memcpy,
+command encoding, or submission. Persistent creation stays unpublished while pending,
+deduplicates retries, and publishes its handle and allocation metadata atomically only after a
+clean scope result. The restart method executes through
 Blender's real `IndexBuf::init()` without retaining the live-device index-buffer
 vtable; the upload method executes against a deterministic creation seam that proves
-failed allocation retains the host payload and successful retry commits ownership.
+failed or pending allocation retains the host payload and only an accepted retry commits
+ownership.
 The same translation unit includes the canonical
 `index_binding_plan()` header helper used by `WGPUBatch`. It checks the exact buffer-usage
 matrix, ordinary and checked alignment/range helpers, live allocation-limit decisions,
@@ -53,6 +57,7 @@ harness/buildwrap.sh bash sandbox/wgpu-buffer-integrated-smoke/build.sh
 ```
 
 The driver rejects malformed extraction before generated-output allocation, requests
-no instance, adapter, or device, and creates no M3 receipt. The historical live
-copy/readback/index cases remain part of `M3-LINUX-REPLAY` and must not run against
-a software adapter.
+no real instance, adapter, or device, and creates no M3 receipt. The persistent-buffer slice
+does not cover short-lived batch/immediate staging and fan buffers; those remain the explicit
+transient-buffer residual. The historical live copy/readback/index cases remain part of
+`M3-LINUX-REPLAY` and must not run against a software adapter.

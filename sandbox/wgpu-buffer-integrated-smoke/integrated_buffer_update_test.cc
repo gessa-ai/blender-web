@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 #include "wgpu_common.hh"
@@ -74,6 +75,10 @@ class Buffer {
   {
     return !valid_;
   }
+  bool operator!=(std::nullptr_t) const
+  {
+    return valid_;
+  }
 
   void *GetMappedRange(size_t /*offset*/, const size_t size)
   {
@@ -97,11 +102,28 @@ class Buffer {
   bool valid_ = false;
 };
 
-struct CommandBuffer {};
+class CommandBuffer {
+ public:
+  explicit CommandBuffer(const bool valid = false) : valid_(valid) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
+
+ private:
+  bool valid_ = false;
+};
 
 class CommandEncoder {
  public:
-  explicit CommandEncoder(Trace *trace) : trace_(trace) {}
+  CommandEncoder() = default;
+  explicit CommandEncoder(Trace *trace) : trace_(trace), valid_(true) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return !valid_;
+  }
 
   void CopyBufferToBuffer(const Buffer & /*source*/,
                           const size_t source_offset,
@@ -120,11 +142,12 @@ class CommandEncoder {
   {
     trace_->finish_calls++;
     trace_->events.push_back(Event::Finish);
-    return {};
+    return CommandBuffer(true);
   }
 
  private:
-  Trace *trace_;
+  Trace *trace_ = nullptr;
+  bool valid_ = false;
 };
 
 class Device {
@@ -147,6 +170,17 @@ class Device {
     return CommandEncoder(trace_);
   }
 
+  void PushErrorScope(wgpu::ErrorFilter /*filter*/) const {}
+
+  template<typename Callback>
+  int PopErrorScope(wgpu::CallbackMode /*mode*/, Callback &&callback) const
+  {
+    std::forward<Callback>(callback)(wgpu::PopErrorScopeStatus::Success,
+                                     wgpu::ErrorType::NoError,
+                                     wgpu::StringView{});
+    return 1;
+  }
+
  private:
   Trace *trace_;
 };
@@ -154,6 +188,11 @@ class Device {
 class Queue {
  public:
   explicit Queue(Trace *trace) : trace_(trace) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return false;
+  }
 
   void WriteBuffer(const Buffer & /*destination*/,
                    size_t /*offset*/,
@@ -176,24 +215,58 @@ class Queue {
   Trace *trace_;
 };
 
+class Instance {
+ public:
+  wgpu::WaitStatus WaitAny(int /*future*/, uint64_t /*timeout*/) const
+  {
+    return wgpu::WaitStatus::Success;
+  }
+};
+
 }  // namespace update_mock
 
 class BufferUpdateHarness {
  public:
+  struct Allocation {
+    update_mock::Buffer handle;
+    size_t size = 0;
+    bool readable = false;
+
+    bool operator==(std::nullptr_t) const
+    {
+      return handle == nullptr;
+    }
+  };
+
+  class AllocationCache {
+   public:
+    explicit AllocationCache(Allocation allocation) : allocation_(std::move(allocation)) {}
+
+    Allocation lookup(uint8_t /*key*/) const
+    {
+      return allocation_;
+    }
+
+   private:
+    Allocation allocation_;
+  };
+
   BufferUpdateHarness(update_mock::Trace &trace, const size_t capacity, const bool valid = true)
-      : handle_(&trace, valid), size_(capacity)
+      : allocation_cache_(Allocation{update_mock::Buffer(&trace, valid), capacity, false})
   {
   }
 
-  bool update_sub(const update_mock::Device &device,
+  bool update_sub(const update_mock::Instance &instance,
+                  const update_mock::Device &device,
                   const update_mock::Queue &queue,
+                  OrderedQueueScheduler &scheduler,
                   size_t offset,
                   const void *data,
                   size_t size);
 
  private:
-  update_mock::Buffer handle_;
-  size_t size_;
+  static constexpr uint8_t kAllocationKey = 0;
+  AllocationCache allocation_cache_;
 };
 
 /* Execute the shipping state machine with deterministic fallible mapping. Only
@@ -230,15 +303,25 @@ bool run_integrated_buffer_update_contracts()
     large_payload[index] = uint8_t((index * 29 + 7) & 0xff);
   }
   const std::vector<uint8_t> small_payload(kWriteBufferStagingThreshold, 0x4d);
+  auto update = [](BufferUpdateHarness &buffer,
+                   update_mock::Trace &trace,
+                   const size_t offset,
+                   const void *data,
+                   const size_t size) {
+    OrderedQueueScheduler scheduler;
+    return buffer.update_sub(update_mock::Instance(),
+                             update_mock::Device(&trace),
+                             update_mock::Queue(&trace),
+                             scheduler,
+                             offset,
+                             data,
+                             size);
+  };
 
   {
     update_mock::Trace trace;
     BufferUpdateHarness buffer(trace, 4, false);
-    if (!require(!buffer.update_sub(update_mock::Device(&trace),
-                                    update_mock::Queue(&trace),
-                                    0,
-                                    small_payload.data(),
-                                    4) &&
+    if (!require(!update(buffer, trace, 0, small_payload.data(), 4) &&
                      no_device_work(trace),
                  "invalid destination is rejected atomically"))
     {
@@ -248,8 +331,7 @@ bool run_integrated_buffer_update_contracts()
   {
     update_mock::Trace trace;
     BufferUpdateHarness buffer(trace, 4);
-    if (!require(!buffer.update_sub(
-                     update_mock::Device(&trace), update_mock::Queue(&trace), 0, nullptr, 4) &&
+    if (!require(!update(buffer, trace, 0, nullptr, 4) &&
                      no_device_work(trace),
                  "null source is rejected atomically"))
     {
@@ -263,11 +345,7 @@ bool run_integrated_buffer_update_contracts()
   {
     update_mock::Trace trace;
     BufferUpdateHarness buffer(trace, capacity);
-    if (!require(!buffer.update_sub(update_mock::Device(&trace),
-                                    update_mock::Queue(&trace),
-                                    offset,
-                                    small_payload.data(),
-                                    size) &&
+    if (!require(!update(buffer, trace, offset, small_payload.data(), size) &&
                      no_device_work(trace),
                  "invalid alignment or range is rejected atomically"))
     {
@@ -277,11 +355,7 @@ bool run_integrated_buffer_update_contracts()
   {
     update_mock::Trace trace;
     BufferUpdateHarness buffer(trace, small_payload.size());
-    if (!require(buffer.update_sub(update_mock::Device(&trace),
-                                   update_mock::Queue(&trace),
-                                   0,
-                                   small_payload.data(),
-                                   small_payload.size()),
+    if (!require(update(buffer, trace, 0, small_payload.data(), small_payload.size()),
                  "threshold-sized update uses the direct path") ||
         !require(trace.write_calls == 1 && trace.written_bytes == small_payload &&
                      trace.events == std::vector<update_mock::Event>{update_mock::Event::Write},
@@ -294,11 +368,7 @@ bool run_integrated_buffer_update_contracts()
     update_mock::Trace trace;
     trace.create_success = false;
     BufferUpdateHarness buffer(trace, large_payload.size());
-    if (!require(!buffer.update_sub(update_mock::Device(&trace),
-                                    update_mock::Queue(&trace),
-                                    0,
-                                    large_payload.data(),
-                                    large_payload.size()),
+    if (!require(!update(buffer, trace, 0, large_payload.data(), large_payload.size()),
                  "staging allocation failure is rejected") ||
         !require(trace.create_calls == 1 && trace.map_calls == 0 && trace.copy_calls == 0 &&
                      trace.submit_calls == 0 &&
@@ -312,11 +382,7 @@ bool run_integrated_buffer_update_contracts()
     update_mock::Trace trace;
     trace.map_success = false;
     BufferUpdateHarness buffer(trace, large_payload.size());
-    if (!require(!buffer.update_sub(update_mock::Device(&trace),
-                                    update_mock::Queue(&trace),
-                                    0,
-                                    large_payload.data(),
-                                    large_payload.size()),
+    if (!require(!update(buffer, trace, 0, large_payload.data(), large_payload.size()),
                  "staging map failure is rejected") ||
         !require(trace.create_calls == 1 && trace.map_calls == 1 && trace.unmap_calls == 0 &&
                      trace.encoder_calls == 0 && trace.copy_calls == 0 &&
@@ -331,11 +397,8 @@ bool run_integrated_buffer_update_contracts()
   {
     update_mock::Trace trace;
     BufferUpdateHarness buffer(trace, large_payload.size() + kCopyAlignment);
-    if (!require(buffer.update_sub(update_mock::Device(&trace),
-                                   update_mock::Queue(&trace),
-                                   kCopyAlignment,
-                                   large_payload.data(),
-                                   large_payload.size()),
+    if (!require(update(
+                     buffer, trace, kCopyAlignment, large_payload.data(), large_payload.size()),
                  "large exact-fit update succeeds") ||
         !require(trace.descriptor_size == large_payload.size() && trace.descriptor_mapped,
                  "staging descriptor preserves size and mapped creation") ||

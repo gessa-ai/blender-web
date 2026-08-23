@@ -18298,10 +18298,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c199e95cb
+index 0000000000000000000000000000000000000000..8e1fbb1067fe9bfbfc10d89398bf74571a4e4b7e
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,336 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18333,29 +18333,15 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +}
 +
 +Buffer::Buffer(Buffer &&other) noexcept
-+    : handle_(std::move(other.handle_)),
-+      size_(other.size_),
-+      requested_(other.requested_),
-+      kind_(other.kind_),
-+      readable_(other.readable_)
++    : allocation_cache_(std::move(other.allocation_cache_))
 +{
-+  other.size_ = 0;
-+  other.requested_ = 0;
-+  other.readable_ = false;
 +}
 +
 +Buffer &Buffer::operator=(Buffer &&other) noexcept
 +{
 +  if (this != &other) {
 +    readback::forget_source(readback::SourceKind::Buffer, this);
-+    handle_ = std::move(other.handle_);
-+    size_ = other.size_;
-+    requested_ = other.requested_;
-+    kind_ = other.kind_;
-+    readable_ = other.readable_;
-+    other.size_ = 0;
-+    other.requested_ = 0;
-+    other.readable_ = false;
++    allocation_cache_ = std::move(other.allocation_cache_);
 +  }
 +  return *this;
 +}
@@ -18414,32 +18400,89 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +  {
 +    return false;
 +  }
-+  wgpu::BufferDescriptor bd = {};
-+  if (label != nullptr) {
-+    bd.label = label;
-+  }
-+  bd.size = allocated_size;
-+  bd.usage = usage_flags(kind, usage, readable);
-+  bd.mappedAtCreation = (initial_data != nullptr);
-+  wgpu::Buffer handle = device.CreateBuffer(&bd);
-+  if (handle == nullptr) {
++
++  const Allocation allocation = allocation_cache_.get_or_create_scoped(
++      kAllocationKey,
++      []() {},
++      [&]() {
++        wgpu::BufferDescriptor descriptor = {};
++        if (label != nullptr) {
++          descriptor.label = label;
++        }
++        descriptor.size = allocated_size;
++        descriptor.usage = usage_flags(kind, usage, readable);
++        descriptor.mappedAtCreation = (initial_data != nullptr);
++
++        Allocation candidate;
++        candidate.handle = device.CreateBuffer(&descriptor);
++        if (candidate.handle == nullptr) {
++          return Allocation{};
++        }
++        if (initial_data != nullptr) {
++          void *mapped = candidate.handle.GetMappedRange(0, allocated_size);
++          if (mapped == nullptr) {
++            return Allocation{};
++          }
++          std::memcpy(mapped, initial_data, size);
++          candidate.handle.Unmap();
++        }
++        candidate.size = allocated_size;
++        candidate.requested = size;
++        candidate.kind = kind;
++        candidate.readable = readable;
++        return candidate;
++      },
++      [](auto completion) { completion(true); });
++  return allocation != nullptr;
++}
++
++bool Buffer::create_scoped(const wgpu::Instance &instance,
++                           const wgpu::Device &device,
++                           BufferKind kind,
++                           UsageType usage,
++                           size_t size,
++                           const void *initial_data,
++                           bool readable,
++                           const char *label)
++{
++  wgpu::Limits limits = {};
++  size_t allocated_size;
++  if (instance == nullptr || device == nullptr || !device.GetLimits(&limits) ||
++      !buffer_allocation_size(size, limits.maxBufferSize, allocated_size))
++  {
 +    return false;
 +  }
-+  if (initial_data != nullptr) {
-+    void *p = handle.GetMappedRange(0, allocated_size);
-+    if (p == nullptr) {
-+      return false;
-+    }
-+    std::memcpy(p, initial_data, size);
-+    handle.Unmap();
-+  }
-+  readback::forget_source(readback::SourceKind::Buffer, this);
-+  requested_ = size;
-+  size_ = allocated_size;
-+  kind_ = kind;
-+  readable_ = readable;
-+  handle_ = std::move(handle);
-+  return true;
++
++  const Allocation allocation = allocation_cache_.get_or_create(
++      instance, device, kAllocationKey, label ? label : "buffer creation", [&]() {
++        wgpu::BufferDescriptor descriptor = {};
++        if (label != nullptr) {
++          descriptor.label = label;
++        }
++        descriptor.size = allocated_size;
++        descriptor.usage = usage_flags(kind, usage, readable);
++        descriptor.mappedAtCreation = (initial_data != nullptr);
++
++        Allocation candidate;
++        candidate.handle = device.CreateBuffer(&descriptor);
++        if (candidate.handle == nullptr) {
++          return Allocation{};
++        }
++        if (initial_data != nullptr) {
++          void *mapped = candidate.handle.GetMappedRange(0, allocated_size);
++          if (mapped == nullptr) {
++            return Allocation{};
++          }
++          std::memcpy(mapped, initial_data, size);
++          candidate.handle.Unmap();
++        }
++        candidate.size = allocated_size;
++        candidate.requested = size;
++        candidate.kind = kind;
++        candidate.readable = readable;
++        return candidate;
++      });
++  return allocation != nullptr;
 +}
 +
 +bool Buffer::update_sub(const wgpu::Instance &instance,
@@ -18450,13 +18493,14 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +                        const void *data,
 +                        size_t size)
 +{
-+  if (handle_ == nullptr || data == nullptr) {
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  if (allocation == nullptr || data == nullptr) {
 +    return false;
 +  }
 +  if ((offset % kCopyAlignment) != 0 || (size % kCopyAlignment) != 0) {
 +    return false; /* WebGPU copies require 4-byte alignment */
 +  }
-+  if (!range_fits(offset, size, size_)) {
++  if (!range_fits(offset, size, allocation.size)) {
 +    return false;
 +  }
 +
@@ -18466,7 +18510,7 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +                              device,
 +                              queue,
 +                              scheduler,
-+                              handle_,
++                              allocation.handle,
 +                              offset,
 +                              data,
 +                              size,
@@ -18498,7 +18542,8 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +                               scheduler,
 +                               "staged buffer sub-update",
 +                               [&](auto &encoder) {
-+                                 encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++                                 encoder.CopyBufferToBuffer(
++                                     staging, 0, allocation.handle, offset, size);
 +                               },
 +                               [accepted](const bool valid) {
 +                                 accepted->store(valid, std::memory_order_release);
@@ -18519,12 +18564,13 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +                                  size_t size) const
 +{
 +  std::vector<uint8_t> out;
-+  if (handle_ == nullptr || !readable_ || size == 0) {
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  if (allocation == nullptr || !allocation.readable || size == 0) {
 +    return out;
 +  }
 +  size_t copy;
 +  if (!checked_align_up(size, kCopyAlignment, copy) ||
-+      !buffer_copy_range_valid(offset, 0, copy, size_, copy))
++      !buffer_copy_range_valid(offset, 0, copy, allocation.size, copy))
 +  {
 +    return out;
 +  }
@@ -18542,7 +18588,8 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +        readback::SourceKind::Buffer, this, uint64_t(offset), uint64_t(size)};
 +    out.resize(size);
 +    const bool hit = readback::take_settled(key, out.data(), size);
-+    readback::kick_buffer(instance, device, queue, scheduler, handle_, key, offset, copy, size);
++    readback::kick_buffer(
++        instance, device, queue, scheduler, allocation.handle, key, offset, copy, size);
 +    if (!hit) {
 +      out.clear();
 +    }
@@ -18564,7 +18611,8 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +                               scheduler,
 +                               "synchronous buffer readback",
 +                               [&](auto &encoder) {
-+                                 encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++                                 encoder.CopyBufferToBuffer(
++                                     allocation.handle, offset, staging, 0, copy);
 +                               },
 +                               [&](const bool valid) { submitted = valid; });
 +  if (!submitted) {
@@ -18592,10 +18640,10 @@ index 0000000000000000000000000000000000000000..5084c84500c934efc84b54972bbcda0c
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9bb5e8605897bf3e15d719c4a03fd8659fe40ab5
+index 0000000000000000000000000000000000000000..6db25073aceefa11c7e6d15820cbc19571151313
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,133 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18640,9 +18688,9 @@ index 0000000000000000000000000000000000000000..9bb5e8605897bf3e15d719c4a03fd865
 +  Buffer(Buffer &&other) noexcept;
 +  Buffer &operator=(Buffer &&other) noexcept;
 +
-+  /** Create a buffer of `size` bytes. If `initial_data` is non-null it is written
-+   * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
-+   * multiple of 4 (WebGPU requirement). Returns false on failure. */
++  /** Create a short-lived buffer whose complete work is encoded before this C++ stack returns.
++   * This compatibility seam validates only immediate/null failure; persistent resources must use
++   * `create_scoped()`. The transient error-object residual is tracked separately by the R6 audit. */
 +  bool create(const wgpu::Device &device,
 +              BufferKind kind,
 +              UsageType usage,
@@ -18650,6 +18698,20 @@ index 0000000000000000000000000000000000000000..9bb5e8605897bf3e15d719c4a03fd865
 +              const void *initial_data,
 +              bool readable,
 +              const char *label = nullptr);
++
++  /** Create a persistent buffer of `size` bytes. If `initial_data` is non-null it is written
++   * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
++   * multiple of 4 (WebGPU requirement). The buffer and its metadata remain
++   * unpublished until validation/OOM/internal scopes settle cleanly. Returns
++   * false while browser validation is pending or after failure. */
++  bool create_scoped(const wgpu::Instance &instance,
++                     const wgpu::Device &device,
++                     BufferKind kind,
++                     UsageType usage,
++                     size_t size,
++                     const void *initial_data,
++                     bool readable,
++                     const char *label = nullptr);
 +
 +  /** Partial update: writes `size` bytes at `offset`. Uses queue.writeBuffer for
 +   * small writes, a staging buffer + copy for large ones. offset/size must be
@@ -18671,38 +18733,56 @@ index 0000000000000000000000000000000000000000..9bb5e8605897bf3e15d719c4a03fd865
 +                            size_t offset,
 +                            size_t size) const;
 +
-+  const wgpu::Buffer &handle() const
++  wgpu::Buffer handle() const
 +  {
-+    return handle_;
++    return allocation_cache_.lookup(kAllocationKey).handle;
 +  }
 +  size_t size() const
 +  {
-+    return size_;
++    return allocation_cache_.lookup(kAllocationKey).size;
 +  }
 +  BufferKind kind() const
 +  {
-+    return kind_;
++    return allocation_cache_.lookup(kAllocationKey).kind;
 +  }
 +  bool valid() const
 +  {
-+    return handle_ != nullptr;
++    return allocation_cache_.lookup(kAllocationKey) != nullptr;
++  }
++  bool creation_pending() const
++  {
++    return allocation_cache_.pending(kAllocationKey);
 +  }
 +
 + private:
-+  wgpu::Buffer handle_;
-+  size_t size_ = 0;      /* rounded (allocated) size */
-+  size_t requested_ = 0; /* size the caller asked for */
-+  BufferKind kind_ = BufferKind::Vertex;
-+  bool readable_ = false;
++  struct Allocation {
++    wgpu::Buffer handle;
++    size_t size = 0;      /* rounded (allocated) size */
++    size_t requested = 0; /* size the caller asked for */
++    BufferKind kind = BufferKind::Vertex;
++    bool readable = false;
++
++    bool operator==(std::nullptr_t) const
++    {
++      return handle == nullptr;
++    }
++    bool operator!=(std::nullptr_t) const
++    {
++      return handle != nullptr;
++    }
++  };
++
++  static constexpr uint8_t kAllocationKey = 0;
++  ScopedHandleCache<uint8_t, Allocation> allocation_cache_;
 +};
 +
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..8b8cd8ea17ca6c98c179955329f9bcaf08242a9f
+index 0000000000000000000000000000000000000000..0a78c5bce87c4bf5ec948593a87e7eaf499a1269
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,1873 @@
+@@ -0,0 +1,1885 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19186,6 +19266,9 @@ index 0000000000000000000000000000000000000000..8b8cd8ea17ca6c98c179955329f9bcaf
 + public:
 +  HandleT lookup(const KeyT &key) const
 +  {
++    if (!state_) {
++      return HandleT{};
++    }
 +    std::lock_guard lock(state_->mutex);
 +    const auto found = state_->handles.find(key);
 +    return found == state_->handles.end() ? HandleT{} : found->second;
@@ -19193,12 +19276,18 @@ index 0000000000000000000000000000000000000000..8b8cd8ea17ca6c98c179955329f9bcaf
 +
 +  bool pending(const KeyT &key) const
 +  {
++    if (!state_) {
++      return false;
++    }
 +    std::lock_guard lock(state_->mutex);
 +    return state_->pending.find(key) != state_->pending.end();
 +  }
 +
 +  size_t size() const
 +  {
++    if (!state_) {
++      return 0;
++    }
 +    std::lock_guard lock(state_->mutex);
 +    return state_->handles.size();
 +  }
@@ -19209,6 +19298,9 @@ index 0000000000000000000000000000000000000000..8b8cd8ea17ca6c98c179955329f9bcaf
 +                               CreateFn &&create,
 +                               EndScopeFn &&end_scope)
 +  {
++    if (!state_) {
++      state_ = std::make_shared<State>();
++    }
 +    {
 +      std::lock_guard lock(state_->mutex);
 +      const auto found = state_->handles.find(key);
@@ -24968,10 +25060,10 @@ index 0000000000000000000000000000000000000000..fb405f61591c478d5a8772a203921ee0
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be55d04519
+index 0000000000000000000000000000000000000000..81c0d4cf71872b15f211cbd9cbdb895481380b5f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,174 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -25009,12 +25101,13 @@ index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be
 +  if (ctx == nullptr) {
 +    return;
 +  }
-+  buffer_.create(ctx->device_get(),
-+                 webgpu::BufferKind::Index,
-+                 webgpu::UsageType::Static,
-+                 size_get(),
-+                 nullptr,
-+                 true);
++  buffer_.create_scoped(ctx->instance_get(),
++                        ctx->device_get(),
++                        webgpu::BufferKind::Index,
++                        webgpu::UsageType::Static,
++                        size_get(),
++                        nullptr,
++                        true);
 +}
 +
 +void WGPUIndexBuffer::upload_data()
@@ -25024,6 +25117,11 @@ index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be
 +    return;
 +  }
 +  if (buffer_.valid()) {
++    if (initial_upload_pending_) {
++      MEM_SAFE_DELETE_VOID(data_);
++      data_uploaded_ = true;
++      initial_upload_pending_ = false;
++    }
 +    return; /* already uploaded (update_sub handles later edits). */
 +  }
 +
@@ -25040,12 +25138,14 @@ index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be
 +
 +  /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
 +   * still copies exactly. readable=true so read() can stage it back. */
-+  if (!buffer_.create(ctx->device_get(),
-+                      webgpu::BufferKind::Index,
-+                      webgpu::UsageType::Static,
-+                      size_get(),
-+                      data_,
-+                      true))
++  initial_upload_pending_ = true;
++  if (!buffer_.create_scoped(ctx->instance_get(),
++                             ctx->device_get(),
++                             webgpu::BufferKind::Index,
++                             webgpu::UsageType::Static,
++                             size_get(),
++                             data_,
++                             true))
 +  {
 +    return;
 +  }
@@ -25054,6 +25154,7 @@ index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be
 +   * (and null it) so the base destructor does not double-free. */
 +  MEM_SAFE_DELETE_VOID(data_);
 +  data_uploaded_ = true;
++  initial_upload_pending_ = false;
 +}
 +
 +const webgpu::Buffer &WGPUIndexBuffer::buffer() const
@@ -25139,10 +25240,10 @@ index 0000000000000000000000000000000000000000..11411e7c9c30d9d7b268d5b5fd8150be
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50ebdfd027
+index 0000000000000000000000000000000000000000..83c56ca794607d1f959297e526054415d1897896
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,98 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -25228,6 +25329,8 @@ index 0000000000000000000000000000000000000000..854a279a5d5298f0e166eaa7cd7c4c50
 +  void allocate();
 +
 +  webgpu::Buffer buffer_;
++  /** Initial mapped upload has begun but its resource scopes have not yet committed. */
++  bool initial_upload_pending_ = false;
 +  bool data_uploaded_ = false;
 +
 +  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUIndexBuffer")
@@ -27485,10 +27588,10 @@ index 0000000000000000000000000000000000000000..972573105d2165c30962d278d53473a6
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..0466a618a1ff6972cc91e5238697705327ece5ed
+index 0000000000000000000000000000000000000000..f3d0051f0cf770966b6aa3bc17dc6bc236826b02
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,2957 @@
+@@ -0,0 +1,2958 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -30417,12 +30520,13 @@ index 0000000000000000000000000000000000000000..0466a618a1ff6972cc91e52386977053
 +  wgpu::Device device = ctx->device_get();
 +  wgpu::Queue queue = ctx->queue_get();
 +  if (!push_constants_buffer_.valid()) {
-+    if (!push_constants_buffer_.create(device,
-+                                       webgpu::BufferKind::Uniform,
-+                                       webgpu::UsageType::Dynamic,
-+                                       push_constants_size_,
-+                                       nullptr,
-+                                       false))
++    if (!push_constants_buffer_.create_scoped(ctx->instance_get(),
++                                              device,
++                                              webgpu::BufferKind::Uniform,
++                                              webgpu::UsageType::Dynamic,
++                                              push_constants_size_,
++                                              nullptr,
++                                              false))
 +    {
 +      return;
 +    }
@@ -32589,10 +32693,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a9cf71b0f72b173d8d031a8327197f55ffb8825c
+index 0000000000000000000000000000000000000000..9a9a2fdfffbe929d31e03d7be6a856d8b78ef176
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,319 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32725,7 +32829,8 @@ index 0000000000000000000000000000000000000000..a9cf71b0f72b173d8d031a8327197f55
 +                                      webgpu::UsageType::DeviceOnly :
 +                                      webgpu::UsageType::Dynamic;
 +  /* readable=true: storage buffers can be read back (GPU_storagebuf_read). */
-+  return buffer_.create(
++  return buffer_.create_scoped(
++      ctx->instance_get(),
 +      ctx->device_get(),
 +      webgpu::BufferKind::Storage,
 +      usage,
@@ -36581,10 +36686,10 @@ index 0000000000000000000000000000000000000000..048e6ba7120ac6765cdb2fe335187e9f
 +/* clang-format on */
 diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c641b6853090aef2dc2ce0003c5301634a62ed85
+index 0000000000000000000000000000000000000000..5cd4a24ff7ef37961fdf32d55ec22e6f50b4d15b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,162 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -36646,13 +36751,14 @@ index 0000000000000000000000000000000000000000..c641b6853090aef2dc2ce0003c530163
 +    return false;
 +  }
 +  const size_t alloc = std::max(size_in_bytes_, kUboMinBindingPad);
-+  return buffer_.create(ctx->device_get(),
-+                        webgpu::BufferKind::Uniform,
-+                        webgpu::UsageType::Dynamic,
-+                        alloc,
-+                        nullptr,
-+                        false,
-+                        label_.c_str());
++  return buffer_.create_scoped(ctx->instance_get(),
++                               ctx->device_get(),
++                               webgpu::BufferKind::Uniform,
++                               webgpu::UsageType::Dynamic,
++                               alloc,
++                               nullptr,
++                               false,
++                               label_.c_str());
 +}
 +
 +bool WGPUUniformBuffer::ensure_updated()
@@ -36814,10 +36920,10 @@ index 0000000000000000000000000000000000000000..7310d7f3ae34a3b335f8541ee916e623
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e9c8925f49113d6eb7409b97ee6ded31b3ec2d87
+index 0000000000000000000000000000000000000000..4b00b6f1fb3a80f8fabb56766501685c33684c4c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
-@@ -0,0 +1,585 @@
+@@ -0,0 +1,548 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37074,46 +37180,15 @@ index 0000000000000000000000000000000000000000..e9c8925f49113d6eb7409b97ee6ded31
 +  if (ctx == nullptr) {
 +    return;
 +  }
-+  std::shared_ptr<AllocationReceipt> receipt;
-+  if (track_next_allocation_) {
-+    track_next_allocation_ = false;
-+    receipt = std::make_shared<AllocationReceipt>();
-+    receipt->pending_scopes.store(3);
-+    allocation_receipt_ = receipt;
-+    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::Internal);
-+    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::OutOfMemory);
-+    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::Validation);
-+  }
 +  /* Vertex | Storage | Copy* (readable=true so it can be the CopySrc of
 +   * GPU_storagebuf_copy_sub_from_vertbuf and of read()). */
-+  buffer_.create(ctx->device_get(),
-+                 webgpu::BufferKind::Vertex,
-+                 to_wgpu_usage(usage_),
-+                 size_alloc_get(),
-+                 nullptr,
-+                 true);
-+  if (receipt) {
-+    auto settle_scope = [receipt](wgpu::PopErrorScopeStatus status,
-+                                  wgpu::ErrorType type,
-+                                  wgpu::StringView message) {
-+      if (status != wgpu::PopErrorScopeStatus::Success || type != wgpu::ErrorType::NoError) {
-+        receipt->failed.store(true);
-+        fprintf(stderr,
-+                "[WebGPU] tracked buffer allocation failed (status %d, type %d): %.*s\n",
-+                int(status),
-+                int(type),
-+                int(message.length == WGPU_STRLEN ?
-+                        (message.data ? std::char_traits<char>::length(message.data) : 0) :
-+                        message.length),
-+                message.data ? message.data : "");
-+        fflush(stderr);
-+      }
-+      receipt->pending_scopes.fetch_sub(1);
-+    };
-+    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
-+    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
-+    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
-+  }
++  buffer_.create_scoped(ctx->instance_get(),
++                        ctx->device_get(),
++                        webgpu::BufferKind::Vertex,
++                        to_wgpu_usage(usage_),
++                        size_alloc_get(),
++                        nullptr,
++                        true);
 +}
 +
 +void WGPUVertexBuffer::enable_device_allocation_tracking()
@@ -37123,19 +37198,12 @@ index 0000000000000000000000000000000000000000..e9c8925f49113d6eb7409b97ee6ded31
 +
 +bool WGPUVertexBuffer::is_device_allocation_pending() const
 +{
-+  return allocation_receipt_ && !allocation_receipt_->failed.load() &&
-+         allocation_receipt_->pending_scopes.load() > 0;
++  return track_next_allocation_ && buffer_.creation_pending();
 +}
 +
 +bool WGPUVertexBuffer::is_device_valid() const
 +{
-+  if (!buffer_.valid()) {
-+    return false;
-+  }
-+  if (!allocation_receipt_) {
-+    return true;
-+  }
-+  return !allocation_receipt_->failed.load() && allocation_receipt_->pending_scopes.load() == 0;
++  return buffer_.valid();
 +}
 +
 +void WGPUVertexBuffer::upload_data()
@@ -37362,13 +37430,14 @@ index 0000000000000000000000000000000000000000..e9c8925f49113d6eb7409b97ee6ded31
 +          buffer_texture_buffer_.size() < expanded.size() * sizeof(float))
 +      {
 +        buffer_texture_buffer_ = webgpu::Buffer();
-+        if (!buffer_texture_buffer_.create(ctx->device_get(),
-+                                           webgpu::BufferKind::Storage,
-+                                           webgpu::UsageType::Static,
-+                                           expanded.size() * sizeof(float),
-+                                           expanded.data(),
-+                                           false,
-+                                           "float texel-buffer expansion"))
++        if (!buffer_texture_buffer_.create_scoped(ctx->instance_get(),
++                                                  ctx->device_get(),
++                                                  webgpu::BufferKind::Storage,
++                                                  webgpu::UsageType::Static,
++                                                  expanded.size() * sizeof(float),
++                                                  expanded.data(),
++                                                  false,
++                                                  "float texel-buffer expansion"))
 +        {
 +          return;
 +        }
@@ -37405,10 +37474,10 @@ index 0000000000000000000000000000000000000000..e9c8925f49113d6eb7409b97ee6ded31
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..f0b7ad0a78bc0f23d13bd74abf75a0ae94202152
+index 0000000000000000000000000000000000000000..ebc73edede0d9436622f0233b3111b9f582846f1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,74 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37434,9 +37503,6 @@ index 0000000000000000000000000000000000000000..f0b7ad0a78bc0f23d13bd74abf75a0ae
 +#include "wgpu_buffer.hh"
 +
 +#include "MEM_guardedalloc.h"
-+
-+#include <atomic>
-+#include <memory>
 +
 +namespace blender::gpu {
 +
@@ -37466,11 +37532,6 @@ index 0000000000000000000000000000000000000000..f0b7ad0a78bc0f23d13bd74abf75a0ae
 +  void upload_data() override;
 +
 + private:
-+  struct AllocationReceipt {
-+    std::atomic<int> pending_scopes{0};
-+    std::atomic<bool> failed{false};
-+  };
-+
 +  void allocate();
 +
 +  webgpu::Buffer buffer_;
@@ -37481,7 +37542,6 @@ index 0000000000000000000000000000000000000000..f0b7ad0a78bc0f23d13bd74abf75a0ae
 +  bool buffer_texture_buffer_dirty_ = true;
 +  bool data_uploaded_ = false;
 +  bool track_next_allocation_ = false;
-+  std::shared_ptr<AllocationReceipt> allocation_receipt_;
 +
 +  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUVertexBuffer")
 +};

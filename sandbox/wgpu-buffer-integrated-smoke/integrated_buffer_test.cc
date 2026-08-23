@@ -27,6 +27,7 @@ bool run_integrated_index_contracts();
 }
 
 namespace blender::gpu::webgpu {
+bool run_integrated_buffer_create_contracts();
 bool run_integrated_buffer_update_contracts();
 }
 
@@ -140,6 +141,8 @@ struct ReadbackCommandTrace {
     None,
     Encoder,
     CommandBuffer,
+    EncodingScope,
+    SubmissionScope,
   };
 
   Failure failure = Failure::None;
@@ -147,6 +150,8 @@ struct ReadbackCommandTrace {
   int copies = 0;
   int finishes = 0;
   int submits = 0;
+  int scope_pushes = 0;
+  int scope_pops = 0;
 };
 
 class ReadbackCommandBufferProbe {
@@ -202,6 +207,27 @@ class ReadbackDeviceProbe {
         trace_, trace_->failure != ReadbackCommandTrace::Failure::Encoder);
   }
 
+  void PushErrorScope(wgpu::ErrorFilter /*filter*/) const
+  {
+    trace_->scope_pushes++;
+  }
+
+  template<typename Callback>
+  int PopErrorScope(wgpu::CallbackMode /*mode*/, Callback &&callback) const
+  {
+    trace_->scope_pops++;
+    const int group = (trace_->scope_pops - 1) / 3;
+    const bool error = (trace_->failure == ReadbackCommandTrace::Failure::EncodingScope &&
+                        group == 0) ||
+                       (trace_->failure == ReadbackCommandTrace::Failure::SubmissionScope &&
+                        group == 1);
+    std::forward<Callback>(callback)(wgpu::PopErrorScopeStatus::Success,
+                                     error ? wgpu::ErrorType::Validation :
+                                             wgpu::ErrorType::NoError,
+                                     wgpu::StringView{});
+    return trace_->scope_pops;
+  }
+
  private:
   ReadbackCommandTrace *trace_ = nullptr;
 };
@@ -209,6 +235,11 @@ class ReadbackDeviceProbe {
 class ReadbackQueueProbe {
  public:
   explicit ReadbackQueueProbe(ReadbackCommandTrace &trace) : trace_(&trace) {}
+
+  bool operator==(std::nullptr_t) const
+  {
+    return false;
+  }
 
   void Submit(const size_t count, const ReadbackCommandBufferProbe *command_buffer) const
   {
@@ -221,10 +252,20 @@ class ReadbackQueueProbe {
   ReadbackCommandTrace *trace_ = nullptr;
 };
 
+class ReadbackInstanceProbe {
+ public:
+  wgpu::WaitStatus WaitAny(int /*future*/, uint64_t /*timeout*/) const
+  {
+    return wgpu::WaitStatus::Success;
+  }
+};
+
 bool readback_command_transaction_contract()
 {
   constexpr std::array failures = {ReadbackCommandTrace::Failure::Encoder,
                                    ReadbackCommandTrace::Failure::CommandBuffer,
+                                   ReadbackCommandTrace::Failure::EncodingScope,
+                                   ReadbackCommandTrace::Failure::SubmissionScope,
                                    ReadbackCommandTrace::Failure::None};
 
   for (const ReadbackCommandTrace::Failure failure : failures) {
@@ -232,25 +273,38 @@ bool readback_command_transaction_contract()
     trace.failure = failure;
     const ReadbackDeviceProbe device(trace);
     const ReadbackQueueProbe queue(trace);
-    const bool result = bw::command_encode_submit_if_valid(device, queue, [](auto &encoder) {
-      encoder.Copy();
-    });
+    const ReadbackInstanceProbe instance;
+    bw::OrderedQueueScheduler scheduler;
+    bool result = false;
+    bw::command_encode_submit_scoped(instance,
+                                     device,
+                                     queue,
+                                     scheduler,
+                                     nullptr,
+                                     [](auto &encoder) { encoder.Copy(); },
+                                     [&](const bool valid) { result = valid; });
 
     const bool expect_success = failure == ReadbackCommandTrace::Failure::None;
     const int expect_copy = failure == ReadbackCommandTrace::Failure::Encoder ? 0 : 1;
     const int expect_finish = expect_copy;
-    const int expect_submit = expect_success ? 1 : 0;
+    const int expect_submit =
+        failure == ReadbackCommandTrace::Failure::None ||
+                failure == ReadbackCommandTrace::Failure::SubmissionScope ?
+            1 :
+            0;
     if (!require(result == expect_success, "readback command result") ||
         !require(trace.encoder_creates == 1, "readback encoder creation count") ||
         !require(trace.copies == expect_copy, "readback copy ordering") ||
         !require(trace.finishes == expect_finish, "readback finish ordering") ||
-        !require(trace.submits == expect_submit, "readback submit ordering"))
+        !require(trace.submits == expect_submit, "readback submit ordering") ||
+        !require(scheduler.pending_count() == 0, "readback scheduler settles"))
     {
       return false;
     }
   }
 
-  std::printf("CONTRACT readback-command PASS cases=%zu copies=2 submits=1\n", failures.size());
+  std::printf("CONTRACT readback-command PASS cases=%zu copies=4 submits=1 scopes=complete\n",
+              failures.size());
   return true;
 }
 
@@ -593,16 +647,18 @@ bool invalid_buffer_contract()
   wgpu::Device device;
   wgpu::Queue queue;
   wgpu::Instance instance;
+  bw::OrderedQueueScheduler scheduler;
   const std::array<uint8_t, 4> bytes = {1, 2, 3, 4};
 
   if (!require(!buffer.valid(), "default buffer is invalid") ||
       !require(buffer.size() == 0, "default buffer size") ||
       !require(buffer.kind() == bw::BufferKind::Vertex, "default buffer kind") ||
-      !require(!buffer.update_sub(device, queue, 0, bytes.data(), bytes.size()),
+      !require(!buffer.update_sub(
+                   instance, device, queue, scheduler, 0, bytes.data(), bytes.size()),
                "invalid buffer rejects update") ||
-      !require(!buffer.update_sub(device, queue, 0, nullptr, bytes.size()),
+      !require(!buffer.update_sub(instance, device, queue, scheduler, 0, nullptr, bytes.size()),
                "null update rejected") ||
-      !require(buffer.read(instance, device, queue, 0, bytes.size()).empty(),
+      !require(buffer.read(instance, device, queue, scheduler, 0, bytes.size()).empty(),
                "invalid buffer read is empty"))
   {
     return false;
@@ -708,10 +764,12 @@ bool invalid_readback_contract()
   wgpu::Device device;
   wgpu::Queue queue;
   wgpu::Buffer handle;
+  wgpu::Instance instance;
+  bw::OrderedQueueScheduler scheduler;
   const readback::Ticket cache_ticket = readback::kick_buffer(
-      device, queue, handle, key, 0, 4, 4, readback::RequestMode::Cache);
+      instance, device, queue, scheduler, handle, key, 0, 4, 4, readback::RequestMode::Cache);
   const readback::Ticket exact_ticket = readback::kick_buffer(
-      device, queue, handle, key, 0, 4, 4, readback::RequestMode::Exact);
+      instance, device, queue, scheduler, handle, key, 0, 4, 4, readback::RequestMode::Exact);
   std::array<uint8_t, 4> destination = {};
 
   if (!require(cache_ticket == readback::kInvalidTicket, "invalid cache kick") ||
@@ -756,6 +814,8 @@ bool failed_ticket_capacity_contract()
   wgpu::Device device;
   wgpu::Queue queue;
   wgpu::Buffer handle;
+  wgpu::Instance instance;
+  bw::OrderedQueueScheduler scheduler;
 
   for (size_t i = 0; i < tickets.size(); i++) {
     readback::SourceKey key;
@@ -764,7 +824,16 @@ bool failed_ticket_capacity_contract()
     key.sub = i;
     key.span = 4;
     tickets[i] = readback::kick_buffer(
-        device, queue, handle, key, 0, 4, 4, readback::RequestMode::Exact);
+        instance,
+        device,
+        queue,
+        scheduler,
+        handle,
+        key,
+        0,
+        4,
+        4,
+        readback::RequestMode::Exact);
     if (!require(tickets[i] != readback::kInvalidTicket, "exact failed-ticket capacity") ||
         !require(readback::ticket_status(tickets[i]) == readback::TicketStatus::Failed,
                  "exact capacity ticket status") ||
@@ -781,8 +850,10 @@ bool failed_ticket_capacity_contract()
   overflow_key.obj = &source_identity;
   overflow_key.sub = exact_record_capacity;
   overflow_key.span = 4;
-  if (!require(readback::kick_buffer(device,
+  if (!require(readback::kick_buffer(instance,
+                                     device,
                                      queue,
+                                     scheduler,
                                      handle,
                                      overflow_key,
                                      0,
@@ -818,7 +889,16 @@ bool failed_ticket_capacity_contract()
     readback::SourceKey key = overflow_key;
     key.sub += 1 + i;
     replacements[i] = readback::kick_buffer(
-        device, queue, handle, key, 0, 4, 4, readback::RequestMode::Exact);
+        instance,
+        device,
+        queue,
+        scheduler,
+        handle,
+        key,
+        0,
+        4,
+        4,
+        readback::RequestMode::Exact);
     if (!require(replacements[i] != readback::kInvalidTicket,
                  "retired exact record capacity is reusable") ||
         !require(readback::ticket_status(replacements[i]) == readback::TicketStatus::Failed,
@@ -827,8 +907,10 @@ bool failed_ticket_capacity_contract()
       return false;
     }
   }
-  if (!require(readback::kick_buffer(device,
+  if (!require(readback::kick_buffer(instance,
+                                     device,
                                      queue,
+                                     scheduler,
                                      handle,
                                      overflow_key,
                                      0,
@@ -849,7 +931,16 @@ bool failed_ticket_capacity_contract()
   }
 
   const readback::Ticket final_ticket = readback::kick_buffer(
-      device, queue, handle, overflow_key, 0, 4, 4, readback::RequestMode::Exact);
+      instance,
+      device,
+      queue,
+      scheduler,
+      handle,
+      overflow_key,
+      0,
+      4,
+      4,
+      readback::RequestMode::Exact);
   if (!require(final_ticket != readback::kInvalidTicket, "fully retired registry is reusable") ||
       !require(!readback::cancel_ticket(final_ticket), "failed exact ticket cannot be canceled") ||
       !require(readback::pending_count() == 0, "capacity exercise leaves no pending work"))
@@ -881,13 +972,14 @@ int main()
       !invalid_buffer_contract() ||
       !move_lifetime_contract() || !pixel_buffer_contract() || !invalid_readback_contract() ||
       !failed_ticket_capacity_contract() ||
+      !blender::gpu::webgpu::run_integrated_buffer_create_contracts() ||
       !blender::gpu::webgpu::run_integrated_buffer_update_contracts() ||
       !blender::gpu::run_integrated_index_contracts())
   {
     return 1;
   }
   std::printf(
-      "INTEGRATED_BUFFER_PASS contracts=17 usage_cases=32 pixel_cases=7 exact_cap=256 "
-      "buffer_update_cases=9 index_cases=4 index_upload_cases=6\n");
+      "INTEGRATED_BUFFER_PASS contracts=18 usage_cases=32 pixel_cases=7 exact_cap=256 "
+      "buffer_create_cases=6 buffer_update_cases=9 index_cases=4 index_upload_cases=7\n");
   return 0;
 }

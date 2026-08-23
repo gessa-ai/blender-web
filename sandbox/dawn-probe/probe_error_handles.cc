@@ -81,6 +81,21 @@ struct CountingQueue {
   }
 };
 
+struct PersistentBufferAllocation {
+  wgpu::Buffer handle;
+  uint64_t size = 0;
+  bool readable = false;
+
+  bool operator==(std::nullptr_t) const
+  {
+    return handle == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const
+  {
+    return handle != nullptr;
+  }
+};
+
 }  // namespace
 
 int main()
@@ -559,11 +574,55 @@ int main()
     return 23;
   }
 
+  bw::ScopedHandleCache<uint8_t, PersistentBufferAllocation> persistent_buffer_cache;
+  int persistent_buffer_creates = 0;
+  const PersistentBufferAllocation invalid_persistent = persistent_buffer_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid persistent buffer", [&]() {
+        persistent_buffer_creates++;
+        wgpu::BufferDescriptor descriptor = {};
+        descriptor.size = 4;
+        descriptor.usage = wgpu::BufferUsage::None;
+        PersistentBufferAllocation candidate;
+        candidate.handle = device.CreateBuffer(&descriptor);
+        candidate.size = descriptor.size;
+        candidate.readable = true;
+        return candidate;
+      });
+  if (!require(invalid_persistent == nullptr && persistent_buffer_cache.size() == 0 &&
+                   !persistent_buffer_cache.pending(uint8_t(0)) &&
+                   persistent_buffer_creates == 1,
+               "shipping scoped cache published a non-null persistent-buffer error object"))
+  {
+    return 24;
+  }
+
+  const PersistentBufferAllocation valid_persistent = persistent_buffer_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid persistent buffer", [&]() {
+        persistent_buffer_creates++;
+        wgpu::BufferDescriptor descriptor = {};
+        descriptor.size = 8;
+        descriptor.usage = wgpu::BufferUsage::CopyDst;
+        PersistentBufferAllocation candidate;
+        candidate.handle = device.CreateBuffer(&descriptor);
+        candidate.size = descriptor.size;
+        candidate.readable = false;
+        return candidate;
+      });
+  if (!require(valid_persistent != nullptr && valid_persistent.size == 8 &&
+                   !valid_persistent.readable && persistent_buffer_cache.size() == 1 &&
+                   !persistent_buffer_cache.pending(uint8_t(0)) &&
+                   persistent_buffer_creates == 2,
+               "shipping scoped cache did not atomically publish a clean persistent retry"))
+  {
+    return 25;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
             << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
             << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"
-            << " dummy_buffer_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " dummy_buffer_error_object_rejected=1 scoped_persistent_buffer_cases=2"
+            << " persistent_buffer_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

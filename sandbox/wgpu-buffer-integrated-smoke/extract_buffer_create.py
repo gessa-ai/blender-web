@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Extract the canonical WebGPU index upload method for a device-free contract."""
+"""Extract the scoped canonical WebGPU buffer creation method for a device-free contract."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from pathlib import Path
 import sys
 
 
-START = "void WGPUIndexBuffer::upload_data()"
-END = "\n\nconst webgpu::Buffer &WGPUIndexBuffer::buffer() const"
+START = "bool Buffer::create_scoped("
+END = "\n\nbool Buffer::update_sub("
 
 
 def main() -> int:
@@ -23,24 +23,33 @@ def main() -> int:
 
     source = args.source.read_text(encoding="utf-8")
     if source.count(START) != 1 or source.count(END) != 1:
-        raise RuntimeError("canonical index-upload method boundaries are not unique")
+        raise RuntimeError("canonical scoped buffer-create method boundaries are not unique")
     start = source.index(START)
     end = source.index(END, start)
     method = source[start:end].rstrip() + "\n"
     if method.count("{") != method.count("}") or not method.endswith("}\n"):
-        raise RuntimeError("canonical index-upload method is structurally incomplete")
+        raise RuntimeError("canonical scoped buffer-create method is structurally incomplete")
     required = (
-        "if (is_subrange_)",
-        "buffer_.create_scoped(ctx->instance_get(),",
-        "MEM_SAFE_DELETE_VOID(data_);",
-        "data_uploaded_ = true;",
+        "instance == nullptr || device == nullptr",
+        "allocation_cache_.get_or_create(",
+        "candidate.handle = device.CreateBuffer(&descriptor);",
+        "candidate.handle.GetMappedRange(0, allocated_size)",
+        "candidate.size = allocated_size;",
+        "return allocation != nullptr;",
     )
     missing = [needle for needle in required if needle not in method]
     if missing:
-        raise RuntimeError(f"canonical index-upload method lost required structure: {missing}")
+        raise RuntimeError(
+            f"canonical scoped buffer-create method lost required structure: {missing}"
+        )
 
+    method = method.replace(
+        "bool Buffer::create_scoped(",
+        "bool BufferCreateHarness::create_scoped(",
+        1,
+    )
     payload = (
-        "/* Generated from canonical wgpu_index_buffer.cc; do not edit. */\n" + method
+        "/* Generated from canonical wgpu_buffer.cc; do not edit. */\n" + method
     ).encode("utf-8")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists() and args.output.read_bytes() == payload:
@@ -55,5 +64,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, RuntimeError) as error:
-        print(f"INDEX_UPLOAD_EXTRACT_FAIL {error}", file=sys.stderr)
+        print(f"BUFFER_CREATE_EXTRACT_FAIL {error}", file=sys.stderr)
         raise SystemExit(1)

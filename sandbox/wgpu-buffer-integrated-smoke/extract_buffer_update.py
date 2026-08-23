@@ -31,11 +31,12 @@ def main() -> int:
         raise RuntimeError("canonical buffer-update method is structurally incomplete")
     required = (
         "kWriteBufferStagingThreshold",
-        "queue.WriteBuffer(handle_, offset, data, size);",
+        "allocation_cache_.lookup(kAllocationKey)",
+        "queue_write_buffer_scoped(instance,",
         "wgpu::Buffer staging = device.CreateBuffer(&sd);",
         "staging.GetMappedRange(0, size)",
-        "enc.CopyBufferToBuffer(staging, 0, handle_, offset, size);",
-        "queue.Submit(1, &cb);",
+        "command_encode_submit_scoped(instance,",
+        "staging, 0, allocation.handle, offset, size",
     )
     missing = [needle for needle in required if needle not in method]
     if missing:

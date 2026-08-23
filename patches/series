@@ -998,3 +998,6 @@
 # 0231: keep sampler cache misses pending until validation/OOM/internal scopes
 # settle, rejecting non-null error objects while preserving retryable keys.
 0231-gpu-webgpu-sampler-error-object-contract.patch
+# 0232: initialize the shared dummy vertex buffer inside its creation scope and
+# publish it only after validation/OOM/internal scopes accept the candidate.
+0232-gpu-webgpu-dummy-buffer-error-object-contract.patch

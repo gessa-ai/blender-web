@@ -10,6 +10,7 @@ This device-free M3.T10 reconciliation compiles Blender's canonical in-tree
 primitive, index-format, component, and fetch enums. The shared test also covers
 the two-case transient uniform-buffer allocation transaction shared by
 multi-viewport emulation and cross-format color blits,
+the three-case mapped dummy-vertex-buffer creation transaction,
 the fail-first/retry transactions shared by sampler/render-pipeline caches and the
 per-shader compute-pipeline variant cache,
 the atomic transient-handle publication shared by compute, direct/indirect batch, and
@@ -64,6 +65,10 @@ Sampler cache misses additionally remain pending while validation, out-of-memory
 internal scopes settle. A second lookup deduplicates the pending key; a non-null error
 object is discarded, and a clean retry is published without exposing a provisional handle.
 The cache owns callback state independently of the context lifetime.
+The shared dummy vertex buffer uses the same scoped cache with one fixed key. Its
+`{0,0,0,1}` payload is installed through `mappedAtCreation` before the creation scope is
+popped, so no initialization write can overtake browser validation and no provisional buffer
+can reach a draw. Creation and mapped-range failures both remain retryable.
 The same rule applies to each specialization-keyed compute pipeline: a transient null
 creation result must not become a retained variant that suppresses every later retry.
 Every non-empty compute or draw bind-group assembly likewise rejects a null group before

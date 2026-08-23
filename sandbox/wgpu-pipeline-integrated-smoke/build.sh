@@ -281,6 +281,24 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'sampler_cache_.lookup(key);' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'inline auto dummy_vertex_buffer_create(DeviceT &device)' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'dummy_vertex_buffer_cache_.get_or_create(' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'return webgpu::dummy_vertex_buffer_create(device_);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'webgpu::ScopedHandleCache<uint8_t, wgpu::Buffer> dummy_vertex_buffer_cache_;' \
+  "$WEBGPU_SOURCE/wgpu_context.hh"
+require_fixed_count 0 \
+  'dummy_vertex_buffer_ = device_.CreateBuffer(&bd);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 0 \
+  'wgpu::Buffer dummy_vertex_buffer_;' \
+  "$WEBGPU_SOURCE/wgpu_context.hh"
 require_fixed_count 0 \
   'sampler_cache_.find(' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
@@ -1348,11 +1366,14 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 27 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 28 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT multiview_uniform_allocation PASS cases=2 creates=2 failure=atomic bytes=16' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT dummy_vertex_buffer_creation PASS cases=3 create_fail=closed map_fail=closed values=0,0,0,1' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published' \
@@ -1412,7 +1433,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=26 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=27 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 index_binding_resolutions=3 cache_publications=2 scoped_cache_cases=5 compute_cache_publications=2 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

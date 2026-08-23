@@ -681,3 +681,6 @@ Callback state must outlive the owning context without capturing it. Exercise pe
 deduplication, a non-null rejected object, clean retry, and cache-hit preservation device-free on
 native and wasm32, then prove the exact helper against pinned Dawn. See
 `sandbox/wgpu-pipeline-integrated-smoke/` and `sandbox/dawn-probe/probe_error_handles.cc`.
+For a reusable resource with fixed initial bytes, initialize the local candidate through
+`mappedAtCreation` before popping its creation scopes. A separate queued write can otherwise run
+before validation settles or require publishing the provisional handle merely to initialize it.

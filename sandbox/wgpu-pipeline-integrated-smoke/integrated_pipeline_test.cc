@@ -43,7 +43,11 @@ bool require(const bool condition, const char *message)
 class BufferHandleProbe {
  public:
   BufferHandleProbe() = default;
-  explicit BufferHandleProbe(const int identity) : identity_(identity) {}
+  explicit BufferHandleProbe(const int identity, const bool map_success = true)
+      : identity_(identity), state_(std::make_shared<State>())
+  {
+    state_->map_success = map_success;
+  }
 
   bool operator==(std::nullptr_t) const
   {
@@ -55,13 +59,64 @@ class BufferHandleProbe {
     return identity_;
   }
 
+  void *GetMappedRange(const uint64_t offset, const size_t size)
+  {
+    state_->map_calls++;
+    state_->mapped_offset = offset;
+    state_->mapped_size = size;
+    return state_->map_success ? state_->values.data() : nullptr;
+  }
+
+  void Unmap()
+  {
+    state_->unmap_calls++;
+  }
+
+  int map_calls() const
+  {
+    return state_ ? state_->map_calls : 0;
+  }
+
+  int unmap_calls() const
+  {
+    return state_ ? state_->unmap_calls : 0;
+  }
+
+  uint64_t mapped_offset() const
+  {
+    return state_ ? state_->mapped_offset : 0;
+  }
+
+  size_t mapped_size() const
+  {
+    return state_ ? state_->mapped_size : 0;
+  }
+
+  float value(const size_t index) const
+  {
+    return state_ ? state_->values.at(index) : 0.0f;
+  }
+
  private:
+  struct State {
+    bool map_success = true;
+    int map_calls = 0;
+    int unmap_calls = 0;
+    uint64_t mapped_offset = 0;
+    size_t mapped_size = 0;
+    std::array<float, 4> values = {};
+  };
+
   int identity_ = 0;
+  std::shared_ptr<State> state_;
 };
 
 class BufferDeviceProbe {
  public:
-  explicit BufferDeviceProbe(const bool create_success) : create_success_(create_success) {}
+  explicit BufferDeviceProbe(const bool create_success, const bool map_success = true)
+      : create_success_(create_success), map_success_(map_success)
+  {
+  }
 
   BufferHandleProbe CreateBuffer(const wgpu::BufferDescriptor *descriptor)
   {
@@ -72,7 +127,8 @@ class BufferDeviceProbe {
       usage_ = descriptor->usage;
       mapped_at_creation_ = descriptor->mappedAtCreation;
     }
-    return create_success_ ? BufferHandleProbe(29) : BufferHandleProbe();
+    last_handle_ = create_success_ ? BufferHandleProbe(29, map_success_) : BufferHandleProbe();
+    return last_handle_;
   }
 
   size_t create_calls() const
@@ -100,13 +156,20 @@ class BufferDeviceProbe {
     return mapped_at_creation_;
   }
 
+  const BufferHandleProbe &last_handle() const
+  {
+    return last_handle_;
+  }
+
  private:
   bool create_success_ = false;
+  bool map_success_ = true;
   bool descriptor_present_ = false;
   size_t create_calls_ = 0;
   uint64_t size_ = 0;
   wgpu::BufferUsage usage_ = wgpu::BufferUsage::None;
   bool mapped_at_creation_ = false;
+  BufferHandleProbe last_handle_;
 };
 
 bool multiview_uniform_allocation_contract()
@@ -145,6 +208,52 @@ bool multiview_uniform_allocation_contract()
 
   std::puts(
       "CONTRACT multiview_uniform_allocation PASS cases=2 creates=2 failure=atomic bytes=16");
+  return true;
+}
+
+bool dummy_vertex_buffer_creation_contract()
+{
+  constexpr wgpu::BufferUsage expected_usage =
+      wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+
+  BufferDeviceProbe create_failure(false);
+  const BufferHandleProbe missing = bw::dummy_vertex_buffer_create(create_failure);
+  if (!require(missing == nullptr, "failed dummy allocation is rejected") ||
+      !require(create_failure.create_calls() == 1 && create_failure.descriptor_present() &&
+                   create_failure.size() == 16 && create_failure.usage() == expected_usage &&
+                   create_failure.mapped_at_creation(),
+               "failed dummy allocation uses the exact mapped descriptor"))
+  {
+    return false;
+  }
+
+  BufferDeviceProbe map_failure(true, false);
+  const BufferHandleProbe unmapped = bw::dummy_vertex_buffer_create(map_failure);
+  if (!require(unmapped == nullptr, "missing dummy mapped range is rejected") ||
+      !require(map_failure.last_handle().map_calls() == 1 &&
+                   map_failure.last_handle().unmap_calls() == 0 &&
+                   map_failure.last_handle().mapped_offset() == 0 &&
+                   map_failure.last_handle().mapped_size() == 16,
+               "failed dummy mapping stops before unmap and publication"))
+  {
+    return false;
+  }
+
+  BufferDeviceProbe success(true);
+  const BufferHandleProbe initialized = bw::dummy_vertex_buffer_create(success);
+  if (!require(initialized.identity() == 29, "valid dummy allocation is published") ||
+      !require(initialized.map_calls() == 1 && initialized.unmap_calls() == 1 &&
+                   initialized.mapped_offset() == 0 && initialized.mapped_size() == 16,
+               "valid dummy allocation maps and unmaps exactly once") ||
+      !require(initialized.value(0) == 0.0f && initialized.value(1) == 0.0f &&
+                   initialized.value(2) == 0.0f && initialized.value(3) == 1.0f,
+               "dummy allocation contains Blender's default vertex attribute"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT dummy_vertex_buffer_creation PASS cases=3 create_fail=closed map_fail=closed values=0,0,0,1");
   return true;
 }
 
@@ -2525,6 +2634,7 @@ int main()
 {
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
+      !dummy_vertex_buffer_creation_contract() ||
       !transient_handle_publication_contract() ||
       !framebuffer_load_action_commit_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
@@ -2547,8 +2657,8 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=26 primitives=11 strip_cases=33 "
-      "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
+      "INTEGRATED_PIPELINE_PASS contracts=27 primitives=11 strip_cases=33 "
+      "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 "

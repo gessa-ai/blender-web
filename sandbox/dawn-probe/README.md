@@ -74,8 +74,9 @@ host exposed only a software/CPU adapter; that result is not a receipt.
   GHOST scope helper and the shipping GPU ordered-command helper against rejected/accepted
   command/submission paths, proving an error command buffer never reaches the queue and a new
   frame epoch can retry. It also proves the shipping scoped-handle cache rejects a real non-null
-  sampler error object before publishing a clean retry. Its output is explicitly non-receipt
-  evidence and cannot satisfy the hardware success criterion above.
+  sampler error object before publishing a clean retry, and repeats that rejection/retry with the
+  exact mapped dummy-vertex-buffer factory. Its output is explicitly non-receipt evidence and
+  cannot satisfy the hardware success criterion above.
 - `probe_platform.hh` — exact host backend selection + hardware-adapter gate.
 - `CMakeLists.txt` — consumes Dawn via `add_subdirectory` (minimal target set).
 - `build.sh` — the three-step driver above.

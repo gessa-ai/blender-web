@@ -528,10 +528,42 @@ int main()
     return 21;
   }
 
+  bw::ScopedHandleCache<uint8_t, wgpu::Buffer> scoped_dummy_buffer_cache;
+  int dummy_buffer_creates = 0;
+  wgpu::Buffer invalid_dummy_buffer = scoped_dummy_buffer_cache.get_or_create(
+      instance, device, uint8_t(0), "audit invalid dummy vertex buffer", [&]() {
+        dummy_buffer_creates++;
+        wgpu::BufferDescriptor descriptor = {};
+        descriptor.size = 16;
+        descriptor.usage = wgpu::BufferUsage::None;
+        return device.CreateBuffer(&descriptor);
+      });
+  if (!require(invalid_dummy_buffer == nullptr && scoped_dummy_buffer_cache.size() == 0 &&
+                   !scoped_dummy_buffer_cache.pending(uint8_t(0)) &&
+                   dummy_buffer_creates == 1,
+               "shipping scoped cache published a non-null dummy-buffer error object"))
+  {
+    return 22;
+  }
+
+  wgpu::Buffer valid_dummy_buffer = scoped_dummy_buffer_cache.get_or_create(
+      instance, device, uint8_t(0), "audit valid dummy vertex buffer", [&]() {
+        dummy_buffer_creates++;
+        return bw::dummy_vertex_buffer_create(device);
+      });
+  if (!require(valid_dummy_buffer != nullptr && scoped_dummy_buffer_cache.size() == 1 &&
+                   !scoped_dummy_buffer_cache.pending(uint8_t(0)) &&
+                   dummy_buffer_creates == 2,
+               "shipping scoped cache did not publish an initialized dummy-buffer retry"))
+  {
+    return 23;
+  }
+
   std::cout << "DAWN_ERROR_HANDLE_AUDIT_PASS cases=" << passed
             << " null_guards_miss_validation=8 scoped_contract=" << scoped_cases
             << " error_object_submit_rejected=1 gpu_scoped_contract=" << gpu_scoped_cases
             << " gpu_error_object_submit_rejected=1 scoped_sampler_cases=2"
-            << " sampler_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
+            << " sampler_error_object_rejected=1 scoped_dummy_buffer_cases=2"
+            << " dummy_buffer_error_object_rejected=1 SOFTWARE_CONTROL_NON_RECEIPT\n";
   return 0;
 }

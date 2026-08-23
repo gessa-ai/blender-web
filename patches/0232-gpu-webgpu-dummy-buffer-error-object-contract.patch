@@ -1,0 +1,99 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -152,6 +152,33 @@ inline bool buffer_create_if_valid(DeviceT &device,
+   return true;
+ }
+ 
++/** Create Blender's default unbound vertex attribute as one initialized buffer candidate.
++ *
++ * `mappedAtCreation` keeps initialization inside the enclosing resource-creation error scope:
++ * no queue write can race ahead while browser validation is pending. The caller must retain the
++ * candidate locally until the completed scope accepts it. */
++template<typename DeviceT> inline auto dummy_vertex_buffer_create(DeviceT &device)
++{
++  static constexpr float default_attribute[4] = {0.0f, 0.0f, 0.0f, 1.0f};
++
++  wgpu::BufferDescriptor descriptor = {};
++  descriptor.size = sizeof(default_attribute);
++  descriptor.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
++  descriptor.mappedAtCreation = true;
++
++  auto candidate = device.CreateBuffer(&descriptor);
++  if (candidate == nullptr) {
++    return candidate;
++  }
++  void *mapped = candidate.GetMappedRange(0, sizeof(default_attribute));
++  if (mapped == nullptr) {
++    return decltype(candidate){};
++  }
++  std::memcpy(mapped, default_attribute, sizeof(default_attribute));
++  candidate.Unmap();
++  return candidate;
++}
++
+ /** Publish a short-lived WebGPU handle only after creation succeeds. Failure leaves the
+  * caller-owned result unchanged. Templated so transient resource failure remains device-free
+  * testable on native and Wasm. */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -319,30 +319,20 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
+ 
+ wgpu::Buffer WGPUContext::dummy_vertex_buffer()
+ {
+-  if (dummy_vertex_buffer_ == nullptr) {
+-    wgpu::BufferDescriptor bd = {};
+-    /* Every dummy slot has arrayStride zero, so all vertex and instance ranges read the same
+-     * 16 bytes. Match Blender's Vulkan backend and OpenGL's default generic attribute:
+-     * missing xyz components are zero and w is one. The fourth value is also needed by the
+-     * generated-coordinate (orco) path. */
+-    bd.size = 16;
+-    bd.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+-    dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
+-    if (dummy_vertex_buffer_ != nullptr) {
+-      static constexpr float default_attribute[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+-      webgpu::queue_write_buffer_scoped(instance_,
+-                                        device_,
+-                                        queue_,
+-                                        queue_scheduler_,
+-                                        dummy_vertex_buffer_,
+-                                        0,
+-                                        default_attribute,
+-                                        sizeof(default_attribute),
+-                                        "dummy vertex initialization",
+-                                        [](bool) {});
+-    }
++  static constexpr uint8_t cache_key = 0;
++  if (instance_ == nullptr || device_ == nullptr) {
++    return nullptr;
+   }
+-  return dummy_vertex_buffer_;
++
++  /* Every dummy slot has arrayStride zero, so all vertex and instance ranges read the same
++   * 16 bytes. Match Blender's Vulkan backend and OpenGL's default generic attribute:
++   * missing xyz components are zero and w is one. A browser cache miss remains null until
++   * validation/OOM/internal scopes accept the initialized candidate; checked draw binding then
++   * retries on a later frame without consuming a provisional error object. */
++  return dummy_vertex_buffer_cache_.get_or_create(
++      instance_, device_, cache_key, "dummy vertex buffer creation", [&]() {
++        return webgpu::dummy_vertex_buffer_create(device_);
++      });
+ }
+ 
+ /* --- Cross-format colour blit (render-pass fallback for blit_to) ----------- */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -346,8 +346,9 @@ class WGPUContext : public Context {
+   wgpu::ShaderModule depth_upload_module_ = nullptr;
+   std::unordered_map<uint32_t, wgpu::RenderPipeline> depth_upload_pipelines_;
+ 
+-  /** Shared zero buffer backing dummy vertex-attribute slots (see dummy_vertex_buffer). */
+-  wgpu::Buffer dummy_vertex_buffer_;
++  /** Scope-validated shared default buffer backing dummy vertex-attribute slots (see
++   * dummy_vertex_buffer). */
++  webgpu::ScopedHandleCache<uint8_t, wgpu::Buffer> dummy_vertex_buffer_cache_;
+ 
+   /** The GHOST drawing context (retained for sync_backbuffer's surface access);
+    * mirrors VKContext::ghost_context_ (vk_context.cc:40). */

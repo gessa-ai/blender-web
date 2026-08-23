@@ -841,6 +841,90 @@ bool scoped_handle_cache_contract()
   return true;
 }
 
+bool ordered_queue_scheduler_failure_drain_contract()
+{
+  constexpr size_t follower_count = 100000;
+  constexpr size_t failed_epoch_count = 100000;
+
+  bw::OrderedQueueScheduler scheduler;
+  bw::OrderedQueueScheduler::Ticket failed_head = scheduler.reserve();
+  size_t executed = 0;
+  size_t canceled = 0;
+  for (size_t index = 0; index < follower_count; index++) {
+    scheduler.enqueue(
+        [&](auto done) {
+          executed++;
+          done(true);
+        },
+        [&]() { canceled++; });
+  }
+
+  if (!require(scheduler.pending_count() == follower_count + 1,
+               "scheduler stress followers wait behind the unresolved head"))
+  {
+    return false;
+  }
+  failed_head.resolve([](auto done) { done(false); });
+  if (!require(executed == 0 && canceled == follower_count,
+               "failed scheduler head cancels every same-epoch follower") ||
+      !require(scheduler.pending_count() == 0,
+               "failed scheduler stress queue drains completely"))
+  {
+    return false;
+  }
+
+  if (!require(scheduler.failed_epoch_count() == 1,
+               "current failed epoch remains retained for later same-epoch reservations"))
+  {
+    return false;
+  }
+  scheduler.begin_epoch();
+  if (!require(scheduler.failed_epoch_count() == 0,
+               "unreferenced failed epoch is pruned when a new epoch begins"))
+  {
+    return false;
+  }
+
+  size_t failed_heads = 0;
+  size_t retained_peak = 0;
+  for (size_t index = 0; index < failed_epoch_count; index++) {
+    scheduler.enqueue([&](auto done) {
+      failed_heads++;
+      done(false);
+    });
+    retained_peak = std::max(retained_peak, scheduler.failed_epoch_count());
+    if (!require(scheduler.failed_epoch_count() == 1,
+                 "only the current failed epoch remains reachable"))
+    {
+      return false;
+    }
+    scheduler.begin_epoch();
+    if (!require(scheduler.failed_epoch_count() == 0,
+                 "completed failed epochs do not accumulate"))
+    {
+      return false;
+    }
+  }
+
+  size_t accepted_retry = 0;
+  scheduler.enqueue([&](auto done) {
+    accepted_retry++;
+    done(true);
+  });
+  if (!require(failed_heads == failed_epoch_count && retained_peak == 1,
+               "long failed-epoch sequence retains bounded state") ||
+      !require(accepted_retry == 1 && scheduler.pending_count() == 0 &&
+                   scheduler.failed_epoch_count() == 0,
+               "clean epoch executes after repeated scheduler failures"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT ordered_queue_scheduler_failure_drain PASS followers=100000 executed=0 canceled=100000 failed_epochs=100000 retained_peak=1 retained_final=0 stack=bounded retry=accepted");
+  return true;
+}
+
 bool transient_resource_gate_contract()
 {
   struct ResourceCase {
@@ -3702,6 +3786,7 @@ int main()
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
+      !ordered_queue_scheduler_failure_drain_contract() ||
       !transient_resource_gate_contract() ||
       !compute_bind_group_scope_contract() ||
       !compute_pipeline_cache_publication_contract() ||
@@ -3725,10 +3810,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=37 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=38 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
+      "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
       "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

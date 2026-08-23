@@ -8,6 +8,7 @@
 # shader-module/pipeline cache publication, scoped transient bind-group validation,
 # exact surviving-WGSL bind-group completeness,
 # direct/indirect compute bind-group scope ordering,
+# bounded-stack scheduler failure draining and failed-epoch pruning,
 # layered load-action commit,
 # ordinary load-action submission transactions,
 # layered clear-before-draw ordering,
@@ -307,6 +308,18 @@ require_fixed_count 1 \
   'class OrderedQueueScheduler {' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'std::unordered_map<uint64_t, size_t> queued_epoch_counts;' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'static void prune_failed_epoch_if_unreferenced(State &state, const uint64_t epoch)' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'static void prune_unreferenced_failed_epochs(State &state)' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'size_t failed_epoch_count() const' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
   'class ScopedHandleCache {' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -446,6 +459,21 @@ for marker in (
 ):
     if marker not in common_text:
         raise SystemExit(f"ERROR: ordered scope boundary is missing {marker}")
+
+scheduler_start = common_text.index("class OrderedQueueScheduler {")
+scheduler_end = common_text.index("/** Shared completion state", scheduler_start)
+scheduler = common_text[scheduler_start:scheduler_end]
+for marker in (
+    "bool draining = false;",
+    "if (state->draining) {",
+    "state->draining = true;",
+    "for (;;) {",
+    "finish(state, entry->epoch, false);\n        continue;",
+    "state_->queued_epoch_counts[entry->epoch]++;",
+    "prune_unreferenced_failed_epochs(*state_);",
+):
+    if marker not in scheduler:
+        raise SystemExit(f"ERROR: ordered scheduler drain/prune contract is missing {marker}")
 PY
 require_fixed_count 1 \
   'inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)' \
@@ -1942,7 +1970,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 38 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 39 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1974,6 +2002,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated error_object=rejected retry=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT ordered_queue_scheduler_failure_drain PASS followers=100000 executed=0 canceled=100000 failed_epochs=100000 retained_peak=1 retained_final=0 stack=bounded retry=accepted' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 error_object=blocked dependent=1 canceled=2 retry=accepted' \
@@ -2039,7 +2070,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=37 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=38 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

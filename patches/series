@@ -1035,3 +1035,6 @@
 # 0243: validate direct/indirect compute bind groups under an ordered transient
 # resource gate before their dependent dispatch can reach queue submission.
 0243-gpu-webgpu-compute-bind-scope.patch
+# 0244: drain synchronous/canceled queue work iteratively and retain failed epochs
+# only while the current epoch or a queued entry can still reference them.
+0244-gpu-webgpu-scheduler-failure-drain.patch

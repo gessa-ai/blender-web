@@ -939,3 +939,16 @@ and a command-validation check cannot protect submission or its final commit. Ex
 created under an active state, signal loss before delivery, and require zero post-loss operations
 while retaining an active-state control. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 65 — a poisoned asynchronous FIFO must drain iteratively and forget unreachable epochs
+
+Signature: one rejected queue transaction marks its frame epoch failed, and every already-ready
+follower cancels by calling the same completion path recursively. A product-sized burst can then
+consume one native or wasm stack frame per follower, while a separate failed-epoch set retains one
+entry forever for every bad frame. Give the drain one mutex-protected owner flag: synchronous
+completion merely releases the active entry and the existing owner continues its loop; a truly
+asynchronous completion reacquires ownership after the old drain returns. Count queued references
+per epoch, retain a failed epoch while it remains current so newly reserved same-frame work still
+cancels, and prune it once a later epoch is current and no queued entry can carry it. Exercise a
+failed head plus 100,000 resolved followers, then 100,000 distinct failed epochs and a clean retry
+on native and wasm32. See `sandbox/wgpu-pipeline-integrated-smoke/`.

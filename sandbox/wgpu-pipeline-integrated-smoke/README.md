@@ -173,6 +173,11 @@ An encoding or submission failure cancels all later queue mutations from the sam
 pass, and command handles, non-null encoding and submission error objects, clean submission,
 same-epoch cancellation, and next-epoch retry. Shipping-source checks require the sole direct
 `Submit`, `WriteBuffer`, and `WriteTexture` calls to remain inside those scoped helpers.
+Synchronous completion and cancellation drain through one iterative owner rather than recursively:
+a failed head cancels 100,000 already-resolved followers with bounded stack use. Exact queued-epoch
+reference counts retain a failed epoch only while it is current or still names queued work; a
+second 100,000-failure sequence proves completed epochs do not accumulate and a clean epoch still
+executes afterward on both native and wasm32.
 The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip

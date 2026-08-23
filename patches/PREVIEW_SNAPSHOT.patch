@@ -18998,10 +18998,10 @@ index 0000000000000000000000000000000000000000..42f6679bf6047b944c9e56f87de78ca9
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373ede97d3cb
+index 0000000000000000000000000000000000000000..c7eb8a0a4e7caea4ec2bb8f4523fc1004850eedd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2450 @@
+@@ -0,0 +1,2511 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -19036,6 +19036,7 @@ index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373e
 +#include <mutex>
 +#include <string>
 +#include <type_traits>
++#include <unordered_map>
 +#include <unordered_set>
 +#include <utility>
 +#include <vector>
@@ -19272,40 +19273,88 @@ index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373e
 +  struct State {
 +    std::mutex mutex;
 +    std::deque<std::shared_ptr<Entry>> entries;
++    /* Failed epochs can be forgotten once they are no longer current and no queued entry can
++     * still carry them. Keep exact queue references so pruning is independent of queue length. */
++    std::unordered_map<uint64_t, size_t> queued_epoch_counts;
 +    std::unordered_set<uint64_t> failed_epochs;
 +    uint64_t current_epoch = 1;
 +    bool active = false;
++    bool draining = false;
 +  };
++
++  static void prune_failed_epoch_if_unreferenced(State &state, const uint64_t epoch)
++  {
++    if (epoch != state.current_epoch &&
++        state.queued_epoch_counts.find(epoch) == state.queued_epoch_counts.end())
++    {
++      state.failed_epochs.erase(epoch);
++    }
++  }
++
++  static void prune_unreferenced_failed_epochs(State &state)
++  {
++    for (auto epoch_it = state.failed_epochs.begin(); epoch_it != state.failed_epochs.end();) {
++      if (*epoch_it != state.current_epoch &&
++          state.queued_epoch_counts.find(*epoch_it) == state.queued_epoch_counts.end())
++      {
++        epoch_it = state.failed_epochs.erase(epoch_it);
++      }
++      else {
++        ++epoch_it;
++      }
++    }
++  }
 +
 +  static void start_ready(const std::shared_ptr<State> &state)
 +  {
-+    std::shared_ptr<Entry> entry;
-+    bool canceled = false;
 +    {
 +      std::lock_guard lock(state->mutex);
-+      if (state->active || state->entries.empty() || !state->entries.front()->ready) {
++      if (state->draining) {
 +        return;
 +      }
-+      entry = std::move(state->entries.front());
-+      state->entries.pop_front();
-+      state->active = true;
-+      canceled = state->failed_epochs.find(entry->epoch) != state->failed_epochs.end();
++      state->draining = true;
 +    }
 +
-+    if (canceled) {
-+      if (entry->cancel) {
-+        entry->cancel();
++    for (;;) {
++      std::shared_ptr<Entry> entry;
++      bool canceled = false;
++      {
++        std::lock_guard lock(state->mutex);
++        if (state->active || state->entries.empty() || !state->entries.front()->ready) {
++          state->draining = false;
++          return;
++        }
++        entry = std::move(state->entries.front());
++        state->entries.pop_front();
++        auto count_it = state->queued_epoch_counts.find(entry->epoch);
++        if (count_it != state->queued_epoch_counts.end()) {
++          if (count_it->second <= 1) {
++            state->queued_epoch_counts.erase(count_it);
++          }
++          else {
++            count_it->second--;
++          }
++        }
++        state->active = true;
++        canceled = state->failed_epochs.find(entry->epoch) != state->failed_epochs.end();
++        prune_failed_epoch_if_unreferenced(*state, entry->epoch);
 +      }
-+      finish(state, entry->epoch, false);
-+      return;
-+    }
 +
-+    auto completed = std::make_shared<std::atomic<bool>>(false);
-+    entry->operation([state, epoch = entry->epoch, completed](const bool valid) {
-+      if (!completed->exchange(true, std::memory_order_acq_rel)) {
-+        finish(state, epoch, valid);
++      if (canceled) {
++        if (entry->cancel) {
++          entry->cancel();
++        }
++        finish(state, entry->epoch, false);
++        continue;
 +      }
-+    });
++
++      auto completed = std::make_shared<std::atomic<bool>>(false);
++      entry->operation([state, epoch = entry->epoch, completed](const bool valid) {
++        if (!completed->exchange(true, std::memory_order_acq_rel)) {
++          finish(state, epoch, valid);
++        }
++      });
++    }
 +  }
 +
 +  static void finish(const std::shared_ptr<State> &state,
@@ -19318,6 +19367,7 @@ index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373e
 +        state->failed_epochs.insert(epoch);
 +      }
 +      state->active = false;
++      prune_failed_epoch_if_unreferenced(*state, epoch);
 +    }
 +    start_ready(state);
 +  }
@@ -19364,6 +19414,7 @@ index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373e
 +      std::lock_guard lock(state_->mutex);
 +      entry->epoch = state_->current_epoch;
 +      state_->entries.push_back(entry);
++      state_->queued_epoch_counts[entry->epoch]++;
 +    }
 +    return Ticket(state_, std::move(entry));
 +  }
@@ -19381,12 +19432,22 @@ index 0000000000000000000000000000000000000000..5b217fab71251ac9facd1d72d1e2373e
 +      state_->current_epoch = 1;
 +      state_->failed_epochs.clear();
 +    }
++    else {
++      prune_unreferenced_failed_epochs(*state_);
++    }
 +  }
 +
 +  size_t pending_count() const
 +  {
 +    std::lock_guard lock(state_->mutex);
 +    return state_->entries.size() + size_t(state_->active);
++  }
++
++  size_t failed_epoch_count() const
++  {
++    /* Internal diagnostic used by the native/wasm32 scheduler retention contract. */
++    std::lock_guard lock(state_->mutex);
++    return state_->failed_epochs.size();
 +  }
 +
 + private:

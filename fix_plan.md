@@ -1944,11 +1944,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   canonical replay, real product rebuild/no-work, OFF preflight, REUSE, scoped M4, and
   container-backed regression are verified. Live pixels remain blocked by s7. See
   `notes/m4-ghost-surface-failure-propagation-20260823.md`.
-- [ ] **AUDIT-R6-GHOST-DEVICE-LOSS-PROPAGATION [ghost-web]:** imported browser devices have no
-  owned loss signal, while pinned Dawn can return a non-null error texture with an apparently
-  successful surface status after device loss. Fail closed before present work, propagate the
-  terminal context state, and prove callback lifetime/order without treating software Dawn as a
-  receipt.
+- [x] **AUDIT-R6-GHOST-DEVICE-LOSS-PROPAGATION [ghost-web] (2e2f560):** the pre-main worker
+  publishes a generation-bound browser-native loss signal before its imported device, and stale
+  promises cannot poison replacement generations. Imported and fallback contexts share a
+  monotonic terminal state; the fallback callback retains no context pointer, while terminal
+  propagation disables outstanding callbacks, clears every GPU handle/pending transaction, and
+  blocks initialization, swap, surface, and present work. Native/wasm32 parity, an 11-case pinned
+  Node promise matrix, real pinned-Dawn loss/error-texture software control, canonical replay,
+  standalone/product builds, no-work, OFF preflight, REUSE, scoped M4, and container-backed
+  regression are verified without treating software Dawn as a receipt. Live pixels remain
+  blocked by s7. See `notes/m4-ghost-device-loss-propagation-20260823.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

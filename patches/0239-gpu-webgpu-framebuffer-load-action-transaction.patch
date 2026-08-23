@@ -1,0 +1,507 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 815f0b3..2037685 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -18,6 +18,7 @@
+ #pragma once
+ 
+ #include <algorithm>
++#include <array>
+ #include <atomic>
+ #include <climits>
+ #include <cstddef>
+@@ -1717,6 +1718,131 @@ inline bool framebuffer_load_action_commit_if_valid(SubmitFn &&submit,
+   return true;
+ }
+ 
++/** Shared logical state for render-pass load actions. WebGPU error scopes settle after command
++ * encoding in the browser, so a CLEAR must be reserved while the command is pending without
++ * becoming permanently consumed until the matching submission succeeds. */
++struct FramebufferLoadActionState {
++  static constexpr uint32_t kMaxAttachments = 32;
++
++  std::mutex mutex;
++  uint32_t clear_mask = 0;
++  std::array<uint64_t, kMaxAttachments> generations{};
++  std::array<uint64_t, kMaxAttachments> pending_generations{};
++};
++
++/** One command's provisional CLEAR reservations. A later same-epoch command sees those
++ * attachments as LOAD; rejecting this command releases its reservations so a later epoch can
++ * retry. Generation matching prevents a stale callback from consuming a newer load-store bind. */
++class FramebufferLoadActionTransaction {
++ public:
++  ~FramebufferLoadActionTransaction()
++  {
++    complete(false);
++  }
++
++  bool stage(const uint32_t attachment)
++  {
++    if (attachment >= FramebufferLoadActionState::kMaxAttachments) {
++      return false;
++    }
++    std::lock_guard transaction_lock(mutex_);
++    if (completed_) {
++      return false;
++    }
++    std::lock_guard state_lock(state_->mutex);
++    const uint32_t bit = 1u << attachment;
++    if ((state_->clear_mask & bit) == 0 || state_->pending_generations[attachment] != 0) {
++      return false;
++    }
++    const uint64_t generation = state_->generations[attachment];
++    state_->pending_generations[attachment] = generation;
++    generations_[attachment] = generation;
++    attachment_mask_ |= bit;
++    return true;
++  }
++
++  void complete(const bool valid)
++  {
++    std::lock_guard transaction_lock(mutex_);
++    if (completed_) {
++      return;
++    }
++    completed_ = true;
++    std::lock_guard state_lock(state_->mutex);
++    for (uint32_t attachment = 0;
++         attachment < FramebufferLoadActionState::kMaxAttachments;
++         attachment++)
++    {
++      const uint32_t bit = 1u << attachment;
++      if ((attachment_mask_ & bit) == 0 ||
++          state_->pending_generations[attachment] != generations_[attachment])
++      {
++        continue;
++      }
++      state_->pending_generations[attachment] = 0;
++      if (valid && state_->generations[attachment] == generations_[attachment]) {
++        state_->clear_mask &= ~bit;
++      }
++    }
++  }
++
++ private:
++  friend class FramebufferLoadActionTracker;
++  explicit FramebufferLoadActionTransaction(std::shared_ptr<FramebufferLoadActionState> state)
++      : state_(std::move(state))
++  {
++  }
++
++  std::shared_ptr<FramebufferLoadActionState> state_;
++  std::mutex mutex_;
++  uint32_t attachment_mask_ = 0;
++  std::array<uint64_t, FramebufferLoadActionState::kMaxAttachments> generations_{};
++  bool completed_ = false;
++};
++
++class FramebufferLoadActionTracker {
++ public:
++  void record(const uint32_t attachment, const bool clear)
++  {
++    if (attachment >= FramebufferLoadActionState::kMaxAttachments) {
++      return;
++    }
++    std::lock_guard lock(state_->mutex);
++    uint64_t &generation = state_->generations[attachment];
++    generation++;
++    if (generation == 0) {
++      generation = 1;
++    }
++    state_->pending_generations[attachment] = 0;
++    const uint32_t bit = 1u << attachment;
++    if (clear) {
++      state_->clear_mask |= bit;
++    }
++    else {
++      state_->clear_mask &= ~bit;
++    }
++  }
++
++  bool requires_clear(const uint32_t attachment) const
++  {
++    if (attachment >= FramebufferLoadActionState::kMaxAttachments) {
++      return false;
++    }
++    std::lock_guard lock(state_->mutex);
++    return (state_->clear_mask & (1u << attachment)) != 0;
++  }
++
++  std::shared_ptr<FramebufferLoadActionTransaction> transaction() const
++  {
++    return std::shared_ptr<FramebufferLoadActionTransaction>(
++        new FramebufferLoadActionTransaction(state_));
++  }
++
++ private:
++  std::shared_ptr<FramebufferLoadActionState> state_ =
++      std::make_shared<FramebufferLoadActionState>();
++};
++
+ /** Accumulated layer count for one emulated layered draw. Fixed-layer attachments do not drive
+  * the pass count; every all-layer attachment must expose the same count because one WebGPU render
+  * pipeline/pass cannot change its attachment layout between layers. */
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+index 7596e36..b228207 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -28,7 +28,6 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
+-#include <atomic>
+ #include <functional>
+ #include <memory>
+ 
+@@ -38,6 +37,8 @@ namespace webgpu {
+ struct FramebufferClearPlan;
+ }
+ 
++static_assert(GPU_FB_MAX_ATTACHMENT <= webgpu::FramebufferLoadActionState::kMaxAttachments);
++
+ class WGPUFrameBuffer : public FrameBuffer {
+  public:
+   WGPUFrameBuffer(const char *name);
+@@ -77,11 +78,20 @@ class WGPUFrameBuffer : public FrameBuffer {
+   bool target_formats(wgpu::TextureFormat colors[8],
+                       int &color_count,
+                       wgpu::TextureFormat &depth) const;
+-  /** Open a render pass over the bound attachments with loadOp=Load / storeOp=Store
+-   * (preserve existing contents; a draw appends). Caller owns the encoder. When
++  /** Create one transaction that stages CLEAR actions until its draw submission completes. */
++  std::shared_ptr<webgpu::FramebufferLoadActionTransaction>
++  load_action_transaction() const
++  {
++    return load_action_tracker_.transaction();
++  }
++  /** Open a render pass over the bound attachments with recorded load operations and
++   * storeOp=Store. Caller owns the encoder and must complete `load_action` with the checked
++   * command submission result. When
+    * `force_layer >= 0` every attachment view is pinned to that single array layer
+    * (the M3.F7 multi-viewport / layered emulation renders one pass per layer). */
+   wgpu::RenderPassEncoder begin_load_pass(const wgpu::CommandEncoder &encoder,
++                                          const std::shared_ptr<
++                                              webgpu::FramebufferLoadActionTransaction> &load_action,
+                                           int force_layer = -1);
+ 
+   /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */
+@@ -137,9 +147,11 @@ class WGPUFrameBuffer : public FrameBuffer {
+       empty_render_attachment_cache_;
+ 
+   /** Per-attachment load/store op (explicit-loadstore binds); default = clear+store. */
+-  /* A single-subresource CLEAR is consumed by begin_load_pass(). An all-layer array
+-   * CLEAR is materialized first because WebGPU render passes expose one layer at a time. */
++  /* Clear values remain here while the transaction tracker owns logical CLEAR/LOAD state. An
++   * all-layer array CLEAR is materialized first because WebGPU render passes expose one layer at
++   * a time. */
+   mutable GPULoadStore load_store_[GPU_FB_MAX_ATTACHMENT];
++  mutable webgpu::FramebufferLoadActionTracker load_action_tracker_;
+ 
+   /** Recompute width_/height_ from the first bound attachment. */
+   void update_size();
+@@ -191,11 +203,6 @@ class WGPUFrameBuffer : public FrameBuffer {
+   webgpu::ScopedHandleCache<uint64_t, wgpu::RenderPipeline> scissored_color_clear_pipelines_;
+   webgpu::ScopedHandleCache<uint64_t, wgpu::RenderPipeline> scissored_depth_clear_pipelines_;
+ 
+-  /** Pending asynchronous all-layer load clears and callback lifetime. */
+-  std::atomic<uint32_t> layered_load_clear_pending_mask_{0};
+-  std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
+-      std::make_shared<std::atomic<bool>>(true);
+-
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUFrameBuffer")
+ };
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index 460f491..35b7c07 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -82,7 +82,6 @@ WGPUFrameBuffer::WGPUFrameBuffer(const char *name) : FrameBuffer(name)
+ 
+ WGPUFrameBuffer::~WGPUFrameBuffer()
+ {
+-  callback_lifetime_->store(false, std::memory_order_release);
+   empty_render_attachment_view_ = nullptr;
+   empty_render_attachment_ = nullptr;
+ }
+@@ -1070,6 +1069,7 @@ void WGPUFrameBuffer::attachment_set_loadstore_op(GPUAttachmentType type, GPULoa
+ {
+   if (type >= 0 && type < GPU_FB_MAX_ATTACHMENT) {
+     load_store_[type] = ls;
++    load_action_tracker_.record(uint32_t(type), ls.load_action == GPU_LOADACTION_CLEAR);
+   }
+ }
+ 
+@@ -1078,7 +1078,7 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+   uint32_t materialize_mask = 0;
+   for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
+     const GPUAttachment &attachment = attachments_[index];
+-    if (attachment.tex == nullptr || load_store_[index].load_action != GPU_LOADACTION_CLEAR) {
++    if (attachment.tex == nullptr || !load_action_tracker_.requires_clear(uint32_t(index))) {
+       continue;
+     }
+     const webgpu::FramebufferLoadClearScope scope = webgpu::framebuffer_load_clear_scope(
+@@ -1096,9 +1096,9 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+     if ((materialize_mask & (1u << index)) == 0) {
+       continue;
+     }
+-    const uint32_t pending_bit = 1u << index;
+-    if ((layered_load_clear_pending_mask_.load(std::memory_order_acquire) & pending_bit) != 0)
+-    {
++    const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> load_action =
++        load_action_transaction();
++    if (!load_action->stage(uint32_t(index))) {
+       continue;
+     }
+     const GPULoadStore &load_store = load_store_[index];
+@@ -1111,23 +1111,12 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+        * stencil value; retain that established backend behavior here. */
+       clear_value[1] = 0.0;
+     }
+-    layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);
+-    const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
+     if (!clear_attachment_full(
+             static_cast<GPUAttachmentType>(index),
+             clear_value,
+-            [this, lifetime, index, pending_bit](const bool valid) {
+-              if (!lifetime->load(std::memory_order_acquire)) {
+-                return;
+-              }
+-              layered_load_clear_pending_mask_.fetch_and(~pending_bit,
+-                                                         std::memory_order_acq_rel);
+-              if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR) {
+-                load_store_[index].load_action = GPU_LOADACTION_LOAD;
+-              }
+-            }))
++            [load_action](const bool valid) { load_action->complete(valid); }))
+     {
+-      layered_load_clear_pending_mask_.fetch_and(~pending_bit, std::memory_order_acq_rel);
++      load_action->complete(false);
+       return false;
+     }
+   }
+@@ -1594,9 +1583,14 @@ bool WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
+   return false;
+ }
+ 
+-wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder &encoder,
+-                                                        int force_layer)
++wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(
++    const wgpu::CommandEncoder &encoder,
++    const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> &load_action,
++    int force_layer)
+ {
++  if (!load_action) {
++    return nullptr;
++  }
+   WGPUContext *wctx = active_context();
+   const bool is_backbuffer = (wctx != nullptr && wctx->is_window_backbuffer(this));
+   const bool apply_ordinary_viewport = !multi_viewport_;
+@@ -1686,14 +1680,14 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+     }
+     ca.depthSlice = attachment_depth_slice(att, attachment_force_layer);
+     /* Honor the frontend's recorded load-action (GPU_framebuffer_bind_loadstore ->
+-     * attachment_set_loadstore_op). Single-subresource actions are consumed by
+-     * the first pass; all-layer array clears were materialized above so every
++     * attachment_set_loadstore_op). Single-subresource actions are staged by the first pass and
++     * committed only after submission; all-layer array clears were materialized above so every
+      * selected layer is initialized before any draw. */
+-    GPULoadStore &ls = load_store_[GPU_FB_COLOR_ATTACHMENT0 + slot];
+-    if (ls.load_action == GPU_LOADACTION_CLEAR) {
++    const int attachment_index = GPU_FB_COLOR_ATTACHMENT0 + slot;
++    const GPULoadStore &ls = load_store_[attachment_index];
++    if (load_action->stage(uint32_t(attachment_index))) {
+       ca.loadOp = wgpu::LoadOp::Clear;
+       ca.clearValue = {ls.clear_value[0], ls.clear_value[1], ls.clear_value[2], ls.clear_value[3]};
+-      ls.load_action = GPU_LOADACTION_LOAD;
+     }
+     else {
+       ca.loadOp = wgpu::LoadOp::Load;
+@@ -1735,8 +1729,8 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+     const GPUAttachmentType depth_type = (attachments_[GPU_FB_DEPTH_ATTACHMENT].tex != nullptr) ?
+                                              GPU_FB_DEPTH_ATTACHMENT :
+                                              GPU_FB_DEPTH_STENCIL_ATTACHMENT;
+-    GPULoadStore &dls = load_store_[depth_type];
+-    const bool depth_clears = (dls.load_action == GPU_LOADACTION_CLEAR);
++    const GPULoadStore &dls = load_store_[depth_type];
++    const bool depth_clears = load_action->stage(uint32_t(depth_type));
+     dsa.depthLoadOp = (depth_clears && permits_depth) ? wgpu::LoadOp::Clear :
+                                                        wgpu::LoadOp::Load;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
+@@ -1753,9 +1747,6 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+       dsa.stencilStoreOp = wgpu::StoreOp::Store;
+       dsa.stencilClearValue = 0u;
+     }
+-    if (depth_clears) {
+-      dls.load_action = GPU_LOADACTION_LOAD;
+-    }
+   }
+ 
+   wgpu::RenderPassDescriptor rp = {};
+@@ -1819,12 +1810,20 @@ void WGPUFrameBuffer::subpass_transition_impl(const GPUAttachmentState /*depth_a
+       continue;
+     }
+     const GPUAttachmentType type = GPU_FB_COLOR_ATTACHMENT0 + slot;
+-    GPULoadStore &ls = load_store_[type];
+-    if (ls.load_action == GPU_LOADACTION_CLEAR) {
+-      clear_attachment(
+-          type,
+-          double4(ls.clear_value[0], ls.clear_value[1], ls.clear_value[2], ls.clear_value[3]));
+-      ls.load_action = GPU_LOADACTION_LOAD;
++    const GPULoadStore &ls = load_store_[type];
++    if (load_action_tracker_.requires_clear(uint32_t(type))) {
++      const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> load_action =
++          load_action_transaction();
++      if (load_action->stage(uint32_t(type)) &&
++          !clear_attachment_full(
++              type,
++              double4(
++                  ls.clear_value[0], ls.clear_value[1], ls.clear_value[2], ls.clear_value[3]),
++              [load_action](const bool valid) { load_action->complete(valid); }))
++      {
++        load_action->complete(false);
++        continue;
++      }
+     }
+     /* The following shader exposes subpass input index N as sampler slot N.
+      * Record the attachment in the normal texture bind-space; bind-group
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index d676b81..d60a387 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -515,6 +515,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                                           "direct multi-viewport uniform upload",
+                                           [](bool) {});
+ 
++        const auto load_action = fb->load_action_transaction();
+         webgpu::command_encode_submit_scoped(
+             ctx->instance_get(),
+             device,
+@@ -522,7 +523,8 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+             ctx->queue_scheduler_get(),
+             "direct multi-viewport draw",
+             [&](auto &mv_enc) {
+-              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
++              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(
++                  mv_enc, load_action, layer);
+               if (mv_pass == nullptr) {
+                 return false;
+               }
+@@ -578,7 +580,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+               mv_pass.End();
+               return true;
+             },
+-            [](bool) {});
++            [load_action](const bool valid) { load_action->complete(valid); });
+       }
+     }
+     return;
+@@ -603,6 +605,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   }
+ 
+   wgpu::Device device = ctx->device_get();
++  const auto load_action = fb->load_action_transaction();
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -610,7 +613,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+       ctx->queue_scheduler_get(),
+       "direct batch draw",
+       [&](auto &enc) {
+-        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc, load_action);
+         if (pass == nullptr) {
+           return false;
+         }
+@@ -656,7 +659,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         pass.End();
+         return true;
+       },
+-      [](bool) {});
++      [load_action](const bool valid) { load_action->complete(valid); });
+ }
+ 
+ void WGPUBatch::draw_indirect(StorageBuf *indirect_buf, intptr_t offset)
+@@ -909,6 +912,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+                                           "indirect multi-viewport uniform upload",
+                                           [](bool) {});
+ 
++        const auto load_action = fb->load_action_transaction();
+         webgpu::command_encode_submit_scoped(
+             ctx->instance_get(),
+             device,
+@@ -916,7 +920,8 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+             ctx->queue_scheduler_get(),
+             "indirect multi-viewport draw",
+             [&](auto &mv_enc) {
+-              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
++              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(
++                  mv_enc, load_action, layer);
+               if (mv_pass == nullptr) {
+                 return false;
+               }
+@@ -948,7 +953,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+               mv_pass.End();
+               return true;
+             },
+-            [](bool) {});
++            [load_action](const bool valid) { load_action->complete(valid); });
+       }
+     }
+     return;
+@@ -972,6 +977,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     return;
+   }
+ 
++  const auto load_action = fb->load_action_transaction();
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -979,7 +985,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       ctx->queue_scheduler_get(),
+       "indirect batch draw",
+       [&](auto &enc) {
+-        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc, load_action);
+         if (pass == nullptr) {
+           return false;
+         }
+@@ -1003,7 +1009,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         pass.End();
+         return true;
+       },
+-      [](bool) {});
++      [load_action](const bool valid) { load_action->complete(valid); });
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index da9869e..238c17a 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -226,6 +226,7 @@ void WGPUImmediate::end()
+   }
+ 
+   wgpu::Device device = ctx->device_get();
++  const auto load_action = fb->load_action_transaction();
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -233,7 +234,7 @@ void WGPUImmediate::end()
+       ctx->queue_scheduler_get(),
+       "immediate draw",
+       [&](auto &enc) {
+-        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc, load_action);
+         if (pass == nullptr) {
+           return false;
+         }
+@@ -267,7 +268,7 @@ void WGPUImmediate::end()
+         pass.End();
+         return true;
+       },
+-      [](bool) {});
++      [load_action](const bool valid) { load_action->complete(valid); });
+ }
+ 
+ }  // namespace blender::gpu

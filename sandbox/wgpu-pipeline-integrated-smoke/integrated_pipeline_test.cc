@@ -370,6 +370,85 @@ bool framebuffer_load_action_commit_contract()
   return true;
 }
 
+bool framebuffer_load_action_transaction_contract()
+{
+  bw::FramebufferLoadActionTracker tracker;
+  tracker.record(2u, true);
+  tracker.record(5u, true);
+
+  auto late_view = tracker.transaction();
+  if (!require(late_view->stage(2u), "first clear attachment is staged") ||
+      !require(tracker.requires_clear(2u) && tracker.requires_clear(5u),
+               "staging preserves both logical clear actions"))
+  {
+    return false;
+  }
+  late_view->complete(false);
+  if (!require(tracker.requires_clear(2u) && tracker.requires_clear(5u),
+               "late attachment-view failure preserves every clear"))
+  {
+    return false;
+  }
+
+  auto late_bind = tracker.transaction();
+  if (!require(late_bind->stage(2u) && late_bind->stage(5u),
+               "retry stages both clear attachments"))
+  {
+    return false;
+  }
+  auto same_epoch = tracker.transaction();
+  if (!require(!same_epoch->stage(2u) && !same_epoch->stage(5u),
+               "later same-epoch passes load behind the staged clear"))
+  {
+    return false;
+  }
+  late_bind->complete(false);
+  same_epoch->complete(false);
+  if (!require(tracker.requires_clear(2u) && tracker.requires_clear(5u),
+               "late bind failure releases both clear reservations"))
+  {
+    return false;
+  }
+
+  auto accepted = tracker.transaction();
+  if (!require(accepted->stage(2u) && accepted->stage(5u),
+               "clean retry restages both clear attachments"))
+  {
+    return false;
+  }
+  accepted->complete(true);
+  if (!require(!tracker.requires_clear(2u) && !tracker.requires_clear(5u),
+               "successful submission commits both clears to load"))
+  {
+    return false;
+  }
+
+  tracker.record(7u, true);
+  auto superseded = tracker.transaction();
+  if (!require(superseded->stage(7u), "old generation stages once")) {
+    return false;
+  }
+  tracker.record(7u, true);
+  auto replacement = tracker.transaction();
+  if (!require(replacement->stage(7u), "replacement generation can stage independently")) {
+    return false;
+  }
+  superseded->complete(true);
+  if (!require(tracker.requires_clear(7u),
+               "stale successful completion cannot consume a replacement clear"))
+  {
+    return false;
+  }
+  replacement->complete(true);
+  if (!require(!tracker.requires_clear(7u), "matching replacement completion commits")) {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT framebuffer_load_action_transaction PASS cases=6 attachments=3 late_view=pending late_bind=pending same_epoch=load retry=committed generation=isolated");
+  return true;
+}
+
 bool vertex_buffer_handle_resolution_contract()
 {
   const std::array<int, 3> bindings = {11, 22, 33};
@@ -2828,6 +2907,7 @@ int main()
       !transient_handle_publication_contract() ||
       !bind_group_completeness_contract() ||
       !framebuffer_load_action_commit_contract() ||
+      !framebuffer_load_action_transaction_contract() ||
       !vertex_buffer_handle_resolution_contract() ||
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
@@ -2849,7 +2929,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=29 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=30 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -2858,7 +2938,7 @@ int main()
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
       "transient_resource_gates=3 "
-      "compute_cache_publications=3 load_action_commits=2 "
+      "compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;
 }

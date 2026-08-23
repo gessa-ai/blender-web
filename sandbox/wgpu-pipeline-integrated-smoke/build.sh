@@ -8,6 +8,7 @@
 # shader-module/pipeline cache publication, scoped transient bind-group validation,
 # exact surviving-WGSL bind-group completeness,
 # layered load-action commit,
+# ordinary load-action submission transactions,
 # fail-closed vertex/index-buffer resolution,
 # color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
@@ -516,6 +517,12 @@ require_fixed_count 1 \
   'inline bool framebuffer_load_action_commit_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'class FramebufferLoadActionTracker {' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'load_action_transaction() const' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.hh"
+require_fixed_count 1 \
   'inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
@@ -775,20 +782,21 @@ for marker in full_clear_transactions:
 
 materialize_body = method_body("bool WGPUFrameBuffer::materialize_layered_loadstore_clears(")
 ordered_commit = (
-    "layered_load_clear_pending_mask_.fetch_or(pending_bit",
+    "load_action_transaction();",
+    "if (!load_action->stage(uint32_t(index)))",
     "if (!clear_attachment_full(",
-    "[this, lifetime, index, pending_bit](const bool valid)",
-    "layered_load_clear_pending_mask_.fetch_and(~pending_bit",
-    "if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR)",
-    "load_store_[index].load_action = GPU_LOADACTION_LOAD;",
+    "[load_action](const bool valid) { load_action->complete(valid); }",
 )
 positions = [materialize_body.find(needle) for needle in ordered_commit]
 if any(position < 0 for position in positions) or positions != sorted(positions):
     raise SystemExit("ERROR: layered load clear is not committed by its scoped completion")
-if materialize_body.count("load_store_[index].load_action = GPU_LOADACTION_LOAD;") != 1:
-    raise SystemExit("ERROR: layered load clear completion commit is ambiguous")
-if "framebuffer_load_action_commit_if_valid(" in materialize_body:
-    raise SystemExit("ERROR: layered load clear retains a synchronous handle-only commit")
+for obsolete in (
+    "layered_load_clear_pending_mask_",
+    "load_store_[index].load_action = GPU_LOADACTION_LOAD;",
+    "framebuffer_load_action_commit_if_valid(",
+):
+    if obsolete in materialize_body:
+        raise SystemExit(f"ERROR: layered load clear retains obsolete {obsolete}")
 
 load_pass_body = method_body("wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(")
 load_pass_publication = """wgpu::RenderPassEncoder pass;
@@ -800,6 +808,21 @@ if load_pass_body.count(load_pass_publication) != 1:
     raise SystemExit("ERROR: framebuffer load pass is not published atomically")
 if "wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);" in load_pass_body:
     raise SystemExit("ERROR: framebuffer load pass retains unchecked direct publication")
+if load_pass_body.count("load_action->stage(") != 2:
+    raise SystemExit("ERROR: framebuffer load pass does not stage color and depth clears")
+if "load_action = GPU_LOADACTION_LOAD" in load_pass_body or \
+   ".load_action = GPU_LOADACTION_LOAD" in load_pass_body:
+    raise SystemExit("ERROR: framebuffer load pass still commits during descriptor assembly")
+late_view_positions = [
+    load_pass_body.find("if (load_action->stage(uint32_t(attachment_index)))"),
+    load_pass_body.find("dsa.view = attachment_view("),
+    load_pass_body.find("if (dsa.view == nullptr)"),
+    load_pass_body.find("const bool depth_clears = load_action->stage(uint32_t(depth_type));"),
+]
+if any(position < 0 for position in late_view_positions) or late_view_positions != sorted(
+    late_view_positions
+):
+    raise SystemExit("ERROR: later depth view cannot reject an already staged color clear")
 load_pass_positions = [
     load_pass_body.find(needle)
     for needle in (
@@ -842,6 +865,72 @@ if any(
     )
 ):
     raise SystemExit("ERROR: framebuffer copy transaction is ambiguous")
+PY
+require_fixed_count 4 \
+  'load_action = fb->load_action_transaction();' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 4 \
+  'load_action->complete(valid);' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'load_action = fb->load_action_transaction();' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+require_fixed_count 1 \
+  'load_action->complete(valid);' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
+"$PYBIN" - "$WEBGPU_SOURCE/wgpu_batch.cc" "$WEBGPU_SOURCE/wgpu_immediate.cc" <<'PY'
+from pathlib import Path
+import sys
+
+def method(source: str, marker: str) -> str:
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    raise SystemExit(f"ERROR: unterminated method {marker}")
+
+
+batch = Path(sys.argv[1]).read_text(encoding="utf-8")
+immediate = Path(sys.argv[2]).read_text(encoding="utf-8")
+transactions = (
+    ("direct batch", method(batch, "void WGPUBatch::draw(int vertex_first,"), 2),
+    ("indirect batch", method(batch, "void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,"), 2),
+    ("immediate", method(immediate, "void WGPUImmediate::end()"), 1),
+)
+markers = (
+    "load_action = fb->load_action_transaction();",
+    "webgpu::command_encode_submit_scoped(",
+    "fb->begin_load_pass(",
+    "ctx->create_bind_group_checked(",
+    "load_action->complete(valid);",
+)
+for label, body, expected in transactions:
+    positions = []
+    for marker in markers:
+        found = []
+        offset = 0
+        while (position := body.find(marker, offset)) >= 0:
+            found.append(position)
+            offset = position + len(marker)
+        if len(found) != expected:
+            raise SystemExit(f"ERROR: {label} load-action boundary census differs for {marker}")
+        positions.append(found)
+    for index in range(expected):
+        command_path = [marker_positions[index] for marker_positions in positions]
+        if command_path != sorted(command_path):
+            raise SystemExit(f"ERROR: {label} commits before its late bind/submission boundary")
+
+for path in (Path(sys.argv[1]), Path(sys.argv[2])):
+    source = path.read_text(encoding="utf-8")
+    for obsolete in ("begin_load_pass(mv_enc, layer)", "begin_load_pass(enc);"):
+        if obsolete in source:
+            raise SystemExit(f"ERROR: {path.name} retains uncommitted load-pass caller {obsolete}")
 PY
 "$PYBIN" - "$WEBGPU_SOURCE/wgpu_texture.cc" <<'PY'
 from pathlib import Path
@@ -1332,8 +1421,11 @@ require_fixed_count 1 \
   'if (!webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
   'if (!webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
-require_fixed_count 1 \
+require_fixed_count 0 \
   'layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 2 \
+  'load_action_tracker_.requires_clear(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(vp[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 'std::clamp(sc[' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
@@ -1562,7 +1654,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 30 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 31 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1579,6 +1671,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT framebuffer_load_action_commit PASS cases=2 failure=pending retry=committed' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT framebuffer_load_action_transaction PASS cases=6 attachments=3 late_view=pending late_bind=pending same_epoch=load retry=committed generation=isolated' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable' \
@@ -1635,7 +1730,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=29 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=30 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 ghost_window_cases=5 ghost_present_cases=14 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 transient_resource_gates=3 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

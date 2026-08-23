@@ -47,6 +47,13 @@ An all-layer explicit load clear additionally commits its pending load action on
 selected layer's checked clear transaction succeeds. A failed layer remains pending so the next
 draw retries instead of loading uncleared attachment contents; the device-free contract proves the
 fail-first/retry state transition and exact shipping-source binding.
+Ordinary single-subresource load clears use the enclosing draw submission as their commit boundary.
+The first pass reserves each clear without consuming it, later same-epoch passes encode loads behind
+that reservation, and a late attachment-view, bind-group, command-buffer, or submission failure
+releases the complete set for a clean next-epoch retry. Generation-bound reservations prevent an
+old callback from consuming a newer load-store bind. The six-case native/wasm32 contract covers both
+late failures, same-epoch behavior, successful retry, and replacement isolation, while exact caller
+census checks bind every direct, indirect, multi-viewport, and immediate draw completion.
 Framebuffer blits likewise use the checked copy transaction for both the two-step stencil buffer
 bridge and the raw texture-to-texture path. Encoder failure stops before either copy, and finished-
 command-buffer failure stops before queue submission; exact method-body checks bind all three copy

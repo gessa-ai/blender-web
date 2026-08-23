@@ -777,3 +777,17 @@ an expected-empty and assembled-empty pair may skip bind-group creation. Exercis
 complete, required-but-empty, partial, extra, and duplicate-assembled cases on native and wasm32,
 then source-bind compute, direct/indirect batch, multi-viewport, and immediate callers to the same
 pre-command guard. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 54 — render-pass load actions are submission transactions
+
+Signature: framebuffer pass assembly changes an attachment from `CLEAR` to `LOAD` before a later
+attachment view, bind group, finished command buffer, or queue submission can fail. The retry then
+loads pooled contents that the rejected command never cleared. Reserve each logical clear in a
+command-owned transaction, make later same-epoch passes encode `LOAD` behind that reservation, and
+consume the action only after completed encoding and submission scopes accept the command. A
+failed command releases its reservations; the ordered scheduler cancels later same-epoch work, so
+the next epoch safely retries `CLEAR`. Bind each reservation to the load-store generation so a
+stale callback cannot consume a newer frontend bind, and keep the shared tracker alive without
+capturing the framebuffer. Exercise failure at a later attachment view and bind group, same-epoch
+load behavior, clean retry, and generation replacement on native and wasm32. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

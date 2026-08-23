@@ -1020,3 +1020,6 @@
 # 0238: require the unique assembled group-0 binding IDs to match the shader's exact
 # surviving WGSL set before compute, batch, or immediate command encoding begins.
 0238-gpu-webgpu-bind-group-completeness.patch
+# 0239: reserve ordinary framebuffer load-action clears per command and consume
+# them only after the complete draw submission succeeds; failed epochs retry.
+0239-gpu-webgpu-framebuffer-load-action-transaction.patch

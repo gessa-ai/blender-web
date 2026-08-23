@@ -5,7 +5,8 @@
 # Device-free native/Wasm parity driver for the canonical in-tree WebGPU
 # render-pipeline enum mappings, direct/indirect draw and dispatch spans, clipped
 # multi-viewport/window-backbuffer rectangles, transient uniform and pipeline
-# cache publication, transient bind-group publication, color-blit/indexed-fan resource guards,
+# cache publication, transient bind-group publication, fail-closed vertex-buffer resolution,
+# color-blit/indexed-fan resource guards,
 # buffer/storage/context-render/
 # framebuffer full/scissored-clear and copy, texture render-clear, batch, and immediate-draw
 # command transactions,
@@ -188,6 +189,8 @@ require_fixed_count 1 'TEST_F(VertexStateTest, StrideZero)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_fixed_count 2 'if (arrayStride == 0) {' \
   "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
+require_fixed_count 1 '"Vertex buffer slot %u required by %s was not set.",' \
+  "$DAWN_SRC/src/dawn/native/CommandBufferStateTracker.cpp"
 require_fixed_count 1 'TEST_F(DrawIndirectValidationTest, DrawIndirectOffsetBounds)' \
   "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
 require_fixed_count 1 'TEST_F(DrawIndirectValidationTest, DrawIndexedIndirectOffsetBounds)' \
@@ -245,6 +248,15 @@ require_fixed_count 1 \
 require_fixed_count 1 \
   'inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 2 \
+  'if (!webgpu::vertex_buffer_handles_resolve_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_batch.cc"
+require_fixed_count 1 \
+  'if (!webgpu::vertex_buffer_handles_resolve_if_valid(' \
+  "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 1 \
   'if (!webgpu::transient_handle_publish_if_valid(' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
@@ -1152,7 +1164,7 @@ WASM_STDERR="$OUT/wasm.stderr"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 21 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 22 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -1160,6 +1172,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT cache_handle_publication PASS attempts=2 failure=unpublished retry=published entries=2' \
@@ -1198,7 +1213,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=20 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 transient_publications=2 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=21 primitives=11 strip_cases=33 multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 cache_publications=2 compute_cache_publications=2 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

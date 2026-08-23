@@ -573,3 +573,16 @@ boundary: keep the candidate local, publish only a non-null handle, then perform
 changes. Exercise atomic failure/success through the shared device-free handle contract and bind
 the shipping factory's exact create/guard/state/return order. See
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 40 — a pipeline vertex plan is an all-or-nothing resource set
+
+Signature: pipeline assembly declares one WebGPU vertex-buffer slot for every real source and
+missing-attribute dummy, but draw encoding silently skips any slot whose allocation is absent.
+Dawn requires every pipeline-declared slot at draw time, so the skipped binding converts a
+recoverable allocation failure into command validation failure. Resolve the complete plan into a
+temporary ordered handle list before creating an encoder or pass; reject the whole draw on the
+first missing real or dummy buffer; publish the handle list only after every slot resolves; and
+bind the proven list without nullable branches. Preserve an empty plan for procedural draws.
+Exercise fail-fast, atomic-output, ordered-success, and empty-plan behavior device-free, then bind
+direct batch, indirect batch, and immediate paths to the same helper. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

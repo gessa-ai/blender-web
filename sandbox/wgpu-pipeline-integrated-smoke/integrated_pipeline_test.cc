@@ -183,6 +183,67 @@ bool transient_handle_publication_contract()
   return true;
 }
 
+bool vertex_buffer_handle_resolution_contract()
+{
+  const std::array<int, 3> bindings = {11, 22, 33};
+
+  std::vector<CacheHandleProbe> failed_output = {CacheHandleProbe(97)};
+  int failed_resolves = 0;
+  if (!require(
+          !bw::vertex_buffer_handles_resolve_if_valid(
+              bindings,
+              [&](const int binding) {
+                failed_resolves++;
+                return binding == 22 ? CacheHandleProbe() : CacheHandleProbe(binding);
+              },
+              failed_output),
+          "missing planned vertex buffer is rejected") ||
+      !require(failed_resolves == 2, "planned vertex resolution fails fast") ||
+      !require(failed_output.size() == 1 && failed_output[0].identity() == 97,
+               "failed planned vertex resolution preserves output"))
+  {
+    return false;
+  }
+
+  std::vector<CacheHandleProbe> successful_output = {CacheHandleProbe(101)};
+  int successful_resolves = 0;
+  if (!require(
+          bw::vertex_buffer_handles_resolve_if_valid(
+              bindings,
+              [&](const int binding) {
+                successful_resolves++;
+                return CacheHandleProbe(binding);
+              },
+              successful_output),
+          "complete planned vertex buffers are accepted") ||
+      !require(successful_resolves == 3 && successful_output.size() == 3,
+               "complete planned vertex resolution census") ||
+      !require(successful_output[0].identity() == 11 &&
+                   successful_output[1].identity() == 22 &&
+                   successful_output[2].identity() == 33,
+               "complete planned vertex buffers publish in slot order"))
+  {
+    return false;
+  }
+
+  const std::array<int, 0> empty_bindings = {};
+  std::vector<CacheHandleProbe> empty_output = {CacheHandleProbe(103)};
+  if (!require(
+          bw::vertex_buffer_handles_resolve_if_valid(
+              empty_bindings,
+              [](const int binding) { return CacheHandleProbe(binding); },
+              empty_output),
+          "procedural draw with no vertex buffers is accepted") ||
+      !require(empty_output.empty(), "empty planned vertex resolution publishes empty output"))
+  {
+    return false;
+  }
+
+  std::puts(
+      "CONTRACT vertex_buffer_handle_resolution PASS cases=3 resolved=5 failure=atomic order=stable");
+  return true;
+}
+
 bool cache_handle_publication_contract()
 {
   std::unordered_map<uint32_t, CacheHandleProbe> cache;
@@ -1650,6 +1711,7 @@ int main()
   if (!primitive_topology_contract() || !strip_index_format_contract() ||
       !multiview_uniform_allocation_contract() ||
       !transient_handle_publication_contract() ||
+      !vertex_buffer_handle_resolution_contract() ||
       !cache_handle_publication_contract() ||
       !compute_pipeline_cache_publication_contract() ||
       !indirect_draw_span_contract() || !direct_draw_plan_contract() ||
@@ -1665,11 +1727,11 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=20 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=21 primitives=11 strip_cases=33 "
       "multiview_allocations=2 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=4 buffer_command_cases=4 formats=96 i10=12 "
-      "dummy=32 transient_publications=2 cache_publications=2 "
+      "dummy=32 transient_publications=2 vertex_binding_resolutions=3 cache_publications=2 "
       "compute_cache_publications=2 "
       "shader_lifetimes=4096 alias_keys=2");
   return 0;

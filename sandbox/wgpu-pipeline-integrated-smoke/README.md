@@ -83,7 +83,10 @@ primitive/index-format combinations, and all 96
 combinations of eight vertex component types, four valid component lengths, and
 three fetch modes. It also covers every one of the 32 shader input types in the
 dummy-attribute plan and requires a zero-stride, vertex-stepped binding that remains
-constant for arbitrary vertex and instance ranges. The strip contract requires
+constant for arbitrary vertex and instance ranges. Before direct/indirect batch or immediate
+command encoding, the complete vertex plan must resolve into an ordered non-null handle list;
+failure preserves the caller-owned list, while an empty plan remains valid for procedural draws.
+The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip
 topology at `Undefined`, matching pinned Dawn validation. This also includes the

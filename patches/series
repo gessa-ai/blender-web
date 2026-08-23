@@ -980,3 +980,6 @@
 # 0225: publish the framebuffer load-pass handle only after BeginRenderPass succeeds,
 # before applying ordinary viewport or scissor state.
 0225-gpu-webgpu-framebuffer-load-pass-publication.patch
+# 0226: resolve every real or dummy buffer required by the vertex plan before
+# direct/indirect batch or immediate command encoding begins.
+0226-gpu-webgpu-vertex-buffer-resource-transaction.patch

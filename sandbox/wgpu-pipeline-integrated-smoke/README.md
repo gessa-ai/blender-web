@@ -62,6 +62,9 @@ Every non-empty compute or draw bind-group assembly likewise rejects a null grou
 command/pass work, preserves the caller's prior handle on failure, and publishes only a valid
 candidate. Exact source-order checks bind the tested transaction to both compute dispatches,
 all four direct/indirect ordinary/multi-viewport batch paths, and immediate draws.
+Framebuffer load-pass construction uses that same atomic publication rule before applying its
+ordinary viewport or scissor. Callers therefore receive either a valid initialized pass or a
+null result, without a failed `BeginRenderPass` handle being used inside the factory first.
 Window-backbuffer rectangles preserve that same raster transform while converting
 Blender's bottom-origin viewport and optional independent scissor with widened
 arithmetic. Both rectangles must validate before a render pass is allocated; a legal

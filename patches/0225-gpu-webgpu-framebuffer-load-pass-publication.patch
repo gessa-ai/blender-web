@@ -1,0 +1,16 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -1590,7 +1590,11 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder
+     return nullptr;
+   }
+
+-  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
++  wgpu::RenderPassEncoder pass;
++  if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))
++  {
++    return nullptr;
++  }
+
+   /* Ordinary passes always convert the frontend's lower-left viewport and optional scissor to
+    * WebGPU's top-left render coordinates. Offscreen shader/readback Y flips preserve content

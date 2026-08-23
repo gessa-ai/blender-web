@@ -433,6 +433,30 @@ for marker in full_clear_transactions:
     if any(needle in body for needle in forbidden):
         raise SystemExit(f"ERROR: {marker} retains an unchecked command operation")
 
+load_pass_body = method_body("wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(")
+load_pass_publication = """wgpu::RenderPassEncoder pass;
+  if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))
+  {
+    return nullptr;
+  }"""
+if load_pass_body.count(load_pass_publication) != 1:
+    raise SystemExit("ERROR: framebuffer load pass is not published atomically")
+if "wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);" in load_pass_body:
+    raise SystemExit("ERROR: framebuffer load pass retains unchecked direct publication")
+load_pass_positions = [
+    load_pass_body.find(needle)
+    for needle in (
+        load_pass_publication,
+        "pass.SetViewport(float(draw_viewport.viewport.viewport_x),",
+        "pass.SetScissorRect(draw_viewport.scissor_x,",
+        "return pass;",
+    )
+]
+if any(position < 0 for position in load_pass_positions) or load_pass_positions != sorted(
+    load_pass_positions
+):
+    raise SystemExit("ERROR: framebuffer load-pass guard does not precede dependent work")
+
 blit_body = method_body("void WGPUFrameBuffer::blit_to(")
 helper = "if (!webgpu::command_encode_submit_if_valid("
 if blit_body.count(helper) != 2:
@@ -988,7 +1012,8 @@ OFFSCREEN_PLAN_LINE="$(grep -nF 'if (!webgpu::offscreen_viewport_scissor_plan(' 
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
 LAYERED_CLEAR_LINE="$(grep -nF 'if (!materialize_layered_loadstore_clears())' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
-BEGIN_PASS_LINE="$(grep -nF 'wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);' \
+BEGIN_PASS_LINE="$(grep -nF \
+  'if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
 if [ -z "$WINDOW_PLAN_LINE" ] || [ -z "$OFFSCREEN_PLAN_LINE" ] ||
    [ -z "$LAYERED_CLEAR_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||

@@ -21955,10 +21955,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9f81cab85ac57850fdd541be7851a346098cad7b
+index 0000000000000000000000000000000000000000..9df8bbd69efac72f119e5b1705e6184f2b9c1bf0
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1649 @@
+@@ -0,0 +1,1653 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -23551,7 +23551,11 @@ index 0000000000000000000000000000000000000000..9f81cab85ac57850fdd541be7851a346
 +    return nullptr;
 +  }
 +
-+  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
++  wgpu::RenderPassEncoder pass;
++  if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))
++  {
++    return nullptr;
++  }
 +
 +  /* Ordinary passes always convert the frontend's lower-left viewport and optional scissor to
 +   * WebGPU's top-left render coordinates. Offscreen shader/readback Y flips preserve content

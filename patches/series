@@ -977,3 +977,6 @@
 # 0224: reject failed transient bind groups before compute, batch, or immediate
 # pass work and publish only a valid handle.
 0224-gpu-webgpu-bind-group-resource-transaction.patch
+# 0225: publish the framebuffer load-pass handle only after BeginRenderPass succeeds,
+# before applying ordinary viewport or scissor state.
+0225-gpu-webgpu-framebuffer-load-pass-publication.patch

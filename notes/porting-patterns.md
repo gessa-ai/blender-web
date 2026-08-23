@@ -563,3 +563,13 @@ abort before the first dependent pass operation on failure. If an empty resource
 keep that state distinct from a required group whose creation failed. Census every caller of the
 shared builder, exercise atomic failure/success on native and wasm32, and bind each caller to the
 tested transaction with exact source-order checks. See `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 39 — a caller-side null check cannot repair factory-internal use
+
+Signature: a helper returns a pass handle and every caller checks it, but the helper applies
+viewport or scissor state to the result of `BeginRenderPass()` before returning. A failed pass is
+therefore used before the caller can observe null. Treat the helper itself as the publication
+boundary: keep the candidate local, publish only a non-null handle, then perform dependent state
+changes. Exercise atomic failure/success through the shared device-free handle contract and bind
+the shipping factory's exact create/guard/state/return order. See
+`sandbox/wgpu-pipeline-integrated-smoke/`.

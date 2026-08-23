@@ -1649,6 +1649,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compute dispatch and pixel proof remain blocked by no conformant hardware Vulkan ICD in WSL2
   (NVIDIA ships none; Mesa dzn rejected by Dawn). See
   `notes/m3-t8-compute-command-transaction-20260822.md`.
+- [x] **M3.T10-INDEXED-FAN-RESOURCE-TRANSACTION [gpu-backend] (d2c2c16):** patch 0212 rejects
+  a failed shader module before indexed-fan pipeline creation and routes expansion through the
+  checked encoder/pass/finish/submit transaction. The fail-first source guard plus existing
+  four-case native/wasm32 command contract prove failure stops before dependent work or submission.
+  Canonical replay/reverse, real product rebuild/no-work, OFF preflight, and REUSE are green.
+  Required M3 remains red for the absent strict candidate, and live fan draw/pixel proof remains
+  blocked by no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by
+  Dawn). See `notes/m3-t10-indexed-fan-resource-transaction-20260823.md`.
 - [x] **S7-WSL2-HARDWARE-DEFERRAL [driver] (b28ddf0):** six exact M3-M8 rows now record
   `no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)` in
   `ledger/deferred.json`. M1/M2 remain receipt-backed, M6 Cycles-CPU remains 27/27 GREEN, and the

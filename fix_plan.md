@@ -1882,14 +1882,24 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   isolated numbered round trip, real product rebuild/no-work, OFF preflight, REUSE, scoped M3,
   and container-backed regression are verified. Live hardware proof remains blocked by s7. See
   `notes/m3-gpu-texture-view-error-object-contract-20260823.md`.
+- [x] **AUDIT-R6-GPU-BIND-GROUP-LAYOUT-ERROR-OBJECT-CONTRACT [gpu-backend] (424c9f2):**
+  transient bind groups created before command transactions now reserve ordered validation gates,
+  while command-local groups remain covered by their enclosing command scopes. A shader's
+  explicit bind-group-layout/pipeline-layout pair publishes atomically after completed scopes;
+  covered-layout requirement stays distinct from readiness so pending or rejected pairs block
+  auto-layout fallback and retry from retained CPU entries. Native/wasm32 parity, pinned-Dawn
+  llvmpipe non-receipt controls, canonical freeze, numbered round trip, real product
+  rebuild/no-work, OFF preflight, REUSE, scoped M3, and container-backed regression are verified.
+  Live hardware proof remains blocked by s7. See
+  `notes/m3-gpu-bind-group-layout-error-object-contract-20260823.md`.
 - [ ] **AUDIT-R6-GPU-RESOURCE-ERROR-OBJECT-CONTRACT [gpu-backend]:** replace remaining null-only
-  bind-group/layout, pipeline-layout, and pipeline
-  creation/cache publication with completed error-scope status. Preserve old resources and CPU retry state until
-  validation/OOM/internal scopes settle, and reject error objects before dependent command work or
-  one-shot commits. Reuse the pinned-Dawn control; do not infer browser success from it. The sampler
-  cache, shared dummy-buffer, and persistent-buffer slices are complete in `3d67aa6`, `d8cd71d`,
-  `b3a0abb`, `d7b7db1`, and `8443017`; bind-group/layout creation and publication is the next
-  smallest slice.
+  shader-module and render/compute-pipeline creation/cache publication with completed error-scope
+  status. Preserve old resources and CPU retry state until validation/OOM/internal scopes settle,
+  and reject error objects before dependent command work or one-shot commits. Reuse the pinned-Dawn
+  control; do not infer browser success from it. The sampler, dummy-buffer, persistent-buffer,
+  transient-buffer, texture/view, and bind-group/layout slices are complete in `3d67aa6`,
+  `d8cd71d`, `b3a0abb`, `d7b7db1`, `8443017`, and `424c9f2`; shader-module and pipeline
+  creation/cache publication is the next smallest slice.
   **blocked-by: none; highest priority.**
 - [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
   against the shader's exact surviving binding set (including internal push/multi-viewport

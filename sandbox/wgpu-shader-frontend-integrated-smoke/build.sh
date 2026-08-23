@@ -108,6 +108,13 @@ for source_name in \
 do
   require_file "$WEBGPU_SOURCE/$source_name"
 done
+if [ "$(grep -F -c \
+  'storage_image_format(res.image.format, res.image.qualifiers)' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc")" -ne 3 ]
+then
+  echo "ERROR: storage-image format promotion is not bound to all three shipping interfaces" >&2
+  exit 1
+fi
 for source_path in \
   source/blender/gpu/intern/gpu_shader_create_info.hh \
   source/blender/gpu/intern/gpu_shader_private.hh \
@@ -244,7 +251,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx \
        'CONTRACT image-types PASS cases=39 bindings=78 signed-atomic-array=1' "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT storage-formats PASS formats=63 promotions=3 spellings=32' "$stdout_file" ||
+       'CONTRACT storage-formats PASS formats=63 qualifiers=8 helper-cases=504 promotions=18 spellings=32 shipping-call-sites=3' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT qualifiers PASS bit-patterns=8 outputs=16 writeonly-promoted=1' "$stdout_file" ||
      ! grep -qx 'CONTRACT std140 PASS cases=30 scalars=15 arrays=15' "$stdout_file" ||
@@ -261,7 +268,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT 1d-array-rewrite PASS cases=23 sampled=10 image=11 controls=2' "$stdout_file" ||
      ! grep -qx \
        'CONTRACT finite-builtin-rewrite PASS cases=4 overloads=8 controls=2' "$stdout_file" ||
-     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=202' "$stdout_file"
+     ! grep -qx 'INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=646' "$stdout_file"
   then
     echo "ERROR: integrated shader-frontend evidence differs: $stdout_file" >&2
     exit 1

@@ -146,19 +146,30 @@ static bool storage_format_contract()
   static_assert(std::size(all_formats) == 63);
 
   size_t promotions = 0;
-  for (const TextureFormat format : all_formats) {
-    TextureFormat expected = format;
-    if (format == TextureFormat::UFLOAT_11_11_10 || format == TextureFormat::SFLOAT_16_16) {
-      expected = TextureFormat::SFLOAT_16_16_16_16;
+  for (uint32_t qualifier_bits = 0; qualifier_bits <= uint32_t(Qualifier::QUALIFIER_MAX);
+       qualifier_bits++)
+  {
+    const Qualifier qualifiers = Qualifier(qualifier_bits);
+    for (const TextureFormat format : all_formats) {
+      TextureFormat expected = format;
+      if (format == TextureFormat::UFLOAT_11_11_10) {
+        expected = TextureFormat::SFLOAT_16_16_16_16;
+      }
+      else if (format == TextureFormat::SFLOAT_16_16 &&
+               bool(qualifiers & Qualifier::read) && bool(qualifiers & Qualifier::write))
+      {
+        expected = TextureFormat::SFLOAT_16_16_16_16;
+      }
+      else if (format == TextureFormat::UNORM_16_16) {
+        expected = TextureFormat::SFLOAT_32_32_32_32;
+      }
+      if (storage_image_format(format, qualifiers) != expected) {
+        std::cerr << "storage-format promotion mismatch enum=" << int(format)
+                  << " qualifiers=" << qualifier_bits << "\n";
+        return false;
+      }
+      promotions += expected != format;
     }
-    else if (format == TextureFormat::UNORM_16_16) {
-      expected = TextureFormat::SFLOAT_32_32_32_32;
-    }
-    if (storage_image_format(format) != expected) {
-      std::cerr << "storage-format promotion mismatch enum=" << int(format) << "\n";
-      return false;
-    }
-    promotions += expected != format;
   }
 
   static constexpr std::array<FormatCase, 32> spellings = {{
@@ -201,11 +212,14 @@ static bool storage_format_contract()
       return false;
     }
   }
-  if (promotions != 3 || std::string(blender::gpu::to_string(TextureFormat::Invalid)) != "unknown") {
+  if (promotions != 18 ||
+      std::string(blender::gpu::to_string(TextureFormat::Invalid)) != "unknown")
+  {
     std::cerr << "storage-format census mismatch\n";
     return false;
   }
-  std::cout << "CONTRACT storage-formats PASS formats=63 promotions=3 spellings=32\n";
+  std::cout << "CONTRACT storage-formats PASS formats=63 qualifiers=8 helper-cases=504 "
+               "promotions=18 spellings=32 shipping-call-sites=3\n";
   return true;
 }
 
@@ -738,6 +752,6 @@ int main()
   {
     return 1;
   }
-  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=202\n";
+  std::cout << "INTEGRATED_SHADER_FRONTEND_PASS contracts=10 cases=646\n";
   return 0;
 }

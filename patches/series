@@ -935,3 +935,6 @@
 # 0210: rebuild EEVEE image-render shadow passes exactly once when the asynchronous
 # WebGPU atlas allocation settles after their initial sync.
 0210-eevee-webgpu-shadow-atlas-ready-resync.patch
+# 0211: preserve native write-only RG16Float storage images while promoting
+# read-write RG16Float consistently across declarations and interface metadata.
+0211-gpu-webgpu-storage-format-access.patch

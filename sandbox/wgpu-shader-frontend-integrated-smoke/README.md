@@ -17,9 +17,11 @@ or M3 receipt.
 
 The image-type census covers all 39 distinct `ImageType` values in the pinned
 create-info API and specifically requires signed atomic 2D arrays to emit the
-`iimage2DArray`/`isampler2DArray` spellings. The other contracts cover all 63
-texture formats, all eight qualifier bit patterns, and 30 scalar/array std140
-layouts.
+`iimage2DArray`/`isampler2DArray` spellings. The storage-format contract crosses
+all 63 texture formats with all eight qualifier bit patterns and binds the same
+access-aware helper to the shader declaration, interface metadata, and bind-group
+descriptor call sites. The other contracts cover all eight qualifier bit patterns
+and 30 scalar/array std140 layouts.
 
 The packing contract owns scalar, vec2, vec3, vec4, and integer array strides plus float3x3
 inner-column padding. Its four matrix cases are bound to `NormalMatrix`,

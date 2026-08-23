@@ -1835,8 +1835,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **AUDIT-R6-GPU-COMMAND-ERROR-OBJECT-CONTRACT [gpu-backend] (d5029d5):** every short-lived
   backend command submission and direct queue write now runs through completed
   validation/OOM/internal scopes and one ordered frame-epoch scheduler. Encoding/submission error
-  objects never reach a later submit or commit, later same-epoch queue work is canceled, and the
-  next frame can retry. Native/wasm32 parity, the pinned-Dawn llvmpipe non-receipt control, product
+  objects never reach a later submit or commit and later same-epoch queue work is canceled.
+  Caller-owned upload retry state and bounded failure draining were not part of this slice and are
+  reopened by R7 below. Native/wasm32 parity, the pinned-Dawn llvmpipe non-receipt control, product
   rebuild/no-work, OFF preflight, canonical replay, and reverse application are verified. This
   closes the command/queue half only; live hardware proof remains blocked by s7. See
   `notes/m3-gpu-command-error-object-contract-20260823.md`.
@@ -1859,7 +1860,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   index, vertex, uniform, storage, texel-expansion, and push-constant buffers now publish one
   composite handle/metadata allocation only after validation/OOM/internal scopes accept it.
   Pending calls deduplicate, rejected non-null candidates retry, and initial index bytes remain
-  owned until accepted publication. Native/wasm32 parity, the exact pinned-Dawn llvmpipe
+  owned until accepted publication. R7 found that SSBO/UBO updates arriving during that pending
+  interval are not retained; the narrower handle-publication proof remains valid. Native/wasm32
+  parity, the exact pinned-Dawn llvmpipe
   non-receipt control, canonical freeze, isolated numbered application, product rebuild/no-work,
   OFF preflight, REUSE, scoped M3, and container-backed regression are verified. Live hardware
   proof remains blocked by s7. See
@@ -1909,7 +1912,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   push-constant and multi-viewport uniforms participate in the same census. Native/wasm32 parity,
   source-order binding, isolated patch round trip, clean-pin canonical replay, real product
   build/no-work, CAPTURE preflight, REUSE, M3 scope, and container-backed regression are verified.
-  Live hardware proof remains blocked by s7. See
+  R7 separately reopens compute bind-group error-scope placement. Live hardware proof remains
+  blocked by s7. See
   `notes/m3-gpu-bind-group-completeness-20260823.md`.
 - [x] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend] (4a1821b):** ordinary color/depth
   `CLEAR` actions are now per-command reservations that commit only after every later attachment,
@@ -1917,8 +1921,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   release the reservation for retry, same-epoch commands observe `LOAD`, and generation matching
   isolates newer frontend binds from stale callbacks. Native/wasm32 parity, exact shipping-source
   order guards, isolated patch round trip, canonical freeze/replay, real product rebuild/no-work,
-  OFF preflight, REUSE, M3 scope, and container-backed regression are verified. Live hardware proof
-  remains blocked by s7. See
+  OFF preflight, REUSE, M3 scope, and container-backed regression are verified. R7 separately
+  reopens the nested all-layer materialization order. Live hardware proof remains blocked by s7. See
   `notes/m3-gpu-framebuffer-load-action-transaction-20260823.md`.
 - [x] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web] (a52f311):** requested canvas extents now
   remain separate from the last complete configured surface/backbuffer state. Only a validated
@@ -1947,13 +1951,49 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **AUDIT-R6-GHOST-DEVICE-LOSS-PROPAGATION [ghost-web] (2e2f560):** the pre-main worker
   publishes a generation-bound browser-native loss signal before its imported device, and stale
   promises cannot poison replacement generations. Imported and fallback contexts share a
-  monotonic terminal state; the fallback callback retains no context pointer, while terminal
-  propagation disables outstanding callbacks, clears every GPU handle/pending transaction, and
-  blocks initialization, swap, surface, and present work. Native/wasm32 parity, an 11-case pinned
-  Node promise matrix, real pinned-Dawn loss/error-texture software control, canonical replay,
+  monotonic terminal state; the fallback device-lost callback retains no context pointer, while a
+  later public-boundary terminal propagation disables outstanding callbacks, clears every GPU
+  handle/pending transaction, and blocks subsequent initialization, swap, surface, and present
+  work. R7 separately reopens raw adapter/device request callbacks and the pre-propagation in-flight
+  window. Native/wasm32 parity, an 11-case pinned-Node promise matrix, real pinned-Dawn
+  loss/error-texture software control, canonical replay,
   standalone/product builds, no-work, OFF preflight, REUSE, scoped M4, and container-backed
   regression are verified without treating software Dawn as a receipt. Live pixels remain
   blocked by s7. See `notes/m4-ghost-device-loss-propagation-20260823.md`.
+- [x] **AUDIT-20260823-R7 [driver] (618c0ac):** adversarially reviewed exact range
+  `f9ae49a^..c5c341c` with an independent subagent. The audit found three critical and four major
+  product-correctness/lifetime defects while canonical replay, native/wasm32 controls, the real
+  product no-work build, compliance, protected-path ownership, and hardware/non-receipt boundaries
+  remain clean. See `reports/audit-20260823-r7.md`.
+- [ ] **AUDIT-R7-GPU-PENDING-BUFFER-PAYLOAD [gpu-backend, blocked-by: none]:** retain every
+  SSBO/UBO update or clear that arrives while persistent allocation publication is pending, then
+  replay it exactly once after acceptance without requiring a second frontend call. Add a
+  delayed-scope actual frontend create/update regression with sentinel bytes, native/wasm32
+  parity, and a non-null pinned-Dawn rejection/retry control that remains a software non-receipt.
+- [ ] **AUDIT-R7-GPU-LAYERED-CLEAR-ORDER [gpu-backend, blocked-by: none]:** reserve and submit
+  every materialized all-layer load clear before the draw that observes the staged action as
+  `LOAD`; reject/rollback either half without committing a newer generation. Add a scheduler trace
+  proving clear-before-draw plus native/wasm32 failure-order parity and exact shipping-source bind.
+- [ ] **AUDIT-R7-GPU-UPLOAD-COMMIT [gpu-backend, blocked-by: none]:** make direct and staged
+  buffer upload completion explicit; retain VBO/UBO dirty state and owned bytes until completed
+  validation/OOM/internal scopes accept the operation, then prove rejected uploads retry in a
+  clean epoch without premature CPU-state discard in native and wasm32 builds.
+- [ ] **AUDIT-R7-GPU-COMPUTE-BIND-SCOPE [gpu-backend, blocked-by: none]:** create direct and
+  indirect compute bind groups inside implementation error scopes before dispatch publication.
+  Add a non-null error-object regression with an uncaptured-error counter and require a clean retry
+  to dispatch only after accepted bind-group creation.
+- [ ] **AUDIT-R7-GHOST-ACQUISITION-LIFETIME [ghost-web, blocked-by: none]:** remove raw-owner
+  access from spontaneous fallback adapter/device request completions. Delay each callback,
+  destroy the context, and deliver under ASan/native+wasm32 lifetime seams with zero owner access,
+  completion, or follow-on request after invalidation.
+- [ ] **AUDIT-R7-GHOST-LOSS-INFLIGHT-CANCEL [ghost-web, blocked-by: none]:** make pending fallback
+  resize, pipeline, and present closures consult the shared terminal device state immediately.
+  Signal loss between transaction start and completion and prove no Configure, handle publication,
+  queue Submit, or `note_present()` can occur before a later public boundary propagates cleanup.
+- [ ] **AUDIT-R7-GPU-SCHEDULER-FAILURE-DRAIN [gpu-backend, blocked-by: none]:** replace recursive
+  same-epoch cancellation with an iterative bounded-stack drain and prune failed epochs as soon as
+  no queued entry can reference them. Regress a failed head plus 100,000 resolved followers and a
+  long sequence of failed epochs in native/wasm32 builds.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

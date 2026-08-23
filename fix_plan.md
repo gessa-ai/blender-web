@@ -1820,6 +1820,31 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   preflight, REUSE, scoped M4, and container-backed regression are verified. Live browser proof
   remains blocked by the named s7 hardware-adapter condition. See
   `notes/m4-ghost-window-publication-20260823.md`.
+- [x] **AUDIT-20260823-R6 [driver] (c7050ce):** adversarially reviewed exact latest-25 range
+  `ba828d6^..e4ad1d4` with an independent subagent and a pinned-Dawn runtime control. The audit
+  found five open semantic defects, while canonical replay, integrated native/wasm32 builds,
+  provenance, protected-path ownership, and the hardware/non-receipt boundary remain clean. See
+  `reports/audit-20260823-r6.md`.
+- [ ] **AUDIT-R6-ERROR-OBJECT-CONTRACT [gpu-backend + ghost-web]:** replace null-only WebGPU
+  creation/command “success” with explicit preflight or completed error-scope status, and require
+  validation-error objects to be rejected before publication, submission, present counters, or
+  one-shot state commits. **blocked-by: none; highest priority.**
+- [ ] **AUDIT-R6-BIND-GROUP-COMPLETENESS [gpu-backend]:** compare assembled group-0 binding IDs
+  against the shader's exact surviving binding set (including internal push/multi-viewport
+  bindings), distinguish a genuinely empty layout from missing/partial resources, and reject
+  before encoder/pass work. **blocked-by: none.**
+- [ ] **AUDIT-R6-FRAMEBUFFER-LOAD-COMMIT [gpu-backend]:** stage ordinary color/depth
+  `CLEAR -> LOAD` mutations and commit them only after every later attachment, bind-group,
+  command-buffer, and submission boundary succeeds; cover late-view and late-bind failure/retry.
+  **blocked-by: AUDIT-R6-ERROR-OBJECT-CONTRACT.**
+- [ ] **AUDIT-R6-GHOST-RESIZE-COHERENCE [ghost-web]:** keep surface, authoritative, and
+  backbuffer extents coherent across replacement failure, require matching extents before
+  present, and retry a pending resize without depending on a second browser resize event.
+  **blocked-by: AUDIT-R6-ERROR-OBJECT-CONTRACT.**
+- [ ] **AUDIT-R6-GHOST-SURFACE-PUBLICATION [ghost-web]:** propagate unresolved-canvas,
+  surface-creation, configuration, and initial-backbuffer failure through drawing-context status;
+  destroy rather than publish a window that cannot present. Keep any device-only mode explicit
+  and separate. **blocked-by: none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

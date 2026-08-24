@@ -2043,11 +2043,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   two minor correctness/lifetime/evidence defects while canonical replay, native/wasm32 controls,
   the real product no-work build, compliance, protected-path ownership, and hardware/non-receipt
   boundaries remain clean. See `reports/audit-20260823-r8.md`.
-- [ ] **AUDIT-R8-GHOST-OWNER-EXECUTION-LIFECYCLE [ghost-web, blocked-by: none]:** close owner
-  admission before destruction waits, and serialize spontaneous callbacks with public owner
-  methods plus terminal device-loss cleanup without deadlocking nested delivery or self-destruction.
-  Add deterministic native/wasm32 barriers for callback-vs-owner, active-callback destruction plus
-  late nested/queued delivery, and cleanup quiescence; retain the unsafe ASan control.
+- [x] **AUDIT-R8-GHOST-OWNER-EXECUTION-LIFECYCLE [ghost-web, blocked-by: none] COMPLETE
+  (9e91146):** all seven spontaneous callbacks, nine out-of-line owner boundaries, and eight inline
+  accessors now share one reentrant execution slot; terminal cleanup enters it, and destruction
+  closes admission before waiting. Native/wasm32 barriers prove callback-vs-owner serialization,
+  cleanup quiescence, blocked late nested/queued delivery, and safe nested/self-destruction behavior
+  while retaining the unsafe ASan control. Integrated parity, standalone/product builds, OFF
+  preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.
+  See `notes/m4-ghost-owner-execution-lifecycle-r8-20260824.md`.
 - [ ] **AUDIT-R8-GPU-UPLOAD-GENERATION [gpu-backend, blocked-by: none]:** preserve a newer VBO
   or float buffer-texture mutation when an older upload transaction accepts. Regress actual
   frontend A-schedule/B-mutate/A-accept order with distinct sentinels and require B to remain dirty

@@ -57,12 +57,12 @@ reduction.
   CMake contracts, patch 0248, and its series entry. Four in-memory mutations are rejected
   (`ledger/buildlogs/20260824T043008-3722359.log`).
 - Patch 0248 reverses and reapplies byte-identically. The isolated source freezer starts from the
-  exact pin and replays 20,258 entries across 257 paths; canonical patch SHA-256 is
+  exact pin and replays 20,258 entries across 259 paths; canonical patch SHA-256 is
   `65826257a770bdb03a4fcc52278a298418c3bc0fe81d18b369fa78292379e7a3`
   (`ledger/buildlogs/20260824T042806-3720519.log`,
   `ledger/buildlogs/20260824T042904-3721165.log`).
 - Pinned REUSE 6.2.0 is green for 2,258/2,258 files
-  (`ledger/buildlogs/20260824T044021-3729834.log`).
+  (`ledger/buildlogs/20260824T044320-3731830.log`).
 - Container-backed regression at 2026-08-24T04:31Z keeps M0 6/6 green. M1–M8 retain their existing
   strict-manifest, APPLY/split-product, browser/hardware, and release boundaries. Required M8
   remains honestly red with 25 technical failures; no result was promoted.

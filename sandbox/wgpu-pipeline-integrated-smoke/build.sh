@@ -1626,7 +1626,8 @@ require_fixed_count 1 \
   "$GHOST_SOURCE"
 require_fixed_count 1 'desc.SetDeviceLostCallback(' "$GHOST_SOURCE"
 require_fixed_count 2 'device_state_after_loss_signal(' "$GHOST_TRANSACTION_HEADER"
-require_fixed_count 2 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::device_state_mark_lost(' "$GHOST_SOURCE"
+require_fixed_count 1 'ghost_web::fallback_device_loss_notify(' "$GHOST_SOURCE"
 require_fixed_count 5 \
   'ghost_web::device_state_allows_callback_work(device_state)' \
   "$GHOST_SOURCE"
@@ -1701,6 +1702,7 @@ init_async = method("void GHOST_ContextWGPUWeb::initAsync(")
 device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
+fallback_loss_notify = method_from(transaction, "bool fallback_device_loss_notify(")
 
 destructor_cancel = destructor.index("callback_lifetime_->cancel();")
 destructor_invalidate = destructor.index("callback_lifetime_->invalidate();")
@@ -1746,6 +1748,36 @@ if not (
     < enter_gate.index("!accepting_")
 ):
     raise SystemExit("ERROR: owner execution does not serialize admission and owner access")
+
+if fallback_loss_notify.index("device_state_mark_lost(*device_state);") >= \
+        fallback_loss_notify.index("callback_lifetime->deliver("):
+    raise SystemExit("ERROR: fallback loss is not published before owner delivery")
+
+lost_callback = request_device[
+    request_device.index("desc.SetDeviceLostCallback(") :
+    request_device.index("desc.SetUncapturedErrorCallback(")
+]
+for needle in (
+    "[device_state, device_loss_lifetime]",
+    "ghost_web::fallback_device_loss_notify(",
+    "owner.propagateDeviceLoss();",
+):
+    if lost_callback.count(needle) != 1:
+        raise SystemExit(f"ERROR: fallback device-loss callback lacks one owner-safe boundary: {needle}")
+if "this" in lost_callback:
+    raise SystemExit("ERROR: fallback device-loss callback retains the raw GHOST owner")
+
+for pending in (
+    "backbuffer_pending_ = false;",
+    "present_pipeline_pending_ = false;",
+    "present_pending_ = false;",
+):
+    if propagate_loss.count(pending) != 1:
+        raise SystemExit(f"ERROR: terminal device loss does not clear pending state: {pending}")
+if propagate_loss.count("completeInitialization(false);") != 1 or \
+        propagate_loss.index("completeInitialization(false);") < \
+        propagate_loss.index("device_ = nullptr;"):
+    raise SystemExit("ERROR: terminal device loss does not finally settle initialization failure")
 
 for label, body, call, follow_on in (
     ("adapter", request_adapter, "instance_.RequestAdapter(", "owner.requestDevice();"),
@@ -1904,7 +1936,7 @@ loss_callback = request_device[
     request_device.index("desc.SetDeviceLostCallback("):
     request_device.index("desc.SetUncapturedErrorCallback(")
 ]
-if "[device_state]" not in loss_callback or "this" in loss_callback:
+if "[device_state, device_loss_lifetime]" not in loss_callback or "this" in loss_callback:
     raise SystemExit("ERROR: fallback device-loss callback retains the GHOST context")
 for needle in (
     "callback_lifetime_->cancel();",

@@ -1029,3 +1029,16 @@ retain/replay call returns to the active drainer,
 which observes the new tail on its next selection pass. Exercise barriers after the first ticket to
 force E1/E3/E2 overtaking in the broken control, then require E1/E2/E3 reservation and execution
 plus E3 final bytes on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 71 — fallback device loss must settle pending asynchronous initialization
+
+Signature: a fallback device-lost callback marks callback-owned terminal state while backbuffer
+creation or surface configuration is pending, and those later completions return when they observe
+loss. Neither path clears its pending flag or invokes the ready callback, so startup remains gated
+forever without another public owner boundary. Capture only the shared device state and synchronized
+owner-lifetime gate in the loss callback, publish loss before owner delivery, then route one
+idempotent terminal transition through that gate. The transition cancels future delivery, clears
+all pending work and GPU handles, and invokes failed initialization settlement exactly once as its
+final owner action. Exercise independent loss during both pending stages, duplicate loss, and late
+completion delivery on native and wasm32; retain a source binding that forbids a raw owner capture.
+See `sandbox/audit-r8/`.

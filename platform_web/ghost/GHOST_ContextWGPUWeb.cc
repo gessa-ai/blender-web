@@ -457,12 +457,16 @@ void GHOST_ContextWGPUWeb::requestDevice()
 {
   wgpu::DeviceDescriptor desc = {};
   const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
+  const std::shared_ptr<CallbackLifetime> device_loss_lifetime = callback_lifetime_;
   desc.SetDeviceLostCallback(
       wgpu::CallbackMode::AllowSpontaneous,
-      [device_state](const wgpu::Device & /*device*/,
-                     wgpu::DeviceLostReason /*reason*/,
-                     wgpu::StringView /*message*/) {
-        ghost_web::device_state_mark_lost(*device_state);
+      [device_state, device_loss_lifetime](const wgpu::Device & /*device*/,
+                                           wgpu::DeviceLostReason /*reason*/,
+                                           wgpu::StringView /*message*/) {
+        ghost_web::fallback_device_loss_notify(
+            device_state, device_loss_lifetime, [](GHOST_ContextWGPUWeb &owner) {
+              owner.propagateDeviceLoss();
+            });
       });
   desc.SetUncapturedErrorCallback(
       [](const wgpu::Device & /*d*/, wgpu::ErrorType type, wgpu::StringView msg) {
@@ -543,6 +547,7 @@ void GHOST_ContextWGPUWeb::propagateDeviceLoss()
   queue_ = nullptr;
   device_ = nullptr;
   std::printf("WGPUWeb: terminal device loss propagated; context disabled\n");
+  completeInitialization(false);
 }
 
 void GHOST_ContextWGPUWeb::finishSetup()

@@ -138,6 +138,72 @@ class OwnerExecutionProbe {
   std::shared_ptr<Lifetime> lifetime_;
 };
 
+enum class InitializationStage {
+  BackbufferCreation,
+  SurfaceConfiguration,
+};
+
+struct ReadyObservation {
+  int calls = 0;
+  bool success = true;
+};
+
+class InitializationProbe {
+ public:
+  using Lifetime = gw::OwnerCallbackLifetime<InitializationProbe>;
+
+  InitializationProbe(const InitializationStage stage,
+                      const std::shared_ptr<ReadyObservation> &ready_observation)
+      : backbuffer_pending_(true),
+        configuration_pending_(stage == InitializationStage::SurfaceConfiguration),
+        on_ready_([ready_observation](const bool success) {
+          ready_observation->calls++;
+          ready_observation->success = success;
+        }),
+        lifetime_(std::make_shared<Lifetime>(*this))
+  {
+  }
+
+  ~InitializationProbe()
+  {
+    lifetime_->cancel();
+    lifetime_->invalidate();
+  }
+
+  std::shared_ptr<Lifetime> lifetime() const
+  {
+    return lifetime_;
+  }
+
+  void propagate_device_loss()
+  {
+    if (device_loss_propagated_) {
+      return;
+    }
+    device_loss_propagated_ = true;
+    lifetime_->cancel();
+    backbuffer_pending_ = false;
+    configuration_pending_ = false;
+    if (!initialization_settled_) {
+      initialization_settled_ = true;
+      on_ready_(false);
+    }
+  }
+
+  bool has_pending_initialization() const
+  {
+    return backbuffer_pending_ || configuration_pending_;
+  }
+
+ private:
+  bool backbuffer_pending_ = false;
+  bool configuration_pending_ = false;
+  bool initialization_settled_ = false;
+  bool device_loss_propagated_ = false;
+  std::function<void(bool)> on_ready_;
+  std::shared_ptr<Lifetime> lifetime_;
+};
+
 /** The pre-fix check-then-use gate, retained only as an ASan-negative control. */
 template<typename OwnerT> class UnsafeOwnerLifetime {
  public:
@@ -519,6 +585,37 @@ bool run_imported_loss_contract()
          replaced->load(std::memory_order_acquire) == gw::DeviceState::Lost;
 }
 
+bool run_loss_initialization_stage(const InitializationStage stage)
+{
+  const auto ready_observation = std::make_shared<ReadyObservation>();
+  auto owner = std::make_unique<InitializationProbe>(stage, ready_observation);
+  const std::shared_ptr<InitializationProbe::Lifetime> lifetime = owner->lifetime();
+  const auto device_state = std::make_shared<gw::DeviceCallbackState>();
+
+  /* Production shape: the device-lost callback retains only shared state and the owner gate. */
+  const auto device_lost = [device_state, lifetime]() {
+    return gw::fallback_device_loss_notify(
+        device_state, lifetime, [](InitializationProbe &owner) {
+          owner.propagate_device_loss();
+        });
+  };
+
+  const bool delivered = device_lost();
+  const bool duplicate_delivered = device_lost();
+  const bool pending_completion_delivered =
+      lifetime->deliver([](InitializationProbe & /*owner*/) {});
+  return delivered && !duplicate_delivered && !pending_completion_delivered &&
+         device_state->load(std::memory_order_acquire) == gw::DeviceState::Lost &&
+         ready_observation->calls == 1 && !ready_observation->success &&
+         !owner->has_pending_initialization();
+}
+
+bool run_loss_initialization_contract()
+{
+  return run_loss_initialization_stage(InitializationStage::BackbufferCreation) &&
+         run_loss_initialization_stage(InitializationStage::SurfaceConfiguration);
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
@@ -554,10 +651,15 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "FAIL: imported-device loss callback contract\n");
     return 1;
   }
+  if (!run_loss_initialization_contract()) {
+    std::fprintf(stderr, "FAIL: fallback loss initialization-settlement contract\n");
+    return 1;
+  }
   std::puts("CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked");
   std::puts("CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1");
   std::puts("CONTRACT ghost_owner_execution PASS callback_owner=serialized cleanup=quiescent");
   std::puts("CONTRACT ghost_destruction_admission PASS nested=blocked queued=blocked");
   std::puts("CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block");
+  std::puts("CONTRACT ghost_loss_init_settlement PASS backbuffer=failed_once configuration=failed_once pending=cleared raw_owner=0");
   return 0;
 }

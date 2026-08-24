@@ -212,6 +212,25 @@ inline void device_state_mark_lost(DeviceCallbackState &state)
   state.mark_lost();
 }
 
+/**
+ * Publish fallback-device loss before entering its non-reference-counted owner.
+ *
+ * The device callback retains only these two shared objects. Owner destruction can therefore
+ * close admission safely, while a live owner receives one serialized terminal transition.
+ */
+template<typename OwnerT, typename LossFn>
+bool fallback_device_loss_notify(
+    const std::shared_ptr<DeviceCallbackState> &device_state,
+    const std::shared_ptr<OwnerCallbackLifetime<OwnerT>> &callback_lifetime,
+    LossFn &&on_loss)
+{
+  if (device_state == nullptr || callback_lifetime == nullptr) {
+    return false;
+  }
+  device_state_mark_lost(*device_state);
+  return callback_lifetime->deliver(std::forward<LossFn>(on_loss));
+}
+
 /** Browser completions must observe loss directly, before later owner-side cleanup runs. */
 inline bool device_state_allows_callback_work(
     const std::shared_ptr<std::atomic<DeviceState>> &state)

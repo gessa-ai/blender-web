@@ -1050,3 +1050,6 @@
 # 0248: omit non-launch sculpt/paint operator and keymap roots from the windowed
 # web profile while preserving full native and headless registration behavior.
 0248-web-windowed-sculpt-paint-registration-cut.patch
+# 0249: omit non-launch Grease Pencil editing registration roots from the
+# windowed profile while preserving data/RNA/file/drawing and non-windowed paths.
+0249-web-windowed-grease-pencil-registration-cut.patch

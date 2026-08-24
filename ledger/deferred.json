@@ -155,6 +155,16 @@
       "evidence": "notes/m8-sculpt-paint-registration-cut-20260824.md; patch 0248; sandbox/m8-sculpt-paint-cut/verify.py"
     },
     {
+      "id": "feature-off-grease-pencil-editing-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,900,187 bytes at Brotli q11 before stage-0 data. Omitting only five non-launch Grease Pencil editing registration roots saves 336,480 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser does not register legacy annotation or Grease Pencil editing operators, macros, and keymaps. Grease Pencil DNA/RNA, file loading, viewport drawing, and all native/headless behavior remain present.",
+      "workaround": "Author or edit Grease Pencil content in desktop Blender and open the resulting .blend in the browser for viewing alongside launch-tier mesh workflows.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_GREASE_PENCIL=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-grease-pencil-registration-cut-20260824.md; patch 0249; sandbox/m8-grease-pencil-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

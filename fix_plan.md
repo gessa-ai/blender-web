@@ -2107,6 +2107,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   container-backed regression are verified. M8 remains RED: the 24,236,667-byte Wasm alone still
   exceeds the complete 15 MB interactive budget before stage-0 data, and hardware/APPLY receipts
   remain s7-blocked. See `notes/m8-sculpt-paint-registration-cut-20260824.md`.
+- [x] **M8-GREASE-PENCIL-REGISTRATION-CUT [driver, blocked-by: none] COMPLETE (patch 0249):**
+  the windowed profile omits only five non-launch legacy-annotation/Grease-Pencil editing
+  registration roots while native/headless registration and data/RNA/file/drawing paths remain.
+  The real locked product drops 1,965,548 raw and 336,480 pinned Brotli-q11 bytes; focused
+  fail-first/mutation/round-trip controls, native/headless preservation builds, canonical replay,
+  REUSE, scoped M8, and container-backed regression are verified. M8 remains RED: the
+  23,900,187-byte Wasm alone still exceeds the complete 15 MB interactive budget before stage-0
+  data, and hardware/APPLY receipts remain s7-blocked. See
+  `notes/m8-grease-pencil-registration-cut-20260824.md`.
+- [ ] **M8-COMPOSITOR-REGISTRATION-CUT [driver, blocked-by: none]:** identify the smallest
+  windowed-only registration boundary that makes non-launch compositor execution unreachable
+  without removing compositor DNA/RNA or `.blend` loading; keep it only if a real locked relink
+  yields a material pinned Brotli-q11 reduction and native/headless preservation stays GREEN.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

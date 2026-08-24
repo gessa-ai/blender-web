@@ -1,0 +1,62 @@
+From: blender-web contributors
+Subject: editors: let the windowed web profile omit Grease Pencil editing registration
+
+Grease Pencil editing is outside the launch tier, while its five central
+operator, macro, and keymap registration roots retain a sizeable implementation
+closure. Keep stock desktop and headless behavior plus data, RNA, file loading,
+and viewport drawing, but let the windowed profile leave those roots unreachable.
+
+diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
+--- a/source/blender/editors/space_api/CMakeLists.txt
++++ b/source/blender/editors/space_api/CMakeLists.txt
+@@ -61,3 +61,17 @@ if(WITH_BLENDER_WEB_SCULPT_PAINT)
+ if(WITH_BLENDER_WEB_SCULPT_PAINT)
+   target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_SCULPT_PAINT)
+ endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch Grease Pencil editing
++# registration while retaining its data, RNA, file loading, and drawing paths.
++if(NOT DEFINED WITH_BLENDER_WEB_GREASE_PENCIL)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_GREASE_PENCIL OFF)
++  else()
++    set(WITH_BLENDER_WEB_GREASE_PENCIL ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_GREASE_PENCIL)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_GREASE_PENCIL)
++endif()
+diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
+--- a/source/blender/editors/space_api/spacetypes.cc
++++ b/source/blender/editors/space_api/spacetypes.cc
+@@ -95,8 +95,10 @@ void ED_spacetypes_init()
+   ED_operatortypes_anim();
+   ED_operatortypes_animchannels();
+   asset::operatortypes_asset();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_GREASE_PENCIL)
+   ED_operatortypes_gpencil_legacy();
+   ED_operatortypes_grease_pencil();
++#endif
+   object::operatortypes_object();
+   ED_operatortypes_lattice();
+   ED_operatortypes_mesh();
+@@ -176,5 +178,7 @@ void ED_spacemacros_init()
+ #if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
+   ED_operatormacros_paint();
+ #endif
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_GREASE_PENCIL)
+   ED_operatormacros_grease_pencil();
++#endif
+   ED_operatormacros_nla();
+@@ -194,8 +198,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+   ED_keymap_screen(keyconf);
+   ED_keymap_anim(keyconf);
+   ED_keymap_animchannels(keyconf);
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_GREASE_PENCIL)
+   ED_keymap_gpencil_legacy(keyconf);
+   ED_keymap_grease_pencil(keyconf);
++#endif
+   object::keymap_object(keyconf);
+   ED_keymap_lattice(keyconf);
+   ED_keymap_mesh(keyconf);

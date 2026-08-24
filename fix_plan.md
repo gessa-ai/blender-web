@@ -2057,10 +2057,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   A-schedule/B-mutate/A-accept native/wasm32 contracts prove five ordered payloads and final B
   publication. Product, canonical replay, compliance, scoped M3, and regression are verified. See
   `notes/m3-gpu-upload-generation-r8-20260824.md`.
-- [ ] **AUDIT-R8-GPU-PAYLOAD-REPLAY-FIFO [gpu-backend, blocked-by: none]:** give retained buffer
-  replay one drainer or reserve the complete selected batch in deque order so a concurrent retain
-  and replay cannot schedule E3 between E1 and E2. Force the interleaving with barriers and verify
-  scheduler order plus final overlapping bytes in native/wasm32.
+- [x] **AUDIT-R8-GPU-PAYLOAD-REPLAY-FIFO [gpu-backend, blocked-by: none] COMPLETE (703de76,
+  patch 0246):** one generation-stamped replay drainer now reserves retained buffer payloads in
+  deque order and absorbs a concurrently retained tail. A forced E1/E2/E3 barrier rejects the
+  predecessor in native/wasm32, while final byte-identical runs require FIFO scheduler order and E3
+  final overlapping bytes. Patch round trip, canonical replay, product rebuild/no-work, OFF
+  preflight, compliance, scoped M3, and container-backed regression are verified. See
+  `notes/m3-gpu-payload-replay-fifo-r8-20260824.md`.
 - [ ] **AUDIT-R8-GHOST-LOSS-INIT-SETTLEMENT [ghost-web, blocked-by: none]:** when fallback device
   loss arrives during backbuffer creation or surface configuration, route one terminal transition
   through the owner boundary and invoke the pending ready callback exactly once with failure. Prove

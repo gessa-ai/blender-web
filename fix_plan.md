@@ -2326,7 +2326,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and 13 source mutations fail closed. The depth-pick family remains partial for navigation,
   center-pick, eyedropper, painting, zoom-border, and NDOF consumers; the overall census therefore
   remains three families. See `notes/m5-cursor-depth-pick-continuation-20260824.md`.
-- [x] **M5-VIEW-CENTER-PICK-CONTINUATION [driver, complete]:** COMPLETE (patch 0257;
+- [x] **M5-VIEW-CENTER-PICK-CONTINUATION [driver, complete]:** COMPLETE (97729d0, patch 0257;
   Linux receipt `20260824T191910-380328`): Center View to Mouse now retains its exact event,
   smooth-view duration, and producing viewport across the shared progressive depth request.
   Native-ready and browser-pending paths apply the stock hit/simple-pan result exactly once;

@@ -2303,6 +2303,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   layout. Five native/wasm32 contracts are byte-identical and 14 source mutations fail closed.
   This is an enabler only: all four synchronous caller families remain explicitly deferred. See
   `notes/m5-legacy-selection-readback-primitive-20260824.md`.
+- [ ] **M5-LEGACY-SELECTION-CLICK-CONTINUATION [driver, blocked-by: none]:** route edit-mesh
+  sample/nearest selection through the owned raw request and the existing bounded View3D select
+  timer, preserving exact hit/distance semantics before the separate box/lasso/circle unit.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

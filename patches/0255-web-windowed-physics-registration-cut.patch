@@ -1,0 +1,53 @@
+From: blender-web contributors
+Subject: editors: let the windowed web profile omit physics registration
+
+Physics editing is outside the launch-critical browser path, while its operator
+and keymap registration retain particle-edit, rigid-body, fluid, point-cache,
+and dynamic-paint implementation closures. Keep physics data, DNA/RNA, blend
+loading, modifiers, and stock desktop/headless behavior, but let the windowed
+profile leave those two editor roots unreachable.
+
+diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
+--- a/source/blender/editors/space_api/CMakeLists.txt
++++ b/source/blender/editors/space_api/CMakeLists.txt
+@@ -131,3 +131,17 @@ if(WITH_BLENDER_WEB_NLA)
+ if(WITH_BLENDER_WEB_NLA)
+   target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_NLA)
+ endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch physics editing registration
++# while retaining physics data, DNA/RNA, modifiers, and blend loading.
++if(NOT DEFINED WITH_BLENDER_WEB_PHYSICS)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_PHYSICS OFF)
++  else()
++    set(WITH_BLENDER_WEB_PHYSICS ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_PHYSICS)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_PHYSICS)
++endif()
+diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
+--- a/source/blender/editors/space_api/spacetypes.cc
++++ b/source/blender/editors/space_api/spacetypes.cc
+@@ -119,7 +119,9 @@ void ED_spacetypes_init()
+ #if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
+   ED_operatortypes_paint();
+ #endif
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_PHYSICS)
+   ED_operatortypes_physics();
++#endif
+   ED_operatortypes_curve();
+   curves::operatortypes_curves();
+   pointcloud::operatortypes_pointcloud();
+@@ -224,7 +226,9 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+   curves::keymap_curves(keyconf);
+   pointcloud::keymap_pointcloud(keyconf);
+   ED_keymap_armature(keyconf);
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_PHYSICS)
+   ED_keymap_physics(keyconf);
++#endif
+   ED_keymap_metaball(keyconf);
+ #if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
+   ED_keymap_paint(keyconf);

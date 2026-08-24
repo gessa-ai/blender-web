@@ -2166,6 +2166,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the pinned Brotli-q11 release payload by 19,232 bytes. The candidate was fully removed and the
   patch-0254 product restored byte-for-byte; no option, patch, feature cut, or deferral ships.
   See `notes/m8-script-registration-cut-rejected-20260824.md`.
+- [x] **M8-PHYSICS-REGISTRATION-CUT [driver, blocked-by: none] COMPLETE (patch 0255):** the
+  windowed profile omits only the non-launch physics operator and Particle Edit keymap
+  registration roots while physics DNA/RNA, generic `.blend` loading, modifiers, simulation
+  data, and native/headless registration remain. The real locked product drops 117,398 raw and
+  13,116 pinned Brotli-q11 bytes; focused fail-first/mutation/round-trip controls, preservation
+  builds, canonical replay, REUSE, scoped M8, and container-backed regression are verified. M8
+  remains RED: the 23,471,033-byte Wasm alone is 8,471,033 bytes over the complete 15 MB budget
+  before stage-0 data, and hardware/APPLY receipts remain s7-blocked. See
+  `notes/m8-physics-registration-cut-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

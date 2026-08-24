@@ -215,6 +215,16 @@
       "evidence": "notes/m8-nla-registration-cut-20260824.md; patch 0254; sandbox/m8-nla-cut/verify.py"
     },
     {
+      "id": "feature-off-physics-editing-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,471,033 bytes at Brotli q11 before stage-0 data. Omitting only the non-launch physics operator and keymap registration roots saves 13,116 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser retains physics DNA/RNA, generic .blend loading, modifiers, and simulation data, but does not register the particle, rigid-body, boid, point-cache, dynamic-paint, or fluid editing operators or the Particle Edit keymap. Native and headless builds retain stock registration.",
+      "workaround": "Author or bake physics simulations in desktop Blender, then open the resulting .blend in the browser; launch-tier modeling, edit mode, modifiers, geometry nodes, animation, viewport, and small Cycles-CPU workflows remain registered.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_PHYSICS=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-physics-registration-cut-20260824.md; patch 0255; sandbox/m8-physics-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

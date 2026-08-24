@@ -1068,3 +1068,6 @@
 # 0254: omit non-launch NLA space and macro registration roots from the windowed
 # profile while preserving NLA data/RNA, loading, and core animation paths.
 0254-web-windowed-nla-registration-cut.patch
+# 0255: omit non-launch physics operator and keymap registration roots from the
+# windowed profile while preserving physics DNA/RNA, modifiers, and file loading.
+0255-web-windowed-physics-registration-cut.patch

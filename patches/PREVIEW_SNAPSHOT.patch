@@ -10639,10 +10639,10 @@ index 5a625d6790b2b82fce7afd249f616169c365dcdd..fb84ce2e2ae176be997412aa7e53865d
  
  void OBJECT_OT_lightprobe_cache_bake(wmOperatorType *ot)
 diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
-index 8b45bbc7f9f948982cdd049310468f9bec552293..7772ba2158f2934aa1551e62e30873e706344e95 100644
+index 8b45bbc7f9f948982cdd049310468f9bec552293..d478ecf509e97d69e129694b92565d2f15056ac7 100644
 --- a/source/blender/editors/space_api/CMakeLists.txt
 +++ b/source/blender/editors/space_api/CMakeLists.txt
-@@ -47,3 +47,87 @@ set(LIB
+@@ -47,3 +47,101 @@ set(LIB
  )
  
  blender_add_lib(bf_editor_space_api "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
@@ -10730,8 +10730,22 @@ index 8b45bbc7f9f948982cdd049310468f9bec552293..7772ba2158f2934aa1551e62e30873e7
 +if(WITH_BLENDER_WEB_NLA)
 +  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_NLA)
 +endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch physics editing registration
++# while retaining physics data, DNA/RNA, modifiers, and blend loading.
++if(NOT DEFINED WITH_BLENDER_WEB_PHYSICS)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_PHYSICS OFF)
++  else()
++    set(WITH_BLENDER_WEB_PHYSICS ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_PHYSICS)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_PHYSICS)
++endif()
 diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
-index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e65d07179 100644
+index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..97a5f2908d50806db9ef22e04c1a6b2e4e477997 100644
 --- a/source/blender/editors/space_api/spacetypes.cc
 +++ b/source/blender/editors/space_api/spacetypes.cc
 @@ -76,16 +76,24 @@ void ED_spacetypes_init()
@@ -10759,7 +10773,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e
  
    /* Register operator types for screen and all spaces. */
    ED_operatortypes_userpref();
-@@ -95,16 +103,22 @@ void ED_spacetypes_init()
+@@ -95,17 +103,25 @@ void ED_spacetypes_init()
    ED_operatortypes_anim();
    ED_operatortypes_animchannels();
    asset::operatortypes_asset();
@@ -10779,10 +10793,13 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
    ED_operatortypes_paint();
 +#endif
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_PHYSICS)
    ED_operatortypes_physics();
++#endif
    ED_operatortypes_curve();
    curves::operatortypes_curves();
-@@ -163,15 +177,25 @@ void ED_spacemacros_init()
+   pointcloud::operatortypes_pointcloud();
+@@ -163,15 +179,25 @@ void ED_spacemacros_init()
    ED_operatormacros_file();
    ED_operatormacros_graph();
    ED_operatormacros_action();
@@ -10808,7 +10825,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e
  
    /* Register dropboxes (can use macros). */
    ui::dropboxes_ui();
-@@ -188,8 +212,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -188,8 +214,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_screen(keyconf);
    ED_keymap_anim(keyconf);
    ED_keymap_animchannels(keyconf);
@@ -10819,9 +10836,13 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e
    object::keymap_object(keyconf);
    ED_keymap_lattice(keyconf);
    ED_keymap_mesh(keyconf);
-@@ -200,10 +226,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -198,12 +226,18 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+   curves::keymap_curves(keyconf);
+   pointcloud::keymap_pointcloud(keyconf);
    ED_keymap_armature(keyconf);
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_PHYSICS)
    ED_keymap_physics(keyconf);
++#endif
    ED_keymap_metaball(keyconf);
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
    ED_keymap_paint(keyconf);

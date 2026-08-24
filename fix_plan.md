@@ -2350,6 +2350,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   utility, direct dolly, and NDOF custom-data paths remain pinned instead of starting an unowned
   continuation. Six native/wasm32 contracts and nine cases are byte-identical; direct dolly,
   painting, zoom-border, and NDOF remain, so the overall census remains three synchronous families.
+- [x] **M5-DOLLY-DEPTH-CONTINUATION [driver, complete]:** COMPLETE (`1f06cdb`, patch 0260;
+  Linux receipt `20260824T211104-470894`): direct dolly now enters the owned generic
+  navigation-depth continuation and resumes its exact delta, vertical/horizontal trackpad,
+  perspective, modal-switch, cancellation, autokey, and undo tails only after settlement. Eight
+  native/wasm32 contracts and 16 cases are byte-identical; painting, zoom-border, and NDOF remain,
+  so the overall census stays at three synchronous families. See
+  `notes/m5-dolly-depth-continuation-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

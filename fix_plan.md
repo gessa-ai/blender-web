@@ -2333,6 +2333,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   supersession, Escape, failure, timeout, cancellation, and view drift retire without starting a
   stale smooth-view transition. Six native/wasm32 contracts and 13 cases are byte-identical; five
   depth-pick consumer groups remain and the overall census remains three synchronous families.
+- [x] **M5-DEPTH-EYEDROPPER-CONTINUATION [driver, complete]:** COMPLETE (88ac170, patch 0258;
+  Linux receipt `20260824T195226-407678`): the depth eyedropper now retains its exact producing
+  viewport, view origin, event, accumulation action, and pending confirmation across the shared
+  progressive depth request. Native-ready and browser-pending paths preserve aligned distance,
+  accumulation/reset, latest-drag supersession, and the pinned direct-confirm behavior; context
+  drift, failure, timeout, and cancellation retire without a stale property write. Six
+  native/wasm32 contracts and 13 cases are byte-identical; navigation, painting, zoom-border, and
+  NDOF remain, so the overall census remains three synchronous families.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

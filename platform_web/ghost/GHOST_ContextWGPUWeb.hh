@@ -20,14 +20,15 @@
  * promises, and blocking the main thread with a finite WaitAny would deadlock the very
  * event loop that resolves them. So we use `CallbackMode::AllowSpontaneous` and let the
  * callbacks fire off the event loop — `initAsync()` returns immediately and invokes the
- * ready-callback once the device + surface exist. See notes/ghost-web-wgpu-context.md
- * for how this maps onto GHOST_Context's synchronous initializeDrawingContext() for M4
- * (a one-time top-level await, per ADR-003).
+ * ready-callback once the device + surface exist. That remains the standalone proof path.
  *
- * Standalone (like the event layer / GPU sandbox modules): does NOT subclass
- * GHOST_Context here, to keep the async lifecycle honest and avoid dragging the GHOST
- * base link into a context-only proof. The accessors mirror GHOST_ContextWGPU so the
- * WebGPU backend can pull the same live handles.
+ * The shipping class subclasses `GHOST_Context`. Its synchronous
+ * `initializeDrawingContext()` imports the device and, for a presentable window, the
+ * surface/backbuffer acquired asynchronously on the WM worker before `main()`.
+ * `initAsync()` remains the callback-driven acquisition path for standalone proofs.
+ * Both paths serialize asynchronous callback delivery and public owner access through
+ * the shared `CallbackLifetime` execution gate; destruction closes admission and waits
+ * for admitted work before releasing context storage.
  */
 
 #pragma once

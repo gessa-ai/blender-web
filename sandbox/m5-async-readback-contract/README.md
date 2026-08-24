@@ -38,10 +38,12 @@ selection operation, center, and radius are restored before each replay.
 
 Cursor placement, Center View to Mouse, the depth eyedropper, ordinary navigation, direct dolly,
 and the texture-paint inverted-clone cursor now share the exact owned progressive 0/2/4-pixel depth
-request across browser event-loop ticks. Their separate contracts bind native immediate completion,
-exact event/orientation or deferred finish replay, stock no-hit fallbacks, supersession,
-timeout/cancellation, and producing-state drift rejection. Zoom-border and NDOF consumers remain
-synchronous, so the family census remains open.
+request across browser event-loop ticks. Zoom to Border owns its exact clamped rectangle request
+and transfers a pending generic box gesture into a bounded continuation. Their separate contracts
+bind native immediate completion, exact event/orientation, rectangle, zoom-mode, or deferred finish
+replay, stock no-hit fallbacks, supersession, timeout/cancellation, and producing-state drift
+rejection. Only the NDOF consumer remains synchronous within the depth-pick family, so the family
+census remains open.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
 the owned draw-selection request and exact query session, exact WebGPU tickets,

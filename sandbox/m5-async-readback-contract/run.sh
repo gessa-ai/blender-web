@@ -156,6 +156,7 @@ if ! jq -e \
    .contracts.ordinary_navigation_continuation == true and
    .contracts.direct_dolly_continuation == true and
    .contracts.painting_depth_continuation == true and
+   .contracts.zoom_border_continuation == true and
    .contracts.live_hardware_receipt == false and
    (.remaining_sync_families | length) == 3' \
   "$OUT/source.json" >/dev/null

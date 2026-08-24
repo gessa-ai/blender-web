@@ -45,6 +45,7 @@ SOURCE_PATHS = (
     "source/blender/editors/space_view3d/view3d_navigate.cc",
     "source/blender/editors/space_view3d/view3d_navigate.hh",
     "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc",
+    "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc",
     "source/blender/editors/space_view3d/view3d_select.cc",
     "source/blender/editors/space_view3d/view3d_view.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
@@ -180,6 +181,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ]
     view_dolly = sources[
         "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc"
+    ]
+    zoom_border = sources[
+        "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc"
     ]
     eyedropper = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_color.cc"
@@ -1400,6 +1404,64 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "paint failure paths do not converge on cancellation",
     )
 
+    require_ordered(
+        zoom_border,
+        (
+            "struct ZoomBorderDepthRead",
+            "GPUReadback *readback = nullptr;",
+            "rcti rect = {};",
+            "float viewinv[4][4] = {};",
+            "int smooth_viewtx = 0;",
+            "bool zoom_in = true;",
+            "bool superseded = false;",
+        ),
+        "zoom-border owned state",
+    )
+    zoom_create = braced_definition(
+        zoom_border,
+        "static ZoomBorderDepthRead *view3d_zoom_border_depth_read_create(",
+        "zoom-border depth kick",
+    )
+    require_ordered(
+        zoom_create,
+        (
+            "WM_operator_properties_border_to_rcti(op, &read->rect);",
+            "BLI_rcti_isect(&bounds, &request_rect, &request_rect);",
+            "read->rect = request_rect;",
+            "GPU_framebuffer_read_depth_async(depth_read_fb",
+        ),
+        "zoom-border exact owned request",
+    )
+    require(
+        "GPU_framebuffer_read_depth(" not in zoom_create
+        and "view3d_depths_rect_create(" not in zoom_create,
+        "zoom-border kick retains synchronous readback",
+    )
+    zoom_modal = braced_definition(
+        zoom_border,
+        "static wmOperatorStatus view3d_zoom_border_modal(",
+        "zoom-border modal continuation",
+    )
+    require_ordered(
+        zoom_modal,
+        (
+            "WM_gesture_box_modal(C, op, event);",
+            "view3d_zoom_border_depth_read_attach(C, op, read, false);",
+            "read->superseded",
+            "view3d_zoom_border_depth_read_context_matches(C, read)",
+            "event->type != TIMER || event->customdata != read->timer",
+            "constexpr int max_tick_count = 240;",
+            "if (++read->tick_count > max_tick_count)",
+            "view3d_zoom_border_depth_read_finish(C, op, read)",
+        ),
+        "zoom-border gesture handoff",
+    )
+    for needle in (
+        "ot->modal = view3d_zoom_border_modal;",
+        "ot->cancel = view3d_zoom_border_cancel;",
+    ):
+        require(needle in zoom_border, f"zoom-border callback wiring missing {needle!r}")
+
     return {
         "schema": 1,
         "verdict": "PASS",
@@ -1416,6 +1478,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "ordinary_navigation_continuation": True,
             "direct_dolly_continuation": True,
             "painting_depth_continuation": True,
+            "zoom_border_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1646,6 +1709,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "pop->deferred_finish_event = *event;",
             "pop->finish_deferred = true;",
             "painting exact finish replay",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc",
+            "view3d_zoom_border_depth_read_attach(C, op, read, false);",
+            "return OPERATOR_CANCELLED;",
+            "zoom-border gesture handoff",
         ),
     )
     for relative, old, new, label in mutations:

@@ -1139,3 +1139,19 @@ timeout, failure, and cancellation all converge on cleanup that removes the time
 the child handle. Exercise native-immediate completion, pending finish replay, supersession, drift,
 timeout, failure, and cancellation with byte-identical native/wasm32 output. See
 `patches/0261-m5-painting-depth-continuation.patch` and `sandbox/m5-painting-depth/`.
+
+## Class 79 — generic gestures discard pending operator custom data before returning
+
+Signature: a generic box gesture calls an operator's `exec`, treats every result other than
+`OPERATOR_FINISHED` as cancellation, and frees its gesture-owned `op->customdata` before returning
+to the operator's modal wrapper. An asynchronous `exec` therefore cannot replace custom data with
+its readback state, and returning `OPERATOR_RUNNING_MODAL` alone loses the continuation. Keep the
+request in an operator-keyed owner list while the gesture is live; after the generic modal helper
+has ended the gesture, the wrapper finds that exact request, installs its bounded timer state, and
+continues. Direct execution may attach immediately, while native-ready requests still finish inside
+the original gesture call. New same-window/region requests supersede older owners, and context
+drift, Escape, gesture cancellation, timeout, backend failure, and external cancellation all remove
+the timer, unlink the request, and cancel its GPU ticket before freeing state. Exercise native-ready,
+pending handoff, exact timer identity, newest-wins, and every terminal path on native and wasm32.
+See `patches/0262-m5-zoom-border-depth-continuation.patch` and
+`sandbox/m5-zoom-border-depth/`.

@@ -1089,3 +1089,6 @@
 # 0261: retain texture-paint clone-cursor depth requests and replay the exact
 # finishing event only after the latest request settles across browser ticks.
 0261-m5-painting-depth-continuation.patch
+# 0262: retain Zoom to Border's exact clamped depth rectangle and transfer a
+# pending box gesture into a bounded, view-guarded modal continuation.
+0262-m5-zoom-border-depth-continuation.patch

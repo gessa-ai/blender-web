@@ -1,0 +1,589 @@
+/* SPDX-FileCopyrightText: 2023 Blender Authors
+ * SPDX-FileCopyrightText: 2026 blender-web contributors
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc @ fbe6228777e7. */
+
+# M5: retain Zoom to Border's exact clamped depth rectangle and hand a pending
+# browser request from the generic box gesture into a bounded modal replay.
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
+index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a994166b5 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
+@@ -1,15 +1,23 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup spview3d
++ *
++ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc @ fbe6228777e7.
+  */
+ 
++#include <limits>
++#include <vector>
++
+ #include "DNA_camera_types.h"
+ 
+ #include "MEM_guardedalloc.h"
+ 
++#include "BLI_listbase.h"
++#include "BLI_math_matrix.h"
+ #include "BLI_math_vector.h"
+ #include "BLI_rect.h"
+ 
+@@ -17,6 +25,11 @@
+ #include "BKE_global.hh"
+ #include "BKE_report.hh"
+ 
++#include "GPU_framebuffer.hh"
++#include "GPU_readback.hh"
++#include "GPU_texture.hh"
++#include "GPU_viewport.hh"
++
+ #include "WM_api.hh"
+ 
+ #include "RNA_access.hh"
+@@ -30,56 +43,278 @@ namespace blender {
+ /** \name Border Zoom Operator
+  * \{ */
+ 
+-static wmOperatorStatus view3d_zoom_border_exec(bContext *C, wmOperator *op)
++struct ZoomBorderDepthRead {
++  ZoomBorderDepthRead *next = nullptr;
++  ZoomBorderDepthRead *prev = nullptr;
++  wmOperator *owner = nullptr;
++  GPUReadback *readback = nullptr;
++  View3D *view3d = nullptr;
++  RegionView3D *region_view = nullptr;
++  ARegion *region = nullptr;
++  ScrArea *area = nullptr;
++  wmWindow *timer_window = nullptr;
++  wmTimer *timer = nullptr;
++  rcti rect = {};
++  size_t expected_size = 0;
++  int region_size[2] = {0, 0};
++  float viewinv[4][4] = {};
++  float winmat[4][4] = {};
++  float ofs[3] = {0.0f, 0.0f, 0.0f};
++  float viewquat[4] = {0.0f, 0.0f, 0.0f, 0.0f};
++  float dist = 0.0f;
++  float camdx = 0.0f;
++  float camdy = 0.0f;
++  float camzoom = 0.0f;
++  float lens = 0.0f;
++  float clip_start = 0.0f;
++  float clip_end = 0.0f;
++  float grid = 0.0f;
++  Object *camera = nullptr;
++  void *smooth_state = nullptr;
++  wmTimer *smooth_timer = nullptr;
++  int persp = RV3D_ORTHO;
++  int view = RV3D_VIEW_USER;
++  int view_axis_roll = RV3D_VIEW_AXIS_ROLL_0;
++  int view3d_flag2 = 0;
++  int view_lock = 0;
++  int smooth_viewtx = 0;
++  int tick_count = 0;
++  bool is_persp = false;
++  bool zoom_in = true;
++  bool empty_ready = false;
++  bool listed = false;
++  bool superseded = false;
++};
++
++static ListBase zoom_border_depth_reads = {nullptr, nullptr};
++
++static ZoomBorderDepthRead *view3d_zoom_border_depth_read_find(const wmOperator *op)
+ {
+-  ARegion *region = CTX_wm_region(C);
+-  View3D *v3d = CTX_wm_view3d(C);
+-  RegionView3D *rv3d = CTX_wm_region_view3d(C);
+-  const int smooth_viewtx = WM_operator_smooth_viewtx_get(op);
++  for (ZoomBorderDepthRead *read = static_cast<ZoomBorderDepthRead *>(
++           zoom_border_depth_reads.first);
++       read != nullptr;
++       read = read->next)
++  {
++    if (read->owner == op) {
++      return read;
++    }
++  }
++  return nullptr;
++}
+ 
+-  /* Zooms in on a border drawn by the user */
+-  rcti rect;
+-  float dvec[3], vb[2], xscale, yscale;
++static bool view3d_zoom_border_depth_read_context_matches(bContext *C,
++                                                           const ZoomBorderDepthRead *read)
++{
++  if (read == nullptr || CTX_wm_view3d(C) != read->view3d ||
++      CTX_wm_region_view3d(C) != read->region_view || CTX_wm_region(C) != read->region ||
++      CTX_wm_area(C) != read->area || CTX_wm_window(C) != read->timer_window ||
++      read->region->regiondata != read->region_view || read->region->winx != read->region_size[0] ||
++      read->region->winy != read->region_size[1])
++  {
++    return false;
++  }
+ 
+-  /* SMOOTHVIEW */
+-  float dist_new;
+-  float ofs_new[3];
++  const RegionView3D *rv3d = read->region_view;
++  const View3D *v3d = read->view3d;
++  return equals_m4m4(rv3d->viewinv, read->viewinv) && equals_m4m4(rv3d->winmat, read->winmat) &&
++         equals_v3v3(rv3d->ofs, read->ofs) && equals_v4v4(rv3d->viewquat, read->viewquat) &&
++         rv3d->dist == read->dist && rv3d->camdx == read->camdx && rv3d->camdy == read->camdy &&
++         rv3d->camzoom == read->camzoom && int(rv3d->persp) == read->persp &&
++         int(rv3d->view) == read->view && int(rv3d->view_axis_roll) == read->view_axis_roll &&
++         bool(rv3d->is_persp) == read->is_persp && v3d->lens == read->lens &&
++         v3d->clip_start == read->clip_start && v3d->clip_end == read->clip_end &&
++         v3d->grid == read->grid && v3d->camera == read->camera &&
++         int(v3d->flag2) == read->view3d_flag2 && rv3d->sms == read->smooth_state &&
++         rv3d->smooth_timer == read->smooth_timer && int(RV3D_LOCK_FLAGS(rv3d)) == read->view_lock;
++}
+ 
+-  /* ZBuffer depth vars */
+-  float depth_close = FLT_MAX;
+-  float cent[2], p[3];
++static void view3d_zoom_border_depth_read_free(bContext *C,
++                                                wmOperator *op,
++                                                ZoomBorderDepthRead *read)
++{
++  if (read == nullptr) {
++    return;
++  }
++  if (read->listed) {
++    BLI_remlink(&zoom_border_depth_reads, read);
++    read->listed = false;
++  }
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->timer_window, read->timer);
++    read->timer = nullptr;
++  }
++  GPU_readback_cancel(read->readback);
++  if (op->customdata == read) {
++    op->customdata = nullptr;
++  }
++  MEM_delete(read);
++}
+ 
+-  /* NOTE: otherwise opengl won't work. */
+-  view3d_operator_needs_gpu(C);
++static void view3d_zoom_border_depth_read_register(ZoomBorderDepthRead *read)
++{
++  for (ZoomBorderDepthRead *active = static_cast<ZoomBorderDepthRead *>(
++           zoom_border_depth_reads.first);
++       active != nullptr;
++       active = active->next)
++  {
++    if (active->timer_window == read->timer_window && active->region == read->region) {
++      active->superseded = true;
++    }
++  }
++  BLI_addtail(&zoom_border_depth_reads, read);
++  read->listed = true;
++}
+ 
+-  /* get box select values using rna */
+-  WM_operator_properties_border_to_rcti(op, &rect);
++static eGPUReadbackStatus view3d_zoom_border_depth_read_status(ZoomBorderDepthRead *read)
++{
++  if (read == nullptr) {
++    return GPU_READBACK_FAILED;
++  }
++  if (read->empty_ready) {
++    return GPU_READBACK_READY;
++  }
++  const eGPUReadbackStatus status = GPU_readback_status(read->readback);
++  if (status == GPU_READBACK_READY && GPU_readback_size(read->readback) != read->expected_size) {
++    return GPU_READBACK_FAILED;
++  }
++  return status;
++}
+ 
+-  /* check if zooming in/out view */
+-  const bool zoom_in = !RNA_boolean_get(op->ptr, "zoom_out");
++static bool view3d_zoom_border_depth_read_consume(ZoomBorderDepthRead *read, float &r_depth_near)
++{
++  if (view3d_zoom_border_depth_read_status(read) != GPU_READBACK_READY) {
++    return false;
++  }
++  r_depth_near = FLT_MAX;
++  if (read->empty_ready) {
++    return true;
++  }
+ 
+-  const Bounds<float> dist_range = ED_view3d_dist_soft_range_get(v3d, rv3d->is_persp);
++  std::vector<float> depths(read->expected_size / sizeof(float));
++  if (!GPU_readback_consume(read->readback, depths.data(), read->expected_size)) {
++    return false;
++  }
+ 
+-  ED_view3d_depth_override(CTX_data_ensure_evaluated_depsgraph(C),
+-                           region,
+-                           v3d,
+-                           nullptr,
+-                           V3D_DEPTH_NO_GPENCIL,
+-                           true,
+-                           nullptr);
++  float nearest = 1.0f;
++  for (const float depth : depths) {
++    if (depth < nearest && depth > 0.0f) {
++      nearest = depth;
++    }
++  }
++  if (nearest != 1.0f) {
++    r_depth_near = nearest;
++  }
++  return true;
++}
++
++static ZoomBorderDepthRead *view3d_zoom_border_depth_read_create(bContext *C,
++                                                                 wmOperator *op)
++{
++  ZoomBorderDepthRead *read = MEM_new<ZoomBorderDepthRead>(__func__);
++  read->owner = op;
++  read->view3d = CTX_wm_view3d(C);
++  read->region_view = CTX_wm_region_view3d(C);
++  read->region = CTX_wm_region(C);
++  read->area = CTX_wm_area(C);
++  read->timer_window = CTX_wm_window(C);
++  read->smooth_viewtx = WM_operator_smooth_viewtx_get(op);
++  read->zoom_in = !RNA_boolean_get(op->ptr, "zoom_out");
++  WM_operator_properties_border_to_rcti(op, &read->rect);
++
++  read->region_size[0] = read->region->winx;
++  read->region_size[1] = read->region->winy;
++  copy_m4_m4(read->viewinv, read->region_view->viewinv);
++  copy_m4_m4(read->winmat, read->region_view->winmat);
++  copy_v3_v3(read->ofs, read->region_view->ofs);
++  copy_v4_v4(read->viewquat, read->region_view->viewquat);
++  read->dist = read->region_view->dist;
++  read->camdx = read->region_view->camdx;
++  read->camdy = read->region_view->camdy;
++  read->camzoom = read->region_view->camzoom;
++  read->persp = int(read->region_view->persp);
++  read->view = int(read->region_view->view);
++  read->view_axis_roll = int(read->region_view->view_axis_roll);
++  read->is_persp = bool(read->region_view->is_persp);
++  read->lens = read->view3d->lens;
++  read->clip_start = read->view3d->clip_start;
++  read->clip_end = read->view3d->clip_end;
++  read->grid = read->view3d->grid;
++  read->camera = read->view3d->camera;
++  read->view3d_flag2 = int(read->view3d->flag2);
++  read->smooth_state = read->region_view->sms;
++  read->smooth_timer = read->region_view->smooth_timer;
++  read->view_lock = int(RV3D_LOCK_FLAGS(read->region_view));
++
++  rcti request_rect = read->rect;
++  const rcti bounds = {0, read->region->winx - 1, 0, read->region->winy - 1};
++  BLI_rcti_isect(&bounds, &request_rect, &request_rect);
++  /* The stock synchronous helper clamps the caller's rectangle in place before
++   * the aspect-ratio adjustment. Preserve that exact post-clamp rectangle. */
++  read->rect = request_rect;
++  const int width_signed = BLI_rcti_size_x(&request_rect);
++  const int height_signed = BLI_rcti_size_y(&request_rect);
++  if (width_signed <= 0 || height_signed <= 0) {
++    read->empty_ready = true;
++    return read;
++  }
++
++  const size_t width = size_t(width_signed);
++  const size_t height = size_t(height_signed);
++  if (width > std::numeric_limits<size_t>::max() / height ||
++      width * height > std::numeric_limits<size_t>::max() / sizeof(float))
+   {
+-    /* avoid allocating the whole depth buffer */
+-    ViewDepths depth_temp = {0};
++    return read;
++  }
++  read->expected_size = width * height * sizeof(float);
+ 
+-    /* avoid view3d_update_depths() for speed. */
+-    view3d_depths_rect_create(region, &rect, &depth_temp);
++  GPUViewport *viewport = WM_draw_region_get_viewport(read->region);
++  gpu::Texture *depth_tx = viewport != nullptr ? GPU_viewport_depth_texture(viewport) : nullptr;
++  if (depth_tx == nullptr) {
++    return read;
++  }
+ 
+-    /* find the closest Z pixel */
+-    depth_close = view3d_depth_near(&depth_temp);
++  gpu::FrameBuffer *depth_read_fb = nullptr;
++  GPU_framebuffer_ensure_config(&depth_read_fb,
++                                {
++                                    GPU_ATTACHMENT_TEXTURE(depth_tx),
++                                    GPU_ATTACHMENT_NONE,
++                                });
++  if (depth_read_fb == nullptr) {
++    return read;
++  }
++  GPU_framebuffer_bind(depth_read_fb);
++  read->readback = GPU_framebuffer_read_depth_async(depth_read_fb,
++                                                    request_rect.xmin,
++                                                    request_rect.ymin,
++                                                    width_signed,
++                                                    height_signed,
++                                                    GPU_DATA_FLOAT);
++  GPU_framebuffer_restore();
++  GPU_framebuffer_free(depth_read_fb);
++  return read;
++}
+ 
+-    MEM_SAFE_DELETE(depth_temp.depths);
++static wmOperatorStatus view3d_zoom_border_apply(bContext *C,
++                                                  wmOperator *op,
++                                                  ZoomBorderDepthRead *read,
++                                                  const float depth_close)
++{
++  if (!view3d_zoom_border_depth_read_context_matches(C, read)) {
++    BKE_report(op->reports, RPT_ERROR, "View changed while waiting for border depth readback");
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
+   }
+ 
++  ARegion *region = read->region;
++  View3D *v3d = read->view3d;
++  RegionView3D *rv3d = read->region_view;
++  rcti rect = read->rect;
++  float dvec[3], vb[2], xscale, yscale;
++  float dist_new;
++  float ofs_new[3];
++  float cent[2], p[3];
++  const Bounds<float> dist_range = ED_view3d_dist_soft_range_get(v3d, rv3d->is_persp);
++
+   /* Resize border to the same ratio as the window. */
+   {
+     const float region_aspect = float(region->winx) / float(region->winy);
+@@ -96,35 +331,28 @@ static wmOperatorStatus view3d_zoom_border_exec(bContext *C, wmOperator *op)
+ 
+   if (rv3d->is_persp) {
+     float p_corner[3];
+-
+-    /* no depths to use, we can't do anything! */
+     if (depth_close == FLT_MAX) {
+       BKE_report(op->reports, RPT_ERROR, "Depth too large");
++      view3d_zoom_border_depth_read_free(C, op, read);
+       return OPERATOR_CANCELLED;
+     }
+-    /* convert border to 3d coordinates */
+     if (!ED_view3d_unproject_v3(region, cent[0], cent[1], depth_close, p) ||
+         !ED_view3d_unproject_v3(region, rect.xmin, rect.ymin, depth_close, p_corner))
+     {
++      view3d_zoom_border_depth_read_free(C, op, read);
+       return OPERATOR_CANCELLED;
+     }
+ 
+     sub_v3_v3v3(dvec, p, p_corner);
+     negate_v3_v3(ofs_new, p);
+-
+     dist_new = len_v3(dvec);
+-
+-    /* Account for the lens, without this a narrow lens zooms in too close. */
+     dist_new *= (v3d->lens / DEFAULT_SENSOR_WIDTH);
+   }
+-  else { /* orthographic */
+-    /* find the current window width and height */
++  else {
+     vb[0] = region->winx;
+     vb[1] = region->winy;
+-
+     dist_new = rv3d->dist;
+ 
+-    /* convert the drawn rectangle into 3d space */
+     if (depth_close != FLT_MAX && ED_view3d_unproject_v3(region, cent[0], cent[1], depth_close, p))
+     {
+       negate_v3_v3(ofs_new, p);
+@@ -132,36 +360,28 @@ static wmOperatorStatus view3d_zoom_border_exec(bContext *C, wmOperator *op)
+     else {
+       float xy_delta[2];
+       float zfac;
+-
+-      /* We can't use the depth, fall back to the old way that doesn't set the center depth */
+       copy_v3_v3(ofs_new, rv3d->ofs);
+-
+       {
+         float tvec[3];
+         negate_v3_v3(tvec, ofs_new);
+         zfac = ED_view3d_calc_zfac(rv3d, tvec);
+       }
+-
+       xy_delta[0] = (rect.xmin + rect.xmax - vb[0]) / 2.0f;
+       xy_delta[1] = (rect.ymin + rect.ymax - vb[1]) / 2.0f;
+       ED_view3d_win_to_delta(region, xy_delta, zfac, dvec);
+-      /* center the view to the center of the rectangle */
+       sub_v3_v3(ofs_new, dvec);
+     }
+ 
+-    /* work out the ratios, so that everything selected fits when we zoom */
+     xscale = (BLI_rcti_size_x(&rect) / vb[0]);
+     yscale = (BLI_rcti_size_y(&rect) / vb[1]);
+     dist_new *= max_ff(xscale, yscale);
+   }
+ 
+-  if (!zoom_in) {
++  if (!read->zoom_in) {
+     sub_v3_v3v3(dvec, ofs_new, rv3d->ofs);
+     dist_new = rv3d->dist * (rv3d->dist / dist_new);
+     add_v3_v3v3(ofs_new, rv3d->ofs, dvec);
+   }
+-
+-  /* clamp after because we may have been zooming out */
+   CLAMP(dist_new, dist_range.min, dist_range.max);
+ 
+   const bool is_camera_lock = ED_view3d_camera_lock_check(v3d, rv3d);
+@@ -178,16 +398,136 @@ static wmOperatorStatus view3d_zoom_border_exec(bContext *C, wmOperator *op)
+   sview_params.ofs = ofs_new;
+   sview_params.dist = &dist_new;
+   sview_params.undo_str = op->type->name;
+-
+-  ED_view3d_smooth_view(C, v3d, region, smooth_viewtx, &sview_params);
++  ED_view3d_smooth_view(C, v3d, region, read->smooth_viewtx, &sview_params);
+ 
+   if (RV3D_LOCK_FLAGS(rv3d) & RV3D_BOXVIEW) {
+-    view3d_boxview_sync(CTX_wm_area(C), region);
++    view3d_boxview_sync(read->area, region);
+   }
+ 
++  view3d_zoom_border_depth_read_free(C, op, read);
+   return OPERATOR_FINISHED;
+ }
+ 
++static wmOperatorStatus view3d_zoom_border_depth_read_finish(bContext *C,
++                                                              wmOperator *op,
++                                                              ZoomBorderDepthRead *read)
++{
++  float depth_close;
++  if (!view3d_zoom_border_depth_read_consume(read, depth_close)) {
++    BKE_report(op->reports, RPT_ERROR, "Border depth readback failed");
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
++  }
++  return view3d_zoom_border_apply(C, op, read, depth_close);
++}
++
++static void view3d_zoom_border_depth_read_attach(bContext *C,
++                                                  wmOperator *op,
++                                                  ZoomBorderDepthRead *read,
++                                                  const bool add_modal_handler)
++{
++  read->timer = WM_event_timer_add(CTX_wm_manager(C), read->timer_window, TIMER, 0.01f);
++  op->customdata = read;
++  if (add_modal_handler) {
++    WM_event_add_modal_handler(C, op);
++  }
++}
++
++static wmOperatorStatus view3d_zoom_border_exec(bContext *C, wmOperator *op)
++{
++  /* NOTE: otherwise opengl won't work. */
++  view3d_operator_needs_gpu(C);
++  ED_view3d_depth_override(CTX_data_ensure_evaluated_depsgraph(C),
++                           CTX_wm_region(C),
++                           CTX_wm_view3d(C),
++                           nullptr,
++                           V3D_DEPTH_NO_GPENCIL,
++                           true,
++                           nullptr);
++
++  ZoomBorderDepthRead *read = view3d_zoom_border_depth_read_create(C, op);
++  const eGPUReadbackStatus status = view3d_zoom_border_depth_read_status(read);
++  if (status == GPU_READBACK_READY) {
++    return view3d_zoom_border_depth_read_finish(C, op, read);
++  }
++  if (status != GPU_READBACK_PENDING) {
++    BKE_report(op->reports, RPT_ERROR, "Unable to start border depth readback");
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
++  }
++
++  view3d_zoom_border_depth_read_register(read);
++  if (op->customdata == nullptr) {
++    view3d_zoom_border_depth_read_attach(C, op, read, true);
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus view3d_zoom_border_modal(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event)
++{
++  ZoomBorderDepthRead *read = view3d_zoom_border_depth_read_find(op);
++  if (read == nullptr || op->customdata != read) {
++    const wmOperatorStatus result = WM_gesture_box_modal(C, op, event);
++    read = view3d_zoom_border_depth_read_find(op);
++    if (read == nullptr) {
++      return result;
++    }
++
++    const eGPUReadbackStatus status = view3d_zoom_border_depth_read_status(read);
++    if (status == GPU_READBACK_READY) {
++      return view3d_zoom_border_depth_read_finish(C, op, read);
++    }
++    if (status != GPU_READBACK_PENDING) {
++      BKE_report(op->reports, RPT_ERROR, "Border depth readback failed");
++      view3d_zoom_border_depth_read_free(C, op, read);
++      return OPERATOR_CANCELLED;
++    }
++    view3d_zoom_border_depth_read_attach(C, op, read, false);
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  if (read->superseded || !view3d_zoom_border_depth_read_context_matches(C, read) ||
++      (event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++      (event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL))
++  {
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != read->timer) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++read->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for border depth readback");
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
++  }
++
++  const eGPUReadbackStatus status = view3d_zoom_border_depth_read_status(read);
++  if (status == GPU_READBACK_PENDING) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++  if (status != GPU_READBACK_READY) {
++    BKE_report(op->reports, RPT_ERROR, "Border depth readback failed");
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return OPERATOR_CANCELLED;
++  }
++  return view3d_zoom_border_depth_read_finish(C, op, read);
++}
++
++static void view3d_zoom_border_cancel(bContext *C, wmOperator *op)
++{
++  ZoomBorderDepthRead *read = view3d_zoom_border_depth_read_find(op);
++  if (read != nullptr) {
++    view3d_zoom_border_depth_read_free(C, op, read);
++    return;
++  }
++  WM_gesture_box_cancel(C, op);
++}
++
+ static bool view3d_zoom_border_poll(bContext *C)
+ {
+   /* Depends on reading depth from the GPU. */
+@@ -207,8 +547,8 @@ void VIEW3D_OT_zoom_border(wmOperatorType *ot)
+   /* API callbacks. */
+   ot->invoke = WM_gesture_box_invoke;
+   ot->exec = view3d_zoom_border_exec;
+-  ot->modal = WM_gesture_box_modal;
+-  ot->cancel = WM_gesture_box_cancel;
++  ot->modal = view3d_zoom_border_modal;
++  ot->cancel = view3d_zoom_border_cancel;
+ 
+   ot->poll = view3d_zoom_border_poll;
+ 

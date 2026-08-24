@@ -2078,10 +2078,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   product rebuild/no-work check, OFF preflight, canonical replay, compliance, scoped M4, and
   container-backed regression are verified. See
   `notes/m4-ghost-ready-callback-lifetime-r8-20260824.md`.
-- [ ] **AUDIT-R8-GPU-STAGING-RESOURCE-SCOPE [gpu-backend, blocked-by: none]:** reserve a transient
-  validation/OOM/internal gate around large-upload staging-buffer creation before its dependent
-  command ticket. Regress a non-null error object with zero uncaptured errors, same-epoch
-  cancellation, exact retained bytes, and a clean retry; pinned Dawn remains a software non-receipt.
+- [x] **AUDIT-R8-GPU-STAGING-RESOURCE-SCOPE [gpu-backend, blocked-by: none] COMPLETE (412e10b,
+  patch 0247):** large-upload staging creation now reserves a validation/OOM/internal resource gate
+  before its dependent command ticket. Extracted native/wasm32 contracts reject a non-null error
+  object with zero uncaptured errors, cancel same-epoch submission, retain exact bytes, and accept a
+  clean-epoch retry. Pinned Dawn remains explicit llvmpipe software non-receipt evidence. Product,
+  canonical replay, OFF preflight, scoped M3, and container-backed regression are verified. See
+  `notes/m3-gpu-staging-resource-scope-r8-20260824.md`.
 - [ ] **AUDIT-R8-GHOST-CALLBACK-SOURCE-GATE [ghost-web, blocked-by: none]:** replace the
   string-count/raw-capture regex with an explicit structural callback census and production-shaped
   owner/loss/destruction behavior cases, while retaining native/wasm32 parity and unsafe ASan.

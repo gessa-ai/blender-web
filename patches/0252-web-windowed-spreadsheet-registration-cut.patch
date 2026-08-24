@@ -1,0 +1,43 @@
+From: blender-web contributors
+Subject: editors: let the windowed web profile omit Spreadsheet registration
+
+The Spreadsheet editor is outside the launch tier, while its space-type
+registration retains a leaf editor implementation closure. Keep geometry-node
+data, DNA/RNA, blend loading, and stock desktop/headless behavior, but let the
+windowed profile leave that editor root unreachable.
+
+diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
+--- a/source/blender/editors/space_api/CMakeLists.txt
++++ b/source/blender/editors/space_api/CMakeLists.txt
+@@ -89,3 +89,17 @@ if(WITH_BLENDER_WEB_VSE)
+ if(WITH_BLENDER_WEB_VSE)
+   target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_VSE)
+ endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch Spreadsheet editor registration
++# while retaining geometry-node data, DNA/RNA, and blend loading.
++if(NOT DEFINED WITH_BLENDER_WEB_SPREADSHEET)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_SPREADSHEET OFF)
++  else()
++    set(WITH_BLENDER_WEB_SPREADSHEET ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_SPREADSHEET)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_SPREADSHEET)
++endif()
+diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
+--- a/source/blender/editors/space_api/spacetypes.cc
++++ b/source/blender/editors/space_api/spacetypes.cc
+@@ -87,7 +87,9 @@ void ED_spacetypes_init()
+   ED_spacetype_clip();
+   ED_spacetype_statusbar();
+   ED_spacetype_topbar();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SPREADSHEET)
+   spreadsheet::register_spacetype();
++#endif
+-
++
+   /* Register operator types for screen and all spaces. */
+   ED_operatortypes_userpref();

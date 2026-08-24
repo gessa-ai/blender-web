@@ -185,6 +185,16 @@
       "evidence": "notes/m8-vse-registration-cut-20260824.md; patch 0251; sandbox/m8-vse-cut/verify.py"
     },
     {
+      "id": "feature-off-spreadsheet-editor-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,548,942 bytes at Brotli q11 before stage-0 data. Omitting only the non-launch Spreadsheet space registration root saves 39,919 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser retains Spreadsheet DNA/RNA, generic .blend loading, and geometry-node data paths, but does not expose or register the Spreadsheet editor space. Native and headless builds retain stock registration.",
+      "workaround": "Inspect geometry-node attributes in desktop Blender's Spreadsheet editor, then open the resulting .blend in the browser for launch-tier geometry-node, modeling, animation, viewport, and small Cycles-CPU workflows.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_SPREADSHEET=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-spreadsheet-registration-cut-20260824.md; patch 0252; sandbox/m8-spreadsheet-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

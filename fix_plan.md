@@ -2134,11 +2134,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Wasm alone is 8,588,861 bytes over the complete 15 MB budget before stage-0 data, and
   hardware/APPLY receipts remain s7-blocked. See
   `notes/m8-vse-registration-cut-20260824.md`.
-- [ ] **M8-SPREADSHEET-REGISTRATION-CUT [driver, blocked-by: none]:** identify the smallest
-  windowed-only spreadsheet space registration boundary that makes the non-launch editor
-  unreachable while preserving geometry-node data/RNA and `.blend` loading; keep it only if a
-  real locked relink yields a material pinned Brotli-q11 reduction and native/headless
-  preservation stays GREEN.
+- [x] **M8-SPREADSHEET-REGISTRATION-CUT [driver, blocked-by: none] COMPLETE (patch 0252):** the
+  windowed profile omits only the Spreadsheet space registration root while preserving its
+  DNA/RNA, generic `.blend` loading, geometry-node data paths, and native/headless registration.
+  The real locked product drops 279,672 raw and 39,919 pinned Brotli-q11 bytes; focused
+  fail-first/mutation/round-trip controls, native/headless preservation builds, canonical replay,
+  REUSE, scoped M8, and container-backed regression are verified. M8 remains RED: the
+  23,548,942-byte Wasm alone is 8,548,942 bytes over the complete 15 MB budget before stage-0
+  data, and hardware/APPLY receipts remain s7-blocked. See
+  `notes/m8-spreadsheet-registration-cut-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

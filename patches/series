@@ -1059,3 +1059,6 @@
 # 0251: omit non-launch VSE space and macro registration roots from the windowed
 # profile while preserving strip DNA/RNA, core data, and blend loading.
 0251-web-windowed-vse-registration-cut.patch
+# 0252: omit the non-launch Spreadsheet space registration root from the
+# windowed profile while preserving geometry-node data/RNA and blend loading.
+0252-web-windowed-spreadsheet-registration-cut.patch

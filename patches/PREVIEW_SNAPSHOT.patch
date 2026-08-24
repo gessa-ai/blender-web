@@ -10639,10 +10639,10 @@ index 5a625d6790b2b82fce7afd249f616169c365dcdd..fb84ce2e2ae176be997412aa7e53865d
  
  void OBJECT_OT_lightprobe_cache_bake(wmOperatorType *ot)
 diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
-index 8b45bbc7f9f948982cdd049310468f9bec552293..7fb64d281426241ac3dcf482911b4670c877aea6 100644
+index 8b45bbc7f9f948982cdd049310468f9bec552293..2d62d6ed0f2592d181a45ff4aa95228ae1d6b18c 100644
 --- a/source/blender/editors/space_api/CMakeLists.txt
 +++ b/source/blender/editors/space_api/CMakeLists.txt
-@@ -47,3 +47,31 @@ set(LIB
+@@ -47,3 +47,45 @@ set(LIB
  )
  
  blender_add_lib(bf_editor_space_api "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
@@ -10674,11 +10674,35 @@ index 8b45bbc7f9f948982cdd049310468f9bec552293..7fb64d281426241ac3dcf482911b4670
 +if(WITH_BLENDER_WEB_GREASE_PENCIL)
 +  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_GREASE_PENCIL)
 +endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch VSE editing registration while
++# retaining strip data, RNA, file loading, and core sequencer paths.
++if(NOT DEFINED WITH_BLENDER_WEB_VSE)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_VSE OFF)
++  else()
++    set(WITH_BLENDER_WEB_VSE ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_VSE)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_VSE)
++endif()
 diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
-index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..84f6c3d259f09fda78ff89dd8657ad8ba4cdad67 100644
+index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..06bdf743a2dac76dc49868a403c04406c60012a5 100644
 --- a/source/blender/editors/space_api/spacetypes.cc
 +++ b/source/blender/editors/space_api/spacetypes.cc
-@@ -95,16 +95,22 @@ void ED_spacetypes_init()
+@@ -79,7 +79,9 @@ void ED_spacetypes_init()
+   ED_spacetype_nla();
+   ED_spacetype_script();
+   ED_spacetype_text();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_VSE)
+   vse::ED_spacetype_sequencer();
++#endif
+   ED_spacetype_console();
+   ED_spacetype_userpref();
+   ED_spacetype_clip();
+@@ -95,16 +97,22 @@ void ED_spacetypes_init()
    ED_operatortypes_anim();
    ED_operatortypes_animchannels();
    asset::operatortypes_asset();
@@ -10701,10 +10725,13 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..84f6c3d259f09fda78ff89dd8657ad8b
    ED_operatortypes_physics();
    ED_operatortypes_curve();
    curves::operatortypes_curves();
-@@ -169,8 +175,12 @@ void ED_spacemacros_init()
+@@ -168,9 +176,15 @@ void ED_spacemacros_init()
+   curves::operatormacros_curves();
    pointcloud::operatormacros_pointcloud();
    ED_operatormacros_mask();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_VSE)
    vse::ED_operatormacros_sequencer();
++#endif
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
    ED_operatormacros_paint();
 +#endif
@@ -10714,7 +10741,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..84f6c3d259f09fda78ff89dd8657ad8b
    ED_operatormacros_nla();
  
    /* Register dropboxes (can use macros). */
-@@ -188,8 +198,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -188,8 +202,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_screen(keyconf);
    ED_keymap_anim(keyconf);
    ED_keymap_animchannels(keyconf);
@@ -10725,7 +10752,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..84f6c3d259f09fda78ff89dd8657ad8b
    object::keymap_object(keyconf);
    ED_keymap_lattice(keyconf);
    ED_keymap_mesh(keyconf);
-@@ -200,10 +212,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -200,10 +216,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_armature(keyconf);
    ED_keymap_physics(keyconf);
    ED_keymap_metaball(keyconf);

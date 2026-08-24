@@ -1,0 +1,51 @@
+From: blender-web contributors
+Subject: editors: let the windowed web profile omit VSE editing registration
+
+Video Sequence Editor editing is outside the launch tier, while its space-type
+and macro registration roots retain a leaf implementation closure. Keep strip
+DNA/RNA, core sequencer data, blend loading, and stock desktop/headless behavior,
+but let the windowed profile leave those editor roots unreachable.
+
+diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
+--- a/source/blender/editors/space_api/CMakeLists.txt
++++ b/source/blender/editors/space_api/CMakeLists.txt
+@@ -75,3 +75,17 @@ if(WITH_BLENDER_WEB_GREASE_PENCIL)
+ if(WITH_BLENDER_WEB_GREASE_PENCIL)
+   target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_GREASE_PENCIL)
+ endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch VSE editing registration while
++# retaining strip data, RNA, file loading, and core sequencer paths.
++if(NOT DEFINED WITH_BLENDER_WEB_VSE)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_VSE OFF)
++  else()
++    set(WITH_BLENDER_WEB_VSE ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_VSE)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_VSE)
++endif()
+diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
+--- a/source/blender/editors/space_api/spacetypes.cc
++++ b/source/blender/editors/space_api/spacetypes.cc
+@@ -79,6 +79,8 @@ void ED_spacetypes_init()
+   ED_spacetype_script();
+   ED_spacetype_text();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_VSE)
+   vse::ED_spacetype_sequencer();
++#endif
+   ED_spacetype_console();
+   ED_spacetype_userpref();
+   ED_spacetype_clip();
+@@ -174,7 +176,9 @@ void ED_spacemacros_init()
+   curves::operatormacros_curves();
+   pointcloud::operatormacros_pointcloud();
+   ED_operatormacros_mask();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_VSE)
+   vse::ED_operatormacros_sequencer();
++#endif
+ #if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SCULPT_PAINT)
+   ED_operatormacros_paint();
+ #endif

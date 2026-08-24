@@ -175,6 +175,16 @@
       "evidence": "notes/m8-compositor-registration-cut-20260824.md; patch 0250; sandbox/m8-compositor-cut/verify.py"
     },
     {
+      "id": "feature-off-vse-editing-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,588,861 bytes at Brotli q11 before stage-0 data. Omitting only the non-launch VSE space-type and macro registration roots saves 74,433 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser retains strip DNA/RNA, core sequencer data, and generic .blend loading, but does not expose the Video Sequence Editor space or register its editing operators/macros. Native and headless builds retain stock registration.",
+      "workaround": "Author or edit video sequences in desktop Blender, bake required video results there, and open the resulting .blend or exported assets in the browser for launch-tier mesh, animation, viewport, and small Cycles-CPU workflows.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_VSE=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-vse-registration-cut-20260824.md; patch 0251; sandbox/m8-vse-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

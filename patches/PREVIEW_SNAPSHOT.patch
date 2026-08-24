@@ -2572,7 +2572,7 @@ index 0000000000000000000000000000000000000000..13dd68c120ec7c75e0f02065712ef22f
 +  return pass ? 0 : 1;
 +}
 diff --git a/source/blender/blenloader/intern/readfile.cc b/source/blender/blenloader/intern/readfile.cc
-index 7c15bdcb2a21e0c8522c8d4f34192162be8921e1..d5f89fd40821f1d41d4bea1a28d784f4d0e40727 100644
+index 7c15bdcb2a21e0c8522c8d4f34192162be8921e1..af5118170e24d67271cea17633b34c3d34b22993 100644
 --- a/source/blender/blenloader/intern/readfile.cc
 +++ b/source/blender/blenloader/intern/readfile.cc
 @@ -558,6 +558,59 @@ static void read_file_bhead_idname_map_create(FileData *fd)
@@ -2661,7 +2661,19 @@ index 7c15bdcb2a21e0c8522c8d4f34192162be8921e1..d5f89fd40821f1d41d4bea1a28d784f4
    return (fd->id_asset_data_offset >= 0) ?
               *reinterpret_cast<AssetMetaData **>(const_cast<BHead *>(
                   POINTER_OFFSET(bhead, sizeof(*bhead) + fd->id_asset_data_offset))) :
-@@ -4153,6 +4225,14 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
+@@ -894,6 +966,11 @@ static bool read_file_dna(FileData *fd, const char **r_error_message)
+       const bool do_alias = false; /* Postpone until after #blo_do_versions_dna runs. */
+       fd->filesdna = DNA_sdna_from_data(&bhead[1], bhead->len, true, do_alias, r_error_message);
+       if (fd->filesdna) {
++#ifdef __EMSCRIPTEN__
++        /* Undo DNA was emitted from this process's compiled layout. Preserve that
++         * otherwise-unencoded fact when comparing it with the current SDNA. */
++        fd->filesdna->uses_wasm32_runtime_layout = (fd->flags & FD_FLAGS_IS_MEMFILE) != 0;
++#endif
+         blo_do_versions_dna(fd->filesdna, fd->fileversion, subversion);
+         /* Allow aliased lookups (must be after version patching DNA). */
+         DNA_sdna_alias_data_ensure_structs_map(fd->filesdna);
+@@ -4153,6 +4230,14 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
    BHead *bhead = blo_bhead_first(fd);
    BlendFileData *bfd;
  
@@ -2676,6 +2688,151 @@ index 7c15bdcb2a21e0c8522c8d4f34192162be8921e1..d5f89fd40821f1d41d4bea1a28d784f4
    const bool is_undo = (fd->flags & FD_FLAGS_IS_MEMFILE) != 0;
    if (is_undo) {
      CLOG_DEBUG(&LOG_UNDO, "UNDO: read step");
+diff --git a/source/blender/blenloader/intern/writefile.cc b/source/blender/blenloader/intern/writefile.cc
+index de16ab12655176d9bed67a985bd62f4380e6efee..b9d93bee7018803b7866db5bfb816dc810c4983b 100644
+--- a/source/blender/blenloader/intern/writefile.cc
++++ b/source/blender/blenloader/intern/writefile.cc
+@@ -142,6 +142,12 @@
+ 
+ #include <zstd.h>
+ 
++#ifdef __EMSCRIPTEN__
++/* blender-web: generated beside the wasm32 runtime SDNA by makesdna. */
++extern const unsigned char DNAstr_legacy_32[];
++extern const int DNAlen_legacy_32;
++#endif
++
+ namespace blender {
+ 
+ /* Make preferences read-only. */
+@@ -427,6 +433,26 @@ static WriteData *writedata_new(WriteWrap *ww)
+   wd->timestamp_init = BLI_time_now_seconds();
+ 
+   wd->sdna = DNA_sdna_current_get();
++#ifdef __EMSCRIPTEN__
++  wd->memory_sdna = wd->sdna;
++  /* Undo memfiles are private in-memory snapshots and retain the compiled layout.
++   * Regular files use the canonical i386-compatible 32-bit layout so an
++   * unmodified desktop Blender can read them. */
++  if (ww != nullptr) {
++    wd->owned_file_sdna = DNA_sdna_from_data(
++        DNAstr_legacy_32, DNAlen_legacy_32, false, true, nullptr);
++    if (wd->owned_file_sdna == nullptr) {
++      wd->validation_data.critical_error = true;
++    }
++    else {
++      wd->sdna = wd->owned_file_sdna;
++      BLI_assert(wd->memory_sdna->structs_num == wd->sdna->structs_num);
++      wd->write_compflags = DNA_struct_get_compareflags(wd->memory_sdna, wd->sdna);
++      wd->write_reconstruct_info = DNA_reconstruct_info_create(
++          wd->memory_sdna, wd->sdna, wd->write_compflags);
++    }
++  }
++#endif
+   wd->stable_address_ids.sdna_pointers = std::make_unique<dna::pointers::PointersInDNA>(*wd->sdna);
+ 
+   wd->ww = ww;
+@@ -477,6 +503,14 @@ static void writedata_free(WriteData *wd)
+   if (wd->buffer.buf) {
+     MEM_delete(wd->buffer.buf);
+   }
++#ifdef __EMSCRIPTEN__
++  if (wd->owned_file_sdna != nullptr) {
++    wd->stable_address_ids.sdna_pointers.reset();
++    DNA_reconstruct_info_free(wd->write_reconstruct_info);
++    MEM_delete(wd->write_compflags);
++    DNA_sdna_free(wd->owned_file_sdna);
++  }
++#endif
+   MEM_delete(wd);
+ }
+ 
+@@ -895,21 +929,49 @@ static void writestruct_at_address_nr(WriteData *wd,
+   /* Get the address identifier that will be written to the file. */
+   const void *address_id = get_address_id(*wd, adr);
+ 
+-  const void *data_to_write;
++  const void *layout_data = data;
+   DynamicStackBuffer<16 * 1024> buffer_owner(len_in_bytes, 64);
++  bool layout_data_is_buffered = false;
++
++#ifdef __EMSCRIPTEN__
++  if (wd->write_reconstruct_info != nullptr &&
++      wd->write_compflags[struct_nr] == SDNA_CMP_NOT_EQUAL)
++  {
++    if (nr < 0 || nr > INT_MAX) {
++      CLOG_ERROR(&LOG, "Cannot reconstruct more than INT_MAX structs for a 32-bit file.");
++      wd->validation_data.critical_error = true;
++      return;
++    }
++    void *reconstructed_data = DNA_struct_reconstruct(
++        wd->write_reconstruct_info, struct_nr, int(nr), data, __func__);
++    if (reconstructed_data == nullptr) {
++      CLOG_ERROR(&LOG, "Cannot reconstruct a wasm32 struct into the canonical file layout.");
++      wd->validation_data.critical_error = true;
++      return;
++    }
++    memcpy(buffer_owner.buffer(), reconstructed_data, size_t(len_in_bytes));
++    MEM_delete_void(reconstructed_data);
++    layout_data = buffer_owner.buffer();
++    layout_data_is_buffered = true;
++  }
++#endif
++
++  const void *data_to_write;
+   const dna::pointers::StructInfo &struct_info =
+       wd->stable_address_ids.sdna_pointers->get_for_struct(struct_nr);
+-  const bool can_write_raw_runtime_data = struct_info.pointers.is_empty();
++  BLI_assert(struct_info.size_in_bytes == DNA_struct_size(wd->sdna, struct_nr));
++  const bool can_write_without_pointer_remap = struct_info.pointers.is_empty();
+ 
+-  if (can_write_raw_runtime_data) {
+-    /* The passed in data contains no pointers, so it can be written without an additional copy.
+-     */
+-    data_to_write = data;
++  if (can_write_without_pointer_remap) {
++    /* The serialized layout contains no pointers, so it needs no additional copy. */
++    data_to_write = layout_data;
+   }
+   else {
+     void *buffer = buffer_owner.buffer();
+     data_to_write = buffer;
+-    memcpy(buffer, data, len_in_bytes);
++    if (!layout_data_is_buffered) {
++      memcpy(buffer, layout_data, size_t(len_in_bytes));
++    }
+ 
+     /* Overwrite pointers with their corresponding address identifiers. */
+     for (const int i : IndexRange(nr)) {
+diff --git a/source/blender/blenloader/intern/writefile.hh b/source/blender/blenloader/intern/writefile.hh
+index 4b4251cdd45934618e71a87d445498832b447d1b..1180861891b65951ef624cfd5cd4f58ae75b8a87 100644
+--- a/source/blender/blenloader/intern/writefile.hh
++++ b/source/blender/blenloader/intern/writefile.hh
+@@ -22,6 +22,7 @@
+ namespace blender {
+ 
+ class WriteWrap;
++struct DNA_ReconstructInfo;
+ 
+ struct WriteDataStableAddressIDs {
+   /**
+@@ -77,7 +78,16 @@ struct WriteDataStableAddressIDs {
+ };
+ 
+ struct WriteData {
++  /** SDNA layout serialized into the file. */
+   const SDNA *sdna;
++#ifdef __EMSCRIPTEN__
++  /** Actual compiled wasm32 layout, kept separate from the canonical file layout. */
++  const SDNA *memory_sdna = nullptr;
++  /** Canonical historical 32-bit SDNA owned by regular file writes only. */
++  SDNA *owned_file_sdna = nullptr;
++  const char *write_compflags = nullptr;
++  DNA_ReconstructInfo *write_reconstruct_info = nullptr;
++#endif
+   std::ostream *debug_dst = nullptr;
+ 
+   struct {
 diff --git a/source/blender/blentranslation/msgfmt/CMakeLists.txt b/source/blender/blentranslation/msgfmt/CMakeLists.txt
 index ddce14c5637bfbdafaea2f0a71e45b284ef0dd7e..767ed4ef74dfcb17e9896880ad3b94c19848b903 100644
 --- a/source/blender/blentranslation/msgfmt/CMakeLists.txt
@@ -39367,6 +39524,33 @@ index aa3e43363f4108445d8835d8e46c9263c10b2065..d673da0c5206dcbe44c12d19f924d07a
    }
    if (prim.IsA<pxr::UsdGeomCamera>()) {
      return new USDCameraReader(prim, params_, settings_);
+diff --git a/source/blender/makesdna/DNA_sdna_pointers.hh b/source/blender/makesdna/DNA_sdna_pointers.hh
+index bb5d6aa517bc63b26609e058443c0a296b33b026..b1263b1b94f3f73988b31093a067de359caebbb1 100644
+--- a/source/blender/makesdna/DNA_sdna_pointers.hh
++++ b/source/blender/makesdna/DNA_sdna_pointers.hh
+@@ -47,6 +47,7 @@ class PointersInDNA {
+ 
+  private:
+   void gather_pointer_members_recursive(const SDNA_Struct &sdna_struct,
++                                        int sdna_struct_index,
+                                         int initial_offset,
+                                         StructInfo &r_struct_info) const;
+ };
+diff --git a/source/blender/makesdna/DNA_sdna_types.h b/source/blender/makesdna/DNA_sdna_types.h
+index 29c01227a5bc22daacf1e2643682411a0135c337..7437b921acbfdfe4fa3adf203cfb844bc99a4cc2 100644
+--- a/source/blender/makesdna/DNA_sdna_types.h
++++ b/source/blender/makesdna/DNA_sdna_types.h
+@@ -55,6 +55,10 @@ struct SDNA {
+   /** Length of #data, in bytes. */
+   int data_size;
+   bool data_alloc;
++#ifdef __EMSCRIPTEN__
++  /** The encoded members use the compiled wasm32 offsets rather than the historical i386 walk. */
++  bool uses_wasm32_runtime_layout;
++#endif
+ 
+   /** Size of a pointer in bytes. */
+   int pointer_size;
 diff --git a/source/blender/makesdna/DNA_userdef_types.h b/source/blender/makesdna/DNA_userdef_types.h
 index 4b5257e8f1f2c19c6cc515da0b12246e869100e3..7de857c293e662d2ccd37cfb23196673e0f6df32 100644
 --- a/source/blender/makesdna/DNA_userdef_types.h
@@ -39407,7 +39591,7 @@ index 24a06391c6890728a720b4536e1968ac3ef00f8e..aa4d934a0c4dc216faa080aac0f7ea96
      ${CMAKE_CURRENT_BINARY_DIR}/dna.cc
      ${CMAKE_CURRENT_BINARY_DIR}/dna_type_offsets.h
 diff --git a/source/blender/makesdna/intern/dna_genfile.cc b/source/blender/makesdna/intern/dna_genfile.cc
-index 218de4bbb71a0766cb7f1f463dcafba631cc8779..dc4e970972a1ec2edeb653918a33662f3c9657eb 100644
+index 218de4bbb71a0766cb7f1f463dcafba631cc8779..142a10b78da3f580285aac96d929c1c3c9e9dd56 100644
 --- a/source/blender/makesdna/intern/dna_genfile.cc
 +++ b/source/blender/makesdna/intern/dna_genfile.cc
 @@ -35,6 +35,18 @@
@@ -39418,9 +39602,9 @@ index 218de4bbb71a0766cb7f1f463dcafba631cc8779..dc4e970972a1ec2edeb653918a33662f
 +/* blender-web: makesdna-emitted wasm32-padded per-member offsets (defined at global
 + * scope in the generated dna_verify.cc). Declared here at global scope, exactly like
 + * DNAstr in DNA_genfile.h, so the reference inside `namespace blender` resolves to the
-+ * global symbol. Single source of truth for DNA_struct_reconstruct's TARGET offsets on
-+ * wasm32 (the unpadded running sum used natively mis-places fields after 8-aligned
-+ * members on wasm32 — e.g. Scene.master_collection). See
++ * global symbol. Single source of truth for DNA_struct_reconstruct's runtime-side
++ * offsets on wasm32 (the unpadded running sum used natively mis-places fields after
++ * 8-aligned members on wasm32 — e.g. Scene.master_collection). See
 + * notes/m2-dna-reconstruct-diagnosis.md. */
 +extern const int DNA_reconstruct_member_offsets_wasm32[];
 +extern const int DNA_reconstruct_member_offsets_start_wasm32[];
@@ -39429,48 +39613,182 @@ index 218de4bbb71a0766cb7f1f463dcafba631cc8779..dc4e970972a1ec2edeb653918a33662f
  namespace blender {
  
  /**
-@@ -1489,14 +1501,29 @@ static ReconstructStep *create_reconstruct_steps_for_struct(const SDNA *oldsdna,
+@@ -574,6 +586,9 @@ SDNA *DNA_sdna_from_data(const void *data,
+     sdna->data = static_cast<const char *>(data);
+   }
+   sdna->data_alloc = data_alloc;
++#ifdef __EMSCRIPTEN__
++  sdna->uses_wasm32_runtime_layout = false;
++#endif
+ 
+   if (init_structDNA(sdna, &error_message)) {
+     if (do_alias) {
+@@ -603,6 +618,9 @@ static SDNA *g_sdna = nullptr;
+ void DNA_sdna_current_init()
+ {
+   g_sdna = DNA_sdna_from_data(DNAstr, DNAlen, false, true, nullptr);
++#ifdef __EMSCRIPTEN__
++  g_sdna->uses_wasm32_runtime_layout = true;
++#endif
+ }
+ 
+ const SDNA *DNA_sdna_current_get()
+@@ -617,6 +635,41 @@ void DNA_sdna_current_free()
+   g_sdna = nullptr;
+ }
+ 
++#ifdef __EMSCRIPTEN__
++/* blender-web: SDNA does not encode member offsets. Recognize the current
++ * generated wasm32 memory layout so reconstruction can use makesdna's verified
++ * padded offsets on the correct side only. File SDNA, including canonical
++ * 32-bit output, continues to use SDNA's historical sequential i386 walk. */
++static bool sdna_uses_wasm32_runtime_layout(const SDNA *sdna)
++{
++  return sdna == g_sdna || sdna->uses_wasm32_runtime_layout;
++}
++
++static int wasm32_runtime_member_offset(const int struct_index, const int member_index)
++{
++  const int offsets_start = DNA_reconstruct_member_offsets_start_wasm32[struct_index];
++  BLI_assert(DNA_reconstruct_member_offsets_start_wasm32[struct_index + 1] - offsets_start ==
++             g_sdna->structs[struct_index]->members_num);
++  BLI_assert(member_index >= 0 && member_index < g_sdna->structs[struct_index]->members_num);
++  return DNA_reconstruct_member_offsets_wasm32[offsets_start + member_index];
++}
++
++static bool wasm32_runtime_layout_differs_from_sdna(const int struct_index)
++{
++  const SDNA_Struct *struct_info = g_sdna->structs[struct_index];
++  int sequential_offset = 0;
++  for (int member_index = 0; member_index < struct_info->members_num; member_index++) {
++    if (wasm32_runtime_member_offset(struct_index, member_index) != sequential_offset) {
++      return true;
++    }
++    const SDNA_StructMember *member = &struct_info->members[member_index];
++    sequential_offset += DNA_struct_member_size(
++        g_sdna, member->type_index, member->member_index);
++  }
++  return sequential_offset != g_sdna->types_size[struct_info->type_index];
++}
++#endif
++
+ /* ******************** END READ DNA ********************** */
+ 
+ /* ******************* HANDLE DNA ***************** */
+@@ -651,6 +704,20 @@ static void set_compare_flags_for_struct(const SDNA *oldsdna,
+     compare_flags[old_struct_index] = SDNA_CMP_NOT_EQUAL;
+     return;
+   }
++#ifdef __EMSCRIPTEN__
++  /* A wasm32 runtime struct can have the same names and total size as a legacy
++   * 32-bit file struct while still placing members differently. Force the
++   * field-wise path whenever exactly one side uses the compiled wasm layout. */
++  const bool old_uses_wasm_layout = sdna_uses_wasm32_runtime_layout(oldsdna);
++  const bool new_uses_wasm_layout = sdna_uses_wasm32_runtime_layout(newsdna);
++  if (old_uses_wasm_layout != new_uses_wasm_layout) {
++    const int runtime_struct_index = old_uses_wasm_layout ? old_struct_index : new_struct_index;
++    if (wasm32_runtime_layout_differs_from_sdna(runtime_struct_index)) {
++      compare_flags[old_struct_index] = SDNA_CMP_NOT_EQUAL;
++      return;
++    }
++  }
++#endif
+   if (oldsdna->types_size[old_struct->type_index] != newsdna->types_size[new_struct->type_index]) {
+     /* Structs that don't have the same size are not equal. */
+     compare_flags[old_struct_index] = SDNA_CMP_NOT_EQUAL;
+@@ -1278,18 +1345,32 @@ void *DNA_struct_reconstruct(const DNA_ReconstructInfo *reconstruct_info,
+ /** Finds a member in the given struct with the given name. */
+ static const SDNA_StructMember *find_member_with_matching_name(const SDNA *sdna,
+                                                                const SDNA_Struct *struct_info,
++                                                               const int struct_index,
+                                                                const char *name,
+                                                                int *r_offset)
+ {
++#ifndef __EMSCRIPTEN__
++  UNUSED_VARS(struct_index);
++#endif
+   int offset = 0;
+   for (int a = 0; a < struct_info->members_num; a++) {
+     const SDNA_StructMember *member = &struct_info->members[a];
++#ifdef __EMSCRIPTEN__
++    if (sdna_uses_wasm32_runtime_layout(sdna)) {
++      offset = wasm32_runtime_member_offset(struct_index, a);
++    }
++#endif
+     const char *member_name = sdna->members[member->member_index];
+     if (elem_streq(name, member_name)) {
+       *r_offset = offset;
+       return member;
+     }
+-    offset += get_member_size_in_bytes(sdna, member);
++#ifdef __EMSCRIPTEN__
++    if (!sdna_uses_wasm32_runtime_layout(sdna))
++#endif
++    {
++      offset += get_member_size_in_bytes(sdna, member);
++    }
+   }
+   return nullptr;
+ }
+@@ -1299,6 +1380,7 @@ static void init_reconstruct_step_for_member(const SDNA *oldsdna,
+                                              const SDNA *newsdna,
+                                              const char *compare_flags,
+                                              const SDNA_Struct *old_struct,
++                                             const int old_struct_index,
+                                              const SDNA_StructMember *new_member,
+                                              const int new_member_offset,
+                                              ReconstructStep *r_step)
+@@ -1308,7 +1390,7 @@ static void init_reconstruct_step_for_member(const SDNA *oldsdna,
+   int old_member_offset;
+   const char *new_name = newsdna->members[new_member->member_index];
+   const SDNA_StructMember *old_member = find_member_with_matching_name(
+-      oldsdna, old_struct, new_name, &old_member_offset);
++      oldsdna, old_struct, old_struct_index, new_name, &old_member_offset);
+ 
+   if (old_member == nullptr) {
+     /* No matching member has been found in the old struct. */
+@@ -1489,22 +1571,38 @@ static ReconstructStep *create_reconstruct_steps_for_struct(const SDNA *oldsdna,
                                                              const SDNA *newsdna,
                                                              const char *compare_flags,
                                                              const SDNA_Struct *old_struct,
 -                                                            const SDNA_Struct *new_struct)
-+                                                            const SDNA_Struct *new_struct
-+#ifdef __EMSCRIPTEN__
-+                                                            ,
-+                                                            const int new_struct_index
-+#endif
-+)
++                                                            const SDNA_Struct *new_struct,
++                                                            const int old_struct_index,
++                                                            const int new_struct_index)
  {
++#ifndef __EMSCRIPTEN__
++  UNUSED_VARS(new_struct_index);
++#endif
    ReconstructStep *steps = MEM_new_array_zeroed<ReconstructStep>(new_struct->members_num,
                                                                   __func__);
  
-+#ifdef __EMSCRIPTEN__
-+  /* wasm32: take each target offset from makesdna's verified table instead of the
-+   * unpadded running sum. Guard against table/SDNA desync (member count per struct). */
-+  const int bw_offsets_start = DNA_reconstruct_member_offsets_start_wasm32[new_struct_index];
-+  BLI_assert(DNA_reconstruct_member_offsets_start_wasm32[new_struct_index + 1] - bw_offsets_start ==
-+             new_struct->members_num);
-+#endif
    int new_member_offset = 0;
    for (int new_member_index = 0; new_member_index < new_struct->members_num; new_member_index++) {
      const SDNA_StructMember *new_member = &new_struct->members[new_member_index];
 +#ifdef __EMSCRIPTEN__
-+    new_member_offset = DNA_reconstruct_member_offsets_wasm32[bw_offsets_start + new_member_index];
++    if (sdna_uses_wasm32_runtime_layout(newsdna)) {
++      new_member_offset = wasm32_runtime_member_offset(new_struct_index, new_member_index);
++    }
 +#endif
      init_reconstruct_step_for_member(oldsdna,
                                       newsdna,
                                       compare_flags,
-@@ -1504,7 +1531,9 @@ static ReconstructStep *create_reconstruct_steps_for_struct(const SDNA *oldsdna,
+                                      old_struct,
++                                     old_struct_index,
                                       new_member,
                                       new_member_offset,
                                       &steps[new_member_index]);
-+#ifndef __EMSCRIPTEN__
-     new_member_offset += get_member_size_in_bytes(newsdna, new_member);
+-    new_member_offset += get_member_size_in_bytes(newsdna, new_member);
++#ifdef __EMSCRIPTEN__
++    if (!sdna_uses_wasm32_runtime_layout(newsdna))
 +#endif
++    {
++      new_member_offset += get_member_size_in_bytes(newsdna, new_member);
++    }
    }
  
    return steps;
-@@ -1578,7 +1607,16 @@ DNA_ReconstructInfo *DNA_reconstruct_info_create(const SDNA *oldsdna,
+@@ -1578,7 +1676,13 @@ DNA_ReconstructInfo *DNA_reconstruct_info_create(const SDNA *oldsdna,
      }
      const SDNA_Struct *old_struct = oldsdna->structs[old_struct_index];
      ReconstructStep *steps = create_reconstruct_steps_for_struct(
@@ -39479,17 +39797,80 @@ index 218de4bbb71a0766cb7f1f463dcafba631cc8779..dc4e970972a1ec2edeb653918a33662f
 +        newsdna,
 +        compare_flags,
 +        old_struct,
-+        new_struct
-+#ifdef __EMSCRIPTEN__
-+        ,
-+        new_struct_index
-+#endif
-+    );
++        new_struct,
++        old_struct_index,
++        new_struct_index);
  
      /* Comment the line below to skip the compression for debugging purposes. */
      const int steps_len = compress_reconstruct_steps(steps, new_struct->members_num);
+@@ -1985,22 +2089,39 @@ PointersInDNA::PointersInDNA(const SDNA &sdna) : sdna_(sdna)
+     StructInfo &struct_info = structs_[struct_i];
+ 
+     struct_info.size_in_bytes = 0;
+-    for (const int member_i : IndexRange(sdna_struct.members_num)) {
+-      struct_info.size_in_bytes += get_member_size_in_bytes(&sdna_,
+-                                                            &sdna_struct.members[member_i]);
++#ifdef __EMSCRIPTEN__
++    if (sdna_uses_wasm32_runtime_layout(&sdna_)) {
++      struct_info.size_in_bytes = DNA_struct_size(&sdna_, struct_i);
++    }
++    else
++#endif
++    {
++      for (const int member_i : IndexRange(sdna_struct.members_num)) {
++        struct_info.size_in_bytes += get_member_size_in_bytes(&sdna_,
++                                                              &sdna_struct.members[member_i]);
++      }
+     }
+ 
+-    this->gather_pointer_members_recursive(sdna_struct, 0, structs_[struct_i]);
++    this->gather_pointer_members_recursive(sdna_struct, struct_i, 0, structs_[struct_i]);
+   }
+ }
+ 
+ void PointersInDNA::gather_pointer_members_recursive(const SDNA_Struct &sdna_struct,
++                                                     const int sdna_struct_index,
+                                                      int initial_offset,
+                                                      StructInfo &r_struct_info) const
+ {
++#ifndef __EMSCRIPTEN__
++  UNUSED_VARS(sdna_struct_index);
++#endif
+   int offset = initial_offset;
+   for (const int member_i : IndexRange(sdna_struct.members_num)) {
+     const SDNA_StructMember &member = sdna_struct.members[member_i];
++#ifdef __EMSCRIPTEN__
++    if (sdna_uses_wasm32_runtime_layout(&sdna_)) {
++      offset = initial_offset + wasm32_runtime_member_offset(sdna_struct_index, member_i);
++    }
++#endif
+     const char *member_type_name = sdna_.types[member.type_index];
+     const eStructMemberCategory member_category = get_struct_member_category(&sdna_, &member);
+     const int array_elem_num = sdna_.members_array_num[member.member_index];
+@@ -2017,11 +2138,18 @@ void PointersInDNA::gather_pointer_members_recursive(const SDNA_Struct &sdna_str
+       const SDNA_Struct &sub_sdna_struct = *sdna_.structs[substruct_i];
+       int substruct_size = sdna_.types_size[member.type_index];
+       for (int elem_i = 0; elem_i < array_elem_num; elem_i++) {
+-        this->gather_pointer_members_recursive(
+-            sub_sdna_struct, offset + elem_i * substruct_size, r_struct_info);
++        this->gather_pointer_members_recursive(sub_sdna_struct,
++                                               substruct_i,
++                                               offset + elem_i * substruct_size,
++                                               r_struct_info);
+       }
+     }
+-    offset += get_member_size_in_bytes(&sdna_, &member);
++#ifdef __EMSCRIPTEN__
++    if (!sdna_uses_wasm32_runtime_layout(&sdna_))
++#endif
++    {
++      offset += get_member_size_in_bytes(&sdna_, &member);
++    }
+   }
+ }
+ 
 diff --git a/source/blender/makesdna/intern/makesdna.cc b/source/blender/makesdna/intern/makesdna.cc
-index 700576fc202b96f2b1538aacab9adae739429ee3..78ba19477bb5acc8f8856151c8b1581d1d508e9b 100644
+index 700576fc202b96f2b1538aacab9adae739429ee3..e09f6de783226db3ebab9c54a5ae5ecc2ca1a997 100644
 --- a/source/blender/makesdna/intern/makesdna.cc
 +++ b/source/blender/makesdna/intern/makesdna.cc
 @@ -229,6 +229,63 @@ static int member_size_native(const TypeInfo &member_type, const dna::ParsedMemb
@@ -39598,7 +39979,36 @@ index 700576fc202b96f2b1538aacab9adae739429ee3..78ba19477bb5acc8f8856151c8b1581d
          if (size_native == 0) {
            unknown++;
          }
-@@ -782,6 +860,12 @@ static void write_sdna_verify(FILE *file,
+@@ -546,7 +624,8 @@ static void dna_write(FILE *file, const void *pntr, const int size)
+ /** Serialize the SDNA tables to a file. */
+ static void write_sdna_blob(FILE *file,
+                             const TypeTable &table,
+-                            const Span<dna::ParsedStruct> parsed_structs)
++                            const Span<dna::ParsedStruct> parsed_structs,
++                            const bool use_legacy_32bit_sizes)
+ {
+   /* `raw_data` plus parsed structs. */
+   const int num_structs = 1 + int(parsed_structs.size());
+@@ -560,7 +639,7 @@ static void write_sdna_blob(FILE *file,
+   }
+ 
+   /* FOR DEBUG. */
+-  if (debugSDNA > 1) {
++  if (!use_legacy_32bit_sizes && debugSDNA > 1) {
+     printf("names_len %d types_len %d structs_len %d\n",
+            int(member_names.size()),
+            int(table.types.size()),
+@@ -633,7 +712,8 @@ static void write_sdna_blob(FILE *file,
+   /* WRITE TLEN: size of each type. */
+   dna_write(file, "TLEN", 4);
+   for (const TypeInfo &type : table.types) {
+-    dna_write(file, &type.size_native, 2);
++    const short type_size = use_legacy_32bit_sizes ? type.size_32 : type.size_native;
++    dna_write(file, &type_size, 2);
+   }
+ 
+   /* Pad to multiple of 4 bytes when types count is odd. */
+@@ -782,6 +862,12 @@ static void write_sdna_verify(FILE *file,
      for (const dna::ParsedMember &parsed_member : parsed_struct.members) {
        const TypeInfo &member_type = table.lookup(parsed_member.type_name);
        const StringRef alias_id = DNA_member_id_string_ref(parsed_member.alias_member_name);
@@ -39611,7 +40021,7 @@ index 700576fc202b96f2b1538aacab9adae739429ee3..78ba19477bb5acc8f8856151c8b1581d
        fprintf(file,
                "BLI_STATIC_ASSERT(offsetof(struct %s, %.*s) == %d, \"DNA member offset "
                "verify\");\n",
-@@ -799,6 +883,56 @@ static void write_sdna_verify(FILE *file,
+@@ -799,6 +885,72 @@ static void write_sdna_verify(FILE *file,
    }
  }
  
@@ -39663,12 +40073,35 @@ index 700576fc202b96f2b1538aacab9adae739429ee3..78ba19477bb5acc8f8856151c8b1581d
 +  }
 +  fprintf(file, "\n};\n");
 +}
++
++/* blender-web: emit a second SDNA blob for on-disk files. WebAssembly has 32-bit
++ * pointers but naturally 8-aligns 64-bit scalars, while Blender's interoperable
++ * 32-bit file layout is the historical i386 layout represented by TypeInfo::size_32.
++ * The primary DNAstr remains the exact compiled wasm32 memory layout. */
++static void write_sdna_legacy_32_blob(FILE *file,
++                                      const TypeTable &table,
++                                      const Span<dna::ParsedStruct> parsed_structs)
++{
++  fprintf(file, "\nextern const unsigned char DNAstr_legacy_32[];\n");
++  fprintf(file, "alignas(4) const unsigned char DNAstr_legacy_32[] = {\n");
++  write_sdna_blob(file, table, parsed_structs, true);
++  fprintf(file, "};\n");
++  fprintf(file, "extern const int DNAlen_legacy_32;\n");
++  fprintf(file, "const int DNAlen_legacy_32 = sizeof(DNAstr_legacy_32);\n");
++}
 +#endif /* __EMSCRIPTEN__ */
 +
  /** \} */
  
  /* -------------------------------------------------------------------- */
-@@ -912,6 +1046,11 @@ static bool make_structDNA(const StringRefNull base_directory,
+@@ -906,12 +1058,18 @@ static bool make_structDNA(const StringRefNull base_directory,
+ 
+   /* Write SDNA blob. */
+   DEBUG_PRINTF(0, "Writing file ... ");
+-  write_sdna_blob(file, table, parsed_structs);
++  write_sdna_blob(file, table, parsed_structs, false);
+ 
+   /* Write auxiliary files. */
    write_sdna_type_offsets(file_offsets, parsed_structs);
    write_sdna_struct_ids(file_ids, parsed_structs);
    write_sdna_verify(file_verify, table, parsed_structs, base_directory);
@@ -39676,6 +40109,7 @@ index 700576fc202b96f2b1538aacab9adae739429ee3..78ba19477bb5acc8f8856151c8b1581d
 +  /* blender-web: append the wasm32 runtime member-offset table to dna_verify.cc (a
 +   * compiled bf_dna TU). Wasm makesdna only; native output unchanged. */
 +  write_sdna_member_offsets(file_verify, table, parsed_structs);
++  write_sdna_legacy_32_blob(file_verify, table, parsed_structs);
 +#endif
  
    DEBUG_PRINTF(0, "done.\n");

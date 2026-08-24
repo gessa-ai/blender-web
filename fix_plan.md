@@ -2201,13 +2201,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   type-specific state loss. The freshly linked headless Wasm graph ends no-work. The focused
   component receipt does not promote M7 or claim stock-native readability of Wasm32 output. See
   `notes/m7-omitted-type-roundtrip-20260824.md`.
-- [ ] **M7-WASM32-WRITE-CROSS-ABI [driver, blocked-by: none]:** make Wasm32-saved `.blend` files
-  readable by unmodified pinned native Blender. A minimal factory-startup save and the R9 fixture
-  both fail native load with `unexpected data size` and an invalid Scene root collection. Patch
-  0014 fixes only reconstruction's Wasm target offsets; the writer must emit the canonical legacy
-  32-bit file layout and force Wasm reconstruction where compiled/member offsets diverge, without
-  a Scene special-case or native-reader patch. Require stock-native and Wasm reload state parity
-  plus old 32-bit corpus preservation before closing.
+- [x] **M7-WASM32-WRITE-CROSS-ABI [driver, blocked-by: none] COMPLETE (patch 0248):** regular
+  Wasm32 saves now reconstruct compiled structs into Blender's canonical historical 32-bit layout
+  before pointer remapping, while live memory and undo retain the real wasm32 layout. Unmodified
+  pinned native Blender and Wasm preserve seven exact semantic states across both directions; the
+  pinned historical BHead4 corpus round-trips with 1,718 independently checked structured blocks,
+  upstream global undo preserves runtime-layout memfiles, and fourteen mutations reject schema,
+  header, length, truncation, and semantic corruption. Native makesdna output remains
+  byte-identical. See
+  `notes/m7-wasm32-write-cross-abi-20260824.md`.
 - [ ] **AUDIT-R9-GHOST-CALLBACK-CENSUS [ghost-web, blocked-by: none]:** enumerate every
   `CallbackMode::AllowSpontaneous` registration structurally, require every owner-affine callback
   to enter the shared lifetime gate, and add a raw-owner-alias mutation that the current eight-role

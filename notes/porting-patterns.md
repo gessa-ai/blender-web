@@ -1077,3 +1077,22 @@ controls that preserve the retired raw count while removing a real gate, replace
 with a default, and add a callback; all must fail. Pair that source manifest with a device-free
 production-shaped matrix covering every named callback before loss and after loss/destruction on
 native and wasm32. See `sandbox/audit-r8/`.
+
+## Class 75 — wasm32 memory layout is not Blender's historical 32-bit file layout
+
+Signature: a Wasm build can load a native `.blend` and save it successfully, but stock native
+Blender rejects the Wasm output with `unexpected data size` or reads shifted fields such as a null
+Scene root collection. Both ABIs use four-byte pointers, yet wasm32 naturally aligns 64-bit
+scalars to eight bytes while Blender's canonical 32-bit file layout is the historical i386
+four-byte-alignment model. SDNA records type sizes and members, not member offsets, so emitting
+wasm32's compiled type lengths does not make its raw struct bytes portable. Keep the generated
+runtime SDNA for live memory and undo memfiles, emit a second canonical `size_32` SDNA for regular
+files, force comparison when either member offsets or tail padding diverge, and reconstruct each
+struct field-by-field before remapping its pointers. Use makesdna's verified runtime-offset table
+on the memory side only; the file side retains SDNA's sequential historical walk. Tag parsed undo
+SDNA as runtime-layout and use the same table for recursive pointer traversal, because offsets are
+otherwise absent there too. Preserve native generated output byte-for-byte and prove stock-native
+reload, an old BHead4 corpus round-trip, and global undo. See
+`patches/0248-wasm32-canonical-blend-write.patch`,
+`notes/m7-wasm32-write-cross-abi-20260824.md`, and
+`sandbox/m7-wasm32-write-cross-abi/`.

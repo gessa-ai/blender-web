@@ -1047,3 +1047,6 @@
 # 0247: validate large-upload staging-buffer creation under an ordered transient
 # resource gate before its dependent command ticket can reach submission.
 0247-gpu-webgpu-staging-resource-scope.patch
+# 0248: reconstruct regular wasm32 saves into Blender's canonical historical
+# 32-bit layout while retaining the compiled wasm layout for memory and undo.
+0248-wasm32-canonical-blend-write.patch

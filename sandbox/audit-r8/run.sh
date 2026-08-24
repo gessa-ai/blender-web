@@ -45,6 +45,15 @@ if ! grep -Fq 'completeInitialization(false);' <<<"$PROPAGATE_BODY"; then
   echo "ERROR: terminal device loss does not settle pending initialization" >&2
   exit 1
 fi
+COMPLETE_BODY="$(sed -n \
+  '/void GHOST_ContextWGPUWeb::completeInitialization(/,/bool GHOST_ContextWGPUWeb::deviceIsUsable()/p' \
+  "$CONTEXT_CC")"
+if ! grep -Fq 'ReadyCallback on_ready = std::move(on_ready_);' <<<"$COMPLETE_BODY" ||
+   ! grep -Fq 'on_ready_ = nullptr;' <<<"$COMPLETE_BODY" ||
+   grep -Fq 'on_ready_(success);' <<<"$COMPLETE_BODY"; then
+  echo "ERROR: ready callback is not detached from owner storage before delivery" >&2
+  exit 1
+fi
 if [[ "$(grep -Fc 'auto owner_execution = lifetime->enter();' "$CONTEXT_CC")" -ne 9 ||
       "$(grep -Fc 'auto owner_execution = lifetime->enter();' "$CONTEXT_HH")" -ne 8 ]]; then
   echo "ERROR: shipping public owner-execution census changed" >&2
@@ -109,6 +118,9 @@ grep -Fqx \
 grep -Fqx \
   "CONTRACT ghost_loss_init_settlement PASS backbuffer=failed_once configuration=failed_once pending=cleared raw_owner=0" \
   "$AUDIT_TMP/accepted-native.log"
+grep -Fqx \
+  "CONTRACT ghost_ready_callback_lifetime PASS self_destroy=continued member_cleared=1" \
+  "$AUDIT_TMP/accepted-native.log"
 
 set +e
 ASAN_OPTIONS="abort_on_error=1:detect_leaks=0:symbolize=0" \
@@ -125,4 +137,19 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-owner-race.log"; then
   exit 1
 fi
 
-echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 loss_init_settlement=2 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=1"
+set +e
+ASAN_OPTIONS="abort_on_error=1:detect_leaks=0:symbolize=0" \
+  timeout 15s "$AUDIT_TMP/ghost_callback_gap_test_native" --unsafe-ready-self-destroy \
+  >"$AUDIT_TMP/unsafe-ready-self-destroy.log" 2>&1
+READY_RC=$?
+set -e
+if [[ "$READY_RC" -eq 0 || "$READY_RC" -eq 124 ]]; then
+  echo "ERROR: unsafe ready self-destruction did not reach the expected ASan rejection" >&2
+  exit 1
+fi
+if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-ready-self-destroy.log"; then
+  echo "ERROR: unsafe ready self-destruction failed without the expected ASan diagnosis" >&2
+  exit 1
+fi
+
+echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"

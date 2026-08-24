@@ -148,18 +148,54 @@ struct ReadyObservation {
   bool success = true;
 };
 
+struct ReadyLifetimeObservation {
+  int calls = 0;
+  bool success = false;
+  bool continued_after_delete = false;
+};
+
+template<typename OwnerT> struct SelfDestroyingReady {
+  static constexpr uint64_t marker_value = UINT64_C(0x7767707572656164);
+
+  OwnerT **owner_slot = nullptr;
+  std::shared_ptr<ReadyLifetimeObservation> observation;
+  volatile uint64_t marker = marker_value;
+
+#if defined(__GNUC__) || defined(__clang__)
+  __attribute__((noinline))
+#endif
+  void operator()(const bool success)
+  {
+    observation->calls++;
+    observation->success = success;
+    OwnerT *owner = *owner_slot;
+    *owner_slot = nullptr;
+    delete owner;
+
+    /* The callable must remain alive after it destroys the owner that originally stored it. */
+    const bool callable_survived = marker == marker_value;
+    observation->continued_after_delete = callable_survived;
+  }
+};
+
 class InitializationProbe {
  public:
   using Lifetime = gw::OwnerCallbackLifetime<InitializationProbe>;
+  using ReadyCallback = std::function<void(bool)>;
 
   InitializationProbe(const InitializationStage stage,
                       const std::shared_ptr<ReadyObservation> &ready_observation)
-      : backbuffer_pending_(true),
-        configuration_pending_(stage == InitializationStage::SurfaceConfiguration),
-        on_ready_([ready_observation](const bool success) {
+      : InitializationProbe(stage, [ready_observation](const bool success) {
           ready_observation->calls++;
           ready_observation->success = success;
-        }),
+        })
+  {
+  }
+
+  InitializationProbe(const InitializationStage stage, ReadyCallback on_ready)
+      : backbuffer_pending_(true),
+        configuration_pending_(stage == InitializationStage::SurfaceConfiguration),
+        on_ready_(std::move(on_ready)),
         lifetime_(std::make_shared<Lifetime>(*this))
   {
   }
@@ -175,6 +211,19 @@ class InitializationProbe {
     return lifetime_;
   }
 
+  void complete_initialization(const bool success)
+  {
+    if (initialization_settled_) {
+      return;
+    }
+    initialization_settled_ = true;
+    ReadyCallback on_ready = std::move(on_ready_);
+    on_ready_ = nullptr;
+    if (on_ready) {
+      on_ready(success);
+    }
+  }
+
   void propagate_device_loss()
   {
     if (device_loss_propagated_) {
@@ -184,10 +233,7 @@ class InitializationProbe {
     lifetime_->cancel();
     backbuffer_pending_ = false;
     configuration_pending_ = false;
-    if (!initialization_settled_) {
-      initialization_settled_ = true;
-      on_ready_(false);
-    }
+    complete_initialization(false);
   }
 
   bool has_pending_initialization() const
@@ -200,7 +246,40 @@ class InitializationProbe {
   bool configuration_pending_ = false;
   bool initialization_settled_ = false;
   bool device_loss_propagated_ = false;
-  std::function<void(bool)> on_ready_;
+  ReadyCallback on_ready_;
+  std::shared_ptr<Lifetime> lifetime_;
+};
+
+class UnsafeReadyProbe {
+ public:
+  using Lifetime = gw::OwnerCallbackLifetime<UnsafeReadyProbe>;
+  using ReadyCallback = std::function<void(bool)>;
+
+  explicit UnsafeReadyProbe(ReadyCallback on_ready)
+      : on_ready_(std::move(on_ready)), lifetime_(std::make_shared<Lifetime>(*this))
+  {
+  }
+
+  ~UnsafeReadyProbe()
+  {
+    lifetime_->cancel();
+    lifetime_->invalidate();
+  }
+
+  std::shared_ptr<Lifetime> lifetime() const
+  {
+    return lifetime_;
+  }
+
+  void complete_initialization(const bool success)
+  {
+    if (on_ready_) {
+      on_ready_(success);
+    }
+  }
+
+ private:
+  ReadyCallback on_ready_;
   std::shared_ptr<Lifetime> lifetime_;
 };
 
@@ -292,6 +371,18 @@ int run_unsafe_owner_race()
   allow_owner_access.store(true, std::memory_order_release);
   completion.join();
   return 0;
+}
+
+int run_unsafe_ready_self_destruction()
+{
+  const auto observation = std::make_shared<ReadyLifetimeObservation>();
+  UnsafeReadyProbe *owner = nullptr;
+  owner = new UnsafeReadyProbe(SelfDestroyingReady<UnsafeReadyProbe>{&owner, observation});
+  const std::shared_ptr<UnsafeReadyProbe::Lifetime> lifetime = owner->lifetime();
+  lifetime->deliver([](UnsafeReadyProbe &loaded_owner) {
+    loaded_owner.complete_initialization(true);
+  });
+  return observation->continued_after_delete ? 0 : 2;
 }
 
 bool run_concurrent_owner_contract()
@@ -616,12 +707,32 @@ bool run_loss_initialization_contract()
          run_loss_initialization_stage(InitializationStage::SurfaceConfiguration);
 }
 
+bool run_ready_callback_lifetime_contract()
+{
+  const auto observation = std::make_shared<ReadyLifetimeObservation>();
+  InitializationProbe *owner = nullptr;
+  owner = new InitializationProbe(
+      InitializationStage::BackbufferCreation,
+      SelfDestroyingReady<InitializationProbe>{&owner, observation});
+  const std::shared_ptr<InitializationProbe::Lifetime> lifetime = owner->lifetime();
+  const bool delivered = lifetime->deliver([](InitializationProbe &loaded_owner) {
+    loaded_owner.complete_initialization(true);
+  });
+
+  return delivered && owner == nullptr && observation->calls == 1 && observation->success &&
+         observation->continued_after_delete &&
+         !lifetime->deliver([](InitializationProbe & /*loaded_owner*/) {});
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
 {
   if (argc == 2 && std::string_view(argv[1]) == "--unsafe-owner-race") {
     return run_unsafe_owner_race();
+  }
+  if (argc == 2 && std::string_view(argv[1]) == "--unsafe-ready-self-destroy") {
+    return run_unsafe_ready_self_destruction();
   }
   if (!run_concurrent_owner_contract()) {
     std::fprintf(stderr, "FAIL: synchronized owner delivery contract\n");
@@ -655,11 +766,16 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "FAIL: fallback loss initialization-settlement contract\n");
     return 1;
   }
+  if (!run_ready_callback_lifetime_contract()) {
+    std::fprintf(stderr, "FAIL: ready-callback lifetime contract\n");
+    return 1;
+  }
   std::puts("CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked");
   std::puts("CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1");
   std::puts("CONTRACT ghost_owner_execution PASS callback_owner=serialized cleanup=quiescent");
   std::puts("CONTRACT ghost_destruction_admission PASS nested=blocked queued=blocked");
   std::puts("CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block");
   std::puts("CONTRACT ghost_loss_init_settlement PASS backbuffer=failed_once configuration=failed_once pending=cleared raw_owner=0");
+  std::puts("CONTRACT ghost_ready_callback_lifetime PASS self_destroy=continued member_cleared=1");
   return 0;
 }

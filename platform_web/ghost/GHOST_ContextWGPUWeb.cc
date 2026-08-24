@@ -508,8 +508,10 @@ void GHOST_ContextWGPUWeb::completeInitialization(const bool success)
   }
   initialization_settled_ = true;
   ready_ = success;
-  if (on_ready_) {
-    on_ready_(success);
+  ReadyCallback on_ready = std::move(on_ready_);
+  on_ready_ = nullptr;
+  if (on_ready) {
+    on_ready(success);
   }
 }
 

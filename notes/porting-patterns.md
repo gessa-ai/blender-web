@@ -1042,3 +1042,14 @@ all pending work and GPU handles, and invokes failed initialization settlement e
 final owner action. Exercise independent loss during both pending stages, duplicate loss, and late
 completion delivery on native and wasm32; retain a source binding that forbids a raw owner capture.
 See `sandbox/audit-r8/`.
+
+## Class 72 — a self-destroying callback cannot execute from owner member storage
+
+Signature: an initialization settlement calls a `std::function` member directly, and the callable
+deletes the context that owns that member. Destruction frees the active callable storage while its
+`operator()` is still executing, so even a final callback with no later owner-field access has a
+heap-use-after-free. Move the callback into a local, explicitly clear the member, and invoke the
+local as the settlement path's final action. Exercise a production-shaped callback that deletes
+its owner, continues inside its own callable storage, and rejects later owner delivery under native
+AddressSanitizer and wasm32; retain the direct member invocation as an unsafe ASan control. See
+`sandbox/audit-r8/`.

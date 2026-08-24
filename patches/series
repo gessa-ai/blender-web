@@ -1071,3 +1071,6 @@
 # 0255: retain box/lasso/circle raw ID reads and exact shape/context inputs,
 # then resume edit-mesh gesture mutation through bounded modal continuations.
 0255-m5-legacy-selection-gesture-continuation.patch
+# 0256: retain one exact progressive auto-depth request for 3D cursor placement,
+# then reject superseded or drifted state before bounded modal replay.
+0256-m5-cursor-depth-pick-continuation.patch

@@ -2317,6 +2317,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   polygon-mask, strict circle-radius, bitmap-index, pre-deselect, exact circle-input replay, and
   queued-event semantics pass byte-identical native/wasm32 contracts. Three synchronous families
   remain. See `notes/m5-legacy-selection-gesture-continuation-20260824.md`.
+- [x] **M5-CURSOR-DEPTH-PICK-CONTINUATION [driver, complete]:** COMPLETE (patch 0256;
+  Linux receipts `20260824T185550-361269`/`20260824T185406-360275`/
+  `20260824T185413-360351`): cursor placement now owns one exact progressive 0/2/4-pixel depth
+  request across a bounded View3D modal continuation. Native immediate and browser pending paths
+  preserve the producing event/orientation; supersession, failure, timeout, view drift, and later
+  cursor mutation cancel without a stale write. Six native/wasm32 contracts are byte-identical
+  and 13 source mutations fail closed. The depth-pick family remains partial for navigation,
+  center-pick, eyedropper, painting, zoom-border, and NDOF consumers; the overall census therefore
+  remains three families.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

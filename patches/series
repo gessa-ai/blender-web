@@ -1062,3 +1062,6 @@
 # 0252: retain one owned window snapshot across all three modal colour samplers
 # and resume confirmed actions through bounded event-loop polling.
 0252-m5-window-color-async-readback.patch
+# 0253: own the legacy draw-selection framebuffer request across browser ticks
+# while preserving exact viewport clamp and synchronous buffer realignment.
+0253-m5-legacy-selection-readback-primitive.patch

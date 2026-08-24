@@ -32,6 +32,7 @@ SOURCE_PATHS = (
     "source/blender/gpu/webgpu/wgpu_storage_buffer.cc",
     "source/blender/gpu/webgpu/wgpu_texture.cc",
     "source/blender/gpu/webgpu/wgpu_texture.hh",
+    "source/blender/draw/DRW_select_buffer.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
     "source/blender/editors/screen/screendump.cc",
@@ -150,6 +151,8 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     storage_backend = sources["source/blender/gpu/webgpu/wgpu_storage_buffer.cc"]
     select_state = sources["source/blender/gpu/intern/gpu_select_next.cc"]
     select_api = sources["source/blender/gpu/GPU_select.hh"]
+    select_buffer_api = sources["source/blender/draw/DRW_select_buffer.hh"]
+    select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
     view_select = sources["source/blender/editors/space_view3d/view3d_select.cc"]
     view_query = sources["source/blender/editors/space_view3d/view3d_view.cc"]
@@ -179,6 +182,105 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "void GPU_readback_cancel(GPUReadback *&readback);",
     ):
         require(needle in readback_header, f"owned API missing {needle!r}")
+
+    for needle in (
+        "struct DRWSelectBufferReadback;",
+        "DRWSelectBufferReadback *DRW_select_buffer_read_async(",
+        "eGPUReadbackStatus DRW_select_buffer_read_async_status(",
+        "eGPUReadbackError DRW_select_buffer_read_async_error(",
+        "uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *&readback",
+        "void DRW_select_buffer_read_async_cancel(DRWSelectBufferReadback *&readback);",
+    ):
+        require(needle in select_buffer_api, f"owned selection-buffer API missing {needle!r}")
+
+    selection_state = braced_definition(
+        select_buffer, "struct DRWSelectBufferReadback", "selection readback state"
+    )
+    for needle in (
+        "GPUReadback *gpu_readback = nullptr;",
+        "rcti rect",
+        "rcti rect_clamp",
+        "uint buffer_len = 0;",
+        "uint clamped_len = 0;",
+        "eGPUReadbackStatus status = GPU_READBACK_PENDING;",
+        "eGPUReadbackError error = GPU_READBACK_ERROR_NONE;",
+    ):
+        require(needle in selection_state, f"selection readback state missing {needle!r}")
+
+    selection_begin = braced_definition(
+        select_buffer,
+        "DRWSelectBufferReadback *DRW_select_buffer_read_async(",
+        "selection readback begin",
+    )
+    require_ordered(
+        selection_begin,
+        (
+            "MEM_new<DRWSelectBufferReadback>",
+            "BLI_rcti_isect(",
+            "DRW_gpu_context_enable();",
+            "select_ctx->is_dirty(depsgraph, rv3d)",
+            "DRW_draw_select_id(depsgraph, region, v3d);",
+            "GPU_framebuffer_read_color_async(",
+            "GPU_framebuffer_restore();",
+            "DRW_gpu_context_disable();",
+        ),
+        "selection readback begin",
+    )
+
+    selection_status = braced_definition(
+        select_buffer,
+        "eGPUReadbackStatus DRW_select_buffer_read_async_status(",
+        "selection readback status",
+    )
+    require_ordered(
+        selection_status,
+        (
+            "readback == nullptr",
+            "readback->status != GPU_READBACK_PENDING",
+            "GPU_readback_status(readback->gpu_readback)",
+            "status == GPU_READBACK_PENDING",
+            "status != GPU_READBACK_READY",
+            "GPU_readback_error(readback->gpu_readback)",
+            "GPU_readback_size(readback->gpu_readback) != expected_size",
+            "GPU_READBACK_ERROR_BACKEND_FAILURE",
+            "readback->status = GPU_READBACK_READY;",
+        ),
+        "selection readback status",
+    )
+
+    selection_consume = braced_definition(
+        select_buffer,
+        "uint *DRW_select_buffer_read_async_consume(",
+        "selection readback consume",
+    )
+    require_ordered(
+        selection_consume,
+        (
+            "DRW_select_buffer_read_async_status(readback) != GPU_READBACK_READY",
+            "readback->buffer_len == 0",
+            "MEM_new_array_uninitialized<uint>",
+            "GPU_readback_consume(readback->gpu_readback",
+            "GPU_select_buffer_stride_realign(&readback->rect, &readback->rect_clamp, buffer);",
+            "MEM_delete(readback);",
+            "readback = nullptr;",
+        ),
+        "selection readback consume",
+    )
+
+    selection_cancel = braced_definition(
+        select_buffer,
+        "void DRW_select_buffer_read_async_cancel(",
+        "selection readback cancel",
+    )
+    require_ordered(
+        selection_cancel,
+        (
+            "GPU_readback_cancel(readback->gpu_readback);",
+            "MEM_delete(readback);",
+            "readback = nullptr;",
+        ),
+        "selection readback cancel",
+    )
     for needle in (
         "virtual ~GPUReadback() = default;",
         "virtual eGPUReadbackStatus status() = 0;",
@@ -558,6 +660,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "contracts": {
             "owned_result_api": True,
             "framebuffer_owned_region_api": True,
+            "selection_buffer_owned_request": True,
             "webgpu_exact_tickets": True,
             "object_pick_continuation": True,
             "window_color_continuation": True,
@@ -620,6 +723,36 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "GPU_framebuffer_read_color(select_id_fb",
             "GPU_framebuffer_read_color_async(select_id_fb",
             "remaining caller census",
+        ),
+        (
+            "source/blender/draw/DRW_select_buffer.hh",
+            "uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *&readback",
+            "uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *readback",
+            "selection request ownership",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "GPU_framebuffer_read_color_async(",
+            "GPU_framebuffer_read_color(",
+            "selection async source",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "GPU_readback_size(readback->gpu_readback) != expected_size",
+            "GPU_readback_size(readback->gpu_readback) > expected_size",
+            "selection exact size",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "GPU_select_buffer_stride_realign(&readback->rect, &readback->rect_clamp, buffer);",
+            "/* clamped bytes left packed */",
+            "selection clamp realignment",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "GPU_readback_cancel(readback->gpu_readback);\n  MEM_delete(readback);",
+            "/* GPU request leaked */\n  MEM_delete(readback);",
+            "selection cancellation",
         ),
         (
             "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",

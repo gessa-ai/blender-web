@@ -21,10 +21,17 @@ conversion only after that ticket settles. This is the shared primitive needed
 before legacy selection-buffer and depth callers can become modal continuations;
 it does not claim either caller family is converted yet.
 
+The draw-selection layer now has its own owned raw-buffer request on top of that
+framebuffer primitive. Native and wasm32 contracts cover pending and immediate
+completion, exact byte-size rejection, out-of-viewport empty results, viewport
+clamp/stride realignment, backend failure, and cancellation. The synchronous
+selection helpers remain intact until their gesture/operator continuations land.
+
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
-exact WebGPU tickets, temporary select-engine ownership transfer, and both bounded
-modal operator continuations. All three non-viewport eyedroppers share one owned
-window snapshot while browser mapping is pending and preserve native immediate completion.
+the owned draw-selection request, exact WebGPU tickets, temporary select-engine
+ownership transfer, and both bounded modal operator continuations. All three
+non-viewport eyedroppers share one owned window snapshot while browser mapping
+is pending and preserve native immediate completion.
 It also requires the four still-synchronous caller families (legacy selection-buffer
 read, depth pick, depth cache, and WM window capture) to stay visible. The screenshot
 operator has its own owned-capture continuation contract; the ledger row remains

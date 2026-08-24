@@ -37,6 +37,7 @@ require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/CMakeLists.txt"
 require_file "$HERE/contract_test.cc"
 require_file "$HERE/verify_source.py"
+require_file "$HERE/verify_numbered_patch.py"
 require_file "$NATIVE_FMT/fmt/ranges.h"
 require_file "$WASM_FMT/fmt/ranges.h"
 require_file "$EMSDK/emsdk_env.sh"
@@ -61,6 +62,9 @@ fi
 
 # Malformed production seams must reject before this run allocates evidence.
 "$PYBIN" "$HERE/verify_source.py" --source-root "$ROOT/upstream" --selfcheck
+"$PYBIN" "$HERE/verify_numbered_patch.py" \
+  --source-root "$ROOT/upstream" \
+  --patch "$ROOT/patches/0253-m5-legacy-selection-readback-primitive.patch"
 SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/series-replay/verify.py" --canonical-only)"
 case "$SOURCE_PROOF" in
   CANONICAL_REPLAY_PASS\ *) ;;
@@ -114,9 +118,9 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 4 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ] ||
      ! grep -qx \
-       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=4 modes=3 failures=3 transforms=1' \
+       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=5 modes=3 failures=3 transforms=1 selection_cases=6' \
        "$stdout_file"
   then
     echo "ERROR: async-readback PASS census differs: $stdout_file" >&2
@@ -132,6 +136,7 @@ if ! jq -e \
   '.verdict == "PASS" and
    .contracts.owned_result_api == true and
    .contracts.framebuffer_owned_region_api == true and
+   .contracts.selection_buffer_owned_request == true and
    .contracts.webgpu_exact_tickets == true and
    .contracts.object_pick_continuation == true and
    .contracts.window_color_continuation == true and

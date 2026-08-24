@@ -2297,6 +2297,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   timers, with cancellation before pixel release. Native/wasm32 contracts are byte-identical;
   the partial deferral now names four synchronous families. See
   `notes/m5-window-color-readback-20260824.md`.
+- [x] **M5-LEGACY-SELECTION-READBACK-PRIMITIVE [driver, complete]:** COMPLETE (patch 0253;
+  Linux receipt `20260824T163743-254924`): the draw-selection layer now owns an exact
+  viewport-clamped framebuffer request and realigns only settled bytes into the synchronous
+  layout. Five native/wasm32 contracts are byte-identical and 14 source mutations fail closed.
+  This is an enabler only: all four synchronous caller families remain explicitly deferred. See
+  `notes/m5-legacy-selection-readback-primitive-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

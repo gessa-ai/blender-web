@@ -518,6 +518,230 @@ bool async_failure_contract()
   return true;
 }
 
+int rect_width(const blender::rcti &rect)
+{
+  return rect.xmax - rect.xmin;
+}
+
+int rect_height(const blender::rcti &rect)
+{
+  return rect.ymax - rect.ymin;
+}
+
+void selection_stride_realign(const blender::rcti &source,
+                              const blender::rcti &clamped,
+                              std::vector<uint> &buffer)
+{
+  const int x = clamped.xmin - source.xmin;
+  const int y = clamped.ymin - source.ymin;
+  const int source_width = rect_width(source);
+  const int source_height = rect_height(source);
+  const int clamped_width = rect_width(clamped);
+  const int clamped_height = rect_height(clamped);
+  int last_pixel = source_width * (y + clamped_height - 1) + (x + clamped_width - 1);
+  std::fill(buffer.begin() + last_pixel + 1, buffer.end(), 0u);
+  int last_written = clamped_width * clamped_height - 1;
+  const int skip = source_width - clamped_width;
+  while (true) {
+    for (int index = clamped_width; index--;) {
+      buffer[last_pixel--] = buffer[last_written--];
+    }
+    if (last_written < 0) {
+      break;
+    }
+    last_pixel -= skip;
+    std::fill(buffer.begin() + last_pixel + 1, buffer.begin() + last_pixel + 1 + skip, 0u);
+  }
+  std::fill(buffer.begin(), buffer.begin() + last_pixel + 1, 0u);
+}
+
+class SelectionBufferRequest {
+ private:
+  blender::GPUReadback *gpu_readback_ = nullptr;
+  blender::rcti rect_ = {};
+  blender::rcti rect_clamp_ = {};
+  size_t buffer_len_ = 0;
+  size_t clamped_len_ = 0;
+  blender::eGPUReadbackStatus status_ = blender::GPU_READBACK_PENDING;
+  blender::eGPUReadbackError error_ = blender::GPU_READBACK_ERROR_NONE;
+
+ public:
+  SelectionBufferRequest(blender::GPUReadback *gpu_readback,
+                         const blender::rcti rect,
+                         const blender::rcti rect_clamp)
+      : gpu_readback_(gpu_readback),
+        rect_(rect),
+        rect_clamp_(rect_clamp),
+        buffer_len_(size_t(rect_width(rect)) * size_t(rect_height(rect))),
+        clamped_len_(size_t(rect_width(rect_clamp)) * size_t(rect_height(rect_clamp)))
+  {
+  }
+
+  SelectionBufferRequest()
+  {
+    status_ = blender::GPU_READBACK_READY;
+  }
+
+  ~SelectionBufferRequest()
+  {
+    blender::GPU_readback_cancel(gpu_readback_);
+  }
+
+  blender::eGPUReadbackStatus status()
+  {
+    using namespace blender;
+    if (status_ != GPU_READBACK_PENDING) {
+      return status_;
+    }
+    const eGPUReadbackStatus child_status = GPU_readback_status(gpu_readback_);
+    if (child_status == GPU_READBACK_PENDING) {
+      return child_status;
+    }
+    if (child_status != GPU_READBACK_READY) {
+      error_ = GPU_readback_error(gpu_readback_);
+      if (error_ == GPU_READBACK_ERROR_NONE) {
+        error_ = GPU_READBACK_ERROR_BACKEND_FAILURE;
+      }
+      GPU_readback_cancel(gpu_readback_);
+      status_ = GPU_READBACK_FAILED;
+      return status_;
+    }
+    if (GPU_readback_size(gpu_readback_) != clamped_len_ * sizeof(uint)) {
+      GPU_readback_cancel(gpu_readback_);
+      error_ = GPU_READBACK_ERROR_BACKEND_FAILURE;
+      status_ = GPU_READBACK_FAILED;
+      return status_;
+    }
+    status_ = GPU_READBACK_READY;
+    return status_;
+  }
+
+  blender::eGPUReadbackError error()
+  {
+    status();
+    return error_;
+  }
+
+  bool consume(std::vector<uint> &buffer)
+  {
+    using namespace blender;
+    if (status() != GPU_READBACK_READY) {
+      return false;
+    }
+    if (buffer_len_ == 0) {
+      buffer.clear();
+      status_ = GPU_READBACK_INVALID;
+      return true;
+    }
+    buffer.resize(buffer_len_);
+    if (!GPU_readback_consume(gpu_readback_, buffer.data(), buffer.size() * sizeof(uint))) {
+      buffer.clear();
+      error_ = GPU_READBACK_ERROR_BACKEND_FAILURE;
+      status_ = GPU_READBACK_FAILED;
+      return false;
+    }
+    if (!BLI_rcti_compare(&rect_, &rect_clamp_)) {
+      selection_stride_realign(rect_, rect_clamp_, buffer);
+    }
+    status_ = GPU_READBACK_INVALID;
+    return true;
+  }
+
+  void cancel()
+  {
+    blender::GPU_readback_cancel(gpu_readback_);
+    status_ = blender::GPU_READBACK_INVALID;
+  }
+};
+
+bool selection_buffer_request_contract()
+{
+  using namespace blender;
+  int destroy_count = 0;
+  std::vector<uint> output = {99u};
+
+  const rcti exact_rect{0, 2, 0, 2};
+  const uint exact_values[] = {11u, 12u, 21u, 22u};
+  ControlledReadback *exact_controlled = controlled_readback(
+      as_bytes(exact_values, std::size(exact_values)), destroy_count);
+  SelectionBufferRequest exact(exact_controlled, exact_rect, exact_rect);
+  if (!require(exact.status() == GPU_READBACK_PENDING, "selection exact pending") ||
+      !require(!exact.consume(output) && output == std::vector<uint>{99u},
+               "selection pending consume retains output") ||
+      !require(destroy_count == 0, "selection pending retains owner"))
+  {
+    return false;
+  }
+  exact_controlled->mark_ready();
+  if (!require(exact.status() == GPU_READBACK_READY, "selection exact ready") ||
+      !require(exact.consume(output), "selection exact consume") ||
+      !require(output == std::vector<uint>({11u, 12u, 21u, 22u}),
+               "selection exact bytes") ||
+      !require(destroy_count == 1, "selection exact retires owner"))
+  {
+    return false;
+  }
+
+  const rcti full_rect{-1, 3, -1, 2};
+  const rcti clamped_rect{0, 3, 0, 2};
+  const uint clamped_values[] = {1u, 2u, 3u, 4u, 5u, 6u};
+  ControlledReadback *clamped_controlled = controlled_readback(
+      as_bytes(clamped_values, std::size(clamped_values)), destroy_count);
+  clamped_controlled->mark_ready();
+  SelectionBufferRequest clamped(clamped_controlled, full_rect, clamped_rect);
+  if (!require(clamped.consume(output), "selection clamped consume") ||
+      !require(output == std::vector<uint>({0u, 0u, 0u, 0u, 0u, 1u,
+                                            2u, 3u, 0u, 4u, 5u, 6u}),
+               "selection clamped realign") ||
+      !require(destroy_count == 2, "selection clamped retires owner"))
+  {
+    return false;
+  }
+
+  SelectionBufferRequest empty;
+  output = {7u};
+  if (!require(empty.status() == GPU_READBACK_READY, "selection empty ready") ||
+      !require(empty.consume(output) && output.empty(), "selection empty consume"))
+  {
+    return false;
+  }
+
+  const rcti two_pixel_rect{0, 2, 0, 1};
+  ControlledReadback *wrong_size = controlled_readback(as_bytes(exact_values, 1), destroy_count);
+  wrong_size->mark_ready();
+  SelectionBufferRequest mismatched(wrong_size, two_pixel_rect, two_pixel_rect);
+  if (!require(mismatched.status() == GPU_READBACK_FAILED, "selection size mismatch") ||
+      !require(mismatched.error() == GPU_READBACK_ERROR_BACKEND_FAILURE,
+               "selection size mismatch error") ||
+      !require(destroy_count == 3, "selection size mismatch retires owner"))
+  {
+    return false;
+  }
+
+  ControlledReadback *failed = controlled_readback(as_bytes(exact_values, 2), destroy_count);
+  failed->mark_failed(GPU_READBACK_ERROR_MAP_FAILED);
+  SelectionBufferRequest failed_request(failed, two_pixel_rect, two_pixel_rect);
+  if (!require(failed_request.status() == GPU_READBACK_FAILED, "selection backend failure") ||
+      !require(failed_request.error() == GPU_READBACK_ERROR_MAP_FAILED,
+               "selection backend error") ||
+      !require(destroy_count == 4, "selection backend failure retires owner"))
+  {
+    return false;
+  }
+
+  ControlledReadback *canceled = controlled_readback(as_bytes(exact_values, 2), destroy_count);
+  SelectionBufferRequest canceled_request(canceled, two_pixel_rect, two_pixel_rect);
+  canceled_request.cancel();
+  if (!require(canceled_request.status() == GPU_READBACK_INVALID, "selection cancel invalid") ||
+      !require(destroy_count == 5, "selection cancel retires owner"))
+  {
+    return false;
+  }
+
+  std::printf("CONTRACT selection-buffer-request PASS cases=6 realign_pixels=12 retired=5\n");
+  return true;
+}
+
 }  // namespace
 
 namespace mem_guarded::internal {
@@ -560,11 +784,12 @@ bool BLI_rcti_compare(const rcti *left, const rcti *right)
 int main()
 {
   if (!owned_result_contract() || !transform_result_contract() || !async_selection_contract() ||
-      !async_failure_contract())
+      !async_failure_contract() || !selection_buffer_request_contract())
   {
     return 1;
   }
   std::printf(
-      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=4 modes=3 failures=3 transforms=1\n");
+      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=5 modes=3 failures=3 transforms=1 "
+      "selection_cases=6\n");
   return 0;
 }

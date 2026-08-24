@@ -139,6 +139,14 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
 - [x] **M1.10 [harness]** blenlib gtests GREEN on wasm/node: **1655/1665**, 10 non-passes all
   characterized non-faithfulness (9 fenv deferral + 1 macOS-host chdir). `ledger/results/m1.json`.
   Harness `m1` scope registration deferred to the M1-boundary reconcile (H-4).
+- [x] **M1-FENV-DEFERRAL-CLOSURE [driver, blocked-by: none] COMPLETE:** the current canonical
+  evaluator uses a software exception accumulator instead of relying on wasm's absent fenv status
+  register. Fresh Linux native/wasm focused runs pass the same 144 `expr_pylike` cases, and sealed
+  receipt `m1-fenv-closure-ornith-linux-20260824-r3` passes BLI 1,667/1,667, bmesh-core 1/1,
+  corpus 9/9, and versioning 12/12 against the current 20,258-entry freeze. The historical
+  patch-0004 compile-only result above remains accurate history; the corresponding ledger row is
+  now resolved. Aggregate M1 remains RED only because the unchanged strict adapter requires the
+  s7-blocked complete M0-M3 candidate. See `notes/m1-fenv-deferral-closure-20260824.md`.
 - [x] **M1.11 [harness]** **TIER-(a) GATE 2/2 GREEN** (2026-08-04, driver): bmesh_core_test.js
   linked (62.1MB, ~200 archives, SINGLE_BINARY=OFF standalone route) + runs under node: **1/1
   PASSED, exit 0, 116ms** — verified = the FULL upstream suite (bmesh_core_test.cc has exactly

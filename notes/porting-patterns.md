@@ -1110,3 +1110,17 @@ an in-memory mutation that adds a differently named raw-owner alias at a new reg
 fail even though the original delivery-role manifest is otherwise unchanged. See
 `sandbox/audit-r8/callback_census.py` and
 `notes/m4-ghost-callback-registration-census-r9-20260824.md`.
+
+## Class 77 — missing wasm fenv status needs a software exception contract, not a permanent no-op
+
+Correction to the initial Class 2 compile-only guidance above: defining absent Emscripten
+`FE_DIVBYZERO`/`FE_INVALID` macros to zero is sufficient only to compile and leaves Blender's
+expression error contract wrong. Keep native hardware fenv checks, but on wasm accumulate explicit
+divide-by-zero and invalid-operation status at every evaluated opcode and during constant folding.
+Classify exact poles separately from overflow, do not turn propagated quiet NaNs into new invalid
+operations, inspect signaling-NaN bits before arithmetic quiets them, and cover composite helpers
+at their primitive operations so an unrelated NaN cannot hide an invalid branch. Regression-control
+ordinary, reduction, comparison, and short-circuit opcodes on both native and wasm. The current
+canonical implementation passes the same 144 focused cases and all 1,667 BLI tests on both.
+See `notes/m1-fenv-deferral-closure-20260824.md` and the current canonical diff for
+`source/blender/blenlib/intern/expr_pylike_eval.cc`.

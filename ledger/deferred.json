@@ -3,13 +3,13 @@
   "deferred": [
     {
       "id": "wasm-fp-exception-status",
-      "status": "deferred",
+      "status": "resolved",
       "milestone": "M1",
-      "revisit": "tier-(b/c) suite that exercises driver-network div-by-zero / domain-error paths",
-      "blocker": "WebAssembly has no floating-point exception status register; emscripten's <fenv.h> defines FE_ALL_EXCEPT 0 and omits FE_DIVBYZERO/FE_INVALID, so fetestexcept() always returns 0.",
-      "impact": "BLI_expr_pylike_eval div-by-zero / domain-error detection is a no-op on wasm: expressions that divide by zero or take sqrt/pow of a domain error return EXPR_PYLIKE_SUCCESS instead of _DIV_BY_ZERO / _MATH_ERROR. 9 blenlib gtests fail on wasm (expr_pylike.Error_DivZero1-3, Error_SqrtDomain1-2, Error_PowDomain1-2, Error_Mixed1-2); all pass natively.",
-      "workaround": "A source-level explicit divide/NaN check in expr_pylike_eval would restore parity without the hardware register; deferred until a tier-(b/c) suite exercises driver-network error paths. Tracked in patches/0004 + notes/m1-blenlib.md Class 2.",
-      "evidence": "ledger/results/m1.json blenlib_test_run; tools/emsdk sysroot/include/bits/fenv.h; notes/m1-blenlib.md"
+      "revisit": "closed by the canonical source's software exception accumulator; retain this row as resolved audit history",
+      "blocker": "Resolved: WebAssembly still has no floating-point exception status register, but BLI_expr_pylike_eval no longer depends on it under Emscripten. The canonical source accumulates explicit divide-by-zero and invalid-operation status through constant folding and runtime evaluation.",
+      "impact": "The old nine wasm-only expr_pylike failures no longer exist. Fresh Linux native and wasm runs pass the same 144 focused expr_pylike cases and the same complete 1,667-test BLI identity with zero failures; overflow remains outside the evaluator's error contract on both platforms.",
+      "workaround": "The initial patch-0004 compile-only macro fallback is historical and insufficient by itself. Keep the software accumulator and its signaling-NaN, composite-operation, fmod-domain, pole, and overflow controls in the canonical source.",
+      "evidence": "notes/m1-fenv-deferral-closure-20260824.md; sandbox/final-m0-m3/evidence/m1-fenv-closure-ornith-linux-20260824-r3/m1/receipt.json sha256:7fc88414e46a; sandbox/final-m0-m3/evidence/m1-fenv-closure-ornith-linux-20260824-r2/freeze/receipt.json sha256:551e821a988e"
     },
     {
       "id": "float32-ulp-mathutils",

@@ -1065,3 +1065,6 @@
 # 0253: own the legacy draw-selection framebuffer request across browser ticks
 # while preserving exact viewport clamp and synchronous buffer realignment.
 0253-m5-legacy-selection-readback-primitive.patch
+# 0254: replay edit-mesh sample/nearest reads through the owned raw request and
+# restore each settled ID's exact selection-context mapping before consumption.
+0254-m5-legacy-selection-click-continuation.patch

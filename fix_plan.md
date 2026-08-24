@@ -2303,9 +2303,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   layout. Five native/wasm32 contracts are byte-identical and 14 source mutations fail closed.
   This is an enabler only: all four synchronous caller families remain explicitly deferred. See
   `notes/m5-legacy-selection-readback-primitive-20260824.md`.
-- [ ] **M5-LEGACY-SELECTION-CLICK-CONTINUATION [driver, blocked-by: none]:** route edit-mesh
-  sample/nearest selection through the owned raw request and the existing bounded View3D select
-  timer, preserving exact hit/distance semantics before the separate box/lasso/circle unit.
+- [x] **M5-LEGACY-SELECTION-CLICK-CONTINUATION [driver, complete]:** COMPLETE (patch 0254;
+  Linux receipt `20260824T171112-282764`): edit-mesh face/edge/vertex click selection now owns
+  sample/nearest queries across the existing bounded View3D timer, replays exact IDs and Manhattan
+  distance, and restores each result's producing element-range context before mapping it. Six
+  native/wasm32 contracts are byte-identical and 21 source mutations fail closed. The legacy
+  selection family remains partial only for box/lasso/circle gesture callers. See
+  `notes/m5-legacy-selection-click-continuation-20260824.md`.
+- [ ] **M5-LEGACY-SELECTION-GESTURE-CONTINUATION [driver, blocked-by: none]:** route edit-mesh
+  box/lasso/circle bitmap reads through owned raw requests and bounded operator continuations,
+  preserving inclusive rectangle, polygon-mask, circle-radius, and bitmap-index semantics.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

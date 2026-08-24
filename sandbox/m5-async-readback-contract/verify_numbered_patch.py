@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Reverse/forward the exact legacy-selection numbered patch in isolation."""
+"""Reverse/forward an exact legacy-selection numbered patch in isolation."""
 
 from __future__ import annotations
 
@@ -14,9 +14,17 @@ import subprocess
 import tempfile
 
 
-EXPECTED_PATHS = {
-    Path("source/blender/draw/DRW_select_buffer.hh"),
-    Path("source/blender/draw/intern/draw_select_buffer.cc"),
+EXPECTED_PATHS_BY_NAME = {
+    "0253-m5-legacy-selection-readback-primitive.patch": {
+        Path("source/blender/draw/DRW_select_buffer.hh"),
+        Path("source/blender/draw/intern/draw_select_buffer.cc"),
+    },
+    "0254-m5-legacy-selection-click-continuation.patch": {
+        Path("source/blender/draw/DRW_select_buffer.hh"),
+        Path("source/blender/draw/intern/draw_select_buffer.cc"),
+        Path("source/blender/editors/mesh/editmesh_select.cc"),
+        Path("source/blender/editors/space_view3d/view3d_select.cc"),
+    },
 }
 
 
@@ -59,13 +67,16 @@ def main() -> int:
     patch = args.patch.resolve()
     if not patch.is_file():
         raise VerificationError(f"missing patch: {patch}")
+    expected_paths = EXPECTED_PATHS_BY_NAME.get(patch.name)
+    if expected_paths is None:
+        raise VerificationError(f"unrecognized patch name: {patch.name}")
     actual_paths = patch_paths(patch)
-    if actual_paths != EXPECTED_PATHS:
+    if actual_paths != expected_paths:
         raise VerificationError(
-            f"patch path set differs: expected={sorted(EXPECTED_PATHS)} actual={sorted(actual_paths)}"
+            f"patch path set differs: expected={sorted(expected_paths)} actual={sorted(actual_paths)}"
         )
 
-    current = {relative: (source_root / relative).read_bytes() for relative in EXPECTED_PATHS}
+    current = {relative: (source_root / relative).read_bytes() for relative in expected_paths}
     with tempfile.TemporaryDirectory(prefix="m5-selection-patch-") as temporary:
         replay = Path(temporary)
         for relative, payload in current.items():
@@ -75,7 +86,7 @@ def main() -> int:
 
         run(["git", "apply", "--reverse", "--check", str(patch)], replay)
         run(["git", "apply", "--reverse", str(patch)], replay)
-        if any((replay / relative).read_bytes() == current[relative] for relative in EXPECTED_PATHS):
+        if any((replay / relative).read_bytes() == current[relative] for relative in expected_paths):
             raise VerificationError("reverse application left a target unchanged")
         run(["git", "apply", "--check", str(patch)], replay)
         run(["git", "apply", str(patch)], replay)
@@ -84,7 +95,10 @@ def main() -> int:
                 raise VerificationError(f"forward replay differs: {relative}")
 
     digest = hashlib.sha256(patch.read_bytes()).hexdigest()
-    print(f"M5_SELECTION_NUMBERED_PATCH_PASS files=2 sha256={digest}")
+    print(
+        f"M5_SELECTION_NUMBERED_PATCH_PASS patch={patch.name} "
+        f"files={len(expected_paths)} sha256={digest}"
+    )
     return 0
 
 

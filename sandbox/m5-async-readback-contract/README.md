@@ -24,14 +24,19 @@ it does not claim either caller family is converted yet.
 The draw-selection layer now has its own owned raw-buffer request on top of that
 framebuffer primitive. Native and wasm32 contracts cover pending and immediate
 completion, exact byte-size rejection, out-of-viewport empty results, viewport
-clamp/stride realignment, backend failure, and cancellation. The synchronous
-selection helpers remain intact until their gesture/operator continuations land.
+clamp/stride realignment, backend failure, and cancellation. Edit-mesh click
+selection now replays sample/nearest queries through that request while restoring
+the exact element-range context that produced each raw ID. The contract covers
+pending output preservation, exact sample and nearest results, Manhattan distance,
+multi-stage replay, context restoration, query-drift rejection, and cancellation.
+Box/lasso/circle callers remain synchronous until their separate continuation lands.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
-the owned draw-selection request, exact WebGPU tickets, temporary select-engine
-ownership transfer, and both bounded modal operator continuations. All three
-non-viewport eyedroppers share one owned window snapshot while browser mapping
-is pending and preserve native immediate completion.
+the owned draw-selection request and exact query session, exact WebGPU tickets,
+temporary select-engine ownership transfer, and the bounded object/edit-mesh
+selection continuations. All three non-viewport eyedroppers share one owned
+window snapshot while browser mapping is pending and preserve native immediate
+completion.
 It also requires the four still-synchronous caller families (legacy selection-buffer
 read, depth pick, depth cache, and WM window capture) to stay visible. The screenshot
 operator has its own owned-capture continuation contract; the ledger row remains

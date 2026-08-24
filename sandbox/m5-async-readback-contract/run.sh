@@ -64,7 +64,7 @@ fi
 "$PYBIN" "$HERE/verify_source.py" --source-root "$ROOT/upstream" --selfcheck
 "$PYBIN" "$HERE/verify_numbered_patch.py" \
   --source-root "$ROOT/upstream" \
-  --patch "$ROOT/patches/0253-m5-legacy-selection-readback-primitive.patch"
+  --patch "$ROOT/patches/0254-m5-legacy-selection-click-continuation.patch"
 SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/series-replay/verify.py" --canonical-only)"
 case "$SOURCE_PROOF" in
   CANONICAL_REPLAY_PASS\ *) ;;
@@ -118,9 +118,9 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 5 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ] ||
      ! grep -qx \
-       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=5 modes=3 failures=3 transforms=1 selection_cases=6' \
+       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=6 modes=3 failures=4 transforms=1 selection_cases=6 query_replays=4' \
        "$stdout_file"
   then
     echo "ERROR: async-readback PASS census differs: $stdout_file" >&2
@@ -139,6 +139,7 @@ if ! jq -e \
    .contracts.selection_buffer_owned_request == true and
    .contracts.webgpu_exact_tickets == true and
    .contracts.object_pick_continuation == true and
+   .contracts.edit_mesh_click_continuation == true and
    .contracts.window_color_continuation == true and
    .contracts.live_hardware_receipt == false and
    (.remaining_sync_families | length) == 4' \

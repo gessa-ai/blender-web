@@ -1,0 +1,752 @@
+diff --git a/source/blender/draw/DRW_select_buffer.hh b/source/blender/draw/DRW_select_buffer.hh
+index 8c3c371df42846560b42332ad64a20ccc8ba4bf9..861d043c692f897ff6238a2d7705ca3308189b76 100644
+--- a/source/blender/draw/DRW_select_buffer.hh
++++ b/source/blender/draw/DRW_select_buffer.hh
+@@ -91,6 +91,19 @@ eGPUReadbackStatus DRW_select_buffer_read_async_status(DRWSelectBufferReadback *
+ eGPUReadbackError DRW_select_buffer_read_async_error(DRWSelectBufferReadback *readback);
+ uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *&readback, uint *r_buf_len);
+ void DRW_select_buffer_read_async_cancel(DRWSelectBufferReadback *&readback);
++
++/**
++ * Own and replay the sample/nearest selection-buffer queries made by one
++ * logical browser operator invocation. Query results retain the exact select
++ * context that produced their IDs so later replays cannot interpret them
++ * through a different element-range map.
++ */
++void DRW_select_buffer_query_session_begin();
++void DRW_select_buffer_query_session_end();
++bool DRW_select_buffer_query_session_is_active();
++bool DRW_select_buffer_query_session_needs_replay();
++eGPUReadbackStatus DRW_select_buffer_query_session_status();
++eGPUReadbackError DRW_select_buffer_query_session_error();
+ /**
+  * \param rect: The rectangle to sample indices from (min/max inclusive).
+  * \returns a #BLI_bitmap the length of \a bitmap_len or NULL on failure.
+@@ -127,6 +140,11 @@ uint DRW_select_buffer_sample_point(Depsgraph *depsgraph,
+                                     ARegion *region,
+                                     View3D *v3d,
+                                     const int center[2]);
++/** Non-blocking sample for an active selection-buffer query session. */
++uint DRW_select_buffer_sample_point_async(Depsgraph *depsgraph,
++                                          ARegion *region,
++                                          View3D *v3d,
++                                          const int center[2]);
+ /**
+  * Find the selection id closest to \a center.
+  * \param dist: Use to initialize the distance,
+@@ -139,6 +157,14 @@ uint DRW_select_buffer_find_nearest_to_point(Depsgraph *depsgraph,
+                                              uint id_min,
+                                              uint id_max,
+                                              uint *dist);
++/** Non-blocking nearest query for an active selection-buffer query session. */
++uint DRW_select_buffer_find_nearest_to_point_async(Depsgraph *depsgraph,
++                                                   ARegion *region,
++                                                   View3D *v3d,
++                                                   const int center[2],
++                                                   uint id_min,
++                                                   uint id_max,
++                                                   uint *dist);
+ void DRW_select_buffer_context_create(Depsgraph *depsgraph, Span<Base *> bases, short select_mode);
+ 
+ }  // namespace blender
+diff --git a/source/blender/draw/intern/draw_select_buffer.cc b/source/blender/draw/intern/draw_select_buffer.cc
+index 98c4b4053c78db73465dcf5915baf857c37f6ca9..d8933c73409f3e44fc117412bb2a370ea11ccb4d 100644
+--- a/source/blender/draw/intern/draw_select_buffer.cc
++++ b/source/blender/draw/intern/draw_select_buffer.cc
+@@ -11,6 +11,7 @@
+ #include <cfloat>
+ #include <cstdint>
+ #include <limits>
++#include <utility>
+ 
+ #include "BLI_math_matrix.hh"
+ #include "MEM_guardedalloc.h"
+@@ -496,30 +497,6 @@ uint *DRW_select_buffer_bitmap_from_poly(Depsgraph *depsgraph,
+  *
+  * \{ */
+ 
+-uint DRW_select_buffer_sample_point(Depsgraph *depsgraph,
+-                                    ARegion *region,
+-                                    View3D *v3d,
+-                                    const int center[2])
+-{
+-  uint ret = 0;
+-
+-  rcti rect{};
+-  rect.xmin = center[0];
+-  rect.xmax = center[0] + 1;
+-  rect.ymin = center[1];
+-  rect.ymax = center[1] + 1;
+-
+-  uint buf_len;
+-  uint *buf = DRW_select_buffer_read(depsgraph, region, v3d, &rect, &buf_len);
+-  if (buf) {
+-    BLI_assert(0 != buf_len);
+-    ret = buf[0];
+-    MEM_delete(buf);
+-  }
+-
+-  return ret;
+-}
+-
+ struct SelectReadData {
+   const void *val_ptr;
+   uint id_min;
+@@ -540,6 +517,372 @@ static bool select_buffer_test_fn(const void *__restrict value, void *__restrict
+   return false;
+ }
+ 
++static uint drw_select_buffer_sample_point_result(const uint *buf, const uint buf_len)
++{
++  if (buf == nullptr) {
++    BLI_assert(buf_len == 0);
++    return 0;
++  }
++  BLI_assert(buf_len == 1);
++  return buf[0];
++}
++
++static uint drw_select_buffer_find_nearest_to_point_result(const uint *buf,
++                                                           const uint buf_len,
++                                                           const int width,
++                                                           const int height,
++                                                           const uint id_min,
++                                                           const uint id_max,
++                                                           uint *dist)
++{
++  if (buf == nullptr) {
++    BLI_assert(buf_len == 0);
++    return 0;
++  }
++  BLI_assert(buf_len == uint(width * height));
++
++  const int shape[2] = {height, width};
++  const int center_yx[2] = {(height - 1) / 2, (width - 1) / 2};
++  SelectReadData data = {nullptr, id_min, id_max, 0};
++  BLI_array_iter_spiral_square(buf, shape, center_yx, select_buffer_test_fn, &data);
++
++  if (data.val_ptr) {
++    size_t offset = (size_t(data.val_ptr) - size_t(buf)) / sizeof(*buf);
++    int hit_x = offset % width;
++    int hit_y = offset / width;
++    *dist = uint(abs(hit_y - center_yx[0]) + abs(hit_x - center_yx[1]));
++  }
++  return data.r_index;
++}
++
++enum class DRWSelectBufferQueryKind : uint8_t {
++  Sample,
++  Nearest,
++};
++
++struct DRWSelectBufferQueryContext {
++  Vector<Object *> objects;
++  Map<Object *, ElemIndexRanges> elem_ranges;
++  uint max_index_drawn_len = 0;
++  short select_mode = 0;
++};
++
++struct DRWSelectBufferQueryKey {
++  DRWSelectBufferQueryKind kind = DRWSelectBufferQueryKind::Sample;
++  Depsgraph *depsgraph = nullptr;
++  ARegion *region = nullptr;
++  View3D *v3d = nullptr;
++  rcti rect = {};
++  uint id_min = 0;
++  uint id_max = 0;
++  uint initial_distance = 0;
++  short select_mode = 0;
++  Vector<Object *> objects;
++};
++
++struct DRWSelectBufferQueryResult {
++  DRWSelectBufferQueryKey key;
++  DRWSelectBufferQueryContext context;
++  uint index = 0;
++  uint distance = 0;
++};
++
++struct DRWSelectBufferQueryState {
++  bool session_active = false;
++  bool failed = false;
++  bool replay_required = false;
++  eGPUReadbackError error = GPU_READBACK_ERROR_NONE;
++  DRWSelectBufferReadback *pending = nullptr;
++  DRWSelectBufferQueryKey pending_key;
++  DRWSelectBufferQueryContext pending_context;
++  Vector<DRWSelectBufferQueryResult> results;
++};
++
++static DRWSelectBufferQueryState g_select_buffer_query = {};
++
++static DRWSelectBufferQueryContext drw_select_buffer_query_context_capture()
++{
++  DRWSelectBufferQueryContext snapshot;
++  const SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx == nullptr) {
++    return snapshot;
++  }
++  snapshot.objects.extend(select_ctx->objects);
++  for (const auto &item : select_ctx->elem_ranges.items()) {
++    snapshot.elem_ranges.add(item.key, item.value);
++  }
++  snapshot.max_index_drawn_len = select_ctx->max_index_drawn_len;
++  snapshot.select_mode = select_ctx->select_mode;
++  return snapshot;
++}
++
++static void drw_select_buffer_query_context_restore(const DRWSelectBufferQueryContext &snapshot)
++{
++  SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx == nullptr) {
++    return;
++  }
++  select_ctx->objects.clear();
++  select_ctx->objects.extend(snapshot.objects);
++  select_ctx->elem_ranges.clear();
++  for (const auto &item : snapshot.elem_ranges.items()) {
++    select_ctx->elem_ranges.add(item.key, item.value);
++  }
++  select_ctx->max_index_drawn_len = snapshot.max_index_drawn_len;
++  select_ctx->select_mode = snapshot.select_mode;
++}
++
++static DRWSelectBufferQueryKey drw_select_buffer_query_key_create(
++    const DRWSelectBufferQueryKind kind,
++    Depsgraph *depsgraph,
++    ARegion *region,
++    View3D *v3d,
++    const rcti &rect,
++    const uint id_min,
++    const uint id_max,
++    const uint initial_distance)
++{
++  DRWSelectBufferQueryKey key;
++  key.kind = kind;
++  key.depsgraph = depsgraph;
++  key.region = region;
++  key.v3d = v3d;
++  key.rect = rect;
++  key.id_min = id_min;
++  key.id_max = id_max;
++  key.initial_distance = initial_distance;
++  const SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx != nullptr) {
++    key.select_mode = select_ctx->select_mode;
++    key.objects.extend(select_ctx->objects);
++  }
++  return key;
++}
++
++static bool drw_select_buffer_query_key_equal(const DRWSelectBufferQueryKey &left,
++                                              const DRWSelectBufferQueryKey &right)
++{
++  if (left.kind != right.kind || left.depsgraph != right.depsgraph ||
++      left.region != right.region || left.v3d != right.v3d ||
++      !BLI_rcti_compare(&left.rect, &right.rect) || left.id_min != right.id_min ||
++      left.id_max != right.id_max || left.initial_distance != right.initial_distance ||
++      left.select_mode != right.select_mode || left.objects.size() != right.objects.size())
++  {
++    return false;
++  }
++  for (const int64_t i : left.objects.index_range()) {
++    if (left.objects[i] != right.objects[i]) {
++      return false;
++    }
++  }
++  return true;
++}
++
++static void drw_select_buffer_query_fail(const eGPUReadbackError error)
++{
++  DRW_select_buffer_read_async_cancel(g_select_buffer_query.pending);
++  g_select_buffer_query.failed = true;
++  g_select_buffer_query.error = error == GPU_READBACK_ERROR_NONE ?
++                                    GPU_READBACK_ERROR_BACKEND_FAILURE :
++                                    error;
++}
++
++static bool drw_select_buffer_query_result_from_buffer(const DRWSelectBufferQueryKey &key,
++                                                       const uint *buf,
++                                                       const uint buf_len,
++                                                       uint &r_index,
++                                                       uint &r_distance)
++{
++  uint expected_len = 0;
++  if (!drw_select_buffer_len(key.rect, expected_len) ||
++      (buf == nullptr ? buf_len != 0 : buf_len != expected_len))
++  {
++    return false;
++  }
++  r_distance = key.initial_distance;
++  if (key.kind == DRWSelectBufferQueryKind::Sample) {
++    if (expected_len != 1) {
++      return false;
++    }
++    r_index = drw_select_buffer_sample_point_result(buf, buf_len);
++    return true;
++  }
++  const int width = BLI_rcti_size_x(&key.rect);
++  const int height = BLI_rcti_size_y(&key.rect);
++  if (width != height) {
++    return false;
++  }
++  r_index = drw_select_buffer_find_nearest_to_point_result(
++      buf, buf_len, width, height, key.id_min, key.id_max, &r_distance);
++  return true;
++}
++
++void DRW_select_buffer_query_session_begin()
++{
++  DRW_select_buffer_query_session_end();
++  g_select_buffer_query.session_active = true;
++}
++
++void DRW_select_buffer_query_session_end()
++{
++  DRW_select_buffer_read_async_cancel(g_select_buffer_query.pending);
++  g_select_buffer_query = {};
++}
++
++bool DRW_select_buffer_query_session_is_active()
++{
++  return g_select_buffer_query.session_active;
++}
++
++bool DRW_select_buffer_query_session_needs_replay()
++{
++  return g_select_buffer_query.replay_required;
++}
++
++eGPUReadbackStatus DRW_select_buffer_query_session_status()
++{
++  if (!g_select_buffer_query.session_active) {
++    return GPU_READBACK_INVALID;
++  }
++  if (g_select_buffer_query.failed) {
++    return GPU_READBACK_FAILED;
++  }
++  if (g_select_buffer_query.pending == nullptr) {
++    return g_select_buffer_query.results.is_empty() ? GPU_READBACK_INVALID : GPU_READBACK_READY;
++  }
++
++  const eGPUReadbackStatus status =
++      DRW_select_buffer_read_async_status(g_select_buffer_query.pending);
++  if (status == GPU_READBACK_PENDING) {
++    return status;
++  }
++  if (status != GPU_READBACK_READY) {
++    drw_select_buffer_query_fail(
++        DRW_select_buffer_read_async_error(g_select_buffer_query.pending));
++    return GPU_READBACK_FAILED;
++  }
++
++  uint buf_len = 0;
++  uint *buf = DRW_select_buffer_read_async_consume(g_select_buffer_query.pending, &buf_len);
++  if (g_select_buffer_query.pending != nullptr) {
++    const eGPUReadbackError error =
++        DRW_select_buffer_read_async_error(g_select_buffer_query.pending);
++    MEM_delete(buf);
++    drw_select_buffer_query_fail(error);
++    return GPU_READBACK_FAILED;
++  }
++
++  DRWSelectBufferQueryResult result;
++  result.key = std::move(g_select_buffer_query.pending_key);
++  if (!drw_select_buffer_query_result_from_buffer(
++          result.key, buf, buf_len, result.index, result.distance))
++  {
++    MEM_delete(buf);
++    drw_select_buffer_query_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    return GPU_READBACK_FAILED;
++  }
++  MEM_delete(buf);
++  result.context = std::move(g_select_buffer_query.pending_context);
++  g_select_buffer_query.results.append(std::move(result));
++  return GPU_READBACK_READY;
++}
++
++eGPUReadbackError DRW_select_buffer_query_session_error()
++{
++  DRW_select_buffer_query_session_status();
++  return g_select_buffer_query.failed ? g_select_buffer_query.error : GPU_READBACK_ERROR_NONE;
++}
++
++static bool drw_select_buffer_query_replay(const DRWSelectBufferQueryKey &key,
++                                           uint *r_index,
++                                           uint *r_distance)
++{
++  for (const DRWSelectBufferQueryResult &result : g_select_buffer_query.results) {
++    if (drw_select_buffer_query_key_equal(result.key, key)) {
++      drw_select_buffer_query_context_restore(result.context);
++      *r_index = result.index;
++      if (r_distance != nullptr) {
++        *r_distance = result.distance;
++      }
++      g_select_buffer_query.replay_required = false;
++      return true;
++    }
++  }
++  return false;
++}
++
++static uint drw_select_buffer_query(Depsgraph *depsgraph,
++                                    ARegion *region,
++                                    View3D *v3d,
++                                    const DRWSelectBufferQueryKey &key,
++                                    uint *r_distance)
++{
++  if (!g_select_buffer_query.session_active || g_select_buffer_query.failed) {
++    return 0;
++  }
++
++  uint index = 0;
++  const eGPUReadbackStatus status = DRW_select_buffer_query_session_status();
++  if (status == GPU_READBACK_FAILED) {
++    return 0;
++  }
++  if (drw_select_buffer_query_replay(key, &index, r_distance)) {
++    return index;
++  }
++  if (g_select_buffer_query.pending != nullptr) {
++    if (!drw_select_buffer_query_key_equal(g_select_buffer_query.pending_key, key)) {
++      drw_select_buffer_query_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    }
++    g_select_buffer_query.replay_required = true;
++    return 0;
++  }
++
++  g_select_buffer_query.replay_required = true;
++  g_select_buffer_query.pending_key = key;
++  g_select_buffer_query.pending =
++      DRW_select_buffer_read_async(depsgraph, region, v3d, &key.rect);
++  g_select_buffer_query.pending_context = drw_select_buffer_query_context_capture();
++  if (DRW_select_buffer_query_session_status() == GPU_READBACK_READY &&
++      drw_select_buffer_query_replay(key, &index, r_distance))
++  {
++    return index;
++  }
++  return 0;
++}
++
++uint DRW_select_buffer_sample_point(Depsgraph *depsgraph,
++                                    ARegion *region,
++                                    View3D *v3d,
++                                    const int center[2])
++{
++  rcti rect{};
++  rect.xmin = center[0];
++  rect.xmax = center[0] + 1;
++  rect.ymin = center[1];
++  rect.ymax = center[1] + 1;
++
++  uint buf_len;
++  uint *buf = DRW_select_buffer_read(depsgraph, region, v3d, &rect, &buf_len);
++  const uint result = drw_select_buffer_sample_point_result(buf, buf_len);
++  MEM_delete(buf);
++  return result;
++}
++
++uint DRW_select_buffer_sample_point_async(Depsgraph *depsgraph,
++                                          ARegion *region,
++                                          View3D *v3d,
++                                          const int center[2])
++{
++  rcti rect{};
++  rect.xmin = center[0];
++  rect.xmax = center[0] + 1;
++  rect.ymin = center[1];
++  rect.ymax = center[1] + 1;
++  const DRWSelectBufferQueryKey key = drw_select_buffer_query_key_create(
++      DRWSelectBufferQueryKind::Sample, depsgraph, region, v3d, rect, 0, 0, 0);
++  return drw_select_buffer_query(depsgraph, region, v3d, key, nullptr);
++}
++
+ uint DRW_select_buffer_find_nearest_to_point(Depsgraph *depsgraph,
+                                              ARegion *region,
+                                              View3D *v3d,
+@@ -556,32 +899,41 @@ uint DRW_select_buffer_find_nearest_to_point(Depsgraph *depsgraph,
+   rect.xmax += 1;
+   rect.ymax += 1;
+ 
+-  int width = BLI_rcti_size_x(&rect);
+-  int height = width;
++  const int width = BLI_rcti_size_x(&rect);
++  const int height = width;
+ 
+   /* Read from selection framebuffer. */
+ 
+   uint buf_len;
+   const uint *buf = DRW_select_buffer_read(depsgraph, region, v3d, &rect, &buf_len);
+ 
+-  if (buf == nullptr) {
+-    return 0;
+-  }
+-
+-  const int shape[2] = {height, width};
+-  const int center_yx[2] = {(height - 1) / 2, (width - 1) / 2};
+-  SelectReadData data = {nullptr, id_min, id_max, 0};
+-  BLI_array_iter_spiral_square(buf, shape, center_yx, select_buffer_test_fn, &data);
++  const uint result = drw_select_buffer_find_nearest_to_point_result(
++      buf, buf_len, width, height, id_min, id_max, dist);
++  MEM_delete(buf);
++  return result;
++}
+ 
+-  if (data.val_ptr) {
+-    size_t offset = (size_t(data.val_ptr) - size_t(buf)) / sizeof(*buf);
+-    int hit_x = offset % width;
+-    int hit_y = offset / width;
+-    *dist = uint(abs(hit_y - center_yx[0]) + abs(hit_x - center_yx[1]));
++uint DRW_select_buffer_find_nearest_to_point_async(Depsgraph *depsgraph,
++                                                   ARegion *region,
++                                                   View3D *v3d,
++                                                   const int center[2],
++                                                   const uint id_min,
++                                                   const uint id_max,
++                                                   uint *dist)
++{
++  if (dist == nullptr) {
++    drw_select_buffer_query_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return 0;
+   }
++  rcti rect;
++  BLI_rcti_init_pt_radius(&rect, center, *dist);
++  rect.xmax += 1;
++  rect.ymax += 1;
+ 
+-  MEM_delete(buf);
+-  return data.r_index;
++  DRWSelectBufferQueryKey key = drw_select_buffer_query_key_create(
++      DRWSelectBufferQueryKind::Nearest, depsgraph, region, v3d, rect, id_min, id_max, *dist);
++  key.initial_distance = *dist;
++  return drw_select_buffer_query(depsgraph, region, v3d, key, dist);
+ }
+ 
+ /** \} */
+diff --git a/source/blender/editors/mesh/editmesh_select.cc b/source/blender/editors/mesh/editmesh_select.cc
+index 24c0171bd779f88131e1b49af9879aaa6a455cac..4bdc89ae3f39a6372981bb5b1c26f9832d1afd3e 100644
+--- a/source/blender/editors/mesh/editmesh_select.cc
++++ b/source/blender/editors/mesh/editmesh_select.cc
+@@ -372,6 +372,51 @@ static BMElem *edbm_select_id_bm_elem_get(const Span<Base *> bases,
+   return nullptr;
+ }
+ 
++static uint edbm_select_buffer_sample_point(Depsgraph *depsgraph,
++                                            ARegion *region,
++                                            View3D *v3d,
++                                            const int center[2])
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_query_session_is_active()) {
++    return DRW_select_buffer_sample_point_async(depsgraph, region, v3d, center);
++  }
++#endif
++  return DRW_select_buffer_sample_point(depsgraph, region, v3d, center);
++}
++
++static uint edbm_select_buffer_find_nearest_to_point(Depsgraph *depsgraph,
++                                                      ARegion *region,
++                                                      View3D *v3d,
++                                                      const int center[2],
++                                                      const uint id_min,
++                                                      const uint id_max,
++                                                      uint *dist)
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_query_session_is_active()) {
++    return DRW_select_buffer_find_nearest_to_point_async(
++        depsgraph, region, v3d, center, id_min, id_max, dist);
++  }
++#endif
++  return DRW_select_buffer_find_nearest_to_point(
++      depsgraph, region, v3d, center, id_min, id_max, dist);
++}
++
++static bool edbm_select_buffer_query_pending_or_failed()
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_query_session_is_active()) {
++    const eGPUReadbackStatus status = DRW_select_buffer_query_session_status();
++    if (ELEM(status, GPU_READBACK_PENDING, GPU_READBACK_FAILED)) {
++      return true;
++    }
++    return DRW_select_buffer_query_session_needs_replay();
++  }
++#endif
++  return false;
++}
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -457,7 +502,7 @@ BMVert *EDBM_vert_find_nearest_ex(ViewContext *vc,
+     {
+       DRW_select_buffer_context_create(vc->depsgraph, bases, SCE_SELECT_VERTEX);
+ 
+-      index = DRW_select_buffer_find_nearest_to_point(
++      index = edbm_select_buffer_find_nearest_to_point(
+           vc->depsgraph, vc->region, vc->v3d, vc->mval, 1, UINT_MAX, &dist_px_manhattan_test);
+ 
+       if (index) {
+@@ -687,7 +732,7 @@ BMEdge *EDBM_edge_find_nearest_ex(ViewContext *vc,
+     {
+       DRW_select_buffer_context_create(vc->depsgraph, bases, SCE_SELECT_EDGE);
+ 
+-      index = DRW_select_buffer_find_nearest_to_point(
++      index = edbm_select_buffer_find_nearest_to_point(
+           vc->depsgraph, vc->region, vc->v3d, vc->mval, 1, UINT_MAX, &dist_px_manhattan_test);
+ 
+       if (index) {
+@@ -905,11 +950,11 @@ BMFace *EDBM_face_find_nearest_ex(ViewContext *vc,
+       DRW_select_buffer_context_create(vc->depsgraph, bases, SCE_SELECT_FACE);
+ 
+       if (dist_px_manhattan_test == 0) {
+-        index = DRW_select_buffer_sample_point(vc->depsgraph, vc->region, vc->v3d, vc->mval);
++        index = edbm_select_buffer_sample_point(vc->depsgraph, vc->region, vc->v3d, vc->mval);
+         dist_test = 0.0f;
+       }
+       else {
+-        index = DRW_select_buffer_find_nearest_to_point(
++        index = edbm_select_buffer_find_nearest_to_point(
+             vc->depsgraph, vc->region, vc->v3d, vc->mval, 1, UINT_MAX, &dist_px_manhattan_test);
+         dist_test = dist_px_manhattan_test;
+       }
+@@ -1077,6 +1122,9 @@ static bool unified_findnearest(ViewContext *vc,
+     BMFace *efa_zbuf = nullptr;
+     BMFace *efa_test = EDBM_face_find_nearest_ex(
+         vc, &dist, dist_center_p, true, true, use_cycle, &efa_zbuf, bases, &base_index);
++    if (edbm_select_buffer_query_pending_or_failed()) {
++      return false;
++    }
+ 
+     if (efa_test && dist_center_p) {
+       dist = min_ff(dist_margin, dist_center);
+@@ -1099,6 +1147,9 @@ static bool unified_findnearest(ViewContext *vc,
+     BMEdge *eed_zbuf = nullptr;
+     BMEdge *eed_test = EDBM_edge_find_nearest_ex(
+         vc, &dist, dist_center_p, true, use_cycle, &eed_zbuf, bases, &base_index);
++    if (edbm_select_buffer_query_pending_or_failed()) {
++      return false;
++    }
+ 
+     if (eed_test && dist_center_p) {
+       dist = min_ff(dist_margin, dist_center);
+@@ -1116,6 +1167,9 @@ static bool unified_findnearest(ViewContext *vc,
+   if ((dist > 0.0f) && (em->selectmode & SCE_SELECT_VERTEX)) {
+     uint base_index = 0;
+     BMVert *eve_test = EDBM_vert_find_nearest_ex(vc, &dist, true, use_cycle, bases, &base_index);
++    if (edbm_select_buffer_query_pending_or_failed()) {
++      return false;
++    }
+ 
+     if (eve_test) {
+       hit.v.base_index = base_index;
+@@ -2725,6 +2779,9 @@ bool EDBM_select_pick(bContext *C, const int mval[2], const SelectPick_Params &p
+ 
+   bool changed = false;
+   bool found = unified_findnearest(&vc, bases, &base_index_active, &eve, &eed, &efa);
++  if (edbm_select_buffer_query_pending_or_failed()) {
++    return false;
++  }
+ 
+   if (params.sel_op == SEL_OP_SET) {
+     BMElem *ele = efa ? reinterpret_cast<BMElem *>(efa) :
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+index bc6ae9701fabd349edb84e6f21435ca5862b4efa..2fc7bb77e24b2f2a6aeef0d344f382834b2cbdbe 100644
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -3528,6 +3528,31 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+   return true;
+ }
+ 
++static eGPUReadbackStatus view3d_select_async_status()
++{
++  const eGPUReadbackStatus gpu_status = GPU_select_async_status();
++  const eGPUReadbackStatus query_status = DRW_select_buffer_query_session_status();
++  if (gpu_status == GPU_READBACK_FAILED || query_status == GPU_READBACK_FAILED) {
++    return GPU_READBACK_FAILED;
++  }
++  if (gpu_status == GPU_READBACK_PENDING || query_status == GPU_READBACK_PENDING) {
++    return GPU_READBACK_PENDING;
++  }
++  if (gpu_status == GPU_READBACK_READY || query_status == GPU_READBACK_READY) {
++    return GPU_READBACK_READY;
++  }
++  return GPU_READBACK_INVALID;
++}
++
++static eGPUReadbackError view3d_select_async_error()
++{
++  const eGPUReadbackError gpu_error = GPU_select_async_error();
++  if (gpu_error != GPU_READBACK_ERROR_NONE) {
++    return gpu_error;
++  }
++  return DRW_select_buffer_query_session_error();
++}
++
+ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+ {
+   Scene *scene = CTX_data_scene(C);
+@@ -3636,8 +3661,8 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+   }
+ 
+ #ifdef __EMSCRIPTEN__
+-  if (GPU_select_async_session_is_active()) {
+-    const eGPUReadbackStatus status = GPU_select_async_status();
++  if (GPU_select_async_session_is_active() || DRW_select_buffer_query_session_is_active()) {
++    const eGPUReadbackStatus status = view3d_select_async_status();
+     if (status == GPU_READBACK_PENDING) {
+       return OPERATOR_RUNNING_MODAL;
+     }
+@@ -3645,7 +3670,7 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+       BKE_reportf(op->reports,
+                   RPT_ERROR,
+                   "WebGPU selection readback failed (error %d)",
+-                  int(GPU_select_async_error()));
++                  int(view3d_select_async_error()));
+       return OPERATOR_CANCELLED;
+     }
+   }
+@@ -3678,6 +3703,7 @@ static void view3d_select_async_finish(bContext *C, wmOperator *op)
+     MEM_delete(data);
+     op->customdata = nullptr;
+   }
++  DRW_select_buffer_query_session_end();
+   GPU_select_async_session_end();
+ }
+ 
+@@ -3687,6 +3713,7 @@ static wmOperatorStatus view3d_select_invoke(bContext *C, wmOperator *op, const
+ 
+ #ifdef __EMSCRIPTEN__
+   GPU_select_async_session_begin();
++  DRW_select_buffer_query_session_begin();
+ #endif
+   const wmOperatorStatus retval = view3d_select_exec(C, op);
+ 
+@@ -3699,6 +3726,7 @@ static wmOperatorStatus view3d_select_invoke(bContext *C, wmOperator *op, const
+     WM_event_add_modal_handler(C, op);
+     return OPERATOR_RUNNING_MODAL;
+   }
++  DRW_select_buffer_query_session_end();
+   GPU_select_async_session_end();
+ #endif
+   return WM_operator_flag_only_pass_through_on_press(retval, event);
+@@ -3724,7 +3752,7 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const w
+     return OPERATOR_CANCELLED;
+   }
+ 
+-  const eGPUReadbackStatus status = GPU_select_async_status();
++  const eGPUReadbackStatus status = view3d_select_async_status();
+   if (status == GPU_READBACK_PENDING) {
+     return OPERATOR_RUNNING_MODAL;
+   }
+@@ -3732,7 +3760,7 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const w
+     BKE_reportf(op->reports,
+                 RPT_ERROR,
+                 "WebGPU selection readback failed (error %d)",
+-                int(GPU_select_async_error()));
++                int(view3d_select_async_error()));
+     view3d_select_async_finish(C, op);
+     return OPERATOR_CANCELLED;
+   }

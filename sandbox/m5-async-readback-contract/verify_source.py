@@ -35,6 +35,7 @@ SOURCE_PATHS = (
     "source/blender/draw/DRW_select_buffer.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
+    "source/blender/editors/mesh/editmesh_select.cc",
     "source/blender/editors/screen/screendump.cc",
     "source/blender/editors/space_view3d/view3d_draw.cc",
     "source/blender/editors/space_view3d/view3d_select.cc",
@@ -154,6 +155,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_buffer_api = sources["source/blender/draw/DRW_select_buffer.hh"]
     select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
+    editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
     view_select = sources["source/blender/editors/space_view3d/view3d_select.cc"]
     view_query = sources["source/blender/editors/space_view3d/view3d_view.cc"]
     eyedropper = sources[
@@ -192,6 +194,18 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "void DRW_select_buffer_read_async_cancel(DRWSelectBufferReadback *&readback);",
     ):
         require(needle in select_buffer_api, f"owned selection-buffer API missing {needle!r}")
+
+    for needle in (
+        "void DRW_select_buffer_query_session_begin();",
+        "void DRW_select_buffer_query_session_end();",
+        "bool DRW_select_buffer_query_session_is_active();",
+        "bool DRW_select_buffer_query_session_needs_replay();",
+        "eGPUReadbackStatus DRW_select_buffer_query_session_status();",
+        "eGPUReadbackError DRW_select_buffer_query_session_error();",
+        "uint DRW_select_buffer_sample_point_async(",
+        "uint DRW_select_buffer_find_nearest_to_point_async(",
+    ):
+        require(needle in select_buffer_api, f"selection query API missing {needle!r}")
 
     selection_state = braced_definition(
         select_buffer, "struct DRWSelectBufferReadback", "selection readback state"
@@ -272,6 +286,107 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "void DRW_select_buffer_read_async_cancel(",
         "selection readback cancel",
     )
+
+    query_state = braced_definition(
+        select_buffer,
+        "struct DRWSelectBufferQueryState",
+        "selection query state",
+    )
+    for needle in (
+        "bool session_active = false;",
+        "bool failed = false;",
+        "bool replay_required = false;",
+        "DRWSelectBufferReadback *pending = nullptr;",
+        "DRWSelectBufferQueryKey pending_key;",
+        "DRWSelectBufferQueryContext pending_context;",
+        "Vector<DRWSelectBufferQueryResult> results;",
+    ):
+        require(needle in query_state, f"selection query state missing {needle!r}")
+
+    query_status = braced_definition(
+        select_buffer,
+        "eGPUReadbackStatus DRW_select_buffer_query_session_status()",
+        "selection query poll",
+    )
+    require_ordered(
+        query_status,
+        (
+            "if (!g_select_buffer_query.session_active)",
+            "if (g_select_buffer_query.failed)",
+            "DRW_select_buffer_read_async_status(g_select_buffer_query.pending)",
+            "if (status == GPU_READBACK_PENDING)",
+            "DRW_select_buffer_read_async_consume(g_select_buffer_query.pending",
+            "drw_select_buffer_query_result_from_buffer",
+            "result.context = std::move(g_select_buffer_query.pending_context);",
+            "g_select_buffer_query.results.append(std::move(result));",
+        ),
+        "selection query poll",
+    )
+
+    query_replay = braced_definition(
+        select_buffer,
+        "static bool drw_select_buffer_query_replay(",
+        "selection query replay",
+    )
+    for needle in (
+        "drw_select_buffer_query_key_equal(result.key, key)",
+        "drw_select_buffer_query_context_restore(result.context);",
+        "*r_index = result.index;",
+        "*r_distance = result.distance;",
+        "g_select_buffer_query.replay_required = false;",
+    ):
+        require(needle in query_replay, f"selection query replay missing {needle!r}")
+
+    query_begin = braced_definition(
+        select_buffer,
+        "static uint drw_select_buffer_query(",
+        "selection query begin/replay",
+    )
+    require_ordered(
+        query_begin,
+        (
+            "DRW_select_buffer_query_session_status()",
+            "drw_select_buffer_query_replay(key, &index, r_distance)",
+            "g_select_buffer_query.pending != nullptr",
+            "drw_select_buffer_query_key_equal(g_select_buffer_query.pending_key, key)",
+            "g_select_buffer_query.replay_required = true;",
+            "DRW_select_buffer_read_async(depsgraph, region, v3d, &key.rect);",
+            "drw_select_buffer_query_context_capture()",
+            "DRW_select_buffer_query_session_status()",
+        ),
+        "selection query begin/replay",
+    )
+    require(
+        "g_select_buffer_query.replay_required = true;\n"
+        "  g_select_buffer_query.pending_key = key;" in query_begin,
+        "selection query kick does not latch required replay",
+    )
+
+    sample_async = braced_definition(
+        select_buffer,
+        "uint DRW_select_buffer_sample_point_async(",
+        "selection sample async",
+    )
+    for needle in (
+        "DRWSelectBufferQueryKind::Sample",
+        "rect.xmax = center[0] + 1;",
+        "rect.ymax = center[1] + 1;",
+        "drw_select_buffer_query(",
+    ):
+        require(needle in sample_async, f"selection sample async missing {needle!r}")
+
+    nearest_async = braced_definition(
+        select_buffer,
+        "uint DRW_select_buffer_find_nearest_to_point_async(",
+        "selection nearest async",
+    )
+    for needle in (
+        "DRWSelectBufferQueryKind::Nearest",
+        "BLI_rcti_init_pt_radius(&rect, center, *dist);",
+        "key.initial_distance = *dist;",
+        "drw_select_buffer_query(",
+    ):
+        require(needle in nearest_async, f"selection nearest async missing {needle!r}")
     require_ordered(
         selection_cancel,
         (
@@ -531,14 +646,113 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         ),
         "view select query",
     )
+
+    editmesh_sample = braced_definition(
+        editmesh_select,
+        "static uint edbm_select_buffer_sample_point(",
+        "edit-mesh sample dispatch",
+    )
+    require_ordered(
+        editmesh_sample,
+        (
+            "#ifdef __EMSCRIPTEN__",
+            "DRW_select_buffer_query_session_is_active()",
+            "DRW_select_buffer_sample_point_async(",
+            "#endif",
+            "DRW_select_buffer_sample_point(",
+        ),
+        "edit-mesh sample dispatch",
+    )
+    editmesh_nearest = braced_definition(
+        editmesh_select,
+        "static uint edbm_select_buffer_find_nearest_to_point(",
+        "edit-mesh nearest dispatch",
+    )
+    require_ordered(
+        editmesh_nearest,
+        (
+            "#ifdef __EMSCRIPTEN__",
+            "DRW_select_buffer_query_session_is_active()",
+            "DRW_select_buffer_find_nearest_to_point_async(",
+            "#endif",
+            "DRW_select_buffer_find_nearest_to_point(",
+        ),
+        "edit-mesh nearest dispatch",
+    )
+    require(
+        editmesh_select.count("edbm_select_buffer_find_nearest_to_point(") == 4,
+        "edit-mesh nearest dispatch/caller census differs",
+    )
+    require(
+        editmesh_select.count("edbm_select_buffer_sample_point(") == 2,
+        "edit-mesh sample dispatch/caller census differs",
+    )
+    editmesh_pick = braced_definition(
+        editmesh_select, "bool EDBM_select_pick(", "edit-mesh pick"
+    )
+    require_ordered(
+        editmesh_pick,
+        (
+            "unified_findnearest(&vc, bases",
+            "edbm_select_buffer_query_pending_or_failed()",
+            "return false;",
+            "if (params.sel_op == SEL_OP_SET)",
+        ),
+        "edit-mesh pending-before-mutation",
+    )
+    require(
+        editmesh_select.count("if (edbm_select_buffer_query_pending_or_failed())") >= 4,
+        "edit-mesh query stages do not stop on pending/failure",
+    )
+    pending_guard = braced_definition(
+        editmesh_select,
+        "static bool edbm_select_buffer_query_pending_or_failed()",
+        "edit-mesh query guard",
+    )
+    require_ordered(
+        pending_guard,
+        (
+            "DRW_select_buffer_query_session_status()",
+            "GPU_READBACK_PENDING",
+            "GPU_READBACK_FAILED",
+            "DRW_select_buffer_query_session_needs_replay()",
+        ),
+        "edit-mesh query guard",
+    )
+
+    combined_status = braced_definition(
+        view_select,
+        "static eGPUReadbackStatus view3d_select_async_status()",
+        "combined select status",
+    )
+    for needle in (
+        "GPU_select_async_status()",
+        "DRW_select_buffer_query_session_status()",
+        "GPU_READBACK_FAILED",
+        "GPU_READBACK_PENDING",
+        "GPU_READBACK_READY",
+    ):
+        require(needle in combined_status, f"combined select status missing {needle!r}")
+    combined_error = braced_definition(
+        view_select,
+        "static eGPUReadbackError view3d_select_async_error()",
+        "combined select error",
+    )
+    for needle in (
+        "GPU_select_async_error()",
+        "DRW_select_buffer_query_session_error()",
+    ):
+        require(needle in combined_error, f"combined select error missing {needle!r}")
+
     exec_body = braced_definition(
         view_select, "static wmOperatorStatus view3d_select_exec(", "select exec"
     )
     for needle in (
-        "GPU_select_async_status();",
+        "view3d_select_async_status();",
         "if (status == GPU_READBACK_PENDING)",
         "return OPERATOR_RUNNING_MODAL;",
         "if (status == GPU_READBACK_FAILED)",
+        "view3d_select_async_error()",
         "return OPERATOR_CANCELLED;",
     ):
         require(needle in exec_body, f"select exec missing {needle!r}")
@@ -549,6 +763,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         invoke_body,
         (
             "GPU_select_async_session_begin();",
+            "DRW_select_buffer_query_session_begin();",
             "view3d_select_exec(C, op);",
             "if (retval == OPERATOR_RUNNING_MODAL)",
             "WM_event_timer_add(",
@@ -561,7 +776,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     )
     for needle in (
         "constexpr int max_tick_count = 240;",
-        "GPU_select_async_status();",
+        "view3d_select_async_status();",
         "if (status == GPU_READBACK_PENDING)",
         "view3d_select_exec(C, op);",
         "view3d_select_async_finish(C, op);",
@@ -573,6 +788,19 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     require(
         "view3d_select_async_finish(C, op);" in cancel_body,
         "select cancel does not release continuation",
+    )
+    finish_body = braced_definition(
+        view_select,
+        "static void view3d_select_async_finish(",
+        "select async finish",
+    )
+    require_ordered(
+        finish_body,
+        (
+            "DRW_select_buffer_query_session_end();",
+            "GPU_select_async_session_end();",
+        ),
+        "select async finish",
     )
 
     cmake_text = sources["source/blender/gpu/CMakeLists.txt"]
@@ -663,6 +891,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "selection_buffer_owned_request": True,
             "webgpu_exact_tickets": True,
             "object_pick_continuation": True,
+            "edit_mesh_click_continuation": True,
             "window_color_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
@@ -753,6 +982,52 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "GPU_readback_cancel(readback->gpu_readback);\n  MEM_delete(readback);",
             "/* GPU request leaked */\n  MEM_delete(readback);",
             "selection cancellation",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "drw_select_buffer_query_context_restore(result.context);",
+            "/* stale selection context retained */",
+            "selection query context restore",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "drw_select_buffer_query_key_equal(g_select_buffer_query.pending_key, key)",
+            "true /* accept query drift */",
+            "selection query exact key",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "  g_select_buffer_query.replay_required = true;\n"
+            "  g_select_buffer_query.pending_key = key;",
+            "  g_select_buffer_query.replay_required = false;\n"
+            "  g_select_buffer_query.pending_key = key;",
+            "selection query replay latch",
+        ),
+        (
+            "source/blender/editors/mesh/editmesh_select.cc",
+            "DRW_select_buffer_find_nearest_to_point_async(",
+            "DRW_select_buffer_find_nearest_to_point(",
+            "edit-mesh nearest continuation",
+        ),
+        (
+            "source/blender/editors/mesh/editmesh_select.cc",
+            "bool found = unified_findnearest(&vc, bases, &base_index_active, &eve, &eed, &efa);\n"
+            "  if (edbm_select_buffer_query_pending_or_failed())",
+            "bool found = unified_findnearest(&vc, bases, &base_index_active, &eve, &eed, &efa);\n"
+            "  if (false)",
+            "edit-mesh pending guard",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "DRW_select_buffer_query_session_begin();",
+            "/* raw query session omitted */",
+            "edit-mesh query session begin",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "    op->customdata = nullptr;\n  }\n  DRW_select_buffer_query_session_end();",
+            "    op->customdata = nullptr;\n  }\n  /* raw query session leaked */",
+            "edit-mesh query session end",
         ),
         (
             "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",

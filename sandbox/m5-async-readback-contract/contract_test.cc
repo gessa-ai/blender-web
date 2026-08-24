@@ -742,6 +742,345 @@ bool selection_buffer_request_contract()
   return true;
 }
 
+enum class SelectionQueryKind {
+  Sample,
+  Nearest,
+};
+
+struct SelectionQueryKey {
+  SelectionQueryKind kind = SelectionQueryKind::Sample;
+  blender::rcti rect = {};
+  uint id_min = 0;
+  uint id_max = 0;
+  uint initial_distance = 0;
+  int context_token = 0;
+};
+
+bool selection_query_key_equal(const SelectionQueryKey &left, const SelectionQueryKey &right)
+{
+  return left.kind == right.kind && BLI_rcti_compare(&left.rect, &right.rect) &&
+         left.id_min == right.id_min && left.id_max == right.id_max &&
+         left.initial_distance == right.initial_distance &&
+         left.context_token == right.context_token;
+}
+
+struct SelectionQueryResult {
+  SelectionQueryKey key;
+  uint index = 0;
+  uint distance = 0;
+};
+
+class SelectionQuerySession {
+ private:
+  bool active_ = false;
+  bool failed_ = false;
+  bool replay_required_ = false;
+  blender::eGPUReadbackError error_ = blender::GPU_READBACK_ERROR_NONE;
+  SelectionBufferRequest *pending_ = nullptr;
+  SelectionQueryKey pending_key_;
+  std::vector<SelectionQueryResult> results_;
+
+  void fail(const blender::eGPUReadbackError error)
+  {
+    if (pending_ != nullptr) {
+      pending_->cancel();
+      delete pending_;
+      pending_ = nullptr;
+    }
+    failed_ = true;
+    error_ = error == blender::GPU_READBACK_ERROR_NONE ?
+                 blender::GPU_READBACK_ERROR_BACKEND_FAILURE :
+                 error;
+  }
+
+  static uint sample_result(const std::vector<uint> &buffer)
+  {
+    return buffer.empty() ? 0 : buffer[0];
+  }
+
+  static uint nearest_result(const SelectionQueryKey &key,
+                             const std::vector<uint> &buffer,
+                             uint &r_distance)
+  {
+    const int width = rect_width(key.rect);
+    const int height = rect_height(key.rect);
+    const int center_x = (width - 1) / 2;
+    const int center_y = (height - 1) / 2;
+    const int max_distance = width + height;
+    for (int distance = 0; distance <= max_distance; distance++) {
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+          if (std::abs(x - center_x) + std::abs(y - center_y) != distance) {
+            continue;
+          }
+          const uint hit_id = buffer[size_t(y) * size_t(width) + size_t(x)];
+          if (hit_id != 0 && hit_id >= key.id_min && hit_id < key.id_max) {
+            r_distance = uint(distance);
+            return (hit_id - key.id_min) + 1;
+          }
+        }
+      }
+    }
+    return 0;
+  }
+
+ public:
+  ~SelectionQuerySession()
+  {
+    end();
+  }
+
+  void begin()
+  {
+    end();
+    active_ = true;
+  }
+
+  void end()
+  {
+    if (pending_ != nullptr) {
+      pending_->cancel();
+      delete pending_;
+      pending_ = nullptr;
+    }
+    active_ = false;
+    failed_ = false;
+    replay_required_ = false;
+    error_ = blender::GPU_READBACK_ERROR_NONE;
+    results_.clear();
+  }
+
+  blender::eGPUReadbackStatus poll()
+  {
+    using namespace blender;
+    if (!active_) {
+      return GPU_READBACK_INVALID;
+    }
+    if (failed_) {
+      return GPU_READBACK_FAILED;
+    }
+    if (pending_ == nullptr) {
+      return results_.empty() ? GPU_READBACK_INVALID : GPU_READBACK_READY;
+    }
+
+    const eGPUReadbackStatus status = pending_->status();
+    if (status == GPU_READBACK_PENDING) {
+      return status;
+    }
+    if (status != GPU_READBACK_READY) {
+      const eGPUReadbackError error = pending_->error();
+      fail(error);
+      return GPU_READBACK_FAILED;
+    }
+
+    std::vector<uint> buffer;
+    if (!pending_->consume(buffer)) {
+      fail(pending_->error());
+      return GPU_READBACK_FAILED;
+    }
+    delete pending_;
+    pending_ = nullptr;
+
+    SelectionQueryResult result;
+    result.key = pending_key_;
+    result.distance = pending_key_.initial_distance;
+    const size_t expected_size = size_t(rect_width(pending_key_.rect)) *
+                                 size_t(rect_height(pending_key_.rect));
+    if (!buffer.empty() && buffer.size() != expected_size) {
+      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      return GPU_READBACK_FAILED;
+    }
+    if (pending_key_.kind == SelectionQueryKind::Sample) {
+      if (buffer.size() > 1) {
+        fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+        return GPU_READBACK_FAILED;
+      }
+      result.index = sample_result(buffer);
+    }
+    else {
+      result.index = nearest_result(pending_key_, buffer, result.distance);
+    }
+    results_.push_back(result);
+    return GPU_READBACK_READY;
+  }
+
+  blender::eGPUReadbackError error() const
+  {
+    return failed_ ? error_ : blender::GPU_READBACK_ERROR_NONE;
+  }
+
+  bool needs_replay() const
+  {
+    return replay_required_;
+  }
+
+  bool query(const SelectionQueryKey &key,
+             SelectionBufferRequest *request,
+             uint &r_index,
+             uint &r_distance,
+             int &r_active_context)
+  {
+    using namespace blender;
+    const eGPUReadbackStatus status = poll();
+    if (status == GPU_READBACK_FAILED) {
+      delete request;
+      return false;
+    }
+    for (const SelectionQueryResult &result : results_) {
+      if (selection_query_key_equal(result.key, key)) {
+        delete request;
+        r_index = result.index;
+        r_distance = result.distance;
+        r_active_context = result.key.context_token;
+        replay_required_ = false;
+        return true;
+      }
+    }
+    if (pending_ != nullptr) {
+      delete request;
+      replay_required_ = true;
+      if (!selection_query_key_equal(pending_key_, key)) {
+        fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      }
+      return false;
+    }
+    if (request == nullptr) {
+      fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+      return false;
+    }
+    pending_key_ = key;
+    pending_ = request;
+    replay_required_ = true;
+    if (poll() == GPU_READBACK_READY) {
+      return query(key, nullptr, r_index, r_distance, r_active_context);
+    }
+    return false;
+  }
+};
+
+bool selection_query_session_contract()
+{
+  using namespace blender;
+  int destroy_count = 0;
+  int active_context = 99;
+  uint index = 900;
+  uint distance = 700;
+  SelectionQuerySession session;
+  session.begin();
+
+  const rcti sample_rect{4, 5, 7, 8};
+  const SelectionQueryKey face_key{
+      SelectionQueryKind::Sample, sample_rect, 0, 0, 0, 11};
+  const uint face_value[] = {41u};
+  ControlledReadback *face_readback = controlled_readback(as_bytes(face_value, 1), destroy_count);
+  if (!require(!session.query(face_key,
+                              new SelectionBufferRequest(face_readback, sample_rect, sample_rect),
+                              index,
+                              distance,
+                              active_context),
+               "query face pending") ||
+      !require(session.poll() == GPU_READBACK_PENDING, "query pending status") ||
+      !require(index == 900 && distance == 700 && active_context == 99,
+               "query pending preserves outputs") ||
+      !require(destroy_count == 0, "query pending retains request"))
+  {
+    return false;
+  }
+  face_readback->mark_ready();
+  if (!require(session.poll() == GPU_READBACK_READY, "query face ready") ||
+      !require(session.needs_replay(), "query face ready still requires replay") ||
+      !require(index == 900 && distance == 700 && active_context == 99,
+               "query ready-before-guard preserves outputs") ||
+      !require(session.query(face_key, nullptr, index, distance, active_context),
+               "query face replay") ||
+      !require(index == 41 && distance == 0 && active_context == 11,
+               "query face exact result") ||
+      !require(!session.needs_replay(), "query face replay clears latch") ||
+      !require(destroy_count == 1, "query face retires request"))
+  {
+    return false;
+  }
+
+  const rcti nearest_rect{10, 15, 20, 25};
+  const SelectionQueryKey edge_key{
+      SelectionQueryKind::Nearest, nearest_rect, 100, 200, 2, 22};
+  uint nearest_values[25] = {};
+  nearest_values[2 * 5 + 4] = 107u;
+  ControlledReadback *edge_readback = controlled_readback(
+      as_bytes(nearest_values, std::size(nearest_values)), destroy_count);
+  index = 901;
+  distance = edge_key.initial_distance;
+  if (!require(!session.query(edge_key,
+                              new SelectionBufferRequest(
+                                  edge_readback, nearest_rect, nearest_rect),
+                              index,
+                              distance,
+                              active_context),
+               "query edge pending") ||
+      !require(index == 901 && distance == 2 && active_context == 11,
+               "query edge pending preserves outputs"))
+  {
+    return false;
+  }
+  edge_readback->mark_ready();
+  if (!require(session.poll() == GPU_READBACK_READY, "query edge ready") ||
+      !require(session.needs_replay(), "query edge ready still requires replay") ||
+      !require(session.query(edge_key, nullptr, index, distance, active_context),
+               "query edge replay") ||
+      !require(index == 8 && distance == 2 && active_context == 22,
+               "query nearest id and distance") ||
+      !require(destroy_count == 2, "query edge retires request"))
+  {
+    return false;
+  }
+
+  active_context = 77;
+  if (!require(session.query(face_key, nullptr, index, distance, active_context),
+               "query face repeat") ||
+      !require(index == 41 && active_context == 11, "query face restores context") ||
+      !require(session.query(edge_key, nullptr, index, distance, active_context),
+               "query edge repeat") ||
+      !require(index == 8 && distance == 2 && active_context == 22,
+               "query edge restores context"))
+  {
+    return false;
+  }
+
+  const SelectionQueryKey vertex_key{
+      SelectionQueryKind::Sample, rcti{30, 31, 40, 41}, 0, 0, 0, 33};
+  ControlledReadback *vertex_readback = controlled_readback(as_bytes(face_value, 1), destroy_count);
+  if (!require(!session.query(vertex_key,
+                              new SelectionBufferRequest(
+                                  vertex_readback, vertex_key.rect, vertex_key.rect),
+                              index,
+                              distance,
+                              active_context),
+               "query vertex pending"))
+  {
+    return false;
+  }
+  SelectionQueryKey drifted_key = vertex_key;
+  drifted_key.rect.xmin++;
+  if (!require(!session.query(drifted_key, nullptr, index, distance, active_context),
+               "query drift rejects") ||
+      !require(session.poll() == GPU_READBACK_FAILED, "query drift fails closed") ||
+      !require(session.error() == GPU_READBACK_ERROR_BACKEND_FAILURE,
+               "query drift error") ||
+      !require(destroy_count == 3, "query drift cancels pending"))
+  {
+    return false;
+  }
+  session.end();
+  if (!require(session.poll() == GPU_READBACK_INVALID, "query ended invalid")) {
+    return false;
+  }
+
+  std::printf(
+      "CONTRACT selection-query-session PASS queries=3 replays=4 context_restores=4 "
+      "distance=2 failures=1 retired=3\n");
+  return true;
+}
+
 }  // namespace
 
 namespace mem_guarded::internal {
@@ -784,12 +1123,13 @@ bool BLI_rcti_compare(const rcti *left, const rcti *right)
 int main()
 {
   if (!owned_result_contract() || !transform_result_contract() || !async_selection_contract() ||
-      !async_failure_contract() || !selection_buffer_request_contract())
+      !async_failure_contract() || !selection_buffer_request_contract() ||
+      !selection_query_session_contract())
   {
     return 1;
   }
   std::printf(
-      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=5 modes=3 failures=3 transforms=1 "
-      "selection_cases=6\n");
+      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=6 modes=3 failures=4 transforms=1 "
+      "selection_cases=6 query_replays=4\n");
   return 0;
 }

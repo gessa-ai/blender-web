@@ -2310,7 +2310,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 contracts are byte-identical and 21 source mutations fail closed. The legacy
   selection family remains partial only for box/lasso/circle gesture callers. See
   `notes/m5-legacy-selection-click-continuation-20260824.md`.
-- [x] **M5-LEGACY-SELECTION-GESTURE-CONTINUATION [driver, complete]:** COMPLETE (patch 0255;
+- [x] **M5-LEGACY-SELECTION-GESTURE-CONTINUATION [driver, complete]:** COMPLETE (91cc626,
+  patch 0255;
   Linux receipt `20260824T175224-312862`): edit-mesh box/lasso/circle bitmap reads now own their
   raw requests and exact producing context across bounded operator continuations. Rectangle,
   polygon-mask, strict circle-radius, bitmap-index, pre-deselect, exact circle-input replay, and

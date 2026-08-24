@@ -2099,6 +2099,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Focused/integrated native/wasm32 parity, real product rebuild/no-work, OFF preflight, canonical
   replay, compliance, scoped M4, and container-backed regression are verified. See
   `notes/m4-ghost-inheritance-documentation-r8-20260824.md`.
+- [x] **M8-SCULPT-PAINT-REGISTRATION-CUT [driver, blocked-by: none] COMPLETE (26e8166,
+  patch 0248):** the windowed profile omits only non-launch sculpt/paint operator, macro, and
+  keymap roots while native/headless registration and shared data/RNA/helpers remain intact. The
+  real locked product drops 2,825,954 raw and 489,232 pinned Brotli-q11 bytes; focused mutation
+  controls, native/headless preservation builds, canonical replay, REUSE, scoped M8, and
+  container-backed regression are verified. M8 remains RED: the 24,236,667-byte Wasm alone still
+  exceeds the complete 15 MB interactive budget before stage-0 data, and hardware/APPLY receipts
+  remain s7-blocked. See `notes/m8-sculpt-paint-registration-cut-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

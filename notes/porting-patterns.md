@@ -1155,3 +1155,19 @@ the timer, unlink the request, and cancel its GPU ticket before freeing state. E
 pending handoff, exact timer identity, newest-wins, and every terminal path on native and wasm32.
 See `patches/0262-m5-zoom-border-depth-continuation.patch` and
 `sandbox/m5-zoom-border-depth/`.
+
+## Class 80 — asynchronous device input must own and replay its custom payload FIFO
+
+Signature: an input operator reads a typed motion structure through `event->customdata`, performs
+a synchronous depth fallback during its starting event, and then applies every later device delta
+to accumulated view state. A shallow `wmEvent` copy leaves the continuation pointing at
+window-manager-owned memory, while retaining only the latest event drops non-commutative motion.
+Copy the typed payload beside every retained event, repoint each event at its owned copy, and queue
+the exact bounded FIFO while the producing depth request settles. Preserve bounds-first behavior
+and native-immediate completion; after settlement, replay the starting motion and each queued delta
+in order through the stock handler. A queued new starting motion may transfer the remaining FIFO
+to a successor request, but no event may be applied twice. Producing-view drift, timeout, backend
+failure, queue overflow, Escape, and external cancellation must remove the exact timer and cancel
+the GPU ticket before freeing any payload. Exercise deep-copy ownership, FIFO ordering, queue
+bounds, chained starting events, and every terminal path on native and wasm32. See
+`patches/0263-m5-ndof-depth-continuation.patch` and `sandbox/m5-ndof-depth/`.

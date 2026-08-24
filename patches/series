@@ -1092,3 +1092,6 @@
 # 0262: retain Zoom to Border's exact clamped depth rectangle and transfer a
 # pending box gesture into a bounded, view-guarded modal continuation.
 0262-m5-zoom-border-depth-continuation.patch
+# 0263: retain NDOF bounds-fallback motion and queue exact device payloads while
+# its owned, bounded depth request progresses across window-manager ticks.
+0263-m5-ndof-depth-continuation.patch

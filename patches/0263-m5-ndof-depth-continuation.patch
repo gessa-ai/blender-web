@@ -1,0 +1,748 @@
+# SPDX-FileCopyrightText: 2008 Blender Authors
+# SPDX-FileCopyrightText: 2023 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Ported for the web from source/blender/editors/space_view3d/view3d_navigate{.cc,.hh,_view_ndof.cc} @ fbe6228777e7
+#
+# M5: own the NDOF bounds-fallback depth rectangle and replay retained 3D-mouse
+# motion payloads in FIFO order after bounded browser settlement.
+diff --git a/source/blender/editors/space_view3d/view3d_navigate.cc b/source/blender/editors/space_view3d/view3d_navigate.cc
+index 761af405dd4a2b2de362ef6fde834ebbd24369a9..00f2ca87a70a87ee3500742fd660045acfa3a29e 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate.cc
+@@ -505,6 +505,9 @@ ViewOpsDataInitResult ViewOpsData::init_navigation(bContext *C,
+ void ViewOpsData::end_navigation(bContext *C)
+ {
+   viewops_depth_read_free(C, this);
++#ifdef WITH_INPUT_NDOF
++  view3d_ndof_depth_cancel(C, this);
++#endif
+   this->rv3d->rflag &= ~RV3D_NAVIGATING;
+ 
+   if (this->timer) {
+@@ -859,6 +862,11 @@ bool view3d_zoom_or_dolly_or_rotation_poll(bContext *C)
+ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++#ifdef WITH_INPUT_NDOF
++  if (view3d_ndof_depth_is_pending(vod)) {
++    return view3d_ndof_depth_modal(C, op, event);
++  }
++#endif
+   if (vod != nullptr && vod->depth_read != nullptr) {
+     return view3d_navigation_depth_modal(C, op, event);
+   }
+@@ -889,7 +897,13 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+ void view3d_navigate_cancel_fn(bContext *C, wmOperator *op)
+ {
+   ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
+-  if (vod != nullptr && vod->depth_read != nullptr) {
++  bool pending_depth = vod != nullptr && vod->depth_read != nullptr;
++#ifdef WITH_INPUT_NDOF
++  if (view3d_ndof_depth_is_pending(vod)) {
++    pending_depth = true;
++  }
++#endif
++  if (pending_depth) {
+     vod->state_restore();
+   }
+   viewops_data_free(C, vod);
+diff --git a/source/blender/editors/space_view3d/view3d_navigate.hh b/source/blender/editors/space_view3d/view3d_navigate.hh
+index ed08bef34569b5ef3b6aef5fa9e91d5424a61f2c..84c0c5cabafcd9ad56e6bbbe9033c560537caa07 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate.hh
++++ b/source/blender/editors/space_view3d/view3d_navigate.hh
+@@ -38,6 +38,7 @@ struct ScrArea;
+ struct View3D;
+ struct ViewOpsData;
+ struct ViewOpsDepthRead;
++struct NdofDepthRead;
+ struct bContext;
+ struct Object;
+ struct PointerRNA;
+@@ -136,6 +137,9 @@ struct ViewOpsData {
+   /** Owned cursor-depth request while browser WebGPU yields to the WM loop. */
+   ViewOpsDepthRead *depth_read = nullptr;
+ 
++  /** Owned NDOF orbit-center request and queued motion payloads. */
++  NdofDepthRead *ndof_depth_read = nullptr;
++
+   /** Viewport state on initialization, don't change afterwards. */
+   struct {
+ 
+@@ -321,6 +325,10 @@ extern const ViewOpsType ViewOpsType_ndof_orbit;
+ extern const ViewOpsType ViewOpsType_ndof_orbit_zoom;
+ extern const ViewOpsType ViewOpsType_ndof_pan;
+ extern const ViewOpsType ViewOpsType_ndof_all;
++
++bool view3d_ndof_depth_is_pending(const ViewOpsData *vod);
++wmOperatorStatus view3d_ndof_depth_modal(bContext *C, wmOperator *op, const wmEvent *event);
++void view3d_ndof_depth_cancel(bContext *C, ViewOpsData *vod);
+ #endif /* WITH_INPUT_NDOF */
+ 
+ /* view3d_navigate_roll.cc */
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
+index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1b3e2495a 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
+@@ -1,21 +1,38 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup spview3d
++ *
++ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc @ fbe6228777e7.
+  */
++
++#include <limits>
++#include <utility>
++#include <vector>
++
+ #include "BLI_bounds.hh"
+ #include "BLI_math_geom.h"
++#include "BLI_math_matrix.h"
+ #include "BLI_math_matrix.hh"
+ #include "BLI_math_rotation.h"
+ #include "BLI_math_vector.h"
+ #include "BLI_rect.h"
++#include "BLI_vector.hh"
+ 
++#include "BKE_context.hh"
+ #include "BKE_layer.hh"
++#include "BKE_report.hh"
+ 
+ #include "DEG_depsgraph_query.hh"
+ 
++#include "GPU_framebuffer.hh"
++#include "GPU_readback.hh"
++#include "GPU_texture.hh"
++#include "GPU_viewport.hh"
++
+ #include "WM_api.hh"
+ 
+ #include "ED_screen.hh"
+@@ -53,6 +70,54 @@ enum {
+   HAS_ROTATE = (1 << 0),
+ };
+ 
++struct NdofQueuedMotion {
++  wmEvent event = {};
++  wmNDOFMotionData motion = {};
++};
++
++struct NdofDepthRead {
++  GPUReadback *readback = nullptr;
++  wmTimer *timer = nullptr;
++  wmWindow *window = nullptr;
++  bScreen *screen = nullptr;
++  ScrArea *area = nullptr;
++  ARegion *region = nullptr;
++  View3D *view3d = nullptr;
++  RegionView3D *region_view = nullptr;
++  wmEvent invoke_event = {};
++  wmNDOFMotionData invoke_motion = {};
++  Vector<NdofQueuedMotion> queued_motions;
++  rcti sample_rect = {};
++  size_t expected_size = 0;
++  std::optional<float3> min_depth_point = std::nullopt;
++  int region_size[2] = {0, 0};
++  float viewinv[4][4] = {};
++  float winmat[4][4] = {};
++  float persmat[4][4] = {};
++  float persinv[4][4] = {};
++  float ofs[3] = {0.0f, 0.0f, 0.0f};
++  float viewquat[4] = {0.0f, 0.0f, 0.0f, 0.0f};
++  float dist = 0.0f;
++  float camdx = 0.0f;
++  float camdy = 0.0f;
++  float camzoom = 0.0f;
++  float lens = 0.0f;
++  float clip_start = 0.0f;
++  float clip_end = 0.0f;
++  float grid = 0.0f;
++  Object *camera = nullptr;
++  int persp = RV3D_ORTHO;
++  int view = RV3D_VIEW_USER;
++  int view_axis_roll = RV3D_VIEW_AXIS_ROLL_0;
++  int view_lock = 0;
++  int view3d_flag2 = 0;
++  int navigation_mode = NDOF_NAVIGATION_MODE_OBJECT;
++  int ndof_flag = 0;
++  int tick_count = 0;
++  bool empty_ready = false;
++  bool resolved = false;
++};
++
+ static bool ndof_has_translate(const wmNDOFMotionData &ndof,
+                                const View3D *v3d,
+                                const RegionView3D *rv3d)
+@@ -596,51 +661,227 @@ static std::optional<float3> ndof_orbit_center_calc_from_bounds(Depsgraph *depsg
+   return std::nullopt;
+ }
+ 
+-static float ndof_read_zbuf_rect(ARegion *region, const rcti &rect, int r_xy[2])
++static int ndof_effective_navigation_mode(const ViewOpsData *vod)
+ {
+-  /* Avoid allocating the whole depth buffer. */
+-  ViewDepths depth_temp = {0};
+-  rcti rect_clip = rect;
+-  view3d_depths_rect_create(region, &rect_clip, &depth_temp);
++  return vod->nav_type == &ViewOpsType_ndof_all ? int(NDOF_NAVIGATION_MODE_FLY) :
++                                                 int(U.ndof_navigation_mode);
++}
+ 
+-  /* Find the closest Z pixel. */
+-  float depth_near;
++static NdofQueuedMotion ndof_motion_copy(const wmEvent &event)
++{
++  NdofQueuedMotion queued;
++  queued.event = event;
++  queued.event.next = nullptr;
++  queued.event.prev = nullptr;
++  queued.event.customdata = nullptr;
++  queued.event.customdata_free = false;
++  queued.motion = *static_cast<const wmNDOFMotionData *>(event.customdata);
++  return queued;
++}
+ 
+-  if (r_xy) {
+-    depth_near = view3d_depth_near_ex(&depth_temp, r_xy);
++static eGPUReadbackStatus ndof_depth_read_status(NdofDepthRead *read)
++{
++  if (read == nullptr) {
++    return GPU_READBACK_FAILED;
+   }
+-  else {
+-    depth_near = view3d_depth_near(&depth_temp);
++  if (read->empty_ready || read->resolved) {
++    return GPU_READBACK_READY;
++  }
++  const eGPUReadbackStatus status = GPU_readback_status(read->readback);
++  if (status == GPU_READBACK_READY && GPU_readback_size(read->readback) != read->expected_size) {
++    return GPU_READBACK_FAILED;
+   }
++  return status;
++}
+ 
+-  MEM_SAFE_DELETE(depth_temp.depths);
++static bool ndof_depth_read_consume(NdofDepthRead *read,
++                                    std::optional<float3> &r_min_depth_point)
++{
++  if (ndof_depth_read_status(read) != GPU_READBACK_READY) {
++    return false;
++  }
++  r_min_depth_point = std::nullopt;
++  if (read->empty_ready) {
++    return true;
++  }
++
++  std::vector<float> depths(read->expected_size / sizeof(float));
++  if (!GPU_readback_consume(read->readback, depths.data(), read->expected_size)) {
++    return false;
++  }
+ 
+-  return depth_near;
++  float nearest = 1.0f;
++  int nearest_index = -1;
++  for (size_t index = 0; index < depths.size(); index++) {
++    const float depth = depths[index];
++    if (depth < nearest && depth > 0.0f) {
++      nearest = depth;
++      nearest_index = int(index);
++    }
++  }
++  if (nearest_index != -1) {
++    const int width = BLI_rcti_size_x(&read->sample_rect);
++    r_min_depth_point = float3(
++        float(read->sample_rect.xmin + (nearest_index % width)),
++        float(read->sample_rect.ymin + (nearest_index / width)),
++        nearest);
++  }
++  return true;
+ }
+ 
+-/**
+- * Sample viewport region and get the nearest (depth-wise) point in screen space.
+- * \return
+- * - X, Y components: region space X, Y coordinate of the sample.
+- * - Z component: depth of the sample (the nearest value).
+- */
+-static std::optional<float3> ndof_get_min_depth_pt(ARegion *region, const rcti &rect)
++static bool ndof_depth_context_matches(bContext *C,
++                                       const ViewOpsData *vod,
++                                       const NdofDepthRead *read)
+ {
+-  int xy[2] = {0, 0};
+-  const float depth_near = ndof_read_zbuf_rect(region, rect, xy);
+-  if (depth_near == FLT_MAX) {
+-    return std::nullopt;
++  if (read == nullptr || CTX_wm_window(C) != read->window ||
++      CTX_wm_screen(C) != read->screen || CTX_wm_area(C) != read->area ||
++      CTX_wm_region(C) != read->region || CTX_wm_view3d(C) != read->view3d ||
++      CTX_wm_region_view3d(C) != read->region_view || vod->area != read->area ||
++      vod->region != read->region || vod->v3d != read->view3d ||
++      vod->rv3d != read->region_view || read->region->regiondata != read->region_view ||
++      read->region->winx != read->region_size[0] || read->region->winy != read->region_size[1])
++  {
++    return false;
+   }
+-  const float3 result = {float(xy[0]), float(xy[1]), depth_near};
+-  return result;
++
++  const RegionView3D *rv3d = read->region_view;
++  const View3D *v3d = read->view3d;
++  const int effective_navigation_mode = ndof_effective_navigation_mode(vod);
++  if (effective_navigation_mode != read->navigation_mode || U.ndof_flag != read->ndof_flag) {
++    return false;
++  }
++  return equals_m4m4(rv3d->viewinv, read->viewinv) &&
++         equals_m4m4(rv3d->winmat, read->winmat) &&
++         equals_m4m4(rv3d->persmat, read->persmat) &&
++         equals_m4m4(rv3d->persinv, read->persinv) && equals_v3v3(rv3d->ofs, read->ofs) &&
++         equals_v4v4(rv3d->viewquat, read->viewquat) && rv3d->dist == read->dist &&
++         rv3d->camdx == read->camdx && rv3d->camdy == read->camdy &&
++         rv3d->camzoom == read->camzoom && int(rv3d->persp) == read->persp &&
++         int(rv3d->view) == read->view && int(rv3d->view_axis_roll) == read->view_axis_roll &&
++         int(RV3D_LOCK_FLAGS(rv3d)) == read->view_lock && v3d->lens == read->lens &&
++         v3d->clip_start == read->clip_start && v3d->clip_end == read->clip_end &&
++         v3d->grid == read->grid && v3d->camera == read->camera &&
++         int(v3d->flag2) == read->view3d_flag2;
+ }
+ 
+-static std::optional<float3> ndof_orbit_center_calc_from_zbuf(Depsgraph *depsgraph,
+-                                                              ScrArea *area,
+-                                                              ARegion *region)
++void view3d_ndof_depth_cancel(bContext *C, ViewOpsData *vod)
+ {
+-  rcti sample_rect;
++  NdofDepthRead *read = vod != nullptr ? vod->ndof_depth_read : nullptr;
++  if (read == nullptr) {
++    return;
++  }
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->window, read->timer);
++    read->timer = nullptr;
++  }
++  GPU_readback_cancel(read->readback);
++  vod->ndof_depth_read = nullptr;
++  MEM_delete(read);
++}
++
++bool view3d_ndof_depth_is_pending(const ViewOpsData *vod)
++{
++  return vod != nullptr && vod->ndof_depth_read != nullptr;
++}
++
++static NdofDepthRead *ndof_depth_read_create(bContext *C,
++                                             ViewOpsData *vod,
++                                             const wmEvent *event,
++                                             const rcti &sample_rect)
++{
++  if (event == nullptr || event->type != NDOF_MOTION || event->customdata == nullptr ||
++      event->custom != EVT_DATA_NDOF_MOTION)
++  {
++    return nullptr;
++  }
++
++  NdofDepthRead *read = MEM_new<NdofDepthRead>(__func__);
++  read->window = CTX_wm_window(C);
++  read->screen = CTX_wm_screen(C);
++  read->area = vod->area;
++  read->region = vod->region;
++  read->view3d = vod->v3d;
++  read->region_view = vod->rv3d;
++  read->invoke_event = *event;
++  read->invoke_motion = *static_cast<const wmNDOFMotionData *>(event->customdata);
++  read->invoke_event.next = nullptr;
++  read->invoke_event.prev = nullptr;
++  read->invoke_event.customdata = nullptr;
++  read->invoke_event.customdata_free = false;
++  read->sample_rect = sample_rect;
++  read->region_size[0] = read->region->winx;
++  read->region_size[1] = read->region->winy;
++  copy_m4_m4(read->viewinv, read->region_view->viewinv);
++  copy_m4_m4(read->winmat, read->region_view->winmat);
++  copy_m4_m4(read->persmat, read->region_view->persmat);
++  copy_m4_m4(read->persinv, read->region_view->persinv);
++  copy_v3_v3(read->ofs, read->region_view->ofs);
++  copy_v4_v4(read->viewquat, read->region_view->viewquat);
++  read->dist = read->region_view->dist;
++  read->camdx = read->region_view->camdx;
++  read->camdy = read->region_view->camdy;
++  read->camzoom = read->region_view->camzoom;
++  read->persp = int(read->region_view->persp);
++  read->view = int(read->region_view->view);
++  read->view_axis_roll = int(read->region_view->view_axis_roll);
++  read->view_lock = int(RV3D_LOCK_FLAGS(read->region_view));
++  read->lens = read->view3d->lens;
++  read->clip_start = read->view3d->clip_start;
++  read->clip_end = read->view3d->clip_end;
++  read->grid = read->view3d->grid;
++  read->camera = read->view3d->camera;
++  read->view3d_flag2 = int(read->view3d->flag2);
++  read->navigation_mode = ndof_effective_navigation_mode(vod);
++  read->ndof_flag = U.ndof_flag;
++
++  const rcti bounds = {0, read->region->winx - 1, 0, read->region->winy - 1};
++  BLI_rcti_isect(&bounds, &read->sample_rect, &read->sample_rect);
++  const int width_signed = BLI_rcti_size_x(&read->sample_rect);
++  const int height_signed = BLI_rcti_size_y(&read->sample_rect);
++  if (width_signed <= 0 || height_signed <= 0) {
++    read->empty_ready = true;
++    return read;
++  }
+ 
++  const size_t width = size_t(width_signed);
++  const size_t height = size_t(height_signed);
++  if (width > std::numeric_limits<size_t>::max() / height ||
++      width * height > std::numeric_limits<size_t>::max() / sizeof(float))
++  {
++    return read;
++  }
++  read->expected_size = width * height * sizeof(float);
++
++  GPUViewport *viewport = WM_draw_region_get_viewport(read->region);
++  gpu::Texture *depth_tx = viewport != nullptr ? GPU_viewport_depth_texture(viewport) : nullptr;
++  if (depth_tx == nullptr) {
++    return read;
++  }
++
++  gpu::FrameBuffer *depth_read_fb = nullptr;
++  GPU_framebuffer_ensure_config(&depth_read_fb,
++                                {
++                                    GPU_ATTACHMENT_TEXTURE(depth_tx),
++                                    GPU_ATTACHMENT_NONE,
++                                });
++  if (depth_read_fb == nullptr) {
++    return read;
++  }
++  GPU_framebuffer_bind(depth_read_fb);
++  read->readback = GPU_framebuffer_read_depth_async(depth_read_fb,
++                                                    read->sample_rect.xmin,
++                                                    read->sample_rect.ymin,
++                                                    width_signed,
++                                                    height_signed,
++                                                    GPU_DATA_FLOAT);
++  GPU_framebuffer_restore();
++  GPU_framebuffer_free(depth_read_fb);
++  return read;
++}
++
++static rcti ndof_orbit_center_sample_rect(const ARegion *region)
++{
++  rcti sample_rect;
+   if (!NDOF_IS_ORBIT_AROUND_CENTER_MODE(&U)) {
+     /* Move the region to the bottom to enhance navigation in architectural-visualization. */
+     sample_rect.xmin = 0.3f * region->winx;
+@@ -652,14 +893,21 @@ static std::optional<float3> ndof_orbit_center_calc_from_zbuf(Depsgraph *depsgra
+     int view_center[2] = {region->winx / 2, region->winy / 2};
+     BLI_rcti_init_pt_radius(&sample_rect, view_center, 0.05f * region->winx);
+   }
++  return sample_rect;
++}
+ 
+-  const std::optional<float3> min_depth_pt = ndof_get_min_depth_pt(region, sample_rect);
+-  if (!min_depth_pt) {
++static std::optional<float3> ndof_orbit_center_calc_from_depth_point(
++    Depsgraph *depsgraph,
++    ScrArea *area,
++    ARegion *region,
++    const std::optional<float3> &min_depth_point)
++{
++  if (!min_depth_point.has_value()) {
+     return std::nullopt;
+   }
+ 
+   float3 zbuf_center;
+-  if (!ED_view3d_unproject_v3(region, UNPACK3(*min_depth_pt), zbuf_center)) {
++  if (!ED_view3d_unproject_v3(region, UNPACK3(*min_depth_point), zbuf_center)) {
+     return std::nullopt;
+   }
+ 
+@@ -680,7 +928,6 @@ static std::optional<float3> ndof_orbit_center_calc_from_zbuf(Depsgraph *depsgra
+ 
+   Scene *scene = DEG_get_input_scene(depsgraph);
+   ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+-
+   if (!BKE_layer_collection_has_selected_objects(
+           *DEG_get_bmain(depsgraph), scene, view_layer, view_layer->active_collection))
+   {
+@@ -692,34 +939,57 @@ static std::optional<float3> ndof_orbit_center_calc_from_zbuf(Depsgraph *depsgra
+   {
+     return zbuf_center;
+   }
+-
+   return std::nullopt;
+ }
+ 
+-static std::optional<float3> ndof_orbit_center_calc(Depsgraph *depsgraph,
+-                                                    ScrArea *area,
+-                                                    ARegion *region)
++enum class NdofOrbitCenterResult {
++  Ready,
++  Pending,
++  Failed,
++};
++
++static NdofOrbitCenterResult ndof_orbit_center_calc(bContext *C,
++                                                     ViewOpsData *vod,
++                                                     const wmEvent *event,
++                                                     std::optional<float3> &r_center)
+ {
+-  /* Auto orbit-center implements an intelligent way to dynamically choose the orbit-center
+-   * based on objects on the scene and how close to the particular object is the camera.
+-   *
+-   * Auto center calculation algorithm works as following:
+-   * 1) Calculate the bounding box of all objects in the scene
+-   * 2) If at least 80% of that box is contained in view-port's camera frustum then:
+-   *    2a) Store the center of that bounding box as the orbit-center.
+-   * 3) Use Z buffer to find the depth under the middle of the view3d region
+-   * 4) If some finite depth value was found then:
+-   *    4a) Use that depth to unproject a point from the middle of the region to the 3D space
+-   *    4b) Store that point as the Center of Rotation
+-   * 5) Since no candidates were found, use the last stored value
+-   *    (when #RV3D_NDOF_OFS_IS_VALID is set).
+-   */
++  if (vod->ndof_depth_read != nullptr && vod->ndof_depth_read->resolved) {
++    r_center = ndof_orbit_center_calc_from_depth_point(
++        vod->depsgraph, vod->area, vod->region, vod->ndof_depth_read->min_depth_point);
++    return NdofOrbitCenterResult::Ready;
++  }
+ 
+-  std::optional<float3> center_test = ndof_orbit_center_calc_from_bounds(depsgraph, area, region);
+-  if (!center_test.has_value()) {
+-    center_test = ndof_orbit_center_calc_from_zbuf(depsgraph, area, region);
++  /* Preserve the stock bounds-first algorithm. Only the fallback rectangle read yields. */
++  r_center = ndof_orbit_center_calc_from_bounds(vod->depsgraph, vod->area, vod->region);
++  if (r_center.has_value()) {
++    return NdofOrbitCenterResult::Ready;
+   }
+-  return center_test;
++
++  const rcti sample_rect = ndof_orbit_center_sample_rect(vod->region);
++  NdofDepthRead *read = ndof_depth_read_create(C, vod, event, sample_rect);
++  if (read == nullptr) {
++    return NdofOrbitCenterResult::Failed;
++  }
++  vod->ndof_depth_read = read;
++
++  const eGPUReadbackStatus status = ndof_depth_read_status(read);
++  if (status == GPU_READBACK_PENDING) {
++    read->timer = WM_event_timer_add(CTX_wm_manager(C), read->window, TIMER, 0.01f);
++    if (read->timer == nullptr) {
++      return NdofOrbitCenterResult::Failed;
++    }
++    return NdofOrbitCenterResult::Pending;
++  }
++  if (status != GPU_READBACK_READY ||
++      !ndof_depth_read_consume(read, read->min_depth_point))
++  {
++    return NdofOrbitCenterResult::Failed;
++  }
++
++  read->resolved = true;
++  r_center = ndof_orbit_center_calc_from_depth_point(
++      vod->depsgraph, vod->area, vod->region, read->min_depth_point);
++  return NdofOrbitCenterResult::Ready;
+ }
+ 
+ /** \} */
+@@ -904,16 +1174,23 @@ static wmOperatorStatus ndof_orbit_zoom_invoke_impl(bContext *C,
+   }
+   else if (ndof.progress == P_STARTING) {
+     if (ndof_orbit_center_is_used(v3d, rv3d)) {
++      std::optional<float3> center_test;
++      const NdofOrbitCenterResult center_result = ndof_orbit_center_calc(
++          C, vod, event, center_test);
++      if (center_result == NdofOrbitCenterResult::Pending) {
++        return OPERATOR_RUNNING_MODAL;
++      }
++      if (center_result == NdofOrbitCenterResult::Failed) {
++        return OPERATOR_CANCELLED;
++      }
+       /* If center was recalculated then update the point location for drawing. */
+-      if (std::optional<float3> center_test = ndof_orbit_center_calc(
+-              vod->depsgraph, vod->area, vod->region))
+-      {
+-        negate_v3_v3(rv3d->ndof_ofs, center_test.value());
++      if (center_test.has_value()) {
++        negate_v3_v3(rv3d->ndof_ofs, *center_test);
+         /* When `ndof_ofs` is set `rv3d->dist` should be set based on distance to `ndof_ofs`.
+          * Without this the user is unable to zoom to the `ndof_ofs` point. See: #134732. */
+         if (rv3d->is_persp) {
+           const float dist_min = ED_view3d_dist_soft_min_get(v3d, true);
+-          if (!ED_view3d_distance_set_from_location(rv3d, center_test.value(), dist_min)) {
++          if (!ED_view3d_distance_set_from_location(rv3d, *center_test, dist_min)) {
+             ED_view3d_distance_set(rv3d, dist_min);
+           }
+         }
+@@ -1000,6 +1277,8 @@ void VIEW3D_OT_ndof_orbit_zoom(wmOperatorType *ot)
+ 
+   /* API callbacks. */
+   ot->invoke = ndof_orbit_zoom_invoke;
++  ot->modal = view3d_navigate_modal_fn;
++  ot->cancel = view3d_navigate_cancel_fn;
+   ot->poll = ED_operator_view3d_active;
+ 
+   /* flags */
+@@ -1137,12 +1416,158 @@ void VIEW3D_OT_ndof_all(wmOperatorType *ot)
+ 
+   /* API callbacks. */
+   ot->invoke = ndof_all_invoke;
++  ot->modal = view3d_navigate_modal_fn;
++  ot->cancel = view3d_navigate_cancel_fn;
+   ot->poll = ED_operator_view3d_active;
+ 
+   /* flags */
+   ot->flag = 0;
+ }
+ 
++static wmOperatorStatus ndof_depth_modal_cancel(bContext *C,
++                                                wmOperator *op,
++                                                ViewOpsData *vod,
++                                                const char *message)
++{
++  if (message != nullptr) {
++    BKE_report(op->reports, RPT_ERROR, message);
++  }
++  vod->state_restore();
++  viewops_data_free(C, vod);
++  op->customdata = nullptr;
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus ndof_replay_owned_event(bContext *C,
++                                                wmOperator *op,
++                                                ViewOpsData *vod,
++                                                const wmEvent &owned_event,
++                                                wmNDOFMotionData &owned_motion)
++{
++  wmEvent event = owned_event;
++  event.next = nullptr;
++  event.prev = nullptr;
++  event.custom = EVT_DATA_NDOF_MOTION;
++  event.customdata = &owned_motion;
++  event.customdata_free = false;
++  return vod->nav_type->init_fn(C, vod, &event, op->ptr);
++}
++
++static wmOperatorStatus ndof_replay_queued_event(bContext *C,
++                                                 wmOperator *op,
++                                                 ViewOpsData *vod,
++                                                 const NdofQueuedMotion &queued)
++{
++  wmEvent event = queued.event;
++  wmNDOFMotionData motion = queued.motion;
++  event.next = nullptr;
++  event.prev = nullptr;
++  event.custom = EVT_DATA_NDOF_MOTION;
++  event.customdata = &motion;
++  event.customdata_free = false;
++
++  const ViewOpsType *nav_type = vod->nav_type;
++  vod->init_context(C);
++  const ViewOpsDataInitResult init_result = vod->init_navigation(
++      C, &event, nav_type, nullptr, false, false);
++  if (init_result != ViewOpsDataInitResult::Ready) {
++    return OPERATOR_CANCELLED;
++  }
++  ED_view3d_smooth_view_force_finish(C, vod->v3d, vod->region);
++  return nav_type->init_fn(C, vod, &event, op->ptr);
++}
++
++wmOperatorStatus view3d_ndof_depth_modal(bContext *C,
++                                         wmOperator *op,
++                                         const wmEvent *event)
++{
++  ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++  if (!view3d_ndof_depth_is_pending(vod)) {
++    return OPERATOR_CANCELLED;
++  }
++  NdofDepthRead *read = vod->ndof_depth_read;
++
++  if (!ndof_depth_context_matches(C, vod, read)) {
++    return ndof_depth_modal_cancel(C, op, vod, "View changed while waiting for NDOF depth");
++  }
++  if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++    return ndof_depth_modal_cancel(C, op, vod, nullptr);
++  }
++
++  if (event->type == NDOF_MOTION) {
++    if (event->customdata == nullptr || event->custom != EVT_DATA_NDOF_MOTION) {
++      return ndof_depth_modal_cancel(C, op, vod, "Invalid queued NDOF motion payload");
++    }
++    constexpr int max_queued_motions = 256;
++    if (read->queued_motions.size() >= max_queued_motions) {
++      return ndof_depth_modal_cancel(C, op, vod, "Too many queued NDOF motions");
++    }
++    read->queued_motions.append(ndof_motion_copy(*event));
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  if (event->type != TIMER || event->customdata != read->timer) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  /* Roughly 2.4 seconds at 10 ms. A lost completion must not move the view late. */
++  constexpr int max_tick_count = 240;
++  if (++read->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for NDOF depth");
++    return ndof_depth_modal_cancel(C, op, vod, nullptr);
++  }
++
++  const eGPUReadbackStatus status = ndof_depth_read_status(read);
++  if (status == GPU_READBACK_PENDING) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status != GPU_READBACK_READY) {
++    BKE_report(op->reports, RPT_ERROR, "NDOF depth readback failed");
++    return ndof_depth_modal_cancel(C, op, vod, nullptr);
++  }
++
++  std::optional<float3> min_depth_point;
++  if (!ndof_depth_read_consume(read, min_depth_point)) {
++    BKE_report(op->reports, RPT_ERROR, "NDOF depth readback failed");
++    return ndof_depth_modal_cancel(C, op, vod, nullptr);
++  }
++  read->min_depth_point = min_depth_point;
++  read->resolved = true;
++
++  wmEvent invoke_event = read->invoke_event;
++  wmNDOFMotionData invoke_motion = read->invoke_motion;
++  Vector<NdofQueuedMotion> queued_motions = std::move(read->queued_motions);
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->window, read->timer);
++    read->timer = nullptr;
++  }
++
++  wmOperatorStatus result = ndof_replay_owned_event(C, op, vod, invoke_event, invoke_motion);
++  if (result == OPERATOR_RUNNING_MODAL) {
++    return ndof_depth_modal_cancel(C, op, vod, "NDOF depth replay remained pending");
++  }
++  vod->end_navigation(C);
++
++  for (int index = 0; index < queued_motions.size(); index++) {
++    result = ndof_replay_queued_event(C, op, vod, queued_motions[index]);
++    if (result == OPERATOR_RUNNING_MODAL) {
++      NdofDepthRead *next_read = vod->ndof_depth_read;
++      if (next_read == nullptr) {
++        return ndof_depth_modal_cancel(C, op, vod, "NDOF replay lost its pending request");
++      }
++      for (int remaining = index + 1; remaining < queued_motions.size(); remaining++) {
++        next_read->queued_motions.append(std::move(queued_motions[remaining]));
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
++    vod->end_navigation(C);
++  }
++
++  viewops_data_free(C, vod);
++  op->customdata = nullptr;
++  return OPERATOR_FINISHED;
++}
++
+ const ViewOpsType ViewOpsType_ndof_orbit = {
+     /*flag*/ VIEWOPS_FLAG_ORBIT_SELECT,
+     /*idname*/ "VIEW3D_OT_ndof_orbit",

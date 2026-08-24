@@ -44,6 +44,7 @@ SOURCE_PATHS = (
     "source/blender/editors/space_view3d/view3d_draw.cc",
     "source/blender/editors/space_view3d/view3d_navigate.cc",
     "source/blender/editors/space_view3d/view3d_navigate.hh",
+    "source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc",
     "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc",
     "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc",
     "source/blender/editors/space_view3d/view3d_select.cc",
@@ -178,6 +179,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     view_navigate = sources["source/blender/editors/space_view3d/view3d_navigate.cc"]
     view_navigate_header = sources[
         "source/blender/editors/space_view3d/view3d_navigate.hh"
+    ]
+    view_ndof = sources[
+        "source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc"
     ]
     view_dolly = sources[
         "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc"
@@ -1096,10 +1100,6 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         require(needle in readback_test, f"integrated test missing {needle!r}")
 
     remaining_sync = {
-        "depth_pick": (
-            "source/blender/editors/space_view3d/view3d_draw.cc",
-            "GPU_framebuffer_read_depth(depth_read_fb",
-        ),
         "depth_cache": (
             "source/blender/editors/space_view3d/view3d_draw.cc",
             "GPU_texture_read(depth_tx, GPU_DATA_FLOAT, 0)",
@@ -1111,6 +1111,12 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     }
     for family, (relative, needle) in remaining_sync.items():
         require(needle in sources[relative], f"remaining sync census drifted: {family}")
+    require(
+        "GPU_framebuffer_read_depth(depth_read_fb" in sources[
+            "source/blender/editors/space_view3d/view3d_draw.cc"
+        ],
+        "native synchronous depth primitive control missing",
+    )
     require(
         "GPU_framebuffer_read_color(select_id_fb" in select_buffer,
         "native synchronous selection-buffer fallback missing",
@@ -1462,6 +1468,65 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in zoom_border, f"zoom-border callback wiring missing {needle!r}")
 
+    require(
+        "static float ndof_read_zbuf_rect(" not in view_ndof
+        and "view3d_depths_rect_create(region" not in view_ndof,
+        "NDOF retains its synchronous rectangle-depth caller",
+    )
+    require_ordered(
+        view_ndof,
+        (
+            "struct NdofQueuedMotion",
+            "struct NdofDepthRead",
+            "GPUReadback *readback = nullptr;",
+            "wmEvent invoke_event = {};",
+            "wmNDOFMotionData invoke_motion = {};",
+            "Vector<NdofQueuedMotion> queued_motions;",
+            "static NdofDepthRead *ndof_depth_read_create(",
+            "GPU_framebuffer_read_depth_async(",
+            "static NdofOrbitCenterResult ndof_orbit_center_calc(",
+            "return NdofOrbitCenterResult::Pending;",
+        ),
+        "NDOF owned depth request",
+    )
+    ndof_modal = braced_definition(
+        view_ndof,
+        "wmOperatorStatus view3d_ndof_depth_modal(",
+        "NDOF depth continuation",
+    )
+    require_ordered(
+        ndof_modal,
+        (
+            "ndof_depth_context_matches(C, vod, read)",
+            "constexpr int max_queued_motions = 256;",
+            "read->queued_motions.append(ndof_motion_copy(*event));",
+            "event->type != TIMER || event->customdata != read->timer",
+            "constexpr int max_tick_count = 240;",
+            "ndof_depth_read_consume(read, min_depth_point)",
+            "read->resolved = true;",
+            "ndof_replay_owned_event(C, op, vod, invoke_event, invoke_motion)",
+            "for (int index = 0; index < queued_motions.size(); index++)",
+        ),
+        "NDOF exact payload FIFO",
+    )
+    for needle in (
+        "NdofDepthRead *ndof_depth_read = nullptr;",
+        "bool view3d_ndof_depth_is_pending(const ViewOpsData *vod);",
+        "wmOperatorStatus view3d_ndof_depth_modal(bContext *C, wmOperator *op, const wmEvent *event);",
+        "void view3d_ndof_depth_cancel(bContext *C, ViewOpsData *vod);",
+    ):
+        require(needle in view_navigate_header, f"NDOF lifecycle API missing {needle!r}")
+    require(
+        "return view3d_ndof_depth_modal(C, op, event);" in view_navigate
+        and "view3d_ndof_depth_cancel(C, this);" in view_navigate,
+        "NDOF lifecycle routing missing",
+    )
+    require(
+        view_ndof.count("ot->modal = view3d_navigate_modal_fn;") == 2
+        and view_ndof.count("ot->cancel = view3d_navigate_cancel_fn;") == 2,
+        "NDOF operator callback wiring differs",
+    )
+
     return {
         "schema": 1,
         "verdict": "PASS",
@@ -1479,6 +1544,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "direct_dolly_continuation": True,
             "painting_depth_continuation": True,
             "zoom_border_continuation": True,
+            "ndof_depth_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1715,6 +1781,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "view3d_zoom_border_depth_read_attach(C, op, read, false);",
             "return OPERATOR_CANCELLED;",
             "zoom-border gesture handoff",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc",
+            "read->queued_motions.append(ndof_motion_copy(*event));",
+            "/* queued NDOF motion dropped */",
+            "NDOF payload FIFO",
         ),
     )
     for relative, old, new, label in mutations:

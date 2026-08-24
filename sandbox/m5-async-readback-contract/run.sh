@@ -157,8 +157,9 @@ if ! jq -e \
    .contracts.direct_dolly_continuation == true and
    .contracts.painting_depth_continuation == true and
    .contracts.zoom_border_continuation == true and
+   .contracts.ndof_depth_continuation == true and
    .contracts.live_hardware_receipt == false and
-   (.remaining_sync_families | length) == 3' \
+   .remaining_sync_families == ["depth_cache", "window_capture"]' \
   "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2

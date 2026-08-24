@@ -42,8 +42,9 @@ request across browser event-loop ticks. Zoom to Border owns its exact clamped r
 and transfers a pending generic box gesture into a bounded continuation. Their separate contracts
 bind native immediate completion, exact event/orientation, rectangle, zoom-mode, or deferred finish
 replay, stock no-hit fallbacks, supersession, timeout/cancellation, and producing-state drift
-rejection. Only the NDOF consumer remains synchronous within the depth-pick family, so the family
-census remains open.
+rejection. NDOF now owns its bounds-fallback rectangle request and the exact starting plus queued
+3D-mouse payloads; settlement replays every time delta in FIFO order. This closes the depth-pick
+caller family at the source/device-free boundary.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
 the owned draw-selection request and exact query session, exact WebGPU tickets,
@@ -51,11 +52,11 @@ temporary select-engine ownership transfer, and the bounded object/edit-mesh
 selection continuations. All three non-viewport eyedroppers share one owned
 window snapshot while browser mapping is pending and preserve native immediate
 completion.
-It also requires the three still-partial/synchronous caller families (depth pick,
-depth cache, and WM window capture) to stay visible. The synchronous selection-buffer API remains
+It also requires the two still-partial/synchronous caller families (depth cache and WM window
+capture) to stay visible. The synchronous selection-buffer API remains
 as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer
 use it during an active browser continuation. The screenshot operator has its own
-owned-capture continuation contract; the ledger row remains `partial` for these three
+owned-capture continuation contract; the ledger row remains `partial` for these two
 families.
 
 Run through the build wrapper:

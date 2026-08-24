@@ -1124,3 +1124,18 @@ ordinary, reduction, comparison, and short-circuit opcodes on both native and wa
 canonical implementation passes the same 144 focused cases and all 1,667 BLI tests on both.
 See `notes/m1-fenv-deferral-closure-20260824.md` and the current canonical diff for
 `source/blender/blenlib/intern/expr_pylike_eval.cc`.
+
+## Class 78 — an asynchronous child must retain the parent operator's terminal input
+
+Signature: a generic stroke handler owns an opaque mode-specific handle and destroys it as soon as
+mouse release or keyboard confirmation finishes the stroke, while that handle now owns a pending
+GPU request. Returning to the event loop without intercepting the finish event either frees the
+request too early or loses the exact input needed to complete stock teardown. Propagate an explicit
+complete/pending/failed result through the opaque interface, retain only a custom-data-free copy of
+the exact terminal event in the parent operation, and replay a sanitized copy through the original
+modal dispatcher after a bounded timer observes settlement. New motion may supersede the pending
+request, but finish remains single-owner; context or protected-state drift, unsafe event payloads,
+timeout, failure, and cancellation all converge on cleanup that removes the timer before destroying
+the child handle. Exercise native-immediate completion, pending finish replay, supersession, drift,
+timeout, failure, and cancellation with byte-identical native/wasm32 output. See
+`patches/0261-m5-painting-depth-continuation.patch` and `sandbox/m5-painting-depth/`.

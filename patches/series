@@ -1086,3 +1086,6 @@
 # 0260: route direct dolly initialization through the owned navigation-depth
 # continuation while preserving its delta, trackpad, modal, and cancel tails.
 0260-m5-dolly-depth-continuation.patch
+# 0261: retain texture-paint clone-cursor depth requests and replay the exact
+# finishing event only after the latest request settles across browser ticks.
+0261-m5-painting-depth-continuation.patch

@@ -35,7 +35,11 @@ SOURCE_PATHS = (
     "source/blender/draw/DRW_select_buffer.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
+    "source/blender/editors/include/ED_view3d.hh",
     "source/blender/editors/mesh/editmesh_select.cc",
+    "source/blender/editors/sculpt_paint/paint_intern.hh",
+    "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
+    "source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc",
     "source/blender/editors/screen/screendump.cc",
     "source/blender/editors/space_view3d/view3d_draw.cc",
     "source/blender/editors/space_view3d/view3d_navigate.cc",
@@ -159,7 +163,15 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_buffer_api = sources["source/blender/draw/DRW_select_buffer.hh"]
     select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
+    depth_api = sources["source/blender/editors/include/ED_view3d.hh"]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
+    paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
+    paint_projection = sources[
+        "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc"
+    ]
+    paint_operator = sources[
+        "source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc"
+    ]
     view_select = sources["source/blender/editors/space_view3d/view3d_select.cc"]
     view_query = sources["source/blender/editors/space_view3d/view3d_view.cc"]
     view_navigate = sources["source/blender/editors/space_view3d/view3d_navigate.cc"]
@@ -1261,6 +1273,133 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "direct dolly generic continuation wiring differs",
     )
 
+    require_ordered(
+        depth_api,
+        (
+            "class ViewportDepthPickSession",
+            "bool init(ARegion *region, const int mval[2]);",
+            "ReadbackState state();",
+            "bool sample(ARegion *region, float r_world_location[3]);",
+        ),
+        "owned progressive-depth API",
+    )
+    require_ordered(
+        paint_api,
+        (
+            "enum class PaintProjStrokeResult : int8_t",
+            "Complete,",
+            "Pending,",
+            "Failed,",
+            "PaintProjStrokeResult paint_proj_stroke(",
+            "PaintProjStrokeResult paint_proj_stroke_readback_poll(",
+            "void paint_proj_stroke_done(void *ps_handle_p);",
+        ),
+        "projection-paint owned API",
+    )
+    require_ordered(
+        paint_projection,
+        (
+            "struct ProjStrokeHandle",
+            "bool is_clone_cursor_pick;",
+            "ViewportDepthPickSession clone_cursor_readback;",
+            "Scene *clone_cursor_scene = nullptr;",
+            "View3D *clone_cursor_view3d = nullptr;",
+            "RegionView3D *clone_cursor_region_view = nullptr;",
+            "ARegion *clone_cursor_region = nullptr;",
+            "wmWindow *clone_cursor_window = nullptr;",
+            "float clone_cursor_before[3] = {0.0f, 0.0f, 0.0f};",
+            "PaintProjStrokeResult clone_cursor_result = PaintProjStrokeResult::Complete;",
+        ),
+        "clone-cursor owned state",
+    )
+    paint_poll = braced_definition(
+        paint_projection,
+        "PaintProjStrokeResult paint_proj_stroke_readback_poll(",
+        "clone-cursor poll",
+    )
+    require_ordered(
+        paint_poll,
+        (
+            "ps_handle->clone_cursor_readback.state()",
+            "ReadbackState::Pending",
+            "ReadbackState::Failed",
+            "paint_proj_clone_cursor_readback_context_matches(C, ps_handle)",
+            "equals_v3v3(ps_handle->clone_cursor_scene->cursor.location,",
+            "ps_handle->clone_cursor_before",
+            "ps_handle->clone_cursor_readback.sample(",
+            "PaintProjStrokeResult::Complete",
+            "if (!has_depth)",
+            "copy_v3_v3(ps_handle->clone_cursor_scene->cursor.location, cursor);",
+        ),
+        "settled clone-cursor replay",
+    )
+    paint_stroke = braced_definition(
+        paint_projection,
+        "PaintProjStrokeResult paint_proj_stroke(const bContext *C,",
+        "projection stroke",
+    )
+    require_ordered(
+        paint_stroke,
+        (
+            "if (ps_handle->is_clone_cursor_pick)",
+            "ED_view3d_depth_override(",
+            "copy_v3_v3(ps_handle->clone_cursor_before, scene->cursor.location);",
+            "ps_handle->clone_cursor_readback.init(region, mval_i)",
+            "PaintProjStrokeResult::Pending",
+            "paint_proj_stroke_readback_poll(C, ps_handle)",
+            "paint_proj_stroke_ps(",
+            "return PaintProjStrokeResult::Complete;",
+        ),
+        "kick and native-immediate projection stroke",
+    )
+    require(
+        "ED_view3d_autodist(" not in paint_stroke
+        and "GPU_framebuffer_read_depth(" not in paint_stroke
+        and "GPU_texture_read(" not in paint_stroke,
+        "clone-cursor stroke retains synchronous GPU readback",
+    )
+    require_ordered(
+        paint_operator,
+        (
+            "struct PaintOperation : public PaintModeData",
+            "PaintProjStrokeResult readback_result = PaintProjStrokeResult::Complete;",
+            "wmTimer *readback_timer = nullptr;",
+            "int readback_tick_count = 0;",
+            "wmEvent deferred_finish_event = {};",
+            "bool finish_deferred = false;",
+        ),
+        "paint-operator retained state",
+    )
+    paint_modal = braced_definition(
+        paint_operator,
+        "static wmOperatorStatus paint_modal(",
+        "paint modal",
+    )
+    require_ordered(
+        paint_modal,
+        (
+            "event->customdata == pop->readback_timer",
+            "constexpr int max_tick_count = 240;",
+            "if (++pop->readback_tick_count > max_tick_count)",
+            "pop->mode->paint_stroke_readback_poll(C, pop->stroke_handle)",
+            "PaintProjStrokeResult::Failed",
+            "if (pop->finish_deferred)",
+            "wmEvent finish_event = pop->deferred_finish_event;",
+            "finish_event.customdata = nullptr;",
+            "paint_modal_dispatch(C, op, stroke, &finish_event)",
+            "pop->readback_result == PaintProjStrokeResult::Pending",
+            "stroke->is_finish_event(event)",
+            "event->customdata != nullptr",
+            "pop->deferred_finish_event = *event;",
+            "pop->finish_deferred = true;",
+        ),
+        "bounded paint finish continuation",
+    )
+    require(
+        paint_modal.count("paint_modal_readback_cancel(") >= 4,
+        "paint failure paths do not converge on cancellation",
+    )
+
     return {
         "schema": 1,
         "verdict": "PASS",
@@ -1276,6 +1415,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "depth_eyedropper_continuation": True,
             "ordinary_navigation_continuation": True,
             "direct_dolly_continuation": True,
+            "painting_depth_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1488,6 +1628,24 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "view3d_navigate_invoke_impl(C, op, event, &ViewOpsType_dolly)",
             "viewops_data_create(C, event, &ViewOpsType_dolly, false)",
             "direct dolly continuation",
+        ),
+        (
+            "source/blender/editors/sculpt_paint/paint_intern.hh",
+            "PaintProjStrokeResult paint_proj_stroke_readback_poll(",
+            "void paint_proj_stroke_readback_poll_removed(",
+            "painting poll API",
+        ),
+        (
+            "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
+            "ViewportDepthPickSession clone_cursor_readback;",
+            "int clone_cursor_readback;",
+            "painting owned session",
+        ),
+        (
+            "source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc",
+            "pop->deferred_finish_event = *event;",
+            "pop->finish_deferred = true;",
+            "painting exact finish replay",
         ),
     )
     for relative, old, new, label in mutations:

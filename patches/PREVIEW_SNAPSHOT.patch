@@ -13594,6 +13594,567 @@ index c15376a13f7af991cc693bb854f19d3f98f49a77..ea1b16ea474faf30d3218e8cb8570e9b
    ot->exec = screenshot_exec;
    ot->cancel = screenshot_cancel;
    ot->ui = screenshot_draw;
+diff --git a/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc b/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc
+index ce35dd72a85d97a65301d79e0253d0ca06fea9ad..890850919e2708d5b6cfe28628bbe86107781745 100644
+--- a/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc
++++ b/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc
+@@ -1,10 +1,14 @@
+ /* SPDX-FileCopyrightText: 2001-2002 NaN Holding BV. All rights reserved.
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup edsculpt
+  * \brief Painting operator to paint in 2D and 3D.
++ *
++ * Ported for the web from source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc @
++ * fbe6228777e7.
+  */
+ 
+ #include "DNA_brush_types.h"
+@@ -56,14 +60,19 @@ class AbstractPaintMode {
+                                  const float mouse[2],
+                                  BrushStrokeMode mode,
+                                  BrushSwitchMode brush_switch_mode) = 0;
+-  virtual void paint_stroke(bContext *C,
+-                            void *stroke_handle,
+-                            float prev_mouse[2],
+-                            float mouse[2],
+-                            int eraser,
+-                            float pressure,
+-                            float distance,
+-                            float size) = 0;
++  virtual PaintProjStrokeResult paint_stroke(bContext *C,
++                                             void *stroke_handle,
++                                             float prev_mouse[2],
++                                             float mouse[2],
++                                             int eraser,
++                                             float pressure,
++                                             float distance,
++                                             float size) = 0;
++  virtual PaintProjStrokeResult paint_stroke_readback_poll(const bContext * /*C*/,
++                                                           void * /*stroke_handle*/)
++  {
++    return PaintProjStrokeResult::Complete;
++  }
+ 
+   virtual void paint_stroke_redraw(const bContext *C, void *stroke_handle, bool final) = 0;
+   virtual void paint_stroke_done(void *stroke_handle) = 0;
+@@ -95,16 +104,17 @@ class ImagePaintMode : public AbstractPaintMode {
+     return paint_2d_new_stroke(C, op, mode);
+   }
+ 
+-  void paint_stroke(bContext * /*C*/,
+-                    void *stroke_handle,
+-                    float prev_mouse[2],
+-                    float mouse[2],
+-                    int eraser,
+-                    float pressure,
+-                    float distance,
+-                    float size) override
++  PaintProjStrokeResult paint_stroke(bContext * /*C*/,
++                                     void *stroke_handle,
++                                     float prev_mouse[2],
++                                     float mouse[2],
++                                     int eraser,
++                                     float pressure,
++                                     float distance,
++                                     float size) override
+   {
+     paint_2d_stroke(stroke_handle, prev_mouse, mouse, eraser, pressure, distance, size);
++    return PaintProjStrokeResult::Complete;
+   }
+ 
+   void paint_stroke_redraw(const bContext *C, void *stroke_handle, bool final) override
+@@ -159,18 +169,25 @@ class ProjectionPaintMode : public AbstractPaintMode {
+     return paint_proj_new_stroke(C, ob, mouse, mode, brush_switch_mode);
+   }
+ 
+-  void paint_stroke(bContext *C,
+-                    void *stroke_handle,
+-                    float prev_mouse[2],
+-                    float mouse[2],
+-                    int eraser,
+-                    float pressure,
+-                    float distance,
+-                    float size) override
++  PaintProjStrokeResult paint_stroke(bContext *C,
++                                     void *stroke_handle,
++                                     float prev_mouse[2],
++                                     float mouse[2],
++                                     int eraser,
++                                     float pressure,
++                                     float distance,
++                                     float size) override
+   {
+-    paint_proj_stroke(C, stroke_handle, prev_mouse, mouse, eraser, pressure, distance, size);
++    return paint_proj_stroke(
++        C, stroke_handle, prev_mouse, mouse, eraser, pressure, distance, size);
+   };
+ 
++  PaintProjStrokeResult paint_stroke_readback_poll(const bContext *C,
++                                                   void *stroke_handle) override
++  {
++    return paint_proj_stroke_readback_poll(C, stroke_handle);
++  }
++
+   void paint_stroke_redraw(const bContext *C, void *stroke_handle, bool final) override
+   {
+     paint_proj_redraw(C, stroke_handle, final);
+@@ -230,6 +247,12 @@ struct PaintOperation : public PaintModeData {
+   AbstractPaintMode *mode = nullptr;
+ 
+   void *stroke_handle = nullptr;
++  PaintProjStrokeResult readback_result = PaintProjStrokeResult::Complete;
++  wmTimer *readback_timer = nullptr;
++  wmWindow *readback_window = nullptr;
++  int readback_tick_count = 0;
++  wmEvent deferred_finish_event = {};
++  bool finish_deferred = false;
+ 
+   float prevmouse[2] = {0.0f, 0.0f};
+   float startmouse[2] = {0.0f, 0.0f};
+@@ -352,8 +375,10 @@ static std::unique_ptr<PaintOperation> texture_paint_init(bContext *C,
+ }
+ 
+ struct ImagePaintStroke final : public PaintStroke {
++  const int invoke_event_type_;
++
+   ImagePaintStroke(bContext *C, wmOperator *op, const int event_type)
+-      : PaintStroke(C, op, event_type)
++      : PaintStroke(C, op, event_type), invoke_event_type_(event_type)
+   {
+   }
+ 
+@@ -364,6 +389,9 @@ struct ImagePaintStroke final : public PaintStroke {
+   bool test_cancel() override;
+   void done(bool is_cancel, bool stroke_started) override;
+ 
++  PaintOperation *operation() const;
++  bool is_finish_event(const wmEvent *event) const;
++
+   void update_for_exec(bContext *C,
+                        const Brush &brush,
+                        PaintMode mode,
+@@ -374,6 +402,42 @@ struct ImagePaintStroke final : public PaintStroke {
+                        bool *r_location_is_set);
+ };
+ 
++PaintOperation *ImagePaintStroke::operation() const
++{
++  return static_cast<PaintOperation *>(mode_data_.get());
++}
++
++bool ImagePaintStroke::is_finish_event(const wmEvent *event) const
++{
++  return (event->type == invoke_event_type_ && event->val == KM_RELEASE) ||
++         ELEM(event->type, EVT_RETKEY, EVT_SPACEKEY);
++}
++
++static void image_paint_readback_timer_remove(bContext *C, PaintOperation *pop)
++{
++  if (pop->readback_timer != nullptr) {
++    WM_event_timer_remove(
++        CTX_wm_manager(C), pop->readback_window, pop->readback_timer);
++    pop->readback_timer = nullptr;
++  }
++  pop->readback_window = nullptr;
++  pop->readback_tick_count = 0;
++}
++
++static bool image_paint_readback_timer_ensure(bContext *C, PaintOperation *pop)
++{
++  if (pop->readback_timer != nullptr) {
++    return true;
++  }
++  pop->readback_window = CTX_wm_window(C);
++  if (pop->readback_window == nullptr) {
++    return false;
++  }
++  pop->readback_timer = WM_event_timer_add(
++      CTX_wm_manager(C), pop->readback_window, TIMER, 0.01f);
++  return pop->readback_timer != nullptr;
++}
++
+ void ImagePaintStroke::update_step(wmOperator *op, PointerRNA *itemptr)
+ {
+   PaintOperation *pop = static_cast<PaintOperation *>(mode_data_.get());
+@@ -421,8 +485,11 @@ void ImagePaintStroke::update_step(wmOperator *op, PointerRNA *itemptr)
+     ED_image_undo_restore(ustack->step_init);
+   }
+ 
+-  pop->mode->paint_stroke(
++  pop->readback_result = pop->mode->paint_stroke(
+       this->evil_C, pop->stroke_handle, pop->prevmouse, mouse, eraser, pressure, distance, size);
++  if (pop->readback_result == PaintProjStrokeResult::Pending) {
++    pop->readback_tick_count = 0;
++  }
+ 
+   copy_v2_v2(pop->prevmouse, mouse);
+ 
+@@ -454,6 +521,8 @@ void ImagePaintStroke::done(const bool is_cancel, const bool /*stroke_started*/)
+   const Paint *paint = BKE_paint_get_active_from_context(this->evil_C);
+   Brush *brush = BKE_paint_brush(&toolsettings->imapaint.paint);
+ 
++  image_paint_readback_timer_remove(this->evil_C, pop);
++  pop->finish_deferred = false;
+   toolsettings->imapaint.flag &= ~IMAGEPAINT_DRAWING;
+ 
+   if (brush->image_brush_type == IMAGE_PAINT_BRUSH_TYPE_FILL) {
+@@ -525,13 +594,19 @@ static wmOperatorStatus paint_invoke(bContext *C, wmOperator *op, const wmEvent
+   const wmOperatorStatus retval = op->type->modal(C, op, event);
+   OPERATOR_RETVAL_CHECK(retval);
+ 
+-  if (retval == OPERATOR_FINISHED) {
++  if (ELEM(retval, OPERATOR_FINISHED, OPERATOR_CANCELLED)) {
+     ImagePaintStroke *stroke = static_cast<ImagePaintStroke *>(op->customdata);
+     if (stroke) {
+-      stroke->finish(C);
++      if (retval == OPERATOR_FINISHED) {
++        stroke->finish(C);
++      }
++      else {
++        stroke->cancel(C);
++      }
+       MEM_delete(stroke);
++      op->customdata = nullptr;
+     }
+-    return OPERATOR_FINISHED;
++    return retval;
+   }
+   /* add modal handler */
+   WM_event_add_modal_handler(C, op);
+@@ -596,19 +671,117 @@ static wmOperatorStatus paint_exec(bContext *C, wmOperator *op)
+   return ret_val;
+ }
+ 
+-static wmOperatorStatus paint_modal(bContext *C, wmOperator *op, const wmEvent *event)
++static wmOperatorStatus paint_modal_dispatch(bContext *C,
++                                             wmOperator *op,
++                                             ImagePaintStroke *stroke,
++                                             const wmEvent *event)
+ {
+-  ImagePaintStroke *stroke = static_cast<ImagePaintStroke *>(op->customdata);
+   const wmOperatorStatus retval = stroke->modal(C, op, event);
+-
+   if (ELEM(retval, OPERATOR_FINISHED, OPERATOR_CANCELLED)) {
+     MEM_delete(stroke);
+     op->customdata = nullptr;
+   }
+-
+   return retval;
+ }
+ 
++static wmOperatorStatus paint_modal_readback_cancel(bContext *C,
++                                                    wmOperator *op,
++                                                    ImagePaintStroke *stroke,
++                                                    const char *message)
++{
++  BKE_report(op->reports, RPT_ERROR, message);
++  if (op->type->cancel != nullptr) {
++    op->type->cancel(C, op);
++  }
++  else {
++    stroke->cancel(C);
++  }
++  MEM_delete(stroke);
++  op->customdata = nullptr;
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus paint_modal(bContext *C, wmOperator *op, const wmEvent *event)
++{
++  ImagePaintStroke *stroke = static_cast<ImagePaintStroke *>(op->customdata);
++  PaintOperation *pop = stroke != nullptr ? stroke->operation() : nullptr;
++
++  if (pop != nullptr && event->type == TIMER && pop->readback_timer != nullptr &&
++      event->customdata == pop->readback_timer)
++  {
++    constexpr int max_tick_count = 240;
++    if (++pop->readback_tick_count > max_tick_count) {
++      return paint_modal_readback_cancel(
++          C, op, stroke, "Timed out waiting for clone-cursor depth readback");
++    }
++
++    pop->readback_result = pop->mode->paint_stroke_readback_poll(C, pop->stroke_handle);
++    if (pop->readback_result == PaintProjStrokeResult::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++
++    image_paint_readback_timer_remove(C, pop);
++    if (pop->readback_result == PaintProjStrokeResult::Failed) {
++      return paint_modal_readback_cancel(
++          C, op, stroke, "Clone-cursor depth readback failed or its viewport changed");
++    }
++    if (pop->finish_deferred) {
++      wmEvent finish_event = pop->deferred_finish_event;
++      pop->finish_deferred = false;
++      finish_event.next = nullptr;
++      finish_event.prev = nullptr;
++      finish_event.customdata = nullptr;
++      finish_event.custom = 0;
++      finish_event.customdata_free = 0;
++      return paint_modal_dispatch(C, op, stroke, &finish_event);
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  if (pop != nullptr && pop->readback_result == PaintProjStrokeResult::Pending) {
++    if (stroke->is_finish_event(event)) {
++      if (event->customdata != nullptr) {
++        return paint_modal_readback_cancel(
++            C, op, stroke, "Cannot retain a custom-data paint finish event");
++      }
++      pop->deferred_finish_event = *event;
++      pop->finish_deferred = true;
++      if (!image_paint_readback_timer_ensure(C, pop)) {
++        return paint_modal_readback_cancel(
++            C, op, stroke, "Unable to schedule clone-cursor depth readback");
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (pop->finish_deferred) {
++      if (event->type == EVT_MODAL_MAP) {
++        return paint_modal_dispatch(C, op, stroke, event);
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
++  }
++
++  const wmOperatorStatus retval = paint_modal_dispatch(C, op, stroke, event);
++  if (retval != OPERATOR_RUNNING_MODAL) {
++    return retval;
++  }
++
++  pop = stroke->operation();
++  if (pop != nullptr && pop->readback_result == PaintProjStrokeResult::Failed) {
++    return paint_modal_readback_cancel(
++        C, op, stroke, "Unable to start clone-cursor depth readback");
++  }
++  if (pop != nullptr && pop->readback_result == PaintProjStrokeResult::Pending) {
++    if (!image_paint_readback_timer_ensure(C, pop)) {
++      return paint_modal_readback_cancel(
++          C, op, stroke, "Unable to schedule clone-cursor depth readback");
++    }
++  }
++  else if (pop != nullptr) {
++    image_paint_readback_timer_remove(C, pop);
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
+ static void paint_cancel(bContext *C, wmOperator *op)
+ {
+   ImagePaintStroke *stroke = static_cast<ImagePaintStroke *>(op->customdata);
+diff --git a/source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc b/source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc
+index 9cb29c052031781e2be79e797de436f3ad33ee52..1d42e03a47a77a0d067555ade201dd99666f15d9 100644
+--- a/source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc
++++ b/source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc
+@@ -1,10 +1,14 @@
+ /* SPDX-FileCopyrightText: 2001-2002 NaN Holding BV. All rights reserved.
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup edsculpt
+  * \brief Functions to paint images in 2D and 3D.
++ *
++ * Ported for the web from source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc @
++ * fbe6228777e7.
+  */
+ 
+ #include <algorithm>
+@@ -255,6 +259,17 @@ struct ProjStrokeHandle {
+   /* trick to bypass regular paint and allow clone picking */
+   bool is_clone_cursor_pick;
+ 
++  /* Browser clone-cursor picking must retain its exact depth request across WM ticks. */
++  ViewportDepthPickSession clone_cursor_readback;
++  Scene *clone_cursor_scene = nullptr;
++  View3D *clone_cursor_view3d = nullptr;
++  RegionView3D *clone_cursor_region_view = nullptr;
++  ARegion *clone_cursor_region = nullptr;
++  wmWindow *clone_cursor_window = nullptr;
++  int clone_cursor_mval[2] = {0, 0};
++  float clone_cursor_before[3] = {0.0f, 0.0f, 0.0f};
++  PaintProjStrokeResult clone_cursor_result = PaintProjStrokeResult::Complete;
++
+   /* In ProjPaintState, only here for convenience */
+   Scene *scene;
+   Paint *paint;
+@@ -5952,14 +5967,73 @@ static void paint_proj_stroke_ps(const bContext * /*C*/,
+   }
+ }
+ 
+-void paint_proj_stroke(const bContext *C,
+-                       void *ps_handle_p,
+-                       const float prev_pos[2],
+-                       const float pos[2],
+-                       const bool eraser,
+-                       float pressure,
+-                       float distance,
+-                       float size)
++static bool paint_proj_clone_cursor_readback_context_matches(const bContext *C,
++                                                             const ProjStrokeHandle *ps_handle)
++{
++  return ps_handle->clone_cursor_window != nullptr &&
++         ps_handle->clone_cursor_scene != nullptr &&
++         ps_handle->clone_cursor_view3d != nullptr &&
++         ps_handle->clone_cursor_region != nullptr &&
++         ps_handle->clone_cursor_region_view != nullptr &&
++         CTX_wm_window(C) == ps_handle->clone_cursor_window &&
++         CTX_data_scene(C) == ps_handle->clone_cursor_scene &&
++         CTX_wm_view3d(C) == ps_handle->clone_cursor_view3d &&
++         CTX_wm_region(C) == ps_handle->clone_cursor_region &&
++         ps_handle->clone_cursor_region->regiondata == ps_handle->clone_cursor_region_view;
++}
++
++PaintProjStrokeResult paint_proj_stroke_readback_poll(const bContext *C, void *ps_handle_p)
++{
++  ProjStrokeHandle *ps_handle = static_cast<ProjStrokeHandle *>(ps_handle_p);
++  if (ps_handle == nullptr || !ps_handle->is_clone_cursor_pick ||
++      ps_handle->clone_cursor_result != PaintProjStrokeResult::Pending)
++  {
++    return ps_handle != nullptr ? ps_handle->clone_cursor_result :
++                                  PaintProjStrokeResult::Failed;
++  }
++
++  const ViewportDepthPickSession::ReadbackState state = ps_handle->clone_cursor_readback.state();
++  if (state == ViewportDepthPickSession::ReadbackState::Pending) {
++    return PaintProjStrokeResult::Pending;
++  }
++  if (state == ViewportDepthPickSession::ReadbackState::Failed ||
++      !paint_proj_clone_cursor_readback_context_matches(C, ps_handle) ||
++      !equals_v3v3(ps_handle->clone_cursor_scene->cursor.location,
++                   ps_handle->clone_cursor_before))
++  {
++    ps_handle->clone_cursor_result = PaintProjStrokeResult::Failed;
++    return ps_handle->clone_cursor_result;
++  }
++
++  float cursor[3];
++  const bool has_depth = ps_handle->clone_cursor_readback.sample(
++      ps_handle->clone_cursor_region, cursor);
++  if (!has_depth && ps_handle->clone_cursor_readback.state() ==
++                        ViewportDepthPickSession::ReadbackState::Failed)
++  {
++    ps_handle->clone_cursor_result = PaintProjStrokeResult::Failed;
++    return ps_handle->clone_cursor_result;
++  }
++
++  ps_handle->clone_cursor_result = PaintProjStrokeResult::Complete;
++  if (!has_depth) {
++    return ps_handle->clone_cursor_result;
++  }
++
++  copy_v3_v3(ps_handle->clone_cursor_scene->cursor.location, cursor);
++  DEG_id_tag_update(&ps_handle->clone_cursor_scene->id, ID_RECALC_SYNC_TO_EVAL);
++  ED_region_tag_redraw(ps_handle->clone_cursor_region);
++  return ps_handle->clone_cursor_result;
++}
++
++PaintProjStrokeResult paint_proj_stroke(const bContext *C,
++                                        void *ps_handle_p,
++                                        const float prev_pos[2],
++                                        const float pos[2],
++                                        const bool eraser,
++                                        float pressure,
++                                        float distance,
++                                        float size)
+ {
+   int i;
+   ProjStrokeHandle *ps_handle = static_cast<ProjStrokeHandle *>(ps_handle_p);
+@@ -5970,7 +6044,6 @@ void paint_proj_stroke(const bContext *C,
+     Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+     View3D *v3d = CTX_wm_view3d(C);
+     ARegion *region = CTX_wm_region(C);
+-    float *cursor = scene->cursor.location;
+     const int mval_i[2] = {int(pos[0]), int(pos[1])};
+ 
+     view3d_operator_needs_gpu(C);
+@@ -5979,20 +6052,27 @@ void paint_proj_stroke(const bContext *C,
+     ED_view3d_depth_override(
+         depsgraph, region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, nullptr);
+ 
+-    if (!ED_view3d_autodist(region, v3d, mval_i, cursor, nullptr)) {
+-      return;
+-    }
+-
+-    DEG_id_tag_update(&scene->id, ID_RECALC_SYNC_TO_EVAL);
+-    ED_region_tag_redraw(region);
++    ps_handle->clone_cursor_scene = scene;
++    ps_handle->clone_cursor_view3d = v3d;
++    ps_handle->clone_cursor_region_view = static_cast<RegionView3D *>(region->regiondata);
++    ps_handle->clone_cursor_region = region;
++    ps_handle->clone_cursor_window = CTX_wm_window(C);
++    copy_v2_v2_int(ps_handle->clone_cursor_mval, mval_i);
++    copy_v3_v3(ps_handle->clone_cursor_before, scene->cursor.location);
+ 
+-    return;
++    if (!ps_handle->clone_cursor_readback.init(region, mval_i)) {
++      ps_handle->clone_cursor_result = PaintProjStrokeResult::Failed;
++      return ps_handle->clone_cursor_result;
++    }
++    ps_handle->clone_cursor_result = PaintProjStrokeResult::Pending;
++    return paint_proj_stroke_readback_poll(C, ps_handle);
+   }
+ 
+   for (i = 0; i < ps_handle->ps_views_tot; i++) {
+     ProjPaintState *ps = ps_handle->ps_views[i];
+     paint_proj_stroke_ps(C, ps_handle_p, prev_pos, pos, eraser, pressure, distance, size, ps);
+   }
++  return PaintProjStrokeResult::Complete;
+ }
+ 
+ /* initialize project paint settings from context */
+diff --git a/source/blender/editors/sculpt_paint/paint_intern.hh b/source/blender/editors/sculpt_paint/paint_intern.hh
+index 4c43e7849e487c31701c95fe60fac7f7bbe8657d..856b387831b8d6ebfa07c2acd97d76fb047bca8a 100644
+--- a/source/blender/editors/sculpt_paint/paint_intern.hh
++++ b/source/blender/editors/sculpt_paint/paint_intern.hh
+@@ -1,9 +1,12 @@
+ /* SPDX-FileCopyrightText: 2008 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup edsculpt
++ *
++ * Ported for the web from source/blender/editors/sculpt_paint/paint_intern.hh @ fbe6228777e7.
+  */
+ 
+ #pragma once
+@@ -485,14 +488,20 @@ void *paint_proj_new_stroke(bContext *C,
+                             const float mouse[2],
+                             BrushStrokeMode mode,
+                             BrushSwitchMode brush_switch_mode);
+-void paint_proj_stroke(const bContext *C,
+-                       void *ps_handle_p,
+-                       const float prev_pos[2],
+-                       const float pos[2],
+-                       bool eraser,
+-                       float pressure,
+-                       float distance,
+-                       float size);
++enum class PaintProjStrokeResult : int8_t {
++  Complete,
++  Pending,
++  Failed,
++};
++PaintProjStrokeResult paint_proj_stroke(const bContext *C,
++                                        void *ps_handle_p,
++                                        const float prev_pos[2],
++                                        const float pos[2],
++                                        bool eraser,
++                                        float pressure,
++                                        float distance,
++                                        float size);
++PaintProjStrokeResult paint_proj_stroke_readback_poll(const bContext *C, void *ps_handle_p);
+ void paint_proj_redraw(const bContext *C, void *ps_handle_p, bool final);
+ void paint_proj_stroke_done(void *ps_handle_p);
+ 
 diff --git a/source/blender/editors/space_view3d/view3d_draw.cc b/source/blender/editors/space_view3d/view3d_draw.cc
 index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..c0b1f906af22ca3e76f5e19f117134b18e985c9e 100644
 --- a/source/blender/editors/space_view3d/view3d_draw.cc

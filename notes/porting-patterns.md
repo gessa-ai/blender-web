@@ -990,3 +990,19 @@ thread remain reentrant. Keep cancellation as a state-only operation so terminal
 future deliveries without waiting for one already running. Exercise two held concurrent callbacks,
 require peak owner access of one, then require nested delivery and concurrent destruction to finish
 on native and wasm32. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.
+
+## Class 69 — callback serialization must be the owner's execution boundary
+
+Signature: spontaneous callbacks share a recursive mutex, but public platform methods and terminal
+cleanup access the same non-atomic owner fields without that mutex. Callback-to-callback delivery
+is serialized while callback-to-owner mutation still races. Destruction has a companion admission
+hole when invalidation waits for the execution mutex before setting its terminal state: an active
+callback can re-enter, or a queued callback can win the mutex, after destruction has begun. Give
+callbacks and every stateful public owner method one shared reentrant execution token. Terminal
+cleanup takes that token before clearing fields, then closes admission without waiting. Destruction
+closes admission before it waits for the token and never holds the state mutex during that wait, so
+an already-admitted callback can finish or destroy its own owner without lock inversion. Retain a
+shared gate reference until each token releases. Exercise callback-vs-owner and callback-vs-cleanup
+barriers, active-callback destruction, late nested and queued delivery, self-destruction, and an
+unsafe AddressSanitizer control in native and wasm32. See
+`platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.

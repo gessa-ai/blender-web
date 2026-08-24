@@ -32,6 +32,43 @@ template<typename OwnerT> class OwnerCallbackLifetime {
  public:
   explicit OwnerCallbackLifetime(OwnerT &owner) : owner_(&owner) {}
 
+  /**
+   * One reentrant execution slot shared by spontaneous callbacks and ordinary owner calls.
+   *
+   * The caller must retain the lifetime's shared_ptr until this token is destroyed. A callback
+   * may destroy its owner as its final action; the token deliberately touches only this gate when
+   * it later releases the recursive mutex.
+   */
+  class OwnerExecution {
+   public:
+    OwnerExecution() = default;
+    OwnerExecution(OwnerExecution &&) = default;
+    OwnerExecution &operator=(OwnerExecution &&) = default;
+    OwnerExecution(const OwnerExecution &) = delete;
+    OwnerExecution &operator=(const OwnerExecution &) = delete;
+
+    explicit operator bool() const
+    {
+      return owner_ != nullptr;
+    }
+
+    OwnerT &owner() const
+    {
+      return *owner_;
+    }
+
+   private:
+    friend class OwnerCallbackLifetime;
+
+    OwnerExecution(std::unique_lock<std::recursive_mutex> lock, OwnerT &owner)
+        : lock_(std::move(lock)), owner_(&owner)
+    {
+    }
+
+    std::unique_lock<std::recursive_mutex> lock_;
+    OwnerT *owner_ = nullptr;
+  };
+
   /** Stop future deliveries without waiting for an already-running owner callback. */
   void cancel()
   {
@@ -41,29 +78,32 @@ template<typename OwnerT> class OwnerCallbackLifetime {
 
   void invalidate()
   {
-    /* A recursive lock lets a callback destroy its own owner. Another thread
-     * cannot release the owner until the active delivery has returned. */
+    /* Close admission before waiting for the execution slot. This prevents a nested callback or
+     * a queued owner call from entering after destruction has begun. Do not hold state_mutex_
+     * while waiting: an admitted callback may need it to perform terminal cancellation. */
+    cancel();
     std::lock_guard delivery_lock(delivery_mutex_);
     std::lock_guard state_lock(state_mutex_);
-    accepting_ = false;
     owner_ = nullptr;
+  }
+
+  OwnerExecution enter() const
+  {
+    std::unique_lock delivery_lock(delivery_mutex_);
+    std::lock_guard state_lock(state_mutex_);
+    if (!accepting_ || owner_ == nullptr) {
+      return {};
+    }
+    return OwnerExecution(std::move(delivery_lock), *owner_);
   }
 
   template<typename Callback> bool deliver(Callback &&callback) const
   {
-    /* AllowSpontaneous callbacks may arrive on arbitrary threads. Serialize
-     * their owner access, while recursive delivery on one thread remains legal. */
-    std::lock_guard delivery_lock(delivery_mutex_);
-    OwnerT *owner;
-    {
-      std::lock_guard state_lock(state_mutex_);
-      owner = owner_;
-      if (!accepting_ || owner == nullptr) {
-        return false;
-      }
+    OwnerExecution execution = enter();
+    if (!execution) {
+      return false;
     }
-
-    std::forward<Callback>(callback)(*owner);
+    std::forward<Callback>(callback)(execution.owner());
     return true;
   }
 

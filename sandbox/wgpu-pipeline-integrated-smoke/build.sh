@@ -1631,6 +1631,8 @@ require_fixed_count 5 \
   'ghost_web::device_state_allows_callback_work(device_state)' \
   "$GHOST_SOURCE"
 require_fixed_count 7 'lifetime->deliver' "$GHOST_SOURCE"
+require_fixed_count 9 'auto owner_execution = lifetime->enter();' "$GHOST_SOURCE"
+require_fixed_count 8 'auto owner_execution = lifetime->enter();' "$GHOST_HEADER"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_frame_encode_submit_scoped(' "$GHOST_SOURCE"
@@ -1644,12 +1646,14 @@ require_fixed_count 1 'uint32_t requested_width_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'uint32_t requested_height_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pipeline_pending_ = false;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pending_ = false;' "$GHOST_HEADER"
-"$PYBIN" - "$GHOST_SOURCE" <<'PY'
+"$PYBIN" - "$GHOST_SOURCE" "$GHOST_HEADER" "$GHOST_TRANSACTION_HEADER" <<'PY'
 from pathlib import Path
 import sys
 
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+header = Path(sys.argv[2]).read_text(encoding="utf-8")
+transaction = Path(sys.argv[3]).read_text(encoding="utf-8")
 
 
 def method(marker: str) -> str:
@@ -1666,9 +1670,24 @@ def method(marker: str) -> str:
     raise SystemExit(f"ERROR: unterminated GHOST method: {marker}")
 
 
+def method_from(text: str, marker: str) -> str:
+    start = text.index(marker)
+    opening = text.index("{", start)
+    depth = 0
+    for offset in range(opening, len(text)):
+        if text[offset] == "{":
+            depth += 1
+        elif text[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : offset + 1]
+    raise SystemExit(f"ERROR: unterminated method: {marker}")
+
+
 configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)")
 destructor = method("GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()")
 initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()")
+release_native = method("GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()")
 request_adapter = method("void GHOST_ContextWGPUWeb::requestAdapter()")
 request_device = method("void GHOST_ContextWGPUWeb::requestDevice()")
 finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
@@ -1676,12 +1695,57 @@ backbuffer = method("void GHOST_ContextWGPUWeb::ensureBackbuffer()")
 pipeline = method("void GHOST_ContextWGPUWeb::ensurePresentPipeline()")
 swap_release = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()")
 swap_acquire = method("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()")
+activate = method("GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()")
+release_drawing = method("GHOST_TSuccess GHOST_ContextWGPUWeb::releaseDrawingContext()")
+init_async = method("void GHOST_ContextWGPUWeb::initAsync(")
 device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 
-if destructor.count("callback_lifetime_->invalidate();") != 1:
+destructor_cancel = destructor.index("callback_lifetime_->cancel();")
+destructor_invalidate = destructor.index("callback_lifetime_->invalidate();")
+if destructor_cancel >= destructor_invalidate:
     raise SystemExit("ERROR: context destruction does not synchronize callback invalidation")
+
+owner_boundary = "auto owner_execution = lifetime->enter();"
+for label, body in (
+    ("initialize", initialize),
+    ("release-native", release_native),
+    ("swap-acquire", swap_acquire),
+    ("swap-release", swap_release),
+    ("activate", activate),
+    ("release-drawing", release_drawing),
+    ("init-async", init_async),
+    ("configure", configure),
+    ("device-loss-cleanup", propagate_loss),
+):
+    if body.count(owner_boundary) != 1:
+        raise SystemExit(f"ERROR: {label} lacks one shared owner-execution boundary")
+
+for label, marker in (
+    ("ready", "bool isReady() const"),
+    ("instance", "wgpu::Instance getInstance() const"),
+    ("adapter", "wgpu::Adapter getAdapter() const"),
+    ("device", "wgpu::Device getDevice() const"),
+    ("queue", "wgpu::Queue getQueue() const"),
+    ("surface", "wgpu::Surface getSurface() const"),
+    ("surface-format", "wgpu::TextureFormat getSurfaceFormat() const"),
+    ("backbuffer-texture", "wgpu::Texture getBackbufferTexture() const"),
+):
+    body = method_from(header, marker)
+    if body.count(owner_boundary) != 1:
+        raise SystemExit(f"ERROR: {label} accessor lacks one shared owner-execution boundary")
+
+invalidate_gate = method_from(transaction, "void invalidate()")
+if invalidate_gate.index("cancel();") >= invalidate_gate.index("delivery_mutex_"):
+    raise SystemExit("ERROR: callback admission does not close before invalidation waits")
+enter_gate = method_from(transaction, "OwnerExecution enter() const")
+if not (
+    enter_gate.index("delivery_mutex_")
+    < enter_gate.index("state_mutex_")
+    < enter_gate.index("!accepting_")
+):
+    raise SystemExit("ERROR: owner execution does not serialize admission and owner access")
 
 for label, body, call, follow_on in (
     ("adapter", request_adapter, "instance_.RequestAdapter(", "owner.requestDevice();"),

@@ -191,6 +191,9 @@ GHOST_ContextWGPUWeb::GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_pa
 
 GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()
 {
+  /* Close callback and owner-method admission before invalidate waits for the shared execution
+   * slot. A callback that destroys this context can re-enter the recursive slot safely. */
+  callback_lifetime_->cancel();
   callback_lifetime_->invalidate();
 }
 
@@ -248,6 +251,11 @@ void GHOST_ContextWGPUWeb::popErrorScopes(const wgpu::Device &device,
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return GHOST_kFailure;
+  }
   /* If a prior initAsync() already acquired the device (callback path, e.g. the
    * standalone harness), we are done. */
   if (ready_) {
@@ -345,16 +353,28 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
   return GHOST_kSuccess;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return GHOST_kFailure;
+  }
   return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return GHOST_kFailure;
+  }
   /* End-of-frame present (M4.T21): the backend renders every pass into the PERSISTENT
    * offscreen back-buffer; here — the last op of the frame, still inside the WM's rAF
    * tick (wm_draw.cc:1692 wm_window_swap_buffer_release) — we blit it onto the surface's
@@ -373,16 +393,28 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return GHOST_kFailure;
+  }
   return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::releaseDrawingContext()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
   return GHOST_kSuccess;
 }
 
 void GHOST_ContextWGPUWeb::initAsync(uint32_t width, uint32_t height, ReadyCallback on_ready)
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return;
+  }
   width_ = width;
   height_ = height;
   on_ready_ = std::move(on_ready);
@@ -513,6 +545,11 @@ void GHOST_ContextWGPUWeb::finishSetup()
   if (!deviceIsUsable()) {
     completeInitialization(false);
     return;
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return;
+  }
   }
   if (!ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
     std::printf("WGPUWeb: canvas '%s' is not resolvable for a presentable context\n",
@@ -579,6 +616,11 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
     return;
   }
   /* Keep the latest browser request separate from the last complete published
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return;
+  }
    * surface/backbuffer state. ensureBackbuffer() allocates and validates first;
    * only its current-candidate callback may configure and publish the new extent. */
   requested_width_ = w;

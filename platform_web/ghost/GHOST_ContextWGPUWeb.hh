@@ -52,6 +52,9 @@
  * initializeDrawingContext runs, the device is already acquired. See
  * notes/ghost-web-wgpu-context.md + notes/m4-integration.md. */
 class GHOST_ContextWGPUWeb : public GHOST_Context {
+ private:
+  using CallbackLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;
+
  public:
   /** Called once after the selected device-only or presentable initialization settles. */
   using ReadyCallback = std::function<void(bool success)>;
@@ -84,6 +87,11 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
   bool isReady() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return false;
+    }
     return ready_ && ghost_web::device_state_allows_callback_work(device_state_);
   }
 
@@ -92,36 +100,66 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
   wgpu::Instance getInstance() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                instance_ :
                wgpu::Instance();
   }
   wgpu::Adapter getAdapter() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                adapter_ :
                wgpu::Adapter();
   }
   wgpu::Device getDevice() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                device_ :
                wgpu::Device();
   }
   wgpu::Queue getQueue() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                queue_ :
                wgpu::Queue();
   }
   wgpu::Surface getSurface() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                surface_ :
                wgpu::Surface();
   }
   wgpu::TextureFormat getSurfaceFormat() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return wgpu::TextureFormat::BGRA8Unorm;
+    }
     return surface_format_;
   }
   /* The PERSISTENT offscreen back-buffer the WebGPU backend renders into every frame
@@ -134,6 +172,11 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
    * Null until configureSurface() has run. */
   wgpu::Texture getBackbufferTexture() const
   {
+    const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return {};
+    }
     return ghost_web::device_state_allows_callback_work(device_state_) ?
                backbuffer_ :
                wgpu::Texture();
@@ -141,7 +184,6 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
 
  private:
   using ErrorScopeCallback = std::function<void(bool)>;
-  using CallbackLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;
 
   void requestAdapter();
   void requestDevice();

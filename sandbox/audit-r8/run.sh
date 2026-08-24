@@ -34,6 +34,11 @@ grep -Fq 'std::make_shared<ghost_web::DeviceCallbackState>(' "$CONTEXT_CC"
 grep -Fq 'ghost_web_preinit_device_loss_generation(), imported_device_loss_observation' \
   "$CONTEXT_CC"
 grep -Fq 'callback_lifetime_->invalidate();' "$CONTEXT_CC"
+if [[ "$(grep -Fc 'auto owner_execution = lifetime->enter();' "$CONTEXT_CC")" -ne 9 ||
+      "$(grep -Fc 'auto owner_execution = lifetime->enter();' "$CONTEXT_HH")" -ne 8 ]]; then
+  echo "ERROR: shipping public owner-execution census changed" >&2
+  exit 1
+fi
 
 if [[ "$($NODE_BIN --version)" != "v22.16.0" ]]; then
   echo "ERROR: pinned Node 22.16.0 is unavailable" >&2
@@ -82,6 +87,12 @@ grep -Fqx \
   "CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1" \
   "$AUDIT_TMP/accepted-native.log"
 grep -Fqx \
+  "CONTRACT ghost_owner_execution PASS callback_owner=serialized cleanup=quiescent" \
+  "$AUDIT_TMP/accepted-native.log"
+grep -Fqx \
+  "CONTRACT ghost_destruction_admission PASS nested=blocked queued=blocked" \
+  "$AUDIT_TMP/accepted-native.log"
+grep -Fqx \
   "CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block" \
   "$AUDIT_TMP/accepted-native.log"
 
@@ -100,4 +111,4 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-owner-race.log"; then
   exit 1
 fi
 
-echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 owner_concurrent=1 owner_serialized=1 nested=1 owner_reentrant=1 unsafe_asan=1"
+echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=1"

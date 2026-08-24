@@ -18,8 +18,24 @@ namespace {
 struct RaceControl {
   std::atomic<bool> callback_has_owner{false};
   std::atomic<bool> destructor_started{false};
+  std::atomic<bool> admission_closed{false};
+  std::atomic<bool> nested_delivery_finished{false};
+  std::atomic<bool> nested_delivery_ran{false};
+  std::atomic<bool> queued_delivery_attempted{false};
+  std::atomic<bool> queued_delivery_ran{false};
   std::atomic<bool> allow_owner_access{false};
   std::atomic<bool> destructor_returned{false};
+};
+
+struct ExecutionControl {
+  std::atomic<int> active{0};
+  std::atomic<int> peak{0};
+  std::atomic<bool> callback_entered{false};
+  std::atomic<bool> owner_attempted{false};
+  std::atomic<bool> owner_entered{false};
+  std::atomic<bool> cleanup_attempted{false};
+  std::atomic<bool> cleanup_entered{false};
+  std::atomic<bool> release_callback{false};
 };
 
 std::atomic<int> callback_sink{0};
@@ -37,6 +53,11 @@ class OwnerProbe {
   {
     if (control_) {
       control_->destructor_started.store(true, std::memory_order_release);
+    }
+    /* Destruction closes admission before waiting for an active callback. */
+    lifetime_->cancel();
+    if (control_) {
+      control_->admission_closed.store(true, std::memory_order_release);
     }
     lifetime_->invalidate();
   }
@@ -57,6 +78,63 @@ class OwnerProbe {
  private:
   std::shared_ptr<RaceControl> control_;
   std::atomic<int> marker_{0x5a17};
+  std::shared_ptr<Lifetime> lifetime_;
+};
+
+void enter_execution(ExecutionControl &control, std::atomic<bool> &entered)
+{
+  const int current = control.active.fetch_add(1, std::memory_order_acq_rel) + 1;
+  int observed_peak = control.peak.load(std::memory_order_acquire);
+  while (observed_peak < current &&
+         !control.peak.compare_exchange_weak(observed_peak, current, std::memory_order_acq_rel))
+  {
+  }
+  entered.store(true, std::memory_order_release);
+}
+
+class OwnerExecutionProbe {
+ public:
+  using Lifetime = gw::OwnerCallbackLifetime<OwnerExecutionProbe>;
+
+  OwnerExecutionProbe() : lifetime_(std::make_shared<Lifetime>(*this)) {}
+
+  ~OwnerExecutionProbe()
+  {
+    lifetime_->cancel();
+    lifetime_->invalidate();
+  }
+
+  std::shared_ptr<Lifetime> lifetime() const
+  {
+    return lifetime_;
+  }
+
+  bool public_owner_step(ExecutionControl &control)
+  {
+    const std::shared_ptr<Lifetime> lifetime = lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return false;
+    }
+    enter_execution(control, control.owner_entered);
+    control.active.fetch_sub(1, std::memory_order_acq_rel);
+    return true;
+  }
+
+  bool terminal_cleanup(ExecutionControl &control)
+  {
+    const std::shared_ptr<Lifetime> lifetime = lifetime_;
+    auto owner_execution = lifetime->enter();
+    if (!owner_execution) {
+      return false;
+    }
+    enter_execution(control, control.cleanup_entered);
+    lifetime->cancel();
+    control.active.fetch_sub(1, std::memory_order_acq_rel);
+    return true;
+  }
+
+ private:
   std::shared_ptr<Lifetime> lifetime_;
 };
 
@@ -255,6 +333,161 @@ bool run_serialized_owner_contract()
          peak.load(std::memory_order_acquire) == 1 && outer_delivered && nested_ran;
 }
 
+bool run_callback_owner_execution_contract()
+{
+  auto owner = std::make_unique<OwnerExecutionProbe>();
+  const std::shared_ptr<OwnerExecutionProbe::Lifetime> lifetime = owner->lifetime();
+  ExecutionControl control;
+  bool callback_delivered = false;
+  bool owner_executed = false;
+
+  std::thread completion([&]() {
+    callback_delivered = lifetime->deliver([&](OwnerExecutionProbe & /*loaded_owner*/) {
+      enter_execution(control, control.callback_entered);
+      while (!control.release_callback.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      control.active.fetch_sub(1, std::memory_order_acq_rel);
+    });
+  });
+  if (!wait_for(control.callback_entered)) {
+    control.release_callback.store(true, std::memory_order_release);
+    completion.join();
+    return false;
+  }
+
+  std::thread owner_thread([&]() {
+    control.owner_attempted.store(true, std::memory_order_release);
+    owner_executed = owner->public_owner_step(control);
+  });
+  if (!wait_for(control.owner_attempted)) {
+    control.release_callback.store(true, std::memory_order_release);
+    completion.join();
+    owner_thread.join();
+    return false;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  const bool owner_waited = !control.owner_entered.load(std::memory_order_acquire);
+  control.release_callback.store(true, std::memory_order_release);
+  completion.join();
+  owner_thread.join();
+
+  return owner_waited && callback_delivered && owner_executed &&
+         control.owner_entered.load(std::memory_order_acquire) &&
+         control.peak.load(std::memory_order_acquire) == 1;
+}
+
+bool run_cleanup_quiescence_contract()
+{
+  auto owner = std::make_unique<OwnerExecutionProbe>();
+  const std::shared_ptr<OwnerExecutionProbe::Lifetime> lifetime = owner->lifetime();
+  ExecutionControl control;
+  bool cleanup_executed = false;
+
+  std::thread completion([&]() {
+    lifetime->deliver([&](OwnerExecutionProbe & /*loaded_owner*/) {
+      enter_execution(control, control.callback_entered);
+      while (!control.release_callback.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      control.active.fetch_sub(1, std::memory_order_acq_rel);
+    });
+  });
+  if (!wait_for(control.callback_entered)) {
+    control.release_callback.store(true, std::memory_order_release);
+    completion.join();
+    return false;
+  }
+
+  std::thread cleanup([&]() {
+    control.cleanup_attempted.store(true, std::memory_order_release);
+    cleanup_executed = owner->terminal_cleanup(control);
+  });
+  if (!wait_for(control.cleanup_attempted)) {
+    control.release_callback.store(true, std::memory_order_release);
+    completion.join();
+    cleanup.join();
+    return false;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  const bool cleanup_waited = !control.cleanup_entered.load(std::memory_order_acquire);
+  control.release_callback.store(true, std::memory_order_release);
+  completion.join();
+  cleanup.join();
+
+  return cleanup_waited && cleanup_executed &&
+         control.cleanup_entered.load(std::memory_order_acquire) &&
+         control.peak.load(std::memory_order_acquire) == 1 &&
+         !lifetime->deliver([](OwnerExecutionProbe & /*loaded_owner*/) {});
+}
+
+bool run_destruction_admission_contract()
+{
+  const auto control = std::make_shared<RaceControl>();
+  auto *owner = new OwnerProbe(control);
+  const std::shared_ptr<OwnerProbe::Lifetime> lifetime = owner->lifetime();
+  std::atomic<bool> release_active{false};
+  bool active_delivered = false;
+  bool queued_delivered = false;
+
+  std::thread active([&]() {
+    active_delivered = lifetime->deliver([&](OwnerProbe & /*loaded_owner*/) {
+      control->callback_has_owner.store(true, std::memory_order_release);
+      while (!control->admission_closed.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      control->nested_delivery_ran.store(
+          lifetime->deliver([](OwnerProbe & /*nested_owner*/) {}), std::memory_order_release);
+      control->nested_delivery_finished.store(true, std::memory_order_release);
+      while (!release_active.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+    });
+  });
+  if (!wait_for(control->callback_has_owner)) {
+    release_active.store(true, std::memory_order_release);
+    active.join();
+    return false;
+  }
+
+  std::thread queued([&]() {
+    control->queued_delivery_attempted.store(true, std::memory_order_release);
+    queued_delivered = lifetime->deliver([&](OwnerProbe & /*loaded_owner*/) {
+      control->queued_delivery_ran.store(true, std::memory_order_release);
+    });
+  });
+  if (!wait_for(control->queued_delivery_attempted)) {
+    release_active.store(true, std::memory_order_release);
+    active.join();
+    queued.join();
+    return false;
+  }
+
+  std::thread destroyer([&]() {
+    delete owner;
+    control->destructor_returned.store(true, std::memory_order_release);
+  });
+  if (!wait_for(control->admission_closed) || !wait_for(control->nested_delivery_finished)) {
+    release_active.store(true, std::memory_order_release);
+    active.join();
+    queued.join();
+    destroyer.join();
+    return false;
+  }
+  const bool destruction_waited =
+      !control->destructor_returned.load(std::memory_order_acquire);
+  const bool late_delivery_blocked =
+      !control->nested_delivery_ran.load(std::memory_order_acquire) &&
+      !control->queued_delivery_ran.load(std::memory_order_acquire);
+  release_active.store(true, std::memory_order_release);
+  active.join();
+  queued.join();
+  destroyer.join();
+
+  return active_delivered && !queued_delivered && destruction_waited && late_delivery_blocked &&
+         control->destructor_returned.load(std::memory_order_acquire);
+}
+
 bool run_imported_loss_contract()
 {
   constexpr uint32_t generation = 7;
@@ -305,12 +538,26 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "FAIL: serialized owner delivery contract\n");
     return 1;
   }
+  if (!run_callback_owner_execution_contract()) {
+    std::fprintf(stderr, "FAIL: callback/owner execution contract\n");
+    return 1;
+  }
+  if (!run_cleanup_quiescence_contract()) {
+    std::fprintf(stderr, "FAIL: terminal cleanup quiescence contract\n");
+    return 1;
+  }
+  if (!run_destruction_admission_contract()) {
+    std::fprintf(stderr, "FAIL: destruction admission contract\n");
+    return 1;
+  }
   if (!run_imported_loss_contract()) {
     std::fprintf(stderr, "FAIL: imported-device loss callback contract\n");
     return 1;
   }
   std::puts("CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked");
   std::puts("CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1");
+  std::puts("CONTRACT ghost_owner_execution PASS callback_owner=serialized cleanup=quiescent");
+  std::puts("CONTRACT ghost_destruction_admission PASS nested=blocked queued=blocked");
   std::puts("CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block");
   return 0;
 }

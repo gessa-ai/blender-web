@@ -13,6 +13,9 @@ adapter or a milestone receipt:
   remain reentrant when a completion destroys its own context.
 - arbitrary-thread completions must serialize mutation of their shared GHOST owner,
   while nested delivery on the same thread remains reentrant.
+- public owner execution and terminal cleanup must share that same reentrant slot;
+- destruction must close admission before waiting, rejecting both nested and queued
+  late delivery while an already-admitted callback drains.
 
 The driver also binds all seven shipping completion sites to the synchronized,
 serialized owner gate and requires byte-identical native/wasm32 results under

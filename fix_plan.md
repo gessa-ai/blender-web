@@ -2243,6 +2243,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compliance failures (25 to 23) while all four external-policy facts remain honestly false. The
   ignored receipt is regenerated after the record commit so that commit is included in both
   digests. See `notes/m8-compliance-current-receipt-20260824.md`.
+- [x] **M8-PUBLIC-DISCLAIMER [compliance, blocked-by: none] COMPLETE (`35736d9`):** the root
+  README and visible browser footer now carry the complete standing affiliation, endorsement,
+  sponsorship, and trademark statement, and the staged runtime verifier requires the same text.
+  A browser-free source gate passes one live case and rejects eight wording, visibility/link,
+  script-order, and verifier mutations. The current compliance receipt flips exactly
+  `public_disclaimer_complete` to true; technical compliance remains green, three external-policy
+  facts remain false, and M8 retains its 23 independent APPLY/browser/aggregate boundaries. See
+  `notes/m8-public-disclaimer-20260824.md`.
 - [x] **M3-BINDSPACE-SCOPED-RESOURCE-VERIFIER [gpu-backend, blocked-by: none] COMPLETE
   (`72616c2`):** the device-free bind-space driver now extracts the sampler descriptor through the
   current scoped-cache boundary and the dummy-vertex mapped-at-creation helper plus its scoped

@@ -40,6 +40,7 @@ SOURCE_PATHS = (
     "source/blender/editors/space_view3d/view3d_draw.cc",
     "source/blender/editors/space_view3d/view3d_navigate.cc",
     "source/blender/editors/space_view3d/view3d_navigate.hh",
+    "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc",
     "source/blender/editors/space_view3d/view3d_select.cc",
     "source/blender/editors/space_view3d/view3d_view.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
@@ -164,6 +165,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     view_navigate = sources["source/blender/editors/space_view3d/view3d_navigate.cc"]
     view_navigate_header = sources[
         "source/blender/editors/space_view3d/view3d_navigate.hh"
+    ]
+    view_dolly = sources[
+        "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc"
     ]
     eyedropper = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_color.cc"
@@ -1223,6 +1227,39 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "depth_loc_override, false" in navigation_utility,
         "embedded navigation utility can start an unowned depth continuation",
     )
+    dolly_invoke = braced_definition(
+        view_dolly,
+        "static wmOperatorStatus viewdolly_invoke(bContext *C,",
+        "direct dolly invoke",
+    )
+    require_ordered(
+        dolly_invoke,
+        (
+            "viewdolly_offset_lock_check(C, op)",
+            "view3d_navigate_invoke_impl(C, op, event, &ViewOpsType_dolly)",
+        ),
+        "direct dolly owned invoke",
+    )
+    dolly_modal = braced_definition(
+        view_dolly,
+        "static wmOperatorStatus viewdolly_modal(bContext *C,",
+        "direct dolly modal",
+    )
+    require_ordered(
+        dolly_modal,
+        (
+            "vod != nullptr && vod->depth_read != nullptr",
+            "view3d_navigate_modal_fn(C, op, event)",
+            "viewdolly_modal_apply(C, vod, event_code, event->xy)",
+        ),
+        "direct dolly pending dispatch",
+    )
+    require(
+        "viewops_data_create(" not in view_dolly and
+        "/*init_fn*/ viewdolly_invoke_impl," in view_dolly and
+        "/*apply_fn*/ viewdolly_modal_apply," in view_dolly,
+        "direct dolly generic continuation wiring differs",
+    )
 
     return {
         "schema": 1,
@@ -1238,6 +1275,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "window_color_continuation": True,
             "depth_eyedropper_continuation": True,
             "ordinary_navigation_continuation": True,
+            "direct_dolly_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1444,6 +1482,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "read->queued_event = *event;",
             "read->queued_event = {};",
             "ordinary navigation continuation",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_navigate_view_dolly.cc",
+            "view3d_navigate_invoke_impl(C, op, event, &ViewOpsType_dolly)",
+            "viewops_data_create(C, event, &ViewOpsType_dolly, false)",
+            "direct dolly continuation",
         ),
     )
     for relative, old, new, label in mutations:

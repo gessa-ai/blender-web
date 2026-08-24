@@ -1083,3 +1083,6 @@
 # 0259: retain ordinary mouse-navigation initialization and its latest event
 # across an owned progressive depth request without blocking the WM worker.
 0259-m5-navigation-depth-continuation.patch
+# 0260: route direct dolly initialization through the owned navigation-depth
+# continuation while preserving its delta, trackpad, modal, and cancel tails.
+0260-m5-dolly-depth-continuation.patch

@@ -11,7 +11,7 @@
     "source_real_index_pristine": true,
     "source_repository_operation_idle": true
   },
-  "created_utc": "2026-08-24T20:35:27.472826Z",
+  "created_utc": "2026-08-24T21:06:03.784591Z",
   "expected_pin": "fbe6228777e7d9afefcd61a413844e790ae75db7",
   "git_version": "git version 2.53.0",
   "ignored_worktree_paths": {
@@ -23,12 +23,12 @@
     "bytes": 3477337,
     "entries": 20258,
     "path": "live.manifest.jsonl",
-    "sha256": "31afa0e3cc47366e416b75e57f7d22182fcde70d45dcffb5570d11cb7beb62a9"
+    "sha256": "f86acb88986286ab7a21691ff10477da840ad10b871ca93aa8ea6705eab9d34d"
   },
   "patch": {
-    "bytes": 1996000,
+    "bytes": 2007419,
     "path": "canonical-source.patch",
-    "sha256": "7b50a937b043a58ab2dff7638319daa7efa6d8e16e72fcfdcb19a02b8fddd467"
+    "sha256": "9bf4b5bb81528d87edcf8e9d713820e904754b83e6d3512a3a7b4ac903f2eb45"
   },
   "recorded_pin_file": {
     "path": "/home/pc/gessa/blender-web/oracle/PIN",
@@ -38,9 +38,9 @@
     "bytes": 3477337,
     "entries": 20258,
     "path": "replay.manifest.jsonl",
-    "sha256": "31afa0e3cc47366e416b75e57f7d22182fcde70d45dcffb5570d11cb7beb62a9"
+    "sha256": "f86acb88986286ab7a21691ff10477da840ad10b871ca93aa8ea6705eab9d34d"
   },
   "schema": 1,
-  "source": "/home/pc/gessa/blender-web/build-deps/m5-navigation-final-source",
+  "source": "/home/pc/gessa/blender-web/build-deps/m5-dolly-final-source",
   "verdict": "PASS"
 }

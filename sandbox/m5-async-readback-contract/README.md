@@ -36,12 +36,12 @@ replays it. Pre-deselect and all later mesh mutation remain behind settlement. C
 input events queue in order behind the active request, while the exact producing
 selection operation, center, and radius are restored before each replay.
 
-The cursor-placement and Center View to Mouse operators now share the exact owned
-progressive 0/2/4-pixel depth request across browser event-loop ticks. Their separate
-contracts bind native immediate completion, exact event/orientation or smooth-view replay,
-stock no-hit fallbacks, supersession, timeout/cancellation, and producing-state drift
-rejection. Navigation, depth-eyedropper, painting, zoom-border, and NDOF consumers remain
-synchronous, so the family census remains open.
+Cursor placement, Center View to Mouse, the depth eyedropper, ordinary navigation, and direct
+dolly now share the exact owned progressive 0/2/4-pixel depth request across browser event-loop
+ticks. Their separate contracts bind native immediate completion, exact event/orientation or
+smooth-view replay, stock no-hit fallbacks, supersession, timeout/cancellation, and producing-state
+drift rejection. Painting, zoom-border, and NDOF consumers remain synchronous, so the family census
+remains open.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
 the owned draw-selection request and exact query session, exact WebGPU tickets,

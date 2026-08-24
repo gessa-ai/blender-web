@@ -36,7 +36,7 @@ require_file "$PYBIN"
 require_file "$NODE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$SERIES_VERIFY"
-require_file "$ROOT/sandbox/m5-navigation-depth/verify_canonical_source.py"
+require_file "$ROOT/sandbox/m5-dolly-depth/verify_canonical_source.py"
 require_file "$HERE/CMakeLists.txt"
 require_file "$HERE/contract_test.cc"
 require_file "$HERE/verify_source.py"
@@ -71,13 +71,13 @@ fi
 if [ "$SOURCE_ROOT" = "$ROOT/upstream" ]; then
   SOURCE_PROOF="$("$PYBIN" "$SERIES_VERIFY" --canonical-only)"
 else
-  SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/m5-navigation-depth/verify_canonical_source.py" \
+  SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/m5-dolly-depth/verify_canonical_source.py" \
     --source-root "$SOURCE_ROOT" \
     --canonical "$ROOT/patches/PREVIEW_SNAPSHOT.patch" \
     --sha256 "$ROOT/patches/PREVIEW_SNAPSHOT.sha256")"
 fi
 case "$SOURCE_PROOF" in
-  CANONICAL_REPLAY_PASS\ *|M5_NAVIGATION_CANONICAL_REPLAY_PASS\ *) ;;
+  CANONICAL_REPLAY_PASS\ *|M5_DOLLY_CANONICAL_REPLAY_PASS\ *) ;;
   *)
     echo "ERROR: canonical source replay did not produce its exact verdict" >&2
     exit 1
@@ -154,6 +154,7 @@ if ! jq -e \
    .contracts.window_color_continuation == true and
    .contracts.depth_eyedropper_continuation == true and
    .contracts.ordinary_navigation_continuation == true and
+   .contracts.direct_dolly_continuation == true and
    .contracts.live_hardware_receipt == false and
    (.remaining_sync_families | length) == 3' \
   "$OUT/source.json" >/dev/null

@@ -1068,3 +1068,6 @@
 # 0254: replay edit-mesh sample/nearest reads through the owned raw request and
 # restore each settled ID's exact selection-context mapping before consumption.
 0254-m5-legacy-selection-click-continuation.patch
+# 0255: retain box/lasso/circle raw ID reads and exact shape/context inputs,
+# then resume edit-mesh gesture mutation through bounded modal continuations.
+0255-m5-legacy-selection-gesture-continuation.patch

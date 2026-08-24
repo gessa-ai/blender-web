@@ -1,0 +1,1467 @@
+diff --git a/source/blender/draw/DRW_select_buffer.hh b/source/blender/draw/DRW_select_buffer.hh
+index 861d043..4afeb31 100644
+--- a/source/blender/draw/DRW_select_buffer.hh
++++ b/source/blender/draw/DRW_select_buffer.hh
+@@ -104,12 +104,28 @@ bool DRW_select_buffer_query_session_is_active();
+ bool DRW_select_buffer_query_session_needs_replay();
+ eGPUReadbackStatus DRW_select_buffer_query_session_status();
+ eGPUReadbackError DRW_select_buffer_query_session_error();
++
++/**
++ * Own and replay one rectangle, polygon, or circle selection bitmap made by a
++ * logical browser gesture invocation. The session retains the raw readback,
++ * mask inputs, and exact select context until the operator continuation
++ * consumes the bitmap.
++ */
++void DRW_select_buffer_bitmap_session_begin();
++void DRW_select_buffer_bitmap_session_end();
++bool DRW_select_buffer_bitmap_session_is_active();
++bool DRW_select_buffer_bitmap_session_needs_replay();
++eGPUReadbackStatus DRW_select_buffer_bitmap_session_status();
++eGPUReadbackError DRW_select_buffer_bitmap_session_error();
+ /**
+  * \param rect: The rectangle to sample indices from (min/max inclusive).
+  * \returns a #BLI_bitmap the length of \a bitmap_len or NULL on failure.
+  */
+ uint *DRW_select_buffer_bitmap_from_rect(
+     Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect, uint *r_bitmap_len);
++/** Non-blocking rectangle bitmap for an active bitmap session. */
++uint *DRW_select_buffer_bitmap_from_rect_async(
++    Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect, uint *r_bitmap_len);
+ /**
+  * \param center: Circle center.
+  * \param radius: Circle radius.
+@@ -122,6 +138,13 @@ uint *DRW_select_buffer_bitmap_from_circle(Depsgraph *depsgraph,
+                                            const int center[2],
+                                            int radius,
+                                            uint *r_bitmap_len);
++/** Non-blocking circle bitmap for an active bitmap session. */
++uint *DRW_select_buffer_bitmap_from_circle_async(Depsgraph *depsgraph,
++                                                 ARegion *region,
++                                                 View3D *v3d,
++                                                 const int center[2],
++                                                 int radius,
++                                                 uint *r_bitmap_len);
+ /**
+  * \param poly: The polygon array.
+  * \param rect: Polygon boundaries.
+@@ -133,6 +156,13 @@ uint *DRW_select_buffer_bitmap_from_poly(Depsgraph *depsgraph,
+                                          Span<int2> poly,
+                                          const rcti *rect,
+                                          uint *r_bitmap_len);
++/** Non-blocking polygon bitmap for an active bitmap session. */
++uint *DRW_select_buffer_bitmap_from_poly_async(Depsgraph *depsgraph,
++                                               ARegion *region,
++                                               View3D *v3d,
++                                               Span<int2> poly,
++                                               const rcti *rect,
++                                               uint *r_bitmap_len);
+ /**
+  * Samples a single pixel.
+  */
+diff --git a/source/blender/draw/intern/draw_select_buffer.cc b/source/blender/draw/intern/draw_select_buffer.cc
+index d8933c7..29187ac 100644
+--- a/source/blender/draw/intern/draw_select_buffer.cc
++++ b/source/blender/draw/intern/draw_select_buffer.cc
+@@ -332,6 +332,86 @@ uint *DRW_select_buffer_read(
+  *
+  * \{ */
+ 
++struct DRWSelectBufferQueryContext {
++  Vector<Object *> objects;
++  Map<Object *, ElemIndexRanges> elem_ranges;
++  uint max_index_drawn_len = 0;
++  short select_mode = 0;
++};
++
++static DRWSelectBufferQueryContext drw_select_buffer_query_context_capture()
++{
++  DRWSelectBufferQueryContext snapshot;
++  const SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx == nullptr) {
++    return snapshot;
++  }
++  snapshot.objects.extend(select_ctx->objects);
++  for (const auto &item : select_ctx->elem_ranges.items()) {
++    snapshot.elem_ranges.add(item.key, item.value);
++  }
++  snapshot.max_index_drawn_len = select_ctx->max_index_drawn_len;
++  snapshot.select_mode = select_ctx->select_mode;
++  return snapshot;
++}
++
++static void drw_select_buffer_query_context_restore(const DRWSelectBufferQueryContext &snapshot)
++{
++  SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx == nullptr) {
++    return;
++  }
++  select_ctx->objects.clear();
++  select_ctx->objects.extend(snapshot.objects);
++  select_ctx->elem_ranges.clear();
++  for (const auto &item : snapshot.elem_ranges.items()) {
++    select_ctx->elem_ranges.add(item.key, item.value);
++  }
++  select_ctx->max_index_drawn_len = snapshot.max_index_drawn_len;
++  select_ctx->select_mode = snapshot.select_mode;
++}
++
++enum class DRWSelectBufferBitmapKind : uint8_t {
++  Rect,
++  Circle,
++  Poly,
++};
++
++struct DRWSelectBufferBitmapKey {
++  DRWSelectBufferBitmapKind kind = DRWSelectBufferBitmapKind::Rect;
++  Depsgraph *depsgraph = nullptr;
++  ARegion *region = nullptr;
++  View3D *v3d = nullptr;
++  rcti read_rect = {};
++  int2 center = {};
++  int radius = 0;
++  short select_mode = 0;
++  Vector<Object *> objects;
++  Vector<int2> poly;
++};
++
++struct DRWSelectBufferBitmapResult {
++  DRWSelectBufferBitmapKey key;
++  DRWSelectBufferQueryContext context;
++  BLI_bitmap *bitmap = nullptr;
++  uint bitmap_len = 0;
++};
++
++struct DRWSelectBufferBitmapState {
++  bool session_active = false;
++  bool failed = false;
++  bool replay_required = false;
++  bool settled = false;
++  bool result_ready = false;
++  eGPUReadbackError error = GPU_READBACK_ERROR_NONE;
++  DRWSelectBufferReadback *pending = nullptr;
++  DRWSelectBufferBitmapKey pending_key;
++  DRWSelectBufferQueryContext pending_context;
++  DRWSelectBufferBitmapResult result;
++};
++
++static DRWSelectBufferBitmapState g_select_buffer_bitmap = {};
++
+ uint *DRW_select_buffer_bitmap_from_rect(
+     Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect, uint *r_bitmap_len)
+ {
+@@ -488,6 +568,372 @@ uint *DRW_select_buffer_bitmap_from_poly(Depsgraph *depsgraph,
+   return bitmap_buf;
+ }
+ 
++static void drw_select_buffer_bitmap_key_context_set(DRWSelectBufferBitmapKey &key)
++{
++  const SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  if (select_ctx == nullptr) {
++    return;
++  }
++  key.select_mode = select_ctx->select_mode;
++  key.objects.extend(select_ctx->objects);
++}
++
++static bool drw_select_buffer_bitmap_key_equal(const DRWSelectBufferBitmapKey &left,
++                                               const DRWSelectBufferBitmapKey &right)
++{
++  if (left.kind != right.kind || left.depsgraph != right.depsgraph ||
++      left.region != right.region || left.v3d != right.v3d ||
++      !BLI_rcti_compare(&left.read_rect, &right.read_rect) || left.center != right.center ||
++      left.radius != right.radius || left.select_mode != right.select_mode ||
++      left.objects.size() != right.objects.size() || left.poly.size() != right.poly.size())
++  {
++    return false;
++  }
++  for (const int64_t i : left.objects.index_range()) {
++    if (left.objects[i] != right.objects[i]) {
++      return false;
++    }
++  }
++  for (const int64_t i : left.poly.index_range()) {
++    if (left.poly[i] != right.poly[i]) {
++      return false;
++    }
++  }
++  return true;
++}
++
++static void drw_select_buffer_bitmap_fail(const eGPUReadbackError error)
++{
++  DRW_select_buffer_read_async_cancel(g_select_buffer_bitmap.pending);
++  MEM_SAFE_DELETE(g_select_buffer_bitmap.result.bitmap);
++  g_select_buffer_bitmap.failed = true;
++  g_select_buffer_bitmap.replay_required = false;
++  g_select_buffer_bitmap.settled = false;
++  g_select_buffer_bitmap.result_ready = false;
++  g_select_buffer_bitmap.error = error == GPU_READBACK_ERROR_NONE ?
++                                     GPU_READBACK_ERROR_BACKEND_FAILURE :
++                                     error;
++}
++
++static bool drw_select_buffer_bitmap_from_ids(const DRWSelectBufferBitmapKey &key,
++                                              const DRWSelectBufferQueryContext &context,
++                                              const uint *buf,
++                                              const uint buf_len,
++                                              BLI_bitmap *&r_bitmap,
++                                              uint &r_bitmap_len)
++{
++  r_bitmap = nullptr;
++  r_bitmap_len = 0;
++  if (buf == nullptr) {
++    return buf_len == 0;
++  }
++
++  uint expected_len = 0;
++  if (!drw_select_buffer_len(key.read_rect, expected_len) || buf_len != expected_len ||
++      context.max_index_drawn_len == 0)
++  {
++    return false;
++  }
++  const uint bitmap_len = context.max_index_drawn_len - 1;
++  BLI_bitmap *bitmap = BLI_BITMAP_NEW(bitmap_len, __func__);
++
++  if (key.kind == DRWSelectBufferBitmapKind::Rect) {
++    for (const uint id : Span(buf, buf_len)) {
++      /* Intentionally wrap to max value if this is zero. */
++      const uint index = id - 1;
++      if (index < bitmap_len) {
++        BLI_BITMAP_ENABLE(bitmap, index);
++      }
++    }
++  }
++  else if (key.kind == DRWSelectBufferBitmapKind::Circle) {
++    const int64_t diameter = int64_t(key.radius) * 2 + 1;
++    if (key.radius < 0 || diameter * diameter != int64_t(buf_len)) {
++      MEM_delete(bitmap);
++      return false;
++    }
++    const int64_t radius_sq = int64_t(key.radius) * int64_t(key.radius);
++    const uint *buf_iter = buf;
++    for (int64_t y = -key.radius; y <= key.radius; y++) {
++      for (int64_t x = -key.radius; x <= key.radius; x++, buf_iter++) {
++        if (x * x + y * y < radius_sq) {
++          const uint index = *buf_iter - 1;
++          if (index < bitmap_len) {
++            BLI_BITMAP_ENABLE(bitmap, index);
++          }
++        }
++      }
++    }
++  }
++  else {
++    BLI_bitmap *buf_mask = BLI_BITMAP_NEW(buf_len, __func__);
++    PolyMaskData poly_mask_data;
++    poly_mask_data.px = buf_mask;
++    poly_mask_data.width = BLI_rcti_size_x(&key.read_rect);
++    BLI_bitmap_draw_2d_poly_v2i_n(key.read_rect.xmin,
++                                  key.read_rect.ymin,
++                                  key.read_rect.xmax,
++                                  key.read_rect.ymax,
++                                  key.poly,
++                                  drw_select_mask_px_cb,
++                                  &poly_mask_data);
++    for (const int64_t i : IndexRange(buf_len)) {
++      const uint index = buf[i] - 1;
++      if (index < bitmap_len && BLI_BITMAP_TEST(buf_mask, i)) {
++        BLI_BITMAP_ENABLE(bitmap, index);
++      }
++    }
++    MEM_delete(buf_mask);
++  }
++
++  r_bitmap = bitmap;
++  r_bitmap_len = bitmap_len;
++  return true;
++}
++
++void DRW_select_buffer_bitmap_session_begin()
++{
++  DRW_select_buffer_bitmap_session_end();
++  g_select_buffer_bitmap.session_active = true;
++}
++
++void DRW_select_buffer_bitmap_session_end()
++{
++  DRW_select_buffer_read_async_cancel(g_select_buffer_bitmap.pending);
++  MEM_SAFE_DELETE(g_select_buffer_bitmap.result.bitmap);
++  g_select_buffer_bitmap = {};
++}
++
++bool DRW_select_buffer_bitmap_session_is_active()
++{
++  return g_select_buffer_bitmap.session_active;
++}
++
++bool DRW_select_buffer_bitmap_session_needs_replay()
++{
++  return g_select_buffer_bitmap.replay_required;
++}
++
++eGPUReadbackStatus DRW_select_buffer_bitmap_session_status()
++{
++  if (!g_select_buffer_bitmap.session_active) {
++    return GPU_READBACK_INVALID;
++  }
++  if (g_select_buffer_bitmap.failed) {
++    return GPU_READBACK_FAILED;
++  }
++  if (g_select_buffer_bitmap.pending == nullptr) {
++    return (g_select_buffer_bitmap.result_ready || g_select_buffer_bitmap.settled) ?
++               GPU_READBACK_READY :
++               GPU_READBACK_INVALID;
++  }
++
++  const eGPUReadbackStatus status =
++      DRW_select_buffer_read_async_status(g_select_buffer_bitmap.pending);
++  if (status == GPU_READBACK_PENDING) {
++    return status;
++  }
++  if (status != GPU_READBACK_READY) {
++    drw_select_buffer_bitmap_fail(
++        DRW_select_buffer_read_async_error(g_select_buffer_bitmap.pending));
++    return GPU_READBACK_FAILED;
++  }
++
++  uint buf_len = 0;
++  uint *buf = DRW_select_buffer_read_async_consume(g_select_buffer_bitmap.pending, &buf_len);
++  if (g_select_buffer_bitmap.pending != nullptr) {
++    const eGPUReadbackError error =
++        DRW_select_buffer_read_async_error(g_select_buffer_bitmap.pending);
++    MEM_delete(buf);
++    drw_select_buffer_bitmap_fail(error);
++    return GPU_READBACK_FAILED;
++  }
++
++  DRWSelectBufferBitmapResult result;
++  result.key = std::move(g_select_buffer_bitmap.pending_key);
++  result.context = std::move(g_select_buffer_bitmap.pending_context);
++  if (!drw_select_buffer_bitmap_from_ids(
++          result.key, result.context, buf, buf_len, result.bitmap, result.bitmap_len))
++  {
++    MEM_delete(buf);
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    return GPU_READBACK_FAILED;
++  }
++  MEM_delete(buf);
++  g_select_buffer_bitmap.result = std::move(result);
++  g_select_buffer_bitmap.result_ready = true;
++  return GPU_READBACK_READY;
++}
++
++eGPUReadbackError DRW_select_buffer_bitmap_session_error()
++{
++  DRW_select_buffer_bitmap_session_status();
++  return g_select_buffer_bitmap.failed ? g_select_buffer_bitmap.error :
++                                         GPU_READBACK_ERROR_NONE;
++}
++
++static uint *drw_select_buffer_bitmap_query(const DRWSelectBufferBitmapKey &key,
++                                            uint *r_bitmap_len)
++{
++  if (r_bitmap_len != nullptr) {
++    *r_bitmap_len = 0;
++  }
++  if (!g_select_buffer_bitmap.session_active || g_select_buffer_bitmap.failed) {
++    return nullptr;
++  }
++
++  const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++  if (status == GPU_READBACK_FAILED) {
++    return nullptr;
++  }
++  if (g_select_buffer_bitmap.result_ready) {
++    if (!drw_select_buffer_bitmap_key_equal(g_select_buffer_bitmap.result.key, key)) {
++      drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++      return nullptr;
++    }
++    drw_select_buffer_query_context_restore(g_select_buffer_bitmap.result.context);
++    BLI_bitmap *bitmap = g_select_buffer_bitmap.result.bitmap;
++    g_select_buffer_bitmap.result.bitmap = nullptr;
++    if (r_bitmap_len != nullptr) {
++      *r_bitmap_len = g_select_buffer_bitmap.result.bitmap_len;
++    }
++    g_select_buffer_bitmap.result_ready = false;
++    g_select_buffer_bitmap.replay_required = false;
++    g_select_buffer_bitmap.settled = true;
++    return bitmap;
++  }
++  if (g_select_buffer_bitmap.settled) {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    return nullptr;
++  }
++  if (g_select_buffer_bitmap.pending != nullptr) {
++    if (!drw_select_buffer_bitmap_key_equal(g_select_buffer_bitmap.pending_key, key)) {
++      drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    }
++    g_select_buffer_bitmap.replay_required = true;
++    return nullptr;
++  }
++
++  g_select_buffer_bitmap.replay_required = true;
++  g_select_buffer_bitmap.pending_key = key;
++  g_select_buffer_bitmap.pending = DRW_select_buffer_read_async(
++      key.depsgraph, key.region, key.v3d, &key.read_rect);
++  g_select_buffer_bitmap.pending_context = drw_select_buffer_query_context_capture();
++  if (DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY) {
++    return drw_select_buffer_bitmap_query(key, r_bitmap_len);
++  }
++  return nullptr;
++}
++
++static bool drw_select_buffer_bitmap_rect_key_create(const DRWSelectBufferBitmapKind kind,
++                                                     Depsgraph *depsgraph,
++                                                     ARegion *region,
++                                                     View3D *v3d,
++                                                     const rcti *rect,
++                                                     DRWSelectBufferBitmapKey &r_key)
++{
++  if (depsgraph == nullptr || region == nullptr || v3d == nullptr || rect == nullptr ||
++      DRW_select_engine_context_get() == nullptr ||
++      rect->xmax == std::numeric_limits<int>::max() ||
++      rect->ymax == std::numeric_limits<int>::max())
++  {
++    return false;
++  }
++  r_key.kind = kind;
++  r_key.depsgraph = depsgraph;
++  r_key.region = region;
++  r_key.v3d = v3d;
++  r_key.read_rect = *rect;
++  r_key.read_rect.xmax += 1;
++  r_key.read_rect.ymax += 1;
++  uint read_len = 0;
++  if (!drw_select_buffer_len(r_key.read_rect, read_len)) {
++    return false;
++  }
++  drw_select_buffer_bitmap_key_context_set(r_key);
++  return true;
++}
++
++uint *DRW_select_buffer_bitmap_from_rect_async(Depsgraph *depsgraph,
++                                               ARegion *region,
++                                               View3D *v3d,
++                                               const rcti *rect,
++                                               uint *r_bitmap_len)
++{
++  DRWSelectBufferBitmapKey key;
++  if (!drw_select_buffer_bitmap_rect_key_create(
++          DRWSelectBufferBitmapKind::Rect, depsgraph, region, v3d, rect, key))
++  {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return nullptr;
++  }
++  return drw_select_buffer_bitmap_query(key, r_bitmap_len);
++}
++
++uint *DRW_select_buffer_bitmap_from_circle_async(Depsgraph *depsgraph,
++                                                 ARegion *region,
++                                                 View3D *v3d,
++                                                 const int center[2],
++                                                 const int radius,
++                                                 uint *r_bitmap_len)
++{
++  if (depsgraph == nullptr || region == nullptr || v3d == nullptr || center == nullptr ||
++      radius < 0 || DRW_select_engine_context_get() == nullptr)
++  {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return nullptr;
++  }
++  const int64_t xmin = int64_t(center[0]) - radius;
++  const int64_t xmax = int64_t(center[0]) + radius + 1;
++  const int64_t ymin = int64_t(center[1]) - radius;
++  const int64_t ymax = int64_t(center[1]) + radius + 1;
++  if (xmin < std::numeric_limits<int>::min() || xmax > std::numeric_limits<int>::max() ||
++      ymin < std::numeric_limits<int>::min() || ymax > std::numeric_limits<int>::max())
++  {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return nullptr;
++  }
++
++  DRWSelectBufferBitmapKey key;
++  key.kind = DRWSelectBufferBitmapKind::Circle;
++  key.depsgraph = depsgraph;
++  key.region = region;
++  key.v3d = v3d;
++  key.read_rect = {int(xmin), int(xmax), int(ymin), int(ymax)};
++  key.center = int2(center[0], center[1]);
++  key.radius = radius;
++  uint read_len = 0;
++  if (!drw_select_buffer_len(key.read_rect, read_len)) {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return nullptr;
++  }
++  drw_select_buffer_bitmap_key_context_set(key);
++  return drw_select_buffer_bitmap_query(key, r_bitmap_len);
++}
++
++uint *DRW_select_buffer_bitmap_from_poly_async(Depsgraph *depsgraph,
++                                               ARegion *region,
++                                               View3D *v3d,
++                                               const Span<int2> poly,
++                                               const rcti *rect,
++                                               uint *r_bitmap_len)
++{
++  DRWSelectBufferBitmapKey key;
++  if (poly.is_empty() || !drw_select_buffer_bitmap_rect_key_create(
++                             DRWSelectBufferBitmapKind::Poly,
++                             depsgraph,
++                             region,
++                             v3d,
++                             rect,
++                             key))
++  {
++    drw_select_buffer_bitmap_fail(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++    return nullptr;
++  }
++  key.poly.extend(poly);
++  return drw_select_buffer_bitmap_query(key, r_bitmap_len);
++}
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -560,13 +1006,6 @@ enum class DRWSelectBufferQueryKind : uint8_t {
+   Nearest,
+ };
+ 
+-struct DRWSelectBufferQueryContext {
+-  Vector<Object *> objects;
+-  Map<Object *, ElemIndexRanges> elem_ranges;
+-  uint max_index_drawn_len = 0;
+-  short select_mode = 0;
+-};
+-
+ struct DRWSelectBufferQueryKey {
+   DRWSelectBufferQueryKind kind = DRWSelectBufferQueryKind::Sample;
+   Depsgraph *depsgraph = nullptr;
+@@ -600,38 +1039,6 @@ struct DRWSelectBufferQueryState {
+ 
+ static DRWSelectBufferQueryState g_select_buffer_query = {};
+ 
+-static DRWSelectBufferQueryContext drw_select_buffer_query_context_capture()
+-{
+-  DRWSelectBufferQueryContext snapshot;
+-  const SELECTID_Context *select_ctx = DRW_select_engine_context_get();
+-  if (select_ctx == nullptr) {
+-    return snapshot;
+-  }
+-  snapshot.objects.extend(select_ctx->objects);
+-  for (const auto &item : select_ctx->elem_ranges.items()) {
+-    snapshot.elem_ranges.add(item.key, item.value);
+-  }
+-  snapshot.max_index_drawn_len = select_ctx->max_index_drawn_len;
+-  snapshot.select_mode = select_ctx->select_mode;
+-  return snapshot;
+-}
+-
+-static void drw_select_buffer_query_context_restore(const DRWSelectBufferQueryContext &snapshot)
+-{
+-  SELECTID_Context *select_ctx = DRW_select_engine_context_get();
+-  if (select_ctx == nullptr) {
+-    return;
+-  }
+-  select_ctx->objects.clear();
+-  select_ctx->objects.extend(snapshot.objects);
+-  select_ctx->elem_ranges.clear();
+-  for (const auto &item : snapshot.elem_ranges.items()) {
+-    select_ctx->elem_ranges.add(item.key, item.value);
+-  }
+-  select_ctx->max_index_drawn_len = snapshot.max_index_drawn_len;
+-  select_ctx->select_mode = snapshot.select_mode;
+-}
+-
+ static DRWSelectBufferQueryKey drw_select_buffer_query_key_create(
+     const DRWSelectBufferQueryKind kind,
+     Depsgraph *depsgraph,
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+index 2fc7bb7..1afff95 100644
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -197,7 +197,17 @@ static bool object_deselect_all_except(const Main &bmain,
+  * \{ */
+ 
+ struct EditSelectBuf_Cache {
+-  BLI_bitmap *select_bitmap;
++  BLI_bitmap *select_bitmap = nullptr;
++  bool select_bitmap_settled = false;
++#ifdef __EMSCRIPTEN__
++  wmTimer *async_timer = nullptr;
++  int async_tick_count = 0;
++  Vector<wmEvent> async_events;
++  bool async_input_valid = false;
++  eSelectOp async_sel_op = SEL_OP_SET;
++  int async_mval[2] = {0, 0};
++  float async_radius = 0.0f;
++#endif
+ };
+ 
+ static void editselect_buf_cache_init(const ViewContext *vc, short select_mode)
+@@ -221,6 +231,7 @@ static void editselect_buf_cache_init(const ViewContext *vc, short select_mode)
+ static void editselect_buf_cache_free(EditSelectBuf_Cache *esel)
+ {
+   MEM_SAFE_DELETE(esel->select_bitmap);
++  esel->select_bitmap_settled = false;
+ }
+ 
+ static void editselect_buf_cache_free_voidp(void *esel_voidp)
+@@ -233,13 +244,99 @@ static void editselect_buf_cache_init_with_generic_userdata(wmGenericUserData *w
+                                                             const ViewContext *vc,
+                                                             short select_mode)
+ {
+-  EditSelectBuf_Cache *esel = MEM_new_zeroed<EditSelectBuf_Cache>(__func__);
++  EditSelectBuf_Cache *esel = MEM_new<EditSelectBuf_Cache>(__func__);
+   wm_userdata->data = esel;
+   wm_userdata->free_fn = editselect_buf_cache_free_voidp;
+   wm_userdata->use_free = true;
+   editselect_buf_cache_init(vc, select_mode);
+ }
+ 
++static bool editselect_buf_cache_bitmap_from_rect(EditSelectBuf_Cache *esel,
++                                                  Depsgraph *depsgraph,
++                                                  ARegion *region,
++                                                  View3D *v3d,
++                                                  const rcti *rect)
++{
++  if (esel->select_bitmap_settled) {
++    return true;
++  }
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active()) {
++    esel->select_bitmap = DRW_select_buffer_bitmap_from_rect_async(
++        depsgraph, region, v3d, rect, nullptr);
++    esel->select_bitmap_settled =
++        DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY &&
++        !DRW_select_buffer_bitmap_session_needs_replay();
++    return esel->select_bitmap_settled;
++  }
++#endif
++  esel->select_bitmap = DRW_select_buffer_bitmap_from_rect(
++      depsgraph, region, v3d, rect, nullptr);
++  esel->select_bitmap_settled = true;
++  return true;
++}
++
++static bool editselect_buf_cache_bitmap_from_circle(EditSelectBuf_Cache *esel,
++                                                    Depsgraph *depsgraph,
++                                                    ARegion *region,
++                                                    View3D *v3d,
++                                                    const int center[2],
++                                                    const int radius)
++{
++  if (esel->select_bitmap_settled) {
++    return true;
++  }
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active()) {
++    esel->select_bitmap = DRW_select_buffer_bitmap_from_circle_async(
++        depsgraph, region, v3d, center, radius, nullptr);
++    esel->select_bitmap_settled =
++        DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY &&
++        !DRW_select_buffer_bitmap_session_needs_replay();
++    return esel->select_bitmap_settled;
++  }
++#endif
++  esel->select_bitmap = DRW_select_buffer_bitmap_from_circle(
++      depsgraph, region, v3d, center, radius, nullptr);
++  esel->select_bitmap_settled = true;
++  return true;
++}
++
++static bool editselect_buf_cache_bitmap_from_poly(EditSelectBuf_Cache *esel,
++                                                  Depsgraph *depsgraph,
++                                                  ARegion *region,
++                                                  View3D *v3d,
++                                                  const Span<int2> poly,
++                                                  const rcti *rect)
++{
++  if (esel->select_bitmap_settled) {
++    return true;
++  }
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active()) {
++    esel->select_bitmap = DRW_select_buffer_bitmap_from_poly_async(
++        depsgraph, region, v3d, poly, rect, nullptr);
++    esel->select_bitmap_settled =
++        DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY &&
++        !DRW_select_buffer_bitmap_session_needs_replay();
++    return esel->select_bitmap_settled;
++  }
++#endif
++  esel->select_bitmap = DRW_select_buffer_bitmap_from_poly(
++      depsgraph, region, v3d, poly, rect, nullptr);
++  esel->select_bitmap_settled = true;
++  return true;
++}
++
++static void editselect_buf_cache_bitmap_clear(EditSelectBuf_Cache *esel)
++{
++  MEM_SAFE_DELETE(esel->select_bitmap);
++  esel->select_bitmap_settled = false;
++#ifdef __EMSCRIPTEN__
++  esel->async_input_valid = false;
++#endif
++}
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -838,6 +935,20 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
+ 
+   view3d_userdata_lassoselect_init(&data, vc, &rect, mcoords, sel_op);
+ 
++  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
++  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++  if (use_zbuf) {
++    if (esel == nullptr) {
++      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
++      esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++    }
++    if (!editselect_buf_cache_bitmap_from_poly(
++            esel, vc->depsgraph, vc->region, vc->v3d, mcoords, &rect))
++    {
++      return false;
++    }
++  }
++
+   if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
+     if (vc->em->bm->totvertsel) {
+       EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
+@@ -854,18 +965,6 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
+ 
+   GPU_matrix_set(vc->rv3d->viewmat);
+ 
+-  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
+-
+-  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-  if (use_zbuf) {
+-    if (wm_userdata->data == nullptr) {
+-      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
+-      esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-      esel->select_bitmap = DRW_select_buffer_bitmap_from_poly(
+-          vc->depsgraph, vc->region, vc->v3d, mcoords, &rect, nullptr);
+-    }
+-  }
+-
+   if (ts->selectmode & SCE_SELECT_VERTEX) {
+     if (use_zbuf) {
+       data.is_changed |= edbm_backbuf_check_and_select_verts(
+@@ -1522,13 +1621,176 @@ static bool view3d_lasso_select(bContext *C,
+   return changed_multi;
+ }
+ 
++#ifdef __EMSCRIPTEN__
++enum class View3DGestureAsyncKind : uint8_t {
++  Box,
++  Lasso,
++};
++
++struct View3DGestureAsyncData {
++  wmTimer *timer = nullptr;
++  int tick_count = 0;
++  View3DGestureAsyncKind kind = View3DGestureAsyncKind::Box;
++};
++
++using View3DGestureExecFn = wmOperatorStatus (*)(bContext *, wmOperator *);
++
++static bool view3d_gesture_bitmap_async_eligible(bContext *C)
++{
++  const Object *obedit = CTX_data_edit_object(C);
++  const View3D *v3d = CTX_wm_view3d(C);
++  return obedit != nullptr && obedit->type == OB_MESH && v3d != nullptr &&
++         !XRAY_FLAG_ENABLED(v3d);
++}
++
++static bool view3d_gesture_bitmap_async_waiting()
++{
++  if (!DRW_select_buffer_bitmap_session_is_active()) {
++    return false;
++  }
++  const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++  return status == GPU_READBACK_PENDING ||
++         (status == GPU_READBACK_READY &&
++          DRW_select_buffer_bitmap_session_needs_replay());
++}
++
++static wmOperatorStatus view3d_gesture_bitmap_async_result(wmOperator *op,
++                                                           const wmOperatorStatus result)
++{
++  if (!DRW_select_buffer_bitmap_session_is_active()) {
++    return result;
++  }
++  const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++  if (status == GPU_READBACK_PENDING ||
++      (status == GPU_READBACK_READY && DRW_select_buffer_bitmap_session_needs_replay()))
++  {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status == GPU_READBACK_FAILED) {
++    BKE_reportf(op->reports,
++                RPT_ERROR,
++                "WebGPU gesture selection readback failed (error %d)",
++                int(DRW_select_buffer_bitmap_session_error()));
++    return OPERATOR_CANCELLED;
++  }
++  return result;
++}
++
++static void view3d_gesture_bitmap_async_data_begin(bContext *C,
++                                                   wmOperator *op,
++                                                   const View3DGestureAsyncKind kind)
++{
++  BLI_assert(op->customdata == nullptr);
++  View3DGestureAsyncData *data = MEM_new<View3DGestureAsyncData>(__func__);
++  data->kind = kind;
++  data->timer = WM_event_timer_add(CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
++  op->customdata = data;
++}
++
++static void view3d_gesture_bitmap_async_data_end(bContext *C, wmOperator *op)
++{
++  View3DGestureAsyncData *data = static_cast<View3DGestureAsyncData *>(op->customdata);
++  if (data != nullptr) {
++    if (data->timer != nullptr) {
++      WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), data->timer);
++    }
++    MEM_delete(data);
++    op->customdata = nullptr;
++  }
++  DRW_select_buffer_bitmap_session_end();
++}
++
++static wmOperatorStatus view3d_gesture_bitmap_async_after_gesture(
++    bContext *C,
++    wmOperator *op,
++    const wmOperatorStatus result,
++    const View3DGestureAsyncKind kind)
++{
++  if (!DRW_select_buffer_bitmap_session_is_active()) {
++    return result;
++  }
++  if (view3d_gesture_bitmap_async_waiting()) {
++    if (op->customdata == nullptr) {
++      view3d_gesture_bitmap_async_data_begin(C, op, kind);
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (DRW_select_buffer_bitmap_session_status() == GPU_READBACK_FAILED) {
++    BKE_reportf(op->reports,
++                RPT_ERROR,
++                "WebGPU gesture selection readback failed (error %d)",
++                int(DRW_select_buffer_bitmap_session_error()));
++    DRW_select_buffer_bitmap_session_end();
++    return OPERATOR_CANCELLED;
++  }
++  if ((result & OPERATOR_RUNNING_MODAL) && op->customdata != nullptr) {
++    return result;
++  }
++  DRW_select_buffer_bitmap_session_end();
++  return result;
++}
++
++static wmOperatorStatus view3d_gesture_bitmap_async_modal(bContext *C,
++                                                          wmOperator *op,
++                                                          const wmEvent *event,
++                                                          const View3DGestureExecFn exec)
++{
++  View3DGestureAsyncData *data = static_cast<View3DGestureAsyncData *>(op->customdata);
++  if ((event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++      (event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL))
++  {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++data->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU gesture selection readback");
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++  if (status == GPU_READBACK_PENDING) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status != GPU_READBACK_READY ||
++      !DRW_select_buffer_bitmap_session_needs_replay())
++  {
++    if (status != GPU_READBACK_READY) {
++      BKE_reportf(op->reports,
++                  RPT_ERROR,
++                  "WebGPU gesture selection readback failed (error %d)",
++                  int(DRW_select_buffer_bitmap_session_error()));
++    }
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const wmOperatorStatus result = exec(C, op);
++  if (result == OPERATOR_RUNNING_MODAL) {
++    return result;
++  }
++  view3d_gesture_bitmap_async_data_end(C, op);
++  return result;
++}
++#endif
++
+ /* lasso operator gives properties, but since old code works
+  * with short array we convert */
+ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
+ {
+   Array<int2> mcoords = WM_gesture_lasso_path_to_array(C, op);
+   if (mcoords.is_empty()) {
+-    return OPERATOR_PASS_THROUGH;
++    const wmOperatorStatus result = OPERATOR_PASS_THROUGH;
++#ifdef __EMSCRIPTEN__
++    return view3d_gesture_bitmap_async_result(op, result);
++#else
++    return result;
++#endif
+   }
+ 
+   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+@@ -1541,10 +1803,59 @@ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
+   eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
+   bool changed_multi = view3d_lasso_select(C, &vc, mcoords, sel_op);
+ 
+-  if (changed_multi) {
+-    return OPERATOR_FINISHED;
++  const wmOperatorStatus result = changed_multi ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++#ifdef __EMSCRIPTEN__
++  return view3d_gesture_bitmap_async_result(op, result);
++#else
++  return result;
++#endif
++}
++
++static wmOperatorStatus view3d_lasso_select_invoke(bContext *C,
++                                                   wmOperator *op,
++                                                   const wmEvent *event)
++{
++#ifdef __EMSCRIPTEN__
++  if (view3d_gesture_bitmap_async_eligible(C)) {
++    DRW_select_buffer_bitmap_session_begin();
+   }
+-  return OPERATOR_CANCELLED;
++#endif
++  return WM_gesture_lasso_invoke(C, op, event);
++}
++
++static wmOperatorStatus view3d_lasso_select_modal(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event)
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active() &&
++      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID &&
++      op->customdata != nullptr)
++  {
++    return view3d_gesture_bitmap_async_modal(C, op, event, view3d_lasso_select_exec);
++  }
++#endif
++  const wmOperatorStatus result = WM_gesture_lasso_modal(C, op, event);
++#ifdef __EMSCRIPTEN__
++  return view3d_gesture_bitmap_async_after_gesture(
++      C, op, result, View3DGestureAsyncKind::Lasso);
++#else
++  return result;
++#endif
++}
++
++static void view3d_lasso_select_cancel(bContext *C, wmOperator *op)
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active() &&
++      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID)
++  {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return;
++  }
++  DRW_select_buffer_bitmap_session_end();
++#endif
++  WM_gesture_lasso_cancel(C, op);
+ }
+ 
+ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
+@@ -1553,11 +1864,11 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
+   ot->description = "Select items using lasso selection";
+   ot->idname = "VIEW3D_OT_select_lasso";
+ 
+-  ot->invoke = WM_gesture_lasso_invoke;
+-  ot->modal = WM_gesture_lasso_modal;
++  ot->invoke = view3d_lasso_select_invoke;
++  ot->modal = view3d_lasso_select_modal;
+   ot->exec = view3d_lasso_select_exec;
+   ot->poll = view3d_selectable_data;
+-  ot->cancel = WM_gesture_lasso_cancel;
++  ot->cancel = view3d_lasso_select_cancel;
+ 
+   /* flags */
+   ot->flag = OPTYPE_UNDO | OPTYPE_DEPENDS_ON_CURSOR;
+@@ -4213,6 +4524,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+ 
+   view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
+ 
++  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
++  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++  if (use_zbuf) {
++    if (esel == nullptr) {
++      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
++      esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++    }
++    if (!editselect_buf_cache_bitmap_from_rect(
++            esel, vc->depsgraph, vc->region, vc->v3d, rect))
++    {
++      return false;
++    }
++  }
++
+   if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
+     if (vc->em->bm->totvertsel) {
+       EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
+@@ -4229,18 +4554,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+ 
+   GPU_matrix_set(vc->rv3d->viewmat);
+ 
+-  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
+-
+-  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-  if (use_zbuf) {
+-    if (wm_userdata->data == nullptr) {
+-      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
+-      esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-      esel->select_bitmap = DRW_select_buffer_bitmap_from_rect(
+-          vc->depsgraph, vc->region, vc->v3d, rect, nullptr);
+-    }
+-  }
+-
+   if (ts->selectmode & SCE_SELECT_VERTEX) {
+     if (use_zbuf) {
+       data.is_changed |= edbm_backbuf_check_and_select_verts(
+@@ -4813,10 +5126,59 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+ 
+   WM_generic_user_data_free(wm_userdata);
+ 
+-  if (changed_multi) {
+-    return OPERATOR_FINISHED;
++  const wmOperatorStatus result = changed_multi ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++#ifdef __EMSCRIPTEN__
++  return view3d_gesture_bitmap_async_result(op, result);
++#else
++  return result;
++#endif
++}
++
++static wmOperatorStatus view3d_box_select_invoke(bContext *C,
++                                                 wmOperator *op,
++                                                 const wmEvent *event)
++{
++#ifdef __EMSCRIPTEN__
++  if (view3d_gesture_bitmap_async_eligible(C)) {
++    DRW_select_buffer_bitmap_session_begin();
+   }
+-  return OPERATOR_CANCELLED;
++#endif
++  return WM_gesture_box_invoke(C, op, event);
++}
++
++static wmOperatorStatus view3d_box_select_modal(bContext *C,
++                                                wmOperator *op,
++                                                const wmEvent *event)
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active() &&
++      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID &&
++      op->customdata != nullptr)
++  {
++    return view3d_gesture_bitmap_async_modal(C, op, event, view3d_box_select_exec);
++  }
++#endif
++  const wmOperatorStatus result = WM_gesture_box_modal(C, op, event);
++#ifdef __EMSCRIPTEN__
++  return view3d_gesture_bitmap_async_after_gesture(
++      C, op, result, View3DGestureAsyncKind::Box);
++#else
++  return result;
++#endif
++}
++
++static void view3d_box_select_cancel(bContext *C, wmOperator *op)
++{
++#ifdef __EMSCRIPTEN__
++  if (DRW_select_buffer_bitmap_session_is_active() &&
++      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID)
++  {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return;
++  }
++  DRW_select_buffer_bitmap_session_end();
++#endif
++  WM_gesture_box_cancel(C, op);
+ }
+ 
+ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4827,11 +5189,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+   ot->idname = "VIEW3D_OT_select_box";
+ 
+   /* API callbacks. */
+-  ot->invoke = WM_gesture_box_invoke;
++  ot->invoke = view3d_box_select_invoke;
+   ot->exec = view3d_box_select_exec;
+-  ot->modal = WM_gesture_box_modal;
++  ot->modal = view3d_box_select_modal;
+   ot->poll = view3d_selectable_data;
+-  ot->cancel = WM_gesture_box_cancel;
++  ot->cancel = view3d_box_select_cancel;
+ 
+   /* flags */
+   ot->flag = OPTYPE_UNDO;
+@@ -4945,6 +5307,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+   CircleSelectUserData data;
+   BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
+ 
++  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
++  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++  if (use_zbuf) {
++    if (esel == nullptr) {
++      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
++      esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
++    }
++    if (!editselect_buf_cache_bitmap_from_circle(
++            esel, vc->depsgraph, vc->region, vc->v3d, mval, int(rad + 1.0f)))
++    {
++      return false;
++    }
++  }
++
+   bool changed = false;
+   if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
+     if (vc->em->bm->totvertsel) {
+@@ -4966,22 +5342,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+ 
+   view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
+ 
+-  const bool use_zbuf = !XRAY_FLAG_ENABLED(vc->v3d);
+-
+-  if (use_zbuf) {
+-    if (wm_userdata->data == nullptr) {
+-      editselect_buf_cache_init_with_generic_userdata(wm_userdata, vc, ts->selectmode);
+-    }
+-  }
+-  EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-
+-  if (use_zbuf) {
+-    if (esel->select_bitmap == nullptr) {
+-      esel->select_bitmap = DRW_select_buffer_bitmap_from_circle(
+-          vc->depsgraph, vc->region, vc->v3d, mval, int(rad + 1.0f), nullptr);
+-    }
+-  }
+-
+   if (ts->selectmode & SCE_SELECT_VERTEX) {
+     if (use_zbuf) {
+       if (esel->select_bitmap != nullptr) {
+@@ -5686,19 +6046,204 @@ static void view3d_circle_select_recalc(void *user_data)
+   }
+ }
+ 
++static wmOperatorStatus view3d_circle_select_exec(bContext *, wmOperator *);
++
++#ifdef __EMSCRIPTEN__
++static EditSelectBuf_Cache *view3d_circle_select_async_cache(wmOperator *op)
++{
++  wmGesture *gesture = static_cast<wmGesture *>(op->customdata);
++  return gesture != nullptr ? static_cast<EditSelectBuf_Cache *>(gesture->user_data.data) :
++                              nullptr;
++}
++
++static void view3d_circle_select_async_timer_begin(bContext *C, EditSelectBuf_Cache *esel)
++{
++  if (esel->async_timer == nullptr) {
++    esel->async_timer = WM_event_timer_add(
++        CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
++    esel->async_tick_count = 0;
++  }
++}
++
++static void view3d_circle_select_async_timer_end(bContext *C, EditSelectBuf_Cache *esel)
++{
++  if (esel != nullptr && esel->async_timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), esel->async_timer);
++    esel->async_timer = nullptr;
++    esel->async_tick_count = 0;
++  }
++}
++
++static wmOperatorStatus view3d_circle_select_async_cancel(bContext *C,
++                                                          wmOperator *op,
++                                                          const char *message)
++{
++  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
++  view3d_circle_select_async_timer_end(C, esel);
++  if (message != nullptr) {
++    BKE_report(op->reports, RPT_ERROR, message);
++  }
++  DRW_select_buffer_bitmap_session_end();
++  WM_gesture_circle_cancel(C, op);
++  view3d_circle_select_recalc(C);
++  return OPERATOR_CANCELLED;
++}
++
++static bool view3d_circle_select_async_event_cancel(const wmEvent *event)
++{
++  return (event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++         (event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL);
++}
++
++static bool view3d_circle_select_async_event_push(EditSelectBuf_Cache *esel,
++                                                  const wmEvent *event)
++{
++  if (event->type == TIMER) {
++    return true;
++  }
++  constexpr int max_queued_events = 512;
++  if (esel->async_events.size() >= max_queued_events) {
++    return false;
++  }
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata_free = 0;
++  queued.customdata = nullptr;
++  esel->async_events.append(queued);
++  return true;
++}
++
++static wmOperatorStatus view3d_circle_select_async_after_gesture(
++    bContext *C, wmOperator *op, const wmOperatorStatus result)
++{
++  if (!DRW_select_buffer_bitmap_session_is_active()) {
++    return result;
++  }
++  if (result & (OPERATOR_FINISHED | OPERATOR_CANCELLED)) {
++    DRW_select_buffer_bitmap_session_end();
++    return result;
++  }
++  const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++  if (status == GPU_READBACK_FAILED) {
++    return view3d_circle_select_async_cancel(
++        C, op, "WebGPU circle selection readback failed");
++  }
++  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
++  if (view3d_gesture_bitmap_async_waiting()) {
++    if (esel == nullptr) {
++      return view3d_circle_select_async_cancel(
++          C, op, "WebGPU circle selection lost its continuation state");
++    }
++    view3d_circle_select_async_timer_begin(C, esel);
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status == GPU_READBACK_READY) {
++    DRW_select_buffer_bitmap_session_end();
++    DRW_select_buffer_bitmap_session_begin();
++  }
++  return result;
++}
++#endif
++
+ static wmOperatorStatus view3d_circle_select_modal(bContext *C,
+                                                    wmOperator *op,
+                                                    const wmEvent *event)
+ {
++#ifdef __EMSCRIPTEN__
++  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
++  if (DRW_select_buffer_bitmap_session_is_active() && esel != nullptr &&
++      esel->async_timer != nullptr)
++  {
++    if (view3d_circle_select_async_event_cancel(event)) {
++      return view3d_circle_select_async_cancel(C, op, nullptr);
++    }
++    if (event->type != TIMER || event->customdata != esel->async_timer) {
++      if (!view3d_circle_select_async_event_push(esel, event)) {
++        return view3d_circle_select_async_cancel(
++            C, op, "WebGPU circle selection event queue exceeded its bound");
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
++
++    constexpr int max_tick_count = 240;
++    if (++esel->async_tick_count > max_tick_count) {
++      return view3d_circle_select_async_cancel(
++          C, op, "Timed out waiting for WebGPU circle selection readback");
++    }
++
++    const eGPUReadbackStatus status = DRW_select_buffer_bitmap_session_status();
++    if (status == GPU_READBACK_PENDING) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (status != GPU_READBACK_READY ||
++        !DRW_select_buffer_bitmap_session_needs_replay())
++    {
++      return view3d_circle_select_async_cancel(
++          C, op, "WebGPU circle selection readback failed");
++    }
++
++    const wmOperatorStatus replay_result = view3d_circle_select_exec(C, op);
++    if (replay_result == OPERATOR_RUNNING_MODAL) {
++      return replay_result;
++    }
++    if (replay_result & OPERATOR_CANCELLED) {
++      return view3d_circle_select_async_cancel(
++          C, op, "WebGPU circle selection replay failed");
++    }
++
++    DRW_select_buffer_bitmap_session_end();
++    DRW_select_buffer_bitmap_session_begin();
++
++    while (!esel->async_events.is_empty()) {
++      const wmEvent queued = esel->async_events.first();
++      esel->async_events.remove(0);
++      wmTimer *timer = esel->async_timer;
++      const wmOperatorStatus queued_result = WM_gesture_circle_modal(C, op, &queued);
++      if (queued_result & (OPERATOR_FINISHED | OPERATOR_CANCELLED)) {
++        WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), timer);
++        DRW_select_buffer_bitmap_session_end();
++        if (queued_result & OPERATOR_FINISHED) {
++          view3d_circle_select_recalc(C);
++        }
++        return queued_result;
++      }
++      if (DRW_select_buffer_bitmap_session_status() == GPU_READBACK_FAILED) {
++        return view3d_circle_select_async_cancel(
++            C, op, "WebGPU queued circle selection readback failed");
++      }
++      if (view3d_gesture_bitmap_async_waiting()) {
++        return OPERATOR_RUNNING_MODAL;
++      }
++      if (DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY) {
++        DRW_select_buffer_bitmap_session_end();
++        DRW_select_buffer_bitmap_session_begin();
++      }
++    }
++
++    view3d_circle_select_async_timer_end(C, esel);
++    return OPERATOR_RUNNING_MODAL;
++  }
++#endif
+   wmOperatorStatus result = WM_gesture_circle_modal(C, op, event);
+   if (result & OPERATOR_FINISHED) {
+     view3d_circle_select_recalc(C);
+   }
++#ifdef __EMSCRIPTEN__
++  return view3d_circle_select_async_after_gesture(C, op, result);
++#else
+   return result;
++#endif
+ }
+ 
+ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+ {
++#ifdef __EMSCRIPTEN__
++  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
++  view3d_circle_select_async_timer_end(C, esel);
++  DRW_select_buffer_bitmap_session_end();
++#endif
+   WM_gesture_circle_cancel(C, op);
+   view3d_circle_select_recalc(C);
+ }
+@@ -5706,17 +6251,32 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+ {
+   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+-  const int radius = RNA_int_get(op->ptr, "radius");
+-  const int mval[2] = {RNA_int_get(op->ptr, "x"), RNA_int_get(op->ptr, "y")};
++  int radius = RNA_int_get(op->ptr, "radius");
++  int mval[2] = {RNA_int_get(op->ptr, "x"), RNA_int_get(op->ptr, "y")};
+ 
+   /* Allow each selection type to allocate their own data that's used between executions. */
+   wmGesture *gesture = static_cast<wmGesture *>(op->customdata); /* nullptr when non-modal. */
+   wmGenericUserData wm_userdata_buf = {nullptr, nullptr, false};
+   wmGenericUserData *wm_userdata = gesture ? &gesture->user_data : &wm_userdata_buf;
+ 
+-  const eSelectOp sel_op = ED_select_op_modal(
++  eSelectOp sel_op = ED_select_op_modal(
+       static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode")), WM_gesture_is_modal_first(gesture));
+ 
++#ifdef __EMSCRIPTEN__
++  EditSelectBuf_Cache *async_esel = gesture ?
++                                               static_cast<EditSelectBuf_Cache *>(
++                                                   gesture->user_data.data) :
++                                               nullptr;
++  if (DRW_select_buffer_bitmap_session_is_active() &&
++      DRW_select_buffer_bitmap_session_needs_replay() && async_esel != nullptr &&
++      async_esel->async_input_valid)
++  {
++    sel_op = async_esel->async_sel_op;
++    copy_v2_v2_int(mval, async_esel->async_mval);
++    radius = int(async_esel->async_radius);
++  }
++#endif
++
+   ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
+ 
+   Object *obact = vc.obact;
+@@ -5804,13 +6364,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+   }
+   else {
+     EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
+-    if (esel && esel->select_bitmap) {
+-      MEM_delete(esel->select_bitmap);
+-      esel->select_bitmap = nullptr;
++    if (esel != nullptr) {
++#ifdef __EMSCRIPTEN__
++      if (view3d_gesture_bitmap_async_waiting() && !esel->async_input_valid) {
++        esel->async_input_valid = true;
++        esel->async_sel_op = sel_op;
++        copy_v2_v2_int(esel->async_mval, mval);
++        esel->async_radius = float(radius);
++      }
++#endif
++      if (esel->select_bitmap_settled) {
++        editselect_buf_cache_bitmap_clear(esel);
++      }
+     }
+   }
+ 
+-  return OPERATOR_FINISHED;
++  const wmOperatorStatus result = OPERATOR_FINISHED;
++#ifdef __EMSCRIPTEN__
++  return view3d_gesture_bitmap_async_result(op, result);
++#else
++  return result;
++#endif
++}
++
++static wmOperatorStatus view3d_circle_select_invoke(bContext *C,
++                                                    wmOperator *op,
++                                                    const wmEvent *event)
++{
++#ifdef __EMSCRIPTEN__
++  if (view3d_gesture_bitmap_async_eligible(C)) {
++    DRW_select_buffer_bitmap_session_begin();
++  }
++#endif
++  const wmOperatorStatus result = WM_gesture_circle_invoke(C, op, event);
++#ifdef __EMSCRIPTEN__
++  return view3d_circle_select_async_after_gesture(C, op, result);
++#else
++  return result;
++#endif
+ }
+ 
+ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5819,7 +6410,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+   ot->description = "Select items using circle selection";
+   ot->idname = "VIEW3D_OT_select_circle";
+ 
+-  ot->invoke = WM_gesture_circle_invoke;
++  ot->invoke = view3d_circle_select_invoke;
+   ot->modal = view3d_circle_select_modal;
+   ot->exec = view3d_circle_select_exec;
+   ot->poll = view3d_selectable_data;

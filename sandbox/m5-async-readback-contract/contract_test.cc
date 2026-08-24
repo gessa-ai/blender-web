@@ -1081,6 +1081,356 @@ bool selection_query_session_contract()
   return true;
 }
 
+enum class SelectionBitmapKind {
+  Rect,
+  Circle,
+  Poly,
+};
+
+struct SelectionBitmapKey {
+  SelectionBitmapKind kind = SelectionBitmapKind::Rect;
+  blender::rcti rect = {};
+  int radius = 0;
+  uint bitmap_len = 0;
+  int context_token = 0;
+  std::vector<uint8_t> poly_mask;
+};
+
+bool selection_bitmap_key_equal(const SelectionBitmapKey &left,
+                                const SelectionBitmapKey &right)
+{
+  return left.kind == right.kind && BLI_rcti_compare(&left.rect, &right.rect) &&
+         left.radius == right.radius && left.bitmap_len == right.bitmap_len &&
+         left.context_token == right.context_token && left.poly_mask == right.poly_mask;
+}
+
+struct SelectionBitmapResult {
+  SelectionBitmapKey key;
+  std::vector<uint8_t> bitmap;
+};
+
+class SelectionBitmapSession {
+ private:
+  bool active_ = false;
+  bool failed_ = false;
+  bool replay_required_ = false;
+  bool settled_ = false;
+  blender::eGPUReadbackError error_ = blender::GPU_READBACK_ERROR_NONE;
+  SelectionBufferRequest *pending_ = nullptr;
+  SelectionBitmapKey pending_key_;
+  SelectionBitmapResult result_;
+  bool result_ready_ = false;
+
+  void fail(const blender::eGPUReadbackError error)
+  {
+    if (pending_ != nullptr) {
+      pending_->cancel();
+      delete pending_;
+      pending_ = nullptr;
+    }
+    failed_ = true;
+    replay_required_ = false;
+    result_ready_ = false;
+    error_ = error == blender::GPU_READBACK_ERROR_NONE ?
+                 blender::GPU_READBACK_ERROR_BACKEND_FAILURE :
+                 error;
+  }
+
+  bool transform(const SelectionBitmapKey &key,
+                 const std::vector<uint> &ids,
+                 std::vector<uint8_t> &r_bitmap)
+  {
+    const size_t width = size_t(rect_width(key.rect));
+    const size_t height = size_t(rect_height(key.rect));
+    if (width == 0 || height == 0 || ids.size() != width * height || key.bitmap_len == 0) {
+      return false;
+    }
+    r_bitmap.assign(key.bitmap_len, 0);
+    for (size_t i = 0; i < ids.size(); i++) {
+      bool inside = true;
+      if (key.kind == SelectionBitmapKind::Circle) {
+        if (width != size_t(key.radius * 2 + 1) || height != width) {
+          return false;
+        }
+        const int x = int(i % width) - key.radius;
+        const int y = int(i / width) - key.radius;
+        inside = x * x + y * y < key.radius * key.radius;
+      }
+      else if (key.kind == SelectionBitmapKind::Poly) {
+        if (key.poly_mask.size() != ids.size()) {
+          return false;
+        }
+        inside = key.poly_mask[i] != 0;
+      }
+      if (inside && ids[i] != 0 && ids[i] <= key.bitmap_len) {
+        r_bitmap[ids[i] - 1] = 1;
+      }
+    }
+    return true;
+  }
+
+ public:
+  ~SelectionBitmapSession()
+  {
+    end();
+  }
+
+  void begin()
+  {
+    end();
+    active_ = true;
+  }
+
+  void end()
+  {
+    if (pending_ != nullptr) {
+      pending_->cancel();
+      delete pending_;
+      pending_ = nullptr;
+    }
+    active_ = false;
+    failed_ = false;
+    replay_required_ = false;
+    settled_ = false;
+    error_ = blender::GPU_READBACK_ERROR_NONE;
+    result_ = {};
+    result_ready_ = false;
+  }
+
+  blender::eGPUReadbackStatus poll()
+  {
+    using namespace blender;
+    if (!active_) {
+      return GPU_READBACK_INVALID;
+    }
+    if (failed_) {
+      return GPU_READBACK_FAILED;
+    }
+    if (pending_ == nullptr) {
+      return (result_ready_ || settled_) ? GPU_READBACK_READY : GPU_READBACK_INVALID;
+    }
+    const eGPUReadbackStatus status = pending_->status();
+    if (status == GPU_READBACK_PENDING) {
+      return status;
+    }
+    if (status != GPU_READBACK_READY) {
+      fail(pending_->error());
+      return GPU_READBACK_FAILED;
+    }
+    std::vector<uint> ids;
+    if (!pending_->consume(ids)) {
+      fail(pending_->error());
+      return GPU_READBACK_FAILED;
+    }
+    delete pending_;
+    pending_ = nullptr;
+    result_.key = pending_key_;
+    if (!transform(result_.key, ids, result_.bitmap)) {
+      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      return GPU_READBACK_FAILED;
+    }
+    result_ready_ = true;
+    return GPU_READBACK_READY;
+  }
+
+  blender::eGPUReadbackError error()
+  {
+    poll();
+    return error_;
+  }
+
+  bool needs_replay() const
+  {
+    return replay_required_;
+  }
+
+  bool query(const SelectionBitmapKey &key,
+             SelectionBufferRequest *request,
+             std::vector<uint8_t> &r_bitmap,
+             int &r_context)
+  {
+    using namespace blender;
+    if (!active_ || failed_) {
+      delete request;
+      return false;
+    }
+    const eGPUReadbackStatus status = poll();
+    if (status == GPU_READBACK_FAILED) {
+      delete request;
+      return false;
+    }
+    if (result_ready_) {
+      delete request;
+      if (!selection_bitmap_key_equal(result_.key, key)) {
+        fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+        return false;
+      }
+      r_bitmap = result_.bitmap;
+      r_context = result_.key.context_token;
+      result_ready_ = false;
+      replay_required_ = false;
+      settled_ = true;
+      return true;
+    }
+    if (settled_) {
+      delete request;
+      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      return false;
+    }
+    if (pending_ != nullptr) {
+      delete request;
+      if (!selection_bitmap_key_equal(pending_key_, key)) {
+        fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      }
+      replay_required_ = true;
+      return false;
+    }
+    if (request == nullptr) {
+      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+      return false;
+    }
+    pending_key_ = key;
+    pending_ = request;
+    replay_required_ = true;
+    if (poll() == GPU_READBACK_READY) {
+      return query(key, nullptr, r_bitmap, r_context);
+    }
+    return false;
+  }
+};
+
+bool selection_bitmap_session_contract()
+{
+  using namespace blender;
+  int destroy_count = 0;
+  int mutation_count = 0;
+  int active_context = 99;
+  std::vector<uint8_t> bitmap = {9};
+  SelectionBitmapSession session;
+
+  const SelectionBitmapKey rect_key{
+      SelectionBitmapKind::Rect, rcti{0, 2, 0, 2}, 0, 8, 11, {}};
+  const uint rect_ids[] = {1, 0, 4, 9};
+  ControlledReadback *rect_readback = controlled_readback(
+      as_bytes(rect_ids, std::size(rect_ids)), destroy_count);
+  session.begin();
+  if (!require(!session.query(rect_key,
+                              new SelectionBufferRequest(
+                                  rect_readback, rect_key.rect, rect_key.rect),
+                              bitmap,
+                              active_context),
+               "bitmap rect pending") ||
+      !require(bitmap == std::vector<uint8_t>{9} && active_context == 99,
+               "bitmap pending preserves output") ||
+      !require(mutation_count == 0, "bitmap pending prevents pre-deselect"))
+  {
+    return false;
+  }
+  rect_readback->mark_ready();
+  if (!require(session.poll() == GPU_READBACK_READY && session.needs_replay(),
+               "bitmap rect ready requires replay") ||
+      !require(session.query(rect_key, nullptr, bitmap, active_context), "bitmap rect replay") ||
+      !require(bitmap == std::vector<uint8_t>({1, 0, 0, 1, 0, 0, 0, 0}),
+               "bitmap rect indices") ||
+      !require(active_context == 11, "bitmap rect restores context"))
+  {
+    return false;
+  }
+  mutation_count++;
+  session.end();
+
+  const SelectionBitmapKey circle_key{
+      SelectionBitmapKind::Circle, rcti{0, 3, 0, 3}, 1, 8, 22, {}};
+  const uint circle_ids[] = {2, 2, 2, 2, 5, 2, 2, 2, 2};
+  ControlledReadback *circle_readback = controlled_readback(
+      as_bytes(circle_ids, std::size(circle_ids)), destroy_count);
+  circle_readback->mark_ready();
+  session.begin();
+  if (!require(session.query(circle_key,
+                             new SelectionBufferRequest(
+                                 circle_readback, circle_key.rect, circle_key.rect),
+                             bitmap,
+                             active_context),
+               "bitmap circle immediate") ||
+      !require(bitmap == std::vector<uint8_t>({0, 0, 0, 0, 1, 0, 0, 0}),
+               "bitmap circle strict radius") ||
+      !require(active_context == 22, "bitmap circle context"))
+  {
+    return false;
+  }
+  session.end();
+
+  const SelectionBitmapKey poly_key{
+      SelectionBitmapKind::Poly, rcti{0, 2, 0, 2}, 0, 8, 33, {1, 0, 0, 1}};
+  const uint poly_ids[] = {2, 3, 4, 5};
+  ControlledReadback *poly_readback = controlled_readback(
+      as_bytes(poly_ids, std::size(poly_ids)), destroy_count);
+  poly_readback->mark_ready();
+  session.begin();
+  if (!require(session.query(poly_key,
+                             new SelectionBufferRequest(
+                                 poly_readback, poly_key.rect, poly_key.rect),
+                             bitmap,
+                             active_context),
+               "bitmap poly immediate") ||
+      !require(bitmap == std::vector<uint8_t>({0, 1, 0, 0, 1, 0, 0, 0}),
+               "bitmap polygon mask") ||
+      !require(active_context == 33, "bitmap poly context"))
+  {
+    return false;
+  }
+  session.end();
+
+  ControlledReadback *drift_readback = controlled_readback(
+      as_bytes(rect_ids, std::size(rect_ids)), destroy_count);
+  session.begin();
+  if (!require(!session.query(rect_key,
+                              new SelectionBufferRequest(
+                                  drift_readback, rect_key.rect, rect_key.rect),
+                              bitmap,
+                              active_context),
+               "bitmap drift pending"))
+  {
+    return false;
+  }
+  SelectionBitmapKey drifted = rect_key;
+  drifted.context_token++;
+  if (!require(!session.query(drifted, nullptr, bitmap, active_context),
+               "bitmap drift rejects") ||
+      !require(session.poll() == GPU_READBACK_FAILED &&
+                   session.error() == GPU_READBACK_ERROR_BACKEND_FAILURE,
+               "bitmap drift terminal") ||
+      !require(mutation_count == 1, "bitmap drift prevents mutation"))
+  {
+    return false;
+  }
+  session.end();
+
+  ControlledReadback *cancel_readback = controlled_readback(
+      as_bytes(rect_ids, std::size(rect_ids)), destroy_count);
+  session.begin();
+  if (!require(!session.query(rect_key,
+                              new SelectionBufferRequest(
+                                  cancel_readback, rect_key.rect, rect_key.rect),
+                              bitmap,
+                              active_context),
+               "bitmap cancel pending"))
+  {
+    return false;
+  }
+  session.end();
+  if (!require(session.poll() == GPU_READBACK_INVALID, "bitmap cancel invalid") ||
+      !require(destroy_count == 5, "bitmap requests retire exactly once"))
+  {
+    return false;
+  }
+
+  std::printf(
+      "CONTRACT selection-bitmap-session PASS shapes=3 cases=5 replays=1 mutations=1 "
+      "retired=5\n");
+  return true;
+}
+
 }  // namespace
 
 namespace mem_guarded::internal {
@@ -1124,12 +1474,12 @@ int main()
 {
   if (!owned_result_contract() || !transform_result_contract() || !async_selection_contract() ||
       !async_failure_contract() || !selection_buffer_request_contract() ||
-      !selection_query_session_contract())
+      !selection_query_session_contract() || !selection_bitmap_session_contract())
   {
     return 1;
   }
   std::printf(
-      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=6 modes=3 failures=4 transforms=1 "
-      "selection_cases=6 query_replays=4\n");
+      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=7 modes=3 failures=4 transforms=1 "
+      "selection_cases=6 query_replays=4 bitmap_shapes=3 bitmap_cases=5\n");
   return 0;
 }

@@ -2310,9 +2310,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 contracts are byte-identical and 21 source mutations fail closed. The legacy
   selection family remains partial only for box/lasso/circle gesture callers. See
   `notes/m5-legacy-selection-click-continuation-20260824.md`.
-- [ ] **M5-LEGACY-SELECTION-GESTURE-CONTINUATION [driver, blocked-by: none]:** route edit-mesh
-  box/lasso/circle bitmap reads through owned raw requests and bounded operator continuations,
-  preserving inclusive rectangle, polygon-mask, circle-radius, and bitmap-index semantics.
+- [x] **M5-LEGACY-SELECTION-GESTURE-CONTINUATION [driver, complete]:** COMPLETE (patch 0255;
+  Linux receipt `20260824T175224-312862`): edit-mesh box/lasso/circle bitmap reads now own their
+  raw requests and exact producing context across bounded operator continuations. Rectangle,
+  polygon-mask, strict circle-radius, bitmap-index, pre-deselect, exact circle-input replay, and
+  queued-event semantics pass byte-identical native/wasm32 contracts. Three synchronous families
+  remain. See `notes/m5-legacy-selection-gesture-continuation-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -25,6 +25,11 @@ EXPECTED_PATHS_BY_NAME = {
         Path("source/blender/editors/mesh/editmesh_select.cc"),
         Path("source/blender/editors/space_view3d/view3d_select.cc"),
     },
+    "0255-m5-legacy-selection-gesture-continuation.patch": {
+        Path("source/blender/draw/DRW_select_buffer.hh"),
+        Path("source/blender/draw/intern/draw_select_buffer.cc"),
+        Path("source/blender/editors/space_view3d/view3d_select.cc"),
+    },
 }
 
 

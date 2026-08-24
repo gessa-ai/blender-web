@@ -207,6 +207,19 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in select_buffer_api, f"selection query API missing {needle!r}")
 
+    for needle in (
+        "void DRW_select_buffer_bitmap_session_begin();",
+        "void DRW_select_buffer_bitmap_session_end();",
+        "bool DRW_select_buffer_bitmap_session_is_active();",
+        "bool DRW_select_buffer_bitmap_session_needs_replay();",
+        "eGPUReadbackStatus DRW_select_buffer_bitmap_session_status();",
+        "eGPUReadbackError DRW_select_buffer_bitmap_session_error();",
+        "uint *DRW_select_buffer_bitmap_from_rect_async(",
+        "uint *DRW_select_buffer_bitmap_from_circle_async(",
+        "uint *DRW_select_buffer_bitmap_from_poly_async(",
+    ):
+        require(needle in select_buffer_api, f"selection bitmap API missing {needle!r}")
+
     selection_state = braced_definition(
         select_buffer, "struct DRWSelectBufferReadback", "selection readback state"
     )
@@ -803,6 +816,238 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "select async finish",
     )
 
+    bitmap_state = braced_definition(
+        select_buffer, "struct DRWSelectBufferBitmapState", "selection bitmap state"
+    )
+    for needle in (
+        "bool session_active = false;",
+        "bool failed = false;",
+        "bool replay_required = false;",
+        "bool settled = false;",
+        "bool result_ready = false;",
+        "DRWSelectBufferReadback *pending = nullptr;",
+        "DRWSelectBufferBitmapKey pending_key;",
+        "DRWSelectBufferQueryContext pending_context;",
+        "DRWSelectBufferBitmapResult result;",
+    ):
+        require(needle in bitmap_state, f"selection bitmap state missing {needle!r}")
+    bitmap_transform = braced_definition(
+        select_buffer,
+        "static bool drw_select_buffer_bitmap_from_ids(",
+        "selection bitmap transform",
+    )
+    for needle in (
+        "buf_len != expected_len",
+        "context.max_index_drawn_len - 1",
+        "DRWSelectBufferBitmapKind::Rect",
+        "const uint index = id - 1;",
+        "diameter * diameter != int64_t(buf_len)",
+        "x * x + y * y < radius_sq",
+        "BLI_bitmap_draw_2d_poly_v2i_n(",
+        "BLI_BITMAP_TEST(buf_mask, i)",
+    ):
+        require(needle in bitmap_transform, f"selection bitmap transform missing {needle!r}")
+    bitmap_status = braced_definition(
+        select_buffer,
+        "eGPUReadbackStatus DRW_select_buffer_bitmap_session_status()",
+        "selection bitmap poll",
+    )
+    require_ordered(
+        bitmap_status,
+        (
+            "DRW_select_buffer_read_async_status(g_select_buffer_bitmap.pending)",
+            "if (status == GPU_READBACK_PENDING)",
+            "if (status != GPU_READBACK_READY)",
+            "DRW_select_buffer_read_async_consume(g_select_buffer_bitmap.pending",
+            "drw_select_buffer_bitmap_from_ids(",
+            "g_select_buffer_bitmap.result = std::move(result);",
+            "g_select_buffer_bitmap.result_ready = true;",
+        ),
+        "selection bitmap poll",
+    )
+    bitmap_query = braced_definition(
+        select_buffer,
+        "static uint *drw_select_buffer_bitmap_query(",
+        "selection bitmap query",
+    )
+    require_ordered(
+        bitmap_query,
+        (
+            "drw_select_buffer_bitmap_key_equal(g_select_buffer_bitmap.result.key, key)",
+            "drw_select_buffer_query_context_restore(g_select_buffer_bitmap.result.context);",
+            "g_select_buffer_bitmap.replay_required = false;",
+            "g_select_buffer_bitmap.settled = true;",
+            "drw_select_buffer_bitmap_key_equal(g_select_buffer_bitmap.pending_key, key)",
+            "g_select_buffer_bitmap.replay_required = true;",
+            "DRW_select_buffer_read_async(",
+            "drw_select_buffer_query_context_capture();",
+        ),
+        "selection bitmap query",
+    )
+    require(
+        "  g_select_buffer_bitmap.replay_required = true;\n"
+        "  g_select_buffer_bitmap.pending_key = key;" in bitmap_query,
+        "selection bitmap initial request lacks replay latch",
+    )
+    bitmap_end = braced_definition(
+        select_buffer,
+        "void DRW_select_buffer_bitmap_session_end()",
+        "selection bitmap end",
+    )
+    require_ordered(
+        bitmap_end,
+        (
+            "DRW_select_buffer_read_async_cancel(g_select_buffer_bitmap.pending);",
+            "MEM_SAFE_DELETE(g_select_buffer_bitmap.result.bitmap);",
+            "g_select_buffer_bitmap = {};",
+        ),
+        "selection bitmap end",
+    )
+
+    for helper_marker, async_call in (
+        (
+            "static bool editselect_buf_cache_bitmap_from_rect(",
+            "DRW_select_buffer_bitmap_from_rect_async(",
+        ),
+        (
+            "static bool editselect_buf_cache_bitmap_from_circle(",
+            "DRW_select_buffer_bitmap_from_circle_async(",
+        ),
+        (
+            "static bool editselect_buf_cache_bitmap_from_poly(",
+            "DRW_select_buffer_bitmap_from_poly_async(",
+        ),
+    ):
+        helper = braced_definition(view_select, helper_marker, helper_marker)
+        require_ordered(
+            helper,
+            (
+                "if (esel->select_bitmap_settled)",
+                "DRW_select_buffer_bitmap_session_is_active()",
+                async_call,
+                "DRW_select_buffer_bitmap_session_status() == GPU_READBACK_READY",
+                "!DRW_select_buffer_bitmap_session_needs_replay()",
+            ),
+            helper_marker,
+        )
+
+    for function_marker, helper_marker in (
+        ("static bool do_lasso_select_mesh(", "editselect_buf_cache_bitmap_from_poly("),
+        ("static bool do_mesh_box_select(", "editselect_buf_cache_bitmap_from_rect("),
+        ("static bool mesh_circle_select(", "editselect_buf_cache_bitmap_from_circle("),
+    ):
+        function = braced_definition(view_select, function_marker, function_marker)
+        require_ordered(
+            function,
+            (
+                helper_marker,
+                "return false;",
+                "if (SEL_OP_USE_PRE_DESELECT(sel_op))",
+            ),
+            f"{function_marker} pending-before-mutation",
+        )
+
+    for kind in ("lasso", "box"):
+        invoke = braced_definition(
+            view_select,
+            f"static wmOperatorStatus view3d_{kind}_select_invoke(",
+            f"{kind} invoke",
+        )
+        require_ordered(
+            invoke,
+            (
+                "view3d_gesture_bitmap_async_eligible(C)",
+                "DRW_select_buffer_bitmap_session_begin();",
+                f"WM_gesture_{kind}_invoke(C, op, event)",
+            ),
+            f"{kind} invoke",
+        )
+        modal = braced_definition(
+            view_select,
+            f"static wmOperatorStatus view3d_{kind}_select_modal(",
+            f"{kind} modal",
+        )
+        for needle in (
+            "DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID",
+            "view3d_gesture_bitmap_async_modal(",
+            f"WM_gesture_{kind}_modal(C, op, event)",
+            "view3d_gesture_bitmap_async_after_gesture(",
+        ):
+            require(needle in modal, f"{kind} modal missing {needle!r}")
+
+    gesture_poll = braced_definition(
+        view_select,
+        "static wmOperatorStatus view3d_gesture_bitmap_async_modal(",
+        "gesture bitmap poll",
+    )
+    for needle in (
+        "constexpr int max_tick_count = 240;",
+        "DRW_select_buffer_bitmap_session_status();",
+        "DRW_select_buffer_bitmap_session_needs_replay()",
+        "const wmOperatorStatus result = exec(C, op);",
+        "view3d_gesture_bitmap_async_data_end(C, op);",
+    ):
+        require(needle in gesture_poll, f"gesture bitmap poll missing {needle!r}")
+
+    circle_modal = braced_definition(
+        view_select,
+        "static wmOperatorStatus view3d_circle_select_modal(",
+        "circle modal",
+    )
+    for needle in (
+        "constexpr int max_tick_count = 240;",
+        "view3d_circle_select_async_event_push(esel, event)",
+        "view3d_circle_select_exec(C, op);",
+        "while (!esel->async_events.is_empty())",
+        "WM_gesture_circle_modal(C, op, &queued)",
+        "DRW_select_buffer_bitmap_session_end();",
+        "DRW_select_buffer_bitmap_session_begin();",
+    ):
+        require(needle in circle_modal, f"circle modal missing {needle!r}")
+    circle_queue = braced_definition(
+        view_select,
+        "static bool view3d_circle_select_async_event_push(",
+        "circle event queue",
+    )
+    for needle in (
+        "constexpr int max_queued_events = 512;",
+        "esel->async_events.size() >= max_queued_events",
+        "queued.customdata = nullptr;",
+        "esel->async_events.append(queued);",
+    ):
+        require(needle in circle_queue, f"circle event queue missing {needle!r}")
+    circle_exec = braced_definition(
+        view_select,
+        "static wmOperatorStatus view3d_circle_select_exec(bContext *C",
+        "circle exec",
+    )
+    require_ordered(
+        circle_exec,
+        (
+            "DRW_select_buffer_bitmap_session_needs_replay()",
+            "async_esel->async_input_valid",
+            "sel_op = async_esel->async_sel_op;",
+            "copy_v2_v2_int(mval, async_esel->async_mval);",
+            "radius = int(async_esel->async_radius);",
+            "view3d_gesture_bitmap_async_waiting()",
+            "esel->async_input_valid = true;",
+            "editselect_buf_cache_bitmap_clear(esel);",
+        ),
+        "circle exact-input replay",
+    )
+    for needle in (
+        "ot->invoke = view3d_lasso_select_invoke;",
+        "ot->modal = view3d_lasso_select_modal;",
+        "ot->cancel = view3d_lasso_select_cancel;",
+        "ot->invoke = view3d_box_select_invoke;",
+        "ot->modal = view3d_box_select_modal;",
+        "ot->cancel = view3d_box_select_cancel;",
+        "ot->invoke = view3d_circle_select_invoke;",
+        "ot->modal = view3d_circle_select_modal;",
+        "ot->cancel = view3d_circle_select_cancel;",
+    ):
+        require(needle in view_select, f"gesture callback wiring missing {needle!r}")
+
     cmake_text = sources["source/blender/gpu/CMakeLists.txt"]
     require_ordered(
         cmake_text,
@@ -821,10 +1066,6 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         require(needle in readback_test, f"integrated test missing {needle!r}")
 
     remaining_sync = {
-        "legacy_select_buffer": (
-            "source/blender/draw/intern/draw_select_buffer.cc",
-            "GPU_framebuffer_read_color(select_id_fb",
-        ),
         "depth_pick": (
             "source/blender/editors/space_view3d/view3d_draw.cc",
             "GPU_framebuffer_read_depth(depth_read_fb",
@@ -840,6 +1081,10 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     }
     for family, (relative, needle) in remaining_sync.items():
         require(needle in sources[relative], f"remaining sync census drifted: {family}")
+    require(
+        "GPU_framebuffer_read_color(select_id_fb" in select_buffer,
+        "native synchronous selection-buffer fallback missing",
+    )
     require(
         "WM_window_pixels_read_async(C, win)" in sources[
             "source/blender/editors/screen/screendump.cc"
@@ -892,6 +1137,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "webgpu_exact_tickets": True,
             "object_pick_continuation": True,
             "edit_mesh_click_continuation": True,
+            "edit_mesh_gesture_continuation": True,
             "window_color_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
@@ -943,8 +1189,11 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         (
             "source/blender/editors/space_view3d/view3d_select.cc",
-            "constexpr int max_tick_count = 240;",
-            "constexpr int max_tick_count = 0;",
+            "  /* Fail closed instead of retaining a modal operator forever after device\n"
+            "   * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */\n"
+            "  constexpr int max_tick_count = 240;",
+            "  /* Bound removed. */\n"
+            "  constexpr int max_tick_count = 0;",
             "bounded continuation",
         ),
         (
@@ -1002,6 +1251,56 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "  g_select_buffer_query.replay_required = false;\n"
             "  g_select_buffer_query.pending_key = key;",
             "selection query replay latch",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "drw_select_buffer_query_context_restore(g_select_buffer_bitmap.result.context);",
+            "/* stale bitmap context retained */",
+            "selection bitmap context restore",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "x * x + y * y < radius_sq",
+            "x * x + y * y <= radius_sq",
+            "selection bitmap strict circle radius",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "drw_select_buffer_bitmap_key_equal(g_select_buffer_bitmap.pending_key, key)",
+            "true /* accept bitmap drift */",
+            "selection bitmap exact key",
+        ),
+        (
+            "source/blender/draw/intern/draw_select_buffer.cc",
+            "  g_select_buffer_bitmap.replay_required = true;\n"
+            "  g_select_buffer_bitmap.pending_key = key;",
+            "  g_select_buffer_bitmap.replay_required = false;\n"
+            "  g_select_buffer_bitmap.pending_key = key;",
+            "selection bitmap replay latch",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "    if (!editselect_buf_cache_bitmap_from_rect(\n"
+            "            esel, vc->depsgraph, vc->region, vc->v3d, rect))\n"
+            "    {\n"
+            "      return false;\n"
+            "    }",
+            "    /* Continue before the bitmap settles. */",
+            "box pending-before-mutation guard",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "    sel_op = async_esel->async_sel_op;\n"
+            "    copy_v2_v2_int(mval, async_esel->async_mval);\n"
+            "    radius = int(async_esel->async_radius);",
+            "    /* Replay current rather than producing circle inputs. */",
+            "circle exact input replay",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "constexpr int max_queued_events = 512;",
+            "constexpr int max_queued_events = 0;",
+            "circle bounded event queue",
         ),
         (
             "source/blender/editors/mesh/editmesh_select.cc",

@@ -29,7 +29,12 @@ selection now replays sample/nearest queries through that request while restorin
 the exact element-range context that produced each raw ID. The contract covers
 pending output preservation, exact sample and nearest results, Manhattan distance,
 multi-stage replay, context restoration, query-drift rejection, and cancellation.
-Box/lasso/circle callers remain synchronous until their separate continuation lands.
+Edit-mesh box, lasso, and circle selection now share a separate owned bitmap session.
+It retains each raw request plus the inclusive rectangle, polygon mask, strict circle
+radius, and producing element-range context until a bounded operator continuation
+replays it. Pre-deselect and all later mesh mutation remain behind settlement. Circle
+input events queue in order behind the active request, while the exact producing
+selection operation, center, and radius are restored before each replay.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
 the owned draw-selection request and exact query session, exact WebGPU tickets,
@@ -37,10 +42,12 @@ temporary select-engine ownership transfer, and the bounded object/edit-mesh
 selection continuations. All three non-viewport eyedroppers share one owned
 window snapshot while browser mapping is pending and preserve native immediate
 completion.
-It also requires the four still-synchronous caller families (legacy selection-buffer
-read, depth pick, depth cache, and WM window capture) to stay visible. The screenshot
-operator has its own owned-capture continuation contract; the ledger row remains
-`partial` for these four families.
+It also requires the three still-synchronous caller families (depth pick, depth cache,
+and WM window capture) to stay visible. The synchronous selection-buffer API remains
+as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer
+use it during an active browser continuation. The screenshot operator has its own
+owned-capture continuation contract; the ledger row remains `partial` for these three
+families.
 
 Run through the build wrapper:
 

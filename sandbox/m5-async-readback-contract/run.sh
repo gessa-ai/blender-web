@@ -64,7 +64,7 @@ fi
 "$PYBIN" "$HERE/verify_source.py" --source-root "$ROOT/upstream" --selfcheck
 "$PYBIN" "$HERE/verify_numbered_patch.py" \
   --source-root "$ROOT/upstream" \
-  --patch "$ROOT/patches/0254-m5-legacy-selection-click-continuation.patch"
+  --patch "$ROOT/patches/0255-m5-legacy-selection-gesture-continuation.patch"
 SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/series-replay/verify.py" --canonical-only)"
 case "$SOURCE_PROOF" in
   CANONICAL_REPLAY_PASS\ *) ;;
@@ -118,9 +118,9 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 7 ] ||
      ! grep -qx \
-       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=6 modes=3 failures=4 transforms=1 selection_cases=6 query_replays=4' \
+       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=7 modes=3 failures=4 transforms=1 selection_cases=6 query_replays=4 bitmap_shapes=3 bitmap_cases=5' \
        "$stdout_file"
   then
     echo "ERROR: async-readback PASS census differs: $stdout_file" >&2
@@ -140,9 +140,10 @@ if ! jq -e \
    .contracts.webgpu_exact_tickets == true and
    .contracts.object_pick_continuation == true and
    .contracts.edit_mesh_click_continuation == true and
+   .contracts.edit_mesh_gesture_continuation == true and
    .contracts.window_color_continuation == true and
    .contracts.live_hardware_receipt == false and
-   (.remaining_sync_families | length) == 4' \
+   (.remaining_sync_families | length) == 3' \
   "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2

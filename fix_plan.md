@@ -2092,9 +2092,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and an added callback. A production-shaped eight-role matrix covers live delivery, fallback loss,
   and post-loss/destruction rejection with byte-identical native/wasm32 behavior while retaining
   both unsafe ASan controls. See `notes/m4-ghost-callback-source-gate-r8-20260824.md`.
-- [ ] **AUDIT-R8-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale header
-  claim that `GHOST_ContextWGPUWeb` does not subclass `GHOST_Context`; bind the corrected lifecycle
-  description in the source-compliance check.
+- [x] **AUDIT-R8-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none] COMPLETE (0ca3bc3):** the
+  public header now documents its actual `GHOST_Context` inheritance, synchronous pre-main import,
+  standalone callback path, and shared owner-lifecycle gate. The R8 source-compliance check binds
+  those claims to the subclass declaration and rejects both retired lifecycle descriptions.
+  Focused/integrated native/wasm32 parity, real product rebuild/no-work, OFF preflight, canonical
+  replay, compliance, scoped M4, and container-backed regression are verified. See
+  `notes/m4-ghost-inheritance-documentation-r8-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

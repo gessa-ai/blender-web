@@ -1065,3 +1065,15 @@ reserve the command ticket behind it. A rejected resource poisons the current fr
 cancels the dependent command; a later epoch retries from the payload queue's owned bytes. Exercise
 a non-null error object with an uncaptured-error counter, same-epoch cancellation, exact retained
 bytes, and clean retry on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 74 — callback source counts can certify dead text instead of ownership structure
+
+Signature: a source gate counts a delivery spelling and rejects one narrow raw-owner capture, so a
+comment can replace a removed delivery while an alias, implicit outer capture, or added callback
+evades the intended census. Lex the source with comments and literals excluded, locate every
+callback by enclosing method, callee, argument position, and balanced lambda structure, then require
+its exact explicit captures, owner-gate call, and callback-time terminal-state check. Keep mutation
+controls that preserve the retired raw count while removing a real gate, replace an explicit capture
+with a default, and add a callback; all must fail. Pair that source manifest with a device-free
+production-shaped matrix covering every named callback before loss and after loss/destruction on
+native and wasm32. See `sandbox/audit-r8/`.

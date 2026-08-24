@@ -15,29 +15,27 @@ trap cleanup EXIT
 CXX_BIN="${CXX:-clang++-17}"
 EMXX_BIN="$ROOT/tools/emsdk/upstream/emscripten/em++"
 NODE_BIN="$ROOT/tools/emsdk/node/22.16.0_64bit/bin/node"
+PYTHON_BIN="${PYTHON:-$ROOT/.host-tools/bin/python3.13}"
 CONTEXT_CC="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 CONTEXT_HH="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
+CALLBACK_CENSUS="$HERE/callback_census.py"
 
 # Bind the helper contract to every shipping completion that can outlive its
 # non-reference-counted GHOST owner.  A passing standalone helper that the
 # production context never calls is not evidence.
-if [[ "$(grep -Fc 'lifetime->deliver' "$CONTEXT_CC")" -ne 7 ]]; then
-  echo "ERROR: shipping callback-delivery census changed" >&2
-  exit 1
-fi
-if grep -Eq '\[(&)?this([,\]])' "$CONTEXT_CC"; then
-  echo "ERROR: shipping asynchronous context still captures a raw owner" >&2
-  exit 1
-fi
+"$PYTHON_BIN" "$CALLBACK_CENSUS" "$CONTEXT_CC" --self-test \
+  >"$AUDIT_TMP/callback-census.log"
+grep -Fqx \
+  "CALLBACK_CENSUS_PASS roles=8 owner_deliveries=7 fallback_loss=1" \
+  "$AUDIT_TMP/callback-census.log"
+grep -Fqx \
+  "CALLBACK_CENSUS_SELFTEST_PASS controls=3 dead_text_alias=reject implicit_capture=reject extra_callback=reject legacy_false_positive=1" \
+  "$AUDIT_TMP/callback-census.log"
 grep -Fq 'std::shared_ptr<ghost_web::DeviceCallbackState> device_state_' "$CONTEXT_HH"
 grep -Fq 'std::make_shared<ghost_web::DeviceCallbackState>(' "$CONTEXT_CC"
 grep -Fq 'ghost_web_preinit_device_loss_generation(), imported_device_loss_observation' \
   "$CONTEXT_CC"
 grep -Fq 'callback_lifetime_->invalidate();' "$CONTEXT_CC"
-if [[ "$(grep -Fc 'ghost_web::fallback_device_loss_notify(' "$CONTEXT_CC")" -ne 1 ]]; then
-  echo "ERROR: fallback device loss is not routed through the shared owner gate" >&2
-  exit 1
-fi
 PROPAGATE_BODY="$(sed -n \
   '/void GHOST_ContextWGPUWeb::propagateDeviceLoss()/,/void GHOST_ContextWGPUWeb::finishSetup()/p' \
   "$CONTEXT_CC")"
@@ -121,6 +119,9 @@ grep -Fqx \
 grep -Fqx \
   "CONTRACT ghost_ready_callback_lifetime PASS self_destroy=continued member_cleared=1" \
   "$AUDIT_TMP/accepted-native.log"
+grep -Fqx \
+  "CONTRACT ghost_shipping_callback_matrix PASS roles=8 active=7 loss=1 post_loss=blocked post_destroy=blocked" \
+  "$AUDIT_TMP/accepted-native.log"
 
 set +e
 ASAN_OPTIONS="abort_on_error=1:detect_leaks=0:symbolize=0" \
@@ -152,4 +153,4 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-ready-self-destroy.log"; 
   exit 1
 fi
 
-echo "AUDIT_R8_GHOST_CALLBACK_PASS imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"
+echo "AUDIT_R8_GHOST_CALLBACK_PASS source_roles=8 source_controls=3 shipping_matrix=8 imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"

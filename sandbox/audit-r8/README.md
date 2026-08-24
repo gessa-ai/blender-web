@@ -20,13 +20,21 @@ adapter or a milestone receipt:
   pending initialization and invoke the failed ready settlement exactly once.
 - the ready settlement must detach its callable from context member storage before
   delivery, so the callable can destroy that context and still finish safely.
+- all eight shipping callback roles must match an explicit method/callee/argument,
+  capture-list, owner-gate, and callback-time device-state manifest; and
+- one production-shaped role matrix must deliver all seven ordinary callbacks before
+  fallback loss, then reject every retained callback after loss or owner destruction.
 
-The driver also binds all eight shipping completion sites to the synchronized,
-serialized owner gate and requires byte-identical native/wasm32 results under
-pinned em++ 6.0.5 and Node 22.16.0. The deliberately unsafe check-then-use owner
-gate and the in-place member ready callback reproduce their respective pre-fix
-heap use after free under AddressSanitizer. The accepted paths must finish without
-an ASan diagnostic or timeout.
+`callback_census.py` lexes C++ while discarding comments and treating literals as
+opaque tokens, follows balanced call and lambda structure, and rejects owner-gate
+captures outside that manifest. Its mutation controls require rejection of a
+dead-text/alias false positive, an implicit outer capture, and an extra callback;
+the first mutation deliberately preserves the retired grep gate's raw count of
+seven. The driver also requires byte-identical native/wasm32 behavior under pinned
+em++ 6.0.5 and Node 22.16.0. The deliberately unsafe check-then-use owner gate and
+the in-place member ready callback reproduce their respective pre-fix heap use
+after free under AddressSanitizer. The accepted paths must finish without an ASan
+diagnostic or timeout.
 
 Run only through the project build wrapper:
 

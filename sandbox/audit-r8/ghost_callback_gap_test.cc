@@ -4,9 +4,11 @@
 
 #include "GHOST_WGPUTransaction.hh"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -248,6 +250,121 @@ class InitializationProbe {
   bool device_loss_propagated_ = false;
   ReadyCallback on_ready_;
   std::shared_ptr<Lifetime> lifetime_;
+};
+
+enum class ShippingCallbackRole : size_t {
+  AdapterAcquisition,
+  DeviceAcquisition,
+  BackbufferCreation,
+  SurfaceConfiguration,
+  PresentPipelineCreation,
+  PresentSubmission,
+  PresentCompletion,
+  FallbackDeviceLoss,
+  Count,
+};
+
+constexpr size_t shipping_callback_role_count = size_t(ShippingCallbackRole::Count);
+
+struct ShippingCallbackObservation {
+  std::array<int, shipping_callback_role_count> deliveries{};
+  int ready_calls = 0;
+  bool ready_success = true;
+  bool pending_cleared = false;
+  int destroyed = 0;
+};
+
+/**
+ * Device-free mirror of the shipping context's eight asynchronous owner callbacks.
+ *
+ * Acquisition callbacks retain only the owner gate, five rendering completions retain both the
+ * owner gate and callback-owned device state, and fallback loss publishes terminal state before
+ * entering the owner.  Destruction closes the same gate retained by every returned completion.
+ */
+class ShippingContextProbe {
+ public:
+  using Lifetime = gw::OwnerCallbackLifetime<ShippingContextProbe>;
+  using Completion = std::function<bool()>;
+
+  explicit ShippingContextProbe(std::shared_ptr<ShippingCallbackObservation> observation)
+      : observation_(std::move(observation)), lifetime_(std::make_shared<Lifetime>(*this))
+  {
+  }
+
+  ~ShippingContextProbe()
+  {
+    lifetime_->cancel();
+    lifetime_->invalidate();
+    observation_->destroyed++;
+  }
+
+  Completion make_completion(const ShippingCallbackRole role)
+  {
+    const std::shared_ptr<Lifetime> lifetime = lifetime_;
+    const std::shared_ptr<gw::DeviceCallbackState> device_state = device_state_;
+    if (role == ShippingCallbackRole::FallbackDeviceLoss) {
+      return [device_state, lifetime]() {
+        return gw::fallback_device_loss_notify(
+            device_state, lifetime, [](ShippingContextProbe &owner) {
+              owner.record(ShippingCallbackRole::FallbackDeviceLoss);
+              owner.propagate_device_loss();
+            });
+      };
+    }
+    if (role == ShippingCallbackRole::AdapterAcquisition ||
+        role == ShippingCallbackRole::DeviceAcquisition)
+    {
+      return [lifetime, role]() {
+        return lifetime->deliver(
+            [role](ShippingContextProbe &owner) { owner.record(role); });
+      };
+    }
+    return [lifetime, device_state, role]() {
+      return lifetime->deliver([&](ShippingContextProbe &owner) {
+        if (!gw::device_state_allows_callback_work(device_state)) {
+          return;
+        }
+        owner.record(role);
+      });
+    };
+  }
+
+ private:
+  void record(const ShippingCallbackRole role)
+  {
+    observation_->deliveries[size_t(role)]++;
+  }
+
+  void propagate_device_loss()
+  {
+    if (device_loss_propagated_) {
+      return;
+    }
+    device_loss_propagated_ = true;
+    gw::device_state_mark_lost(*device_state_);
+    lifetime_->cancel();
+    backbuffer_pending_ = false;
+    configuration_pending_ = false;
+    present_pipeline_pending_ = false;
+    present_pending_ = false;
+    observation_->pending_cleared = true;
+    if (!initialization_settled_) {
+      initialization_settled_ = true;
+      observation_->ready_calls++;
+      observation_->ready_success = false;
+    }
+  }
+
+  std::shared_ptr<ShippingCallbackObservation> observation_;
+  std::shared_ptr<gw::DeviceCallbackState> device_state_ =
+      std::make_shared<gw::DeviceCallbackState>();
+  std::shared_ptr<Lifetime> lifetime_;
+  bool backbuffer_pending_ = true;
+  bool configuration_pending_ = true;
+  bool present_pipeline_pending_ = true;
+  bool present_pending_ = true;
+  bool initialization_settled_ = false;
+  bool device_loss_propagated_ = false;
 };
 
 class UnsafeReadyProbe {
@@ -724,6 +841,71 @@ bool run_ready_callback_lifetime_contract()
          !lifetime->deliver([](InitializationProbe & /*loaded_owner*/) {});
 }
 
+bool run_shipping_callback_matrix_contract()
+{
+  using Role = ShippingCallbackRole;
+  using Completion = ShippingContextProbe::Completion;
+  const auto observation = std::make_shared<ShippingCallbackObservation>();
+  auto owner = std::make_unique<ShippingContextProbe>(observation);
+  std::array<Completion, shipping_callback_role_count> completions;
+  for (size_t index = 0; index < completions.size(); index++) {
+    completions[index] = owner->make_completion(Role(index));
+  }
+
+  /* Exercise the seven ordinary shipping roles while the owner and device are active. */
+  for (size_t index = 0; index < size_t(Role::FallbackDeviceLoss); index++) {
+    if (!completions[index]() || observation->deliveries[index] != 1) {
+      return false;
+    }
+  }
+  if (!completions[size_t(Role::FallbackDeviceLoss)]() ||
+      observation->deliveries[size_t(Role::FallbackDeviceLoss)] != 1 ||
+      observation->ready_calls != 1 || observation->ready_success ||
+      !observation->pending_cleared)
+  {
+    return false;
+  }
+
+  /* Terminal loss closes owner admission for all already-retained completions. */
+  for (Completion &completion : completions) {
+    if (completion()) {
+      return false;
+    }
+  }
+  owner.reset();
+  if (observation->destroyed != 1) {
+    return false;
+  }
+  for (Completion &completion : completions) {
+    if (completion()) {
+      return false;
+    }
+  }
+
+  /* Independent destruction before any delivery rejects every role, including loss. */
+  const auto destroyed_observation = std::make_shared<ShippingCallbackObservation>();
+  auto destroyed_owner = std::make_unique<ShippingContextProbe>(destroyed_observation);
+  std::array<Completion, shipping_callback_role_count> delayed;
+  for (size_t index = 0; index < delayed.size(); index++) {
+    delayed[index] = destroyed_owner->make_completion(Role(index));
+  }
+  destroyed_owner.reset();
+  for (Completion &completion : delayed) {
+    if (completion()) {
+      return false;
+    }
+  }
+  if (destroyed_observation->destroyed != 1 || destroyed_observation->ready_calls != 0) {
+    return false;
+  }
+  for (const int deliveries : destroyed_observation->deliveries) {
+    if (deliveries != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
@@ -770,6 +952,10 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "FAIL: ready-callback lifetime contract\n");
     return 1;
   }
+  if (!run_shipping_callback_matrix_contract()) {
+    std::fprintf(stderr, "FAIL: shipping callback role matrix contract\n");
+    return 1;
+  }
   std::puts("CONTRACT ghost_owner_lifetime PASS concurrent=1 reentrant=1 delayed=blocked");
   std::puts("CONTRACT ghost_owner_serialization PASS concurrent=serialized nested=1");
   std::puts("CONTRACT ghost_owner_execution PASS callback_owner=serialized cleanup=quiescent");
@@ -777,5 +963,6 @@ int main(int argc, char **argv)
   std::puts("CONTRACT ghost_imported_loss_callback PASS pending=allow settled=block sticky=1 replaced=block");
   std::puts("CONTRACT ghost_loss_init_settlement PASS backbuffer=failed_once configuration=failed_once pending=cleared raw_owner=0");
   std::puts("CONTRACT ghost_ready_callback_lifetime PASS self_destroy=continued member_cleared=1");
+  std::puts("CONTRACT ghost_shipping_callback_matrix PASS roles=8 active=7 loss=1 post_loss=blocked post_destroy=blocked");
   return 0;
 }

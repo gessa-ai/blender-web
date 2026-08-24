@@ -49,6 +49,7 @@ struct BufferDescriptor {
 
 struct Trace {
   bool create_success = true;
+  bool create_error_object = false;
   bool map_success = true;
   bool defer_scopes = false;
   size_t create_calls = 0;
@@ -59,6 +60,10 @@ struct Trace {
   size_t finish_calls = 0;
   size_t write_calls = 0;
   size_t submit_calls = 0;
+  size_t error_scope_depth = 0;
+  size_t error_scope_pushes = 0;
+  size_t error_scope_pops = 0;
+  size_t uncaptured_errors = 0;
   size_t descriptor_size = 0;
   bool descriptor_mapped = false;
   size_t source_offset = 0;
@@ -164,6 +169,9 @@ class Device {
     trace_->descriptor_size = descriptor->size;
     trace_->descriptor_mapped = descriptor->mappedAtCreation;
     trace_->events.push_back(Event::Create);
+    if (trace_->create_error_object && trace_->error_scope_depth == 0) {
+      trace_->uncaptured_errors++;
+    }
     return Buffer(trace_, trace_->create_success);
   }
 
@@ -174,11 +182,19 @@ class Device {
     return CommandEncoder(trace_);
   }
 
-  void PushErrorScope(wgpu::ErrorFilter /*filter*/) const {}
+  void PushErrorScope(wgpu::ErrorFilter /*filter*/) const
+  {
+    trace_->error_scope_depth++;
+    trace_->error_scope_pushes++;
+  }
 
   template<typename Callback>
   int PopErrorScope(wgpu::CallbackMode /*mode*/, Callback &&callback) const
   {
+    trace_->error_scope_pops++;
+    if (trace_->error_scope_depth != 0) {
+      trace_->error_scope_depth--;
+    }
     auto settle = [callback = std::forward<Callback>(callback)](const bool valid) mutable {
       callback(wgpu::PopErrorScopeStatus::Success,
                valid ? wgpu::ErrorType::NoError : wgpu::ErrorType::Validation,
@@ -559,6 +575,64 @@ bool run_integrated_buffer_update_contracts()
   {
     update_mock::Trace trace;
     trace.defer_scopes = true;
+    trace.create_error_object = true;
+    BufferUpdateHarness buffer(trace, large_payload.size());
+    OrderedQueueScheduler scheduler;
+    BufferUpdateTransaction transaction;
+    const std::vector<uint8_t> original = large_payload;
+    std::vector<uint8_t> caller = original;
+    if (!require(!buffer.update_sub(update_mock::Instance(),
+                                    update_mock::Device(&trace),
+                                    update_mock::Queue(&trace),
+                                    scheduler,
+                                    0,
+                                    caller.data(),
+                                    caller.size(),
+                                    transaction) &&
+                     transaction.pending() && buffer.pending_update_count() == 1 &&
+                     scheduler.pending_count() == 2 && trace.scope_callbacks.size() == 6 &&
+                     trace.error_scope_pushes == 6 && trace.error_scope_pops == 6 &&
+                     trace.uncaptured_errors == 0 && trace.submit_calls == 0,
+                 "non-null staging error object is captured before dependent work"))
+    {
+      return false;
+    }
+    caller.assign(caller.size(), 0x3c);
+    if (!require(settle_scope_batch(trace, false) && transaction.pending() &&
+                     buffer.pending_update_count() == 1 && scheduler.pending_count() == 1 &&
+                     trace.submit_calls == 0 && trace.uncaptured_errors == 0,
+                 "rejected staging resource poisons its pending command epoch") ||
+        !require(settle_scope_batch(trace, true) && transaction.rejected() &&
+                     trace.scope_callbacks.empty() && scheduler.pending_count() == 0 &&
+                     trace.submit_calls == 0,
+                 "settled command scopes cancel same-epoch work without submission"))
+    {
+      return false;
+    }
+    trace.create_error_object = false;
+    scheduler.begin_epoch();
+    if (!require(buffer.retry_pending_updates() == 1 && transaction.pending() &&
+                     trace.mapped_bytes == original && trace.scope_callbacks.size() == 6,
+                 "clean epoch retries exact retained staging bytes") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 0,
+                 "accepted retry resource advances to command validation") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 1,
+                 "accepted retry encoding advances to submission validation") ||
+        !require(settle_scope_batch(trace, true) && transaction.accepted() &&
+                     buffer.pending_update_count() == 0 && scheduler.pending_count() == 0 &&
+                     trace.error_scope_pushes == 15 && trace.error_scope_pops == 15 &&
+                     trace.uncaptured_errors == 0,
+                 "clean retry accepts with no uncaptured creation error"))
+    {
+      return false;
+    }
+  }
+
+  {
+    update_mock::Trace trace;
+    trace.defer_scopes = true;
     BufferUpdateHarness buffer(trace, large_payload.size());
     OrderedQueueScheduler scheduler;
     BufferUpdateTransaction transaction;
@@ -574,6 +648,9 @@ bool run_integrated_buffer_update_contracts()
                                     transaction) &&
                      transaction.pending() && trace.submit_calls == 0,
                  "staged upload waits for encoding scopes before submission") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 0,
+                 "accepted staging creation advances to encoding validation") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
                      trace.submit_calls == 1,
                  "accepted encoding advances staged upload to submission validation"))
@@ -592,6 +669,9 @@ bool run_integrated_buffer_update_contracts()
                      trace.mapped_bytes == original,
                  "clean epoch remaps the exact retained staged bytes") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 1,
+                 "staged retry accepts resource creation before encoding") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
                      trace.submit_calls == 2,
                  "staged retry validates encoding before its second submission") ||
         !require(settle_scope_batch(trace, true) && transaction.accepted() &&
@@ -603,8 +683,9 @@ bool run_integrated_buffer_update_contracts()
   }
 
   std::printf(
-      "CONTRACT buffer-staging-map PASS cases=12 large_bytes=%zu map_failure=reject "
-      "writes=validated submits=validated retry=owned\n",
+      "CONTRACT buffer-staging-map PASS cases=13 large_bytes=%zu map_failure=reject "
+      "error_object=blocked uncaptured=0 canceled=1 writes=validated submits=validated "
+      "retry=owned\n",
       large_payload.size());
   return true;
 }

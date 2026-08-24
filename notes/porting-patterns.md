@@ -1053,3 +1053,15 @@ local as the settlement path's final action. Exercise a production-shaped callba
 its owner, continues inside its own callable storage, and rejects later owner delivery under native
 AddressSanitizer and wasm32; retain the direct member invocation as an unsafe ASan control. See
 `sandbox/audit-r8/`.
+
+## Class 73 — transient staging creation needs an earlier queue reservation
+
+Signature: a large buffer upload creates a mapped staging buffer before the dependent command
+helper pushes implementation scopes. WebGPU may return a non-null validation, OOM, or internal
+error object, so checking only the handle and mapped pointer leaves creation uncaptured and lets
+dependent command validation stand in for the wrong operation. Reserve an ordered transient
+resource gate before staging creation, retain its provisional handle through scope settlement, and
+reserve the command ticket behind it. A rejected resource poisons the current frame epoch and
+cancels the dependent command; a later epoch retries from the payload queue's owned bytes. Exercise
+a non-null error object with an uncaptured-error counter, same-epoch cancellation, exact retained
+bytes, and clean retry on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.

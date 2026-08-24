@@ -347,6 +347,18 @@ require_fixed_count 3 'if (mapped == nullptr) {' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'std::memcpy(mapped, data, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'wgpu::Buffer staging = transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+STAGING_SCOPE_LINE="$(grep -nF 'wgpu::Buffer staging = transient_resource_create_scoped(' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+STAGING_COMMAND_LINE="$(grep -nF 'command_encode_submit_scoped(context.instance,' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
+if [ -z "$STAGING_SCOPE_LINE" ] || [ -z "$STAGING_COMMAND_LINE" ] ||
+   [ "$STAGING_SCOPE_LINE" -ge "$STAGING_COMMAND_LINE" ]
+then
+  echo "ERROR: staged buffer resource gate does not precede its command ticket" >&2
+  exit 1
+fi
 require_fixed_count 1 'inline bool mapped_buffer_write(' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 2 'if (!webgpu::mapped_buffer_write(' \
@@ -623,16 +635,17 @@ if ! cmp -s "$NATIVE_STDERR" "$WASM_STDERR"; then
   exit 1
 fi
 if [ "$(grep -Fc '[WebGPU] buffer sub-update rejected' "$NATIVE_STDERR")" -ne 1 ] ||
+   [ "$(grep -Fc '[WebGPU] staged buffer creation rejected' "$NATIVE_STDERR")" -ne 1 ] ||
    [ "$(grep -Fc '[WebGPU] staged buffer sub-update submission rejected' \
        "$NATIVE_STDERR")" -ne 1 ] ||
-   [ "$(wc -l <"$NATIVE_STDERR" | tr -d ' ')" -ne 2 ]
+   [ "$(wc -l <"$NATIVE_STDERR" | tr -d ' ')" -ne 3 ]
 then
   echo "ERROR: integrated buffer rejection diagnostics differ" >&2
   exit 1
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=5 buffer_update_cases=12 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=5 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -650,7 +663,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT pending-buffer-payload PASS cases=5 creates=5 payloads=12 order=fifo retry=retained frontend_calls=one-shot concurrent_drainer=one final=E3' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT buffer-staging-map PASS cases=12 large_bytes=65540 map_failure=reject writes=validated submits=validated retry=owned' \
+    'CONTRACT buffer-staging-map PASS cases=13 large_bytes=65540 map_failure=reject error_object=blocked uncaptured=0 canceled=1 writes=validated submits=validated retry=owned' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \

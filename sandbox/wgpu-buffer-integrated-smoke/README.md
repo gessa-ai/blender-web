@@ -19,7 +19,9 @@ E1/E2/E3 in frontend order with E3 as the final overlapping bytes. The buffer me
 against deterministic WebGPU value fakes
 that model deferred browser error scopes and reject null creation, missing mapped ranges,
 scope-rejected non-null candidates, and a missing large-staging mapped range before memcpy,
-command encoding, or submission. Persistent creation stays unpublished while pending,
+command encoding, or submission. Large-upload staging creation has its own ordered resource gate;
+a non-null error object cancels the same-epoch command with zero uncaptured errors, while the next
+epoch retries the exact retained bytes. Persistent creation stays unpublished while pending,
 deduplicates retries, and publishes its handle and allocation metadata atomically only after a
 clean scope result. The restart method executes through
 Blender's real `IndexBuf::init()` without retaining the live-device index-buffer

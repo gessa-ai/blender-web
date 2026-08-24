@@ -1044,3 +1044,6 @@
 # 0246: serialize retained buffer-payload replay reservation so concurrent
 # retain/replay callers preserve frontend FIFO and final overlapping bytes.
 0246-gpu-webgpu-payload-replay-fifo.patch
+# 0247: validate large-upload staging-buffer creation under an ordered transient
+# resource gate before its dependent command ticket can reach submission.
+0247-gpu-webgpu-staging-resource-scope.patch

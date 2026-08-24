@@ -18369,10 +18369,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ab78ab6bba83ddd233cf9df9b289a8719c7f8466
+index 0000000000000000000000000000000000000000..f2cb97f0add0dc4b13dc2287feb1a7c643987df8
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,423 @@
+@@ -0,0 +1,429 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -18631,7 +18631,13 @@ index 0000000000000000000000000000000000000000..ab78ab6bba83ddd233cf9df9b289a871
 +  sd.size = size;
 +  sd.usage = wgpu::BufferUsage::CopySrc;
 +  sd.mappedAtCreation = true;
-+  wgpu::Buffer staging = context.device.CreateBuffer(&sd);
++  wgpu::Buffer staging = transient_resource_create_scoped(
++      context.instance,
++      context.device,
++      context.scheduler,
++      "staged buffer creation",
++      [&]() { return context.device.CreateBuffer(&sd); },
++      [](const bool /*valid*/) {});
 +  if (staging == nullptr) {
 +    return false;
 +  }

@@ -2366,6 +2366,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   paint handle. Eight native/wasm32 contracts and 13 cases are byte-identical; zoom-border and
   NDOF remain, so the overall census stays at three synchronous families. See
   `notes/m5-painting-depth-continuation-20260824.md`.
+- [x] **M5-ZOOM-BORDER-DEPTH-CONTINUATION [driver, complete]:** COMPLETE (`85b24e7`, patch
+  0262; Linux receipts `20260824T223725-538489`/`20260824T223702-537136`): Zoom to Border
+  now owns its exact post-clamp rectangle-depth request, transfers a pending request out of the
+  generic box gesture into a bounded modal continuation, and replays the producing view, zoom
+  direction, smooth duration, nearest-depth reduction, perspective cancellation, and orthographic
+  fallback exactly once. Eight native/wasm32 contracts and 20 cases are byte-identical; 15 source
+  mutations fail closed. Only NDOF remains in the depth-pick family, so the overall census stays at
+  three synchronous families. See `notes/m5-zoom-border-depth-continuation-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -38,6 +38,8 @@ SOURCE_PATHS = (
     "source/blender/editors/mesh/editmesh_select.cc",
     "source/blender/editors/screen/screendump.cc",
     "source/blender/editors/space_view3d/view3d_draw.cc",
+    "source/blender/editors/space_view3d/view3d_navigate.cc",
+    "source/blender/editors/space_view3d/view3d_navigate.hh",
     "source/blender/editors/space_view3d/view3d_select.cc",
     "source/blender/editors/space_view3d/view3d_view.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
@@ -159,6 +161,10 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
     view_select = sources["source/blender/editors/space_view3d/view3d_select.cc"]
     view_query = sources["source/blender/editors/space_view3d/view3d_view.cc"]
+    view_navigate = sources["source/blender/editors/space_view3d/view3d_navigate.cc"]
+    view_navigate_header = sources[
+        "source/blender/editors/space_view3d/view3d_navigate.hh"
+    ]
     eyedropper = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_color.cc"
     ]
@@ -1145,6 +1151,78 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "GPU_framebuffer_read_depth(" not in depth_eyedropper,
         "depth eyedropper retains synchronous viewport readback",
     )
+    for needle in (
+        "enum class ViewOpsDataInitResult",
+        "ViewOpsDepthRead *depth_read = nullptr;",
+        "const bool allow_async_depth = false);",
+    ):
+        require(needle in view_navigate_header, f"navigation continuation API missing {needle!r}")
+    navigation_pivot = braced_definition(
+        view_navigate,
+        "static eViewOpsFlag navigate_pivot_get(",
+        "ordinary navigation depth kick",
+    )
+    require_ordered(
+        navigation_pivot,
+        (
+            "allow_async_depth && event != nullptr && event->customdata == nullptr",
+            "ViewportDepthPickSession::ReadbackState::Pending",
+            "WM_event_timer_add(CTX_wm_manager(C), win, TIMER, 0.01f);",
+            "*r_pending = true;",
+            "ViewportDepthPickSession::ReadbackState::Ready",
+            "read->session.sample(region, r_pivot)",
+            "navigate_pivot_fallback(region, v3d, read, r_pivot);",
+            "ED_view3d_autodist(",
+        ),
+        "async ordinary navigation before pinned direct fallback",
+    )
+    navigation_init = braced_definition(
+        view_navigate,
+        "ViewOpsDataInitResult ViewOpsData::init_navigation(bContext *C,",
+        "ordinary navigation initialization barrier",
+    )
+    require_ordered(
+        navigation_init,
+        (
+            "const bool resume_async_depth =",
+            "if (!resume_async_depth)",
+            "this->state_backup();",
+            "navigate_pivot_get(",
+            "if (pivot_pending)",
+            "return ViewOpsDataInitResult::PendingDepth;",
+            "rv3d->rflag |= RV3D_NAVIGATING;",
+            "return ViewOpsDataInitResult::Ready;",
+        ),
+        "single stock initialization continuation",
+    )
+    navigation_modal = braced_definition(
+        view_navigate,
+        "static wmOperatorStatus view3d_navigation_depth_modal(",
+        "ordinary navigation modal continuation",
+    )
+    require_ordered(
+        navigation_modal,
+        (
+            "view3d_navigation_depth_context_matches(C, vod, read)",
+            "read->queued_event = *event;",
+            "constexpr int max_tick_count = 240;",
+            "read->session.state();",
+            "read->session.sample(vod->region, pivot)",
+            "read->resolved = true;",
+            "vod->init_navigation(",
+            "view3d_navigate_modal_fn(C, op, &queued_event)",
+        ),
+        "bounded navigation settle and replay",
+    )
+    navigation_utility = braced_definition(
+        view_navigate,
+        "bool ED_view3d_navigation_do(bContext *C,",
+        "embedded navigation utility",
+    )
+    require(
+        "depth_loc_override, false" in navigation_utility,
+        "embedded navigation utility can start an unowned depth continuation",
+    )
 
     return {
         "schema": 1,
@@ -1159,6 +1237,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "edit_mesh_gesture_continuation": True,
             "window_color_continuation": True,
             "depth_eyedropper_continuation": True,
+            "ordinary_navigation_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1359,6 +1438,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "ViewportDepthPickSession readback_session;",
             "int readback_session;",
             "depth eyedropper continuation",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_navigate.cc",
+            "read->queued_event = *event;",
+            "read->queued_event = {};",
+            "ordinary navigation continuation",
         ),
     )
     for relative, old, new, label in mutations:

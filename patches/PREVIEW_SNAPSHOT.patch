@@ -14205,6 +14205,534 @@ index e99b15152010953073bbda1f1d2dfa179561aebe..7186312b40995d497742f52fb23b4624
  
    ot->poll = ED_operator_region_view3d_active;
  
+diff --git a/source/blender/editors/space_view3d/view3d_navigate.cc b/source/blender/editors/space_view3d/view3d_navigate.cc
+index 23da52752d01e22d8de3c318da37fc44385bde11..761af405dd4a2b2de362ef6fde834ebbd24369a9 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate.cc
+@@ -1,9 +1,12 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup spview3d
++ *
++ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate.cc @ fbe6228777e7.
+  */
+ 
+ #include "DNA_curve_types.h"
+@@ -20,6 +23,7 @@
+ #include "BKE_layer.hh"
+ #include "BKE_object.hh"
+ #include "BKE_paint.hh"
++#include "BKE_report.hh"
+ #include "BKE_vfont.hh"
+ 
+ #include "DEG_depsgraph_query.hh"
+@@ -41,6 +45,22 @@ namespace blender {
+ /* Prototypes. */
+ static const ViewOpsType *view3d_navigation_type_from_idname(const char *idname);
+ 
++struct ViewOpsDepthRead {
++  ViewportDepthPickSession session;
++  wmEvent invoke_event = {};
++  wmEvent queued_event = {};
++  wmTimer *timer = nullptr;
++  wmWindow *window = nullptr;
++  bScreen *screen = nullptr;
++  eViewOpsFlag viewops_flag = VIEWOPS_FLAG_NONE;
++  float fallback_depth_point[3] = {0.0f, 0.0f, 0.0f};
++  float resolved_pivot[3] = {0.0f, 0.0f, 0.0f};
++  int tick_count = 0;
++  bool use_cursor_init = false;
++  bool queued_event_valid = false;
++  bool resolved = false;
++};
++
+ static eViewOpsFlag viewops_flag_from_prefs()
+ {
+   const bool use_select = (U.uiflag & USER_ORBIT_SELECTION) != 0;
+@@ -173,15 +193,48 @@ void ViewOpsData::state_restore()
+   ED_view3d_camera_lock_sync(this->depsgraph, this->v3d, this->rv3d);
+ }
+ 
++static void viewops_depth_read_free(bContext *C, ViewOpsData *vod)
++{
++  ViewOpsDepthRead *read = vod->depth_read;
++  if (read == nullptr) {
++    return;
++  }
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->window, read->timer);
++    read->timer = nullptr;
++  }
++  MEM_delete(read);
++  vod->depth_read = nullptr;
++}
++
++static void navigate_pivot_fallback(ARegion *region,
++                                    View3D *v3d,
++                                    const ViewOpsDepthRead *read,
++                                    float r_pivot[3])
++{
++  ED_view3d_win_to_3d_int(
++      v3d, region, read->fallback_depth_point, read->invoke_event.mval, r_pivot);
++}
++
+ static eViewOpsFlag navigate_pivot_get(bContext *C,
++                                       ViewOpsData *vod,
+                                        Depsgraph *depsgraph,
+                                        ARegion *region,
+                                        View3D *v3d,
+                                        const wmEvent *event,
+                                        eViewOpsFlag viewops_flag,
+                                        const float dyn_ofs_override[3],
+-                                       float r_pivot[3])
++                                       const bool allow_async_depth,
++                                       float r_pivot[3],
++                                       bool *r_pending)
+ {
++  *r_pending = false;
++
++  if (vod->depth_read != nullptr && vod->depth_read->resolved) {
++    copy_v3_v3(r_pivot, vod->depth_read->resolved_pivot);
++    return VIEWOPS_FLAG_DEPTH_NAVIGATE;
++  }
++
+   if ((viewops_flag & VIEWOPS_FLAG_ORBIT_SELECT) && view3d_orbit_calc_center(C, r_pivot)) {
+     return VIEWOPS_FLAG_ORBIT_SELECT;
+   }
+@@ -219,7 +272,42 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
+           depsgraph, region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, true, nullptr);
+     }
+ 
+-    const bool is_set = ED_view3d_autodist(region, v3d, event->mval, r_pivot, fallback_depth_pt);
++    if (allow_async_depth && event != nullptr && event->customdata == nullptr) {
++      ViewOpsDepthRead *read = MEM_new<ViewOpsDepthRead>(__func__);
++      read->invoke_event = *event;
++      read->invoke_event.next = nullptr;
++      read->invoke_event.prev = nullptr;
++      read->window = win;
++      read->screen = CTX_wm_screen(C);
++      copy_v3_v3(read->fallback_depth_point, fallback_depth_pt);
++
++      if (read->session.init(region, event->mval)) {
++        const ViewportDepthPickSession::ReadbackState state = read->session.state();
++        if (state == ViewportDepthPickSession::ReadbackState::Pending) {
++          read->timer = WM_event_timer_add(CTX_wm_manager(C), win, TIMER, 0.01f);
++          if (read->timer != nullptr) {
++            vod->depth_read = read;
++            *r_pending = true;
++            return VIEWOPS_FLAG_DEPTH_NAVIGATE;
++          }
++        }
++        else if (state == ViewportDepthPickSession::ReadbackState::Ready &&
++                 read->session.sample(region, r_pivot))
++        {
++          ED_view3d_autodist_last_set(win, event, r_pivot, true);
++          MEM_delete(read);
++          return VIEWOPS_FLAG_DEPTH_NAVIGATE;
++        }
++      }
++
++      navigate_pivot_fallback(region, v3d, read, r_pivot);
++      ED_view3d_autodist_last_set(win, event, r_pivot, true);
++      MEM_delete(read);
++      return VIEWOPS_FLAG_DEPTH_NAVIGATE;
++    }
++
++    const bool is_set = ED_view3d_autodist(
++        region, v3d, event->mval, r_pivot, fallback_depth_pt);
+ 
+     ED_view3d_autodist_last_set(win, event, r_pivot, is_set);
+   }
+@@ -227,59 +315,83 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
+   return VIEWOPS_FLAG_DEPTH_NAVIGATE;
+ }
+ 
+-void ViewOpsData::init_navigation(bContext *C,
+-                                  const wmEvent *event,
+-                                  const ViewOpsType *nav_type,
+-                                  const float dyn_ofs_override[3],
+-                                  const bool use_cursor_init)
++ViewOpsDataInitResult ViewOpsData::init_navigation(bContext *C,
++                                                   const wmEvent *event,
++                                                   const ViewOpsType *nav_type,
++                                                   const float dyn_ofs_override[3],
++                                                   const bool use_cursor_init,
++                                                   const bool allow_async_depth)
+ {
+   this->nav_type = nav_type;
++  const bool resume_async_depth = this->depth_read != nullptr && this->depth_read->resolved;
+   eViewOpsFlag viewops_flag = nav_type->flag & viewops_flag_from_prefs();
++  if (resume_async_depth) {
++    viewops_flag = this->depth_read->viewops_flag;
++  }
+   constexpr eViewOpsFlag viewops_flag_dynamic_ofs = VIEWOPS_FLAG_DEPTH_NAVIGATE |
+                                                     VIEWOPS_FLAG_ORBIT_SELECT;
+ 
+-  if (!use_cursor_init) {
++  if (!resume_async_depth && !use_cursor_init) {
+     viewops_flag &= ~(VIEWOPS_FLAG_DEPTH_NAVIGATE | VIEWOPS_FLAG_ZOOM_TO_MOUSE);
+   }
+ 
+-  bool calc_rv3d_dist = true;
++  if (!resume_async_depth) {
++    bool calc_rv3d_dist = true;
+ #ifdef WITH_INPUT_NDOF
+-  if (ELEM(nav_type,
+-           &ViewOpsType_ndof_orbit,
+-           &ViewOpsType_ndof_orbit_zoom,
+-           &ViewOpsType_ndof_pan,
+-           &ViewOpsType_ndof_all))
+-  {
+-    calc_rv3d_dist = false;
+-
+-    /* When using "Free" NDOF navigation, ignore "Orbit Around Selected" preference.
+-     * Logically it doesn't make sense to use the selection as a pivot when the first-person
+-     * navigation pivots from the view-point. This also interferes with zoom-speed,
+-     * causing zoom-speed scale based on the distance to the selection center, see: #115253. */
+-    if (U.ndof_navigation_mode == NDOF_NAVIGATION_MODE_FLY) {
+-      viewops_flag &= ~VIEWOPS_FLAG_ORBIT_SELECT;
++    if (ELEM(nav_type,
++             &ViewOpsType_ndof_orbit,
++             &ViewOpsType_ndof_orbit_zoom,
++             &ViewOpsType_ndof_pan,
++             &ViewOpsType_ndof_all))
++    {
++      calc_rv3d_dist = false;
++
++      /* When using "Free" NDOF navigation, ignore "Orbit Around Selected" preference.
++       * Logically it doesn't make sense to use the selection as a pivot when the first-person
++       * navigation pivots from the view-point. This also interferes with zoom-speed,
++       * causing zoom-speed scale based on the distance to the selection center, see: #115253. */
++      if (U.ndof_navigation_mode == NDOF_NAVIGATION_MODE_FLY) {
++        viewops_flag &= ~VIEWOPS_FLAG_ORBIT_SELECT;
++      }
+     }
+-  }
+ #endif
+ 
+-  /* Set the view from the camera, if view locking is enabled.
+-   * we may want to make this optional but for now its needed always. */
+-  ED_view3d_camera_lock_init_ex(depsgraph, v3d, rv3d, calc_rv3d_dist);
++    /* Set the view from the camera, if view locking is enabled.
++     * we may want to make this optional but for now its needed always. */
++    ED_view3d_camera_lock_init_ex(depsgraph, v3d, rv3d, calc_rv3d_dist);
+ 
+-  this->state_backup();
++    this->state_backup();
+ 
+-  if (viewops_flag & VIEWOPS_FLAG_PERSP_ENSURE) {
+-    if (ED_view3d_persp_ensure(depsgraph, this->v3d, this->region)) {
+-      /* If we're switching from camera view to the perspective one,
+-       * need to tag viewport update, so camera view and borders are properly updated. */
+-      ED_region_tag_redraw(this->region);
++    if (viewops_flag & VIEWOPS_FLAG_PERSP_ENSURE) {
++      if (ED_view3d_persp_ensure(depsgraph, this->v3d, this->region)) {
++        /* If we're switching from camera view to the perspective one,
++         * need to tag viewport update, so camera view and borders are properly updated. */
++        ED_region_tag_redraw(this->region);
++      }
+     }
+   }
+ 
+   if (viewops_flag & viewops_flag_dynamic_ofs) {
+     float pivot_new[3];
++    bool pivot_pending = false;
+     eViewOpsFlag pivot_type = navigate_pivot_get(
+-        C, depsgraph, region, v3d, event, viewops_flag, dyn_ofs_override, pivot_new);
++        C,
++        this,
++        depsgraph,
++        region,
++        v3d,
++        event,
++        viewops_flag,
++        dyn_ofs_override,
++        allow_async_depth,
++        pivot_new,
++        &pivot_pending);
++
++    if (pivot_pending) {
++      this->depth_read->viewops_flag = viewops_flag;
++      this->depth_read->use_cursor_init = use_cursor_init;
++      return ViewOpsDataInitResult::PendingDepth;
++    }
+ 
+     viewops_flag &= ~viewops_flag_dynamic_ofs;
+     viewops_flag |= pivot_type;
+@@ -387,10 +499,12 @@ void ViewOpsData::init_navigation(bContext *C,
+   this->use_dyn_ofs_ortho_correction = false;
+ 
+   rv3d->rflag |= RV3D_NAVIGATING;
++  return ViewOpsDataInitResult::Ready;
+ }
+ 
+ void ViewOpsData::end_navigation(bContext *C)
+ {
++  viewops_depth_read_free(C, this);
+   this->rv3d->rflag &= ~RV3D_NAVIGATING;
+ 
+   if (this->timer) {
+@@ -560,7 +674,8 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
+                                                          const wmEvent *event,
+                                                          PointerRNA *ptr,
+                                                          const ViewOpsType *nav_type,
+-                                                         const float dyn_ofs_override[3])
++                                                         const float dyn_ofs_override[3],
++                                                         const bool allow_async_depth)
+ {
+   if (!nav_type->init_fn) {
+     return OPERATOR_CANCELLED;
+@@ -571,7 +686,16 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
+     use_cursor_init = RNA_property_boolean_get(ptr, prop);
+   }
+ 
+-  vod->init_navigation(C, event, nav_type, dyn_ofs_override, use_cursor_init);
++  const ViewOpsDataInitResult init_result = vod->init_navigation(
++      C,
++      event,
++      nav_type,
++      dyn_ofs_override,
++      use_cursor_init,
++      allow_async_depth && dyn_ofs_override == nullptr);
++  if (init_result == ViewOpsDataInitResult::PendingDepth) {
++    return OPERATOR_RUNNING_MODAL;
++  }
+   ED_view3d_smooth_view_force_finish(C, vod->v3d, vod->region);
+ 
+   return nav_type->init_fn(C, vod, event, ptr);
+@@ -585,7 +709,7 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
+   ViewOpsData *vod = new ViewOpsData();
+   vod->init_context(C);
+   wmOperatorStatus ret = view3d_navigation_invoke_generic(
+-      C, vod, event, op->ptr, nav_type, nullptr);
++      C, vod, event, op->ptr, nav_type, nullptr, true);
+   op->customdata = static_cast<void *>(vod);
+ 
+   if (ret == OPERATOR_RUNNING_MODAL) {
+@@ -598,6 +722,112 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
+   return ret;
+ }
+ 
++static bool view3d_navigation_depth_context_matches(bContext *C,
++                                                    const ViewOpsData *vod,
++                                                    const ViewOpsDepthRead *read)
++{
++  return CTX_wm_window(C) == read->window && CTX_wm_screen(C) == read->screen &&
++         CTX_wm_area(C) == vod->area && CTX_wm_region(C) == vod->region &&
++         CTX_wm_view3d(C) == vod->v3d && CTX_wm_region_view3d(C) == vod->rv3d &&
++         vod->region->regiondata == vod->rv3d;
++}
++
++static wmOperatorStatus view3d_navigation_depth_cancel(bContext *C,
++                                                       wmOperator *op,
++                                                       ViewOpsData *vod)
++{
++  vod->state_restore();
++  viewops_data_free(C, vod);
++  op->customdata = nullptr;
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus view3d_navigation_depth_modal(bContext *C,
++                                                      wmOperator *op,
++                                                      const wmEvent *event)
++{
++  ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++  ViewOpsDepthRead *read = vod != nullptr ? vod->depth_read : nullptr;
++  if (read == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++
++  if (!view3d_navigation_depth_context_matches(C, vod, read)) {
++    BKE_report(op->reports, RPT_ERROR, "View changed while waiting for navigation depth");
++    return view3d_navigation_depth_cancel(C, op, vod);
++  }
++  if ((event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++      (event->type == EVT_MODAL_MAP && event->val == VIEW_MODAL_CANCEL))
++  {
++    return view3d_navigation_depth_cancel(C, op, vod);
++  }
++
++  if (event->type != TIMER || event->customdata != read->timer) {
++    if (event->customdata == nullptr) {
++      read->queued_event = *event;
++      read->queued_event.next = nullptr;
++      read->queued_event.prev = nullptr;
++      read->queued_event_valid = true;
++    }
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  /* Roughly 2.4 seconds at 10 ms. A lost completion must not move the view late. */
++  constexpr int max_tick_count = 240;
++  if (++read->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for navigation depth");
++    return view3d_navigation_depth_cancel(C, op, vod);
++  }
++
++  const ViewportDepthPickSession::ReadbackState state = read->session.state();
++  if (state == ViewportDepthPickSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Navigation depth readback failed");
++    return view3d_navigation_depth_cancel(C, op, vod);
++  }
++
++  float pivot[3];
++  if (!read->session.sample(vod->region, pivot)) {
++    if (read->session.state() == ViewportDepthPickSession::ReadbackState::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "View changed while resolving navigation depth");
++      return view3d_navigation_depth_cancel(C, op, vod);
++    }
++    navigate_pivot_fallback(vod->region, vod->v3d, read, pivot);
++  }
++  ED_view3d_autodist_last_set(read->window, &read->invoke_event, pivot, true);
++  copy_v3_v3(read->resolved_pivot, pivot);
++  read->resolved = true;
++
++  const wmEvent invoke_event = read->invoke_event;
++  const wmEvent queued_event = read->queued_event;
++  const bool queued_event_valid = read->queued_event_valid;
++  const ViewOpsType *nav_type = vod->nav_type;
++  const bool use_cursor_init = read->use_cursor_init;
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->window, read->timer);
++    read->timer = nullptr;
++  }
++
++  const ViewOpsDataInitResult init_result = vod->init_navigation(
++      C, &invoke_event, nav_type, nullptr, use_cursor_init, true);
++  BLI_assert(init_result == ViewOpsDataInitResult::Ready);
++  viewops_depth_read_free(C, vod);
++  ED_view3d_smooth_view_force_finish(C, vod->v3d, vod->region);
++
++  wmOperatorStatus ret = nav_type->init_fn(C, vod, &invoke_event, op->ptr);
++  if (ret != OPERATOR_RUNNING_MODAL) {
++    viewops_data_free(C, vod);
++    op->customdata = nullptr;
++    return ret;
++  }
++  if (queued_event_valid) {
++    return view3d_navigate_modal_fn(C, op, &queued_event);
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -629,6 +859,9 @@ bool view3d_zoom_or_dolly_or_rotation_poll(bContext *C)
+ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++  if (vod != nullptr && vod->depth_read != nullptr) {
++    return view3d_navigation_depth_modal(C, op, event);
++  }
+ 
+   const ViewOpsType *nav_type_prev = vod->nav_type;
+   const eV3D_OpEvent event_code = view3d_navigate_event(vod, event);
+@@ -636,7 +869,8 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+     wmOperatorType *ot_new = WM_operatortype_find(vod->nav_type->idname, false);
+     WM_operator_type_set(op, ot_new);
+     vod->end_navigation(C);
+-    return view3d_navigation_invoke_generic(C, vod, event, op->ptr, vod->nav_type, nullptr);
++    return view3d_navigation_invoke_generic(
++        C, vod, event, op->ptr, vod->nav_type, nullptr, true);
+   }
+ 
+   wmOperatorStatus ret = vod->nav_type->apply_fn(C, vod, event_code, event->xy);
+@@ -654,7 +888,11 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+ 
+ void view3d_navigate_cancel_fn(bContext *C, wmOperator *op)
+ {
+-  viewops_data_free(C, static_cast<ViewOpsData *>(op->customdata));
++  ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++  if (vod != nullptr && vod->depth_read != nullptr) {
++    vod->state_restore();
++  }
++  viewops_data_free(C, vod);
+   op->customdata = nullptr;
+ }
+ 
+@@ -1159,7 +1397,7 @@ bool ED_view3d_navigation_do(bContext *C,
+       }
+ 
+       op_return = view3d_navigation_invoke_generic(
+-          C, vod, event, kmi.ptr, nav_type, depth_loc_override);
++          C, vod, event, kmi.ptr, nav_type, depth_loc_override, false);
+ 
+       if (op_return == OPERATOR_RUNNING_MODAL) {
+         vod_intern->is_modal_event = true;
+diff --git a/source/blender/editors/space_view3d/view3d_navigate.hh b/source/blender/editors/space_view3d/view3d_navigate.hh
+index 32c56d8cef946e2484f1c0cbc2bedd9372fc089b..ed08bef34569b5ef3b6aef5fa9e91d5424a61f2c 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate.hh
++++ b/source/blender/editors/space_view3d/view3d_navigate.hh
+@@ -1,9 +1,12 @@
+ /* SPDX-FileCopyrightText: 2008 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup spview3d
++ *
++ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate.hh @ fbe6228777e7.
+  */
+ 
+ #pragma once
+@@ -34,6 +37,7 @@ struct Scene;
+ struct ScrArea;
+ struct View3D;
+ struct ViewOpsData;
++struct ViewOpsDepthRead;
+ struct bContext;
+ struct Object;
+ struct PointerRNA;
+@@ -67,6 +71,11 @@ enum eV3D_OpEvent {
+   VIEW_CANCEL,
+ };
+ 
++enum class ViewOpsDataInitResult {
++  Ready,
++  PendingDepth,
++};
++
+ /* NOTE: these defines are saved in keymap files, do not change values but just add new ones */
+ enum {
+   VIEW_MODAL_CANCEL = 0,  /* used for all view operations */
+@@ -124,6 +133,9 @@ struct ViewOpsData {
+   /** Needed for continuous zoom. */
+   wmTimer *timer;
+ 
++  /** Owned cursor-depth request while browser WebGPU yields to the WM loop. */
++  ViewOpsDepthRead *depth_read = nullptr;
++
+   /** Viewport state on initialization, don't change afterwards. */
+   struct {
+ 
+@@ -204,11 +216,12 @@ struct ViewOpsData {
+   void init_context(bContext *C);
+   void state_backup();
+   void state_restore();
+-  void init_navigation(bContext *C,
+-                       const wmEvent *event,
+-                       const ViewOpsType *nav_type,
+-                       const float dyn_ofs_override[3] = nullptr,
+-                       const bool use_cursor_init = false);
++  ViewOpsDataInitResult init_navigation(bContext *C,
++                                        const wmEvent *event,
++                                        const ViewOpsType *nav_type,
++                                        const float dyn_ofs_override[3] = nullptr,
++                                        const bool use_cursor_init = false,
++                                        const bool allow_async_depth = false);
+   void end_navigation(bContext *C);
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("ViewOpsData")
 diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
 index eb1e6738b024489556d07877e4f818303a7f9bd1..ef305b8804445c0ca976b976f552cefd2db92ec4 100644
 --- a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc

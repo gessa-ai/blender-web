@@ -1080,3 +1080,6 @@
 # 0258: retain the depth-eyedropper's producing viewport and accumulation action
 # across its owned progressive depth request without blocking the WM worker.
 0258-m5-depth-eyedropper-continuation.patch
+# 0259: retain ordinary mouse-navigation initialization and its latest event
+# across an owned progressive depth request without blocking the WM worker.
+0259-m5-navigation-depth-continuation.patch

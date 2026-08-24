@@ -166,7 +166,9 @@ then
   exit 1
 fi
 
-if [ "$(grep -Fc 'to_bytesize(format_, format)' "$RGB9E5_TEXTURE_SOURCE")" -ne 4 ] ||
+if [ "$(grep -Fc 'to_bytesize(format_, format)' "$RGB9E5_TEXTURE_SOURCE")" -ne 5 ] ||
+   [ "$(grep -Fc 'const size_t sample_size = to_bytesize(format_, format);' \
+       "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
    grep -Fq 'const size_t host_texel = size_t(to_component_len(format_)) * to_bytesize(format);' \
      "$RGB9E5_TEXTURE_SOURCE"
 then
@@ -233,10 +235,17 @@ fi
 if [ "$(grep -Fc 'inline bool framebuffer_read_layout(' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'inline bool framebuffer_read_extract(' "$COMMON_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'void read_sub(int mip, int layer,' "$TEXTURE_HEADER")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPUReadback *read_sub_async(int mip, int layer,' "$TEXTURE_HEADER")" -ne 1 ] ||
    [ "$(grep -Fc 'void WGPUTexture::read_sub(int mip,' "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'GPUReadback *WGPUTexture::read_sub_async(' \
+       "$RGB9E5_TEXTURE_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_read_layout(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    [ "$(grep -Fc 'framebuffer_read_extract(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
-   [ "$(grep -Fc 'wtex->read_sub(mip, layer, format, tmp.data());' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'plan.texture->read_sub(plan.mip, plan.layer, plan.format, source.data());' \
+       "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'plan.texture->read_sub_async(plan.mip, plan.layer, plan.format);' \
+       "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
+   [ "$(grep -Fc 'return gpu_readback_create_transform(' "$FRAMEBUFFER_SOURCE")" -ne 1 ] ||
    grep -Fq 'tex->read(0, format, tmp.data());' "$FRAMEBUFFER_SOURCE" ||
    grep -Fq 'tex->read_size_get(0, format)' "$FRAMEBUFFER_SOURCE"
 then

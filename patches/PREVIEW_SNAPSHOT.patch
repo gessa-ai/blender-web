@@ -11662,6 +11662,49 @@ index ebf0ae9c4b902b015dfd524adfcb1515559178c0..d96e23791c6de6c778de5736cc31fec2
        tests/shader_create_info_test.cc
        tests/shader_preprocess_test.cc
        tests/shader_test.cc
+diff --git a/source/blender/gpu/GPU_framebuffer.hh b/source/blender/gpu/GPU_framebuffer.hh
+index 12ef14e63c1d127fec66f537961c411526497ea7..9e832a825c7b18a6f2c79b5a4ca86e3aa3ef1acd 100644
+--- a/source/blender/gpu/GPU_framebuffer.hh
++++ b/source/blender/gpu/GPU_framebuffer.hh
+@@ -589,6 +589,17 @@ void GPU_framebuffer_read_depth(gpu::FrameBuffer *fb,
+                                 eGPUDataFormat data_format,
+                                 void *r_data);
+ 
++/**
++ * Owned, non-blocking counterpart to #GPU_framebuffer_read_depth. The request
++ * contains exactly `width * height` converted depth values.
++ */
++GPUReadback *GPU_framebuffer_read_depth_async(gpu::FrameBuffer *fb,
++                                              int x,
++                                              int y,
++                                              int width,
++                                              int height,
++                                              eGPUDataFormat data_format);
++
+ /**
+  * Read a region of a framebuffer color attachment and copy it to \a r_data .
+  * The pixel data will be converted to \a data_format but it needs to be compatible with the
+@@ -604,6 +615,20 @@ void GPU_framebuffer_read_color(gpu::FrameBuffer *fb,
+                                 eGPUDataFormat data_format,
+                                 void *r_data);
+ 
++/**
++ * Owned, non-blocking counterpart to #GPU_framebuffer_read_color. The request
++ * preserves the same region, channel extension, conversion, and row-order
++ * contract as the synchronous call.
++ */
++GPUReadback *GPU_framebuffer_read_color_async(gpu::FrameBuffer *fb,
++                                              int x,
++                                              int y,
++                                              int width,
++                                              int height,
++                                              int channels,
++                                              int slot,
++                                              eGPUDataFormat data_format);
++
+ /**
+  * Read the color of the window screen as it is currently displayed (so the previously rendered
+  * back-buffer).
 diff --git a/source/blender/gpu/GPU_platform_backend_enum.h b/source/blender/gpu/GPU_platform_backend_enum.h
 index 2e87ed9beb9637b66835677e9895a34e939ba600..f987cb2c83a42fe9104ad313201e8f64ad42b187 100644
 --- a/source/blender/gpu/GPU_platform_backend_enum.h
@@ -11994,10 +12037,68 @@ index f73af772d2cb06d4a7a618ef820b317f1be0c1ac..404ca7c2ffa4fb9cbd3b3393ff07a056
      case GPU_BACKEND_METAL:
        return GHOST_kDrawingContextTypeMetal;
 diff --git a/source/blender/gpu/intern/gpu_framebuffer.cc b/source/blender/gpu/intern/gpu_framebuffer.cc
-index b07405bdb4abbbce3e5e36c69cdc09d97ad8c749..14d5ab01615952d7cc855b71dc03da8b77321857 100644
+index b07405bdb4abbbce3e5e36c69cdc09d97ad8c749..032742accdd515160ad1c863bfe5c4c86cd6a07c 100644
 --- a/source/blender/gpu/intern/gpu_framebuffer.cc
 +++ b/source/blender/gpu/intern/gpu_framebuffer.cc
-@@ -124,6 +124,7 @@ void FrameBuffer::attachment_set(GPUAttachmentType type, const GPUAttachment &ne
+@@ -6,6 +6,10 @@
+  * \ingroup gpu
+  */
+ 
++#include <limits>
++#include <utility>
++#include <vector>
++
+ #include "MEM_guardedalloc.h"
+ 
+ #include "BLI_math_base.h"
+@@ -19,6 +23,7 @@
+ 
+ #include "gpu_backend.hh"
+ #include "gpu_context_private.hh"
++#include "gpu_readback_private.hh"
+ #include "gpu_texture_private.hh"
+ 
+ #include "gpu_framebuffer_private.hh"
+@@ -67,6 +72,38 @@ FrameBuffer::~FrameBuffer()
+ #endif
+ }
+ 
++GPUReadback *FrameBuffer::read_async(const GPUFrameBufferBits planes,
++                                     const eGPUDataFormat format,
++                                     const int area[4],
++                                     const int channel_len,
++                                     const int slot)
++{
++  const bool packed_format = ELEM(format,
++                                  GPU_DATA_UINT_24_8_DEPRECATED,
++                                  GPU_DATA_10_11_11_REV,
++                                  GPU_DATA_2_10_10_10_REV);
++  if (area == nullptr || area[2] <= 0 || area[3] <= 0 || channel_len < 1 || channel_len > 4 ||
++      (packed_format && channel_len != 1) ||
++      ((planes & GPU_COLOR_BIT) && (slot < 0 || slot >= GPU_FB_MAX_COLOR_ATTACHMENT)))
++  {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  const size_t component_size = to_bytesize(format);
++  const size_t width = size_t(area[2]);
++  const size_t height = size_t(area[3]);
++  if (component_size == 0 || width > std::numeric_limits<size_t>::max() / height) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  const size_t sample_count = width * height;
++  const size_t sample_size = size_t(channel_len) * component_size;
++  if (sample_count > std::numeric_limits<size_t>::max() / sample_size) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  std::vector<unsigned char> bytes(sample_count * sample_size);
++  read(planes, format, area, channel_len, slot, bytes.data());
++  return gpu_readback_create_ready(std::move(bytes));
++}
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -124,6 +161,7 @@ void FrameBuffer::attachment_set(GPUAttachmentType type, const GPUAttachment &ne
    }
  
    attachment = new_attachment;
@@ -12005,12 +12106,74 @@ index b07405bdb4abbbce3e5e36c69cdc09d97ad8c749..14d5ab01615952d7cc855b71dc03da8b
    dirty_attachments_ = true;
  }
  
+@@ -549,6 +587,16 @@ void GPU_framebuffer_read_depth(
+   fb->read(GPU_DEPTH_BIT, format, rect, 1, 1, data);
+ }
+ 
++GPUReadback *GPU_framebuffer_read_depth_async(
++    gpu::FrameBuffer *fb, int x, int y, int w, int h, eGPUDataFormat format)
++{
++  if (fb == nullptr) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  int rect[4] = {x, y, w, h};
++  return fb->read_async(GPU_DEPTH_BIT, format, rect, 1, 1);
++}
++
+ void GPU_framebuffer_read_color(gpu::FrameBuffer *fb,
+                                 int x,
+                                 int y,
+@@ -563,6 +611,22 @@ void GPU_framebuffer_read_color(gpu::FrameBuffer *fb,
+   fb->read(GPU_COLOR_BIT, format, rect, channels, slot, data);
+ }
+ 
++GPUReadback *GPU_framebuffer_read_color_async(gpu::FrameBuffer *fb,
++                                              int x,
++                                              int y,
++                                              int w,
++                                              int h,
++                                              int channels,
++                                              int slot,
++                                              eGPUDataFormat format)
++{
++  if (fb == nullptr) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  int rect[4] = {x, y, w, h};
++  return fb->read_async(GPU_COLOR_BIT, format, rect, channels, slot);
++}
++
+ void GPU_frontbuffer_read_color(
+     int x, int y, int w, int h, int channels, eGPUDataFormat format, void *data)
+ {
+diff --git a/source/blender/gpu/intern/gpu_framebuffer_private.hh b/source/blender/gpu/intern/gpu_framebuffer_private.hh
+index c31421795ea4bc7f4d4422b8322f771af0ef78d0..4a23907d361e068720e82a096b2cc1a97040733b 100644
+--- a/source/blender/gpu/intern/gpu_framebuffer_private.hh
++++ b/source/blender/gpu/intern/gpu_framebuffer_private.hh
+@@ -122,6 +122,17 @@ class FrameBuffer {
+                     int slot,
+                     void *r_data) = 0;
+ 
++  /**
++   * Owned counterpart to #read. The default backend implementation performs
++   * the established synchronous read into request-owned bytes; asynchronous
++   * backends override this without retaining a caller destination.
++   */
++  virtual GPUReadback *read_async(GPUFrameBufferBits planes,
++                                  eGPUDataFormat format,
++                                  const int area[4],
++                                  int channel_len,
++                                  int slot);
++
+   virtual void blit_to(GPUFrameBufferBits planes,
+                        int src_slot,
+                        FrameBuffer *dst,
 diff --git a/source/blender/gpu/intern/gpu_readback.cc b/source/blender/gpu/intern/gpu_readback.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9e73f778d876bec269fe49cd1ea57750767d0ca6
+index 0000000000000000000000000000000000000000..be5eb114de7570905433622df4fb169bb3bcc126
 --- /dev/null
 +++ b/source/blender/gpu/intern/gpu_readback.cc
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,223 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later */
@@ -12073,6 +12236,108 @@ index 0000000000000000000000000000000000000000..9e73f778d876bec269fe49cd1ea57750
 +  }
 +};
 +
++class TransformReadback final : public GPUReadback {
++ private:
++  GPUReadback *source_ = nullptr;
++  size_t source_size_ = 0;
++  size_t final_size_ = 0;
++  GPUReadbackTransform transform_;
++  eGPUReadbackStatus status_ = GPU_READBACK_PENDING;
++  eGPUReadbackError error_ = GPU_READBACK_ERROR_NONE;
++  std::vector<unsigned char> bytes_;
++
++  void fail(const eGPUReadbackError error)
++  {
++    error_ = error;
++    status_ = GPU_READBACK_FAILED;
++    GPU_readback_cancel(source_);
++    bytes_.clear();
++  }
++
++  void refresh()
++  {
++    if (status_ != GPU_READBACK_PENDING) {
++      return;
++    }
++    const eGPUReadbackStatus source_status = GPU_readback_status(source_);
++    if (source_status == GPU_READBACK_PENDING) {
++      return;
++    }
++    if (source_status != GPU_READBACK_READY) {
++      const eGPUReadbackError source_error = GPU_readback_error(source_);
++      fail(source_error == GPU_READBACK_ERROR_NONE ? GPU_READBACK_ERROR_BACKEND_FAILURE :
++                                                    source_error);
++      return;
++    }
++    if (GPU_readback_size(source_) != source_size_) {
++      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++      return;
++    }
++
++    std::vector<unsigned char> source_bytes(source_size_);
++    if (!GPU_readback_consume(source_, source_bytes.data(), source_bytes.size())) {
++      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++      return;
++    }
++    bytes_.resize(final_size_);
++    if (!transform_(source_bytes.data(),
++                    source_bytes.size(),
++                    bytes_.data(),
++                    bytes_.size()))
++    {
++      fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++      return;
++    }
++    status_ = GPU_READBACK_READY;
++  }
++
++ public:
++  TransformReadback(GPUReadback *source,
++                    const size_t source_size,
++                    const size_t final_size,
++                    GPUReadbackTransform transform)
++      : source_(source),
++        source_size_(source_size),
++        final_size_(final_size),
++        transform_(std::move(transform))
++  {
++  }
++
++  ~TransformReadback() override
++  {
++    GPU_readback_cancel(source_);
++  }
++
++  eGPUReadbackStatus status() override
++  {
++    refresh();
++    return status_;
++  }
++
++  eGPUReadbackError error() override
++  {
++    refresh();
++    return error_;
++  }
++
++  size_t size() override
++  {
++    return final_size_;
++  }
++
++  bool consume(void *dst, const size_t dst_len) override
++  {
++    refresh();
++    if (status_ != GPU_READBACK_READY || dst == nullptr || dst_len < final_size_) {
++      return false;
++    }
++    if (!bytes_.empty()) {
++      std::memcpy(dst, bytes_.data(), bytes_.size());
++    }
++    return true;
++  }
++};
++
 +}  // namespace
 +
 +GPUReadback *gpu_readback_create_ready(std::vector<unsigned char> &&bytes)
@@ -12083,6 +12348,19 @@ index 0000000000000000000000000000000000000000..9e73f778d876bec269fe49cd1ea57750
 +GPUReadback *gpu_readback_create_failed(const eGPUReadbackError error, const size_t final_size)
 +{
 +  return MEM_new<ImmediateReadback>(__func__, error, final_size);
++}
++
++GPUReadback *gpu_readback_create_transform(GPUReadback *source,
++                                           const size_t source_size,
++                                           const size_t final_size,
++                                           GPUReadbackTransform transform)
++{
++  if (source == nullptr || !transform) {
++    GPU_readback_cancel(source);
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT, final_size);
++  }
++  return MEM_new<TransformReadback>(
++      __func__, source, source_size, final_size, std::move(transform));
 +}
 +
 +eGPUReadbackStatus GPU_readback_status(GPUReadback *readback)
@@ -12121,10 +12399,10 @@ index 0000000000000000000000000000000000000000..9e73f778d876bec269fe49cd1ea57750
 +}  // namespace blender
 diff --git a/source/blender/gpu/intern/gpu_readback_private.hh b/source/blender/gpu/intern/gpu_readback_private.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..4a2fd0f6a02f949b724c5e09166e3a434cfd2cc5
+index 0000000000000000000000000000000000000000..697908fbd5f33fab28e5cb1c4eb27cb89dfdb32a
 --- /dev/null
 +++ b/source/blender/gpu/intern/gpu_readback_private.hh
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,43 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later */
@@ -12132,6 +12410,7 @@ index 0000000000000000000000000000000000000000..4a2fd0f6a02f949b724c5e09166e3a43
 +#pragma once
 +
 +#include <cstddef>
++#include <functional>
 +#include <vector>
 +
 +#include "GPU_readback.hh"
@@ -12149,6 +12428,22 @@ index 0000000000000000000000000000000000000000..4a2fd0f6a02f949b724c5e09166e3a43
 +
 +GPUReadback *gpu_readback_create_ready(std::vector<unsigned char> &&bytes);
 +GPUReadback *gpu_readback_create_failed(eGPUReadbackError error, size_t final_size = 0);
++
++using GPUReadbackTransform =
++    std::function<bool(const unsigned char *source,
++                       size_t source_size,
++                       unsigned char *destination,
++                       size_t destination_size)>;
++
++/**
++ * Own `source` and expose a transformed result without retaining caller memory.
++ * The transform runs exactly once after the source becomes ready. Canceling or
++ * destroying the returned request also cancels the source request.
++ */
++GPUReadback *gpu_readback_create_transform(GPUReadback *source,
++                                           size_t source_size,
++                                           size_t final_size,
++                                           GPUReadbackTransform transform);
 +
 +}  // namespace blender
 diff --git a/source/blender/gpu/intern/gpu_select_next.cc b/source/blender/gpu/intern/gpu_select_next.cc
@@ -14376,21 +14671,24 @@ index 0000000000000000000000000000000000000000..42c2e47df5098b6cf4198ff30f8541db
 +}  // namespace blender::gpu::tests
 diff --git a/source/blender/gpu/tests/readback_test.cc b/source/blender/gpu/tests/readback_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..de72223fda97a341b86b8af347ef8873269baa9f
+index 0000000000000000000000000000000000000000..a4e2df709e66e9c2a09cf105e8405453097c4e5e
 --- /dev/null
 +++ b/source/blender/gpu/tests/readback_test.cc
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,253 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: Apache-2.0 */
++
++#include <array>
 +
 +#include "gpu_testing.hh"
 +
 +#include "BLI_math_vector_types.hh"
 +#include "BLI_rect.h"
 +
-+#include "GPU_readback.hh"
 +#include "GPU_context.hh"
++#include "GPU_framebuffer.hh"
++#include "GPU_readback.hh"
 +#include "GPU_state.hh"
 +#include "GPU_storage_buffer.hh"
 +#include "GPU_texture.hh"
@@ -14462,6 +14760,64 @@ index 0000000000000000000000000000000000000000..de72223fda97a341b86b8af347ef8873
 +  GPU_render_end();
 +}
 +GPU_TEST(texture_readback_owned_result)
++
++static void test_framebuffer_readback_owned_region()
++{
++  GPU_render_begin();
++
++  constexpr int width = 4;
++  constexpr int height = 3;
++  const uchar4 clear_value(17, 34, 51, 68);
++  Texture *texture = GPU_texture_create_2d("owned-framebuffer-readback",
++                                           width,
++                                           height,
++                                           1,
++                                           TextureFormat::UNORM_8_8_8_8,
++                                           GPU_TEXTURE_USAGE_ATTACHMENT |
++                                               GPU_TEXTURE_USAGE_HOST_READ,
++                                           nullptr);
++  ASSERT_NE(texture, nullptr);
++  GPU_texture_clear(texture, GPU_DATA_UBYTE, clear_value);
++  GPU_memory_barrier(GPU_BARRIER_TEXTURE_UPDATE);
++
++  FrameBuffer *framebuffer = nullptr;
++  GPU_framebuffer_ensure_config(
++      &framebuffer, {GPU_ATTACHMENT_NONE, GPU_ATTACHMENT_TEXTURE(texture)});
++  ASSERT_NE(framebuffer, nullptr);
++  GPU_framebuffer_bind(framebuffer);
++  GPUReadback *readback = GPU_framebuffer_read_color_async(
++      framebuffer, 1, 1, 2, 1, 3, 0, GPU_DATA_UBYTE);
++  ASSERT_NE(readback, nullptr);
++  EXPECT_EQ(GPU_readback_size(readback), 6u);
++#ifdef __EMSCRIPTEN__
++  EXPECT_EQ(GPU_readback_status(readback), GPU_READBACK_PENDING);
++  EXPECT_EQ(GPU_readback_error(readback), GPU_READBACK_ERROR_NONE);
++  GPU_framebuffer_restore();
++  GPU_framebuffer_free(framebuffer);
++  GPU_texture_free(texture);
++  GPU_readback_cancel(readback);
++  EXPECT_EQ(readback, nullptr);
++#else
++  EXPECT_EQ(GPU_readback_status(readback), GPU_READBACK_READY);
++  EXPECT_EQ(GPU_readback_error(readback), GPU_READBACK_ERROR_NONE);
++  GPU_framebuffer_restore();
++  GPU_framebuffer_free(framebuffer);
++  GPU_texture_free(texture);
++
++  std::array<unsigned char, 6> actual = {};
++  EXPECT_TRUE(GPU_readback_consume(readback, actual.data(), actual.size()));
++  EXPECT_EQ(readback, nullptr);
++  EXPECT_EQ(actual, (std::array<unsigned char, 6>{17, 34, 51, 17, 34, 51}));
++#endif
++
++  GPUReadback *invalid = GPU_framebuffer_read_color_async(
++      nullptr, 0, 0, 1, 1, 4, 0, GPU_DATA_UBYTE);
++  EXPECT_EQ(GPU_readback_status(invalid), GPU_READBACK_FAILED);
++  EXPECT_EQ(GPU_readback_error(invalid), GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  GPU_readback_cancel(invalid);
++  GPU_render_end();
++}
++GPU_TEST(framebuffer_readback_owned_region)
 +
 +static void test_storage_buffer_readback_owned_result()
 +{
@@ -24266,10 +24622,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d606194157f
+index 0000000000000000000000000000000000000000..46cfad58caf257e421fcd030d73b2d73898c59f4
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1862 @@
+@@ -0,0 +1,1947 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -24292,10 +24648,12 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +
 +#include "GPU_context.hh"
 +#include "gpu_context_private.hh"
++#include "gpu_readback_private.hh"
 +
 +#include "BLI_math_vector_types.hh"
 +
 +#include <algorithm>
++#include <array>
 +#include <atomic>
 +#include <cmath>
 +#include <cstring>
@@ -25455,19 +25813,24 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +                                                 draw_viewport);
 +}
 +
-+void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
-+                           eGPUDataFormat format,
-+                           const int area[4],
-+                           int channel_len,
-+                           int slot,
-+                           void *r_data)
++struct WGPUFramebufferReadPlan {
++  webgpu::WGPUTexture *texture = nullptr;
++  int mip = 0;
++  int layer = 0;
++  eGPUDataFormat format = GPU_DATA_FLOAT;
++  webgpu::FramebufferReadLayout layout;
++  std::array<uint8_t, 4> one_component = {};
++};
++
++static bool create_framebuffer_read_plan(const GPUAttachment &attachment,
++                                         const eGPUDataFormat format,
++                                         const int area[4],
++                                         const int channel_len,
++                                         WGPUFramebufferReadPlan &r_plan)
 +{
-+  const GPUAttachment &attachment = (planes & GPU_COLOR_BIT) ?
-+                                        attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot] :
-+                                        depth_attachment();
 +  Texture *tex = attachment.tex;
-+  if (tex == nullptr || r_data == nullptr) {
-+    return;
++  if (tex == nullptr || area == nullptr) {
++    return false;
 +  }
 +  const int x = area[0], y = area[1], w = area[2], h = area[3];
 +  const int mip = std::max(attachment.mip, 0);
@@ -25475,7 +25838,7 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +  webgpu::WGPUTexture *wtex = as_wgpu(tex);
 +  webgpu::WGPUTexture::ResolvedReadRegion region;
 +  if (!wtex->resolve_subresource(mip, layer, region)) {
-+    return;
++    return false;
 +  }
 +
 +  const bool packed_format = ELEM(format,
@@ -25483,7 +25846,7 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +                                  GPU_DATA_10_11_11_REV,
 +                                  GPU_DATA_2_10_10_10_REV);
 +  if (channel_len < 1 || channel_len > 4 || (packed_format && channel_len != 1)) {
-+    return;
++    return false;
 +  }
 +  const uint32_t source_components = packed_format ? 1u :
 +                                                     uint32_t(to_component_len(tex->format_get()));
@@ -25501,9 +25864,54 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +                                       component_bytes,
 +                                       layout))
 +  {
-+    return;
++    return false;
 +  }
 +
++  r_plan = {};
++  r_plan.texture = wtex;
++  r_plan.mip = mip;
++  r_plan.layer = layer;
++  r_plan.format = format;
++  r_plan.layout = layout;
++
++  switch (format) {
++    case GPU_DATA_UBYTE:
++      r_plan.one_component[0] = 0xff;
++      break;
++    case GPU_DATA_HALF_FLOAT: {
++      const uint16_t one = 0x3c00;
++      std::memcpy(r_plan.one_component.data(), &one, sizeof(one));
++      break;
++    }
++    case GPU_DATA_FLOAT: {
++      const float one = 1.0f;
++      std::memcpy(r_plan.one_component.data(), &one, sizeof(one));
++      break;
++    }
++    case GPU_DATA_INT: {
++      const int32_t one = 1;
++      std::memcpy(r_plan.one_component.data(), &one, sizeof(one));
++      break;
++    }
++    case GPU_DATA_UINT:
++    case GPU_DATA_UINT_24_8_DEPRECATED:
++    case GPU_DATA_10_11_11_REV:
++    case GPU_DATA_2_10_10_10_REV: {
++      const uint32_t one = 1;
++      std::memcpy(r_plan.one_component.data(), &one, sizeof(one));
++      break;
++    }
++  }
++  return true;
++}
++
++static bool extract_read_result(const webgpu::FramebufferReadLayout &layout,
++                                const std::array<uint8_t, 4> &one_component,
++                                const unsigned char *source,
++                                const size_t source_size,
++                                unsigned char *destination,
++                                const size_t destination_size)
++{
 +  /* ADR-005 decision 3 (render-target readback row-flip). WebGPU stores the rendered
 +   * texture top-down (row 0 = top); lane A's vertex-shader clip-space Y-flip (decision
 +   * 1) additionally mirrors the geometry vertically. To return GL-convention bottom-up
@@ -25512,44 +25920,77 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +   * upload->read, no render pass) stays symmetric and is NOT flipped, so the texture_*
 +   * suite is untouched. `y` (area origin) is in GL bottom-up coordinates: after the
 +   * whole attachment is flipped to bottom-up, cropping [y, y+h) is a direct copy. */
-+  std::vector<uint8_t> tmp(layout.source_data_size);
-+  wtex->read_sub(mip, layer, format, tmp.data());
++  return webgpu::framebuffer_read_extract(source,
++                                          source_size,
++                                          destination,
++                                          destination_size,
++                                          one_component.data(),
++                                          layout);
++}
 +
-+  uint8_t one_component[4] = {};
-+  switch (format) {
-+    case GPU_DATA_UBYTE:
-+      one_component[0] = 0xff;
-+      break;
-+    case GPU_DATA_HALF_FLOAT: {
-+      const uint16_t one = 0x3c00;
-+      std::memcpy(one_component, &one, sizeof(one));
-+      break;
-+    }
-+    case GPU_DATA_FLOAT: {
-+      const float one = 1.0f;
-+      std::memcpy(one_component, &one, sizeof(one));
-+      break;
-+    }
-+    case GPU_DATA_INT: {
-+      const int32_t one = 1;
-+      std::memcpy(one_component, &one, sizeof(one));
-+      break;
-+    }
-+    case GPU_DATA_UINT:
-+    case GPU_DATA_UINT_24_8_DEPRECATED:
-+    case GPU_DATA_10_11_11_REV:
-+    case GPU_DATA_2_10_10_10_REV: {
-+      const uint32_t one = 1;
-+      std::memcpy(one_component, &one, sizeof(one));
-+      break;
-+    }
++void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
++                           eGPUDataFormat format,
++                           const int area[4],
++                           int channel_len,
++                           int slot,
++                           void *r_data)
++{
++  if ((planes & GPU_COLOR_BIT) && (slot < 0 || slot >= GPU_FB_MAX_COLOR_ATTACHMENT)) {
++    return;
 +  }
-+  webgpu::framebuffer_read_extract(tmp.data(),
-+                                   tmp.size(),
-+                                   static_cast<uint8_t *>(r_data),
-+                                   layout.destination_data_size,
++  const GPUAttachment &attachment = (planes & GPU_COLOR_BIT) ?
++                                        attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot] :
++                                        depth_attachment();
++  WGPUFramebufferReadPlan plan;
++  if (r_data == nullptr ||
++      !create_framebuffer_read_plan(attachment, format, area, channel_len, plan))
++  {
++    return;
++  }
++  std::vector<uint8_t> source(plan.layout.source_data_size);
++  plan.texture->read_sub(plan.mip, plan.layer, plan.format, source.data());
++  extract_read_result(plan.layout,
++                      plan.one_component,
++                      source.data(),
++                      source.size(),
++                      static_cast<unsigned char *>(r_data),
++                      plan.layout.destination_data_size);
++}
++
++GPUReadback *WGPUFrameBuffer::read_async(GPUFrameBufferBits planes,
++                                         eGPUDataFormat format,
++                                         const int area[4],
++                                         int channel_len,
++                                         int slot)
++{
++  if ((planes & GPU_COLOR_BIT) && (slot < 0 || slot >= GPU_FB_MAX_COLOR_ATTACHMENT)) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  const GPUAttachment &attachment = (planes & GPU_COLOR_BIT) ?
++                                        attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot] :
++                                        depth_attachment();
++  WGPUFramebufferReadPlan plan;
++  if (!create_framebuffer_read_plan(attachment, format, area, channel_len, plan)) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  GPUReadback *source = plan.texture->read_sub_async(plan.mip, plan.layer, plan.format);
++  const webgpu::FramebufferReadLayout layout = plan.layout;
++  const std::array<uint8_t, 4> one_component = plan.one_component;
++  return gpu_readback_create_transform(
++      source,
++      layout.source_data_size,
++      layout.destination_data_size,
++      [layout, one_component](const unsigned char *source_bytes,
++                              const size_t source_size,
++                              unsigned char *destination,
++                              const size_t destination_size) {
++        return extract_read_result(layout,
 +                                   one_component,
-+                                   layout);
++                                   source_bytes,
++                                   source_size,
++                                   destination,
++                                   destination_size);
++      });
 +}
 +
 +void WGPUFrameBuffer::blit_to(GPUFrameBufferBits planes,
@@ -26134,10 +26575,10 @@ index 0000000000000000000000000000000000000000..60ee4d6f4e53a98acf960c20dea24d60
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..7ad05d877b3229fb2d6b7c2d71084bb2561ac244
+index 0000000000000000000000000000000000000000..1edac01565ad6c4fd317bdb485a3507533068d57
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,217 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -26202,6 +26643,11 @@ index 0000000000000000000000000000000000000000..7ad05d877b3229fb2d6b7c2d71084bb2
 +            int channel_len,
 +            int slot,
 +            void *r_data) override;
++  GPUReadback *read_async(GPUFrameBufferBits planes,
++                          eGPUDataFormat format,
++                          const int area[4],
++                          int channel_len,
++                          int slot) override;
 +
 +  void blit_to(GPUFrameBufferBits planes,
 +               int src_slot,
@@ -34857,10 +35303,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..78cc643494dfc8098a09bf920b2587060021a4f4
+index 0000000000000000000000000000000000000000..8564227e4883ae8d81462e2f2b170b3e840bcc88
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2774 @@
+@@ -0,0 +1,2805 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -34902,6 +35348,7 @@ index 0000000000000000000000000000000000000000..78cc643494dfc8098a09bf920b258706
 +#include <cstring>
 +#include <limits>
 +#include <string>
++#include <utility>
 +#include <vector>
 +
 +#include "MEM_guardedalloc.h"
@@ -37134,13 +37581,43 @@ index 0000000000000000000000000000000000000000..78cc643494dfc8098a09bf920b258706
 +
 +GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
 +{
++  return read_sub_async(mip, -1, format);
++}
++
++GPUReadback *WGPUTexture::read_sub_async(const int mip,
++                                        const int layer,
++                                        const eGPUDataFormat format)
++{
 +#ifndef __EMSCRIPTEN__
 +  /* Native backends can block safely and retain the established synchronous
 +   * conversion path. The browser path below is the no-wait exact ticket path. */
-+  return Texture::read_async(mip, format);
++  if (layer < 0) {
++    return Texture::read_async(mip, format);
++  }
++  ResolvedReadRegion resolved;
++  if (!resolve_read_region(mip, layer, resolved)) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  const size_t sample_size = to_bytesize(format_, format);
++  size_t sample_count = size_t(resolved.width);
++  if (resolved.height != 0 && sample_count > std::numeric_limits<size_t>::max() / resolved.height)
++  {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  sample_count *= resolved.height;
++  if (resolved.depth != 0 && sample_count > std::numeric_limits<size_t>::max() / resolved.depth) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  sample_count *= resolved.depth;
++  if (sample_size == 0 || sample_count > std::numeric_limits<size_t>::max() / sample_size) {
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
++  }
++  std::vector<unsigned char> bytes(sample_count * sample_size);
++  read_sub(mip, layer, format, bytes.data());
++  return gpu_readback_create_ready(std::move(bytes));
 +#else
 +  ResolvedReadRegion resolved;
-+  if (!resolve_read_region(mip, resolved)) {
++  if (!resolve_read_region(mip, layer, resolved)) {
 +    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
 +  }
 +  const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
@@ -37637,10 +38114,10 @@ index 0000000000000000000000000000000000000000..78cc643494dfc8098a09bf920b258706
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..b8d15f1967254804448647ce1ef1fed9ee8c3287
+index 0000000000000000000000000000000000000000..51b4fcea3c3e85b918f271660019c1e007f25c87
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.hh
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,241 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37762,6 +38239,8 @@ index 0000000000000000000000000000000000000000..b8d15f1967254804448647ce1ef1fed9
 +  /** Read one relative mip and one relative layer/depth slice. */
 +  void read_sub(int mip, int layer, eGPUDataFormat format, void *data);
 +  GPUReadback *read_async(int mip, eGPUDataFormat format) override;
++  /** Owned counterpart to #read_sub for framebuffer attachment regions. */
++  GPUReadback *read_sub_async(int mip, int layer, eGPUDataFormat format);
 +
 +  /** Resolve this texture or nested texture view to the backing WebGPU texture and
 +   * absolute mip/layer copy region. */

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Fail-closed source census for the owned readback and object-pick continuation."""
+"""Fail-closed source census for owned GPU and framebuffer readback continuations."""
 
 from __future__ import annotations
 
@@ -13,19 +13,25 @@ from pathlib import Path
 
 
 SOURCE_PATHS = (
+    "source/blender/gpu/GPU_framebuffer.hh",
     "source/blender/gpu/GPU_readback.hh",
     "source/blender/gpu/GPU_select.hh",
     "source/blender/gpu/GPU_storage_buffer.hh",
     "source/blender/gpu/GPU_texture.hh",
     "source/blender/gpu/CMakeLists.txt",
+    "source/blender/gpu/intern/gpu_framebuffer.cc",
+    "source/blender/gpu/intern/gpu_framebuffer_private.hh",
     "source/blender/gpu/intern/gpu_readback.cc",
     "source/blender/gpu/intern/gpu_readback_private.hh",
     "source/blender/gpu/intern/gpu_select_next.cc",
     "source/blender/gpu/intern/gpu_storage_buffer.cc",
     "source/blender/gpu/intern/gpu_texture.cc",
     "source/blender/gpu/tests/readback_test.cc",
+    "source/blender/gpu/webgpu/wgpu_framebuffer.cc",
+    "source/blender/gpu/webgpu/wgpu_framebuffer.hh",
     "source/blender/gpu/webgpu/wgpu_storage_buffer.cc",
     "source/blender/gpu/webgpu/wgpu_texture.cc",
+    "source/blender/gpu/webgpu/wgpu_texture.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
     "source/blender/editors/screen/screendump.cc",
@@ -122,6 +128,11 @@ def source_digest(sources: dict[str, str]) -> str:
 
 
 def validate(sources: dict[str, str]) -> dict[str, object]:
+    framebuffer_header = sources["source/blender/gpu/GPU_framebuffer.hh"]
+    framebuffer_private = sources["source/blender/gpu/intern/gpu_framebuffer_private.hh"]
+    framebuffer_frontend = sources["source/blender/gpu/intern/gpu_framebuffer.cc"]
+    framebuffer_backend_header = sources["source/blender/gpu/webgpu/wgpu_framebuffer.hh"]
+    framebuffer_backend = sources["source/blender/gpu/webgpu/wgpu_framebuffer.cc"]
     readback_header = sources["source/blender/gpu/GPU_readback.hh"]
     readback_private = sources["source/blender/gpu/intern/gpu_readback_private.hh"]
     readback_impl = sources["source/blender/gpu/intern/gpu_readback.cc"]
@@ -130,6 +141,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     texture_frontend = sources["source/blender/gpu/intern/gpu_texture.cc"]
     storage_frontend = sources["source/blender/gpu/intern/gpu_storage_buffer.cc"]
     texture_backend = sources["source/blender/gpu/webgpu/wgpu_texture.cc"]
+    texture_backend_header = sources["source/blender/gpu/webgpu/wgpu_texture.hh"]
     storage_backend = sources["source/blender/gpu/webgpu/wgpu_storage_buffer.cc"]
     select_state = sources["source/blender/gpu/intern/gpu_select_next.cc"]
     select_api = sources["source/blender/gpu/GPU_select.hh"]
@@ -156,8 +168,82 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "virtual bool consume(void *dst, size_t dst_len) = 0;",
         "gpu_readback_create_ready",
         "gpu_readback_create_failed",
+        "gpu_readback_create_transform",
+        "GPUReadbackTransform transform",
     ):
         require(needle in readback_private, f"owned result interface missing {needle!r}")
+
+    transform_body = braced_definition(
+        readback_impl,
+        "GPUReadback *gpu_readback_create_transform(",
+        "owned transform factory",
+    )
+    require_ordered(
+        transform_body,
+        (
+            "source == nullptr || !transform",
+            "GPU_readback_cancel(source);",
+            "gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT",
+            "MEM_new<TransformReadback>",
+        ),
+        "owned transform factory",
+    )
+    for needle in (
+        "GPU_readback_status(source_)",
+        "GPU_readback_size(source_) != source_size_",
+        "GPU_readback_consume(source_, source_bytes.data(), source_bytes.size())",
+        "transform_(source_bytes.data()",
+        "GPU_readback_cancel(source_);",
+    ):
+        require(needle in readback_impl, f"owned transform missing {needle!r}")
+
+    for needle in (
+        "GPUReadback *GPU_framebuffer_read_depth_async(",
+        "GPUReadback *GPU_framebuffer_read_color_async(",
+    ):
+        require(needle in framebuffer_header, f"framebuffer async API missing {needle!r}")
+        require(needle in framebuffer_frontend, f"framebuffer async frontend missing {needle!r}")
+    for needle in (
+        "virtual GPUReadback *read_async(GPUFrameBufferBits planes",
+        "GPUReadback *FrameBuffer::read_async(",
+        "return fb->read_async(GPU_DEPTH_BIT, format, rect, 1, 1);",
+        "return fb->read_async(GPU_COLOR_BIT, format, rect, channels, slot);",
+    ):
+        require(
+            needle in framebuffer_private or needle in framebuffer_frontend,
+            f"framebuffer owned path missing {needle!r}",
+        )
+    for needle in (
+        "GPUReadback *read_async(GPUFrameBufferBits planes",
+        "GPUReadback *WGPUFrameBuffer::read_async(",
+        "plan.texture->read_sub_async(plan.mip, plan.layer, plan.format)",
+        "gpu_readback_create_transform(",
+        "return extract_read_result(layout",
+    ):
+        require(
+            needle in framebuffer_backend_header or needle in framebuffer_backend,
+            f"WebGPU framebuffer owned path missing {needle!r}",
+        )
+    require(
+        "GPUReadback *read_sub_async(int mip, int layer, eGPUDataFormat format);"
+        in texture_backend_header,
+        "WebGPU texture subresource async API missing",
+    )
+    require_ordered(
+        braced_definition(
+            texture_backend,
+            "GPUReadback *WGPUTexture::read_async(",
+            "WebGPU texture async delegate",
+        ),
+        ("return read_sub_async(mip, -1, format);",),
+        "WebGPU texture async delegate",
+    )
+    for needle in (
+        "GPUReadback *WGPUTexture::read_sub_async(",
+        "resolve_read_region(mip, layer, resolved)",
+        "readback::RequestMode::Exact",
+    ):
+        require(needle in texture_backend, f"WebGPU subresource ticket missing {needle!r}")
 
     consume_body = braced_definition(
         readback_impl, "bool GPU_readback_consume(", "owned consume"
@@ -215,11 +301,13 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     )
 
     texture_backend_body = braced_definition(
-        texture_backend, "GPUReadback *WGPUTexture::read_async(", "texture backend"
+        texture_backend, "GPUReadback *WGPUTexture::read_sub_async(", "texture backend"
     )
     for needle in (
         "#ifndef __EMSCRIPTEN__",
+        "if (layer < 0)",
         "return Texture::read_async(mip, format);",
+        "resolve_read_region(mip, layer, resolved)",
         "readback::RequestMode::Exact",
         "ticket == readback::kInvalidTicket",
         "GPU_READBACK_ERROR_CAPACITY_EXCEEDED",
@@ -375,8 +463,10 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     readback_test = sources["source/blender/gpu/tests/readback_test.cc"]
     for needle in (
         "GPU_TEST(texture_readback_owned_result)",
+        "GPU_TEST(framebuffer_readback_owned_region)",
         "GPU_TEST(storage_buffer_readback_owned_result)",
         "GPU_TEST(select_next_async_replay)",
+        "GPU_framebuffer_read_color_async(",
         "EXPECT_EQ(GPU_select_async_status(), GPU_READBACK_PENDING);",
     ):
         require(needle in readback_test, f"integrated test missing {needle!r}")
@@ -417,6 +507,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "verdict": "PASS",
         "contracts": {
             "owned_result_api": True,
+            "framebuffer_owned_region_api": True,
             "webgpu_exact_tickets": True,
             "object_pick_continuation": True,
             "native_wasm_contract_required": True,
@@ -436,6 +527,18 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "bool GPU_readback_consume(GPUReadback *&readback",
             "bool GPU_readback_consume(GPUReadback *readback",
             "owner reference",
+        ),
+        (
+            "source/blender/gpu/intern/gpu_readback_private.hh",
+            "gpu_readback_create_transform",
+            "gpu_readback_create_passthrough",
+            "transform factory",
+        ),
+        (
+            "source/blender/gpu/webgpu/wgpu_framebuffer.cc",
+            "plan.texture->read_sub_async(plan.mip, plan.layer, plan.format)",
+            "plan.texture->read_sub(plan.mip, plan.layer, plan.format, nullptr)",
+            "framebuffer async source",
         ),
         (
             "source/blender/gpu/webgpu/wgpu_texture.cc",

@@ -1056,3 +1056,6 @@
 # 0250: retain an owned window offscreen through exact screenshot readback and
 # resume early/direct execution through a bounded modal timer.
 0250-m5-screenshot-async-readback.patch
+# 0251: expose owned async framebuffer color/depth regions and defer WebGPU's
+# existing crop/channel/row transform until its exact texture ticket settles.
+0251-gpu-framebuffer-async-readback.patch

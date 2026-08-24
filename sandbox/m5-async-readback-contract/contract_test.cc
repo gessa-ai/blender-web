@@ -183,6 +183,118 @@ bool owned_result_contract()
   return true;
 }
 
+bool transform_result_contract()
+{
+  using namespace blender;
+  int destroy_count = 0;
+  int transform_count = 0;
+  ControlledReadback *controlled = controlled_readback({10, 20, 30, 40, 50, 60}, destroy_count);
+  GPUReadback *transformed = gpu_readback_create_transform(
+      controlled,
+      6,
+      3,
+      [&transform_count](const unsigned char *source,
+                         const size_t source_size,
+                         unsigned char *destination,
+                         const size_t destination_size) {
+        transform_count++;
+        if (source_size != 6 || destination_size != 3) {
+          return false;
+        }
+        destination[0] = source[5];
+        destination[1] = source[2];
+        destination[2] = source[0];
+        return true;
+      });
+  std::array<unsigned char, 4> destination = {0xcc, 0xcc, 0xcc, 0xcc};
+  if (!require(GPU_readback_status(transformed) == GPU_READBACK_PENDING,
+               "transform pending") ||
+      !require(GPU_readback_size(transformed) == 3, "transform final size") ||
+      !require(destroy_count == 0 && transform_count == 0, "pending retains source"))
+  {
+    GPU_readback_cancel(transformed);
+    return false;
+  }
+  controlled->mark_ready();
+  if (!require(GPU_readback_status(transformed) == GPU_READBACK_READY, "transform ready") ||
+      !require(GPU_readback_error(transformed) == GPU_READBACK_ERROR_NONE, "transform error") ||
+      !require(destroy_count == 1 && transform_count == 1, "transform exactly once") ||
+      !require(!GPU_readback_consume(transformed, destination.data(), 2),
+               "transform undersized consume") ||
+      !require(transformed != nullptr && transform_count == 1,
+               "transform undersized retains") ||
+      !require(GPU_readback_consume(transformed, destination.data(), destination.size()),
+               "transform consume") ||
+      !require(transformed == nullptr, "transform consume clears owner") ||
+      !require(destination == std::array<unsigned char, 4>{60, 30, 10, 0xcc},
+               "transform bytes"))
+  {
+    GPU_readback_cancel(transformed);
+    return false;
+  }
+
+  ControlledReadback *failed_source = controlled_readback({1, 2}, destroy_count);
+  failed_source->mark_failed(GPU_READBACK_ERROR_MAP_FAILED);
+  GPUReadback *failed_transform = gpu_readback_create_transform(
+      failed_source, 2, 1, [&transform_count](const unsigned char *, size_t, unsigned char *, size_t) {
+        transform_count++;
+        return true;
+      });
+  if (!require(GPU_readback_status(failed_transform) == GPU_READBACK_FAILED,
+               "transform source failure") ||
+      !require(GPU_readback_error(failed_transform) == GPU_READBACK_ERROR_MAP_FAILED,
+               "transform source error") ||
+      !require(destroy_count == 2 && transform_count == 1,
+               "failed source retired without transform"))
+  {
+    GPU_readback_cancel(failed_transform);
+    return false;
+  }
+  GPU_readback_cancel(failed_transform);
+
+  ControlledReadback *rejected_source = controlled_readback({7, 8}, destroy_count);
+  rejected_source->mark_ready();
+  GPUReadback *rejected_transform = gpu_readback_create_transform(
+      rejected_source, 2, 1, [](const unsigned char *, size_t, unsigned char *, size_t) {
+        return false;
+      });
+  if (!require(GPU_readback_status(rejected_transform) == GPU_READBACK_FAILED,
+               "transform rejection") ||
+      !require(GPU_readback_error(rejected_transform) == GPU_READBACK_ERROR_BACKEND_FAILURE,
+               "transform rejection error") ||
+      !require(destroy_count == 3, "rejected source retired"))
+  {
+    GPU_readback_cancel(rejected_transform);
+    return false;
+  }
+  GPU_readback_cancel(rejected_transform);
+
+  GPUReadback *canceled_transform = gpu_readback_create_transform(
+      controlled_readback({9}, destroy_count),
+      1,
+      1,
+      [](const unsigned char *source, size_t, unsigned char *destination, size_t) {
+        destination[0] = source[0];
+        return true;
+      });
+  GPU_readback_cancel(canceled_transform);
+  GPUReadback *invalid_transform = gpu_readback_create_transform(nullptr, 1, 2, {});
+  if (!require(canceled_transform == nullptr && destroy_count == 4,
+               "transform cancel owns source") ||
+      !require(GPU_readback_status(invalid_transform) == GPU_READBACK_FAILED,
+               "invalid transform status") ||
+      !require(GPU_readback_error(invalid_transform) == GPU_READBACK_ERROR_INVALID_ARGUMENT,
+               "invalid transform error") ||
+      !require(GPU_readback_size(invalid_transform) == 2, "invalid transform size"))
+  {
+    GPU_readback_cancel(invalid_transform);
+    return false;
+  }
+  GPU_readback_cancel(invalid_transform);
+  std::printf("CONTRACT transform-result PASS cases=16 transforms=1 retired=4\n");
+  return true;
+}
+
 bool expect_hit(const blender::GPUSelectBuffer &buffer,
                 const size_t index,
                 const uint32_t id,
@@ -447,9 +559,12 @@ bool BLI_rcti_compare(const rcti *left, const rcti *right)
 
 int main()
 {
-  if (!owned_result_contract() || !async_selection_contract() || !async_failure_contract()) {
+  if (!owned_result_contract() || !transform_result_contract() || !async_selection_contract() ||
+      !async_failure_contract())
+  {
     return 1;
   }
-  std::printf("M5_ASYNC_READBACK_CONTRACT_PASS contracts=3 modes=3 failures=3\n");
+  std::printf(
+      "M5_ASYNC_READBACK_CONTRACT_PASS contracts=4 modes=3 failures=3 transforms=1\n");
   return 0;
 }

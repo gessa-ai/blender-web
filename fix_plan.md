@@ -2283,6 +2283,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   early-confirmed execution through a bounded modal timer. Native/wasm32 contracts are
   byte-identical; the partial deferral now names five synchronous families. See
   `notes/m5-screenshot-async-readback-20260824.md`.
+- [x] **M5-FRAMEBUFFER-ASYNC-READBACK-PRIMITIVE [driver, complete]:** COMPLETE (patch 0251;
+  Linux receipts `20260824T151831-184570`/`20260824T151932-186003`/
+  `20260824T151956-186925`): public color/depth framebuffer regions now return owned results;
+  native backends complete immediately while WebGPU retains an exact subresource ticket and
+  applies the existing crop, row-order, channel-extension, and format transform once after
+  settlement. Native/wasm32 owned-result, texture, and pipeline contracts are byte-identical.
+  This is an enabler only: all five synchronous caller families remain explicitly deferred.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

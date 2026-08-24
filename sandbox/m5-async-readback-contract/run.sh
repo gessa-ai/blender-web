@@ -114,9 +114,9 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 3 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 4 ] ||
      ! grep -qx \
-       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=3 modes=3 failures=3' \
+       'M5_ASYNC_READBACK_CONTRACT_PASS contracts=4 modes=3 failures=3 transforms=1' \
        "$stdout_file"
   then
     echo "ERROR: async-readback PASS census differs: $stdout_file" >&2
@@ -131,6 +131,7 @@ fi
 if ! jq -e \
   '.verdict == "PASS" and
    .contracts.owned_result_api == true and
+   .contracts.framebuffer_owned_region_api == true and
    .contracts.webgpu_exact_tickets == true and
    .contracts.object_pick_continuation == true and
    .contracts.live_hardware_receipt == false and

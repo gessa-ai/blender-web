@@ -2357,6 +2357,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 contracts and 16 cases are byte-identical; painting, zoom-border, and NDOF remain,
   so the overall census stays at three synchronous families. See
   `notes/m5-dolly-depth-continuation-20260824.md`.
+- [x] **M5-PAINTING-DEPTH-CONTINUATION [driver, complete]:** COMPLETE (`91f2974`, patch 0261;
+  Linux receipts `20260824T220055-509353`/`20260824T220116-509701`): texture paint's
+  inverted-clone cursor now owns its exact progressive-depth request across browser ticks and
+  defers the exact custom-data-free terminal event until settlement. Native-immediate and no-hit
+  paths remain stock; latest-motion supersession, producing-context/cursor drift, failure,
+  timeout, unsafe event payload, and cancellation cannot publish a stale cursor or outlive the
+  paint handle. Eight native/wasm32 contracts and 13 cases are byte-identical; zoom-border and
+  NDOF remain, so the overall census stays at three synchronous families. See
+  `notes/m5-painting-depth-continuation-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

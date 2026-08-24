@@ -3,7 +3,7 @@
 
 # R8 GHOST callback controls
 
-`run.sh` binds three R8 findings to the shipping
+`run.sh` binds the covered R8 findings to the shipping
 `platform_web/ghost/GHOST_WGPUTransaction.hh` helpers without creating a WebGPU
 adapter or a milestone receipt:
 

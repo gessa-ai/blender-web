@@ -2071,9 +2071,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   contracts, exact indexed compilation, integrated parity, standalone/product builds, canonical
   replay, OFF preflight, compliance, scoped M4, and container-backed regression are verified. See
   `notes/m4-ghost-loss-init-settlement-r8-20260824.md`.
-- [ ] **AUDIT-R8-GHOST-READY-CALLBACK-LIFETIME [ghost-web, blocked-by: none]:** move `on_ready_`
-  out of member storage before invoking it as the final settlement action. Exercise an actual
-  production-shaped ready callback that destroys its context under native ASan and wasm32.
+- [x] **AUDIT-R8-GHOST-READY-CALLBACK-LIFETIME [ghost-web, blocked-by: none] COMPLETE (56f7057):**
+  `completeInitialization()` moves and clears `on_ready_` before invoking the detached callable as
+  its final owner action. A production-shaped self-destroying callback passes native-ASan/wasm32,
+  while the retained in-place member control is ASan-rejected. Focused/integrated parity, the real
+  product rebuild/no-work check, OFF preflight, canonical replay, compliance, scoped M4, and
+  container-backed regression are verified. See
+  `notes/m4-ghost-ready-callback-lifetime-r8-20260824.md`.
 - [ ] **AUDIT-R8-GPU-STAGING-RESOURCE-SCOPE [gpu-backend, blocked-by: none]:** reserve a transient
   validation/OOM/internal gate around large-upload staging-buffer creation before its dependent
   command ticket. Regress a non-null error object with zero uncaptured errors, same-epoch

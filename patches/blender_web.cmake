@@ -56,6 +56,8 @@ option(WITH_BLENDER_WEB_WINDOWED
   "blender-web: build the windowed web target (HEADLESS off, WebGPU + GHOST_WEB on)" OFF)
 option(WITH_GHOST_WEB
   "blender-web: compile the browser GHOST back-end (platform_web/ghost)" OFF)
+option(WITH_BLENDER_WEB_SCULPT_PAINT
+  "blender-web: register non-launch sculpt and paint operators/keymaps" ON)
 
 # This file is loaded as a `-C` INITIAL CACHE, which CMake processes BEFORE `-D`
 # command-line options — so a `-DWITH_BLENDER_WEB_WINDOWED=ON` is not visible here.
@@ -69,6 +71,7 @@ if(WITH_BLENDER_WEB_WINDOWED)
   set(WITH_HEADLESS        OFF CACHE BOOL "" FORCE)  # run the windowed GHOST/UI/DRW path
   set(WITH_WEBGPU_BACKEND  ON  CACHE BOOL "" FORCE)  # the wasm GPU backend (M3)
   set(WITH_GHOST_WEB       ON  CACHE BOOL "" FORCE)  # GHOST_SystemWeb + GHOST_ContextWGPUWeb
+  set(WITH_BLENDER_WEB_SCULPT_PAINT OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
 else()
   set(WITH_HEADLESS        ON  CACHE BOOL "" FORCE)  # proven --background BPY_OK default
   set(WITH_GHOST_WEB       OFF CACHE BOOL "" FORCE)

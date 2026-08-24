@@ -145,6 +145,16 @@
       "evidence": "notes/m2-tierb-prep.md"
     },
     {
+      "id": "feature-off-sculpt-paint-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the current windowed Wasm alone is 24,236,667 bytes at Brotli q11 before any stage-0 data. Omitting only the non-launch sculpt/paint registration roots saves 489,232 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser does not register mesh/curves sculpt operators or texture/vertex/weight-paint operators, paint macros, and sculpt/paint keymaps. Their data/RNA and file-reading structures, shared Workbench helpers, mode-exit/undo support, and all native/headless behavior remain present.",
+      "workaround": "Author sculpt/paint changes in desktop Blender and open the resulting .blend in the browser; ordinary launch-tier modeling and edit-mode tools remain registered.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_SCULPT_PAINT=ON and rerun the size/launch receipts",
+      "evidence": "notes/m8-sculpt-paint-registration-cut-20260824.md; patch 0248; sandbox/m8-sculpt-paint-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

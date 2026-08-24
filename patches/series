@@ -1047,3 +1047,6 @@
 # 0247: validate large-upload staging-buffer creation under an ordered transient
 # resource gate before its dependent command ticket can reach submission.
 0247-gpu-webgpu-staging-resource-scope.patch
+# 0248: omit non-launch sculpt/paint operator and keymap roots from the windowed
+# web profile while preserving full native and headless registration behavior.
+0248-web-windowed-sculpt-paint-registration-cut.patch

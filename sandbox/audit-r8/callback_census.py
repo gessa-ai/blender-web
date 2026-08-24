@@ -2,11 +2,12 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Structurally bind every asynchronous GHOST WebGPU owner callback.
+"""Structurally bind every spontaneous GHOST WebGPU callback registration.
 
 This intentionally uses a small C++ lexer/balanced-delimiter parser rather than
-raw source counts.  The gate identifies each callback by its enclosing method,
-callee, argument position, explicit capture list, and owner-delivery body.
+raw source counts.  The gate inventories every literal AllowSpontaneous call by
+its enclosing method, exact callee, mode/callback argument positions, and callback
+shape, then binds every owner-affine completion to the shared lifetime gate.
 """
 
 from __future__ import annotations
@@ -59,6 +60,18 @@ class Role:
     delivery_gate: str | None
     checks_device_state: bool = False
     label: str | None = None
+
+
+@dataclass(frozen=True)
+class SpontaneousRegistration:
+    name: str
+    method: str
+    callee: str
+    mode_argument: int
+    callback_argument: int
+    count: int
+    role: str | None = None
+    callback_expression: str | None = None
 
 
 ROLES = (
@@ -143,6 +156,48 @@ ROLES = (
         ),
         "lifetime",
         True,
+    ),
+)
+
+
+SPONTANEOUS_MODE = "wgpu::CallbackMode::AllowSpontaneous"
+
+SPONTANEOUS_REGISTRATIONS = (
+    SpontaneousRegistration(
+        "error_scope_settlement",
+        "popErrorScopes",
+        "device.PopErrorScope",
+        0,
+        1,
+        3,
+        callback_expression="settle",
+    ),
+    SpontaneousRegistration(
+        "adapter_acquisition",
+        "requestAdapter",
+        "instance_.RequestAdapter",
+        1,
+        2,
+        1,
+        role="adapter_acquisition",
+    ),
+    SpontaneousRegistration(
+        "fallback_device_loss",
+        "requestDevice",
+        "desc.SetDeviceLostCallback",
+        0,
+        1,
+        1,
+        role="fallback_device_loss",
+    ),
+    SpontaneousRegistration(
+        "device_acquisition",
+        "requestDevice",
+        "adapter_.RequestDevice",
+        1,
+        2,
+        1,
+        role="device_acquisition",
     ),
 )
 
@@ -440,6 +495,21 @@ class SourceModel:
                 result.append(callback)
         return result
 
+    def local_lambda(self, method: str, name: str) -> Lambda:
+        start, end = self.method_body(method)
+        candidates: list[Lambda] = []
+        for index in range(start, end - 2):
+            if self.tokens[index].text != name or self.tokens[index + 1].text != "=":
+                continue
+            callback = self.lambda_at(index + 2)
+            if callback is not None and callback.body_close_index < end:
+                candidates.append(callback)
+        if len(candidates) != 1:
+            raise ContractError(
+                f"method {method}: found {len(candidates)} local lambdas named {name}, expected 1"
+            )
+        return candidates[0]
+
 
 def one_call(model: SourceModel, role: Role) -> Call:
     method_body = model.method_body(role.method)
@@ -460,6 +530,96 @@ def one_call(model: SourceModel, role: Role) -> Call:
             f"role {role.name}: found {len(candidates)} {role.callee} calls{suffix}, expected 1"
         )
     return candidates[0]
+
+
+def spontaneous_calls(model: SourceModel) -> dict[tuple[int, int], Call]:
+    mode_token_count = sum(
+        model.normalized((index, index + 5)) == SPONTANEOUS_MODE
+        for index in range(len(model.tokens) - 4)
+    )
+    registrations: dict[tuple[int, int], Call] = {}
+    for call in model.calls((0, len(model.tokens))):
+        for argument, token_range in enumerate(call.arguments):
+            if model.normalized(token_range) == SPONTANEOUS_MODE:
+                registrations[(call.name_index, argument)] = call
+
+    if len(registrations) != mode_token_count:
+        raise ContractError(
+            "every AllowSpontaneous token must be one complete call argument "
+            f"(tokens={mode_token_count} registrations={len(registrations)})"
+        )
+    return registrations
+
+
+def check_spontaneous_registration_census(
+    model: SourceModel,
+    role_calls: dict[str, Call],
+    role_callbacks: dict[str, Lambda],
+) -> int:
+    registrations = spontaneous_calls(model)
+    matched: set[tuple[int, int]] = set()
+
+    for expected in SPONTANEOUS_REGISTRATIONS:
+        method_start, method_end = model.method_body(expected.method)
+        candidates = [
+            (key, call)
+            for key, call in registrations.items()
+            if method_start <= call.name_index < method_end
+            and call.callee == expected.callee
+            and key[1] == expected.mode_argument
+        ]
+        if len(candidates) != expected.count:
+            raise ContractError(
+                f"spontaneous registration {expected.name}: found {len(candidates)} "
+                f"{expected.callee} calls, expected {expected.count}"
+            )
+
+        for key, call in candidates:
+            if expected.callback_argument >= len(call.arguments):
+                raise ContractError(
+                    f"spontaneous registration {expected.name}: callback argument is absent"
+                )
+            if expected.callback_expression is not None:
+                actual = model.normalized(call.arguments[expected.callback_argument])
+                if actual != expected.callback_expression:
+                    raise ContractError(
+                        f"spontaneous registration {expected.name}: callback is {actual!r}, "
+                        f"expected {expected.callback_expression!r}"
+                    )
+            else:
+                if expected.role is None:
+                    raise ContractError(
+                        f"spontaneous registration {expected.name}: owner role is unspecified"
+                    )
+                role_call = role_calls[expected.role]
+                callback = model.lambda_argument(call, expected.callback_argument)
+                if call.name_index != role_call.name_index or callback != role_callbacks[expected.role]:
+                    raise ContractError(
+                        f"spontaneous registration {expected.name}: owner callback is not the "
+                        "lifetime-gated role callback"
+                    )
+            matched.add(key)
+
+    if matched != set(registrations):
+        unexpected = set(registrations) - matched
+        missing = matched - set(registrations)
+        raise ContractError(
+            "shipping AllowSpontaneous registration census differs from the manifest "
+            f"(unexpected={len(unexpected)} missing={len(missing)})"
+        )
+
+    settle = model.local_lambda("popErrorScopes", "settle")
+    if model.captures(settle) != ("result",):
+        raise ContractError("error-scope dispatcher must retain only its shared result")
+    completions = [
+        call for call in model.direct_calls(settle) if call.callee == "result->complete"
+    ]
+    if len(completions) != 1:
+        raise ContractError(
+            "error-scope dispatcher must invoke its owner-affine continuation exactly once"
+        )
+
+    return len(registrations)
 
 
 def require_owner_parameter(model: SourceModel, role: Role, callback: Lambda) -> None:
@@ -541,6 +701,8 @@ def check_loss_role(model: SourceModel, role: Role, outer: Lambda) -> int:
 def analyze(source: str) -> dict[str, int]:
     model = SourceModel(source)
     outer_starts: set[int] = set()
+    role_calls: dict[str, Call] = {}
+    role_callbacks: dict[str, Lambda] = {}
     delivery_names: set[int] = set()
     owner_callback_starts: set[int] = set()
     loss_notifications: set[int] = set()
@@ -555,6 +717,8 @@ def analyze(source: str) -> dict[str, int]:
             )
         if any(model.tokens[index].text == "this" for index in range(outer.start_index, outer.body_close_index + 1)):
             raise ContractError(f"role {role.name}: asynchronous callback retains raw this")
+        role_calls[role.name] = call
+        role_callbacks[role.name] = outer
         outer_starts.add(outer.start_index)
         if role.delivery_gate is None:
             loss_notifications.add(check_loss_role(model, role, outer))
@@ -562,6 +726,10 @@ def analyze(source: str) -> dict[str, int]:
             delivery_name, owner_callback_start = check_delivery_role(model, role, outer)
             delivery_names.add(delivery_name)
             owner_callback_starts.add(owner_callback_start)
+
+    spontaneous_registration_count = check_spontaneous_registration_census(
+        model, role_calls, role_callbacks
+    )
 
     every_delivery = {
         call.name_index
@@ -616,6 +784,7 @@ def analyze(source: str) -> dict[str, int]:
         "roles": len(ROLES),
         "owner_deliveries": len(delivery_names),
         "fallback_loss": len(loss_notifications),
+        "spontaneous_registrations": spontaneous_registration_count,
     }
 
 
@@ -663,6 +832,19 @@ def run_self_test(source: str) -> None:
     if call_end >= len(source) or source[call_end] != ";":
         raise ContractError("self-test could not locate the adapter-call terminator")
     call_end += 1
+
+    raw_owner_alias = (
+        source[:call_start]
+        + "auto *owner_alias = this;\n"
+        + "  device_.PopErrorScope(\n"
+        + "      wgpu::CallbackMode::AllowSpontaneous,\n"
+        + "      [owner_alias](wgpu::PopErrorScopeStatus, wgpu::ErrorType, wgpu::StringView) {\n"
+        + "        owner_alias->requestAdapter();\n"
+        + "      });\n  "
+        + source[call_start:]
+    )
+    expect_rejected("raw owner alias", raw_owner_alias)
+
     duplicate_callback = source[:call_end] + "\n  " + source[call_start:call_end] + source[call_end:]
     expect_rejected("extra callback", duplicate_callback)
 
@@ -685,13 +867,14 @@ def main() -> int:
     print(
         "CALLBACK_CENSUS_PASS "
         f"roles={report['roles']} owner_deliveries={report['owner_deliveries']} "
-        f"fallback_loss={report['fallback_loss']}"
+        f"fallback_loss={report['fallback_loss']} "
+        f"spontaneous_registrations={report['spontaneous_registrations']}"
     )
     if args.self_test:
         print(
-            "CALLBACK_CENSUS_SELFTEST_PASS controls=3 "
-            "dead_text_alias=reject implicit_capture=reject extra_callback=reject "
-            "legacy_false_positive=1"
+            "CALLBACK_CENSUS_SELFTEST_PASS controls=4 "
+            "dead_text_alias=reject implicit_capture=reject raw_owner_alias=reject "
+            "extra_callback=reject legacy_false_positive=1"
         )
     return 0
 

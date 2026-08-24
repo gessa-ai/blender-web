@@ -43,10 +43,10 @@ fi
 "$PYTHON_BIN" "$CALLBACK_CENSUS" "$CONTEXT_CC" --self-test \
   >"$AUDIT_TMP/callback-census.log"
 grep -Fqx \
-  "CALLBACK_CENSUS_PASS roles=8 owner_deliveries=7 fallback_loss=1" \
+  "CALLBACK_CENSUS_PASS roles=8 owner_deliveries=7 fallback_loss=1 spontaneous_registrations=6" \
   "$AUDIT_TMP/callback-census.log"
 grep -Fqx \
-  "CALLBACK_CENSUS_SELFTEST_PASS controls=3 dead_text_alias=reject implicit_capture=reject extra_callback=reject legacy_false_positive=1" \
+  "CALLBACK_CENSUS_SELFTEST_PASS controls=4 dead_text_alias=reject implicit_capture=reject raw_owner_alias=reject extra_callback=reject legacy_false_positive=1" \
   "$AUDIT_TMP/callback-census.log"
 grep -Fq 'std::shared_ptr<ghost_web::DeviceCallbackState> device_state_' "$CONTEXT_HH"
 grep -Fq 'std::make_shared<ghost_web::DeviceCallbackState>(' "$CONTEXT_CC"
@@ -170,4 +170,4 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-ready-self-destroy.log"; 
   exit 1
 fi
 
-echo "AUDIT_R8_GHOST_CALLBACK_PASS inheritance_doc=1 source_roles=8 source_controls=3 shipping_matrix=8 imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"
+echo "AUDIT_R9_GHOST_CALLBACK_PASS inheritance_doc=1 source_roles=8 spontaneous_registrations=6 source_controls=4 shipping_matrix=8 imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"

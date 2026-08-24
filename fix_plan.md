@@ -2143,6 +2143,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   23,548,942-byte Wasm alone is 8,548,942 bytes over the complete 15 MB budget before stage-0
   data, and hardware/APPLY receipts remain s7-blocked. See
   `notes/m8-spreadsheet-registration-cut-20260824.md`.
+- [x] **M8-CLIP-REGISTRATION-CUT [driver, blocked-by: none] COMPLETE (patch 0253):** the windowed
+  profile omits only the non-launch Clip/Motion Tracking space-type and macro registration roots
+  while MovieClip DNA/RNA, generic `.blend` loading, shared image/movie paths, and native/headless
+  registration remain. The real locked product drops 128,010 raw and 33,048 pinned Brotli-q11
+  bytes; focused fail-first/mutation/round-trip controls, preservation builds, canonical replay,
+  REUSE, scoped M8, and container-backed regression are verified. M8 remains RED: the
+  23,515,894-byte Wasm alone is 8,515,894 bytes over the complete 15 MB budget before stage-0
+  data, and hardware/APPLY receipts remain s7-blocked. See
+  `notes/m8-clip-registration-cut-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

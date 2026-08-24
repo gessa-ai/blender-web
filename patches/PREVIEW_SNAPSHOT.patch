@@ -10639,10 +10639,10 @@ index 5a625d6790b2b82fce7afd249f616169c365dcdd..fb84ce2e2ae176be997412aa7e53865d
  
  void OBJECT_OT_lightprobe_cache_bake(wmOperatorType *ot)
 diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
-index 8b45bbc7f9f948982cdd049310468f9bec552293..b33977ab57650c3a2647f9672342ada1c5071e9f 100644
+index 8b45bbc7f9f948982cdd049310468f9bec552293..cb99063accdba77c05f330d33bfb4d2a0af3c4c0 100644
 --- a/source/blender/editors/space_api/CMakeLists.txt
 +++ b/source/blender/editors/space_api/CMakeLists.txt
-@@ -47,3 +47,59 @@ set(LIB
+@@ -47,3 +47,73 @@ set(LIB
  )
  
  blender_add_lib(bf_editor_space_api "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
@@ -10702,11 +10702,25 @@ index 8b45bbc7f9f948982cdd049310468f9bec552293..b33977ab57650c3a2647f9672342ada1
 +if(WITH_BLENDER_WEB_SPREADSHEET)
 +  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_SPREADSHEET)
 +endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch Clip/Motion Tracking editor
++# registration while retaining MovieClip data, DNA/RNA, and blend loading.
++if(NOT DEFINED WITH_BLENDER_WEB_CLIP)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_CLIP OFF)
++  else()
++    set(WITH_BLENDER_WEB_CLIP ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_CLIP)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_CLIP)
++endif()
 diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
-index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958c775d5f2 100644
+index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1af75b71f9 100644
 --- a/source/blender/editors/space_api/spacetypes.cc
 +++ b/source/blender/editors/space_api/spacetypes.cc
-@@ -79,13 +79,17 @@ void ED_spacetypes_init()
+@@ -79,13 +79,19 @@ void ED_spacetypes_init()
    ED_spacetype_nla();
    ED_spacetype_script();
    ED_spacetype_text();
@@ -10715,7 +10729,9 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958
 +#endif
    ED_spacetype_console();
    ED_spacetype_userpref();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_CLIP)
    ED_spacetype_clip();
++#endif
    ED_spacetype_statusbar();
    ED_spacetype_topbar();
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_SPREADSHEET)
@@ -10724,7 +10740,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958
  
    /* Register operator types for screen and all spaces. */
    ED_operatortypes_userpref();
-@@ -95,16 +99,22 @@ void ED_spacetypes_init()
+@@ -95,16 +101,22 @@ void ED_spacetypes_init()
    ED_operatortypes_anim();
    ED_operatortypes_animchannels();
    asset::operatortypes_asset();
@@ -10747,7 +10763,14 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958
    ED_operatortypes_physics();
    ED_operatortypes_curve();
    curves::operatortypes_curves();
-@@ -168,9 +178,15 @@ void ED_spacemacros_init()
+@@ -163,14 +175,22 @@ void ED_spacemacros_init()
+   ED_operatormacros_file();
+   ED_operatormacros_graph();
+   ED_operatormacros_action();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_CLIP)
+   ED_operatormacros_clip();
++#endif
+   ED_operatormacros_curve();
    curves::operatormacros_curves();
    pointcloud::operatormacros_pointcloud();
    ED_operatormacros_mask();
@@ -10763,7 +10786,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958
    ED_operatormacros_nla();
  
    /* Register dropboxes (can use macros). */
-@@ -188,8 +204,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -188,8 +208,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_screen(keyconf);
    ED_keymap_anim(keyconf);
    ED_keymap_animchannels(keyconf);
@@ -10774,7 +10797,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..4b9472c2da6db9fb2195d6dfb02a4958
    object::keymap_object(keyconf);
    ED_keymap_lattice(keyconf);
    ED_keymap_mesh(keyconf);
-@@ -200,10 +218,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -200,10 +222,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_armature(keyconf);
    ED_keymap_physics(keyconf);
    ED_keymap_metaball(keyconf);

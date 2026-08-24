@@ -1062,3 +1062,6 @@
 # 0252: omit the non-launch Spreadsheet space registration root from the
 # windowed profile while preserving geometry-node data/RNA and blend loading.
 0252-web-windowed-spreadsheet-registration-cut.patch
+# 0253: omit non-launch Clip/Motion Tracking space and macro registration roots
+# from the windowed profile while preserving MovieClip data/RNA and loading.
+0253-web-windowed-clip-registration-cut.patch

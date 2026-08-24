@@ -34,7 +34,7 @@ Fully local / CSP-clean: no external assets.
   <!-- viewport-fit=cover + user-scalable=no: no browser pinch/double-tap zoom. -->
   <meta name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>blender-web</title>
+  <title>Source-derived WebAssembly editor preview</title>
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
@@ -150,6 +150,23 @@ Fully local / CSP-clean: no external assets.
       letter-spacing: .12em;
       text-transform: lowercase;
     }
+    .bw-launch-proof {
+      width: min(560px, calc(100vw - 40px));
+      color: #8993a3;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    #bw-native-proof { color: #b7c0ce; }
+    #bw-legal-footer {
+      width: min(720px, calc(100vw - 40px));
+      color: #737d8d;
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+    #bw-source-pending { color: #a58a66; }
+    #bw-license-link { color: #9ba7ba; }
 
     /* Hidden diagnostics: preserved DOM contract for boot-windowed.js AND the M4
        verification rigs (the "main loop (WM_main)" state marker, exit/wall/dl,
@@ -173,7 +190,16 @@ Fully local / CSP-clean: no external assets.
   <div id="loader">
     <div class="bw-pulse" aria-hidden="true"></div>
     <div class="bw-track"><div id="bw-fill" class="bw-indeterminate"></div></div>
-    <div id="bw-pct">loading</div>
+    <div id="bw-pct">Starting app · preparing files</div>
+    <div id="bw-native-proof" class="bw-launch-proof">Runs entirely on your device — WebAssembly + WebGPU. No server, no streaming.</div>
+    <div id="bw-offline-proof" class="bw-launch-proof">After first load, disconnect your network and reload.</div>
+    <div id="bw-desktop-limit" class="bw-launch-proof">Desktop only for this preview · current Chrome or Edge required.</div>
+    <footer id="bw-legal-footer">
+      Independent source-derived port; not affiliated with, endorsed by, or sponsored by the Blender Foundation.
+      Blender® is a registered trademark of the Blender Foundation.
+      <span id="bw-source-pending">Source code (GPL): repository link pending owner-supplied URL.</span>
+      <a id="bw-license-link" href="/legal/THIRD-PARTY.md">Licenses and notices</a>.
+    </footer>
   </div>
 
   <!-- Hidden - verification/gate contract. Do not show in the native view. -->
@@ -187,6 +213,9 @@ Fully local / CSP-clean: no external assets.
     <pre id="log"></pre>
   </div>
 
+  <!-- Must remain the first executable script: CSP permits same-origin scripts,
+       not inline code. It installs append-only error observers before Blender. -->
+  <script src="/diagnostics-bootstrap.js"></script>
   <script src="/bin/blender_browser.js"></script>
   <!-- M7b file bridge: .blend drag-drop + File System Access open/save (+ fallbacks)
        + OPFS persistence. Loaded BEFORE boot-windowed.js so the boot can append the

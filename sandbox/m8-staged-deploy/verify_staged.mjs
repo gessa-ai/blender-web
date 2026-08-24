@@ -370,7 +370,7 @@ receipt.native_proof_visible = launchProof.native.visible && launchProof.offline
 receipt.desktop_limit_visible = launchProof.desktop.visible &&
   launchProof.desktop.text === 'Desktop only for this preview · current Chrome or Edge required.';
 receipt.trademark_disclaimer_visible = launchProof.legal.visible &&
-  /not affiliated with or endorsed by the Blender Foundation/.test(launchProof.legal.text) &&
+  /not affiliated with, endorsed by, or sponsored by the Blender Foundation/.test(launchProof.legal.text) &&
   /registered trademark of the Blender Foundation/.test(launchProof.legal.text);
 receipt.legal_notices_visible = launchProof.legalLink.visible &&
   launchProof.legalLink.text === 'Licenses and notices' &&

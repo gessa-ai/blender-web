@@ -38,6 +38,11 @@ SOURCE_PATHS = (
     "source/blender/editors/space_view3d/view3d_draw.cc",
     "source/blender/editors/space_view3d/view3d_select.cc",
     "source/blender/editors/space_view3d/view3d_view.cc",
+    "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
+    "source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc",
+    "source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc",
+    "source/blender/editors/interface/eyedroppers/eyedropper_intern.hh",
+    "source/blender/windowmanager/WM_api.hh",
     "source/blender/windowmanager/intern/wm_draw.cc",
 )
 
@@ -148,6 +153,20 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
     view_select = sources["source/blender/editors/space_view3d/view3d_select.cc"]
     view_query = sources["source/blender/editors/space_view3d/view3d_view.cc"]
+    eyedropper = sources[
+        "source/blender/editors/interface/eyedroppers/eyedropper_color.cc"
+    ]
+    colorband = sources[
+        "source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc"
+    ]
+    grease_pencil = sources[
+        "source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc"
+    ]
+    eyedropper_api = sources[
+        "source/blender/editors/interface/eyedroppers/eyedropper_intern.hh"
+    ]
+    wm_api = sources["source/blender/windowmanager/WM_api.hh"]
+    wm_draw = sources["source/blender/windowmanager/intern/wm_draw.cc"]
 
     for needle in (
         "GPU_READBACK_PENDING",
@@ -488,10 +507,6 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "source/blender/windowmanager/intern/wm_draw.cc",
             "GPU_offscreen_read_color(offscreen, GPU_DATA_UBYTE, rect);",
         ),
-        "window_color_sample": (
-            "source/blender/windowmanager/intern/wm_draw.cc",
-            "GPU_offscreen_read_color_region(offscreen, GPU_DATA_FLOAT",
-        ),
     }
     for family, (relative, needle) in remaining_sync.items():
         require(needle in sources[relative], f"remaining sync census drifted: {family}")
@@ -500,6 +515,41 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "source/blender/editors/screen/screendump.cc"
         ],
         "screenshot async continuation missing",
+    )
+    for needle in (
+        "class EyedropperWindowColorSampleSession",
+        "WMWindowPixelsRead *readback_ = nullptr;",
+        "ReadbackState state();",
+        "bool sample(const int pos[2], float r_col[3]);",
+        "EyedropperWindowColorSampleSession *window_session",
+    ):
+        require(needle in eyedropper_api, f"shared window session API missing {needle!r}")
+    for needle in (
+        "WM_window_pixels_read_async(C, window)",
+        "WM_window_pixels_read_async_status(readback_)",
+        "WM_window_pixels_read_async_consume(readback_, size_)",
+        "WM_window_pixels_read_async_cancel(readback_);",
+        "float(pixel[0]) / 255.0f",
+        "EyedropperReadbackSource::Window",
+        "constexpr int max_tick_count = 240;",
+    ):
+        require(needle in eyedropper, f"window sample continuation missing {needle!r}")
+    for caller, label in (
+        (colorband, "colorband"),
+        (grease_pencil, "grease pencil"),
+    ):
+        for needle in (
+            "EyedropperWindowColorSampleSession window_session;",
+            "&eye->window_session",
+            "constexpr int max_tick_count = 240;",
+            "WM_event_timer_add(",
+            "eye->window_session.cancel();",
+        ):
+            require(needle in caller, f"{label} window continuation missing {needle!r}")
+    require(
+        "WM_window_pixels_read_sample_from_offscreen(C, win, event_xy_win, r_col)"
+        not in eyedropper,
+        "eyedropper retains synchronous offscreen fallback",
     )
 
     return {
@@ -510,6 +560,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "framebuffer_owned_region_api": True,
             "webgpu_exact_tickets": True,
             "object_pick_continuation": True,
+            "window_color_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -569,6 +620,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "GPU_framebuffer_read_color(select_id_fb",
             "GPU_framebuffer_read_color_async(select_id_fb",
             "remaining caller census",
+        ),
+        (
+            "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
+            "WM_window_pixels_read_async(C, window)",
+            "WM_window_pixels_read(C, window, size_)",
+            "window sample continuation",
         ),
     )
     for relative, old, new, label in mutations:

@@ -2290,6 +2290,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   applies the existing crop, row-order, channel-extension, and format transform once after
   settlement. Native/wasm32 owned-result, texture, and pipeline contracts are byte-identical.
   This is an enabler only: all five synchronous caller families remain explicitly deferred.
+- [x] **M5-WINDOW-COLOR-ASYNC-READBACK [driver, complete]:** COMPLETE (patch 0252;
+  Linux receipts `20260824T155547-216321`/`20260824T155805-219151`): one owned full-window
+  snapshot now serves the main colour eyedropper, colour-band gradient/point sampling, and
+  grease-pencil material sampling. Their exact event/action state resumes through bounded modal
+  timers, with cancellation before pixel release. Native/wasm32 contracts are byte-identical;
+  the partial deferral now names four synchronous families. See
+  `notes/m5-window-color-readback-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -326,7 +326,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "live_hardware_receipt": False,
         },
         "retired_sync_family": "screenshot_operator",
-        "remaining_sync_family_count": 5,
+        "remaining_sync_family_count": 4,
         "source_count": len(SOURCE_PATHS),
         "source_sha256": source_digest(sources),
     }
@@ -416,7 +416,7 @@ def main() -> int:
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         "M5_SCREENSHOT_READBACK_SOURCE_PASS "
-        f"files={result['source_count']} remaining=5 sha256={result['source_sha256']}"
+        f"files={result['source_count']} remaining=4 sha256={result['source_sha256']}"
     )
     return 0
 

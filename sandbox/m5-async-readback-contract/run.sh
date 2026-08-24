@@ -134,8 +134,9 @@ if ! jq -e \
    .contracts.framebuffer_owned_region_api == true and
    .contracts.webgpu_exact_tickets == true and
    .contracts.object_pick_continuation == true and
+   .contracts.window_color_continuation == true and
    .contracts.live_hardware_receipt == false and
-   (.remaining_sync_families | length) == 5' \
+   (.remaining_sync_families | length) == 4' \
   "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2

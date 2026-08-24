@@ -109,7 +109,7 @@ if ! jq -e '
   .contracts.failure_retryable == true and
   .contracts.live_hardware_receipt == false and
   .retired_sync_family == "viewport_color_sample" and
-  .remaining_sync_family_count == 6' "$OUT/source.json" >/dev/null; then
+  .remaining_sync_family_count == 4' "$OUT/source.json" >/dev/null; then
   echo "ERROR: source receipt contract differs" >&2
   exit 1
 fi

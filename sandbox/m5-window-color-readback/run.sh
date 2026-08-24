@@ -10,9 +10,9 @@ HOST_CMAKE="$ROOT/.host-tools/bin/cmake"
 PYBIN="$ROOT/.host-tools/bin/python3.13"
 EMSDK="$ROOT/tools/emsdk"
 NODE="$EMSDK/node/22.16.0_64bit/bin/node"
-NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-screenshot-readback/native}"
-WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-screenshot-readback/wasm}"
-OUT="${OUT:-$ROOT/build-deps/m5-screenshot-readback/evidence}"
+NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-window-color-readback/native}"
+WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-window-color-readback/wasm}"
+OUT="${OUT:-$ROOT/build-deps/m5-window-color-readback/evidence}"
 
 require_file()
 {
@@ -61,7 +61,7 @@ printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$NATIVE_BUILD" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=/usr/bin/clang++-17 \
   -DBW_UPSTREAM_DIR="$ROOT/upstream"
-"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" m5_screenshot_readback_contract
+"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" m5_window_color_readback_contract
 
 export EMSDK_QUIET=1
 # shellcheck disable=SC1091
@@ -74,14 +74,14 @@ fi
 "$EMSDK/upstream/emscripten/emcmake" "$HOST_CMAKE" -G Ninja \
   -S "$HERE" -B "$WASM_BUILD" -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_EXE_LINKER_FLAGS= -DBW_UPSTREAM_DIR="$ROOT/upstream"
-"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" m5_screenshot_readback_contract
+"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" m5_window_color_readback_contract
 
 NATIVE_STDOUT="$OUT/native.stdout"
 NATIVE_STDERR="$OUT/native.stderr"
 WASM_STDOUT="$OUT/wasm.stdout"
 WASM_STDERR="$OUT/wasm.stderr"
-"$NATIVE_BUILD/m5_screenshot_readback_contract" >"$NATIVE_STDOUT" 2>"$NATIVE_STDERR"
-"$NODE" "$WASM_BUILD/m5_screenshot_readback_contract.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
+"$NATIVE_BUILD/m5_window_color_readback_contract" >"$NATIVE_STDOUT" 2>"$NATIVE_STDERR"
+"$NODE" "$WASM_BUILD/m5_window_color_readback_contract.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
 
 for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   if [ -s "$stderr_file" ]; then
@@ -91,7 +91,7 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 6 ] ||
-     ! grep -qx 'M5_SCREENSHOT_READBACK_CONTRACT_PASS contracts=6 cases=12' "$stdout_file"; then
+     ! grep -qx 'M5_WINDOW_COLOR_READBACK_CONTRACT_PASS contracts=6 cases=13' "$stdout_file"; then
     echo "ERROR: PASS census differs: $stdout_file" >&2
     exit 1
   fi
@@ -103,23 +103,24 @@ if ! cmp -s "$NATIVE_STDOUT" "$WASM_STDOUT"; then
 fi
 if ! jq -e '
   .verdict == "PASS" and
-  .contracts.exact_owned_capture == true and
-  .contracts.pending_survives_file_selector == true and
-  .contracts.bounded_modal_poll == true and
-  .contracts.cancel_before_offscreen_release == true and
+  .contracts.owned_window_snapshot == true and
+  .contracts.three_modal_consumers == true and
+  .contracts.exact_pixel_decode == true and
+  .contracts.bounded_poll == true and
+  .contracts.cancel_before_owner_release == true and
   .contracts.native_immediate_completion == true and
   .contracts.live_hardware_receipt == false and
-  .retired_sync_family == "screenshot_operator" and
+  .retired_sync_family == "window_color_sample" and
   .remaining_sync_family_count == 4' "$OUT/source.json" >/dev/null; then
   echo "ERROR: source receipt contract differs" >&2
   exit 1
 fi
 
-"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" -n m5_screenshot_readback_contract
-"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" -n m5_screenshot_readback_contract
+"$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" -n m5_window_color_readback_contract
+"$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" -n m5_window_color_readback_contract
 
 OUTPUT_BYTES="$(wc -c <"$WASM_STDOUT" | tr -d ' ')"
 OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(jq -r '.source_sha256' "$OUT/source.json")"
-printf 'PASS m5-screenshot-readback native/wasm bytes=%s sha256=%s source_sha256=%s emcc=%s node=v22.16.0 live_receipt=false\n' \
+printf 'PASS m5-window-color-readback native/wasm bytes=%s sha256=%s source_sha256=%s emcc=%s node=v22.16.0 live_receipt=false\n' \
   "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$EMCC_VERSION"

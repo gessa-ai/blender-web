@@ -203,20 +203,27 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         ),
         "eyedropper pending/fallback order",
     )
+    require(
+        "if (state == ViewportColorSampleSession::ReadbackState::Failed) {\n"
+        "            MEM_delete(eye->viewport_session);\n"
+        "            eye->viewport_session = nullptr;" in sampling,
+        "failed viewport session is not retired before fallback",
+    )
 
     eyedropper_state = braced_definition(eyedropper, "struct Eyedropper", "eyedropper state")
     for needle in (
-        "wmTimer *viewport_timer = nullptr;",
-        "int viewport_event_xy[2] = {};",
-        "int viewport_tick_count = 0;",
+        "wmTimer *readback_timer = nullptr;",
+        "int readback_event_xy[2] = {};",
+        "int readback_tick_count = 0;",
+        "EyedropperReadbackSource readback_source",
     ):
         require(needle in eyedropper_state, f"eyedropper state missing {needle!r}")
     exit_body = braced_definition(eyedropper, "static void eyedropper_exit(", "eyedropper exit")
     require_ordered(
         exit_body,
         (
-            "WM_event_timer_remove(CTX_wm_manager(C), window, eye->viewport_timer);",
-            "eye->viewport_timer = nullptr;",
+            "WM_event_timer_remove(CTX_wm_manager(C), window, eye->readback_timer);",
+            "eye->readback_timer = nullptr;",
             "MEM_delete(eye->viewport_session);",
         ),
         "timer/session cleanup",
@@ -235,17 +242,20 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         (
             "event->type == TIMER",
             "constexpr int max_tick_count = 240;",
-            "state == ViewportColorSampleSession::ReadbackState::Pending",
+            "eye->readback_source == EyedropperReadbackSource::Viewport",
+            "pending = state == ViewportColorSampleSession::ReadbackState::Pending;",
+            "failed = state == ViewportColorSampleSession::ReadbackState::Failed;",
+            "if (pending)",
             "return OPERATOR_RUNNING_MODAL;",
-            "state == ViewportColorSampleSession::ReadbackState::Failed",
-            "eyedropper_color_sample(C, eye, eye->viewport_event_xy)",
+            "if (failed)",
+            "eyedropper_color_sample(C, eye, eye->readback_event_xy)",
             "eyedropper_exit(C, op);",
             "case EYE_MODAL_SAMPLE_CONFIRM:",
             "!eyedropper_color_sample(C, eye, event->xy)",
-            "ViewportColorSampleSession::ReadbackState::Pending",
-            "eye->viewport_event_xy[0] = event->xy[0];",
-            "eye->viewport_tick_count = 0;",
-            "eye->viewport_timer = WM_event_timer_add(",
+            "eye->readback_source != EyedropperReadbackSource::None",
+            "eye->readback_event_xy[0] = event->xy[0];",
+            "eye->readback_tick_count = 0;",
+            "eye->readback_timer = WM_event_timer_add(",
             "return OPERATOR_RUNNING_MODAL;",
         ),
         "bounded confirm continuation",
@@ -270,7 +280,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "live_hardware_receipt": False,
         },
         "retired_sync_family": "viewport_color_sample",
-        "remaining_sync_family_count": 6,
+        "remaining_sync_family_count": 4,
         "source_count": len(SOURCE_PATHS),
         "source_sha256": source_digest(sources),
     }
@@ -331,7 +341,7 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         (
             "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
-            "WM_event_timer_remove(CTX_wm_manager(C), window, eye->viewport_timer);",
+            "WM_event_timer_remove(CTX_wm_manager(C), window, eye->readback_timer);",
             "/* leaked viewport timer */",
             "timer cleanup",
         ),
@@ -365,7 +375,7 @@ def main() -> int:
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         "M5_VIEWPORT_COLOR_READBACK_SOURCE_PASS "
-        f"files={result['source_count']} remaining=6 sha256={result['source_sha256']}"
+        f"files={result['source_count']} remaining=4 sha256={result['source_sha256']}"
     )
     return 0
 

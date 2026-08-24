@@ -22,12 +22,13 @@ before legacy selection-buffer and depth callers can become modal continuations;
 it does not claim either caller family is converted yet.
 
 `verify_source.py` separately binds the public texture/storage/framebuffer APIs,
-exact WebGPU tickets, temporary select-engine ownership transfer, and the bounded
-modal operator re-entry. It also requires the five still-synchronous caller families
-(legacy selection-buffer read, depth pick, depth cache, WM window capture, and
-WM window colour sampling) to stay visible. The screenshot operator has its own
-owned-capture continuation contract; the ledger row remains `partial` for these
-five families.
+exact WebGPU tickets, temporary select-engine ownership transfer, and both bounded
+modal operator continuations. All three non-viewport eyedroppers share one owned
+window snapshot while browser mapping is pending and preserve native immediate completion.
+It also requires the four still-synchronous caller families (legacy selection-buffer
+read, depth pick, depth cache, and WM window capture) to stay visible. The screenshot
+operator has its own owned-capture continuation contract; the ledger row remains
+`partial` for these four families.
 
 Run through the build wrapper:
 

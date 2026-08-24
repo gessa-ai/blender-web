@@ -1059,3 +1059,6 @@
 # 0251: expose owned async framebuffer color/depth regions and defer WebGPU's
 # existing crop/channel/row transform until its exact texture ticket settles.
 0251-gpu-framebuffer-async-readback.patch
+# 0252: retain one owned window snapshot across all three modal colour samplers
+# and resume confirmed actions through bounded event-loop polling.
+0252-m5-window-color-async-readback.patch

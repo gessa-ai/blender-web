@@ -2283,7 +2283,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   early-confirmed execution through a bounded modal timer. Native/wasm32 contracts are
   byte-identical; the partial deferral now names five synchronous families. See
   `notes/m5-screenshot-async-readback-20260824.md`.
-- [x] **M5-FRAMEBUFFER-ASYNC-READBACK-PRIMITIVE [driver, complete]:** COMPLETE (patch 0251;
+- [x] **M5-FRAMEBUFFER-ASYNC-READBACK-PRIMITIVE [driver, complete]:** COMPLETE (`19accd5`, patch 0251;
   Linux receipts `20260824T151831-184570`/`20260824T151932-186003`/
   `20260824T151956-186925`): public color/depth framebuffer regions now return owned results;
   native backends complete immediately while WebGPU retains an exact subresource ticket and

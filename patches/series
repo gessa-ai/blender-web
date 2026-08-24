@@ -1041,3 +1041,6 @@
 # 0245: consume each VBO/float-buffer-texture dirty snapshot when retained so
 # an older accepted upload cannot clear or free a newer frontend mutation.
 0245-gpu-webgpu-upload-generation.patch
+# 0246: serialize retained buffer-payload replay reservation so concurrent
+# retain/replay callers preserve frontend FIFO and final overlapping bytes.
+0246-gpu-webgpu-payload-replay-fifo.patch

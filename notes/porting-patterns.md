@@ -1014,3 +1014,18 @@ shared gate reference until each token releases. Exercise callback-vs-owner and 
 barriers, active-callback destruction, late nested and queued delivery, self-destruction, and an
 unsafe AddressSanitizer control in native and wasm32. See
 `platform_web/ghost/GHOST_WGPUTransaction.hh` and `sandbox/audit-r8/`.
+
+## Class 70 — durable FIFO payloads still need one reservation owner
+
+Signature: a replay call marks an ordered deque snapshot in flight, releases its mutex, and
+reserves one scheduler ticket per entry. A concurrent caller can retain a newer payload, skip the
+older in-flight entries, and reserve its ticket between two entries of the earlier snapshot. The
+scheduler then faithfully executes the wrong reservation order, so overlapping writes publish an
+older value last. Give replay one mutex-protected drainer flag and let that owner repeatedly select
+and reserve every available deque entry before releasing ownership; completion remains asynchronous
+and independently synchronized. Stamp each entry with the current drain generation so a synchronous
+rejection stays retryable without being selected repeatedly by the same drainer. A concurrent
+retain/replay call returns to the active drainer,
+which observes the new tail on its next selection pass. Exercise barriers after the first ticket to
+force E1/E3/E2 overtaking in the broken control, then require E1/E2/E3 reservation and execution
+plus E3 final bytes on native and wasm32. See `sandbox/wgpu-buffer-integrated-smoke/`.

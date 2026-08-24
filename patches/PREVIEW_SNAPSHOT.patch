@@ -18998,10 +18998,10 @@ index 0000000000000000000000000000000000000000..42f6679bf6047b944c9e56f87de78ca9
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..c7eb8a0a4e7caea4ec2bb8f4523fc1004850eedd
+index 0000000000000000000000000000000000000000..76c45d66a4a64ae6112b8af28db17310d98d0727
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2511 @@
+@@ -0,0 +1,2544 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -21293,12 +21293,17 @@ index 0000000000000000000000000000000000000000..c7eb8a0a4e7caea4ec2bb8f4523fc100
 +    std::vector<uint8_t> bytes;
 +    std::shared_ptr<std::atomic<int8_t>> status;
 +    bool in_flight = false;
++    uint64_t replay_generation = 0;
 +  };
 +
 +  struct State {
 +    mutable std::mutex mutex;
 +    std::deque<std::shared_ptr<Entry>> entries;
 +    size_t allocation_size = 0;
++    /* Serialize scheduler-ticket reservation only. Entry completion remains asynchronous and
++     * takes the mutex independently after the drainer has reserved the complete FIFO batch. */
++    bool replay_draining = false;
++    uint64_t replay_generation = 0;
 +  };
 +
 + public:
@@ -21374,64 +21379,92 @@ index 0000000000000000000000000000000000000000..c7eb8a0a4e7caea4ec2bb8f4523fc100
 +  template<typename ReplayFn>
 +  size_t replay(const size_t allocation_size, ReplayFn &&replay)
 +  {
-+    std::vector<std::shared_ptr<Entry>> pending;
++    const std::shared_ptr<State> state = state_;
++    uint64_t replay_generation;
 +    {
-+      std::lock_guard lock(state_->mutex);
-+      prune_accepted_locked(*state_);
-+      if (state_->allocation_size != allocation_size) {
++      std::lock_guard lock(state->mutex);
++      prune_accepted_locked(*state);
++      if (state->allocation_size != allocation_size || state->replay_draining) {
 +        return 0;
 +      }
-+      for (const std::shared_ptr<Entry> &entry : state_->entries) {
-+        if (entry->in_flight || entry->status->load(std::memory_order_acquire) > 0) {
-+          continue;
++      state->replay_draining = true;
++      replay_generation = ++state->replay_generation;
++      if (replay_generation == 0) {
++        for (const std::shared_ptr<Entry> &entry : state->entries) {
++          entry->replay_generation = 0;
 +        }
-+        entry->in_flight = true;
-+        entry->status->store(0, std::memory_order_release);
-+        pending.push_back(entry);
++        replay_generation = ++state->replay_generation;
 +      }
 +    }
 +
 +    size_t started = 0;
-+    const std::shared_ptr<State> state = state_;
-+    for (size_t index = 0; index < pending.size(); index++) {
-+      const std::shared_ptr<Entry> &entry = pending[index];
-+      auto complete = [state, entry](const bool valid) {
-+        std::lock_guard lock(state->mutex);
-+        if (!entry->in_flight) {
-+          return;
-+        }
-+        entry->in_flight = false;
-+        entry->status->store(valid ? int8_t(1) : int8_t(-1), std::memory_order_release);
-+        if (valid) {
-+          state->entries.erase(
-+              std::remove(state->entries.begin(), state->entries.end(), entry),
-+              state->entries.end());
-+        }
-+      };
-+      if (replay(entry->context,
-+                 entry->offset,
-+                 entry->bytes.data(),
-+                 entry->bytes.size(),
-+                 complete))
++    for (;;) {
++      std::vector<std::shared_ptr<Entry>> pending;
 +      {
-+        started++;
-+      }
-+      else {
-+        complete(false);
-+        /* A synchronous setup failure reserved no scheduler entry, so later payloads would
-+         * otherwise overtake it. Leave every unattempted entry rejected and retryable. */
 +        std::lock_guard lock(state->mutex);
-+        for (size_t pending_index = index + 1; pending_index < pending.size(); pending_index++) {
-+          const std::shared_ptr<Entry> &unattempted = pending[pending_index];
-+          if (unattempted->in_flight) {
-+            unattempted->in_flight = false;
-+            unattempted->status->store(int8_t(-1), std::memory_order_release);
-+          }
++        prune_accepted_locked(*state);
++        if (state->allocation_size != allocation_size) {
++          state->replay_draining = false;
++          return started;
 +        }
-+        break;
++        for (const std::shared_ptr<Entry> &entry : state->entries) {
++          if (entry->replay_generation == replay_generation) {
++            continue;
++          }
++          entry->replay_generation = replay_generation;
++          if (entry->in_flight || entry->status->load(std::memory_order_acquire) > 0) {
++            continue;
++          }
++          entry->in_flight = true;
++          entry->status->store(0, std::memory_order_release);
++          pending.push_back(entry);
++        }
++        if (pending.empty()) {
++          state->replay_draining = false;
++          return started;
++        }
++      }
++
++      for (size_t index = 0; index < pending.size(); index++) {
++        const std::shared_ptr<Entry> &entry = pending[index];
++        auto complete = [state, entry](const bool valid) {
++          std::lock_guard lock(state->mutex);
++          if (!entry->in_flight) {
++            return;
++          }
++          entry->in_flight = false;
++          entry->status->store(valid ? int8_t(1) : int8_t(-1), std::memory_order_release);
++          if (valid) {
++            state->entries.erase(
++                std::remove(state->entries.begin(), state->entries.end(), entry),
++                state->entries.end());
++          }
++        };
++        if (replay(entry->context,
++                   entry->offset,
++                   entry->bytes.data(),
++                   entry->bytes.size(),
++                   complete))
++        {
++          started++;
++        }
++        else {
++          complete(false);
++          /* A synchronous setup failure reserved no scheduler entry, so later payloads would
++           * otherwise overtake it. Leave every unattempted entry rejected and retryable. */
++          std::lock_guard lock(state->mutex);
++          for (size_t pending_index = index + 1; pending_index < pending.size(); pending_index++) {
++            const std::shared_ptr<Entry> &unattempted = pending[pending_index];
++            if (unattempted->in_flight) {
++              unattempted->in_flight = false;
++              unattempted->status->store(int8_t(-1), std::memory_order_release);
++            }
++          }
++          state->replay_draining = false;
++          return started;
++        }
 +      }
 +    }
-+    return started;
 +  }
 +
 + private:

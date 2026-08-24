@@ -8,12 +8,15 @@
 
 #include <algorithm>
 #include <array>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -999,13 +1002,111 @@ bool run_pending_buffer_payload_contracts()
     cases++;
   }
 
+  {
+    constexpr std::array<uint8_t, 4> payload_e1 = {0x11, 0x12, 0x13, 0x14};
+    constexpr std::array<uint8_t, 4> payload_e2 = {0x21, 0x22, 0x23, 0x24};
+    constexpr std::array<uint8_t, 4> payload_e3 = {0x31, 0x32, 0x33, 0x34};
+    PendingBufferPayloadQueue<size_t> queue;
+    BufferUpdateTransaction transaction_e1;
+    BufferUpdateTransaction transaction_e2;
+    BufferUpdateTransaction transaction_e3;
+    OrderedQueueScheduler scheduler;
+    std::array<uint8_t, 4> device_bytes = {};
+    std::vector<size_t> reservation_order;
+    std::vector<size_t> execution_order;
+    std::mutex result_mutex;
+    std::mutex barrier_mutex;
+    std::condition_variable barrier_cv;
+    bool first_reserved = false;
+    bool concurrent_replay_done = false;
+    bool concurrent_retain_ok = false;
+    size_t concurrent_started = size_t(-1);
+
+    if (!require(queue.begin(device_bytes.size()) &&
+                     queue.retain(
+                         1, 0, payload_e1.data(), payload_e1.size(), &transaction_e1) &&
+                     queue.retain(
+                         2, 0, payload_e2.data(), payload_e2.size(), &transaction_e2),
+                 "concurrent replay fixture retains E1 and E2"))
+    {
+      return false;
+    }
+
+    auto reserve_payload = [&](const size_t sequence,
+                               const size_t offset,
+                               const void *data,
+                               const size_t size,
+                               std::function<void(bool)> complete) {
+      OrderedQueueScheduler::Ticket ticket = scheduler.reserve();
+      {
+        std::lock_guard lock(result_mutex);
+        reservation_order.push_back(sequence);
+      }
+      if (sequence == 1) {
+        std::unique_lock lock(barrier_mutex);
+        first_reserved = true;
+        barrier_cv.notify_all();
+        barrier_cv.wait(lock, [&] { return concurrent_replay_done; });
+      }
+      const uint8_t *source = static_cast<const uint8_t *>(data);
+      std::vector<uint8_t> owned(source, source + size);
+      ticket.resolve(
+          [&, sequence, offset, owned = std::move(owned), complete = std::move(complete)](
+              std::function<void(bool)> done) mutable {
+            {
+              std::lock_guard lock(result_mutex);
+              execution_order.push_back(sequence);
+              std::copy(owned.begin(), owned.end(), device_bytes.begin() + offset);
+            }
+            complete(true);
+            done(true);
+          });
+      return true;
+    };
+
+    std::thread concurrent_replay([&] {
+      {
+        std::unique_lock lock(barrier_mutex);
+        barrier_cv.wait(lock, [&] { return first_reserved; });
+      }
+      concurrent_retain_ok = queue.retain(
+          3, 0, payload_e3.data(), payload_e3.size(), &transaction_e3);
+      concurrent_started = queue.replay(device_bytes.size(), reserve_payload);
+      {
+        std::lock_guard lock(barrier_mutex);
+        concurrent_replay_done = true;
+      }
+      barrier_cv.notify_all();
+    });
+    const size_t primary_started = queue.replay(device_bytes.size(), reserve_payload);
+    concurrent_replay.join();
+
+    const std::vector<size_t> expected_order = {1, 2, 3};
+    if (!require(concurrent_retain_ok && primary_started == 3 && concurrent_started == 0,
+                 "one replay drainer reserves the complete concurrent batch") ||
+        !require(reservation_order == expected_order && execution_order == expected_order,
+                 "concurrent payload replay preserves frontend FIFO") ||
+        !require(device_bytes == payload_e3,
+                 "latest overlapping payload remains the final device bytes") ||
+        !require(transaction_e1.accepted() && transaction_e2.accepted() &&
+                     transaction_e3.accepted() && queue.size() == 0 && !queue.retryable() &&
+                     scheduler.pending_count() == 0,
+                 "serialized replay accepts every payload exactly once"))
+    {
+      return false;
+    }
+    payloads += execution_order.size();
+    cases++;
+  }
+
   pending_frontend_context = nullptr;
   std::printf(
-      "CONTRACT pending-buffer-payload PASS cases=%zu creates=%zu payloads=%zu order=exact retry=retained frontend_calls=one-shot\n",
+      "CONTRACT pending-buffer-payload PASS cases=%zu creates=%zu payloads=%zu order=fifo "
+      "retry=retained frontend_calls=one-shot concurrent_drainer=one final=E3\n",
       cases,
       creates,
       payloads);
-  return cases == 4 && creates == 5 && payloads == 9;
+  return cases == 5 && creates == 5 && payloads == 12;
 }
 
 }  // namespace blender::gpu::webgpu

@@ -632,7 +632,7 @@ then
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=12 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=5 buffer_update_cases=12 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -647,7 +647,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry bytes=6 allocation=8' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT pending-buffer-payload PASS cases=4 creates=5 payloads=9 order=exact retry=retained frontend_calls=one-shot' \
+    'CONTRACT pending-buffer-payload PASS cases=5 creates=5 payloads=12 order=fifo retry=retained frontend_calls=one-shot concurrent_drainer=one final=E3' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT buffer-staging-map PASS cases=12 large_bytes=65540 map_failure=reject writes=validated submits=validated retry=owned' \

@@ -165,6 +165,16 @@
       "evidence": "notes/m8-grease-pencil-registration-cut-20260824.md; patch 0249; sandbox/m8-grease-pencil-cut/verify.py"
     },
     {
+      "id": "feature-off-compositor-execution-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,663,294 bytes at Brotli q11 before stage-0 data. Omitting the non-launch concrete compositor-node registration root saves 236,893 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser retains the compositor tree type, DNA/RNA, and general .blend loading, but does not register concrete compositor node implementations and cannot execute compositor node trees. Native and headless builds retain stock registration.",
+      "workaround": "Bake compositing into source images or render results in desktop Blender, disable scene compositing for browser work, and use launch-tier mesh, animation, viewport, and small Cycles-CPU workflows in the browser.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_COMPOSITOR=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-compositor-registration-cut-20260824.md; patch 0250; sandbox/m8-compositor-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

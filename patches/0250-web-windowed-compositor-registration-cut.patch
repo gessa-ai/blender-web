@@ -1,0 +1,45 @@
+From: blender-web contributors
+Subject: nodes: let the windowed web profile omit compositor execution registration
+
+The compositor is outside the launch tier, while registering every concrete
+compositor node retains its execution implementation graph. Keep the compositor
+tree type, DNA/RNA, file loading, and stock desktop/headless behavior, but let
+the windowed profile leave the concrete registration root unreachable.
+
+diff --git a/source/blender/nodes/CMakeLists.txt b/source/blender/nodes/CMakeLists.txt
+--- a/source/blender/nodes/CMakeLists.txt
++++ b/source/blender/nodes/CMakeLists.txt
+@@ -220,6 +220,20 @@ endif()
+ 
+ blender_add_lib(bf_nodes "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
+ add_library(bf::nodes ALIAS bf_nodes)
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch compositor implementation
++# registration while retaining its tree type, data, RNA, and file loading.
++if(NOT DEFINED WITH_BLENDER_WEB_COMPOSITOR)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_COMPOSITOR OFF)
++  else()
++    set(WITH_BLENDER_WEB_COMPOSITOR ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_COMPOSITOR)
++  target_compile_definitions(bf_nodes PRIVATE WITH_BLENDER_WEB_COMPOSITOR)
++endif()
+ 
+ # RNA_prototypes.hh
+ add_dependencies(bf_nodes bf_rna)
+diff --git a/source/blender/nodes/intern/node_register.cc b/source/blender/nodes/intern/node_register.cc
+--- a/source/blender/nodes/intern/node_register.cc
++++ b/source/blender/nodes/intern/node_register.cc
+@@ -151,7 +151,9 @@ void register_nodes()
+   register_node_type_group_input();
+   register_node_type_group_output();
+ 
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_COMPOSITOR)
+   register_compositor_nodes();
++#endif
+   register_shader_nodes();
+   register_texture_nodes();
+   register_geometry_nodes();

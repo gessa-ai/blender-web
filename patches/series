@@ -1053,3 +1053,6 @@
 # 0249: omit non-launch Grease Pencil editing registration roots from the
 # windowed profile while preserving data/RNA/file/drawing and non-windowed paths.
 0249-web-windowed-grease-pencil-registration-cut.patch
+# 0250: omit the non-launch concrete compositor-node registration root from the
+# windowed profile while preserving its tree type, DNA/RNA, and file loading.
+0250-web-windowed-compositor-registration-cut.patch

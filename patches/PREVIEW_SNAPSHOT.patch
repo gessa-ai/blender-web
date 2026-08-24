@@ -39855,6 +39855,45 @@ index c25cd31fd25eb02bf6363a5c250477179a10c75d..c4d46d7e299ecfd42ee885fab229ce5a
      {WM_JOB_TYPE_COMPOSITE, "COMPOSITE", 0, "Compositing", ""},
      {WM_JOB_TYPE_SHADER_COMPILATION, "SHADER_COMPILATION", 0, "Shader compilation", ""},
      {0, nullptr, 0, nullptr, nullptr},
+diff --git a/source/blender/nodes/CMakeLists.txt b/source/blender/nodes/CMakeLists.txt
+index 2d927971751809480e2b16017618110842ab6a79..f41443f6f055a758a5807162f37454a449912ea8 100644
+--- a/source/blender/nodes/CMakeLists.txt
++++ b/source/blender/nodes/CMakeLists.txt
+@@ -223,6 +223,20 @@ endif()
+ blender_add_lib(bf_nodes "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
+ add_library(bf::nodes ALIAS bf_nodes)
+ 
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch compositor implementation
++# registration while retaining its tree type, data, RNA, and file loading.
++if(NOT DEFINED WITH_BLENDER_WEB_COMPOSITOR)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_COMPOSITOR OFF)
++  else()
++    set(WITH_BLENDER_WEB_COMPOSITOR ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_COMPOSITOR)
++  target_compile_definitions(bf_nodes PRIVATE WITH_BLENDER_WEB_COMPOSITOR)
++endif()
++
+ # RNA_prototypes.hh
+ add_dependencies(bf_nodes bf_rna)
+ 
+diff --git a/source/blender/nodes/intern/node_register.cc b/source/blender/nodes/intern/node_register.cc
+index e167fc6121db1d2b51797dee1d5c6f69c9e9b19b..4202b6c271834c09ff2b65f6df91dba6ae9334e9 100644
+--- a/source/blender/nodes/intern/node_register.cc
++++ b/source/blender/nodes/intern/node_register.cc
+@@ -151,7 +151,9 @@ void register_nodes()
+   register_node_type_group_input();
+   register_node_type_group_output();
+ 
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_COMPOSITOR)
+   register_compositor_nodes();
++#endif
+   register_shader_nodes();
+   register_texture_nodes();
+   register_geometry_nodes();
 diff --git a/source/blender/python/intern/bpy_interface.cc b/source/blender/python/intern/bpy_interface.cc
 index f0cb9f88e795ef9fd2a7a1ab253b241c12fa43a6..1e1a47ea7103a5a1d048bb6920dc3e3a58aa1db7 100644
 --- a/source/blender/python/intern/bpy_interface.cc

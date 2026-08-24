@@ -60,6 +60,8 @@ option(WITH_BLENDER_WEB_SCULPT_PAINT
   "blender-web: register non-launch sculpt and paint operators/keymaps" ON)
 option(WITH_BLENDER_WEB_GREASE_PENCIL
   "blender-web: register non-launch Grease Pencil editing operators/keymaps" ON)
+option(WITH_BLENDER_WEB_COMPOSITOR
+  "blender-web: register non-launch compositor execution nodes" ON)
 
 # This file is loaded as a `-C` INITIAL CACHE, which CMake processes BEFORE `-D`
 # command-line options — so a `-DWITH_BLENDER_WEB_WINDOWED=ON` is not visible here.
@@ -75,6 +77,7 @@ if(WITH_BLENDER_WEB_WINDOWED)
   set(WITH_GHOST_WEB       ON  CACHE BOOL "" FORCE)  # GHOST_SystemWeb + GHOST_ContextWGPUWeb
   set(WITH_BLENDER_WEB_SCULPT_PAINT OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
   set(WITH_BLENDER_WEB_GREASE_PENCIL OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
+  set(WITH_BLENDER_WEB_COMPOSITOR OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
 else()
   set(WITH_HEADLESS        ON  CACHE BOOL "" FORCE)  # proven --background BPY_OK default
   set(WITH_GHOST_WEB       OFF CACHE BOOL "" FORCE)

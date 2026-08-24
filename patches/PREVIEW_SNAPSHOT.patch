@@ -10639,10 +10639,10 @@ index 5a625d6790b2b82fce7afd249f616169c365dcdd..fb84ce2e2ae176be997412aa7e53865d
  
  void OBJECT_OT_lightprobe_cache_bake(wmOperatorType *ot)
 diff --git a/source/blender/editors/space_api/CMakeLists.txt b/source/blender/editors/space_api/CMakeLists.txt
-index 8b45bbc7f9f948982cdd049310468f9bec552293..cb99063accdba77c05f330d33bfb4d2a0af3c4c0 100644
+index 8b45bbc7f9f948982cdd049310468f9bec552293..7772ba2158f2934aa1551e62e30873e706344e95 100644
 --- a/source/blender/editors/space_api/CMakeLists.txt
 +++ b/source/blender/editors/space_api/CMakeLists.txt
-@@ -47,3 +47,73 @@ set(LIB
+@@ -47,3 +47,87 @@ set(LIB
  )
  
  blender_add_lib(bf_editor_space_api "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
@@ -10716,12 +10716,31 @@ index 8b45bbc7f9f948982cdd049310468f9bec552293..cb99063accdba77c05f330d33bfb4d2a
 +if(WITH_BLENDER_WEB_CLIP)
 +  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_CLIP)
 +endif()
++
++# Keep Blender's stock behavior for every non-web or headless build. The
++# windowed browser profile can omit non-launch NLA editor registration while
++# retaining NLA data, DNA/RNA, blend loading, and core animation paths.
++if(NOT DEFINED WITH_BLENDER_WEB_NLA)
++  if(WITH_BLENDER_WEB_WINDOWED)
++    set(WITH_BLENDER_WEB_NLA OFF)
++  else()
++    set(WITH_BLENDER_WEB_NLA ON)
++  endif()
++endif()
++if(WITH_BLENDER_WEB_NLA)
++  target_compile_definitions(bf_editor_space_api PRIVATE WITH_BLENDER_WEB_NLA)
++endif()
 diff --git a/source/blender/editors/space_api/spacetypes.cc b/source/blender/editors/space_api/spacetypes.cc
-index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1af75b71f9 100644
+index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..5e2c830e35391bf33deba1e93895557e65d07179 100644
 --- a/source/blender/editors/space_api/spacetypes.cc
 +++ b/source/blender/editors/space_api/spacetypes.cc
-@@ -79,13 +79,19 @@ void ED_spacetypes_init()
+@@ -76,16 +76,24 @@ void ED_spacetypes_init()
+   ED_spacetype_info();
+   ED_spacetype_file();
+   ED_spacetype_action();
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_NLA)
    ED_spacetype_nla();
++#endif
    ED_spacetype_script();
    ED_spacetype_text();
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_VSE)
@@ -10740,7 +10759,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1a
  
    /* Register operator types for screen and all spaces. */
    ED_operatortypes_userpref();
-@@ -95,16 +101,22 @@ void ED_spacetypes_init()
+@@ -95,16 +103,22 @@ void ED_spacetypes_init()
    ED_operatortypes_anim();
    ED_operatortypes_animchannels();
    asset::operatortypes_asset();
@@ -10763,7 +10782,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1a
    ED_operatortypes_physics();
    ED_operatortypes_curve();
    curves::operatortypes_curves();
-@@ -163,14 +175,22 @@ void ED_spacemacros_init()
+@@ -163,15 +177,25 @@ void ED_spacemacros_init()
    ED_operatormacros_file();
    ED_operatormacros_graph();
    ED_operatormacros_action();
@@ -10783,10 +10802,13 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1a
 +#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_GREASE_PENCIL)
    ED_operatormacros_grease_pencil();
 +#endif
++#if !defined(__EMSCRIPTEN__) || defined(WITH_BLENDER_WEB_NLA)
    ED_operatormacros_nla();
++#endif
  
    /* Register dropboxes (can use macros). */
-@@ -188,8 +208,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+   ui::dropboxes_ui();
+@@ -188,8 +212,10 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_screen(keyconf);
    ED_keymap_anim(keyconf);
    ED_keymap_animchannels(keyconf);
@@ -10797,7 +10819,7 @@ index ad21b369a725dff3ecebcd9ce5ddfd56ec336574..33a8f60b96a353b7e2ccdd502981ae1a
    object::keymap_object(keyconf);
    ED_keymap_lattice(keyconf);
    ED_keymap_mesh(keyconf);
-@@ -200,10 +222,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
+@@ -200,10 +226,14 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
    ED_keymap_armature(keyconf);
    ED_keymap_physics(keyconf);
    ED_keymap_metaball(keyconf);

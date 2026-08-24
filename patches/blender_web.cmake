@@ -68,6 +68,8 @@ option(WITH_BLENDER_WEB_SPREADSHEET
   "blender-web: register non-launch Spreadsheet editor" ON)
 option(WITH_BLENDER_WEB_CLIP
   "blender-web: register non-launch Clip editor" ON)
+option(WITH_BLENDER_WEB_NLA
+  "blender-web: register non-launch NLA editor" ON)
 
 # This file is loaded as a `-C` INITIAL CACHE, which CMake processes BEFORE `-D`
 # command-line options — so a `-DWITH_BLENDER_WEB_WINDOWED=ON` is not visible here.
@@ -87,6 +89,7 @@ if(WITH_BLENDER_WEB_WINDOWED)
   set(WITH_BLENDER_WEB_VSE OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
   set(WITH_BLENDER_WEB_SPREADSHEET OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
   set(WITH_BLENDER_WEB_CLIP OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
+  set(WITH_BLENDER_WEB_NLA OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
 else()
   set(WITH_HEADLESS        ON  CACHE BOOL "" FORCE)  # proven --background BPY_OK default
   set(WITH_GHOST_WEB       OFF CACHE BOOL "" FORCE)

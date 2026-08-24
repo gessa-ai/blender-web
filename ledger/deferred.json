@@ -205,6 +205,16 @@
       "evidence": "notes/m8-clip-registration-cut-20260824.md; patch 0253; sandbox/m8-clip-cut/verify.py"
     },
     {
+      "id": "feature-off-nla-editor-windowed",
+      "status": "deferred",
+      "milestone": "M8",
+      "blocker": "The LAUNCH.md interactive payload budget is <=15 MB, while the windowed Wasm remains 23,484,149 bytes at Brotli q11 before stage-0 data. Omitting only the non-launch NLA space-type and macro registration roots saves 31,745 q11 bytes without weakening a receipt.",
+      "impact": "The windowed browser retains NLA data/RNA, generic .blend loading, and core animation paths, but does not expose or register the NLA editor space or its operator macros. Native and headless builds retain stock registration.",
+      "workaround": "Author or edit NLA tracks and strips in desktop Blender, then open the resulting .blend in the browser; launch-tier keyframing, Timeline, Dope Sheet, and Graph Editor workflows remain registered.",
+      "revisit": "post-launch, or when a truthful accepted-hardware profile split clears the <=15 MB bar without this feature cut; set WITH_BLENDER_WEB_NLA=ON and rerun the size/runtime receipts",
+      "evidence": "notes/m8-nla-registration-cut-20260824.md; patch 0254; sandbox/m8-nla-cut/verify.py"
+    },
+    {
       "id": "feature-off-opensubdiv",
       "status": "deferred",
       "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",

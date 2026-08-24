@@ -1065,3 +1065,6 @@
 # 0253: omit non-launch Clip/Motion Tracking space and macro registration roots
 # from the windowed profile while preserving MovieClip data/RNA and loading.
 0253-web-windowed-clip-registration-cut.patch
+# 0254: omit non-launch NLA space and macro registration roots from the windowed
+# profile while preserving NLA data/RNA, loading, and core animation paths.
+0254-web-windowed-nla-registration-cut.patch

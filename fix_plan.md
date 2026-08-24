@@ -2341,6 +2341,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   drift, failure, timeout, and cancellation retire without a stale property write. Six
   native/wasm32 contracts and 13 cases are byte-identical; navigation, painting, zoom-border, and
   NDOF remain, so the overall census remains three synchronous families.
+- [x] **M5-NAVIGATION-DEPTH-CONTINUATION [driver, complete]:** COMPLETE (7f71566, patch 0259;
+  Linux receipt `20260824T203717-442946`): ordinary rotate/move/pan/zoom operators now retain the
+  stock initialization prelude, exact invoke event, and latest queued event across the shared
+  progressive depth request. Native-ready requests remain immediate; browser-pending requests
+  resume the stock pivot and navigation initializer exactly once. Context drift, Escape, external
+  cancel, readback failure, and timeout restore the backed-up view. The embedded navigation
+  utility, direct dolly, and NDOF custom-data paths remain pinned instead of starting an unowned
+  continuation. Six native/wasm32 contracts and nine cases are byte-identical; direct dolly,
+  painting, zoom-border, and NDOF remain, so the overall census remains three synchronous families.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

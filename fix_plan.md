@@ -2180,6 +2180,29 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   stock native/headless behavior but removed only 1,452 pinned Brotli-q11 bytes while hiding 40
   visible operators. The candidate patch, option, verifier, and postimage were removed; no feature
   cut or deferral ships. See `notes/m8-mask-registration-cut-rejected-20260824.md`.
+- [x] **AUDIT-20260824-R9 [driver] (report pending commit):** adversarially reviewed exact range
+  `c36e225^..44186b4` and found three critical, two major, and two minor fidelity, file-preservation,
+  source-gate, evidence, documentation, and process defects. Canonical replay, the real product
+  no-work build, compliance, protected-path ownership, authorship, and hardware/non-receipt
+  boundaries remain clean. See `reports/audit-20260824-r9.md` and
+  `notes/stuck-2026-08-24.md`.
+- [ ] **AUDIT-R9-M8-FIDELITY-RESTORE [driver, blocked-by: none]:** atomically restore every
+  windowed registration removed by patches 0248-0255, restore faithful windowed defaults, retire
+  the eight size-only feature deferrals without erasing their rejected-history evidence, remove or
+  archive the non-composable cut verifiers, and regenerate the canonical postimage. Verify exact
+  operator/space/node registration plus native/headless preservation and the real locked product.
+- [ ] **AUDIT-R9-M7-OMITTED-TYPE-ROUNDTRIP [driver, blocked-by:
+  AUDIT-R9-M8-FIDELITY-RESTORE]:** add hardware-independent native/Wasm load-save-reload parity
+  fixtures for storage-bearing compositor nodes and active/inactive VSE, Spreadsheet, Clip, and
+  NLA spaces; reject undefined-node, `SPACE_EMPTY`, region, or type-specific state loss.
+- [ ] **AUDIT-R9-GHOST-CALLBACK-CENSUS [ghost-web, blocked-by: none]:** enumerate every
+  `CallbackMode::AllowSpontaneous` registration structurally, require every owner-affine callback
+  to enter the shared lifetime gate, and add a raw-owner-alias mutation that the current eight-role
+  census incorrectly accepts; retain native/wasm32 and unsafe-ASan controls.
+- [ ] **AUDIT-R9-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale class
+  comment claiming a one-time `initAsync()` startup await, consolidate the actual pre-main import
+  and standalone acquisition paths, and bind the complete lifecycle description rather than only
+  the header prefix.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

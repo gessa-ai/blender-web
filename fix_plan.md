@@ -2064,10 +2064,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   final overlapping bytes. Patch round trip, canonical replay, product rebuild/no-work, OFF
   preflight, compliance, scoped M3, and container-backed regression are verified. See
   `notes/m3-gpu-payload-replay-fifo-r8-20260824.md`.
-- [ ] **AUDIT-R8-GHOST-LOSS-INIT-SETTLEMENT [ghost-web, blocked-by: none]:** when fallback device
-  loss arrives during backbuffer creation or surface configuration, route one terminal transition
-  through the owner boundary and invoke the pending ready callback exactly once with failure. Prove
-  startup cannot remain gated with stale pending flags and retain no raw owner in the loss callback.
+- [x] **AUDIT-R8-GHOST-LOSS-INIT-SETTLEMENT [ghost-web, blocked-by: none] COMPLETE (8d7565d):**
+  fallback device loss now marks callback-owned terminal state before one shared-gate owner
+  delivery; serialized cleanup clears every pending flag/handle and settles initialization once
+  with failure. Native-ASan/wasm32 backbuffer/configuration, duplicate-loss, and late-completion
+  contracts, exact indexed compilation, integrated parity, standalone/product builds, canonical
+  replay, OFF preflight, compliance, scoped M4, and container-backed regression are verified. See
+  `notes/m4-ghost-loss-init-settlement-r8-20260824.md`.
 - [ ] **AUDIT-R8-GHOST-READY-CALLBACK-LIFETIME [ghost-web, blocked-by: none]:** move `on_ready_`
   out of member storage before invoking it as the final settlement action. Exercise an actual
   production-shaped ready callback that destroys its context under native ASan and wasm32.

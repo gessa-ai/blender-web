@@ -1074,3 +1074,6 @@
 # 0256: retain one exact progressive auto-depth request for 3D cursor placement,
 # then reject superseded or drifted state before bounded modal replay.
 0256-m5-cursor-depth-pick-continuation.patch
+# 0257: retain the center-view event and producing viewport across its owned
+# progressive depth request, then resume the stock smooth-view result safely.
+0257-m5-view-center-pick-continuation.patch

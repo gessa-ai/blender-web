@@ -282,6 +282,13 @@ gtests without OIIO+fmt+zlib+zstd+TBB present. Do not pretend the dep waves are 
   stale tier-(b) replay accounting only. Aggregate `m2b` remains honestly RED until the complete
   M0-M3 strict candidate exists; no product, upstream, harness, result flag, deferral, or milestone
   promise changed.
+- [x] **M2-PASS-DELTA-REFRESH [driver, blocked-by: none] COMPLETE:** the exact current
+  container-oracle/Node 22.16.0 matrix again passes all 75 tier-(b) rows: 65 `PASS`, seven named
+  `DEFERRED`, and three exact-schema `PASS_WITH_DEFERRAL`. Independent raw-log replay and both
+  mutation suites are green against the 20,258-entry freeze. The post-patch-0248 runtime does not
+  retire the animation ObjectData or library-override ID-name deltas, so both named ledger rows
+  remain honestly deferred. Aggregate `m2b` remains red only at the separate s7-blocked complete
+  M0-M3 manifest boundary. See `notes/m2-pass-delta-refresh-20260824.md`.
 - [x] **M2.7 [python-wasm] RECONCILED against `7c1722f`/`26025bd` and ADR-006:** the
   sandbox reproducer now derives its checkout from its own path, runs from root or descendant,
   requires a genuinely JSPI-capable runtime, rejects bundled Node 22.16.0 before compilation,

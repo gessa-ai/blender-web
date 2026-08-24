@@ -2215,10 +2215,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   method, exact callee, argument positions, callback form, and owner role. The prior eight-role
   alias escape now rejects, while native/wasm32 lifecycle parity and both unsafe-ASan controls
   remain green. See `notes/m4-ghost-callback-registration-census-r9-20260824.md`.
-- [ ] **AUDIT-R9-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale class
-  comment claiming a one-time `initAsync()` startup await, consolidate the actual pre-main import
-  and standalone acquisition paths, and bind the complete lifecycle description rather than only
-  the header prefix.
+- [x] **AUDIT-R9-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none] COMPLETE (`fe1ebb4`):** the
+  class-adjacent Doxygen contract now separates the shipping pre-main bundle import from standalone
+  `initAsync()` acquisition and binds both to the shared owner-lifecycle gate. A structural checker
+  rejects six inheritance, path, gate, prefix-only, and stale-duplicate mutations while the full
+  native-ASan/wasm32 lifecycle matrix remains green. See
+  `notes/m4-ghost-inheritance-documentation-r9-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

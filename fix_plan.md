@@ -2374,6 +2374,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   fallback exactly once. Eight native/wasm32 contracts and 20 cases are byte-identical; 15 source
   mutations fail closed. Only NDOF remains in the depth-pick family, so the overall census stays at
   three synchronous families. See `notes/m5-zoom-border-depth-continuation-20260824.md`.
+- [x] **M5-NDOF-DEPTH-CONTINUATION [driver, complete]:** COMPLETE (`5605c85`, patch 0263;
+  Linux receipts `20260824T231821-569100`/`20260824T231848-569669`): NDOF keeps the stock
+  bounds-first orbit-center choice, owns only the fallback rectangle-depth request, and retains the
+  exact starting plus queued 3D-mouse payloads in FIFO order across bounded browser settlement.
+  Native-ready behavior remains immediate; producing-view drift, invalid payloads, queue overflow,
+  timeout, backend failure, Escape, and external cancellation converge on owned cleanup. Eight
+  native/wasm32 contracts and 20 cases are byte-identical; eight source mutations fail closed. This
+  closes the depth-pick family at the source/device-free boundary, leaving exactly depth cache and
+  WM window capture synchronous. See `notes/m5-ndof-depth-continuation-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

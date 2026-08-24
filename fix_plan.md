@@ -2243,6 +2243,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compliance failures (25 to 23) while all four external-policy facts remain honestly false. The
   ignored receipt is regenerated after the record commit so that commit is included in both
   digests. See `notes/m8-compliance-current-receipt-20260824.md`.
+- [x] **M3-BINDSPACE-SCOPED-RESOURCE-VERIFIER [gpu-backend, blocked-by: none] COMPLETE
+  (`72616c2`):** the device-free bind-space driver now extracts the sampler descriptor through the
+  current scoped-cache boundary and the dummy-vertex mapped-at-creation helper plus its scoped
+  context call. Root/descendant runs pass seven fail-closed mutations and six byte-identical
+  native/Wasm contracts; canonical replay, the real product no-work check, OFF preflight, REUSE,
+  scoped M3, and container-backed regression are verified without promoting the s7-blocked live
+  receipt. See `notes/m3-bindspace-scoped-resource-verifier-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

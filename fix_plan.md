@@ -2180,7 +2180,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   stock native/headless behavior but removed only 1,452 pinned Brotli-q11 bytes while hiding 40
   visible operators. The candidate patch, option, verifier, and postimage were removed; no feature
   cut or deferral ships. See `notes/m8-mask-registration-cut-rejected-20260824.md`.
-- [x] **AUDIT-20260824-R9 [driver] (report pending commit):** adversarially reviewed exact range
+- [x] **AUDIT-20260824-R9 [driver] (`3920f42`):** adversarially reviewed exact range
   `c36e225^..44186b4` and found three critical, two major, and two minor fidelity, file-preservation,
   source-gate, evidence, documentation, and process defects. Canonical replay, the real product
   no-work build, compliance, protected-path ownership, authorship, and hardware/non-receipt

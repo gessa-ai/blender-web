@@ -1968,7 +1968,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **AUDIT-R7-GPU-PENDING-BUFFER-PAYLOAD [gpu-backend, blocked-by: none] COMPLETE (d999280,
   patch 0240):** SSBO/UBO updates, clears, and attached data now transfer into an ordered owned
   queue while persistent allocation validation is pending; rejection retains retry state and an
-  accepted publication replays each payload exactly once without a second frontend call. Extracted
+  accepted publication replays each payload exactly once without a second frontend call. R8
+  separately reopens FIFO reservation when two callers enter replay concurrently. Extracted
   frontend native/wasm32 parity, sentinel ordering, non-null pinned-Dawn rejection/retry, canonical
   replay, real product rebuild/no-work, OFF preflight, and compliance are verified. See
   `notes/m3-gpu-pending-buffer-payload-20260823.md`.
@@ -1982,9 +1983,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **AUDIT-R7-GPU-UPLOAD-COMMIT [gpu-backend, blocked-by: none] COMPLETE (c9cddfa,
   patch 0242):** direct and staged buffer uploads now publish explicit pending/accepted/rejected
   transaction state, while the buffer owns exact retry bytes and VBO/UBO frontends preserve dirty
-  or attached data until implementation-scope acceptance. Native/wasm32 rejection/retry parity,
-  source-bound frontend cleanup order, non-null pinned-Dawn rejection, canonical replay, real
-  product rebuild/no-work, OFF preflight, and compliance are verified. See
+  or attached data until implementation-scope acceptance. R8 separately reopens newer VBO
+  mutations during a pending transaction and the staging buffer's resource-scope placement.
+  Native/wasm32 rejection/retry parity, source-bound frontend cleanup order, non-null pinned-Dawn
+  rejection, canonical replay, real product rebuild/no-work, OFF preflight, and compliance are
+  verified. See
   `notes/m3-gpu-upload-commit-20260823.md`.
 - [x] **AUDIT-R7-GPU-COMPUTE-BIND-SCOPE [gpu-backend, blocked-by: none] COMPLETE (88003fd,
   patch 0243):** direct and indirect compute bind groups now reserve one ordered transient resource
@@ -1995,18 +1998,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/m3-gpu-compute-bind-scope-20260823.md`.
 - [x] **AUDIT-R7-GHOST-ACQUISITION-LIFETIME [ghost-web, blocked-by: none] COMPLETE (8822ef2):**
   spontaneous fallback adapter/device request completions now capture one shared owner-lifetime
-  gate instead of the raw GHOST context, and destruction invalidates it before every other callback
-  boundary. Delayed native-ASan/wasm32 delivery performs zero owner access, initialization
-  completion, or follow-on request; the unsafe raw-owner control is caught by ASan. Source binding,
+  gate instead of the raw GHOST context, and every acquisition delivery enters that gate. R8
+  separately reopens admission ordering once destruction has begun. Delayed native-ASan/wasm32
+  delivery performs zero owner access, initialization completion, or follow-on request after
+  completed invalidation; the unsafe raw-owner control is caught by ASan. Source binding,
   standalone/product builds, OFF preflight, canonical replay, compliance, scoped M4, and
   container-backed regression are verified. See
   `notes/m4-ghost-acquisition-lifetime-20260823.md`.
 - [x] **AUDIT-R7-GHOST-LOSS-INFLIGHT-CANCEL [ghost-web, blocked-by: none] COMPLETE (22a5514):**
   pending fallback resize, pipeline, submission, and present completions now consult the shared
   terminal device state before Configure, handle publication, queue Submit, or `note_present()`.
-  Fail-first source binding, active/lost native/wasm32 parity, standalone/product builds, OFF
-  preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.
-  See `notes/m4-ghost-loss-inflight-cancel-20260823.md`.
+  R8 separately reopens owner cleanup concurrency and failed initialization settlement when a lost
+  callback returns before any public boundary. Fail-first source binding, active/lost
+  native/wasm32 parity, standalone/product builds, OFF preflight, canonical replay, compliance,
+  scoped M4, and container-backed regression are verified. See
+  `notes/m4-ghost-loss-inflight-cancel-20260823.md`.
 - [x] **AUDIT-R7-GPU-SCHEDULER-FAILURE-DRAIN [gpu-backend, blocked-by: none] COMPLETE (a15900d,
   patch 0244):** synchronous operation completion and same-epoch cancellation now share one
   iterative drain owner, while exact queued-epoch references prune failures once neither current
@@ -2016,20 +2022,57 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   regression are verified. The R7 device-free corrective queue is complete. See
   `notes/m3-gpu-scheduler-failure-drain-20260823.md`.
 - [x] **AUDIT-R8-GHOST-CALLBACK-LIFECYCLE [ghost-web, blocked-by: none] COMPLETE (938ade4):**
-  all seven asynchronous context completions now register with one synchronized owner gate, so
-  destruction blocks new delivery and waits for concurrent owner access without deadlocking a
-  self-destroying callback. Their shared device state samples the exact imported JavaScript loss
-  generation at callback time and makes settled/replaced signals sticky terminal. Fail-first
-  source binding, byte-identical native/wasm32 concurrency and loss contracts, unsafe ASan control,
-  canonical integrated parity, real product rebuild/no-work, and compliance are verified. See
+  all seven asynchronous context completions now register with one synchronized owner gate, and
+  completed invalidation rejects delayed delivery without deadlocking a self-destroying callback.
+  R8 separately reopens the interval after destruction begins but before invalidation closes
+  admission. Their shared device state samples the exact imported JavaScript loss generation at
+  callback time and makes settled/replaced signals sticky terminal. Fail-first source binding,
+  byte-identical native/wasm32 concurrency and loss contracts, unsafe ASan control, canonical
+  integrated parity, real product rebuild/no-work, and compliance are verified. See
   `notes/m4-ghost-callback-lifecycle-r8-20260823.md`.
 - [x] **AUDIT-R8-GHOST-CALLBACK-SERIALIZATION [ghost-web, blocked-by: none] COMPLETE (5652eff):**
   arbitrary-thread `AllowSpontaneous` completions now hold one reentrant serialized owner slot for
-  their complete callback, preventing concurrent mutation of non-atomic GHOST context state while
-  preserving nested delivery, self-destruction, and non-waiting loss cancellation. Fail-first and
-  final native/wasm32 concurrency contracts, unsafe ASan control, canonical integrated parity,
-  real product rebuild/no-work, OFF preflight, canonical replay, and compliance are verified. See
+  their complete callback, preventing callback-vs-callback mutation while preserving nested
+  delivery, self-destruction, and non-waiting loss cancellation. R8 separately reopens
+  callback-vs-public-owner/device-cleanup execution. Fail-first and final native/wasm32 concurrency
+  contracts, unsafe ASan control, canonical integrated parity, real product rebuild/no-work, OFF
+  preflight, canonical replay, and compliance are verified. See
   `notes/m4-ghost-callback-serialization-r8-20260823.md`.
+- [x] **AUDIT-20260823-R8 [driver] (1973e70):** adversarially reviewed exact range
+  `4122d60^..9505bfb` with an independent subagent. The audit found two critical, four major, and
+  two minor correctness/lifetime/evidence defects while canonical replay, native/wasm32 controls,
+  the real product no-work build, compliance, protected-path ownership, and hardware/non-receipt
+  boundaries remain clean. See `reports/audit-20260823-r8.md`.
+- [ ] **AUDIT-R8-GHOST-OWNER-EXECUTION-LIFECYCLE [ghost-web, blocked-by: none]:** close owner
+  admission before destruction waits, and serialize spontaneous callbacks with public owner
+  methods plus terminal device-loss cleanup without deadlocking nested delivery or self-destruction.
+  Add deterministic native/wasm32 barriers for callback-vs-owner, active-callback destruction plus
+  late nested/queued delivery, and cleanup quiescence; retain the unsafe ASan control.
+- [ ] **AUDIT-R8-GPU-UPLOAD-GENERATION [gpu-backend, blocked-by: none]:** preserve a newer VBO
+  or float buffer-texture mutation when an older upload transaction accepts. Regress actual
+  frontend A-schedule/B-mutate/A-accept order with distinct sentinels and require B to remain dirty
+  and upload next in byte-identical native/wasm32 runs.
+- [ ] **AUDIT-R8-GPU-PAYLOAD-REPLAY-FIFO [gpu-backend, blocked-by: none]:** give retained buffer
+  replay one drainer or reserve the complete selected batch in deque order so a concurrent retain
+  and replay cannot schedule E3 between E1 and E2. Force the interleaving with barriers and verify
+  scheduler order plus final overlapping bytes in native/wasm32.
+- [ ] **AUDIT-R8-GHOST-LOSS-INIT-SETTLEMENT [ghost-web, blocked-by: none]:** when fallback device
+  loss arrives during backbuffer creation or surface configuration, route one terminal transition
+  through the owner boundary and invoke the pending ready callback exactly once with failure. Prove
+  startup cannot remain gated with stale pending flags and retain no raw owner in the loss callback.
+- [ ] **AUDIT-R8-GHOST-READY-CALLBACK-LIFETIME [ghost-web, blocked-by: none]:** move `on_ready_`
+  out of member storage before invoking it as the final settlement action. Exercise an actual
+  production-shaped ready callback that destroys its context under native ASan and wasm32.
+- [ ] **AUDIT-R8-GPU-STAGING-RESOURCE-SCOPE [gpu-backend, blocked-by: none]:** reserve a transient
+  validation/OOM/internal gate around large-upload staging-buffer creation before its dependent
+  command ticket. Regress a non-null error object with zero uncaptured errors, same-epoch
+  cancellation, exact retained bytes, and a clean retry; pinned Dawn remains a software non-receipt.
+- [ ] **AUDIT-R8-GHOST-CALLBACK-SOURCE-GATE [ghost-web, blocked-by: none]:** replace the
+  string-count/raw-capture regex with an explicit structural callback census and production-shaped
+  owner/loss/destruction behavior cases, while retaining native/wasm32 parity and unsafe ASan.
+- [ ] **AUDIT-R8-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale header
+  claim that `GHOST_ContextWGPUWeb` does not subclass `GHOST_Context`; bind the corrected lifecycle
+  description in the source-compliance check.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

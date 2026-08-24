@@ -40,8 +40,8 @@ only after a complete pass.
 
 - Root and descendant executions pass seven cross-runtime state comparisons and eight semantic
   mutation controls. The canonical parity-state SHA-256 begins `5ee6746fbaf9`; the bound Wasm
-  SHA-256 begins `de05586d625b` (`20260824T093757-3981724`,
-  `20260824T094017-3983785`).
+  SHA-256 begins `81d2a25bac2e` (`20260824T094434-3989252`,
+  `20260824T094512-3990783`).
 - Mutation controls independently reject an undefined compositor node, storage loss, socket loss,
   link loss, `SPACE_EMPTY`, an absent inactive `SpaceLink`, region loss, and type-specific editor
   state loss.
@@ -49,6 +49,10 @@ only after a complete pass.
   `bpy.app.build_hash == "Unknown"`; only that runtime metadata field is excluded from state
   equality. The JavaScript/Wasm bytes are hash-bound separately, and the semantic runtime version
   remains exactly 5.2.0.
+- The locked headless-Wasm graph rebuilt 31 stale edges, including the final link, and its
+  immediate locked dry-run is exact no-work (`20260824T094340-3988756`,
+  `20260824T094434-3989251`). The focused receipts above therefore bind the freshly linked
+  product rather than the pre-existing binary.
 
 This is a component receipt for the R9 serialization regression. It creates no browser, adapter,
 device, pixel, profile, split-product, M7 result promotion, or milestone promise.

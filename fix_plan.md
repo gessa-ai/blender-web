@@ -2193,10 +2193,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   postimage replays exactly, native/headless preservation builds are green, and the real locked
   product is byte-identical to the pre-cut baseline. M8 remains honestly red at its independent
   25 technical boundaries. See `notes/m8-registration-fidelity-restore-20260824.md`.
-- [ ] **AUDIT-R9-M7-OMITTED-TYPE-ROUNDTRIP [driver, blocked-by:
-  AUDIT-R9-M8-FIDELITY-RESTORE]:** add hardware-independent native/Wasm load-save-reload parity
-  fixtures for storage-bearing compositor nodes and active/inactive VSE, Spreadsheet, Clip, and
-  NLA spaces; reject undefined-node, `SPACE_EMPTY`, region, or type-specific state loss.
+- [x] **AUDIT-R9-M7-OMITTED-TYPE-ROUNDTRIP [driver, blocked-by:
+  AUDIT-R9-M8-FIDELITY-RESTORE] COMPLETE (`6168983`):** a pinned native-authored fixture now
+  proves exact native/Wasm load-save-reload state parity for linked storage-bearing compositor
+  nodes and active/inactive VSE, Spreadsheet, Clip, and NLA spaces. Seven state comparisons and
+  eight semantic mutations reject undefined nodes, `SPACE_EMPTY`, missing spaces/regions, and
+  type-specific state loss. The freshly linked headless Wasm graph ends no-work. The focused
+  component receipt does not promote M7 or claim stock-native readability of Wasm32 output. See
+  `notes/m7-omitted-type-roundtrip-20260824.md`.
+- [ ] **M7-WASM32-WRITE-CROSS-ABI [driver, blocked-by: none]:** make Wasm32-saved `.blend` files
+  readable by unmodified pinned native Blender. A minimal factory-startup save and the R9 fixture
+  both fail native load with `unexpected data size` and an invalid Scene root collection. Patch
+  0014 fixes only reconstruction's Wasm target offsets; the writer must emit the canonical legacy
+  32-bit file layout and force Wasm reconstruction where compiled/member offsets diverge, without
+  a Scene special-case or native-reader patch. Require stock-native and Wasm reload state parity
+  plus old 32-bit corpus preservation before closing.
 - [ ] **AUDIT-R9-GHOST-CALLBACK-CENSUS [ghost-web, blocked-by: none]:** enumerate every
   `CallbackMode::AllowSpontaneous` registration structurally, require every owner-affine callback
   to enter the shared lifetime gate, and add a raw-owner-alias mutation that the current eight-role

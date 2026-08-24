@@ -82,7 +82,7 @@ smallest truthful editor-only boundary.
   `ledger/buildlogs/20260824T055336-3791623.log`).
 - OFF product preflight binds 647,913 JavaScript bytes, 112,105,425 Wasm bytes, and 167,143,248
   data bytes (`ledger/buildlogs/20260824T055123-3789031.log`). Final pinned REUSE 6.2.0 is GREEN
-  for 2,268/2,268 files (`ledger/buildlogs/20260824T055552-3793280.log`).
+  for 2,268/2,268 files (`ledger/buildlogs/20260824T055818-3795149.log`).
 - Required M8 remains RED at its unchanged 25 technical release boundaries
   (`ledger/buildlogs/20260824T055256-3790525.log`). Container-backed regression restores M0 to
   6/6 GREEN while M1-M8 retain their existing strict-receipt, product, browser, run-label,

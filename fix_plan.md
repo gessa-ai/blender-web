@@ -2134,6 +2134,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Wasm alone is 8,588,861 bytes over the complete 15 MB budget before stage-0 data, and
   hardware/APPLY receipts remain s7-blocked. See
   `notes/m8-vse-registration-cut-20260824.md`.
+- [ ] **M8-SPREADSHEET-REGISTRATION-CUT [driver, blocked-by: none]:** identify the smallest
+  windowed-only spreadsheet space registration boundary that makes the non-launch editor
+  unreachable while preserving geometry-node data/RNA and `.blend` loading; keep it only if a
+  real locked relink yields a material pinned Brotli-q11 reduction and native/headless
+  preservation stays GREEN.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

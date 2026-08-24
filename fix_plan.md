@@ -2264,6 +2264,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   independent pinned-OIIO replay is green; every verdict and stored pixel metric is unchanged
   from r5. Aggregate M6 remains red only at its separate s7-blocked Workbench/EEVEE, browser,
   and complete-product boundaries. See `notes/m6-cycles-pass-delta-refresh-20260824.md`.
+- [x] **M5-ASYNC-READBACK-CONTRACT-RECONCILE [driver, complete]:** COMPLETE (`d58164f`;
+  Linux receipts `20260824T132924-89982`/`20260824T132351-86123`): the actual readback and
+  selection sources pass byte-identical native/wasm32 owned-result, exact-replay, and failure
+  contracts; the source receipt binds L-B and C1 across 20 files and fails closed under six
+  mutations. Seven synchronous caller families remain registered under
+  `gpu-sync-readback-windowed`, and live M5 acceptance retains its separate named hardware
+  blocker. See `notes/m5-async-readback-contract-reconcile-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -2221,6 +2221,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rejects six inheritance, path, gate, prefix-only, and stale-duplicate mutations while the full
   native-ASan/wasm32 lifecycle matrix remains green. See
   `notes/m4-ghost-inheritance-documentation-r9-20260824.md`.
+- [x] **M8-COMPLIANCE-CURRENT-RECEIPT [compliance, blocked-by: none] COMPLETE:** the exact
+  repository-local REUSE 6.2.0 producer now binds the current tracked-input and reachable-history
+  digests with all nine technical facts and 2,283/2,283 files green. Independent resolver,
+  consumer, and receipt-mutation contracts pass; the real M8 scope drops exactly the two stale
+  compliance failures (25 to 23) while all four external-policy facts remain honestly false. The
+  ignored receipt is regenerated after the record commit so that commit is included in both
+  digests. See `notes/m8-compliance-current-receipt-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

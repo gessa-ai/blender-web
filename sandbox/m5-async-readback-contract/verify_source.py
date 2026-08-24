@@ -394,10 +394,6 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "source/blender/editors/space_view3d/view3d_draw.cc",
             "GPU_texture_read(depth_tx, GPU_DATA_FLOAT, 0)",
         ),
-        "viewport_color_sample": (
-            "source/blender/editors/space_view3d/view3d_draw.cc",
-            "GPU_texture_read(tex, GPU_DATA_HALF_FLOAT, 0)",
-        ),
         "window_capture": (
             "source/blender/windowmanager/intern/wm_draw.cc",
             "GPU_offscreen_read_color(offscreen, GPU_DATA_UBYTE, rect);",

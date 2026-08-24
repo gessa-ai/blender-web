@@ -2271,6 +2271,10 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   mutations. Seven synchronous caller families remain registered under
   `gpu-sync-readback-windowed`, and live M5 acceptance retains its separate named hardware
   blocker. See `notes/m5-async-readback-contract-reconcile-20260824.md`.
+- [ ] **M5-VIEWPORT-COLOR-READBACK [driver, claimed_by: codex-ornith-20260824,
+  blocked-by: none]:** convert the View3D eyedropper's retained viewport copy from synchronous
+  `GPU_texture_read` to an owned exact-ticket kick/poll session, preserve stock synchronous native
+  behavior, and bind lifetime/failure/retry semantics with native/wasm32 device-free evidence.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

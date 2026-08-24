@@ -2085,9 +2085,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   clean-epoch retry. Pinned Dawn remains explicit llvmpipe software non-receipt evidence. Product,
   canonical replay, OFF preflight, scoped M3, and container-backed regression are verified. See
   `notes/m3-gpu-staging-resource-scope-r8-20260824.md`.
-- [ ] **AUDIT-R8-GHOST-CALLBACK-SOURCE-GATE [ghost-web, blocked-by: none]:** replace the
-  string-count/raw-capture regex with an explicit structural callback census and production-shaped
-  owner/loss/destruction behavior cases, while retaining native/wasm32 parity and unsafe ASan.
+- [x] **AUDIT-R8-GHOST-CALLBACK-SOURCE-GATE [ghost-web, blocked-by: none] COMPLETE (c36e225):**
+  an explicit lexer/balanced-structure manifest now binds all eight shipping asynchronous callback
+  roles by method, callee, argument, capture, owner gate, and callback-time device state. Three
+  in-memory mutations reject the retired gate's dead-text/alias false positive, implicit capture,
+  and an added callback. A production-shaped eight-role matrix covers live delivery, fallback loss,
+  and post-loss/destruction rejection with byte-identical native/wasm32 behavior while retaining
+  both unsafe ASan controls. See `notes/m4-ghost-callback-source-gate-r8-20260824.md`.
 - [ ] **AUDIT-R8-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale header
   claim that `GHOST_ContextWGPUWeb` does not subclass `GHOST_Context`; bind the corrected lifecycle
   description in the source-compliance check.

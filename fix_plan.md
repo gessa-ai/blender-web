@@ -2186,11 +2186,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   no-work build, compliance, protected-path ownership, authorship, and hardware/non-receipt
   boundaries remain clean. See `reports/audit-20260824-r9.md` and
   `notes/stuck-2026-08-24.md`.
-- [ ] **AUDIT-R9-M8-FIDELITY-RESTORE [driver, blocked-by: none]:** atomically restore every
-  windowed registration removed by patches 0248-0255, restore faithful windowed defaults, retire
-  the eight size-only feature deferrals without erasing their rejected-history evidence, remove or
-  archive the non-composable cut verifiers, and regenerate the canonical postimage. Verify exact
-  operator/space/node registration plus native/headless preservation and the real locked product.
+- [x] **AUDIT-R9-M8-FIDELITY-RESTORE [driver, blocked-by: none] COMPLETE (`a86ce79`):** all
+  21 registration calls are unconditional again; patches 0248-0255, their feature switches,
+  size-only deferrals, and non-composable verifiers are retired while eight notes preserve the
+  rejected measurements. The aggregate gate rejects eight mutations, the 257-path canonical
+  postimage replays exactly, native/headless preservation builds are green, and the real locked
+  product is byte-identical to the pre-cut baseline. M8 remains honestly red at its independent
+  25 technical boundaries. See `notes/m8-registration-fidelity-restore-20260824.md`.
 - [ ] **AUDIT-R9-M7-OMITTED-TYPE-ROUNDTRIP [driver, blocked-by:
   AUDIT-R9-M8-FIDELITY-RESTORE]:** add hardware-independent native/Wasm load-save-reload parity
   fixtures for storage-bearing compositor nodes and active/inactive VSE, Spreadsheet, Clip, and

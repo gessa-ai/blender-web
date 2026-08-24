@@ -2290,7 +2290,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   applies the existing crop, row-order, channel-extension, and format transform once after
   settlement. Native/wasm32 owned-result, texture, and pipeline contracts are byte-identical.
   This is an enabler only: all five synchronous caller families remain explicitly deferred.
-- [x] **M5-WINDOW-COLOR-ASYNC-READBACK [driver, complete]:** COMPLETE (patch 0252;
+- [x] **M5-WINDOW-COLOR-ASYNC-READBACK [driver, complete]:** COMPLETE (`c9b0118`, patch 0252;
   Linux receipts `20260824T155547-216321`/`20260824T155805-219151`): one owned full-window
   snapshot now serves the main colour eyedropper, colour-band gradient/point sampling, and
   grease-pencil material sampling. Their exact event/action state resumes through bounded modal

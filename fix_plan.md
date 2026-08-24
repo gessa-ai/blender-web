@@ -2051,10 +2051,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   while retaining the unsafe ASan control. Integrated parity, standalone/product builds, OFF
   preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.
   See `notes/m4-ghost-owner-execution-lifecycle-r8-20260824.md`.
-- [ ] **AUDIT-R8-GPU-UPLOAD-GENERATION [gpu-backend, blocked-by: none]:** preserve a newer VBO
-  or float buffer-texture mutation when an older upload transaction accepts. Regress actual
-  frontend A-schedule/B-mutate/A-accept order with distinct sentinels and require B to remain dirty
-  and upload next in byte-identical native/wasm32 runs.
+- [x] **AUDIT-R8-GPU-UPLOAD-GENERATION [gpu-backend, blocked-by: none] COMPLETE (393e33c):**
+  ordinary VBO and float buffer-texture uploads now consume the exact dirty snapshot when its
+  payload is retained, so acceptance cannot clear/free a newer stock-frontend mutation. Extracted
+  A-schedule/B-mutate/A-accept native/wasm32 contracts prove five ordered payloads and final B
+  publication. Product, canonical replay, compliance, scoped M3, and regression are verified. See
+  `notes/m3-gpu-upload-generation-r8-20260824.md`.
 - [ ] **AUDIT-R8-GPU-PAYLOAD-REPLAY-FIFO [gpu-backend, blocked-by: none]:** give retained buffer
   replay one drainer or reserve the complete selected batch in deque order so a concurrent retain
   and replay cannot schedule E3 between E1 and E2. Force the interleaving with barriers and verify

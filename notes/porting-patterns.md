@@ -900,6 +900,14 @@ cleanup, and clean retry on native and wasm32. Use a real non-null pinned-Dawn v
 as explicitly software-control non-receipt evidence. See `sandbox/wgpu-buffer-integrated-smoke/`
 and `sandbox/dawn-probe/probe_error_handles.cc`.
 
+A durable payload is still insufficient when its owner leaves a one-bit dirty flag set while the
+transaction is pending. A later CPU mutation cannot raise an already-set bit, so acceptance of the
+older snapshot can clear the newer work and free its host bytes. Consume the dirty bit only after
+the queue retains the exact snapshot; acceptance may release ownership only when the bit remains
+clear. Apply the same rule to derived buffer-texture expansions. Regress the exact stock frontend
+setter followed by A/B acceptance order, not a copied state machine. See
+`notes/m3-gpu-upload-generation-r8-20260824.md`.
+
 ## Class 62 — a command scope cannot capture an earlier resource error
 
 Signature: compute assembles a bind group before opening the dispatch command's implementation

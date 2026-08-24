@@ -2258,6 +2258,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/Wasm contracts; canonical replay, the real product no-work check, OFF preflight, REUSE,
   scoped M3, and container-backed regression are verified without promoting the s7-blocked live
   receipt. See `notes/m3-bindspace-scoped-resource-verifier-20260824.md`.
+- [x] **M6-CYCLES-PASS-DELTA-REFRESH [driver, blocked-by: none] COMPLETE:** the current
+  dedicated Release Cycles-CPU Wasm product rebuilds and ends locked no-work. Immutable Linux
+  receipt `m6-cycles-ornith-linux-20260824-r6` passes all 27 scenes with zero exclusions, and an
+  independent pinned-OIIO replay is green; every verdict and stored pixel metric is unchanged
+  from r5. Aggregate M6 remains red only at its separate s7-blocked Workbench/EEVEE, browser,
+  and complete-product boundaries. See `notes/m6-cycles-pass-delta-refresh-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

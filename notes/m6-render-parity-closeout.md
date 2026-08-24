@@ -9,15 +9,16 @@
 > rerun and this binding is refreshed. The counts below remain historical
 > evidence, not a claim about the newer bytes.
 >
-> **CPU component refresh (2026-08-20):** immutable
-> `m6-cycles-ornith-linux-20260820-r5` independently verifies 27/27 Cycles-CPU
-> rows with zero exclusions. The Workbench/EEVEE rows and shipping binding below
-> remain historical and keep aggregate M6 RED. See
-> `notes/m6-cycles-load-order-repair-20260820.md`.
+> **CPU component refresh (2026-08-24):** immutable
+> `m6-cycles-ornith-linux-20260824-r6` independently verifies 27/27 Cycles-CPU
+> rows with zero exclusions against current Wasm SHA-256 `f1353a95e758`. The
+> Workbench/EEVEE rows and shipping binding below remain historical and keep
+> aggregate M6 RED. See `notes/m6-cycles-pass-delta-refresh-20260824.md`.
 
-M6 is GREEN under the contract in `GOAL.md`: comparator passes plus explicit,
-measured per-test SKIPs. No comparator threshold, golden, or failed row was
-relabeled as PASS.
+The historical complete receipt documented below was GREEN under the contract
+in `GOAL.md`: comparator passes plus explicit, measured per-test SKIPs. The
+current aggregate is RED as stated above. No comparator threshold, golden, or
+failed row was relabeled as PASS.
 
 The executable source of truth is:
 

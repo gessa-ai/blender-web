@@ -55,33 +55,33 @@ The baseline and candidate receipts are
 
 - The real locked `blender_browser` relink and exact no-work check are GREEN
   (`ledger/buildlogs/20260824T063410-3825957.log`,
-  `ledger/buildlogs/20260824T063812-3828223.log`).
+  `ledger/buildlogs/20260824T065104-3839430.log`).
 - Headless Wasm and native `bf_editor_space_api` both build GREEN. Their generated compile rules
   contain `WITH_BLENDER_WEB_CLIP`; the windowed rule does not
   (`ledger/buildlogs/20260824T063816-3828682.log`,
   `ledger/buildlogs/20260824T063824-3829165.log`,
-  `ledger/buildlogs/20260824T064249-3832185.log`).
+  `ledger/buildlogs/20260824T065104-3839425.log`).
 - The focused verifier binds both distinct registration calls, default-ON and forced-OFF
   configuration, the retained editor library, seven rejecting mutations, the exact two-file
   boundary, and an isolated exact reverse/forward patch round trip. Patch 0253 is SHA-256
   `e922fa72919c3bc4f4ae6e559db086056ccf7466409b4aa37515a5da5e40827c`
-  (`ledger/buildlogs/20260824T064249-3832185.log`).
+  (`ledger/buildlogs/20260824T065104-3839425.log`).
 - The canonical freezer independently replays 20,258 entries across 261 paths. The frozen patch is
   SHA-256 `96f45b07e7cc5620a2ab47ba6812f96ed0aebf5e0df61d441de496e408c6bf14`,
   and its manifest is SHA-256
   `c0c402c70dce6d16f25d7af27b4e4ee2146528e52206e95ff7de781bc8341031`
   (`ledger/buildlogs/20260824T064016-3829995.log`,
-  `ledger/buildlogs/20260824T064104-3831333.log`).
+  `ledger/buildlogs/20260824T065104-3839426.log`).
 - OFF product preflight binds 647,701 JavaScript bytes, 111,697,743 Wasm bytes, and 167,143,248
   data bytes (`ledger/buildlogs/20260824T064124-3831560.log`).
 - Pinned REUSE 6.2.0 is GREEN for 2,274/2,274 files
-  (`ledger/buildlogs/20260824T065013-3838201.log`).
+  (`ledger/buildlogs/20260824T065104-3839437.log`).
 - The deferral registry remains valid with unique IDs and binds the Clip omission as an M8
   deferral (`ledger/buildlogs/20260824T064429-3833545.log`).
 - Required M8 remains RED at its unchanged technical-release boundaries
-  (`ledger/buildlogs/20260824T064437-3833611.log`). Container-backed regression restores M0 to
+  (`ledger/buildlogs/20260824T065119-3839642.log`). Container-backed regression restores M0 to
   6/6 GREEN while M1-M8 retain their strict-receipt, split-product, browser, run-label, hardware,
-  and release boundaries (`ledger/buildlogs/20260824T064514-3834143.log`).
+  and release boundaries (`ledger/buildlogs/20260824T065123-3839695.log`).
 
 ## Product boundary
 

@@ -1096,3 +1096,17 @@ reload, an old BHead4 corpus round-trip, and global undo. See
 `patches/0248-wasm32-canonical-blend-write.patch`,
 `notes/m7-wasm32-write-cross-abi-20260824.md`, and
 `sandbox/m7-wasm32-write-cross-abi/`.
+
+## Class 76 — an owner-callback census must begin at the asynchronous API registration
+
+Signature: a structural source gate manifests every known owner delivery and rejects raw `this`,
+but it discovers callbacks only by the expected lifetime-gate call inside their bodies. A new
+`AllowSpontaneous` callback can capture an alias assigned from `this`, access the owner directly,
+and leave the old role count unchanged. Inventory every literal spontaneous mode occurrence as one
+complete call argument, then bind its enclosing method, exact callee, mode/callback argument
+positions, and callback form. Classify shared owner-neutral dispatchers explicitly and tie every
+owner-affine registration back to a role whose continuation enters the shared lifetime gate. Keep
+an in-memory mutation that adds a differently named raw-owner alias at a new registration; it must
+fail even though the original delivery-role manifest is otherwise unchanged. See
+`sandbox/audit-r8/callback_census.py` and
+`notes/m4-ghost-callback-registration-census-r9-20260824.md`.

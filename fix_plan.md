@@ -2210,10 +2210,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   header, length, truncation, and semantic corruption. Native makesdna output remains
   byte-identical. See
   `notes/m7-wasm32-write-cross-abi-20260824.md`.
-- [ ] **AUDIT-R9-GHOST-CALLBACK-CENSUS [ghost-web, blocked-by: none]:** enumerate every
-  `CallbackMode::AllowSpontaneous` registration structurally, require every owner-affine callback
-  to enter the shared lifetime gate, and add a raw-owner-alias mutation that the current eight-role
-  census incorrectly accepts; retain native/wasm32 and unsafe-ASan controls.
+- [x] **AUDIT-R9-GHOST-CALLBACK-CENSUS [ghost-web, blocked-by: none] COMPLETE
+  (`2181d34`):** all six `CallbackMode::AllowSpontaneous` registrations are structurally bound by
+  method, exact callee, argument positions, callback form, and owner role. The prior eight-role
+  alias escape now rejects, while native/wasm32 lifecycle parity and both unsafe-ASan controls
+  remain green. See `notes/m4-ghost-callback-registration-census-r9-20260824.md`.
 - [ ] **AUDIT-R9-GHOST-INHERITANCE-DOC [ghost-web, blocked-by: none]:** remove the stale class
   comment claiming a one-time `initAsync()` startup await, consolidate the actual pre-main import
   and standalone acquisition paths, and bind the complete lifecycle description rather than only

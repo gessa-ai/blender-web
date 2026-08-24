@@ -42,6 +42,7 @@ SOURCE_PATHS = (
     "source/blender/editors/space_view3d/view3d_view.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_color.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc",
+    "source/blender/editors/interface/eyedroppers/eyedropper_depth.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_intern.hh",
     "source/blender/windowmanager/WM_api.hh",
@@ -163,6 +164,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ]
     colorband = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc"
+    ]
+    depth_eyedropper = sources[
+        "source/blender/editors/interface/eyedroppers/eyedropper_depth.cc"
     ]
     grease_pencil = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc"
@@ -1126,6 +1130,21 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         not in eyedropper,
         "eyedropper retains synchronous offscreen fallback",
     )
+    for needle in (
+        "enum class DepthDropperReadbackAction",
+        "ViewportDepthPickSession readback_session;",
+        "depthdropper_readback_context_matches(C, ddr)",
+        "ddr->readback_session.init(region, mval)",
+        "ddr->readback_session.sample(ddr->readback_region, co)",
+        "ddr->readback_confirm_after = true;",
+        "constexpr int max_tick_count = 240;",
+    ):
+        require(needle in depth_eyedropper, f"depth eyedropper continuation missing {needle!r}")
+    require(
+        "ED_view3d_autodist(" not in depth_eyedropper and
+        "GPU_framebuffer_read_depth(" not in depth_eyedropper,
+        "depth eyedropper retains synchronous viewport readback",
+    )
 
     return {
         "schema": 1,
@@ -1139,6 +1158,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "edit_mesh_click_continuation": True,
             "edit_mesh_gesture_continuation": True,
             "window_color_continuation": True,
+            "depth_eyedropper_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1333,6 +1353,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "WM_window_pixels_read_async(C, window)",
             "WM_window_pixels_read(C, window, size_)",
             "window sample continuation",
+        ),
+        (
+            "source/blender/editors/interface/eyedroppers/eyedropper_depth.cc",
+            "ViewportDepthPickSession readback_session;",
+            "int readback_session;",
+            "depth eyedropper continuation",
         ),
     )
     for relative, old, new, label in mutations:

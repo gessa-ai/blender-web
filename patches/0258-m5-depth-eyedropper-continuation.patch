@@ -1,0 +1,433 @@
+# SPDX-FileCopyrightText: 2009 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Ported for the web from source/blender/editors/interface/eyedroppers/eyedropper_depth.cc @ fbe6228777e7
+#
+# M5: retain the producing viewport and exact depth sample across browser ticks,
+# then replay accumulation and confirmation without a synchronous GPU wait.
+diff --git a/source/blender/editors/interface/eyedroppers/eyedropper_depth.cc b/source/blender/editors/interface/eyedroppers/eyedropper_depth.cc
+index a4c843316f4..7c979aec640 100644
+--- a/source/blender/editors/interface/eyedroppers/eyedropper_depth.cc
++++ b/source/blender/editors/interface/eyedroppers/eyedropper_depth.cc
+@@ -1,4 +1,5 @@
+ /* SPDX-FileCopyrightText: 2009 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+@@ -7,6 +8,8 @@
+  *
+  * This file defines an eyedropper for picking 3D depth value (primary use is depth-of-field).
+  *
++ * Ported for the web from source/blender/editors/interface/eyedroppers/eyedropper_depth.cc @ fbe6228777e7.
++ *
+  * Defines:
+  * - #UI_OT_eyedropper_depth
+  */
+@@ -50,6 +53,12 @@
+ 
+ namespace blender::ui {
+ 
++enum class DepthDropperReadbackAction {
++  None,
++  Accumulate,
++  AccumulateAndSet,
++};
++
+ /**
+  * \note #DepthDropper is only internal name to avoid confusion with other kinds of eye-droppers.
+  */
+@@ -69,6 +78,22 @@
+   void *draw_handle_pixel = nullptr;
+   int name_pos[2] = {};
+   char name[200] = {};
++
++  ViewportDepthPickSession readback_session;
++  wmTimer *readback_timer = nullptr;
++  wmWindow *readback_window = nullptr;
++  bScreen *readback_screen = nullptr;
++  Scene *readback_scene = nullptr;
++  ScrArea *readback_area = nullptr;
++  ARegion *readback_region = nullptr;
++  View3D *readback_view3d = nullptr;
++  RegionView3D *readback_region_view = nullptr;
++  int readback_event_xy[2] = {};
++  int readback_mval[2] = {};
++  float readback_view_origin[3] = {};
++  int readback_tick_count = 0;
++  DepthDropperReadbackAction readback_action = DepthDropperReadbackAction::None;
++  bool readback_confirm_after = false;
+ };
+ 
+ static void depthdropper_draw_cb(const bContext * /*C*/, ARegion * /*region*/, void *arg)
+@@ -219,6 +244,12 @@
+   if (op->customdata) {
+     DepthDropper *ddr = static_cast<DepthDropper *>(op->customdata);
+ 
++    if (ddr->readback_timer != nullptr) {
++      WM_event_timer_remove(
++          CTX_wm_manager(C), ddr->readback_window, ddr->readback_timer);
++      ddr->readback_timer = nullptr;
++    }
++
+     if (ddr->art) {
+       ED_region_draw_cb_exit(ddr->art, ddr->draw_handle_pixel);
+     }
+@@ -227,81 +258,22 @@
+   }
+ }
+ 
+-/* *** depthdropper id helper functions *** */
+-/**
+- * \brief get the ID from the screen.
+- */
+-static void depthdropper_depth_sample_pt(bContext *C,
+-                                         DepthDropper *ddr,
+-                                         const int m_xy[2],
+-                                         float *r_depth)
++static bool depthdropper_readback_context_matches(bContext *C, const DepthDropper *ddr)
+ {
+-  /* we could use some clever */
+-  bScreen *screen = CTX_wm_screen(C);
+-  ScrArea *area = BKE_screen_find_area_xy(screen, SPACE_TYPE_ANY, m_xy);
+-  Scene *scene = CTX_data_scene(C);
+-
+-  ScrArea *area_prev = CTX_wm_area(C);
+-  ARegion *region_prev = CTX_wm_region(C);
+-
+-  ddr->name[0] = '\0';
+-
+-  if (area) {
+-    if (area->spacetype == SPACE_VIEW3D) {
+-      ARegion *region = BKE_area_find_region_xy(area, RGN_TYPE_WINDOW, m_xy);
+-      if (region) {
+-        Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+-        View3D *v3d = static_cast<View3D *>(area->spacedata.first);
+-        RegionView3D *rv3d = static_cast<RegionView3D *>(region->regiondata);
+-        /* weak, we could pass in some reference point */
+-        const float3 &view_co = (v3d->camera && rv3d->persp == RV3D_CAMOB) ?
+-                                    v3d->camera->object_to_world().location() :
+-                                    rv3d->viewinv[3];
+-
+-        const int mval[2] = {m_xy[0] - region->winrct.xmin, m_xy[1] - region->winrct.ymin};
+-        copy_v2_v2_int(ddr->name_pos, mval);
+-
+-        float co[3];
+-
+-        CTX_wm_area_set(C, area);
+-        CTX_wm_region_set(C, region);
+-
+-        /* Unfortunately it's necessary to always draw otherwise we leave stale text. */
+-        ED_region_tag_redraw(region);
+-
+-        view3d_operator_needs_gpu(C);
+-
+-        /* Ensure the depth buffer is updated for #ED_view3d_autodist. */
+-        ED_view3d_depth_override(
+-            depsgraph, region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, nullptr);
+-
+-        if (ED_view3d_autodist(region, v3d, mval, co, nullptr)) {
+-          const float mval_center_fl[2] = {float(region->winx) / 2, float(region->winy) / 2};
+-          float co_align[3];
+-
+-          /* quick way to get view-center aligned point */
+-          ED_view3d_win_to_3d(v3d, region, co, mval_center_fl, co_align);
+-
+-          *r_depth = len_v3v3(view_co, co_align);
+-
+-          BKE_unit_value_as_string(ddr->name,
+-                                   sizeof(ddr->name),
+-                                   double(*r_depth),
+-                                   -4,
+-                                   B_UNIT_LENGTH,
+-                                   scene->unit,
+-                                   false,
+-                                   true);
+-        }
+-        else {
+-          STRNCPY_UTF8(ddr->name, RPT_("Nothing under cursor"));
+-        }
+-      }
+-    }
+-  }
+-
+-  CTX_wm_area_set(C, area_prev);
+-  CTX_wm_region_set(C, region_prev);
++  return ddr->readback_window != nullptr && ddr->readback_screen != nullptr &&
++         ddr->readback_area != nullptr && ddr->readback_region != nullptr &&
++         CTX_wm_window(C) == ddr->readback_window &&
++         CTX_wm_screen(C) == ddr->readback_screen &&
++         CTX_data_scene(C) == ddr->readback_scene &&
++         BKE_screen_find_area_xy(ddr->readback_screen,
++                                 SPACE_TYPE_ANY,
++                                 ddr->readback_event_xy) == ddr->readback_area &&
++         ddr->readback_area->spacetype == SPACE_VIEW3D &&
++         BKE_area_find_region_xy(ddr->readback_area,
++                                 RGN_TYPE_WINDOW,
++                                 ddr->readback_event_xy) == ddr->readback_region &&
++         ddr->readback_area->spacedata.first == ddr->readback_view3d &&
++         ddr->readback_region->regiondata == ddr->readback_region_view;
+ }
+ 
+ /* sets the sample depth RGB, maintaining A */
+@@ -326,24 +298,165 @@
+   depthdropper_depth_set(C, ddr, depth);
+ }
+ 
+-/* single point sample & set */
+-static void depthdropper_depth_sample(bContext *C, DepthDropper *ddr, const int m_xy[2])
++static wmOperatorStatus depthdropper_readback_apply(bContext *C, wmOperator *op)
+ {
+-  float depth = -1.0f;
+-  if (depth != -1.0f) {
+-    depthdropper_depth_sample_pt(C, ddr, m_xy, &depth);
+-    depthdropper_depth_set(C, ddr, depth);
++  DepthDropper *ddr = static_cast<DepthDropper *>(op->customdata);
++  if (!depthdropper_readback_context_matches(C, ddr)) {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting for depth sample");
++    depthdropper_exit(C, op);
++    return OPERATOR_CANCELLED;
+   }
+-}
+ 
+-static void depthdropper_depth_sample_accum(bContext *C, DepthDropper *ddr, const int m_xy[2])
+-{
++  float co[3];
+   float depth = -1.0f;
+-  depthdropper_depth_sample_pt(C, ddr, m_xy, &depth);
+-  if (depth != -1.0f) {
++  const bool has_depth = ddr->readback_session.sample(ddr->readback_region, co);
++  if (!has_depth &&
++      ddr->readback_session.state() == ViewportDepthPickSession::ReadbackState::Failed)
++  {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while resolving depth sample");
++    depthdropper_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  if (has_depth) {
++    const float mval_center_fl[2] = {float(ddr->readback_region->winx) / 2.0f,
++                                     float(ddr->readback_region->winy) / 2.0f};
++    float co_align[3];
++    copy_v2_v2_int(ddr->name_pos, ddr->readback_mval);
++    ED_view3d_win_to_3d(ddr->readback_view3d,
++                        ddr->readback_region,
++                        co,
++                        mval_center_fl,
++                        co_align);
++    depth = len_v3v3(ddr->readback_view_origin, co_align);
++    BKE_unit_value_as_string(ddr->name,
++                             sizeof(ddr->name),
++                             double(depth),
++                             -4,
++                             B_UNIT_LENGTH,
++                             ddr->readback_scene->unit,
++                             false,
++                             true);
++  }
++  else {
++    STRNCPY_UTF8(ddr->name, RPT_("Nothing under cursor"));
++  }
++
++  const DepthDropperReadbackAction action = ddr->readback_action;
++  ddr->readback_action = DepthDropperReadbackAction::None;
++  if (action == DepthDropperReadbackAction::Accumulate && depth != -1.0f) {
+     ddr->accum_depth += depth;
+     ddr->accum_tot++;
+   }
++  else if (action == DepthDropperReadbackAction::AccumulateAndSet) {
++    if (depth != -1.0f) {
++      ddr->accum_depth += depth;
++      ddr->accum_tot++;
++    }
++    depthdropper_depth_set_accum(C, ddr);
++  }
++
++  if (ddr->readback_timer != nullptr) {
++    WM_event_timer_remove(
++        CTX_wm_manager(C), ddr->readback_window, ddr->readback_timer);
++    ddr->readback_timer = nullptr;
++  }
++
++  if (ddr->readback_confirm_after) {
++    const bool is_undo = ddr->is_undo;
++    if (ddr->accum_tot != 0) {
++      depthdropper_depth_set_accum(C, ddr);
++    }
++    depthdropper_exit(C, op);
++    return is_undo ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus depthdropper_readback_request(bContext *C,
++                                                      wmOperator *op,
++                                                      const int m_xy[2],
++                                                      const DepthDropperReadbackAction action)
++{
++  DepthDropper *ddr = static_cast<DepthDropper *>(op->customdata);
++  bScreen *screen = CTX_wm_screen(C);
++  ScrArea *area = BKE_screen_find_area_xy(screen, SPACE_TYPE_ANY, m_xy);
++  ARegion *region = area != nullptr && area->spacetype == SPACE_VIEW3D ?
++                        BKE_area_find_region_xy(area, RGN_TYPE_WINDOW, m_xy) :
++                        nullptr;
++  if (region == nullptr || region->regiondata == nullptr) {
++    ddr->name[0] = '\0';
++    if (action == DepthDropperReadbackAction::AccumulateAndSet) {
++      depthdropper_depth_set_accum(C, ddr);
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
++  RegionView3D *rv3d = static_cast<RegionView3D *>(region->regiondata);
++  Scene *scene = CTX_data_scene(C);
++  const int mval[2] = {m_xy[0] - region->winrct.xmin, m_xy[1] - region->winrct.ymin};
++  float view_origin[3];
++  if (v3d->camera != nullptr && rv3d->persp == RV3D_CAMOB) {
++    copy_v3_v3(view_origin, v3d->camera->object_to_world().location());
++  }
++  else {
++    copy_v3_v3(view_origin, rv3d->viewinv[3]);
++  }
++
++  ScrArea *area_prev = CTX_wm_area(C);
++  ARegion *region_prev = CTX_wm_region(C);
++  CTX_wm_area_set(C, area);
++  CTX_wm_region_set(C, region);
++
++  ED_region_tag_redraw(region);
++  view3d_operator_needs_gpu(C);
++  ED_view3d_depth_override(CTX_data_depsgraph_pointer(C),
++                           region,
++                           v3d,
++                           nullptr,
++                           V3D_DEPTH_NO_GPENCIL,
++                           false,
++                           nullptr);
++  const bool request_started = ddr->readback_session.init(region, mval);
++
++  CTX_wm_area_set(C, area_prev);
++  CTX_wm_region_set(C, region_prev);
++
++  ddr->readback_window = CTX_wm_window(C);
++  ddr->readback_screen = screen;
++  ddr->readback_scene = scene;
++  ddr->readback_area = area;
++  ddr->readback_region = region;
++  ddr->readback_view3d = v3d;
++  ddr->readback_region_view = rv3d;
++  copy_v2_v2_int(ddr->readback_event_xy, m_xy);
++  copy_v2_v2_int(ddr->readback_mval, mval);
++  copy_v3_v3(ddr->readback_view_origin, view_origin);
++  ddr->readback_tick_count = 0;
++  ddr->readback_action = action;
++  ddr->readback_confirm_after = false;
++
++  if (!request_started) {
++    BKE_report(op->reports, RPT_ERROR, "Unable to start viewport depth readback");
++    depthdropper_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthPickSession::ReadbackState state = ddr->readback_session.state();
++  if (state == ViewportDepthPickSession::ReadbackState::Ready) {
++    return depthdropper_readback_apply(C, op);
++  }
++  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Viewport depth readback failed");
++    depthdropper_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (ddr->readback_timer == nullptr) {
++    ddr->readback_timer = WM_event_timer_add(
++        CTX_wm_manager(C), ddr->readback_window, TIMER, 0.01f);
++  }
++  return OPERATOR_RUNNING_MODAL;
+ }
+ 
+ static void depthdropper_cancel(bContext *C, wmOperator *op)
+@@ -360,6 +473,35 @@
+ {
+   DepthDropper *ddr = static_cast<DepthDropper *>(op->customdata);
+ 
++  if (event->type == TIMER && ddr->readback_timer != nullptr &&
++      event->customdata == ddr->readback_timer)
++  {
++    constexpr int max_tick_count = 240;
++    if (++ddr->readback_tick_count > max_tick_count) {
++      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for viewport depth readback");
++      depthdropper_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    const ViewportDepthPickSession::ReadbackState state = ddr->readback_session.state();
++    if (state == ViewportDepthPickSession::ReadbackState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state == ViewportDepthPickSession::ReadbackState::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Viewport depth readback failed");
++      depthdropper_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    return depthdropper_readback_apply(C, op);
++  }
++
++  if (ddr->readback_confirm_after) {
++    if (event->type == EVT_MODAL_MAP && event->val == EYE_MODAL_CANCEL) {
++      depthdropper_cancel(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
+   /* handle modal keymap */
+   if (event->type == EVT_MODAL_MAP) {
+     switch (event->val) {
+@@ -369,9 +511,17 @@
+       case EYE_MODAL_SAMPLE_CONFIRM: {
+         const bool is_undo = ddr->is_undo;
+         if (ddr->accum_tot == 0) {
+-          depthdropper_depth_sample(C, ddr, event->xy);
++          /* Preserve the pinned direct-confirm behavior: sampling begins on SAMPLE_BEGIN. */
++          if (ddr->readback_action != DepthDropperReadbackAction::None) {
++            ddr->readback_confirm_after = true;
++            return OPERATOR_RUNNING_MODAL;
++          }
+         }
+         else {
++          if (ddr->readback_action != DepthDropperReadbackAction::None) {
++            ddr->readback_confirm_after = true;
++            return OPERATOR_RUNNING_MODAL;
++          }
+           depthdropper_depth_set_accum(C, ddr);
+         }
+         depthdropper_exit(C, op);
+@@ -381,21 +531,20 @@
+       case EYE_MODAL_SAMPLE_BEGIN:
+         /* enable accum and make first sample */
+         ddr->accum_start = true;
+-        depthdropper_depth_sample_accum(C, ddr, event->xy);
+-        break;
++        return depthdropper_readback_request(
++            C, op, event->xy, DepthDropperReadbackAction::Accumulate);
+       case EYE_MODAL_SAMPLE_RESET:
+         ddr->accum_tot = 0;
+         ddr->accum_depth = 0.0f;
+-        depthdropper_depth_sample_accum(C, ddr, event->xy);
+-        depthdropper_depth_set_accum(C, ddr);
+-        break;
++        return depthdropper_readback_request(
++            C, op, event->xy, DepthDropperReadbackAction::AccumulateAndSet);
+     }
+   }
+   else if (event->type == MOUSEMOVE) {
+     if (ddr->accum_start) {
+       /* button is pressed so keep sampling */
+-      depthdropper_depth_sample_accum(C, ddr, event->xy);
+-      depthdropper_depth_set_accum(C, ddr);
++      return depthdropper_readback_request(
++          C, op, event->xy, DepthDropperReadbackAction::AccumulateAndSet);
+     }
+   }
+ 
+

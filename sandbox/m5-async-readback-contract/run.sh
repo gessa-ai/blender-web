@@ -13,6 +13,8 @@ NODE="$EMSDK/node/22.16.0_64bit/bin/node"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-async-readback-contract/native}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-async-readback-contract/wasm}"
 OUT="${OUT:-$ROOT/build-deps/m5-async-readback-contract/evidence}"
+SOURCE_ROOT="${BW_SOURCE_ROOT:-$ROOT/upstream}"
+SERIES_VERIFY="${BW_SERIES_VERIFY:-$ROOT/sandbox/series-replay/verify.py}"
 NATIVE_FMT="$ROOT/lib/linux_x64/fmt/include"
 WASM_FMT="$ROOT/lib/wasm/include"
 
@@ -33,7 +35,7 @@ require_file "$HOST_CMAKE"
 require_file "$PYBIN"
 require_file "$NODE"
 require_file "$ROOT/scripts/ninja-locked.sh"
-require_file "$ROOT/sandbox/series-replay/verify.py"
+require_file "$SERIES_VERIFY"
 require_file "$HERE/CMakeLists.txt"
 require_file "$HERE/contract_test.cc"
 require_file "$HERE/verify_source.py"
@@ -61,11 +63,11 @@ if ! cmp -s "$NATIVE_FMT/fmt/ranges.h" "$WASM_FMT/fmt/ranges.h"; then
 fi
 
 # Malformed production seams must reject before this run allocates evidence.
-"$PYBIN" "$HERE/verify_source.py" --source-root "$ROOT/upstream" --selfcheck
+"$PYBIN" "$HERE/verify_source.py" --source-root "$SOURCE_ROOT" --selfcheck
 "$PYBIN" "$HERE/verify_numbered_patch.py" \
-  --source-root "$ROOT/upstream" \
+  --source-root "$SOURCE_ROOT" \
   --patch "$ROOT/patches/0255-m5-legacy-selection-gesture-continuation.patch"
-SOURCE_PROOF="$("$PYBIN" "$ROOT/sandbox/series-replay/verify.py" --canonical-only)"
+SOURCE_PROOF="$("$PYBIN" "$SERIES_VERIFY" --canonical-only)"
 case "$SOURCE_PROOF" in
   CANONICAL_REPLAY_PASS\ *) ;;
   *)
@@ -77,14 +79,14 @@ esac
 mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 "$PYBIN" "$HERE/verify_source.py" \
-  --source-root "$ROOT/upstream" \
+  --source-root "$SOURCE_ROOT" \
   --output "$OUT/source.json" \
   >"$OUT/source.stdout"
 
 "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$NATIVE_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER=/usr/bin/clang++-17 \
-  -DBW_UPSTREAM_DIR="$ROOT/upstream" \
+  -DBW_UPSTREAM_DIR="$SOURCE_ROOT" \
   -DBW_FMT_INCLUDE_DIR="$NATIVE_FMT"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" m5_async_readback_contract
 
@@ -100,7 +102,7 @@ fi
   -S "$HERE" -B "$WASM_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_EXE_LINKER_FLAGS= \
-  -DBW_UPSTREAM_DIR="$ROOT/upstream" \
+  -DBW_UPSTREAM_DIR="$SOURCE_ROOT" \
   -DBW_FMT_INCLUDE_DIR="$WASM_FMT"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" m5_async_readback_contract
 
@@ -142,6 +144,7 @@ if ! jq -e \
    .contracts.edit_mesh_click_continuation == true and
    .contracts.edit_mesh_gesture_continuation == true and
    .contracts.window_color_continuation == true and
+   .contracts.depth_eyedropper_continuation == true and
    .contracts.live_hardware_receipt == false and
    (.remaining_sync_families | length) == 3' \
   "$OUT/source.json" >/dev/null

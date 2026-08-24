@@ -1077,3 +1077,6 @@
 # 0257: retain the center-view event and producing viewport across its owned
 # progressive depth request, then resume the stock smooth-view result safely.
 0257-m5-view-center-pick-continuation.patch
+# 0258: retain the depth-eyedropper's producing viewport and accumulation action
+# across its owned progressive depth request without blocking the WM worker.
+0258-m5-depth-eyedropper-continuation.patch

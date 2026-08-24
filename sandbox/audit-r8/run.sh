@@ -19,23 +19,19 @@ PYTHON_BIN="${PYTHON:-$ROOT/.host-tools/bin/python3.13}"
 CONTEXT_CC="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 CONTEXT_HH="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
 CALLBACK_CENSUS="$HERE/callback_census.py"
+LIFECYCLE_DOC="$HERE/context_lifecycle_doc.py"
 
-# Source-compliance: the public header must describe the shipping inheritance and
-# both initialization paths without reviving the retired standalone-class claim.
-HEADER_DOC="$(sed -n '1,/^#pragma once$/p' "$CONTEXT_HH" |
-  sed -E 's/^[[:space:]]*\*[[:space:]]?//' |
-  tr '\n' ' ' |
-  tr -s '[:space:]' ' ')"
-if ! grep -Fq 'class GHOST_ContextWGPUWeb : public GHOST_Context {' "$CONTEXT_HH" ||
-   ! grep -Fq 'The shipping class subclasses `GHOST_Context`.' <<<"$HEADER_DOC" ||
-   ! grep -Fq '`initializeDrawingContext()` imports the device and, for a presentable window, the surface/backbuffer acquired asynchronously on the WM worker before `main()`.' <<<"$HEADER_DOC" ||
-   ! grep -Fq '`initAsync()` remains the callback-driven acquisition path for standalone proofs.' <<<"$HEADER_DOC" ||
-   ! grep -Fq 'shared `CallbackLifetime` execution gate; destruction closes admission and waits for admitted work before releasing context storage.' <<<"$HEADER_DOC" ||
-   grep -Fiq 'one-time top-level await' <<<"$HEADER_DOC" ||
-   grep -Eiq 'does[[:space:]]+not[[:space:]]+subclass|not[[:space:]]+a[[:space:]]+`?GHOST_Context`?[[:space:]]+subclass' <<<"$HEADER_DOC"; then
-  echo "ERROR: GHOST_ContextWGPUWeb inheritance lifecycle documentation is stale" >&2
-  exit 1
-fi
+# Source compliance: bind the complete lifecycle contract to the Doxygen block
+# immediately adjacent to the shipping class, then prove prefix-only and stale
+# duplicate descriptions cannot satisfy it.
+"$PYTHON_BIN" "$LIFECYCLE_DOC" "$CONTEXT_HH" --self-test \
+  >"$AUDIT_TMP/context-lifecycle-doc.log"
+grep -Fqx \
+  "CONTEXT_LIFECYCLE_DOC_PASS paths=2 pre_main_import=1 standalone_async=1 owner_gate=1" \
+  "$AUDIT_TMP/context-lifecycle-doc.log"
+grep -Fqx \
+  "CONTEXT_LIFECYCLE_DOC_SELFTEST_PASS controls=6 wrong_inheritance=reject shipping_calls_initAsync=reject standalone_omission=reject owner_gate_omission=reject prefix_only=reject stale_duplicate=reject" \
+  "$AUDIT_TMP/context-lifecycle-doc.log"
 
 # Bind the helper contract to every shipping completion that can outlive its
 # non-reference-counted GHOST owner.  A passing standalone helper that the
@@ -170,4 +166,4 @@ if ! grep -Fq "heap-use-after-free" "$AUDIT_TMP/unsafe-ready-self-destroy.log"; 
   exit 1
 fi
 
-echo "AUDIT_R9_GHOST_CALLBACK_PASS inheritance_doc=1 source_roles=8 spontaneous_registrations=6 source_controls=4 shipping_matrix=8 imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"
+echo "AUDIT_R9_GHOST_CALLBACK_PASS inheritance_doc=1 inheritance_doc_controls=6 source_roles=8 spontaneous_registrations=6 source_controls=4 shipping_matrix=8 imported_loss=1 loss_init_settlement=2 ready_self_destroy=1 owner_concurrent=1 owner_serialized=1 owner_execution=1 cleanup_quiescent=1 destruction_admission=1 nested=1 owner_reentrant=1 unsafe_asan=2"

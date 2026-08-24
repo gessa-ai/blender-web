@@ -14,21 +14,10 @@
  * browser's own WebGPU, with a real <canvas> surface.
  *
  * The load-bearing difference from the native context (which this file otherwise
- * mirrors) is ASYNC DEVICE ACQUISITION. Native Dawn drives instance->adapter->device
- * synchronously with `instance.WaitAny(..., TimedWaitAny)` on the calling thread. In
- * the browser that is impossible: `requestAdapter`/`requestDevice` are genuine JS
- * promises, and blocking the main thread with a finite WaitAny would deadlock the very
- * event loop that resolves them. So we use `CallbackMode::AllowSpontaneous` and let the
- * callbacks fire off the event loop — `initAsync()` returns immediately and invokes the
- * ready-callback once the device + surface exist. That remains the standalone proof path.
- *
- * The shipping class subclasses `GHOST_Context`. Its synchronous
- * `initializeDrawingContext()` imports the device and, for a presentable window, the
- * surface/backbuffer acquired asynchronously on the WM worker before `main()`.
- * `initAsync()` remains the callback-driven acquisition path for standalone proofs.
- * Both paths serialize asynchronous callback delivery and public owner access through
- * the shared `CallbackLifetime` execution gate; destruction closes admission and waits
- * for admitted work before releasing context storage.
+ * mirrors) is that browser adapter and device requests are genuine JavaScript promises.
+ * Blocking their event loop with Dawn's native finite WaitAny path would deadlock their
+ * completion. The class-level contract below documents the two supported ways this port
+ * crosses that asynchronous boundary.
  */
 
 #pragma once
@@ -43,15 +32,23 @@
 #include "GHOST_Context.hh"
 #include "GHOST_WGPUTransaction.hh"
 
-/* M4 T4: promoted to derive GHOST_Context so it can be returned from
- * GHOST_WindowWeb::newDrawingContext() / GHOST_SystemWeb::createOffscreenContext()
- * (which must return GHOST_Context*). The six GHOST_Context pure virtuals are
- * implemented below. Async device acquisition (initAsync) is bridged to the
- * SYNCHRONOUS initializeDrawingContext() contract by a one-time startup await:
- * the GHOST-web system runs initAsync and gates the WM main-loop start on the
- * ready-callback, so by the time createWindow -> newDrawingContext ->
- * initializeDrawingContext runs, the device is already acquired. See
- * notes/ghost-web-wgpu-context.md + notes/m4-integration.md. */
+/**
+ * The class derives from `GHOST_Context` and has two deliberately separate
+ * initialization paths.
+ *
+ * Shipping path: `wgpu-preinit-worker.js` asynchronously acquires a device on the WM
+ * worker and, for a presentable window, validates the canvas, surface, and initial
+ * backbuffer before `main()`. `initializeDrawingContext()` then synchronously imports
+ * the mode-appropriate pre-main bundle. The shipping path does not call `initAsync()`.
+ *
+ * Standalone proof path: `initAsync()` asynchronously requests an adapter and device
+ * through `CallbackMode::AllowSpontaneous`, creates the requested presentation
+ * resources, and invokes its ready callback when acquisition settles.
+ *
+ * Both paths serialize asynchronous callback delivery and public owner access through
+ * the shared `CallbackLifetime` execution gate. Destruction closes admission and waits
+ * for admitted work before releasing context storage.
+ */
 class GHOST_ContextWGPUWeb : public GHOST_Context {
  private:
   using CallbackLifetime = ghost_web::OwnerCallbackLifetime<GHOST_ContextWGPUWeb>;

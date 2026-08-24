@@ -2277,10 +2277,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   through a bounded modal continuation, and failure/timeout cancels before texture release.
   Native/wasm32 contracts are byte-identical; the partial deferral now names six synchronous
   families. See `notes/m5-viewport-color-readback-20260824.md`.
-- [ ] **M5-SCREENSHOT-ASYNC-READBACK [driver, claimed_by: ornith-lab, blocked-by: none]:**
-  convert the stock screenshot operator to an owned WM capture ticket with bounded modal polling,
-  exact byte-count validation, and cancellation-safe offscreen lifetime; verify native/wasm32
-  behavior without creating a hardware receipt, then retire only the screenshot-operator family.
+- [x] **M5-SCREENSHOT-ASYNC-READBACK [driver, complete]:** COMPLETE (`55afed3`, patch 0250;
+  Linux receipts `20260824T143611-146139`/`20260824T143622-146564`): the stock screenshot operator
+  now retains one exact WM offscreen capture across its file selector and resumes direct or
+  early-confirmed execution through a bounded modal timer. Native/wasm32 contracts are
+  byte-identical; the partial deferral now names five synchronous families. See
+  `notes/m5-screenshot-async-readback-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

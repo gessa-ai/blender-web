@@ -47,6 +47,12 @@ if(NOT DEFINED BW_WGPU_BUFFER_CREATE_SOURCE OR
   message(FATAL_ERROR
     "BW_WGPU_BUFFER_CREATE_SOURCE must name the extracted canonical method")
 endif()
+if(NOT DEFINED BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE OR
+   NOT IS_ABSOLUTE "${BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE}" OR
+   NOT EXISTS "${BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE}")
+  message(FATAL_ERROR
+    "BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE must name the extracted canonical methods")
+endif()
 
 set(_bw_integrated_buffer_sources
   wgpu_buffer.cc
@@ -101,6 +107,9 @@ set(_bw_integrated_buffer_update_test
 set(_bw_integrated_buffer_create_test
   "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_buffer_create_test.cc"
 )
+set(_bw_integrated_vertex_upload_generation_test
+  "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-buffer-integrated-smoke/integrated_vertex_upload_generation_test.cc"
+)
 if(NOT DEFINED BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE OR
    NOT IS_ABSOLUTE "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}" OR
    NOT EXISTS "${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}")
@@ -111,6 +120,7 @@ foreach(_bw_test
     "${_bw_integrated_buffer_test}"
     "${_bw_integrated_index_test}"
     "${_bw_integrated_buffer_create_test}"
+    "${_bw_integrated_vertex_upload_generation_test}"
     "${_bw_integrated_buffer_update_test}")
   if(NOT EXISTS "${_bw_test}")
     message(FATAL_ERROR "integrated WebGPU buffer test is missing: ${_bw_test}")
@@ -121,6 +131,7 @@ add_executable(wgpu_buffer_integrated_smoke
   "${_bw_integrated_buffer_test}"
   "${_bw_integrated_index_test}"
   "${_bw_integrated_buffer_create_test}"
+  "${_bw_integrated_vertex_upload_generation_test}"
   "${_bw_integrated_buffer_update_test}"
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_buffer.cc"
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}/wgpu_pixel_buffer.cc"
@@ -140,6 +151,7 @@ target_compile_definitions(wgpu_buffer_integrated_smoke PRIVATE
   BW_WGPU_BUFFER_CREATE_SOURCE="${BW_WGPU_BUFFER_CREATE_SOURCE}"
   BW_WGPU_BUFFER_UPDATE_SOURCE="${BW_WGPU_BUFFER_UPDATE_SOURCE}"
   BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="${BW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE}"
+  BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE="${BW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE}"
 )
 target_include_directories(wgpu_buffer_integrated_smoke PRIVATE
   "${BW_INTEGRATED_BUFFER_SOURCE_DIR}"

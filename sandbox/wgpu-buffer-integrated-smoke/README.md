@@ -9,7 +9,11 @@ This device-free contract compiles the canonical in-tree `wgpu_buffer`,
 `wgpu_pixel_buffer`, and `wgpu_readback` postimages directly for native Dawn and
 WebAssembly. It also extracts `Buffer::create_scoped`, `Buffer::update_sub`,
 `WGPUIndexBuffer::strip_restart_indices`, and `WGPUIndexBuffer::upload_data`
-byte-for-byte. The buffer method executes against deterministic WebGPU value fakes
+byte-for-byte. It additionally extracts Blender's stock `GPU_vertbuf_attr_set` plus
+`WGPUVertexBuffer::upload_data` and `bind_as_texture`. Those paths force exact
+A-schedule/B-mutate/A-accept ordering for an ordinary static VBO and a float
+buffer-texture expansion; A acceptance must preserve and schedule B before host
+cleanup or texture publication. The buffer method executes against deterministic WebGPU value fakes
 that model deferred browser error scopes and reject null creation, missing mapped ranges,
 scope-rejected non-null candidates, and a missing large-staging mapped range before memcpy,
 command encoding, or submission. Persistent creation stays unpublished while pending,

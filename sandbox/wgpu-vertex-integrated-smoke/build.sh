@@ -176,8 +176,12 @@ then
 fi
 VERTEX_UPLOAD_GUARD_LINE="$(grep -nF 'if (!webgpu::buffer_update_payload(' \
   "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | cut -d: -f1)"
+if [ "$(grep -Fc 'MEM_SAFE_DELETE(data_);' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc")" -ne 4 ]; then
+  echo "ERROR: vertex buffer must retain two upload and two host-storage cleanup sites" >&2
+  exit 1
+fi
 VERTEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE(data_);' \
-  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | head -n 1 | cut -d: -f1)"
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | head -n 2 | tail -n 1 | cut -d: -f1)"
 if [ -z "$VERTEX_UPLOAD_GUARD_LINE" ] || [ -z "$VERTEX_UPLOAD_CLEANUP_LINE" ] ||
    [ "$VERTEX_UPLOAD_GUARD_LINE" -ge "$VERTEX_UPLOAD_CLEANUP_LINE" ]
 then

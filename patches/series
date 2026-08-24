@@ -1038,3 +1038,6 @@
 # 0244: drain synchronous/canceled queue work iteratively and retain failed epochs
 # only while the current epoch or a queued entry can still reference them.
 0244-gpu-webgpu-scheduler-failure-drain.patch
+# 0245: consume each VBO/float-buffer-texture dirty snapshot when retained so
+# an older accepted upload cannot clear or free a newer frontend mutation.
+0245-gpu-webgpu-upload-generation.patch

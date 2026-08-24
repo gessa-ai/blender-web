@@ -28,6 +28,7 @@ INDEX_UPLOAD_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_index_upload.
 BUFFER_UPDATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_update.inc"
 BUFFER_CREATE_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_buffer_create.inc"
 PENDING_PAYLOAD_FRONTEND_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_pending_payload_frontend.inc"
+VERTEX_UPLOAD_FRONTEND_SOURCE="$ROOT/build-deps/t6-integrated/generated/wgpu_vertex_upload_frontend.inc"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
@@ -91,10 +92,12 @@ source_digest()
     source/blender/draw/engines/eevee/eevee_shadow.cc
     source/blender/draw/intern/mesh_extractors/extract_mesh_ibo_tris.cc
     source/blender/gpu/intern/gpu_index_buffer.cc
+    source/blender/gpu/intern/gpu_vertex_buffer.cc
     source/blender/gpu/intern/gpu_texture_private.hh
     source/blender/gpu/GPU_index_buffer.hh
     source/blender/gpu/GPU_primitive.hh
     source/blender/gpu/GPU_texture.hh
+    source/blender/gpu/GPU_vertex_buffer.hh
     intern/guardedalloc/MEM_guardedalloc.h
     intern/guardedalloc/intern/leak_detector.cc
     intern/guardedalloc/intern/mallocn.cc
@@ -120,8 +123,10 @@ require_file "$HERE/extract_index_upload.py"
 require_file "$HERE/extract_buffer_update.py"
 require_file "$HERE/extract_buffer_create.py"
 require_file "$HERE/extract_pending_payload_frontend.py"
+require_file "$HERE/extract_vertex_upload_frontend.py"
 require_file "$HERE/integrated_buffer_create_test.cc"
 require_file "$HERE/integrated_buffer_update_test.cc"
+require_file "$HERE/integrated_vertex_upload_generation_test.cc"
 require_file "$ROOT/sandbox/wgpu-buffer-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -139,6 +144,8 @@ for source_name in \
   wgpu_storage_buffer.hh \
   wgpu_uniform_buffer.cc \
   wgpu_uniform_buffer.hh \
+  wgpu_vertex_buffer.cc \
+  wgpu_vertex_buffer.hh \
   wgpu_index_buffer.cc \
   wgpu_index_buffer.hh \
   wgpu_batch.cc
@@ -147,9 +154,11 @@ do
 done
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_texture_private.hh"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_index_buffer.cc"
+require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_vertex_buffer.cc"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_index_buffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_primitive.hh"
 require_file "$ROOT/upstream/source/blender/gpu/GPU_texture.hh"
+require_file "$ROOT/upstream/source/blender/gpu/GPU_vertex_buffer.hh"
 require_file "$ROOT/upstream/source/blender/gpu/intern/gpu_batch.cc"
 require_file "$ROOT/upstream/intern/guardedalloc/MEM_guardedalloc.h"
 require_file "$ROOT/upstream/source/blender/draw/intern/draw_shader_shared.hh"
@@ -290,14 +299,21 @@ require_fixed_count 1 'class BufferUpdateTransaction {' "$WEBGPU_SOURCE/wgpu_com
 require_fixed_count 1 'size_t retry_pending_updates();' "$WEBGPU_SOURCE/wgpu_buffer.hh"
 require_fixed_count 1 'webgpu::BufferUpdateTransaction upload_transaction_;' \
   "$WEBGPU_SOURCE/wgpu_vertex_buffer.hh"
+require_fixed_count 1 'void WGPUVertexBuffer::upload_data()' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 1 'void WGPUVertexBuffer::bind_as_texture(uint binding)' \
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 1 \
+  'void GPU_vertbuf_attr_set(VertBuf *verts, uint a_idx, uint v_idx, const void *data)' \
+  "$ROOT/upstream/source/blender/gpu/intern/gpu_vertex_buffer.cc"
 require_fixed_count 1 'webgpu::BufferUpdateTransaction deferred_upload_transaction_;' \
   "$WEBGPU_SOURCE/wgpu_uniform_buffer.hh"
 require_fixed_count 1 'payload.transfer_size,' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
-require_fixed_count 2 'upload_transaction_) ||' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
+require_fixed_count 2 'upload_transaction_))' "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc"
 require_fixed_count 2 'deferred_upload_transaction_.accepted()' \
   "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
 VERTEX_UPLOAD_ACCEPT_LINE="$(grep -nF 'if (!upload_transaction_.accepted())' \
-  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | cut -d: -f1)"
+  "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | tail -n 1 | cut -d: -f1)"
 VERTEX_UPLOAD_CLEANUP_LINE="$(grep -nF 'MEM_SAFE_DELETE(data_);' \
   "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" | tail -n 1 | cut -d: -f1)"
 UNIFORM_UPLOAD_ACCEPT_LINE="$(grep -nF '!deferred_upload_transaction_.accepted()' \
@@ -513,6 +529,28 @@ fi
   --uniform-source "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc" \
   --output "$PENDING_PAYLOAD_FRONTEND_SOURCE"
 require_file "$PENDING_PAYLOAD_FRONTEND_SOURCE"
+
+VERTEX_UPLOAD_NEGATIVE_OUTPUT="$INDEX_NEGATIVE_DIR/vertex-upload.inc"
+if VERTEX_UPLOAD_NEGATIVE_MESSAGE="$("$PYBIN" "$HERE/extract_vertex_upload_frontend.py" \
+  --frontend-source "$ROOT/upstream/source/blender/gpu/GPU_vertex_buffer.hh" \
+  --webgpu-source "$WEBGPU_SOURCE/wgpu_vertex_buffer.hh" \
+  --output "$VERTEX_UPLOAD_NEGATIVE_OUTPUT" 2>&1)"
+then
+  echo "ERROR: malformed vertex-upload frontend source was accepted" >&2
+  exit 1
+fi
+if [[ "$VERTEX_UPLOAD_NEGATIVE_MESSAGE" != \
+      VERTEX_UPLOAD_FRONTEND_EXTRACT_FAIL\ canonical\ frontend\ attribute\ mutation* ]] ||
+   [ -e "$VERTEX_UPLOAD_NEGATIVE_OUTPUT" ]
+then
+  echo "ERROR: malformed vertex-upload frontend rejection differs" >&2
+  exit 1
+fi
+"$PYBIN" "$HERE/extract_vertex_upload_frontend.py" \
+  --frontend-source "$ROOT/upstream/source/blender/gpu/intern/gpu_vertex_buffer.cc" \
+  --webgpu-source "$WEBGPU_SOURCE/wgpu_vertex_buffer.cc" \
+  --output "$VERTEX_UPLOAD_FRONTEND_SOURCE"
+require_file "$VERTEX_UPLOAD_FRONTEND_SOURCE"
 rmdir "$INDEX_NEGATIVE_DIR"
 
 NODE_VERSION="$("$NODE" --version)"
@@ -550,6 +588,7 @@ echo "== [1/3] canonical native buffer/readback module =="
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
   -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
   -DBW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="$PENDING_PAYLOAD_FRONTEND_SOURCE" \
+  -DBW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE="$VERTEX_UPLOAD_FRONTEND_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" wgpu_buffer_integrated_test
@@ -566,6 +605,7 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_WGPU_INDEX_UPLOAD_SOURCE="$INDEX_UPLOAD_SOURCE" \
   -DBW_WGPU_BUFFER_CREATE_SOURCE="$BUFFER_CREATE_SOURCE" \
   -DBW_WGPU_PENDING_PAYLOAD_FRONTEND_SOURCE="$PENDING_PAYLOAD_FRONTEND_SOURCE" \
+  -DBW_WGPU_VERTEX_UPLOAD_FRONTEND_SOURCE="$VERTEX_UPLOAD_FRONTEND_SOURCE" \
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
@@ -592,7 +632,7 @@ then
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=19 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=12 index_cases=4 index_upload_cases=7' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=4 buffer_update_cases=12 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -617,12 +657,15 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT readback-command PASS cases=5 copies=4 submits=1 scopes=complete' \
+    "$stdout_file" ||
+     ! grep -qx \
+    'CONTRACT vertex-upload-generation PASS cases=2 writes=5 order=A:B final=B' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2
     exit 1
   fi
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 19 ]; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 20 ]; then
     echo "ERROR: integrated buffer evidence census differs: $stdout_file" >&2
     exit 1
   fi

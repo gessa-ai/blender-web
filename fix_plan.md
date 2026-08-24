@@ -2175,6 +2175,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   remains RED: the 23,471,033-byte Wasm alone is 8,471,033 bytes over the complete 15 MB budget
   before stage-0 data, and hardware/APPLY receipts remain s7-blocked. See
   `notes/m8-physics-registration-cut-20260824.md`.
+- [x] **M8-MASK-REGISTRATION-CUT [driver, blocked-by: none] REJECTED:** an exact
+  windowed-only guard around the Mask operator, macro, and keymap roots preserved Mask data and
+  stock native/headless behavior but removed only 1,452 pinned Brotli-q11 bytes while hiding 40
+  visible operators. The candidate patch, option, verifier, and postimage were removed; no feature
+  cut or deferral ships. See `notes/m8-mask-registration-cut-rejected-20260824.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

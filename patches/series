@@ -1047,27 +1047,3 @@
 # 0247: validate large-upload staging-buffer creation under an ordered transient
 # resource gate before its dependent command ticket can reach submission.
 0247-gpu-webgpu-staging-resource-scope.patch
-# 0248: omit non-launch sculpt/paint operator and keymap roots from the windowed
-# web profile while preserving full native and headless registration behavior.
-0248-web-windowed-sculpt-paint-registration-cut.patch
-# 0249: omit non-launch Grease Pencil editing registration roots from the
-# windowed profile while preserving data/RNA/file/drawing and non-windowed paths.
-0249-web-windowed-grease-pencil-registration-cut.patch
-# 0250: omit the non-launch concrete compositor-node registration root from the
-# windowed profile while preserving its tree type, DNA/RNA, and file loading.
-0250-web-windowed-compositor-registration-cut.patch
-# 0251: omit non-launch VSE space and macro registration roots from the windowed
-# profile while preserving strip DNA/RNA, core data, and blend loading.
-0251-web-windowed-vse-registration-cut.patch
-# 0252: omit the non-launch Spreadsheet space registration root from the
-# windowed profile while preserving geometry-node data/RNA and blend loading.
-0252-web-windowed-spreadsheet-registration-cut.patch
-# 0253: omit non-launch Clip/Motion Tracking space and macro registration roots
-# from the windowed profile while preserving MovieClip data/RNA and loading.
-0253-web-windowed-clip-registration-cut.patch
-# 0254: omit non-launch NLA space and macro registration roots from the windowed
-# profile while preserving NLA data/RNA, loading, and core animation paths.
-0254-web-windowed-nla-registration-cut.patch
-# 0255: omit non-launch physics operator and keymap registration roots from the
-# windowed profile while preserving physics DNA/RNA, modifiers, and file loading.
-0255-web-windowed-physics-registration-cut.patch

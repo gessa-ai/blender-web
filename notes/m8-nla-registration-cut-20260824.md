@@ -5,6 +5,10 @@ SPDX-License-Identifier: CC0-1.0
 
 # M8 windowed NLA editor registration cut — 2026-08-24
 
+> **Historical rejected experiment.** `AUDIT-R9-M8-FIDELITY-RESTORE` reverted this cut and
+> retired its size-only deferral. The measurements below remain audit evidence; they do not
+> describe the shipping windowed profile. See `notes/m8-registration-fidelity-restore-20260824.md`.
+
 ## Outcome
 
 The windowed browser profile no longer registers the NLA editor space or its operator macros.

@@ -56,22 +56,6 @@ option(WITH_BLENDER_WEB_WINDOWED
   "blender-web: build the windowed web target (HEADLESS off, WebGPU + GHOST_WEB on)" OFF)
 option(WITH_GHOST_WEB
   "blender-web: compile the browser GHOST back-end (platform_web/ghost)" OFF)
-option(WITH_BLENDER_WEB_SCULPT_PAINT
-  "blender-web: register non-launch sculpt and paint operators/keymaps" ON)
-option(WITH_BLENDER_WEB_GREASE_PENCIL
-  "blender-web: register non-launch Grease Pencil editing operators/keymaps" ON)
-option(WITH_BLENDER_WEB_COMPOSITOR
-  "blender-web: register non-launch compositor execution nodes" ON)
-option(WITH_BLENDER_WEB_VSE
-  "blender-web: register non-launch VSE editing" ON)
-option(WITH_BLENDER_WEB_SPREADSHEET
-  "blender-web: register non-launch Spreadsheet editor" ON)
-option(WITH_BLENDER_WEB_CLIP
-  "blender-web: register non-launch Clip editor" ON)
-option(WITH_BLENDER_WEB_NLA
-  "blender-web: register non-launch NLA editor" ON)
-option(WITH_BLENDER_WEB_PHYSICS
-  "blender-web: register non-launch physics editing" ON)
 
 # This file is loaded as a `-C` INITIAL CACHE, which CMake processes BEFORE `-D`
 # command-line options — so a `-DWITH_BLENDER_WEB_WINDOWED=ON` is not visible here.
@@ -85,14 +69,6 @@ if(WITH_BLENDER_WEB_WINDOWED)
   set(WITH_HEADLESS        OFF CACHE BOOL "" FORCE)  # run the windowed GHOST/UI/DRW path
   set(WITH_WEBGPU_BACKEND  ON  CACHE BOOL "" FORCE)  # the wasm GPU backend (M3)
   set(WITH_GHOST_WEB       ON  CACHE BOOL "" FORCE)  # GHOST_SystemWeb + GHOST_ContextWGPUWeb
-  set(WITH_BLENDER_WEB_SCULPT_PAINT OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_GREASE_PENCIL OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_COMPOSITOR OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_VSE OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_SPREADSHEET OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_CLIP OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_NLA OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
-  set(WITH_BLENDER_WEB_PHYSICS OFF CACHE BOOL "" FORCE)  # M8 critical-path DCE
 else()
   set(WITH_HEADLESS        ON  CACHE BOOL "" FORCE)  # proven --background BPY_OK default
   set(WITH_GHOST_WEB       OFF CACHE BOOL "" FORCE)

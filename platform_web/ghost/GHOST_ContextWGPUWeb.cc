@@ -520,6 +520,11 @@ bool GHOST_ContextWGPUWeb::deviceIsUsable()
 
 void GHOST_ContextWGPUWeb::propagateDeviceLoss()
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return;
+  }
   if (device_loss_propagated_) {
     return;
   }
@@ -545,11 +550,6 @@ void GHOST_ContextWGPUWeb::finishSetup()
   if (!deviceIsUsable()) {
     completeInitialization(false);
     return;
-  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
-  auto owner_execution = lifetime->enter();
-  if (!owner_execution) {
-    return;
-  }
   }
   if (!ghost_web_canvas_resolvable(canvas_selector_.c_str())) {
     std::printf("WGPUWeb: canvas '%s' is not resolvable for a presentable context\n",
@@ -591,6 +591,11 @@ void GHOST_ContextWGPUWeb::finishSetup()
 
 void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
 {
+  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
+  auto owner_execution = lifetime->enter();
+  if (!owner_execution) {
+    return;
+  }
   if (!deviceIsUsable()) {
     return;
   }
@@ -616,11 +621,6 @@ void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, uint32_t height)
     return;
   }
   /* Keep the latest browser request separate from the last complete published
-  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
-  auto owner_execution = lifetime->enter();
-  if (!owner_execution) {
-    return;
-  }
    * surface/backbuffer state. ensureBackbuffer() allocates and validates first;
    * only its current-candidate callback may configure and publish the new extent. */
   requested_width_ = w;

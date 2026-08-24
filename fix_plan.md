@@ -2044,9 +2044,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the real product no-work build, compliance, protected-path ownership, and hardware/non-receipt
   boundaries remain clean. See `reports/audit-20260823-r8.md`.
 - [x] **AUDIT-R8-GHOST-OWNER-EXECUTION-LIFECYCLE [ghost-web, blocked-by: none] COMPLETE
-  (9e91146):** all seven spontaneous callbacks, nine out-of-line owner boundaries, and eight inline
-  accessors now share one reentrant execution slot; terminal cleanup enters it, and destruction
-  closes admission before waiting. Native/wasm32 barriers prove callback-vs-owner serialization,
+  (9e91146 + fixup 9a51b86):** all seven spontaneous callbacks, nine out-of-line owner boundaries,
+  and eight inline accessors now share one reentrant execution slot. Terminal cleanup enters it;
+  destruction closes admission before waiting. Native/wasm32 barriers prove callback-vs-owner serialization,
   cleanup quiescence, blocked late nested/queued delivery, and safe nested/self-destruction behavior
   while retaining the unsafe ASan control. Integrated parity, standalone/product builds, OFF
   preflight, canonical replay, compliance, scoped M4, and container-backed regression are verified.

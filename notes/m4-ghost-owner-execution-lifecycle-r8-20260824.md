@@ -5,7 +5,11 @@
 
 ## Outcome
 
-Implementation commit `9e91146` closes the first critical R8 finding.
+Implementation commit `9e91146` plus corrective fixup `9a51b86` closes the first critical R8
+finding. A post-commit tree audit caught two zero-context selectively staged entry hunks in the
+wrong locations; the fixup restores their verified placements in `propagateDeviceLoss()` and
+`configureSurface()` while leaving the unrelated pre-existing fallback-limit worktree hunk
+uncommitted.
 The callback gate is now the single reentrant execution boundary for spontaneous browser
 completions, stateful public `GHOST_ContextWGPUWeb` methods, and terminal device-loss cleanup.
 Destruction closes admission before waiting for active execution, so neither nested nor queued
@@ -35,6 +39,10 @@ local shared lifetime keeps the mutex alive until each public-method token relea
   blocked nested/queued late delivery, nested delivery, self-destruction, delayed rejection, and
   the retained unsafe heap-use-after-free control
   (`20260824T002013-3477677`, `20260824T002237-3481212`).
+- Post-fixup focused and integrated reruns reproduce the same contracts, bytes, and hashes
+  (`20260824T002939-3487716`, `20260824T002945-3488454`); standalone emdawn compilation and the
+  real product/locked dry-run no-work checks remain green (`20260824T003006-3489809`,
+  `20260824T003010-3489913`, `20260824T003010-3489926`).
 - The canonical integrated driver remains 38 native/wasm32 contracts and 4,813 byte-identical
   output bytes, SHA-256 `f54305f5871b930543386b5ea28a620c02f99248baf6a980cab574ae6630d1b9`,
   with shipping source SHA-256 `f540a56775a449acfd041caedf65388feff771dcdfd4a7eb42cc2c69ef28bf2`
@@ -48,6 +56,8 @@ local shared lifetime keeps the mutex alive until each public-method token relea
   (`20260824T002339-3482744`). Container-backed regression restores M0 to 6/6 green while M1–M8
   retain their existing strict-receipt, split-product, browser, run-label, hardware, and release
   boundaries (`20260824T002403-3483225`).
+- Pinned REUSE 6.2.0 compliance remains green at 2,242/2,242 files
+  (`20260824T003255-3491817`).
 
 ## Boundary
 

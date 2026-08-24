@@ -402,13 +402,15 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "source/blender/windowmanager/intern/wm_draw.cc",
             "GPU_offscreen_read_color_region(offscreen, GPU_DATA_FLOAT",
         ),
-        "screenshot_operator": (
-            "source/blender/editors/screen/screendump.cc",
-            "WM_window_pixels_read(C, win, dumprect_size)",
-        ),
     }
     for family, (relative, needle) in remaining_sync.items():
         require(needle in sources[relative], f"remaining sync census drifted: {family}")
+    require(
+        "WM_window_pixels_read_async(C, win)" in sources[
+            "source/blender/editors/screen/screendump.cc"
+        ],
+        "screenshot async continuation missing",
+    )
 
     return {
         "schema": 1,

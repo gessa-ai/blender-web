@@ -15,10 +15,11 @@ and overlapping-request rejection.
 
 `verify_source.py` separately binds the public texture/storage APIs, exact WebGPU
 tickets, temporary select-engine ownership transfer, and the bounded modal
-operator re-entry. It also requires the seven still-synchronous seams across the
-five remaining caller families (legacy select, depth, viewport/window sampling,
-and screenshot) to stay visible. The existing ledger row therefore remains
-`partial`; this receipt closes L-B and C1 only.
+operator re-entry. It also requires the five still-synchronous caller families
+(legacy selection-buffer read, depth pick, depth cache, WM window capture, and
+WM window colour sampling) to stay visible. The screenshot operator has its own
+owned-capture continuation contract; the ledger row remains `partial` for these
+five families.
 
 Run through the build wrapper:
 

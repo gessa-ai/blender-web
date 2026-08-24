@@ -1053,3 +1053,6 @@
 # 0249: keep viewport-colour sampling pending across browser event-loop ticks
 # and complete a confirmed eyedropper action through a bounded modal timer.
 0249-m5-viewport-color-readback.patch
+# 0250: retain an owned window offscreen through exact screenshot readback and
+# resume early/direct execution through a bounded modal timer.
+0250-m5-screenshot-async-readback.patch

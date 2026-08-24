@@ -64,6 +64,7 @@ source_digest()
   local files=(
     source/blender/gpu/webgpu/wgpu_state_manager.cc
     source/blender/gpu/webgpu/wgpu_state_manager.hh
+    source/blender/gpu/webgpu/wgpu_common.hh
     source/blender/gpu/webgpu/wgpu_context.cc
     source/blender/gpu/vulkan/vk_device.cc
     source/blender/gpu/intern/gpu_state.cc
@@ -86,6 +87,7 @@ require_file "$ROOT/sandbox/series-replay/verify.py"
 require_file "$HERE/integrated_bindspace_test.cc"
 require_file "$HERE/extract_sampler_descriptor.py"
 require_file "$HERE/extract_dummy_vertex_buffer.py"
+require_file "$WEBGPU_SOURCE/wgpu_common.hh"
 require_file "$ROOT/sandbox/wgpu-bindspace-wasm-smoke/CMakeLists.txt"
 require_file "$EMSDK/emsdk_env.sh"
 require_file "$EMSDK/upstream/emscripten/emcmake"
@@ -150,6 +152,7 @@ esac
 require_file "$SAMPLER_DESCRIPTOR_SOURCE"
 "$PYBIN" "$HERE/extract_dummy_vertex_buffer.py" \
   --source "$WEBGPU_SOURCE/wgpu_context.cc" \
+  --helper-source "$WEBGPU_SOURCE/wgpu_common.hh" \
   --output "$DUMMY_VERTEX_SOURCE"
 require_file "$DUMMY_VERTEX_SOURCE"
 

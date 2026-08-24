@@ -14,7 +14,9 @@ import sys
 ADDRESS_START = "static wgpu::AddressMode to_wgpu_address_mode("
 SAMPLER_START = "wgpu::Sampler WGPUContext::get_sampler("
 DESCRIPTOR_START = "  wgpu::SamplerDescriptor d = {};"
-DESCRIPTOR_END = "\n  wgpu::Sampler sampler = device_.CreateSampler(&d);"
+DESCRIPTOR_END = (
+    '\n  return sampler_cache_.get_or_create(instance_, device_, key, "sampler creation", [&]() {'
+)
 
 
 def main() -> int:

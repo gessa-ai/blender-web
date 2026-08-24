@@ -67,11 +67,15 @@ constexpr BufferUsage operator|(const BufferUsage lhs, const BufferUsage rhs)
 struct BufferDescriptor {
   uint64_t size = 0;
   BufferUsage usage = BufferUsage(0);
+  bool mappedAtCreation = false;
 };
 
 struct BufferStorage {
   std::array<uint8_t, 16> bytes = {};
   BufferDescriptor descriptor = {};
+  uint32_t map_count = 0;
+  uint32_t unmap_count = 0;
+  bool mapped = false;
 };
 
 class Buffer {
@@ -95,6 +99,23 @@ class Buffer {
     return storage_;
   }
 
+  void *GetMappedRange(const uint64_t offset, const size_t size)
+  {
+    if (storage_ == nullptr || !storage_->mapped || offset + size > storage_->bytes.size()) {
+      return nullptr;
+    }
+    ++storage_->map_count;
+    return storage_->bytes.data() + offset;
+  }
+
+  void Unmap()
+  {
+    if (storage_ != nullptr && storage_->mapped) {
+      storage_->mapped = false;
+      ++storage_->unmap_count;
+    }
+  }
+
  private:
   BufferStorage *storage_ = nullptr;
 };
@@ -110,6 +131,7 @@ class Device {
   {
     storage_->bytes.fill(0);
     storage_->descriptor = *descriptor;
+    storage_->mapped = descriptor->mappedAtCreation;
     ++*create_count_;
     return Buffer(storage_);
   }
@@ -119,37 +141,15 @@ class Device {
   uint32_t *create_count_;
 };
 
-class Queue {
- public:
-  explicit Queue(uint32_t *write_count) : write_count_(write_count) {}
-
-  void WriteBuffer(const Buffer &buffer,
-                   const uint64_t offset,
-                   const void *data,
-                   const size_t size)
-  {
-    if (buffer.storage() == nullptr || offset + size > buffer.storage()->bytes.size()) {
-      return;
-    }
-    std::memcpy(buffer.storage()->bytes.data() + offset, data, size);
-    ++*write_count_;
-  }
-
- private:
-  uint32_t *write_count_;
-};
-
 }  // namespace wgpu
 
 namespace blender::gpu {
 struct DummyVertexContext {
-  DummyVertexContext() : device_(&storage, &create_count), queue_(&write_count) {}
+  DummyVertexContext() : device_(&storage, &create_count) {}
 
   wgpu::BufferStorage storage;
   uint32_t create_count = 0;
-  uint32_t write_count = 0;
   wgpu::Device device_;
-  wgpu::Queue queue_;
   wgpu::Buffer dummy_vertex_buffer_ = nullptr;
 };
 
@@ -498,8 +498,11 @@ bool dummy_vertex_default_contract()
   if (!require(first != nullptr && second.storage() == first.storage(),
                "dummy vertex handle reuse") ||
       !require(context.create_count == 1, "dummy vertex created once") ||
-      !require(context.write_count == 1, "dummy vertex initialized once") ||
+      !require(context.storage.map_count == 1, "dummy vertex mapped once") ||
+      !require(context.storage.unmap_count == 1, "dummy vertex unmapped once") ||
       !require(context.storage.descriptor.size == 16, "dummy vertex byte size") ||
+      !require(context.storage.descriptor.mappedAtCreation,
+               "dummy vertex initialized while scoped") ||
       !require(uint32_t(context.storage.descriptor.usage) == expected_usage,
                "dummy vertex usage") ||
       !require(words[0] == 0u && words[1] == 0u && words[2] == 0u,
@@ -509,7 +512,8 @@ bool dummy_vertex_default_contract()
     return false;
   }
 
-  std::printf("CONTRACT dummy-vertex-default PASS creates=1 writes=1 w=%08x\n", words[3]);
+  std::printf("CONTRACT dummy-vertex-default PASS creates=1 maps=1 unmaps=1 w=%08x\n",
+              words[3]);
   return true;
 }
 

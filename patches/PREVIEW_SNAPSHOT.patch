@@ -13276,6 +13276,150 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..1485703770fdfcf4d21e21b333158ea2
  /* ------------------------------- */
  
  static const EnumPropertyItem prop_gpencil_drawmodes[] = {
+diff --git a/source/blender/editors/grease_pencil/intern/grease_pencil_utils.cc b/source/blender/editors/grease_pencil/intern/grease_pencil_utils.cc
+index c702eb9ace89da42d10458c978258e76c7f3acbd..dfd3bfba43a9ffb193147bfbd054a013df3cb726 100644
+--- a/source/blender/editors/grease_pencil/intern/grease_pencil_utils.cc
++++ b/source/blender/editors/grease_pencil/intern/grease_pencil_utils.cc
+@@ -206,6 +206,8 @@ DrawingPlacement::DrawingPlacement(const Scene &scene,
+ 
+ DrawingPlacement::DrawingPlacement(const DrawingPlacement &other)
+ {
++  BLI_assert(other.depth_cache_session_ == nullptr);
++
+   region_ = other.region_;
+   view3d_ = other.view3d_;
+ 
+@@ -237,6 +239,7 @@ DrawingPlacement::DrawingPlacement(DrawingPlacement &&other)
+   plane_ = other.plane_;
+ 
+   std::swap(depth_cache_, other.depth_cache_);
++  std::swap(depth_cache_session_, other.depth_cache_session_);
+   use_project_only_selected_ = other.use_project_only_selected_;
+ 
+   surface_offset_ = other.surface_offset_;
+@@ -271,6 +274,7 @@ DrawingPlacement &DrawingPlacement::operator=(DrawingPlacement &&other)
+ 
+ DrawingPlacement::~DrawingPlacement()
+ {
++  this->cancel_viewport_depths();
+   if (depth_cache_ != nullptr) {
+     ED_view3d_depths_free(depth_cache_);
+   }
+@@ -288,6 +292,7 @@ bool DrawingPlacement::use_project_to_stroke() const
+ 
+ void DrawingPlacement::cache_viewport_depths(Depsgraph *depsgraph, ARegion *region, View3D *view3d)
+ {
++  this->cancel_viewport_depths();
+   const eView3D_GPFlag previous_gp_flag = view3d->gp_flag;
+   eV3DDepthOverrideMode mode = V3D_DEPTH_GPENCIL_ONLY;
+ 
+@@ -310,6 +315,65 @@ void DrawingPlacement::cache_viewport_depths(Depsgraph *depsgraph, ARegion *regi
+   view3d->gp_flag = previous_gp_flag;
+ }
+ 
++DrawingPlacementDepthCacheState DrawingPlacement::cache_viewport_depths_async(
++    Depsgraph *depsgraph, ARegion *region, View3D *view3d)
++{
++  this->cancel_viewport_depths();
++  const eView3D_GPFlag previous_gp_flag = view3d->gp_flag;
++  eV3DDepthOverrideMode mode = V3D_DEPTH_GPENCIL_ONLY;
++
++  if (use_project_to_surface()) {
++    mode = use_project_only_selected_ ? V3D_DEPTH_SELECTED_ONLY : V3D_DEPTH_NO_GPENCIL;
++  }
++  if (use_project_to_stroke()) {
++    /* Match the synchronous path: stroke depth must be produced in 3D order. */
++    view3d->gp_flag |= V3D_GP_FORCE_STROKE_ORDER_3D;
++  }
++
++  ED_view3d_depth_override_prepare(depsgraph, region, view3d, nullptr, mode, false);
++  view3d->gp_flag = previous_gp_flag;
++
++  depth_cache_session_ = MEM_new<ViewportDepthCacheSession>(__func__);
++  if (!depth_cache_session_->init(region)) {
++    MEM_SAFE_DELETE(depth_cache_session_);
++    return DrawingPlacementDepthCacheState::Failed;
++  }
++  return this->poll_viewport_depths(region);
++}
++
++DrawingPlacementDepthCacheState DrawingPlacement::poll_viewport_depths(ARegion *region)
++{
++  if (depth_cache_session_ == nullptr) {
++    return depth_cache_ != nullptr ? DrawingPlacementDepthCacheState::Ready :
++                                     DrawingPlacementDepthCacheState::Failed;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = depth_cache_session_->state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++    return DrawingPlacementDepthCacheState::Pending;
++  }
++  if (state == ViewportDepthCacheSession::ReadbackState::Failed) {
++    MEM_SAFE_DELETE(depth_cache_session_);
++    return DrawingPlacementDepthCacheState::Failed;
++  }
++
++  ViewDepths *depths = depth_cache_session_->take(region);
++  MEM_SAFE_DELETE(depth_cache_session_);
++  if (depths == nullptr) {
++    return DrawingPlacementDepthCacheState::Failed;
++  }
++  if (depth_cache_ != nullptr) {
++    ED_view3d_depths_free(depth_cache_);
++  }
++  depth_cache_ = depths;
++  return DrawingPlacementDepthCacheState::Ready;
++}
++
++void DrawingPlacement::cancel_viewport_depths()
++{
++  MEM_SAFE_DELETE(depth_cache_session_);
++}
++
+ std::optional<float3> DrawingPlacement::project_depth(const float2 co) const
+ {
+   std::optional<float> depth = get_depth(co);
+diff --git a/source/blender/editors/include/ED_grease_pencil.hh b/source/blender/editors/include/ED_grease_pencil.hh
+index f71580f1a3006a83f91b4a4ccadfc79966db6631..1b225ec806b2a45b41857cb8d4927ff65b5646bf 100644
+--- a/source/blender/editors/include/ED_grease_pencil.hh
++++ b/source/blender/editors/include/ED_grease_pencil.hh
+@@ -44,6 +44,7 @@ struct GreasePencilLineartModifierData;
+ struct RV3DMatrixStore;
+ 
+ class RandomNumberGenerator;
++class ViewportDepthCacheSession;
+ namespace bke {
+ enum class AttrDomain : int8_t;
+ class CurvesGeometry;
+@@ -123,6 +124,8 @@ enum class DrawingPlacementDepth : int8_t { ObjectOrigin, Cursor, Surface, Strok
+ 
+ enum class DrawingPlacementPlane : int8_t { View, Front, Side, Top, Cursor };
+ 
++enum class DrawingPlacementDepthCacheState : int8_t { Ready, Pending, Failed };
++
+ class DrawingPlacement {
+   const ARegion *region_;
+   const View3D *view3d_;
+@@ -130,6 +133,7 @@ class DrawingPlacement {
+   DrawingPlacementDepth depth_;
+   DrawingPlacementPlane plane_;
+   ViewDepths *depth_cache_ = nullptr;
++  ViewportDepthCacheSession *depth_cache_session_ = nullptr;
+   bool use_project_only_selected_ = false;
+   float surface_offset_;
+ 
+@@ -170,6 +174,11 @@ class DrawingPlacement {
+   bool use_project_to_stroke() const;
+ 
+   void cache_viewport_depths(Depsgraph *depsgraph, ARegion *region, View3D *view3d);
++  DrawingPlacementDepthCacheState cache_viewport_depths_async(Depsgraph *depsgraph,
++                                                               ARegion *region,
++                                                               View3D *view3d);
++  DrawingPlacementDepthCacheState poll_viewport_depths(ARegion *region);
++  void cancel_viewport_depths();
+ 
+   /**
+    * Attempt to project from the depth buffer.
 diff --git a/source/blender/editors/include/ED_view3d.hh b/source/blender/editors/include/ED_view3d.hh
 index 5a99786d93e3cde0050a2620617e061c7452fef6..c4563196ed6bd31291bce394f8d7ce1cf6fea06c 100644
 --- a/source/blender/editors/include/ED_view3d.hh
@@ -15344,6 +15488,441 @@ index c15376a13f7af991cc693bb854f19d3f98f49a77..ea1b16ea474faf30d3218e8cb8570e9b
    ot->exec = screenshot_exec;
    ot->cancel = screenshot_cancel;
    ot->ui = screenshot_draw;
+diff --git a/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc b/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
+index b9667b8022a86f4114be9631a7287bcae6e822ae..c69d5378baec5c7901e7cba88aa2871d289ea462 100644
+--- a/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
++++ b/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
+@@ -81,19 +81,128 @@ namespace ed::sculpt_paint {
+  * \{ */
+ 
+ struct GreasePencilPaintStroke final : public PaintStroke {
++  wmTimer *depth_cache_timer_ = nullptr;
++  const int event_type_;
++  std::optional<wmEvent> deferred_finish_event_;
++
+   GreasePencilPaintStroke(bContext *C, wmOperator *op, const int event_type)
+-      : PaintStroke(C, op, event_type)
++      : PaintStroke(C, op, event_type), event_type_(event_type)
+   {
+   }
+ 
++  wmOperatorStatus modal(bContext *C, wmOperator *op, const wmEvent *event);
++  void cancel(bContext *C);
+   bool get_location(float location[3], const float mouse[2], bool force_original) override;
+   bool test_start(wmOperator *op, const float mouse[2]) override;
+   void update_step(wmOperator *op, PointerRNA *itemptr) override;
+   void redraw(bool final) override;
+   bool test_cancel() override;
+   void done(bool is_cancel, bool stroke_started) override;
++
++ private:
++  void depth_cache_timer_ensure();
++  void depth_cache_timer_remove(bContext *C);
+ };
+ 
++void GreasePencilPaintStroke::depth_cache_timer_ensure()
++{
++  if (depth_cache_timer_ == nullptr) {
++    depth_cache_timer_ = WM_event_timer_add(
++        CTX_wm_manager(evil_C), CTX_wm_window(evil_C), TIMER, 1.0 / 60.0);
++  }
++}
++
++void GreasePencilPaintStroke::depth_cache_timer_remove(bContext *C)
++{
++  if (depth_cache_timer_ != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), depth_cache_timer_);
++    depth_cache_timer_ = nullptr;
++  }
++}
++
++wmOperatorStatus GreasePencilPaintStroke::modal(bContext *C,
++                                                wmOperator *op,
++                                                const wmEvent *event)
++{
++  constexpr int paint_stroke_modal_cancel = 1;
++  GreasePencilStrokeOperation *operation = static_cast<GreasePencilStrokeOperation *>(
++      mode_data_.get());
++  if (operation != nullptr &&
++      operation->async_state() == GreasePencilStrokeOperationAsyncState::Pending)
++  {
++    if (event->type == EVT_MODAL_MAP && event->val == paint_stroke_modal_cancel) {
++      operation->cancel_async();
++      this->depth_cache_timer_remove(C);
++      PaintStroke::cancel(C);
++      return OPERATOR_CANCELLED;
++    }
++    if ((event->type == event_type_ && event->val == KM_RELEASE) ||
++        ELEM(event->type, EVT_RETKEY, EVT_SPACEKEY))
++    {
++      wmEvent finish_event = *event;
++      finish_event.next = nullptr;
++      finish_event.prev = nullptr;
++      finish_event.custom = 0;
++      finish_event.customdata = nullptr;
++      finish_event.customdata_free = false;
++      deferred_finish_event_ = finish_event;
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (event->type == TIMER && event->customdata == depth_cache_timer_) {
++      const GreasePencilStrokeOperationAsyncState state = operation->poll_async(*C);
++      if (state == GreasePencilStrokeOperationAsyncState::Pending) {
++        return OPERATOR_RUNNING_MODAL;
++      }
++      this->depth_cache_timer_remove(C);
++      if (state == GreasePencilStrokeOperationAsyncState::Failed) {
++        BKE_report(op->reports, RPT_ERROR, "Unable to prepare Grease Pencil placement depth");
++        PaintStroke::cancel(C);
++        return OPERATOR_CANCELLED;
++      }
++      if (deferred_finish_event_) {
++        wmEvent finish_event = *deferred_finish_event_;
++        deferred_finish_event_.reset();
++        return PaintStroke::modal(C, op, &finish_event);
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (deferred_finish_event_) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++  }
++
++  const wmOperatorStatus result = PaintStroke::modal(C, op, event);
++  operation = static_cast<GreasePencilStrokeOperation *>(mode_data_.get());
++  if (ELEM(result, OPERATOR_FINISHED, OPERATOR_CANCELLED)) {
++    this->depth_cache_timer_remove(C);
++    return result;
++  }
++  if (operation != nullptr) {
++    if (operation->async_state() == GreasePencilStrokeOperationAsyncState::Pending) {
++      this->depth_cache_timer_ensure();
++    }
++    else if (operation->async_state() == GreasePencilStrokeOperationAsyncState::Failed) {
++      this->depth_cache_timer_remove(C);
++      BKE_report(op->reports, RPT_ERROR, "Grease Pencil placement depth continuation failed");
++      PaintStroke::cancel(C);
++      return OPERATOR_CANCELLED;
++    }
++  }
++  return result;
++}
++
++void GreasePencilPaintStroke::cancel(bContext *C)
++{
++  GreasePencilStrokeOperation *operation = static_cast<GreasePencilStrokeOperation *>(
++      mode_data_.get());
++  if (operation != nullptr) {
++    operation->cancel_async();
++  }
++  deferred_finish_event_.reset();
++  this->depth_cache_timer_remove(C);
++  PaintStroke::cancel(C);
++}
++
+ bool GreasePencilPaintStroke::get_location(float out[3],
+                                            const float mouse[2],
+                                            bool /*force_original*/)
+diff --git a/source/blender/editors/sculpt_paint/grease_pencil/grease_pencil_intern.hh b/source/blender/editors/sculpt_paint/grease_pencil/grease_pencil_intern.hh
+index 6650ef9bfbda11ea1a90de5f957063e8f0103a27..e30fe4473c68e53b1cdfb607635bec7198da5653 100644
+--- a/source/blender/editors/sculpt_paint/grease_pencil/grease_pencil_intern.hh
++++ b/source/blender/editors/sculpt_paint/grease_pencil/grease_pencil_intern.hh
+@@ -40,11 +40,24 @@ struct InputSample {
+   float pressure;
+ };
+ 
++enum class GreasePencilStrokeOperationAsyncState : int8_t { Running, Pending, Failed };
++
+ class GreasePencilStrokeOperation : public PaintModeData {
+  public:
+   virtual void on_stroke_begin(const bContext &C, const InputSample &start_sample) = 0;
+   virtual void on_stroke_extended(const bContext &C, const InputSample &extension_sample) = 0;
+   virtual void on_stroke_done(const bContext &C) = 0;
++
++  virtual GreasePencilStrokeOperationAsyncState async_state() const
++  {
++    return GreasePencilStrokeOperationAsyncState::Running;
++  }
++  virtual GreasePencilStrokeOperationAsyncState poll_async(const bContext &C)
++  {
++    (void)C;
++    return this->async_state();
++  }
++  virtual void cancel_async() {}
+ };
+ 
+ namespace greasepencil {
+diff --git a/source/blender/editors/sculpt_paint/grease_pencil/paint.cc b/source/blender/editors/sculpt_paint/grease_pencil/paint.cc
+index 3b37246992cd632772f702a427f311bec01a34ec..db4fa84a2391ae42329eebe0053e4d29fe41494d 100644
+--- a/source/blender/editors/sculpt_paint/grease_pencil/paint.cc
++++ b/source/blender/editors/sculpt_paint/grease_pencil/paint.cc
+@@ -215,6 +215,26 @@ class PaintOperation : public GreasePencilStrokeOperation {
+ 
+   /** Helper class to project screen space coordinates to 3d. */
+   ed::greasepencil::DrawingPlacement placement_;
++  GreasePencilStrokeOperationAsyncState async_state_ =
++      GreasePencilStrokeOperationAsyncState::Running;
++  std::optional<InputSample> depth_cache_start_sample_;
++  Vector<InputSample> depth_cache_samples_;
++  wmWindowManager *depth_cache_manager_ = nullptr;
++  wmWindow *depth_cache_window_ = nullptr;
++  bScreen *depth_cache_screen_ = nullptr;
++  ScrArea *depth_cache_area_ = nullptr;
++  ARegion *depth_cache_region_ = nullptr;
++  RegionView3D *depth_cache_region_view_ = nullptr;
++  View3D *depth_cache_view3d_ = nullptr;
++  Depsgraph *depth_cache_depsgraph_ = nullptr;
++  Scene *depth_cache_scene_ = nullptr;
++  Object *depth_cache_object_ = nullptr;
++  Object *depth_cache_eval_object_ = nullptr;
++  GreasePencil *depth_cache_grease_pencil_ = nullptr;
++  const bke::greasepencil::Layer *depth_cache_layer_ = nullptr;
++  int depth_cache_frame_number_ = 0;
++  int depth_cache_tick_count_ = 0;
++  bool stroke_initialized_ = false;
+   /** Last valid stroke intersection, for use in Stroke projection mode. */
+   std::optional<float> last_stroke_placement_depth_;
+   /** Point index of the last valid stroke placement. */
+@@ -256,6 +276,9 @@ class PaintOperation : public GreasePencilStrokeOperation {
+   void on_stroke_begin(const bContext &C, const InputSample &start_sample) override;
+   void on_stroke_extended(const bContext &C, const InputSample &extension_sample) override;
+   void on_stroke_done(const bContext &C) override;
++  GreasePencilStrokeOperationAsyncState async_state() const override;
++  GreasePencilStrokeOperationAsyncState poll_async(const bContext &C) override;
++  void cancel_async() override;
+ 
+   PaintOperation(const bool do_fill_guides = false) : do_fill_guides_(do_fill_guides) {}
+ 
+@@ -266,6 +289,10 @@ class PaintOperation : public GreasePencilStrokeOperation {
+                                       float to_depth);
+   void toggle_fill_guides_brush_on(const bContext &C);
+   void toggle_fill_guides_brush_off(const bContext &C);
++
++ private:
++  void on_stroke_begin_ready(const bContext &C, const InputSample &start_sample);
++  bool depth_cache_context_matches(const bContext &C) const;
+ };
+ 
+ /**
+@@ -1148,6 +1175,111 @@ void PaintOperation::toggle_fill_guides_brush_off(const bContext &C)
+   fill_guides_brush_ = nullptr;
+ }
+ 
++GreasePencilStrokeOperationAsyncState PaintOperation::async_state() const
++{
++  return async_state_;
++}
++
++bool PaintOperation::depth_cache_context_matches(const bContext &C) const
++{
++  if (CTX_wm_manager(&C) != depth_cache_manager_ ||
++      CTX_wm_window(&C) != depth_cache_window_ ||
++      CTX_wm_screen(&C) != depth_cache_screen_ || CTX_wm_area(&C) != depth_cache_area_ ||
++      CTX_wm_region(&C) != depth_cache_region_ ||
++      CTX_wm_region_view3d(&C) != depth_cache_region_view_ ||
++      CTX_wm_view3d(&C) != depth_cache_view3d_ ||
++      CTX_data_depsgraph_pointer(&C) != depth_cache_depsgraph_ ||
++      CTX_data_scene(&C) != depth_cache_scene_ ||
++      CTX_data_active_object(&C) != depth_cache_object_ ||
++      depth_cache_scene_->r.cfra != depth_cache_frame_number_)
++  {
++    return false;
++  }
++
++  if (DEG_get_evaluated(depth_cache_depsgraph_, depth_cache_object_) != depth_cache_eval_object_) {
++    return false;
++  }
++  const GreasePencil *grease_pencil = id_cast<const GreasePencil *>(depth_cache_object_->data);
++  return grease_pencil == depth_cache_grease_pencil_ && grease_pencil->has_active_layer() &&
++         grease_pencil->get_active_layer() == depth_cache_layer_;
++}
++
++GreasePencilStrokeOperationAsyncState PaintOperation::poll_async(const bContext &C)
++{
++  if (async_state_ != GreasePencilStrokeOperationAsyncState::Pending) {
++    return async_state_;
++  }
++  if (!this->depth_cache_context_matches(C)) {
++    this->cancel_async();
++    return async_state_;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++depth_cache_tick_count_ > max_tick_count) {
++    this->cancel_async();
++    return async_state_;
++  }
++
++  const ed::greasepencil::DrawingPlacementDepthCacheState state =
++      placement_.poll_viewport_depths(depth_cache_region_);
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Pending) {
++    return async_state_;
++  }
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Failed ||
++      !depth_cache_start_sample_)
++  {
++    this->cancel_async();
++    return async_state_;
++  }
++
++  const InputSample start_sample = *depth_cache_start_sample_;
++  Vector<InputSample> queued_samples = std::move(depth_cache_samples_);
++  depth_cache_start_sample_.reset();
++  depth_cache_manager_ = nullptr;
++  depth_cache_window_ = nullptr;
++  depth_cache_screen_ = nullptr;
++  depth_cache_area_ = nullptr;
++  depth_cache_region_ = nullptr;
++  depth_cache_region_view_ = nullptr;
++  depth_cache_view3d_ = nullptr;
++  depth_cache_depsgraph_ = nullptr;
++  depth_cache_scene_ = nullptr;
++  depth_cache_object_ = nullptr;
++  depth_cache_eval_object_ = nullptr;
++  depth_cache_grease_pencil_ = nullptr;
++  depth_cache_layer_ = nullptr;
++  depth_cache_tick_count_ = 0;
++  async_state_ = GreasePencilStrokeOperationAsyncState::Running;
++
++  this->on_stroke_begin_ready(C, start_sample);
++  for (const InputSample &sample : queued_samples) {
++    this->on_stroke_extended(C, sample);
++  }
++  return async_state_;
++}
++
++void PaintOperation::cancel_async()
++{
++  placement_.cancel_viewport_depths();
++  depth_cache_start_sample_.reset();
++  depth_cache_samples_.clear();
++  depth_cache_manager_ = nullptr;
++  depth_cache_window_ = nullptr;
++  depth_cache_screen_ = nullptr;
++  depth_cache_area_ = nullptr;
++  depth_cache_region_ = nullptr;
++  depth_cache_region_view_ = nullptr;
++  depth_cache_view3d_ = nullptr;
++  depth_cache_depsgraph_ = nullptr;
++  depth_cache_scene_ = nullptr;
++  depth_cache_object_ = nullptr;
++  depth_cache_eval_object_ = nullptr;
++  depth_cache_grease_pencil_ = nullptr;
++  depth_cache_layer_ = nullptr;
++  depth_cache_tick_count_ = 0;
++  async_state_ = GreasePencilStrokeOperationAsyncState::Failed;
++}
++
+ void PaintOperation::on_stroke_begin(const bContext &C, const InputSample &start_sample)
+ {
+   Depsgraph *depsgraph = CTX_data_depsgraph_pointer(&C);
+@@ -1158,6 +1290,53 @@ void PaintOperation::on_stroke_begin(const bContext &C, const InputSample &start
+   Object *eval_object = DEG_get_evaluated(depsgraph, object_);
+   GreasePencil *grease_pencil = id_cast<GreasePencil *>(object_->data);
+ 
++  BLI_assert(grease_pencil->has_active_layer());
++  const bke::greasepencil::Layer *layer = grease_pencil->get_active_layer();
++  placement_ = ed::greasepencil::DrawingPlacement(
++      *scene_, *region, *view3d, *eval_object, layer);
++  if (!placement_.use_project_to_surface() && !placement_.use_project_to_stroke()) {
++    this->on_stroke_begin_ready(C, start_sample);
++    return;
++  }
++
++  const ed::greasepencil::DrawingPlacementDepthCacheState state =
++      placement_.cache_viewport_depths_async(depsgraph, region, view3d);
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Failed) {
++    async_state_ = GreasePencilStrokeOperationAsyncState::Failed;
++    return;
++  }
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Ready) {
++    this->on_stroke_begin_ready(C, start_sample);
++    return;
++  }
++
++  depth_cache_start_sample_ = start_sample;
++  depth_cache_samples_.clear();
++  depth_cache_manager_ = CTX_wm_manager(&C);
++  depth_cache_window_ = CTX_wm_window(&C);
++  depth_cache_screen_ = CTX_wm_screen(&C);
++  depth_cache_area_ = CTX_wm_area(&C);
++  depth_cache_region_ = region;
++  depth_cache_region_view_ = CTX_wm_region_view3d(&C);
++  depth_cache_view3d_ = view3d;
++  depth_cache_depsgraph_ = depsgraph;
++  depth_cache_scene_ = scene_;
++  depth_cache_object_ = object_;
++  depth_cache_eval_object_ = eval_object;
++  depth_cache_grease_pencil_ = grease_pencil;
++  depth_cache_layer_ = layer;
++  depth_cache_frame_number_ = scene_->r.cfra;
++  depth_cache_tick_count_ = 0;
++  async_state_ = GreasePencilStrokeOperationAsyncState::Pending;
++}
++
++void PaintOperation::on_stroke_begin_ready(const bContext &C,
++                                           const InputSample &start_sample)
++{
++  ARegion *region = CTX_wm_region(&C);
++  View3D *view3d = CTX_wm_view3d(&C);
++  GreasePencil *grease_pencil = id_cast<GreasePencil *>(object_->data);
++
+   if (do_fill_guides_) {
+     this->toggle_fill_guides_brush_on(C);
+   }
+@@ -1182,11 +1361,6 @@ void PaintOperation::on_stroke_begin(const bContext &C, const InputSample &start
+ 
+   BLI_assert(grease_pencil->has_active_layer());
+   const bke::greasepencil::Layer &layer = *grease_pencil->get_active_layer();
+-  /* Initialize helper class for projecting screen space coordinates. */
+-  placement_ = ed::greasepencil::DrawingPlacement(*scene_, *region, *view3d, *eval_object, &layer);
+-  if (placement_.use_project_to_surface() || placement_.use_project_to_stroke()) {
+-    placement_.cache_viewport_depths(depsgraph, region, view3d);
+-  }
+ 
+   texture_space_ = ed::greasepencil::calculate_texture_space(
+       scene_, region, start_sample.mouse_position, placement_);
+@@ -1227,6 +1401,8 @@ void PaintOperation::on_stroke_begin(const bContext &C, const InputSample &start
+   /* Delta time starts at 0. */
+   delta_time_ = 0.0f;
+ 
++  stroke_initialized_ = true;
++
+   PaintOperationExecutor executor{*scene_};
+   executor.process_start_sample(*this, C, start_sample, material_index, use_fill);
+ 
+@@ -1236,6 +1412,19 @@ void PaintOperation::on_stroke_begin(const bContext &C, const InputSample &start
+ 
+ void PaintOperation::on_stroke_extended(const bContext &C, const InputSample &extension_sample)
+ {
++  if (async_state_ == GreasePencilStrokeOperationAsyncState::Pending) {
++    constexpr int max_sample_count = 256;
++    if (depth_cache_samples_.size() >= max_sample_count) {
++      this->cancel_async();
++      return;
++    }
++    depth_cache_samples_.append(extension_sample);
++    return;
++  }
++  if (async_state_ == GreasePencilStrokeOperationAsyncState::Failed || !stroke_initialized_) {
++    return;
++  }
++
+   GreasePencil *grease_pencil = id_cast<GreasePencil *>(object_->data);
+ 
+   PaintOperationExecutor executor{*scene_};
+@@ -1672,6 +1861,12 @@ static void convert_stroke_type(bke::greasepencil::Drawing &drawing,
+ 
+ void PaintOperation::on_stroke_done(const bContext &C)
+ {
++  if (!stroke_initialized_) {
++    this->cancel_async();
++    return;
++  }
++  stroke_initialized_ = false;
++
+   using namespace blender::bke;
+   RegionView3D *rv3d = CTX_wm_region_view3d(&C);
+   const ARegion *region = CTX_wm_region(&C);
 diff --git a/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc b/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc
 index ce35dd72a85d97a65301d79e0253d0ca06fea9ad..890850919e2708d5b6cfe28628bbe86107781745 100644
 --- a/source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc

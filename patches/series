@@ -1107,3 +1107,6 @@
 # 0267: snapshot recorded annotation input and replay exact stroke boundaries
 # through owned depth-cache generations, eliminating annotation sync fallbacks.
 0267-m5-annotation-recorded-depth-cache-continuation.patch
+# 0268: retain freehand Grease Pencil surface/stroke placement and replay its
+# exact first-sample FIFO and sanitized terminal event after bounded settlement.
+0268-m5-grease-pencil-depth-cache-continuation.patch

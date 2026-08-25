@@ -2615,6 +2615,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   canonical replay, real product rebuild/no-work, OFF preflight, same-artifact headed fallback
   diagnostic, REUSE, scoped M3, and full regression are verified. Strict live proof retains the
   named s7 hardware blocker. See `notes/m3-t10-context-owned-pipeline-caches-20260825.md`.
+- [x] **M3.T5-CONTEXT-BACKEND-HANDLE-REGISTRY [gpu-backend] (4b28c64):** patch 0279 replaces
+  independently mutable process-static instance/device/queue fields with one locked
+  latest-live-owner tuple. Async shader compilation takes one coherent snapshot; older teardown
+  preserves a newer context and newest teardown restores the previous live owner. Fail-first
+  native/wasm32 lifetime coverage, four-file patch replay, canonical replay, locked product
+  rebuild/no-work, same-artifact headed fallback diagnostics, REUSE, scoped M3, and full regression
+  are verified. Strict live proof retains the named s7 hardware blocker. See
+  `notes/m3-context-backend-handle-registry-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -841,6 +841,67 @@ bool scoped_handle_cache_contract()
   return true;
 }
 
+bool context_owned_pipeline_cache_contract()
+{
+  using Cache = bw::ScopedHandleCache<uint8_t, CacheHandleProbe>;
+  const auto fetch = [](Cache &cache, const int identity, int &creates) {
+    return cache.get_or_create_scoped(
+        uint8_t(0),
+        []() {},
+        [&]() {
+          creates++;
+          return CacheHandleProbe(identity);
+        },
+        [](auto completion) { completion(true); });
+  };
+
+  /* Reproduce the old process-static ownership: a later device asks the same
+   * logical pipeline key and receives the first device's retained handle. */
+  Cache process_static;
+  int process_creates = 0;
+  const CacheHandleProbe first_device = fetch(process_static, 11, process_creates);
+  const CacheHandleProbe stale_second_device = fetch(process_static, 13, process_creates);
+  if (!require(first_device.identity() == 11 && stale_second_device.identity() == 11 &&
+                   process_creates == 1,
+               "process-static pipeline cache reproduces cross-device handle reuse"))
+  {
+    return false;
+  }
+
+  struct ContextCaches {
+    Cache batch;
+    Cache immediate;
+    Cache indexed_fan;
+  };
+  std::array<int, 3> first_context = {};
+  std::array<int, 3> second_context = {};
+  int context_creates = 0;
+  {
+    ContextCaches caches;
+    first_context = {fetch(caches.batch, 21, context_creates).identity(),
+                     fetch(caches.immediate, 23, context_creates).identity(),
+                     fetch(caches.indexed_fan, 25, context_creates).identity()};
+  }
+  {
+    ContextCaches caches;
+    second_context = {fetch(caches.batch, 31, context_creates).identity(),
+                      fetch(caches.immediate, 33, context_creates).identity(),
+                      fetch(caches.indexed_fan, 35, context_creates).identity()};
+  }
+  if (!require(first_context == std::array<int, 3>{21, 23, 25},
+               "first context owns all pipeline caches") ||
+      !require(second_context == std::array<int, 3>{31, 33, 35},
+               "replacement context creates device-local pipelines") ||
+      !require(context_creates == 6, "each context creates three independent pipelines"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT context_owned_pipeline_cache PASS cases=8 caches=3 "
+            "shared_reuse=stale context_reuse=isolated creates=6");
+  return true;
+}
+
 bool ordered_queue_scheduler_failure_drain_contract()
 {
   constexpr size_t follower_count = 100000;
@@ -3801,6 +3862,7 @@ int main()
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
+      !context_owned_pipeline_cache_contract() ||
       !ordered_queue_scheduler_failure_drain_contract() ||
       !transient_resource_gate_contract() ||
       !compute_bind_group_scope_contract() ||
@@ -3825,7 +3887,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=38 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=39 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -3834,6 +3896,7 @@ int main()
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
+      "context_pipeline_caches=3 "
       "transient_resource_gates=3 compute_bind_group_scope_cases=4 "
       "compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 "
       "layered_clear_orders=4 "

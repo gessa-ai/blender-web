@@ -31771,10 +31771,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..36654717e112fbe00a1b0dc10ea4b400fe94b3fb
+index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c62bdfb884
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,1031 @@
+@@ -0,0 +1,1021 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -31819,21 +31819,12 @@ index 0000000000000000000000000000000000000000..36654717e112fbe00a1b0dc10ea4b400
 +  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
 +}
 +
-+/** The render-pipeline cache. TODO: move to WGPUContext once its ownership of
-+ * device-lifetime caches is wired (lane A file); a function-static pool is correct
-+ * for the single-device native test harness. */
-+static webgpu::WGPUPipelinePool &pipeline_pool()
++static wgpu::ComputePipeline triangle_fan_index_pipeline(WGPUContext &ctx)
 +{
-+  static webgpu::WGPUPipelinePool pool;
-+  return pool;
-+}
-+
-+static wgpu::ComputePipeline triangle_fan_index_pipeline(const wgpu::Instance &instance,
-+                                                         const wgpu::Device &device)
-+{
-+  /* The application owns one WebGPU device. Match the render-pipeline pool's
-+   * device-lifetime assumption and compile this small topology kernel once. */
-+  static webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> pipeline_cache;
++  const wgpu::Instance instance = ctx.instance_get();
++  const wgpu::Device device = ctx.device_get();
++  webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> &pipeline_cache =
++      ctx.triangle_fan_pipeline_cache_get();
 +  static constexpr const char *source = R"(
 +struct Params {
 +  first : u32,
@@ -31958,8 +31949,7 @@ index 0000000000000000000000000000000000000000..36654717e112fbe00a1b0dc10ea4b400
 +    return false;
 +  }
 +
-+  const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx.instance_get(),
-+                                                                     ctx.device_get());
++  const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx);
 +  if (pipeline == nullptr) {
 +    return false;
 +  }
@@ -32173,7 +32163,7 @@ index 0000000000000000000000000000000000000000..36654717e112fbe00a1b0dc10ea4b400
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++  wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
@@ -32566,7 +32556,7 @@ index 0000000000000000000000000000000000000000..36654717e112fbe00a1b0dc10ea4b400
 +      indexed ? wibo->index_format() : wgpu::IndexFormat::Undefined);
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++  wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
@@ -37366,10 +37356,10 @@ index 0000000000000000000000000000000000000000..d75a3190daf788a0207fb744c0afbb5d
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..0f034818521b58e3ff1fe3d5e151d6a5ae2406ed
+index 0000000000000000000000000000000000000000..119d16da11f4dc6c319d89aad4c7ace08c88dea1
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
-@@ -0,0 +1,363 @@
+@@ -0,0 +1,380 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37391,6 +37381,7 @@ index 0000000000000000000000000000000000000000..0f034818521b58e3ff1fe3d5e151d6a5
 +
 +#include "gpu_context_private.hh"
 +#include "wgpu_common.hh"
++#include "wgpu_pipeline.hh"
 +
 +#include <cstdint>
 +#include <string>
@@ -37474,6 +37465,18 @@ index 0000000000000000000000000000000000000000..0f034818521b58e3ff1fe3d5e151d6a5
 +  webgpu::OrderedQueueScheduler &queue_scheduler_get()
 +  {
 +    return queue_scheduler_;
++  }
++  webgpu::WGPUPipelinePool &batch_pipeline_pool_get()
++  {
++    return batch_pipeline_pool_;
++  }
++  webgpu::WGPUPipelinePool &immediate_pipeline_pool_get()
++  {
++    return immediate_pipeline_pool_;
++  }
++  webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> &triangle_fan_pipeline_cache_get()
++  {
++    return triangle_fan_pipeline_cache_;
 +  }
 +  const char *adapter_name() const
 +  {
@@ -37692,6 +37695,10 @@ index 0000000000000000000000000000000000000000..0f034818521b58e3ff1fe3d5e151d6a5
 +  wgpu::Queue queue_ = nullptr;
 +  /** Serializes async validation with queue writes/submissions without changing their order. */
 +  webgpu::OrderedQueueScheduler queue_scheduler_;
++  /** Device-bound pipeline handles must not outlive this context or reach a later device. */
++  webgpu::WGPUPipelinePool batch_pipeline_pool_;
++  webgpu::WGPUPipelinePool immediate_pipeline_pool_;
++  webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> triangle_fan_pipeline_cache_;
 +  std::string adapter_name_;
 +  /** Set between activate() and deactivate(); guards double-activation. */
 +  bool is_active_ = false;
@@ -40297,10 +40304,10 @@ index 0000000000000000000000000000000000000000..1edac01565ad6c4fd317bdb485a35075
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..bd0570cfd3113aa7e1cf1a63a2afd5f5ee64737a
+index 0000000000000000000000000000000000000000..715eed7a4993b92b5947cb8972cd0081176c8e9f
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,269 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -40335,15 +40342,6 @@ index 0000000000000000000000000000000000000000..bd0570cfd3113aa7e1cf1a63a2afd5f5
 +static WGPUContext *active_context()
 +{
 +  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
-+}
-+
-+/** Immediate shares the render-pipeline cache shape with wgpu_batch; a dedicated
-+ * pool here avoids cross-file coupling (the cache is just a memo — a few duplicate
-+ * pipelines at worst). TODO: fold both into a context-owned pool. */
-+static webgpu::WGPUPipelinePool &pipeline_pool()
-+{
-+  static webgpu::WGPUPipelinePool pool;
-+  return pool;
 +}
 +
 +uchar *WGPUImmediate::begin()
@@ -40488,7 +40486,7 @@ index 0000000000000000000000000000000000000000..bd0570cfd3113aa7e1cf1a63a2afd5f5
 +  info.prim_type = draw_prim_type;
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
-+  wgpu::RenderPipeline pipeline = pipeline_pool().get(
++  wgpu::RenderPipeline pipeline = ctx->immediate_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
 +    return;
@@ -41524,7 +41522,7 @@ index 0000000000000000000000000000000000000000..99e080986fafe071c3d710f77e21f648
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..9a5e06a2af4bd5cd18748f31d2a48c16b3376fa6
+index 0000000000000000000000000000000000000000..1f6ec2d4198b2fa65ee779fee1ba3a58290db591
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
 @@ -0,0 +1,147 @@
@@ -41596,8 +41594,8 @@ index 0000000000000000000000000000000000000000..9a5e06a2af4bd5cd18748f31d2a48c16
 +  }
 +
 +  WGPUShader *shader = nullptr;
-+  /** A monotonic per-instance identity. The process-wide pools outlive shaders, so a raw
-+   * allocator address alone cannot distinguish a replacement object at the same address. */
++  /** A monotonic per-instance identity. Context-owned pools can outlive individual shaders, so a
++   * raw allocator address alone cannot distinguish a replacement object at the same address. */
 +  uint64_t shader_cache_identity = 0;
 +  /* Every bound vertex buffer, indexed by its batch verts[] slot (entries may be null);
 +   * a single interleaved format lives at [0]. Empty set => procedural (no vbo). */
@@ -46204,7 +46202,7 @@ index 0000000000000000000000000000000000000000..6bc6fc8828484b750191b2168aa98f73
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..71b0ef28fb4138f382beb615e45864c3d0c5bc3d
+index 0000000000000000000000000000000000000000..c5207548316b86616198d126c6e4b45e44cca97a
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.hh
 @@ -0,0 +1,354 @@
@@ -46273,9 +46271,9 @@ index 0000000000000000000000000000000000000000..71b0ef28fb4138f382beb615e45864c3
 +  {
 +    return bound_constants_;
 +  }
-+  /** Stable identity for render-pipeline cache entries. The process-wide batch and immediate
-+   * pools retain pipelines beyond this object's lifetime, while guardedalloc may reuse the raw
-+   * `WGPUShader *` address for a later shader. */
++  /** Stable identity for render-pipeline cache entries. The context-owned batch and immediate
++   * pools can retain pipelines beyond this object's lifetime, while guardedalloc may reuse the
++   * raw `WGPUShader *` address for a later shader. */
 +  uint64_t pipeline_cache_identity() const
 +  {
 +    return pipeline_cache_identity_;

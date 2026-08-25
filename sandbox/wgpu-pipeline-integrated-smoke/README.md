@@ -68,7 +68,7 @@ transaction, so a failed encoder or finished buffer cannot be dereferenced or su
 Shader modules and render/compute pipelines use the scoped cache rather than null-only
 publication. A shader retains its final WGSL while the complete required module set is pending;
 a non-null error module rejects the set atomically, and draw/dispatch lookup recreates it before
-pipeline creation. Every context, framebuffer, per-shader specialization, and process-wide
+pipeline creation. Every context, framebuffer, per-shader specialization, and context-owned
 pipeline cache likewise publishes only after validation, out-of-memory, and internal scopes
 settle. The one-shot mipmap module/pipeline pair instead reserves an ordered transient gate before
 dependent command work. Rejected keys retry without disturbing accepted entries.

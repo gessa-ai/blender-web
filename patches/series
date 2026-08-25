@@ -1122,3 +1122,6 @@
 # 0272: retain Look at Surface's invoke event and bounded modal FIFO before
 # selected-object capture while its owned full-viewport cache settles.
 0272-m5-object-axis-target-depth-cache-continuation.patch
+# 0273: retain particle click/linked/gesture/brush inputs behind one owned,
+# context-guarded full-viewport depth cache before any PEData traversal.
+0273-m5-particle-edit-depth-cache-continuation.patch

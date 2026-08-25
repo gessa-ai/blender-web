@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Reverse/forward an exact legacy-selection numbered patch in isolation."""
+"""Reverse/forward an exact aggregate-readback numbered patch in isolation."""
 
 from __future__ import annotations
 
@@ -28,6 +28,11 @@ EXPECTED_PATHS_BY_NAME = {
     "0255-m5-legacy-selection-gesture-continuation.patch": {
         Path("source/blender/draw/DRW_select_buffer.hh"),
         Path("source/blender/draw/intern/draw_select_buffer.cc"),
+        Path("source/blender/editors/space_view3d/view3d_select.cc"),
+    },
+    "0273-m5-particle-edit-depth-cache-continuation.patch": {
+        Path("source/blender/editors/include/ED_particle.hh"),
+        Path("source/blender/editors/physics/particle_edit.cc"),
         Path("source/blender/editors/space_view3d/view3d_select.cc"),
     },
 }
@@ -82,7 +87,7 @@ def main() -> int:
         )
 
     current = {relative: (source_root / relative).read_bytes() for relative in expected_paths}
-    with tempfile.TemporaryDirectory(prefix="m5-selection-patch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="m5-readback-patch-") as temporary:
         replay = Path(temporary)
         for relative, payload in current.items():
             destination = replay / relative
@@ -101,7 +106,7 @@ def main() -> int:
 
     digest = hashlib.sha256(patch.read_bytes()).hexdigest()
     print(
-        f"M5_SELECTION_NUMBERED_PATCH_PASS patch={patch.name} "
+        f"M5_ASYNC_READBACK_NUMBERED_PATCH_PASS patch={patch.name} "
         f"files={len(expected_paths)} sha256={digest}"
     )
     return 0
@@ -111,5 +116,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, VerificationError, subprocess.SubprocessError) as error:
-        print(f"M5_SELECTION_NUMBERED_PATCH_FAIL {error}", file=__import__("sys").stderr)
+        print(f"M5_ASYNC_READBACK_NUMBERED_PATCH_FAIL {error}", file=__import__("sys").stderr)
         raise SystemExit(1)

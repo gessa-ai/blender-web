@@ -35,11 +35,13 @@ SOURCE_PATHS = (
     "source/blender/draw/DRW_select_buffer.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
+    "source/blender/editors/include/ED_particle.hh",
     "source/blender/editors/include/ED_view3d.hh",
     "source/blender/editors/curve/editcurve_paint.cc",
     "source/blender/editors/curves/intern/curves_draw.cc",
     "source/blender/editors/gpencil_legacy/annotate_paint.cc",
     "source/blender/editors/mesh/editmesh_select.cc",
+    "source/blender/editors/physics/particle_edit.cc",
     "source/blender/editors/sculpt_paint/paint_intern.hh",
     "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
     "source/blender/editors/sculpt_paint/mesh/paint_image_ops_paint.cc",
@@ -172,6 +174,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_buffer_api = sources["source/blender/draw/DRW_select_buffer.hh"]
     select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
+    particle_api = sources["source/blender/editors/include/ED_particle.hh"]
     depth_api = sources["source/blender/editors/include/ED_view3d.hh"]
     depth_draw = sources["source/blender/editors/space_view3d/view3d_draw.cc"]
     curve_draw = sources["source/blender/editors/curve/editcurve_paint.cc"]
@@ -180,6 +183,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "source/blender/editors/gpencil_legacy/annotate_paint.cc"
     ]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
+    particle_edit = sources["source/blender/editors/physics/particle_edit.cc"]
     paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
     paint_projection = sources[
         "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc"
@@ -1314,11 +1318,50 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in annotation_draw, f"annotation callback wiring missing {needle!r}")
 
+    for needle in (
+        "enum class ParticleEditDepthCacheState",
+        "enum class ParticleEditOperationResult",
+        "PE_depth_cache_session_create",
+        "PE_depth_cache_session_state",
+        "PE_circle_select_depth_cache_event_pop",
+    ):
+        require(needle in particle_api, f"particle-edit public continuation missing {needle!r}")
+    require(
+        particle_api.count("ParticleEditDepthCacheSession *depth_session") == 3,
+        "particle-edit one-shot session API census drifted",
+    )
+    require(
+        "ED_view3d_depth_override(" not in particle_edit
+        and particle_edit.count("ED_view3d_depth_override_prepare(") == 1,
+        "particle-edit synchronous residual or async prepare census drifted",
+    )
+    require(
+        particle_edit.count("PE_set_view3d_data(") == 7,
+        "particle-edit prepare/consume caller census drifted",
+    )
+    for needle in (
+        "ViewportDepthCacheSession readback;",
+        "session->consumed = true;",
+        "data->depths = session->readback.take(session->region);",
+        "return XRAY_ENABLED(session->view3d) == session->xray_bypass;",
+        "struct ParticleLinkedPickData",
+        "struct ParticleCircleSelectData",
+        "constexpr int max_queued_events = 512",
+        "constexpr int max_queued_events = 256",
+        "brush_edit_depth_poll",
+    ):
+        require(needle in particle_edit, f"particle-edit ownership contract missing {needle!r}")
+    for needle in (
+        "ParticleEditDepthCacheSession *particle_depth_session",
+        "View3DGestureAsyncKind::ParticleBox",
+        "View3DGestureAsyncKind::ParticleLasso",
+        "view3d_particle_gesture_async_modal",
+        "struct View3DParticleCircleDirectData",
+        "view3d_particle_circle_direct_operators",
+    ):
+        require(needle in view_select, f"particle-edit caller owner missing {needle!r}")
+
     remaining_sync = {
-        "depth_cache": (
-            "source/blender/editors/space_view3d/view3d_draw.cc",
-            "GPU_texture_read(depth_tx, GPU_DATA_FLOAT, 0)",
-        ),
         "window_capture": (
             "source/blender/windowmanager/intern/wm_draw.cc",
             "GPU_offscreen_read_color(offscreen, GPU_DATA_UBYTE, rect);",
@@ -1763,6 +1806,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "depth_cache_async_primitive": True,
             "curve_draw_depth_cache_continuations": True,
             "annotation_depth_cache_continuation": True,
+            "particle_edit_depth_cache_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -2029,6 +2073,30 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "p->recorded_stroke_index++;",
             "p->recorded_stroke_index += 0;",
             "annotation recorded-stroke cursor",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "ED_view3d_depth_override_prepare(",
+            "ED_view3d_depth_override(",
+            "particle-edit async prepare",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "session->consumed = true;",
+            "session->consumed = false;",
+            "particle-edit one-shot consume",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "constexpr int max_queued_events = 256",
+            "constexpr int max_queued_events = 0",
+            "particle-edit brush FIFO bound",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_select.cc",
+            "struct View3DParticleCircleDirectData",
+            "struct LostParticleCircleDirectData",
+            "particle-edit direct circle owner",
         ),
     )
     for relative, old, new, label in mutations:

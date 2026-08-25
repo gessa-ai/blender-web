@@ -67,7 +67,7 @@ fi
 "$PYBIN" "$HERE/verify_source.py" --source-root "$SOURCE_ROOT" --selfcheck
 "$PYBIN" "$HERE/verify_numbered_patch.py" \
   --source-root "$SOURCE_ROOT" \
-  --patch "$ROOT/patches/0255-m5-legacy-selection-gesture-continuation.patch"
+  --patch "$ROOT/patches/0273-m5-particle-edit-depth-cache-continuation.patch"
 if [ "$SOURCE_ROOT" = "$ROOT/upstream" ]; then
   SOURCE_PROOF="$("$PYBIN" "$SERIES_VERIFY" --canonical-only)"
 else
@@ -161,8 +161,9 @@ if ! jq -e \
    .contracts.depth_cache_async_primitive == true and
    .contracts.curve_draw_depth_cache_continuations == true and
    .contracts.annotation_depth_cache_continuation == true and
+   .contracts.particle_edit_depth_cache_continuation == true and
    .contracts.live_hardware_receipt == false and
-   .remaining_sync_families == ["depth_cache", "window_capture"]' \
+   .remaining_sync_families == ["window_capture"]' \
   "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2

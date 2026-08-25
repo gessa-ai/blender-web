@@ -14360,6 +14360,74 @@ index f71580f1a3006a83f91b4a4ccadfc79966db6631..f402870daff7263d5f10b851fa9f954e
                                                           const VArray<bool> &boundary_layers,
                                                           const Span<DrawingInfo> src_drawings,
                                                           bool invert,
+diff --git a/source/blender/editors/include/ED_particle.hh b/source/blender/editors/include/ED_particle.hh
+index 12ba5b04b6bf65d714481c5580c56e293ee7311b..37a85bcc7b60ef2685c795d7e12b38a93129f7ed 100644
+--- a/source/blender/editors/include/ED_particle.hh
++++ b/source/blender/editors/include/ED_particle.hh
+@@ -16,6 +16,7 @@ struct Depsgraph;
+ struct Object;
+ struct PTCacheEdit;
+ struct ParticleEditSettings;
++struct ParticleEditDepthCacheSession;
+ struct ParticleSystem;
+ struct Scene;
+ struct SelectPick_Params;
+@@ -24,6 +25,20 @@ struct ViewLayer;
+ struct bContext;
+ struct rcti;
+ struct wmGenericUserData;
++struct wmEvent;
++
++enum class ParticleEditDepthCacheState {
++  Pending,
++  Ready,
++  Failed,
++};
++
++enum class ParticleEditOperationResult {
++  Pending,
++  Failed,
++  Cancelled,
++  Finished,
++};
+ 
+ /* particle edit mode */
+ 
+@@ -46,11 +61,30 @@ void PE_update_object(Depsgraph *depsgraph, Scene *scene, Object *ob, int usefla
+ 
+ /* selection tools */
+ 
+-bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params &params);
+-bool PE_box_select(bContext *C, const rcti *rect, int sel_op);
+-bool PE_circle_select(
++ParticleEditDepthCacheSession *PE_depth_cache_session_create();
++void PE_depth_cache_session_free(ParticleEditDepthCacheSession *session);
++ParticleEditDepthCacheState PE_depth_cache_session_state(
++    bContext *C, ParticleEditDepthCacheSession *session);
++
++ParticleEditOperationResult PE_mouse_particles(bContext *C,
++                                                const int mval[2],
++                                                const SelectPick_Params &params,
++                                                ParticleEditDepthCacheSession *depth_session);
++ParticleEditOperationResult PE_box_select(bContext *C,
++                                          const rcti *rect,
++                                          int sel_op,
++                                          ParticleEditDepthCacheSession *depth_session);
++ParticleEditOperationResult PE_circle_select(
+     bContext *C, wmGenericUserData *wm_userdata, int sel_op, const int mval[2], float rad);
+-int PE_lasso_select(bContext *C, const int mcoords[][2], int mcoords_len, int sel_op);
++bool PE_circle_select_depth_cache_pending(const wmGenericUserData *wm_userdata);
++ParticleEditDepthCacheState PE_circle_select_depth_cache_event(
++    bContext *C, wmGenericUserData *wm_userdata, const wmEvent *event);
++bool PE_circle_select_depth_cache_event_pop(wmGenericUserData *wm_userdata, wmEvent *r_event);
++ParticleEditOperationResult PE_lasso_select(bContext *C,
++                                            const int mcoords[][2],
++                                            int mcoords_len,
++                                            int sel_op,
++                                            ParticleEditDepthCacheSession *depth_session);
+ bool PE_deselect_all_visible_ex(PTCacheEdit *edit);
+ bool PE_deselect_all_visible(bContext *C);
+ 
 diff --git a/source/blender/editors/include/ED_view3d.hh b/source/blender/editors/include/ED_view3d.hh
 index 5a99786d93e3cde0050a2620617e061c7452fef6..c4563196ed6bd31291bce394f8d7ce1cf6fea06c 100644
 --- a/source/blender/editors/include/ED_view3d.hh
@@ -16194,6 +16262,1078 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
  void OBJECT_OT_transform_axis_target(wmOperatorType *ot)
  {
    /* identifiers */
+diff --git a/source/blender/editors/physics/particle_edit.cc b/source/blender/editors/physics/particle_edit.cc
+index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da58e0d540 100644
+--- a/source/blender/editors/physics/particle_edit.cc
++++ b/source/blender/editors/physics/particle_edit.cc
+@@ -10,6 +10,7 @@
+ #include <cmath>
+ #include <cstdlib>
+ #include <cstring>
++#include <utility>
+ 
+ #include "MEM_guardedalloc.h"
+ 
+@@ -31,6 +32,7 @@
+ #include "BLI_task.h"
+ #include "BLI_time.h"
+ #include "BLI_utildefines.h"
++#include "BLI_vector.hh"
+ 
+ #include "BLT_translation.hh"
+ 
+@@ -500,6 +502,38 @@ struct PEData {
+   void *user_data;
+ };
+ 
++struct ParticleEditDepthCacheSession {
++  ViewportDepthCacheSession readback;
++  wmWindowManager *manager = nullptr;
++  wmWindow *window = nullptr;
++  bScreen *screen = nullptr;
++  ScrArea *area = nullptr;
++  ARegion *region = nullptr;
++  RegionView3D *region_view = nullptr;
++  View3D *view3d = nullptr;
++  Main *bmain = nullptr;
++  Depsgraph *depsgraph = nullptr;
++  Scene *scene = nullptr;
++  ViewLayer *view_layer = nullptr;
++  Object *object = nullptr;
++  PTCacheEdit *edit = nullptr;
++  bool initialized = false;
++  bool xray_bypass = false;
++  bool consumed = false;
++};
++
++ParticleEditDepthCacheSession *PE_depth_cache_session_create()
++{
++  return MEM_new<ParticleEditDepthCacheSession>(__func__);
++}
++
++void PE_depth_cache_session_free(ParticleEditDepthCacheSession *session)
++{
++  if (session != nullptr) {
++    MEM_delete(session);
++  }
++}
++
+ static void PE_set_data(bContext *C, PEData *data)
+ {
+   *data = {};
+@@ -513,21 +547,124 @@ static void PE_set_data(bContext *C, PEData *data)
+   data->edit = PE_get_current(data->depsgraph, data->scene, data->ob);
+ }
+ 
+-static void PE_set_view3d_data(bContext *C, PEData *data)
++static bool PE_depth_cache_context_matches(bContext *C,
++                                           const ParticleEditDepthCacheSession *session)
+ {
+-  PE_set_data(C, data);
++  if (session == nullptr || !session->initialized || session->consumed ||
++      CTX_wm_manager(C) != session->manager || CTX_wm_window(C) != session->window ||
++      CTX_wm_screen(C) != session->screen || CTX_wm_area(C) != session->area ||
++      CTX_wm_region(C) != session->region ||
++      CTX_wm_region_view3d(C) != session->region_view || CTX_wm_view3d(C) != session->view3d ||
++      CTX_data_main(C) != session->bmain ||
++      CTX_data_depsgraph_pointer(C) != session->depsgraph ||
++      CTX_data_scene(C) != session->scene || CTX_data_view_layer(C) != session->view_layer ||
++      CTX_data_active_object(C) != session->object)
++  {
++    return false;
++  }
++  if (session->object == nullptr || !(session->object->mode & OB_MODE_PARTICLE_EDIT) ||
++      PE_get_current(session->depsgraph, session->scene, session->object) != session->edit)
++  {
++    return false;
++  }
++  return XRAY_ENABLED(session->view3d) == session->xray_bypass;
++}
++
++ParticleEditDepthCacheState PE_depth_cache_session_state(
++    bContext *C, ParticleEditDepthCacheSession *session)
++{
++  if (!PE_depth_cache_context_matches(C, session)) {
++    return ParticleEditDepthCacheState::Failed;
++  }
++  if (session->xray_bypass) {
++    return ParticleEditDepthCacheState::Ready;
++  }
++  switch (session->readback.state()) {
++    case ViewportDepthCacheSession::ReadbackState::Pending:
++      return ParticleEditDepthCacheState::Pending;
++    case ViewportDepthCacheSession::ReadbackState::Ready:
++      return ParticleEditDepthCacheState::Ready;
++    case ViewportDepthCacheSession::ReadbackState::Failed:
++      return ParticleEditDepthCacheState::Failed;
++  }
++  BLI_assert_unreachable();
++  return ParticleEditDepthCacheState::Failed;
++}
++
++static ParticleEditDepthCacheState PE_set_view3d_data(
++    bContext *C, PEData *data, ParticleEditDepthCacheSession *session)
++{
++  if (session == nullptr || session->consumed) {
++    return ParticleEditDepthCacheState::Failed;
++  }
++
++  if (!session->initialized) {
++    PEData initial_data;
++    PE_set_data(C, &initial_data);
++    const ViewContext vc = ED_view3d_viewcontext_init(C, initial_data.depsgraph);
++
++    session->manager = CTX_wm_manager(C);
++    session->window = CTX_wm_window(C);
++    session->screen = CTX_wm_screen(C);
++    session->area = CTX_wm_area(C);
++    session->region = vc.region;
++    session->region_view = vc.rv3d;
++    session->view3d = vc.v3d;
++    session->bmain = initial_data.bmain;
++    session->depsgraph = initial_data.depsgraph;
++    session->scene = initial_data.scene;
++    session->view_layer = initial_data.view_layer;
++    session->object = initial_data.ob;
++    session->edit = initial_data.edit;
++    session->initialized = true;
++
++    if (ELEM(nullptr,
++             session->manager,
++             session->window,
++             session->screen,
++             session->area,
++             session->region,
++             session->region_view,
++             session->view3d,
++             session->bmain,
++             session->depsgraph,
++             session->scene,
++             session->view_layer,
++             session->object,
++             session->edit))
++    {
++      return ParticleEditDepthCacheState::Failed;
++    }
++
++    session->xray_bypass = XRAY_ENABLED(session->view3d);
++    if (!session->xray_bypass) {
++      ED_view3d_depth_override_prepare(session->depsgraph,
++                                       session->region,
++                                       session->view3d,
++                                       session->object,
++                                       V3D_DEPTH_OBJECT_ONLY,
++                                       false);
++      if (!session->readback.init(session->region)) {
++        return ParticleEditDepthCacheState::Failed;
++      }
++    }
++  }
+ 
+-  data->vc = ED_view3d_viewcontext_init(C, data->depsgraph);
++  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(C, session);
++  if (state != ParticleEditDepthCacheState::Ready) {
++    return state;
++  }
+ 
+-  if (!XRAY_ENABLED(data->vc.v3d)) {
+-    ED_view3d_depth_override(data->depsgraph,
+-                             data->vc.region,
+-                             data->vc.v3d,
+-                             data->vc.obact,
+-                             V3D_DEPTH_OBJECT_ONLY,
+-                             false,
+-                             &data->depths);
++  PE_set_data(C, data);
++  data->vc = ED_view3d_viewcontext_init(C, data->depsgraph);
++  if (!session->xray_bypass) {
++    data->depths = session->readback.take(session->region);
++    if (data->depths == nullptr) {
++      return ParticleEditDepthCacheState::Failed;
++    }
+   }
++  session->consumed = true;
++  return ParticleEditDepthCacheState::Ready;
+ }
+ 
+ static bool PE_create_shape_tree(PEData *data, Object *shapeob)
+@@ -1851,15 +1988,23 @@ static void nearest_key_fn(PEData *data, int point_index, int key_index, bool /*
+   data->is_changed = true;
+ }
+ 
+-static bool pe_nearest_point_and_key(bContext *C,
+-                                     const int mval[2],
+-                                     PTCacheEditPoint **r_point,
+-                                     PTCacheEditKey **r_key)
++static ParticleEditOperationResult pe_nearest_point_and_key(
++    bContext *C,
++    const int mval[2],
++    PTCacheEditPoint **r_point,
++    PTCacheEditKey **r_key,
++    ParticleEditDepthCacheSession *depth_session)
+ {
+   NearestParticleData user_data = {nullptr};
+ 
+   PEData data;
+-  PE_set_view3d_data(C, &data);
++  const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(C, &data, depth_session);
++  if (depth_state == ParticleEditDepthCacheState::Pending) {
++    return ParticleEditOperationResult::Pending;
++  }
++  if (depth_state == ParticleEditDepthCacheState::Failed) {
++    return ParticleEditOperationResult::Failed;
++  }
+   data.mval = mval;
+   data.rad = ED_view3d_select_dist_px();
+ 
+@@ -1870,10 +2015,15 @@ static bool pe_nearest_point_and_key(bContext *C,
+ 
+   *r_point = user_data.point;
+   *r_key = user_data.key;
+-  return found;
++  return found ? ParticleEditOperationResult::Finished :
++                 ParticleEditOperationResult::Cancelled;
+ }
+ 
+-bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params &params)
++ParticleEditOperationResult PE_mouse_particles(
++    bContext *C,
++    const int mval[2],
++    const SelectPick_Params &params,
++    ParticleEditDepthCacheSession *depth_session)
+ {
+   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+   Scene *scene = CTX_data_scene(C);
+@@ -1882,14 +2032,22 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
+   PTCacheEdit *edit = PE_get_current(depsgraph, scene, ob);
+ 
+   if (!PE_start_edit(edit)) {
+-    return false;
++    return ParticleEditOperationResult::Cancelled;
+   }
+ 
+   PTCacheEditPoint *point;
+   PTCacheEditKey *key;
+ 
+   bool changed = false;
+-  bool found = pe_nearest_point_and_key(C, mval, &point, &key);
++  const ParticleEditOperationResult nearest_result = pe_nearest_point_and_key(
++      C, mval, &point, &key, depth_session);
++  if (ELEM(nearest_result,
++           ParticleEditOperationResult::Pending,
++           ParticleEditOperationResult::Failed))
++  {
++    return nearest_result;
++  }
++  bool found = nearest_result == ParticleEditOperationResult::Finished;
+ 
+   if (params.sel_op == SEL_OP_SET) {
+     if ((found && params.select_passthrough) && (key->flag & PEK_SELECT)) {
+@@ -1945,7 +2103,8 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
+     WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
+   }
+ 
+-  return changed || found;
++  return (changed || found) ? ParticleEditOperationResult::Finished :
++                              ParticleEditOperationResult::Cancelled;
+ }
+ 
+ /** \} */
+@@ -2218,20 +2377,58 @@ void PARTICLE_OT_select_linked(wmOperatorType *ot)
+   /* properties */
+ }
+ 
+-static wmOperatorStatus select_linked_pick_exec(bContext *C, wmOperator *op)
++struct ParticleLinkedPickData {
++  ParticleEditDepthCacheSession *depth_session = nullptr;
++  wmWindowManager *manager = nullptr;
++  wmWindow *window = nullptr;
++  wmTimer *timer = nullptr;
++  int location[2] = {0, 0};
++  int tick_count = 0;
++  bool deselect = false;
++};
++
++static void select_linked_pick_data_free(ParticleLinkedPickData *wait)
+ {
+-  PEData data;
+-  int mval[2];
+-  int location[2];
++  if (wait == nullptr) {
++    return;
++  }
++  if (wait->timer != nullptr) {
++    WM_event_timer_remove(wait->manager, wait->window, wait->timer);
++    wait->timer = nullptr;
++  }
++  PE_depth_cache_session_free(wait->depth_session);
++  MEM_delete(wait);
++}
+ 
+-  RNA_int_get_array(op->ptr, "location", location);
+-  mval[0] = location[0];
+-  mval[1] = location[1];
++static void select_linked_pick_cancel(wmOperator *op)
++{
++  select_linked_pick_data_free(static_cast<ParticleLinkedPickData *>(op->customdata));
++  op->customdata = nullptr;
++}
+ 
+-  PE_set_view3d_data(C, &data);
+-  data.mval = mval;
++static void select_linked_pick_cancel_callback(bContext * /*C*/, wmOperator *op)
++{
++  select_linked_pick_cancel(op);
++}
++
++static wmOperatorStatus select_linked_pick_apply(bContext *C,
++                                                 wmOperator *op,
++                                                 ParticleLinkedPickData *wait)
++{
++  PEData data;
++  const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(
++      C, &data, wait->depth_session);
++  if (depth_state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (depth_state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle linked-select depth readback failed");
++    return OPERATOR_CANCELLED;
++  }
++
++  data.mval = wait->location;
+   data.rad = 75.0f;
+-  data.select = !RNA_boolean_get(op->ptr, "deselect");
++  data.select = !wait->deselect;
+ 
+   for_mouse_hit_keys(&data, select_keys, PSEL_NEAREST);
+   PE_update_selection(data.depsgraph, data.scene, data.ob, 1);
+@@ -2241,6 +2438,66 @@ static wmOperatorStatus select_linked_pick_exec(bContext *C, wmOperator *op)
+   return OPERATOR_FINISHED;
+ }
+ 
++static wmOperatorStatus select_linked_pick_exec(bContext *C, wmOperator *op)
++{
++  ParticleLinkedPickData *wait = MEM_new<ParticleLinkedPickData>(__func__);
++  wait->depth_session = PE_depth_cache_session_create();
++  wait->manager = CTX_wm_manager(C);
++  wait->window = CTX_wm_window(C);
++  RNA_int_get_array(op->ptr, "location", wait->location);
++  wait->deselect = RNA_boolean_get(op->ptr, "deselect");
++
++  const wmOperatorStatus result = select_linked_pick_apply(C, op, wait);
++  if (result == OPERATOR_RUNNING_MODAL) {
++    wait->timer = WM_event_timer_add(wait->manager, wait->window, TIMER, 0.01f);
++    if (wait->timer == nullptr) {
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain particle linked-select depth request");
++      select_linked_pick_data_free(wait);
++      return OPERATOR_CANCELLED;
++    }
++    op->customdata = wait;
++    WM_event_add_modal_handler(C, op);
++    return OPERATOR_RUNNING_MODAL;
++  }
++  select_linked_pick_data_free(wait);
++  return result;
++}
++
++static wmOperatorStatus select_linked_pick_modal(bContext *C,
++                                                 wmOperator *op,
++                                                 const wmEvent *event)
++{
++  ParticleLinkedPickData *wait = static_cast<ParticleLinkedPickData *>(op->customdata);
++  if (wait == nullptr || (event->type == EVT_ESCKEY && event->val == KM_PRESS)) {
++    select_linked_pick_cancel(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != wait->timer) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++wait->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for particle linked-select depth");
++    select_linked_pick_cancel(op);
++    return OPERATOR_CANCELLED;
++  }
++  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(C,
++                                                                         wait->depth_session);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle linked-select depth context changed");
++    select_linked_pick_cancel(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const wmOperatorStatus result = select_linked_pick_apply(C, op, wait);
++  select_linked_pick_cancel(op);
++  return result;
++}
++
+ static wmOperatorStatus select_linked_pick_invoke(bContext *C,
+                                                   wmOperator *op,
+                                                   const wmEvent *event)
+@@ -2259,6 +2516,8 @@ void PARTICLE_OT_select_linked_pick(wmOperatorType *ot)
+   /* API callbacks. */
+   ot->exec = select_linked_pick_exec;
+   ot->invoke = select_linked_pick_invoke;
++  ot->modal = select_linked_pick_modal;
++  ot->cancel = select_linked_pick_cancel_callback;
+   ot->poll = PE_poll_view3d;
+ 
+   /* flags */
+@@ -2306,7 +2565,11 @@ bool PE_deselect_all_visible(bContext *C)
+   return PE_deselect_all_visible_ex(edit);
+ }
+ 
+-bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
++ParticleEditOperationResult PE_box_select(
++    bContext *C,
++    const rcti *rect,
++    const int sel_op,
++    ParticleEditDepthCacheSession *depth_session)
+ {
+   Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+   Scene *scene = CTX_data_scene(C);
+@@ -2315,10 +2578,16 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+   PEData data;
+ 
+   if (!PE_start_edit(edit)) {
+-    return false;
++    return ParticleEditOperationResult::Cancelled;
+   }
+ 
+-  PE_set_view3d_data(C, &data);
++  const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(C, &data, depth_session);
++  if (depth_state == ParticleEditDepthCacheState::Pending) {
++    return ParticleEditOperationResult::Pending;
++  }
++  if (depth_state == ParticleEditDepthCacheState::Failed) {
++    return ParticleEditOperationResult::Failed;
++  }
+   data.rect = rect;
+   data.sel_op = eSelectOp(sel_op);
+ 
+@@ -2340,7 +2609,8 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+     PE_update_selection(depsgraph, scene, ob, 1);
+     WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
+   }
+-  return is_changed;
++  return is_changed ? ParticleEditOperationResult::Finished :
++                      ParticleEditOperationResult::Cancelled;
+ }
+ 
+ /** \} */
+@@ -2349,22 +2619,58 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+ /** \name Circle Select Operator
+  * \{ */
+ 
+-static void pe_select_cache_free_generic_userdata(void *data)
++struct ParticleCircleSelectData {
++  PEData data{};
++  ParticleEditDepthCacheSession *depth_session = nullptr;
++  Vector<wmEvent> depth_events;
++  wmWindowManager *manager = nullptr;
++  wmWindow *window = nullptr;
++  wmTimer *timer = nullptr;
++  int pending_mval[2] = {0, 0};
++  float pending_radius = 0.0f;
++  int pending_sel_op = SEL_OP_SET;
++  int tick_count = 0;
++  bool pending_input_valid = false;
++  bool depth_pending = false;
++  bool initialized = false;
++};
++
++static void pe_circle_select_depth_timer_remove(ParticleCircleSelectData *circle)
+ {
+-  PE_data_free(static_cast<PEData *>(data));
+-  MEM_delete(static_cast<PEData *>(data));
++  if (circle->timer != nullptr) {
++    WM_event_timer_remove(circle->manager, circle->window, circle->timer);
++    circle->timer = nullptr;
++  }
++  circle->tick_count = 0;
+ }
+ 
+-static void pe_select_cache_init_with_generic_userdata(bContext *C, wmGenericUserData *wm_userdata)
++static void pe_circle_select_free_generic_userdata(void *data)
+ {
+-  PEData *data = MEM_new_zeroed<PEData>(__func__);
+-  wm_userdata->data = data;
+-  wm_userdata->free_fn = pe_select_cache_free_generic_userdata;
++  ParticleCircleSelectData *circle = static_cast<ParticleCircleSelectData *>(data);
++  pe_circle_select_depth_timer_remove(circle);
++  circle->depth_events.clear();
++  PE_depth_cache_session_free(circle->depth_session);
++  if (circle->initialized) {
++    PE_data_free(&circle->data);
++  }
++  MEM_delete(circle);
++}
++
++static ParticleCircleSelectData *pe_circle_select_data_ensure(
++    wmGenericUserData *wm_userdata)
++{
++  if (wm_userdata->data != nullptr) {
++    return static_cast<ParticleCircleSelectData *>(wm_userdata->data);
++  }
++  ParticleCircleSelectData *circle = MEM_new<ParticleCircleSelectData>(__func__);
++  circle->depth_session = PE_depth_cache_session_create();
++  wm_userdata->data = circle;
++  wm_userdata->free_fn = pe_circle_select_free_generic_userdata;
+   wm_userdata->use_free = true;
+-  PE_set_view3d_data(C, data);
++  return circle;
+ }
+ 
+-bool PE_circle_select(
++ParticleEditOperationResult PE_circle_select(
+     bContext *C, wmGenericUserData *wm_userdata, const int sel_op, const int mval[2], float rad)
+ {
+   BLI_assert(ELEM(sel_op, SEL_OP_SET, SEL_OP_ADD, SEL_OP_SUB));
+@@ -2374,19 +2680,60 @@ bool PE_circle_select(
+   PTCacheEdit *edit = PE_get_current(depsgraph, scene, ob);
+ 
+   if (!PE_start_edit(edit)) {
+-    return false;
+-  }
++    return ParticleEditOperationResult::Cancelled;
++  }
++
++  ParticleCircleSelectData *circle = pe_circle_select_data_ensure(wm_userdata);
++  if (!circle->initialized) {
++    if (!circle->pending_input_valid) {
++      circle->pending_mval[0] = mval[0];
++      circle->pending_mval[1] = mval[1];
++      circle->pending_radius = rad;
++      circle->pending_sel_op = sel_op;
++      circle->pending_input_valid = true;
++    }
++
++    const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(
++        C, &circle->data, circle->depth_session);
++    if (depth_state == ParticleEditDepthCacheState::Pending) {
++      if (!circle->depth_pending) {
++        circle->manager = CTX_wm_manager(C);
++        circle->window = CTX_wm_window(C);
++        circle->timer = WM_event_timer_add(circle->manager, circle->window, TIMER, 0.01f);
++        if (circle->timer == nullptr) {
++          return ParticleEditOperationResult::Failed;
++        }
++        circle->depth_pending = true;
++        circle->tick_count = 0;
++      }
++      return ParticleEditOperationResult::Pending;
++    }
++    if (depth_state == ParticleEditDepthCacheState::Failed) {
++      return ParticleEditOperationResult::Failed;
++    }
+ 
+-  if (wm_userdata->data == nullptr) {
+-    pe_select_cache_init_with_generic_userdata(C, wm_userdata);
++    circle->initialized = true;
++    circle->depth_pending = false;
++    pe_circle_select_depth_timer_remove(circle);
++    PE_depth_cache_session_free(circle->depth_session);
++    circle->depth_session = nullptr;
+   }
+ 
+-  PEData *data = static_cast<PEData *>(wm_userdata->data);
+-  data->mval = mval;
+-  data->rad = rad;
+-  data->select = (sel_op != SEL_OP_SUB);
++  PEData *data = &circle->data;
++  const int *selection_mval = mval;
++  float selection_radius = rad;
++  int selection_sel_op = sel_op;
++  if (circle->pending_input_valid) {
++    selection_mval = circle->pending_mval;
++    selection_radius = circle->pending_radius;
++    selection_sel_op = circle->pending_sel_op;
++    circle->pending_input_valid = false;
++  }
++  data->mval = selection_mval;
++  data->rad = selection_radius;
++  data->select = (selection_sel_op != SEL_OP_SUB);
+ 
+-  if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
++  if (SEL_OP_USE_PRE_DESELECT(selection_sel_op)) {
+     data->is_changed = PE_deselect_all_visible_ex(edit);
+   }
+   for_mouse_hit_keys(data, select_key, eParticleSelectFlag(0));
+@@ -2395,7 +2742,76 @@ bool PE_circle_select(
+     PE_update_selection(depsgraph, scene, ob, 1);
+     WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
+   }
+-  return data->is_changed;
++  return data->is_changed ? ParticleEditOperationResult::Finished :
++                            ParticleEditOperationResult::Cancelled;
++}
++
++bool PE_circle_select_depth_cache_pending(const wmGenericUserData *wm_userdata)
++{
++  const ParticleCircleSelectData *circle = wm_userdata != nullptr ?
++                                               static_cast<const ParticleCircleSelectData *>(
++                                                   wm_userdata->data) :
++                                               nullptr;
++  return circle != nullptr && circle->depth_pending;
++}
++
++ParticleEditDepthCacheState PE_circle_select_depth_cache_event(
++    bContext *C, wmGenericUserData *wm_userdata, const wmEvent *event)
++{
++  ParticleCircleSelectData *circle = wm_userdata != nullptr ?
++                                          static_cast<ParticleCircleSelectData *>(
++                                              wm_userdata->data) :
++                                          nullptr;
++  if (circle == nullptr || !circle->depth_pending || circle->depth_session == nullptr ||
++      event == nullptr)
++  {
++    return ParticleEditDepthCacheState::Failed;
++  }
++
++  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(C,
++                                                                         circle->depth_session);
++  if (state == ParticleEditDepthCacheState::Failed) {
++    return state;
++  }
++  if (event->type == TIMER) {
++    if (event->customdata != circle->timer) {
++      return ParticleEditDepthCacheState::Pending;
++    }
++    constexpr int max_tick_count = 240;
++    if (++circle->tick_count > max_tick_count) {
++      return ParticleEditDepthCacheState::Failed;
++    }
++    return state;
++  }
++
++  constexpr int max_queued_events = 512;
++  if (event->custom != 0 || event->customdata != nullptr ||
++      circle->depth_events.size() >= max_queued_events)
++  {
++    return ParticleEditDepthCacheState::Failed;
++  }
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  circle->depth_events.append(queued);
++  return ParticleEditDepthCacheState::Pending;
++}
++
++bool PE_circle_select_depth_cache_event_pop(wmGenericUserData *wm_userdata, wmEvent *r_event)
++{
++  ParticleCircleSelectData *circle = wm_userdata != nullptr ?
++                                          static_cast<ParticleCircleSelectData *>(
++                                              wm_userdata->data) :
++                                          nullptr;
++  if (circle == nullptr || r_event == nullptr || circle->depth_events.is_empty()) {
++    return false;
++  }
++  *r_event = circle->depth_events.first();
++  circle->depth_events.remove(0);
++  return true;
+ }
+ 
+ /** \} */
+@@ -2404,7 +2820,12 @@ bool PE_circle_select(
+ /** \name Lasso Select Operator
+  * \{ */
+ 
+-int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len, const int sel_op)
++ParticleEditOperationResult PE_lasso_select(
++    bContext *C,
++    const int mcoords[][2],
++    const int mcoords_len,
++    const int sel_op,
++    ParticleEditDepthCacheSession *depth_session)
+ {
+   Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+   Scene *scene = CTX_data_scene(C);
+@@ -2422,11 +2843,17 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
+   unit_m4(mat);
+ 
+   if (!PE_start_edit(edit)) {
+-    return OPERATOR_CANCELLED;
++    return ParticleEditOperationResult::Cancelled;
+   }
+ 
+   /* only for depths */
+-  PE_set_view3d_data(C, &data);
++  const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(C, &data, depth_session);
++  if (depth_state == ParticleEditDepthCacheState::Pending) {
++    return ParticleEditOperationResult::Pending;
++  }
++  if (depth_state == ParticleEditDepthCacheState::Failed) {
++    return ParticleEditOperationResult::Failed;
++  }
+ 
+   if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
+     data.is_changed |= PE_deselect_all_visible_ex(edit);
+@@ -2493,9 +2920,9 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
+   if (is_changed) {
+     PE_update_selection(depsgraph, scene, ob, 1);
+     WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
+-    return OPERATOR_FINISHED;
++    return ParticleEditOperationResult::Finished;
+   }
+-  return OPERATOR_CANCELLED;
++  return ParticleEditOperationResult::Cancelled;
+ }
+ 
+ /** \} */
+@@ -4694,28 +5121,106 @@ static int brush_add(const bContext *C, PEData *data, short number)
+  * \{ */
+ 
+ struct BrushEdit {
+-  Scene *scene;
+-  ViewLayer *view_layer;
+-  Object *ob;
+-  PTCacheEdit *edit;
++  Scene *scene = nullptr;
++  ViewLayer *view_layer = nullptr;
++  Object *ob = nullptr;
++  PTCacheEdit *edit = nullptr;
+ 
+-  int first;
+-  int lastmouse[2];
+-  float zfac;
++  int first = 0;
++  int lastmouse[2] = {0, 0};
++  float zfac = 0.0f;
+ 
+   /** Optional cached view settings to avoid setting on every mouse-move. */
+-  PEData data;
++  PEData data{};
++
++  ParticleEditDepthCacheSession *depth_session = nullptr;
++  Vector<wmEvent> depth_events;
++  wmEvent depth_start_event{};
++  wmWindowManager *depth_manager = nullptr;
++  wmWindow *depth_window = nullptr;
++  wmTimer *depth_timer = nullptr;
++  int depth_tick_count = 0;
++  bool depth_start_event_valid = false;
++  bool depth_pending = false;
++  bool exec_pending = false;
++  bool initialized = false;
+ };
+ 
+-static int brush_edit_init(bContext *C, wmOperator *op)
++static void brush_edit_depth_timer_remove(BrushEdit *bedit)
+ {
+-  Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+-  Scene *scene = CTX_data_scene(C);
+-  ViewLayer *view_layer = CTX_data_view_layer(C);
+-  Object *ob = CTX_data_active_object(C);
+-  PTCacheEdit *edit = PE_get_current(depsgraph, scene, ob);
+-  ARegion *region = CTX_wm_region(C);
+-  BrushEdit *bedit;
++  if (bedit->depth_timer != nullptr) {
++    WM_event_timer_remove(bedit->depth_manager, bedit->depth_window, bedit->depth_timer);
++    bedit->depth_timer = nullptr;
++  }
++  bedit->depth_tick_count = 0;
++}
++
++static bool brush_edit_depth_event_copy(wmEvent *r_event, const wmEvent *event)
++{
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr)
++  {
++    return false;
++  }
++  *r_event = *event;
++  r_event->next = nullptr;
++  r_event->prev = nullptr;
++  r_event->custom = 0;
++  r_event->customdata = nullptr;
++  r_event->customdata_free = false;
++  return true;
++}
++
++static bool brush_edit_depth_wait_begin(bContext *C,
++                                        BrushEdit *bedit,
++                                        const wmEvent *start_event,
++                                        const bool exec_pending)
++{
++  bedit->depth_manager = CTX_wm_manager(C);
++  bedit->depth_window = CTX_wm_window(C);
++  if (ELEM(nullptr, bedit->depth_manager, bedit->depth_window)) {
++    return false;
++  }
++  if (start_event != nullptr) {
++    if (!brush_edit_depth_event_copy(&bedit->depth_start_event, start_event)) {
++      return false;
++    }
++    bedit->depth_start_event_valid = true;
++  }
++  bedit->depth_timer = WM_event_timer_add(
++      bedit->depth_manager, bedit->depth_window, TIMER, 0.01f);
++  if (bedit->depth_timer == nullptr) {
++    bedit->depth_start_event_valid = false;
++    return false;
++  }
++  bedit->depth_events.clear();
++  bedit->depth_tick_count = 0;
++  bedit->depth_pending = true;
++  bedit->exec_pending = exec_pending;
++  return true;
++}
++
++static ParticleEditDepthCacheState brush_edit_init(bContext *C, wmOperator *op)
++{
++  BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
++  if (bedit == nullptr) {
++    bedit = MEM_new<BrushEdit>("BrushEdit");
++    bedit->depth_session = PE_depth_cache_session_create();
++    op->customdata = bedit;
++  }
++
++  const ParticleEditDepthCacheState depth_state = PE_set_view3d_data(
++      C, &bedit->data, bedit->depth_session);
++  if (depth_state != ParticleEditDepthCacheState::Ready) {
++    return depth_state;
++  }
++
++  Depsgraph *depsgraph = bedit->data.depsgraph;
++  Scene *scene = bedit->data.scene;
++  ViewLayer *view_layer = bedit->data.view_layer;
++  Object *ob = bedit->data.ob;
++  PTCacheEdit *edit = bedit->data.edit;
++  ARegion *region = bedit->data.vc.region;
+   float3 min, max;
+ 
+   /* set the 'distance factor' for grabbing (used in comb etc) */
+@@ -4723,9 +5228,7 @@ static int brush_edit_init(bContext *C, wmOperator *op)
+   PE_minmax(depsgraph, scene, view_layer, min, max);
+   mid_v3_v3v3(min, min, max);
+ 
+-  bedit = MEM_new_zeroed<BrushEdit>("BrushEdit");
+   bedit->first = 1;
+-  op->customdata = bedit;
+ 
+   bedit->scene = scene;
+   bedit->view_layer = view_layer;
+@@ -4734,11 +5237,13 @@ static int brush_edit_init(bContext *C, wmOperator *op)
+ 
+   bedit->zfac = ED_view3d_calc_zfac(static_cast<const RegionView3D *>(region->regiondata), min);
+ 
+-  /* cache view depths and settings for re-use */
+-  PE_set_view3d_data(C, &bedit->data);
++  /* Cache view depths and settings for re-use. */
+   PE_create_random_generator(&bedit->data);
++  PE_depth_cache_session_free(bedit->depth_session);
++  bedit->depth_session = nullptr;
++  bedit->initialized = true;
+ 
+-  return 1;
++  return ParticleEditDepthCacheState::Ready;
+ }
+ 
+ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
+@@ -4980,17 +5485,21 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
+ static void brush_edit_exit(wmOperator *op)
+ {
+   BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
+-
+-  PE_data_free(&bedit->data);
++  if (bedit == nullptr) {
++    return;
++  }
++  brush_edit_depth_timer_remove(bedit);
++  bedit->depth_events.clear();
++  PE_depth_cache_session_free(bedit->depth_session);
++  if (bedit->initialized) {
++    PE_data_free(&bedit->data);
++  }
+   MEM_delete(bedit);
++  op->customdata = nullptr;
+ }
+ 
+-static wmOperatorStatus brush_edit_exec(bContext *C, wmOperator *op)
++static wmOperatorStatus brush_edit_exec_apply(bContext *C, wmOperator *op)
+ {
+-  if (!brush_edit_init(C, op)) {
+-    return OPERATOR_CANCELLED;
+-  }
+-
+   RNA_BEGIN (op->ptr, itemptr, "stroke") {
+     brush_edit_apply(C, op, &itemptr);
+   }
+@@ -5001,6 +5510,27 @@ static wmOperatorStatus brush_edit_exec(bContext *C, wmOperator *op)
+   return OPERATOR_FINISHED;
+ }
+ 
++static wmOperatorStatus brush_edit_exec(bContext *C, wmOperator *op)
++{
++  const ParticleEditDepthCacheState state = brush_edit_init(C, op);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
++    if (!brush_edit_depth_wait_begin(C, bedit, nullptr, true)) {
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain particle brush depth request");
++      brush_edit_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    WM_event_add_modal_handler(C, op);
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle brush depth readback failed");
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  return brush_edit_exec_apply(C, op);
++}
++
+ static void brush_edit_apply_event(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   PointerRNA itemptr;
+@@ -5019,12 +5549,25 @@ static void brush_edit_apply_event(bContext *C, wmOperator *op, const wmEvent *e
+ 
+ static wmOperatorStatus brush_edit_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+-  if (!brush_edit_init(C, op)) {
++  RNA_boolean_set(op->ptr, "pen_flip", event->modifier & KM_SHIFT); /* XXX hardcoded */
++
++  const ParticleEditDepthCacheState state = brush_edit_init(C, op);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
++    if (!brush_edit_depth_wait_begin(C, bedit, event, false)) {
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain particle brush depth request");
++      brush_edit_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    WM_event_add_modal_handler(C, op);
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle brush depth readback failed");
++    brush_edit_exit(op);
+     return OPERATOR_CANCELLED;
+   }
+ 
+-  RNA_boolean_set(op->ptr, "pen_flip", event->modifier & KM_SHIFT); /* XXX hardcoded */
+-
+   brush_edit_apply_event(C, op, event);
+ 
+   WM_event_add_modal_handler(C, op);
+@@ -5032,7 +5575,9 @@ static wmOperatorStatus brush_edit_invoke(bContext *C, wmOperator *op, const wmE
+   return OPERATOR_RUNNING_MODAL;
+ }
+ 
+-static wmOperatorStatus brush_edit_modal(bContext *C, wmOperator *op, const wmEvent *event)
++static wmOperatorStatus brush_edit_modal_dispatch(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event)
+ {
+   switch (event->type) {
+     case LEFTMOUSE:
+@@ -5054,6 +5599,98 @@ static wmOperatorStatus brush_edit_modal(bContext *C, wmOperator *op, const wmEv
+   return OPERATOR_RUNNING_MODAL;
+ }
+ 
++static wmOperatorStatus brush_edit_depth_poll(bContext *C,
++                                              wmOperator *op,
++                                              const wmEvent *event)
++{
++  BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
++  if (bedit == nullptr || !bedit->depth_pending || bedit->depth_session == nullptr) {
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(C,
++                                                                         bedit->depth_session);
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle brush context changed during depth readback");
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != bedit->depth_timer) {
++    if (event->type == TIMER || bedit->exec_pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    constexpr int max_queued_events = 256;
++    if (bedit->depth_events.size() >= max_queued_events) {
++      BKE_report(op->reports, RPT_ERROR, "Particle brush depth event queue exceeded its bound");
++      brush_edit_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    wmEvent queued;
++    if (!brush_edit_depth_event_copy(&queued, event)) {
++      BKE_report(op->reports, RPT_ERROR, "Unsafe event while waiting for particle brush depth");
++      brush_edit_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    bedit->depth_events.append(queued);
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++bedit->depth_tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for particle brush depth");
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  const bool exec_pending = bedit->exec_pending;
++  const bool start_event_valid = bedit->depth_start_event_valid;
++  const wmEvent start_event = bedit->depth_start_event;
++  Vector<wmEvent> queued_events = std::move(bedit->depth_events);
++  bedit->depth_pending = false;
++  bedit->exec_pending = false;
++  bedit->depth_start_event_valid = false;
++  brush_edit_depth_timer_remove(bedit);
++
++  if (brush_edit_init(C, op) != ParticleEditDepthCacheState::Ready) {
++    BKE_report(op->reports, RPT_ERROR, "Particle brush depth readback could not be consumed");
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (exec_pending) {
++    return brush_edit_exec_apply(C, op);
++  }
++  if (!start_event_valid) {
++    brush_edit_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  brush_edit_apply_event(C, op, &start_event);
++  for (wmEvent &queued_event : queued_events) {
++    const wmOperatorStatus result = brush_edit_modal_dispatch(C, op, &queued_event);
++    if (result != OPERATOR_RUNNING_MODAL) {
++      return result;
++    }
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus brush_edit_modal(bContext *C, wmOperator *op, const wmEvent *event)
++{
++  BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
++  if (bedit != nullptr && bedit->depth_pending) {
++    return brush_edit_depth_poll(C, op, event);
++  }
++  return brush_edit_modal_dispatch(C, op, event);
++}
++
+ static void brush_edit_cancel(bContext * /*C*/, wmOperator *op)
+ {
+   brush_edit_exit(op);
 diff --git a/source/blender/editors/render/render_internal.cc b/source/blender/editors/render/render_internal.cc
 index 84dedc7159e414eb1a5022769f262bb6a66d37c0..76862052b24c3895b5f71c1a2a0c4e6fb33ec53b 100644
 --- a/source/blender/editors/render/render_internal.cc
@@ -21468,7 +22608,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa4151cfbb 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df19d097aa 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -197,7 +197,17 @@ static bool object_deselect_all_except(const Main &bmain,
@@ -21639,23 +22779,61 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -1522,13 +1621,176 @@ static bool view3d_lasso_select(bContext *C,
+@@ -1421,10 +1520,7 @@ static bool view3d_lasso_select(bContext *C,
+       }
+     }
+     else if (ob && (ob->mode & OB_MODE_PARTICLE_EDIT)) {
+-      changed_multi |= PE_lasso_select(C,
+-                                       reinterpret_cast<const int (*)[2]>(mcoords.data()),
+-                                       mcoords.size(),
+-                                       sel_op) != OPERATOR_CANCELLED;
++      BLI_assert_unreachable();
+     }
+     else if (ob &&
+              ((ob->mode & OB_MODE_POSE) | ((ob->mode & OB_MODE_WEIGHT_PAINT) &&
+@@ -1522,13 +1618,333 @@ static bool view3d_lasso_select(bContext *C,
    return changed_multi;
  }
  
++static wmOperatorStatus view3d_particle_operation_status(
++    const ParticleEditOperationResult result)
++{
++  switch (result) {
++    case ParticleEditOperationResult::Pending:
++      return OPERATOR_RUNNING_MODAL;
++    case ParticleEditOperationResult::Failed:
++    case ParticleEditOperationResult::Cancelled:
++      return OPERATOR_CANCELLED;
++    case ParticleEditOperationResult::Finished:
++      return OPERATOR_FINISHED;
++  }
++  BLI_assert_unreachable();
++  return OPERATOR_CANCELLED;
++}
++
 +#ifdef __EMSCRIPTEN__
 +enum class View3DGestureAsyncKind : uint8_t {
 +  Box,
 +  Lasso,
++  ParticleBox,
++  ParticleLasso,
 +};
 +
 +struct View3DGestureAsyncData {
 +  wmTimer *timer = nullptr;
++  wmWindowManager *manager = nullptr;
++  wmWindow *window = nullptr;
 +  int tick_count = 0;
 +  View3DGestureAsyncKind kind = View3DGestureAsyncKind::Box;
++  ParticleEditDepthCacheSession *particle_depth_session = nullptr;
 +};
 +
++static Vector<wmOperator *> view3d_particle_gesture_async_operators;
++static wmOperator *view3d_particle_box_deferred_op = nullptr;
++
 +using View3DGestureExecFn = wmOperatorStatus (*)(bContext *, wmOperator *);
++using View3DParticleGestureApplyFn = ParticleEditOperationResult (*)(
++    bContext *, wmOperator *, ParticleEditDepthCacheSession *);
 +
 +static bool view3d_gesture_bitmap_async_eligible(bContext *C)
 +{
@@ -21705,6 +22883,8 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +  BLI_assert(op->customdata == nullptr);
 +  View3DGestureAsyncData *data = MEM_new<View3DGestureAsyncData>(__func__);
 +  data->kind = kind;
++  data->manager = CTX_wm_manager(C);
++  data->window = CTX_wm_window(C);
 +  data->timer = WM_event_timer_add(CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
 +  op->customdata = data;
 +}
@@ -21714,12 +22894,126 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +  View3DGestureAsyncData *data = static_cast<View3DGestureAsyncData *>(op->customdata);
 +  if (data != nullptr) {
 +    if (data->timer != nullptr) {
-+      WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), data->timer);
++      WM_event_timer_remove(data->manager, data->window, data->timer);
 +    }
++    PE_depth_cache_session_free(data->particle_depth_session);
 +    MEM_delete(data);
 +    op->customdata = nullptr;
 +  }
++  for (const int index : view3d_particle_gesture_async_operators.index_range()) {
++    if (view3d_particle_gesture_async_operators[index] == op) {
++      view3d_particle_gesture_async_operators.remove(index);
++      break;
++    }
++  }
 +  DRW_select_buffer_bitmap_session_end();
++}
++
++static bool view3d_particle_gesture_async_active(const wmOperator *op)
++{
++  for (const wmOperator *active_op : view3d_particle_gesture_async_operators) {
++    if (active_op == op) {
++      return true;
++    }
++  }
++  return false;
++}
++
++static bool view3d_particle_gesture_async_begin(
++    bContext *C,
++    wmOperator *op,
++    const View3DGestureAsyncKind kind,
++    ParticleEditDepthCacheSession *depth_session)
++{
++  BLI_assert(op->customdata == nullptr);
++  View3DGestureAsyncData *data = MEM_new<View3DGestureAsyncData>(__func__);
++  data->kind = kind;
++  data->particle_depth_session = depth_session;
++  data->manager = CTX_wm_manager(C);
++  data->window = CTX_wm_window(C);
++  data->timer = WM_event_timer_add(data->manager, data->window, TIMER, 0.01f);
++  if (data->timer == nullptr) {
++    PE_depth_cache_session_free(depth_session);
++    MEM_delete(data);
++    return false;
++  }
++  op->customdata = data;
++  view3d_particle_gesture_async_operators.append(op);
++  if ((op->flag & OP_IS_INVOKE) == 0) {
++    WM_event_add_modal_handler(C, op);
++  }
++  return true;
++}
++
++static wmOperatorStatus view3d_particle_gesture_async_start(
++    bContext *C,
++    wmOperator *op,
++    const View3DGestureAsyncKind kind,
++    const View3DParticleGestureApplyFn apply)
++{
++  ParticleEditDepthCacheSession *depth_session = PE_depth_cache_session_create();
++  const ParticleEditOperationResult result = apply(C, op, depth_session);
++  if (result == ParticleEditOperationResult::Pending) {
++    if (!view3d_particle_gesture_async_begin(C, op, kind, depth_session)) {
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain particle selection depth request");
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++  PE_depth_cache_session_free(depth_session);
++  if (result == ParticleEditOperationResult::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle selection depth readback failed");
++  }
++  return view3d_particle_operation_status(result);
++}
++
++static wmOperatorStatus view3d_particle_gesture_async_modal(
++    bContext *C,
++    wmOperator *op,
++    const wmEvent *event,
++    const View3DParticleGestureApplyFn apply)
++{
++  View3DGestureAsyncData *data = static_cast<View3DGestureAsyncData *>(op->customdata);
++  if ((event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++      (event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL))
++  {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (data == nullptr || data->particle_depth_session == nullptr || event->type != TIMER ||
++      event->customdata != data->timer)
++  {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++data->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for particle selection depth");
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(
++      C, data->particle_depth_session);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle selection depth context changed");
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ParticleEditOperationResult operation_result = apply(
++      C, op, data->particle_depth_session);
++  if (operation_result == ParticleEditOperationResult::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (operation_result == ParticleEditOperationResult::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Particle selection depth could not be consumed");
++  }
++  const wmOperatorStatus result = view3d_particle_operation_status(operation_result);
++  view3d_gesture_bitmap_async_data_end(C, op);
++  return result;
 +}
 +
 +static wmOperatorStatus view3d_gesture_bitmap_async_after_gesture(
@@ -21801,6 +23095,21 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +}
 +#endif
 +
++static ParticleEditOperationResult view3d_particle_lasso_select_apply(
++    bContext *C, wmOperator *op, ParticleEditDepthCacheSession *depth_session)
++{
++  const Array<int2> mcoords = WM_gesture_lasso_path_to_array(C, op);
++  if (mcoords.is_empty()) {
++    return ParticleEditOperationResult::Cancelled;
++  }
++  const eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
++  return PE_lasso_select(C,
++                         reinterpret_cast<const int (*)[2]>(mcoords.data()),
++                         mcoords.size(),
++                         sel_op,
++                         depth_session);
++}
++
  /* lasso operator gives properties, but since old code works
   * with short array we convert */
  static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
@@ -21817,8 +23126,29 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    }
  
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -1541,10 +1803,59 @@ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
+@@ -1539,12 +1955,88 @@ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
+   ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
+ 
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
++  if (vc.obedit == nullptr && vc.obact != nullptr &&
++      (vc.obact->mode & OB_MODE_PARTICLE_EDIT))
++  {
++#ifdef __EMSCRIPTEN__
++    return view3d_particle_gesture_async_start(C,
++                                               op,
++                                               View3DGestureAsyncKind::ParticleLasso,
++                                               view3d_particle_lasso_select_apply);
++#else
++    ParticleEditDepthCacheSession *depth_session = PE_depth_cache_session_create();
++    const ParticleEditOperationResult particle_result = view3d_particle_lasso_select_apply(
++        C, op, depth_session);
++    PE_depth_cache_session_free(depth_session);
++    if (particle_result == ParticleEditOperationResult::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Particle lasso depth readback failed");
++    }
++    return view3d_particle_operation_status(particle_result);
++#endif
++  }
    bool changed_multi = view3d_lasso_select(C, &vc, mcoords, sel_op);
  
 -  if (changed_multi) {
@@ -21849,6 +23179,10 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +                                                  const wmEvent *event)
 +{
 +#ifdef __EMSCRIPTEN__
++  if (view3d_particle_gesture_async_active(op)) {
++    return view3d_particle_gesture_async_modal(
++        C, op, event, view3d_particle_lasso_select_apply);
++  }
 +  if (DRW_select_buffer_bitmap_session_is_active() &&
 +      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID &&
 +      op->customdata != nullptr)
@@ -21868,6 +23202,10 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +static void view3d_lasso_select_cancel(bContext *C, wmOperator *op)
 +{
 +#ifdef __EMSCRIPTEN__
++  if (view3d_particle_gesture_async_active(op)) {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return;
++  }
 +  if (DRW_select_buffer_bitmap_session_is_active() &&
 +      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID)
 +  {
@@ -21880,7 +23218,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  }
  
  void VIEW3D_OT_select_lasso(wmOperatorType *ot)
-@@ -1553,11 +1864,11 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
+@@ -1553,11 +2045,11 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
    ot->description = "Select items using lasso selection";
    ot->idname = "VIEW3D_OT_select_lasso";
  
@@ -21895,7 +23233,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  
    /* flags */
    ot->flag = OPTYPE_UNDO | OPTYPE_DEPENDS_ON_CURSOR;
-@@ -2169,6 +2480,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2169,6 +2661,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
                                  select_filter,
                                  eV3DSelectShape::BOX,
                                  do_material_slot_selection);
@@ -21906,7 +23244,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    if (hits15 == 1) {
      hits = selectbuffer_ret_hits_15(storage.as_mutable_span(), hits15);
      goto finally;
-@@ -2180,6 +2495,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2180,6 +2676,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
      ofs = hits15;
      BLI_rcti_init_pt_radius(&rect, mval, 9);
      hits9 = view3d_gpu_select(vc, buffer, &rect, select_mode, select_filter, eV3DSelectShape::BOX);
@@ -21917,7 +23255,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
      if (hits9 == 1) {
        hits = selectbuffer_ret_hits_9(storage.as_mutable_span(), hits15, hits9);
        goto finally;
-@@ -2191,6 +2510,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2191,6 +2691,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
        BLI_rcti_init_pt_radius(&rect, mval, 5);
        hits5 = view3d_gpu_select(
            vc, buffer, &rect, select_mode, select_filter, eV3DSelectShape::BOX);
@@ -21928,7 +23266,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
        if (hits5 == 1) {
          hits = selectbuffer_ret_hits_5(storage.as_mutable_span(), hits15, hits9, hits5);
          goto finally;
-@@ -2658,6 +2981,10 @@ static bool ed_object_select_pick(bContext *C,
+@@ -2658,6 +3162,10 @@ static bool ed_object_select_pick(bContext *C,
                                    VIEW3D_SELECT_FILTER_NOP);
      gpu->hits = mixed_bones_object_selectbuffer_extended(
          &vc, &gpu->buffer, mval, select_filter, true, enumerate, &gpu->do_nearest);
@@ -21939,7 +23277,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,6 +3839,31 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,6 +4020,39 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
@@ -21968,10 +23306,18 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +  return DRW_select_buffer_query_session_error();
 +}
 +
++struct View3DSelectAsyncData {
++  wmTimer *timer = nullptr;
++  wmWindowManager *manager = nullptr;
++  wmWindow *window = nullptr;
++  int tick_count = 0;
++  ParticleEditDepthCacheSession *particle_depth_session = nullptr;
++};
++
  static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
  {
    Scene *scene = CTX_data_scene(C);
-@@ -3572,8 +3924,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3572,8 +4113,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
          GPUSelectBuffer buffer;
          const int hits = mixed_bones_object_selectbuffer(
              &vc, &buffer, mval, VIEW3D_SELECT_FILTER_NOP, false, true, false);
@@ -21984,7 +23330,59 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
        }
        if (!changed) {
          changed = ED_armature_edit_select_pick(C, mval, params);
-@@ -3617,6 +3971,22 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3602,7 +4145,50 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+     }
+   }
+   else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT) {
+-    changed = PE_mouse_particles(C, mval, params);
++    View3DSelectAsyncData *async_data = static_cast<View3DSelectAsyncData *>(op->customdata);
++    ParticleEditDepthCacheSession *depth_session = async_data != nullptr ?
++                                                            async_data->particle_depth_session :
++                                                            PE_depth_cache_session_create();
++    const bool local_session = async_data == nullptr;
++    const ParticleEditOperationResult particle_result = PE_mouse_particles(
++        C, mval, params, depth_session);
++    if (particle_result == ParticleEditOperationResult::Pending) {
++#ifdef __EMSCRIPTEN__
++      if (local_session) {
++        async_data = MEM_new<View3DSelectAsyncData>(__func__);
++        async_data->particle_depth_session = depth_session;
++        async_data->manager = CTX_wm_manager(C);
++        async_data->window = CTX_wm_window(C);
++        async_data->timer = WM_event_timer_add(
++            async_data->manager, async_data->window, TIMER, 0.01f);
++        if (async_data->timer == nullptr) {
++          PE_depth_cache_session_free(depth_session);
++          MEM_delete(async_data);
++          BKE_report(op->reports, RPT_ERROR, "Unable to retain particle pick depth request");
++          return OPERATOR_CANCELLED;
++        }
++        op->customdata = async_data;
++        if ((op->flag & OP_IS_INVOKE) == 0) {
++          WM_event_add_modal_handler(C, op);
++        }
++      }
++      return OPERATOR_RUNNING_MODAL;
++#else
++      if (local_session) {
++        PE_depth_cache_session_free(depth_session);
++      }
++      BKE_report(op->reports, RPT_ERROR, "Native particle pick depth did not settle immediately");
++      return OPERATOR_CANCELLED;
++#endif
++    }
++    if (local_session) {
++      PE_depth_cache_session_free(depth_session);
++    }
++    if (particle_result == ParticleEditOperationResult::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Particle pick depth readback failed");
++      return OPERATOR_CANCELLED;
++    }
++    changed = particle_result == ParticleEditOperationResult::Finished;
+   }
+   else if (obact && BKE_paint_select_face_test(obact)) {
+     changed = paintface_mouse_select(C, mval, params, obact);
+@@ -3617,6 +4203,22 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      changed = ed_object_select_pick(C, mval, params, center, enumerate, object_only);
    }
  
@@ -22007,22 +23405,18 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    /* Pass-through flag may be cleared, see #WM_operator_flag_only_pass_through_on_press. */
  
    /* Pass-through allows tweaks
-@@ -3629,15 +3999,96 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3629,15 +4231,115 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
    return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
  }
  
-+struct View3DSelectAsyncData {
-+  wmTimer *timer = nullptr;
-+  int tick_count = 0;
-+};
-+
 +static void view3d_select_async_finish(bContext *C, wmOperator *op)
 +{
 +  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);
 +  if (data != nullptr) {
 +    if (data->timer != nullptr) {
-+      WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), data->timer);
++      WM_event_timer_remove(data->manager, data->window, data->timer);
 +    }
++    PE_depth_cache_session_free(data->particle_depth_session);
 +    MEM_delete(data);
 +    op->customdata = nullptr;
 +  }
@@ -22042,10 +23436,19 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  
 +#ifdef __EMSCRIPTEN__
 +  if (retval == OPERATOR_RUNNING_MODAL) {
-+    View3DSelectAsyncData *data = MEM_new<View3DSelectAsyncData>(__func__);
-+    data->timer = WM_event_timer_add(
-+        CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
-+    op->customdata = data;
++    if (op->customdata == nullptr) {
++      View3DSelectAsyncData *data = MEM_new<View3DSelectAsyncData>(__func__);
++      data->manager = CTX_wm_manager(C);
++      data->window = CTX_wm_window(C);
++      data->timer = WM_event_timer_add(data->manager, data->window, TIMER, 0.01f);
++      if (data->timer == nullptr) {
++        MEM_delete(data);
++        DRW_select_buffer_query_session_end();
++        GPU_select_async_session_end();
++        return OPERATOR_CANCELLED;
++      }
++      op->customdata = data;
++    }
 +    WM_event_add_modal_handler(C, op);
 +    return OPERATOR_RUNNING_MODAL;
 +  }
@@ -22075,17 +23478,31 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +    return OPERATOR_CANCELLED;
 +  }
 +
-+  const eGPUReadbackStatus status = view3d_select_async_status();
-+  if (status == GPU_READBACK_PENDING) {
-+    return OPERATOR_RUNNING_MODAL;
++  if (data->particle_depth_session != nullptr) {
++    const ParticleEditDepthCacheState state = PE_depth_cache_session_state(
++        C, data->particle_depth_session);
++    if (state == ParticleEditDepthCacheState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state == ParticleEditDepthCacheState::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");
++      view3d_select_async_finish(C, op);
++      return OPERATOR_CANCELLED;
++    }
 +  }
-+  if (status != GPU_READBACK_READY) {
-+    BKE_reportf(op->reports,
-+                RPT_ERROR,
-+                "WebGPU selection readback failed (error %d)",
-+                int(view3d_select_async_error()));
-+    view3d_select_async_finish(C, op);
-+    return OPERATOR_CANCELLED;
++  else {
++    const eGPUReadbackStatus status = view3d_select_async_status();
++    if (status == GPU_READBACK_PENDING) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (status != GPU_READBACK_READY) {
++      BKE_reportf(op->reports,
++                  RPT_ERROR,
++                  "WebGPU selection readback failed (error %d)",
++                  int(view3d_select_async_error()));
++      view3d_select_async_finish(C, op);
++      return OPERATOR_CANCELLED;
++    }
 +  }
 +
 +  const wmOperatorStatus retval = view3d_select_exec(C, op);
@@ -22104,7 +23521,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  void VIEW3D_OT_select(wmOperatorType *ot)
  {
    PropertyRNA *prop;
-@@ -3650,6 +4101,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
+@@ -3650,6 +4352,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
    /* API callbacks. */
    ot->invoke = view3d_select_invoke;
    ot->exec = view3d_select_exec;
@@ -22113,7 +23530,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    ot->poll = ED_operator_view3d_active;
    ot->get_name = ED_select_pick_get_name;
  
-@@ -4071,6 +4524,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4071,6 +4775,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
  
@@ -22134,7 +23551,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -4087,18 +4554,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4087,18 +4805,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -22153,7 +23570,63 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -4671,10 +5126,59 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4535,6 +5241,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
+   return do_curves_select_box(vc, object, rect, sel_op);
+ }
+ 
++static ParticleEditOperationResult view3d_particle_box_select_apply(
++    bContext *C, wmOperator *op, ParticleEditDepthCacheSession *depth_session)
++{
++  rcti rect;
++  WM_operator_properties_border_to_rcti(op, &rect);
++  const eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
++  return PE_box_select(C, &rect, sel_op, depth_session);
++}
++
+ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+ {
+   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+@@ -4553,6 +5268,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+   eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
+   WM_operator_properties_border_to_rcti(op, &rect);
+ 
++  if (vc.obedit == nullptr && vc.obact != nullptr &&
++      (vc.obact->mode & OB_MODE_PARTICLE_EDIT))
++  {
++#ifdef __EMSCRIPTEN__
++    if (op->customdata != nullptr && !view3d_particle_gesture_async_active(op)) {
++      view3d_particle_box_deferred_op = op;
++      return OPERATOR_RUNNING_MODAL;
++    }
++    return view3d_particle_gesture_async_start(C,
++                                               op,
++                                               View3DGestureAsyncKind::ParticleBox,
++                                               view3d_particle_box_select_apply);
++#else
++    ParticleEditDepthCacheSession *depth_session = PE_depth_cache_session_create();
++    const ParticleEditOperationResult particle_result = view3d_particle_box_select_apply(
++        C, op, depth_session);
++    PE_depth_cache_session_free(depth_session);
++    if (particle_result == ParticleEditOperationResult::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Particle box depth readback failed");
++    }
++    return view3d_particle_operation_status(particle_result);
++#endif
++  }
++
+   if (vc.obedit) {
+     FOREACH_OBJECT_IN_MODE_BEGIN (
+         vc.bmain, vc.scene, vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter)
+@@ -4650,7 +5389,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+       }
+     }
+     else if (vc.obact && vc.obact->mode & OB_MODE_PARTICLE_EDIT) {
+-      changed_multi = PE_box_select(C, &rect, sel_op);
++      BLI_assert_unreachable();
+     }
+     else if (vc.obact && ((vc.obact->mode & OB_MODE_POSE) ||
+                           ((vc.obact->mode & OB_MODE_WEIGHT_PAINT) &&
+@@ -4671,10 +5410,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  
    WM_generic_user_data_free(wm_userdata);
  
@@ -22185,6 +23658,10 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +                                                const wmEvent *event)
 +{
 +#ifdef __EMSCRIPTEN__
++  if (view3d_particle_gesture_async_active(op)) {
++    return view3d_particle_gesture_async_modal(
++        C, op, event, view3d_particle_box_select_apply);
++  }
 +  if (DRW_select_buffer_bitmap_session_is_active() &&
 +      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID &&
 +      op->customdata != nullptr)
@@ -22194,6 +23671,13 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +#endif
 +  const wmOperatorStatus result = WM_gesture_box_modal(C, op, event);
 +#ifdef __EMSCRIPTEN__
++  if (view3d_particle_box_deferred_op == op) {
++    view3d_particle_box_deferred_op = nullptr;
++    return view3d_particle_gesture_async_start(C,
++                                               op,
++                                               View3DGestureAsyncKind::ParticleBox,
++                                               view3d_particle_box_select_apply);
++  }
 +  return view3d_gesture_bitmap_async_after_gesture(
 +      C, op, result, View3DGestureAsyncKind::Box);
 +#else
@@ -22204,6 +23688,13 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +static void view3d_box_select_cancel(bContext *C, wmOperator *op)
 +{
 +#ifdef __EMSCRIPTEN__
++  if (view3d_particle_box_deferred_op == op) {
++    view3d_particle_box_deferred_op = nullptr;
++  }
++  if (view3d_particle_gesture_async_active(op)) {
++    view3d_gesture_bitmap_async_data_end(C, op);
++    return;
++  }
 +  if (DRW_select_buffer_bitmap_session_is_active() &&
 +      DRW_select_buffer_bitmap_session_status() != GPU_READBACK_INVALID)
 +  {
@@ -22216,7 +23707,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  }
  
  void VIEW3D_OT_select_box(wmOperatorType *ot)
-@@ -4685,11 +5189,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4685,11 +5491,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
    ot->idname = "VIEW3D_OT_select_box";
  
    /* API callbacks. */
@@ -22231,7 +23722,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  
    /* flags */
    ot->flag = OPTYPE_UNDO;
-@@ -4803,6 +5307,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4803,6 +5609,20 @@ static bool mesh_circle_select(const ViewContext *vc,
    CircleSelectUserData data;
    BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
  
@@ -22252,7 +23743,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    bool changed = false;
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
-@@ -4824,22 +5342,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4824,22 +5644,6 @@ static bool mesh_circle_select(const ViewContext *vc,
  
    view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
  
@@ -22275,11 +23766,44 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        if (esel->select_bitmap != nullptr) {
-@@ -5544,19 +6046,204 @@ static void view3d_circle_select_recalc(void *user_data)
+@@ -5544,19 +6348,331 @@ static void view3d_circle_select_recalc(void *user_data)
    }
  }
  
 +static wmOperatorStatus view3d_circle_select_exec(bContext *, wmOperator *);
++
++struct View3DParticleCircleDirectData {
++  wmGenericUserData user_data = {nullptr, nullptr, false};
++};
++
++static Vector<wmOperator *> view3d_particle_circle_direct_operators;
++
++static View3DParticleCircleDirectData *view3d_particle_circle_direct_data(wmOperator *op)
++{
++  for (wmOperator *direct_op : view3d_particle_circle_direct_operators) {
++    if (direct_op == op) {
++      return static_cast<View3DParticleCircleDirectData *>(op->customdata);
++    }
++  }
++  return nullptr;
++}
++
++static void view3d_particle_circle_direct_free(wmOperator *op)
++{
++  View3DParticleCircleDirectData *data = view3d_particle_circle_direct_data(op);
++  if (data == nullptr) {
++    return;
++  }
++  WM_generic_user_data_free(&data->user_data);
++  MEM_delete(data);
++  op->customdata = nullptr;
++  for (const int index : view3d_particle_circle_direct_operators.index_range()) {
++    if (view3d_particle_circle_direct_operators[index] == op) {
++      view3d_particle_circle_direct_operators.remove(index);
++      break;
++    }
++  }
++}
 +
 +#ifdef __EMSCRIPTEN__
 +static EditSelectBuf_Cache *view3d_circle_select_async_cache(wmOperator *op)
@@ -22380,10 +23904,99 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +}
 +#endif
 +
++static bool view3d_particle_circle_depth_pending(wmOperator *op)
++{
++  wmGesture *gesture = static_cast<wmGesture *>(op->customdata);
++  return gesture != nullptr && PE_circle_select_depth_cache_pending(&gesture->user_data);
++}
++
++static wmOperatorStatus view3d_particle_circle_depth_cancel(bContext *C,
++                                                            wmOperator *op,
++                                                            const char *message)
++{
++  if (message != nullptr) {
++    BKE_report(op->reports, RPT_ERROR, message);
++  }
++  WM_gesture_circle_cancel(C, op);
++  view3d_circle_select_recalc(C);
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus view3d_particle_circle_depth_modal(bContext *C,
++                                                           wmOperator *op,
++                                                           const wmEvent *event)
++{
++  wmGesture *gesture = static_cast<wmGesture *>(op->customdata);
++  if (gesture == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++  if ((event->type == EVT_ESCKEY && event->val == KM_PRESS) ||
++      (event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL))
++  {
++    return view3d_particle_circle_depth_cancel(C, op, nullptr);
++  }
++
++  const ParticleEditDepthCacheState state = PE_circle_select_depth_cache_event(
++      C, &gesture->user_data, event);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    return view3d_particle_circle_depth_cancel(
++        C, op, "Particle circle depth continuation failed or exceeded its bound");
++  }
++
++  view3d_circle_select_exec(C, op);
++  if (PE_circle_select_depth_cache_pending(&gesture->user_data)) {
++    return view3d_particle_circle_depth_cancel(
++        C, op, "Particle circle depth readback could not be consumed");
++  }
++
++  wmEvent queued_event;
++  while (PE_circle_select_depth_cache_event_pop(&gesture->user_data, &queued_event)) {
++    const wmOperatorStatus queued_result = WM_gesture_circle_modal(C, op, &queued_event);
++    if (queued_result & (OPERATOR_FINISHED | OPERATOR_CANCELLED)) {
++      if (queued_result & OPERATOR_FINISHED) {
++        view3d_circle_select_recalc(C);
++      }
++      return queued_result;
++    }
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus view3d_particle_circle_direct_modal(bContext *C,
++                                                            wmOperator *op,
++                                                            const wmEvent *event)
++{
++  View3DParticleCircleDirectData *data = view3d_particle_circle_direct_data(op);
++  if (data == nullptr || (event->type == EVT_ESCKEY && event->val == KM_PRESS)) {
++    view3d_particle_circle_direct_free(op);
++    return OPERATOR_CANCELLED;
++  }
++  const ParticleEditDepthCacheState state = PE_circle_select_depth_cache_event(
++      C, &data->user_data, event);
++  if (state == ParticleEditDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ParticleEditDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Direct particle circle depth continuation failed");
++    view3d_particle_circle_direct_free(op);
++    return OPERATOR_CANCELLED;
++  }
++  return view3d_circle_select_exec(C, op);
++}
++
  static wmOperatorStatus view3d_circle_select_modal(bContext *C,
                                                     wmOperator *op,
                                                     const wmEvent *event)
  {
++  if (view3d_particle_circle_direct_data(op) != nullptr) {
++    return view3d_particle_circle_direct_modal(C, op, event);
++  }
++  if (view3d_particle_circle_depth_pending(op)) {
++    return view3d_particle_circle_depth_modal(C, op, event);
++  }
 +#ifdef __EMSCRIPTEN__
 +  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
 +  if (DRW_select_buffer_bitmap_session_is_active() && esel != nullptr &&
@@ -22472,6 +24085,11 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  
  static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  {
++  if (view3d_particle_circle_direct_data(op) != nullptr) {
++    view3d_particle_circle_direct_free(op);
++    view3d_circle_select_recalc(C);
++    return;
++  }
 +#ifdef __EMSCRIPTEN__
 +  EditSelectBuf_Cache *esel = view3d_circle_select_async_cache(op);
 +  view3d_circle_select_async_timer_end(C, esel);
@@ -22480,7 +24098,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    WM_gesture_circle_cancel(C, op);
    view3d_circle_select_recalc(C);
  }
-@@ -5564,17 +6251,32 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+@@ -5564,17 +6680,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
@@ -22490,9 +24108,16 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
 +  int mval[2] = {RNA_int_get(op->ptr, "x"), RNA_int_get(op->ptr, "y")};
  
    /* Allow each selection type to allocate their own data that's used between executions. */
-   wmGesture *gesture = static_cast<wmGesture *>(op->customdata); /* nullptr when non-modal. */
+-  wmGesture *gesture = static_cast<wmGesture *>(op->customdata); /* nullptr when non-modal. */
++  View3DParticleCircleDirectData *particle_direct = view3d_particle_circle_direct_data(op);
++  wmGesture *gesture = particle_direct == nullptr ?
++                           static_cast<wmGesture *>(op->customdata) :
++                           nullptr; /* nullptr when non-modal. */
    wmGenericUserData wm_userdata_buf = {nullptr, nullptr, false};
-   wmGenericUserData *wm_userdata = gesture ? &gesture->user_data : &wm_userdata_buf;
+-  wmGenericUserData *wm_userdata = gesture ? &gesture->user_data : &wm_userdata_buf;
++  wmGenericUserData *wm_userdata = particle_direct != nullptr ?
++                                           &particle_direct->user_data :
++                                           (gesture ? &gesture->user_data : &wm_userdata_buf);
  
 -  const eSelectOp sel_op = ED_select_op_modal(
 +  eSelectOp sel_op = ED_select_op_modal(
@@ -22516,7 +24141,41 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    Object *obact = vc.obact;
-@@ -5662,13 +6364,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5631,10 +6767,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+     FOREACH_OBJECT_IN_MODE_END;
+   }
+   else if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT)) {
+-    if (PE_circle_select(C, wm_userdata, sel_op, mval, float(radius))) {
+-      return OPERATOR_FINISHED;
++    const ParticleEditOperationResult particle_result = PE_circle_select(
++        C, wm_userdata, sel_op, mval, float(radius));
++    if (particle_result == ParticleEditOperationResult::Pending) {
++      if (gesture == nullptr && particle_direct == nullptr) {
++        particle_direct = MEM_new<View3DParticleCircleDirectData>(__func__);
++        particle_direct->user_data = wm_userdata_buf;
++        wm_userdata_buf = {nullptr, nullptr, false};
++        op->customdata = particle_direct;
++        view3d_particle_circle_direct_operators.append(op);
++        WM_event_add_modal_handler(C, op);
++      }
++      return OPERATOR_RUNNING_MODAL;
+     }
+-    return OPERATOR_CANCELLED;
++    if (particle_result == ParticleEditOperationResult::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Particle circle depth readback failed");
++    }
++    const wmOperatorStatus result = view3d_particle_operation_status(particle_result);
++    if (particle_direct != nullptr) {
++      view3d_particle_circle_direct_free(op);
++    }
++    else if (gesture == nullptr) {
++      WM_generic_user_data_free(&wm_userdata_buf);
++    }
++    return result;
+   }
+   else if (obact && obact->mode & OB_MODE_SCULPT) {
+     return OPERATOR_CANCELLED;
+@@ -5662,13 +6818,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
    }
    else {
      EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
@@ -22565,7 +24224,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..1afff952ed0ae628ebfc4693f5fac1fa
  }
  
  void VIEW3D_OT_select_circle(wmOperatorType *ot)
-@@ -5677,7 +6410,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5677,7 +6864,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
    ot->description = "Select items using circle selection";
    ot->idname = "VIEW3D_OT_select_circle";
  

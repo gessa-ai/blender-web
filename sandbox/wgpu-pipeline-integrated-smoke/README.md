@@ -198,6 +198,17 @@ Run only through the build wrapper:
 harness/buildwrap.sh bash sandbox/wgpu-pipeline-integrated-smoke/build.sh
 ```
 
+To diagnose the pre-main WM-worker transaction against an already served windowed product, run:
+
+```sh
+DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
+  harness/buildwrap.sh node sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs 8123
+```
+
+This headed check accepts fallback adapters so it can catch boot-order regressions without special
+hardware. Its `diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel
+gate.
+
 The triangle-fan row deliberately exercises the backend's fail-visible fallback:
 both executions must emit the exact canonical `BLI_assert_unreachable` diagnostic
 before returning `TriangleList`. Native and Wasm stdout and stderr must be

@@ -1818,6 +1818,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   registry, REUSE, M3 scope, and container-backed regression are verified; M0 is 6/6 GREEN while
   M1-M8 remain honestly RED. No software adapter, receipt, result flag, tolerance, golden,
   blacklist, or promise changed. See `notes/s7-wsl2-hardware-blocker-20260822.md`.
+- [x] **P0-M4-WM-WORKER-PRESENTATION-PREINIT [ghost-web] (645e2da):** the pre-main
+  wrapper now resolves `#canvas` from the intercepted Emscripten `cmd:2` transfer payload before
+  the inner handler publishes `GL.offscreenCanvases`, validates the persistent backbuffer before
+  configuring the surface, and binds the post-js source into the browser target's incremental
+  link dependencies. The real-order pinned test fails on the predecessor and passes all 11 cases;
+  a locked relink followed by the headed windowed software diagnostic reaches `WM_main` with one
+  device and one presentation pre-acquisition and zero stage-1/import failures. That diagnostic is
+  explicitly non-receipt evidence and does not promote M4 pixels or alter the s7 hardware blocker.
+  See `notes/m4-wm-worker-presentation-preinit-20260825.md`.
 - [x] **M4.T21-GHOST-PRESENT-RESOURCE-TRANSACTION [ghost-web] (844e683):** the browser
   compositor preserves the last usable resize texture until replacement succeeds, publishes its
   bind-group layout/pipeline only as a complete pair, and rejects failed per-frame views, bind

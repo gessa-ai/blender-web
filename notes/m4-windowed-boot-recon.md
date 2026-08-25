@@ -146,10 +146,10 @@ mapped onto `platform_web/ghost/`:
 | `showMessageBox` | base default | GPU-fallback/platform-support path; harmless. |
 | **Window:** `getState`/`setState`/`setTitle`/`getTitle`/`getClientBounds`/`screenToClient`/`clientToScreen`/`setClientSize`/`invalidate`/`getDPIHint` | **covered** | `GHOST_WindowWeb`. |
 | `getNativePixelSize` (11× in wm) | base default → `1.0f` | acceptable for M4 (HiDPI via `getDPIHint`); revisit for retina swapchain. |
-| `swapBufferAcquire`/`swapBufferRelease`/`activateDrawingContext` | **covered / no-op** | web auto-presents on yield (wgpu-context note delta #3); `swapBufferRelease`→no-op. |
+| `swapBufferAcquire`/`swapBufferRelease`/`activateDrawingContext` | **covered** | the persistent backbuffer is copied to the transient surface texture and submitted synchronously in the acquisition turn; activation is lightweight. |
 | `beginIME`/`endIME` | **covered** | hidden textarea at Blender's caret rectangle; owned UTF-8 composition crosses a bounded browser-main-to-WM-worker queue. |
 | `setPath`/`setOrder`/`setProgressBar`/`endProgressBar`/`setModifiedState`/`set*DecorationStyle*` | base default / stub | non-boot-critical; decoration remains deferred. |
-| `setWindowCursorShape`/`Visibility`/`Grab` (protected) | **stub (no-op)** | M4 uses the browser/CSS cursor; map to `canvas.style.cursor` later. |
+| `setWindowCursorShape`/`Visibility`/`Grab` (protected) | **covered / Pointer Lock outcome partial** | standard/custom RGBA cursors and visibility publish through the browser-main CSS bridge; wrap/hide use Pointer Lock, whose browser loss/error outcome still needs GHOST-state reconciliation. |
 
 ### WGPU context duality — recommendation
 
@@ -177,7 +177,8 @@ compile. Instead:
    await (or gate the WM-loop start on the ready-callback) at startup, so
    `createWindow`→`GPU_context_create`→`GPU_init` (`wm_window.cc:1045-1049`) see a ready
    device. ADR-003-legal (suspend at the init boundary, never inside a render `try`).
-   `swapBufferRelease`/`activateDrawingContext` → no-ops (implicit-present device model).
+   `swapBufferRelease` performs the same-turn persistent-backbuffer-to-surface copy/submit;
+   `activateDrawingContext` remains lightweight.
 
 The WebGPU GPU backend (`gpu/webgpu/wgpu_context.cc`) then pulls `getDevice/getQueue/
 getSurface/getSurfaceFormat` off whichever context the seam returned — one
@@ -189,7 +190,8 @@ getSurface/getSurfaceFormat` off whichever context the seam returned — one
 
 **Target:** one canvas window, default startup workspace (Layout), default scene
 (cube/camera/light), correct theme, splash on top, first frame matching the native golden
-within idiff. **Explicitly deferred:** multi-window, drag-n-drop, IME/dead-keys,
+within idiff. **Explicitly deferred/partial:** multi-window, drag-n-drop, trusted physical
+IME/dead-key evidence plus terminal-queue recovery, Pointer Lock outcome reconciliation,
 absolute cursor-warp, tablet/NDOF, retina swapchain
 tuning, staged/lazy payload (M7).
 

@@ -16,12 +16,13 @@ context is the separate `GHOST_ContextWGPU` lane (patch 0011). Recon + tables:
 |---|---|
 | `GHOST_SystemWeb.{hh,cc}` | platform half: registers HTML5 callbacks, owns the canvas window + tracked input state (modifiers/buttons/cursor), drives the GHOST queue. Subclass of the real `GHOST_System`. |
 | `GHOST_WindowWeb.{hh,cc}` | `<canvas>`-backed `GHOST_Window`: size/DPI/fullscreen, WGPU context (gated). |
-| `GHOST_EventBridgeWeb.{hh,cc}` | **pure translation**: `EmscriptenMouseEvent/WheelEvent/KeyboardEvent/UiEvent` → `GHOST_Event*` + `pushEvent()`. No registration/lifetime logic. |
+| `GHOST_EventBridgeWeb.{hh,cc}` | Event translation plus the bounded browser-main-to-WM-worker IME message queue; no HTML5 listener-registration ownership. |
 | `GHOST_KeyMapWeb.hh` | `code`→`GHOST_TKey` table + utf8-from-`key`. |
 | `harness/` | standalone wasm test page (see Verification). |
 
-Separation rationale: the **bridge** is stateless, unit-reasonable translation; the
-**system** owns platform registration + the state the bridge writes and GHOST reads.
+Separation rationale: the **bridge** owns event translation and the narrow atomic IME transfer
+queue; the **system** owns platform registration + window/input state the bridge writes and GHOST
+reads.
 Static C callback thunks (in `GHOST_SystemWeb.cc`) recover the `GHOST_SystemWeb*` from
 the HTML5 `userData` pointer, validate it against the atomically published live callback
 owner, and call the bridge. Disposal retires that owner before removing listeners and deleting
@@ -87,14 +88,19 @@ registration, delivery, disposal, and replacement-window rebinding path.
 `getCapabilities()` = `GHOST_CAPABILITY_FLAG_ALL` minus a sandboxed-canvas mask:
 `WindowPosition` (no OS window), `CursorWarp` (absolute positioning is unavailable),
 `Clipboard{Primary,Image}`, `DesktopSample`, `WindowDecorationStyles`,
-`KeyboardHyperKey`, `Cursor{RGBA,Generator}`, `MultiMonitorPlacement`, `WindowPath`.
+`KeyboardHyperKey`, `CursorGenerator`, `MultiMonitorPlacement`, `WindowPath`, synchronous
+front-buffer reads, physical trackpad direction, and server-side decorations. RGBA cursors and
+IME are advertised through browser-main bridges.
 
 Constraints and deferrals (with a named blocker wherever work remains):
-- **IME / dead-keys** — implemented. A hidden browser textarea follows Blender's requested caret
+- **IME / dead-keys** — bridge implemented; terminal recovery and trusted-input evidence remain.
+  A hidden browser textarea follows Blender's requested caret
   rectangle and turns `compositionstart/update/end` into owned UTF-8 start/update/commit/end
   messages. A bounded SPSC queue crosses from the browser main thread to the WM worker, where
-  `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Disabled input and
-  saturation reject without overwriting earlier transitions; the capability is advertised.
+  `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Disabled input rejects
+  and the capability is advertised, but saturation/allocation failure can currently drop a
+  terminal Commit/End. Existing browser tests dispatch synthetic untrusted CompositionEvents, so
+  physical OS IME and dead-key behavior is not yet receipt-backed (`reports/audit-20260825-r11.md`).
 - **Text clipboard** — implemented through a browser-main cache. Trusted `paste` events publish
   external text before the queued worker key event; `putClipboard` synchronously owns Blender's
   borrowed UTF-8 before starting `navigator.clipboard.writeText`, and `getClipboard` allocates an
@@ -102,8 +108,9 @@ Constraints and deferrals (with a named blocker wherever work remains):
   before menu interaction. Primary selection and image clipboard remain capability-masked.
 - **Cursor grab / absolute warp** — wrap and hide grabs use Pointer Lock and consume relative
   movement; wrap retains Blender's software cursor while hide does not. Disable exits Pointer
-  Lock, and normal preserves visible-pointer semantics. Absolute `setCursorPosition` remains
-  unavailable and returns failure, so `CursorWarp` stays honestly off.
+  Lock, and normal preserves visible-pointer semantics. Browser-driven loss/error and deferred
+  request outcomes still need to be reconciled with GHOST grab state. Absolute
+  `setCursorPosition` remains unavailable and returns failure, so `CursorWarp` stays honestly off.
 - **Fullscreen state transitions** — implemented with the HTML5 Fullscreen API. Entry
   accepts Emscripten's deferred user-activation result; normal/maximized exit fullscreen,
   and browser-impossible minimization fails honestly. The shell display bridge owns the

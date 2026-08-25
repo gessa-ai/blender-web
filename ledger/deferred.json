@@ -53,13 +53,13 @@
     },
     {
       "id": "ime-dead-keys",
-      "status": "resolved",
+      "status": "partial",
       "milestone": "M4 (GHOST-web design)",
-      "revisit": "closed by 9608169; retain this row as resolved audit history",
-      "blocker": "Resolved: DOM compositionstart/update/end callbacks publish owned UTF-8 through a bounded browser-main-to-WM-worker queue and materialize Blender's stock GHOST_kEventImeComposition* events on the owning worker.",
-      "impact": "The windowed web product now advertises GHOST_kCapabilityInputIME. Composition start/update/commit/end reaches Blender text editing with byte-correct Unicode cursor offsets; disabled input and queue saturation fail closed.",
-      "workaround": "No workaround remains. Keep the hidden textarea focused at Blender's requested caret rectangle and preserve the bounded SPSC ownership boundary.",
-      "evidence": "notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
+      "revisit": "M4 input closure: terminal-recovery contract plus a trusted physical IME/dead-key receipt on a supported browser/OS",
+      "blocker": "The DOM-to-GHOST bridge is implemented, but its bounded queue may drop Commit/End under saturation or allocation failure and no trusted browser-generated IME/dead-key receipt exists; current browser tests dispatch untrusted synthetic CompositionEvent objects.",
+      "impact": "Synthetic start/update/commit/end proves UTF-8 ownership and cross-thread delivery only. A terminal drop can leave Blender composition active, and dead-key/OS-IME interoperability is not yet proven.",
+      "workaround": "Coalesce disposable updates or reserve terminal capacity and guarantee explicit cancel/end recovery; retain synthetic harness coverage, then add a trusted physical browser/OS receipt before resolving this row.",
+      "evidence": "reports/audit-20260825-r11.md; notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
     },
     {
       "id": "node-ungroup-socket-flake",

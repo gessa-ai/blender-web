@@ -36,13 +36,7 @@
  * `window.devicePixelRatio` probe there returns 1.0, which made Blender's UI draw at half
  * physical size on a HiDPI display. The real DPR is now forwarded from the main thread by
  * the shell (bw_shell_set_display) and read via ghost_web::device_pixel_ratio(); see
- * GHOST_WebDisplayState.hh. The title update is a main-thread-only affordance and no-ops on
- * the worker (which has no `document`). */
-EM_JS(void, ghost_web_set_document_title, (const char *title), {
-  if (typeof document !== "undefined") {
-    document.title = UTF8ToString(title);
-  }
-});
+ * GHOST_WebDisplayState.hh. */
 
 /* -------------------------------------------------------------------------- */
 /* WM-worker -> browser-main cursor handshake.
@@ -125,7 +119,18 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
 void GHOST_WindowWeb::setTitle(const char *title)
 {
   title_ = title ? title : "";
-  ghost_web_set_document_title(title_.c_str());
+  /* The window lives on the PROXY_TO_PTHREAD WM worker, which has no `document`.
+   * Title changes are rare and GHOST's input pointer is only guaranteed for this call,
+   * so synchronously proxy the copy to the browser main runtime thread. In particular,
+   * do not use the asynchronous proxy macro here: title_.c_str() could be invalidated by a
+   * subsequent setTitle() before the queued callback consumes it. */
+  MAIN_THREAD_EM_ASM(
+      {
+        if (typeof document !== "undefined") {
+          document.title = UTF8ToString($0);
+        }
+      },
+      title_.c_str());
 }
 
 std::string GHOST_WindowWeb::getTitle() const

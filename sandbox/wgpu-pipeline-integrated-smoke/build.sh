@@ -43,6 +43,7 @@ LIVE_PREINIT_SOURCE="$HERE/live_preinit_boot.mjs"
 LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
 LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
 WINDOW_ACTIVATION_CONTRACT="$HERE/window_activation_contract.py"
+WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
 CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
 CURSOR_BRIDGE_TEST="$HERE/cursor_bridge_test.mjs"
 GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
@@ -207,6 +208,7 @@ require_file "$LIVE_PREINIT_SOURCE"
 require_file "$LIVE_PREINIT_CONTRACT"
 require_file "$LIVE_PREINIT_CONTRACT_TEST"
 require_file "$WINDOW_ACTIVATION_CONTRACT"
+require_file "$WINDOW_TITLE_CONTRACT"
 require_file "$CURSOR_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
@@ -1664,6 +1666,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::PresentableWindow' "$GHOST
 require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM_SOURCE"
 "$PYBIN" "$WINDOW_ACTIVATION_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_BASE_WINDOW_SOURCE" --selfcheck
+"$PYBIN" "$WINDOW_TITLE_CONTRACT" "$GHOST_WINDOW_SOURCE" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
   "$GHOST_TYPES_SOURCE" --selfcheck
@@ -1693,6 +1696,7 @@ require_fixed_count 1 '"--use-webgpu-adapter=swiftshader",' "$LIVE_PREINIT_SOURC
 require_fixed_count 1 '"--use-gpu-in-tests",' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'Number(module._bw_wm_tick_count?.()) >= 2;' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'await page.mouse.click(x, y);' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 'document.title !== initialTitle' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'classifyLivePreinitDiagnostic({' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'if (counters.adapterFallback !== "true") {' "$LIVE_PREINIT_CONTRACT"
 require_fixed_count 1 'if (!(afterInput.presents > second.presents)) {' \

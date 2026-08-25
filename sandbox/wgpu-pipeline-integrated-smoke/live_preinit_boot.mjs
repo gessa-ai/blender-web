@@ -33,6 +33,7 @@ if (!chromium) {
 
 const port = Number(process.argv[2] || 8123);
 const entryPath = process.argv[3] || "/windowed.html";
+const shellTitle = "Source-derived WebAssembly editor preview";
 if (entryPath !== "/" && entryPath !== "/windowed.html") {
   throw new Error(`entry path must be / or /windowed.html, got: ${entryPath}`);
 }
@@ -141,6 +142,9 @@ try {
     const state = document.querySelector("#state")?.dataset.state;
     return state === "running" || state === "aborted";
   }, null, { timeout: 180000, polling: 250 });
+  await page.waitForFunction((initialTitle) => {
+    return document.title.length > 0 && document.title !== initialTitle;
+  }, shellTitle, { timeout: 10000, polling: 100 });
 
   await page.waitForFunction(() => {
     const module = window.__bwModule;
@@ -190,6 +194,7 @@ try {
   const afterInput = await waitForInputRoundTrip(page, second);
   const snapshot = await readSample(page);
   const cursorSnapshot = await page.evaluate(() => window.__bwCursorBridge.snapshot());
+  const documentTitle = await page.title();
   const result = classifyLivePreinitDiagnostic({
     state: snapshot.state,
     module: snapshot.module,
@@ -224,6 +229,7 @@ try {
     `input_round_trip_ms=${Math.round(result.inputElapsedMs)} ` +
     `input_tick_delta=${result.inputTickDelta} input_present_delta=${result.inputPresentDelta} ` +
     `cursor_shape=${cursorSnapshot.shape} cursor_css=${cursorSnapshot.css} ` +
+    `title_updated=1 document_title=${encodeURIComponent(documentTitle)} ` +
     `present_submission_rejected=0 present_transaction_rejected=0 device_lost=0 ` +
     `playwright_root=${playwrightRoot}`,
   );

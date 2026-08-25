@@ -2654,6 +2654,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   sustained fallback input/presentation progress and zero presentation rejections. The live run is
   diagnostic-nonreceipt and the s7 blocker is unchanged. See
   `notes/m4-web-window-title-main-thread-20260825.md`.
+- [x] **M4-WEB-FULLSCREEN-STATE [ghost-web] (`6d71197`):** `GHOST_WindowWeb::setState()` now
+  drives HTML5 fullscreen entry/exit, accepts Emscripten's deferred user-activation result, maps
+  normal/maximized to the page-filling state, and rejects browser-impossible minimization. The
+  real GHOST harness runs the shipping WasmFS/worker topology and proves all four states; focused
+  mutations, native/wasm32 parity, exact-commit replay, locked product relink/no-work, OFF
+  preflight, sustained fallback diagnostics, canonical replay, REUSE, M4 scope, and regression are
+  verified. Live GPU proof remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
+  `notes/m4-web-fullscreen-state-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

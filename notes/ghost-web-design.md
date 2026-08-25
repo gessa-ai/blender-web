@@ -90,17 +90,19 @@ Deferrals (each a named blocker, matching GOAL's SDL-gap honesty):
   can't satisfy it on the main thread → worker-side shim later. Returns null / no-op now.
 - **Cursor warp / Pointer Lock** — relative-motion grab (`GHOST_kGrabWrap`) needs the
   Pointer Lock API; `setCursorPosition` returns failure, capability off.
-- **Fullscreen state transitions** — `setState` accepts but doesn't drive the HTML5
-  Fullscreen API yet (`getState` does read live fullscreen status).
+- **Fullscreen state transitions** — implemented with the HTML5 Fullscreen API. Entry
+  accepts Emscripten's deferred user-activation result; normal/maximized exit fullscreen,
+  and browser-impossible minimization fails honestly. The shell display bridge owns the
+  transferred canvas's backing-size update after the DOM changes its CSS extent.
 - **Tablet / NDOF / trackpad gestures** — `GHOST_TABLET_DATA_NONE`; PointerEvent
   pressure + gesture events are a later pass.
 
 ## Verification (headless, self-driven — 2026-08-04)
 
 Standalone harness `platform_web/ghost/harness/` builds the web classes + the REAL
-upstream GHOST bases (recon §4) into a 108 KB wasm (`build.sh`), single-threaded so the
-event bridge is isolated from the threading topology. A logging `GHOST_IEventConsumer`
-registered on the real `GHOST_EventManager` prints each decoded event.
+upstream GHOST bases (recon §4) with the product's WasmFS + PROXY_TO_PTHREAD topology.
+A logging `GHOST_IEventConsumer` registered on the real `GHOST_EventManager` prints each
+decoded event; window-state requests cross shared atomics and execute only on the WM worker.
 
 - **Server headers**: served via `scripts/serve-web.sh` (`BLENDER_WEB_SHELL=.../harness`);
   correct MIME (`application/wasm`, `text/javascript`).

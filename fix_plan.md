@@ -2541,11 +2541,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compliance, protected-path ownership, authorship, and hardware/non-receipt boundaries remain
   clean. Four asset-preview fixture EOF defects are fixed here. See
   `reports/audit-20260825-r10.md`.
-- [ ] **AUDIT-R10-M4-SURFACE-PREFLIGHT-VALIDATION [ghost-web, blocked-by: none]:** replace the
-  worker's optional one-turn `uncapturederror` observation with a deterministic presentation-use
-  completion boundary that detects delayed/omitted configuration errors without reintroducing the
-  software-adapter post-configure error-scope failure; add production-shaped delayed and absent
-  telemetry controls.
+- [x] **AUDIT-R10-M4-SURFACE-PREFLIGHT-VALIDATION [ghost-web] (`7bc9916`):** replaced the
+  worker's optional one-turn `uncapturederror` observation with a scoped first surface submission
+  and queue-work completion before non-fallback publication. Exact browser-reported fallback is a
+  labeled diagnostic-only compatibility path that binds no receipt; false or missing status fails
+  closed through strict validation. Fourteen production-shaped cases decouple synchronous,
+  delayed, and omitted telemetry from deterministic scope results. See
+  `notes/m4-surface-preflight-validation-20260825.md`.
 - [ ] **AUDIT-R10-M4-SUSTAINED-WM-LIVENESS [ghost-web, blocked-by: none]:** make the headed P0
   diagnostic require a positive WM-tick delta across two bounded post-running samples plus one
   input/redraw round trip; retain explicit software-adapter nonreceipt status.

@@ -74,22 +74,26 @@ piece the standalone harness does not exercise; it is covered by the ADR-003 M4 
   key *events* carry the exact left/right `GHOST_TKey` via `code`. SDL-grade limitation,
   documented.
 - **Buttons**: `GHOST_Buttons` updated on down/up; returned by `getButtons()`.
-- **Cursor**: last `targetX/targetY`; returned by `getCursorPosition()`.
+- **Cursor**: last canvas-relative `targetX/targetY` while unlocked. During a wrap/hide grab,
+  Pointer Lock `movementX/Y` advances the virtual cursor with signed-int saturation;
+  `getCursorPosition()` returns that virtual position.
 
-## Capabilities & deferrals
+## Capabilities & browser constraints
 
 `getCapabilities()` = `GHOST_CAPABILITY_FLAG_ALL` minus a sandboxed-canvas mask:
-`WindowPosition` (no OS window), `CursorWarp` (needs Pointer Lock — deferred),
+`WindowPosition` (no OS window), `CursorWarp` (absolute positioning is unavailable),
 `Clipboard{Primary,Image}`, `DesktopSample`, `InputIME`, `WindowDecorationStyles`,
 `KeyboardHyperKey`, `Cursor{RGBA,Generator}`, `MultiMonitorPlacement`, `WindowPath`.
 
-Deferrals (each a named blocker, matching GOAL's SDL-gap honesty):
+Constraints and deferrals (with a named blocker wherever work remains):
 - **IME / dead-keys** — needs `compositionstart/update/end` → `GHOST_kEventImeComposition*`
   + `GHOST_TEventImeData`; browser IME is async. Deferred; capability off.
 - **Clipboard** — GHOST's `getClipboard` is synchronous; the browser async Clipboard API
   can't satisfy it on the main thread → worker-side shim later. Returns null / no-op now.
-- **Cursor warp / Pointer Lock** — relative-motion grab (`GHOST_kGrabWrap`) needs the
-  Pointer Lock API; `setCursorPosition` returns failure, capability off.
+- **Cursor grab / absolute warp** — wrap and hide grabs use Pointer Lock and consume relative
+  movement; wrap retains Blender's software cursor while hide does not. Disable exits Pointer
+  Lock, and normal preserves visible-pointer semantics. Absolute `setCursorPosition` remains
+  unavailable and returns failure, so `CursorWarp` stays honestly off.
 - **Fullscreen state transitions** — implemented with the HTML5 Fullscreen API. Entry
   accepts Emscripten's deferred user-activation result; normal/maximized exit fullscreen,
   and browser-impossible minimization fails honestly. The shell display bridge owns the
@@ -130,5 +134,6 @@ scroll/type over the dashed canvas; events appear in the log box.
    blocks holds across modal operators (they run their own inner `GHOST` pumps).
 4. **Focus model** — keyboard is captured at window scope; when there are multiple GHOST
    windows (later), route by focused canvas.
-5. **Coordinate origin** — GHOST expects top-left client origin; `targetX/Y` match. Verify
-   against WM cursor-warp math once Pointer Lock lands.
+5. **Coordinate origin** — GHOST expects top-left client origin; `targetX/Y` match. The
+   Pointer Lock wrap path now preserves a virtual GHOST position through relative deltas; the
+   real product middle-drag path is covered by the 2026-08-25 diagnostic.

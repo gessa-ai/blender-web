@@ -2662,6 +2662,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   preflight, sustained fallback diagnostics, canonical replay, REUSE, M4 scope, and regression are
   verified. Live GPU proof remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
   `notes/m4-web-fullscreen-state-20260825.md`.
+- [x] **M4-WEB-POINTER-LOCK [ghost-web] (`b09aa76`):** wrap/hide cursor grabs now use Pointer
+  Lock, relative DOM movement advances Blender's saturated virtual cursor, and wrap mode retains
+  its software cursor. The fail-first false-success repro, 13 fail-closed mutations, real
+  worker-topology browser runs, fullscreen regression, native/wasm32 parity, locked product
+  relink/no-work, OFF preflight, and real-product middle-drag diagnostic are verified. The live
+  run is fallback-software diagnostic evidence only; M4 and the s7 blocker are unchanged. See
+  `notes/m4-web-pointer-lock-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

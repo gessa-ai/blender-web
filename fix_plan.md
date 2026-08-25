@@ -2766,6 +2766,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   windows are destroyed before publication. Native/wasm32 cover every failure position plus
   replacement rollback/retry, and the real worker/product regressions preserve the strict
   nonreceipt boundary. See `notes/m4-callback-registration-transaction-20260825.md`.
+- [x] **AUDIT-R11-M4-INPUT-RECORD-RECONCILIATION [driver] (`9d5f485`):** current design and
+  deferral records now reflect the implemented fixed-slot IME terminal recovery and complete
+  Pointer Lock outcome lifecycle. The `ime-dead-keys` row remains partial solely for trusted
+  physical browser/OS evidence; 29 IME and 21 Pointer Lock mutations, REUSE, scoped M4, and
+  container-backed regression preserve the existing receipt boundaries.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

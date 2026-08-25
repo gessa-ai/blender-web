@@ -2638,6 +2638,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   sustained headed fallback diagnostic, REUSE, scoped M4, and container-backed regression are
   verified. Live proof remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
   `notes/m4-ghost-window-activation-20260825.md`.
+- [x] **M4-WEB-CURSOR-MAIN-THREAD-BRIDGE [ghost-web] (0aa45be):** standard shape and
+  visibility requests now publish atomic shared-Wasm state from the WM worker and the first shell
+  script applies all 46 supported GHOST shapes to the DOM canvas. Arbitrary custom cursors fail
+  honestly instead of reporting a no-op success. Five source mutations, complete mapping and
+  recovery behavior, integrated native/wasm32 parity, locked product relink/no-work, OFF preflight,
+  a real headed fallback cursor snapshot, REUSE, scoped M4, and container-backed regression are
+  verified. The live run remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
+  `notes/m4-web-cursor-main-thread-bridge-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -11576,7 +11576,7 @@ index ae53d200dd23f04d9adb5346fef48af84c5a3bad..82d6e6477735758e122e8eb5182e3b4b
    pass.barrier(GPU_BARRIER_TEXTURE_UPDATE);
  
 diff --git a/source/blender/editors/include/ED_view3d.hh b/source/blender/editors/include/ED_view3d.hh
-index 5a99786d93e3cde0050a2620617e061c7452fef6..5af140916388d10677e6d8de2b5553e563a51542 100644
+index 5a99786d93e3cde0050a2620617e061c7452fef6..faf9466fbf26628b085a80e09f285806aefe724d 100644
 --- a/source/blender/editors/include/ED_view3d.hh
 +++ b/source/blender/editors/include/ED_view3d.hh
 @@ -32,6 +32,7 @@ struct Camera;
@@ -11587,10 +11587,42 @@ index 5a99786d93e3cde0050a2620617e061c7452fef6..5af140916388d10677e6d8de2b5553e5
  struct GPUSelectBuffer;
  struct ID;
  struct Main;
-@@ -962,12 +963,55 @@ bool ED_view3d_depth_read_cached_seg(const ViewDepths *vd,
+@@ -962,12 +963,87 @@ bool ED_view3d_depth_read_cached_seg(const ViewDepths *vd,
                                       int margin,
                                       float *r_depth);
  
++/**
++ * Owned full-viewport depth cache for browser tools that cannot block the WM event loop.
++ *
++ * `init()` captures the exact viewport dimensions and view transform before starting the texture
++ * read. Native backends may be ready immediately; browser callers poll across event-loop ticks.
++ * `take()` transfers one #ViewDepths result only while the producing region and transform still
++ * match, otherwise it fails closed and releases the pending request.
++ */
++class ViewportDepthCacheSession {
++ public:
++  enum class ReadbackState {
++    Pending,
++    Ready,
++    Failed,
++  };
++
++ private:
++  struct Impl;
++  Impl *impl_ = nullptr;
++
++ public:
++  ViewportDepthCacheSession() = default;
++  ~ViewportDepthCacheSession();
++
++  ViewportDepthCacheSession(const ViewportDepthCacheSession &) = delete;
++  ViewportDepthCacheSession &operator=(const ViewportDepthCacheSession &) = delete;
++
++  bool init(ARegion *region);
++  ReadbackState state();
++  ViewDepths *take(ARegion *region);
++};
++
 +/**
 + * Owned depth sample used by browser operators that cannot block the WM event loop.
 + *
@@ -11643,7 +11675,7 @@ index 5a99786d93e3cde0050a2620617e061c7452fef6..5af140916388d10677e6d8de2b5553e5
    int tex_w, tex_h;
    rcti valid_rect;
  
-@@ -976,6 +1020,7 @@ class ViewportColorSampleSession {
+@@ -976,6 +1052,7 @@ class ViewportColorSampleSession {
    ~ViewportColorSampleSession();
  
    bool init(ARegion *region);
@@ -14156,7 +14188,7 @@ index 4c43e7849e487c31701c95fe60fac7f7bbe8657d..856b387831b8d6ebfa07c2acd97d76fb
  void paint_proj_stroke_done(void *ps_handle_p);
  
 diff --git a/source/blender/editors/space_view3d/view3d_draw.cc b/source/blender/editors/space_view3d/view3d_draw.cc
-index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..c0b1f906af22ca3e76f5e19f117134b18e985c9e 100644
+index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..a536b9a295190c17642195902f4627860bcd473c 100644
 --- a/source/blender/editors/space_view3d/view3d_draw.cc
 +++ b/source/blender/editors/space_view3d/view3d_draw.cc
 @@ -8,6 +8,8 @@
@@ -14168,18 +14200,157 @@ index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..c0b1f906af22ca3e76f5e19f117134b1
  
  #include "BLI_listbase.h"
  #include "BLI_math_color.h"
-@@ -70,6 +72,7 @@
+@@ -70,7 +72,9 @@
  #include "GPU_immediate.hh"
  #include "GPU_immediate_util.hh"
  #include "GPU_matrix.hh"
 +#include "GPU_readback.hh"
  #include "GPU_state.hh"
++#include "GPU_texture.hh"
  #include "GPU_viewport.hh"
  
-@@ -2357,6 +2360,212 @@ static void view3d_gpu_read_Z_pixels(GPUViewport *viewport, rcti *rect, void *da
+ #include "MEM_guardedalloc.h"
+@@ -2357,6 +2361,349 @@ static void view3d_gpu_read_Z_pixels(GPUViewport *viewport, rcti *rect, void *da
    GPU_framebuffer_free(depth_read_fb);
  }
  
++struct ViewportDepthCacheSession::Impl {
++  ARegion *region = nullptr;
++  RegionView3D *region_view = nullptr;
++  GPUReadback *readback = nullptr;
++  int region_size[2] = {0, 0};
++  int texture_size[2] = {0, 0};
++  float viewinv[4][4] = {};
++  float winmat[4][4] = {};
++  size_t expected_size = 0;
++  ReadbackState readback_state = ReadbackState::Failed;
++};
++
++ViewportDepthCacheSession::~ViewportDepthCacheSession()
++{
++  if (impl_ != nullptr) {
++    GPU_readback_cancel(impl_->readback);
++    MEM_delete(impl_);
++    impl_ = nullptr;
++  }
++}
++
++bool ViewportDepthCacheSession::init(ARegion *region)
++{
++  if (impl_ != nullptr) {
++    GPU_readback_cancel(impl_->readback);
++    MEM_delete(impl_);
++    impl_ = nullptr;
++  }
++  if (region == nullptr || region->regiondata == nullptr || region->winx <= 0 ||
++      region->winy <= 0)
++  {
++    return false;
++  }
++
++  GPUViewport *viewport = WM_draw_region_get_viewport(region);
++  gpu::Texture *depth_tx = viewport != nullptr ? GPU_viewport_depth_texture(viewport) : nullptr;
++  if (depth_tx == nullptr) {
++    return false;
++  }
++
++  const int texture_width = GPU_texture_width(depth_tx);
++  const int texture_height = GPU_texture_height(depth_tx);
++  if (texture_width <= 0 || texture_height <= 0 ||
++      texture_width > int(std::numeric_limits<unsigned short>::max()) ||
++      texture_height > int(std::numeric_limits<unsigned short>::max()))
++  {
++    return false;
++  }
++  const size_t width = size_t(texture_width);
++  const size_t height = size_t(texture_height);
++  if (width > size_t(std::numeric_limits<int>::max()) / height ||
++      width > std::numeric_limits<size_t>::max() / height ||
++      width * height > std::numeric_limits<size_t>::max() / sizeof(float))
++  {
++    return false;
++  }
++
++  Impl *impl = MEM_new<Impl>(__func__);
++  impl->region = region;
++  impl->region_view = static_cast<RegionView3D *>(region->regiondata);
++  impl->region_size[0] = region->winx;
++  impl->region_size[1] = region->winy;
++  impl->texture_size[0] = texture_width;
++  impl->texture_size[1] = texture_height;
++  copy_m4_m4(impl->viewinv, impl->region_view->viewinv);
++  copy_m4_m4(impl->winmat, impl->region_view->winmat);
++  impl->expected_size = width * height * sizeof(float);
++  impl->readback = GPU_texture_read_async(depth_tx, GPU_DATA_FLOAT, 0);
++  if (impl->readback == nullptr) {
++    MEM_delete(impl);
++    return false;
++  }
++
++  impl->readback_state = ReadbackState::Pending;
++  impl_ = impl;
++  return state() != ReadbackState::Failed;
++}
++
++ViewportDepthCacheSession::ReadbackState ViewportDepthCacheSession::state()
++{
++  if (impl_ == nullptr || impl_->readback_state != ReadbackState::Pending) {
++    return impl_ != nullptr ? impl_->readback_state : ReadbackState::Failed;
++  }
++
++  const eGPUReadbackStatus status = GPU_readback_status(impl_->readback);
++  if (status == GPU_READBACK_PENDING) {
++    return impl_->readback_state;
++  }
++  if (status != GPU_READBACK_READY ||
++      GPU_readback_size(impl_->readback) != impl_->expected_size)
++  {
++    GPU_readback_cancel(impl_->readback);
++    impl_->readback_state = ReadbackState::Failed;
++    return impl_->readback_state;
++  }
++
++  impl_->readback_state = ReadbackState::Ready;
++  return impl_->readback_state;
++}
++
++ViewDepths *ViewportDepthCacheSession::take(ARegion *region)
++{
++  if (state() != ReadbackState::Ready || region == nullptr || region != impl_->region ||
++      region->regiondata != impl_->region_view || region->winx != impl_->region_size[0] ||
++      region->winy != impl_->region_size[1] ||
++      !equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->viewinv, impl_->viewinv) ||
++      !equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->winmat, impl_->winmat))
++  {
++    if (impl_ != nullptr) {
++      GPU_readback_cancel(impl_->readback);
++      impl_->readback_state = ReadbackState::Failed;
++    }
++    return nullptr;
++  }
++
++  const size_t pixel_count = impl_->expected_size / sizeof(float);
++  ViewDepths *depths = MEM_new_zeroed<ViewDepths>(__func__);
++  depths->w = static_cast<unsigned short>(impl_->texture_size[0]);
++  depths->h = static_cast<unsigned short>(impl_->texture_size[1]);
++  depths->depths = MEM_new_array_uninitialized<float>(pixel_count, __func__);
++  if (!GPU_readback_consume(
++          impl_->readback, depths->depths, pixel_count * sizeof(float)))
++  {
++    MEM_delete(depths->depths);
++    MEM_delete(depths);
++    GPU_readback_cancel(impl_->readback);
++    impl_->readback_state = ReadbackState::Failed;
++    return nullptr;
++  }
++  depths->depth_range[0] = 0.0;
++  depths->depth_range[1] = 1.0;
++
++  MEM_delete(impl_);
++  impl_ = nullptr;
++  return depths;
++}
++
 +struct ViewportDepthPickSession::Impl {
 +  ARegion *region = nullptr;
 +  RegionView3D *region_view = nullptr;
@@ -14389,7 +14560,7 @@ index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..c0b1f906af22ca3e76f5e19f117134b1
  void ED_view3d_select_id_validate(const ViewContext *vc)
  {
    validate_object_select_id(
-@@ -2870,14 +3079,65 @@ bool ViewportColorSampleSession::init(ARegion *region)
+@@ -2870,14 +3217,65 @@ bool ViewportColorSampleSession::init(ARegion *region)
  
    GPU_texture_copy(tex, color_tex);
    GPU_memory_barrier(GPU_BARRIER_TEXTURE_UPDATE);
@@ -14458,7 +14629,7 @@ index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..c0b1f906af22ca3e76f5e19f117134b1
      return false;
    }
  
-@@ -2902,6 +3162,7 @@ bool ViewportColorSampleSession::sample(const int mval[2], float r_col[3])
+@@ -2902,6 +3300,7 @@ bool ViewportColorSampleSession::sample(const int mval[2], float r_col[3])
  
  ViewportColorSampleSession::~ViewportColorSampleSession()
  {

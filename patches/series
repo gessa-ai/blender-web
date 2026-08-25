@@ -1095,3 +1095,6 @@
 # 0263: retain NDOF bounds-fallback motion and queue exact device payloads while
 # its owned, bounded depth request progresses across window-manager ticks.
 0263-m5-ndof-depth-continuation.patch
+# 0264: expose one owned full-viewport depth-cache request with exact geometry
+# and producing-view guards for subsequent browser caller continuations.
+0264-m5-depth-cache-readback-primitive.patch

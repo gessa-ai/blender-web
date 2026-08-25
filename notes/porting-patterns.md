@@ -1171,3 +1171,18 @@ failure, queue overflow, Escape, and external cancellation must remove the exact
 the GPU ticket before freeing any payload. Exercise deep-copy ownership, FIFO ordering, queue
 bounds, chained starting events, and every terminal path on native and wasm32. See
 `patches/0263-m5-ndof-depth-continuation.patch` and `sandbox/m5-ndof-depth/`.
+
+## Class 81 — a reusable depth cache needs an owned transfer before caller continuations
+
+Signature: point and rectangle depth consumers use owned requests, but tools that reuse the full
+viewport depth cache still call a synchronous texture read. Converting those callers directly
+without a shared primitive either duplicates byte-layout logic or retains caller memory while the
+browser map callback is pending. Start one exact full-texture request, validate both allocation
+arithmetic and the signed indexing range used by `ViewDepths`, and retain the producing region,
+dimensions, and view/projection matrices. Transfer one cache only after exact-size settlement and
+only while that producing view still matches; reset, backend failure, size mismatch, drift, and
+destruction all cancel the owned request. Keep the native synchronous helper until every cache
+consumer has its own bounded continuation—the primitive alone does not close the family. Exercise
+pending and immediate completion, consume failure, replacement, invalid geometry, and producing-
+view drift on native and wasm32. See `patches/0264-m5-depth-cache-readback-primitive.patch` and
+`sandbox/m5-depth-cache-readback/`.

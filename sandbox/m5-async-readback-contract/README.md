@@ -53,7 +53,9 @@ selection continuations. All three non-viewport eyedroppers share one owned
 window snapshot while browser mapping is pending and preserve native immediate
 completion.
 It also requires the two still-partial/synchronous caller families (depth cache and WM window
-capture) to stay visible. The synchronous selection-buffer API remains
+capture) to stay visible. The full-viewport depth-cache request now has an owned asynchronous
+primitive, but its paint, annotation, placement, and particle-edit consumers still need bounded
+continuations. The synchronous selection-buffer API remains
 as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer
 use it during an active browser continuation. The screenshot operator has its own
 owned-capture continuation contract; the ledger row remains `partial` for these two

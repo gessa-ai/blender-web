@@ -166,6 +166,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
     depth_api = sources["source/blender/editors/include/ED_view3d.hh"]
+    depth_draw = sources["source/blender/editors/space_view3d/view3d_draw.cc"]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
     paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
     paint_projection = sources[
@@ -1099,6 +1100,51 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in readback_test, f"integrated test missing {needle!r}")
 
+    require_ordered(
+        depth_api,
+        (
+            "class ViewportDepthCacheSession",
+            "bool init(ARegion *region);",
+            "ReadbackState state();",
+            "ViewDepths *take(ARegion *region);",
+            "class ViewportDepthPickSession",
+        ),
+        "owned depth-cache API",
+    )
+    depth_cache_init = braced_definition(
+        depth_draw,
+        "bool ViewportDepthCacheSession::init(ARegion *region)",
+        "owned depth-cache request",
+    )
+    require_ordered(
+        depth_cache_init,
+        (
+            "GPU_viewport_depth_texture(viewport)",
+            "std::numeric_limits<unsigned short>::max()",
+            "std::numeric_limits<int>::max()",
+            "impl->expected_size = width * height * sizeof(float);",
+            "GPU_texture_read_async(depth_tx, GPU_DATA_FLOAT, 0)",
+            "impl->readback_state = ReadbackState::Pending;",
+        ),
+        "exact full-viewport depth request",
+    )
+    depth_cache_take = braced_definition(
+        depth_draw,
+        "ViewDepths *ViewportDepthCacheSession::take(ARegion *region)",
+        "owned depth-cache transfer",
+    )
+    for needle in (
+        "region->regiondata != impl_->region_view",
+        "region->winx != impl_->region_size[0]",
+        "region->winy != impl_->region_size[1]",
+        "equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->viewinv",
+        "equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->winmat",
+        "GPU_readback_consume(",
+        "depths->depth_range[0] = 0.0;",
+        "depths->depth_range[1] = 1.0;",
+    ):
+        require(needle in depth_cache_take, f"owned depth-cache transfer missing {needle!r}")
+
     remaining_sync = {
         "depth_cache": (
             "source/blender/editors/space_view3d/view3d_draw.cc",
@@ -1545,6 +1591,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "painting_depth_continuation": True,
             "zoom_border_continuation": True,
             "ndof_depth_continuation": True,
+            "depth_cache_async_primitive": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1787,6 +1834,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "read->queued_motions.append(ndof_motion_copy(*event));",
             "/* queued NDOF motion dropped */",
             "NDOF payload FIFO",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_draw.cc",
+            "GPU_texture_read_async(depth_tx, GPU_DATA_FLOAT, 0)",
+            "GPU_texture_read(depth_tx, GPU_DATA_FLOAT, 0)",
+            "depth-cache async primitive",
         ),
     )
     for relative, old, new, label in mutations:

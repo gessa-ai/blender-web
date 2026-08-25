@@ -3,29 +3,17 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# blender-web — M4.pre browser boot shell (local link)
+# blender-web browser shells (local link)
 
-Runs the wasm Blender build in a real Chrome tab, headless
-(`--background --factory-startup`). This is the browser equivalent of the node boot
-in `notes/m2-python-boot.md`. Design + verification: `notes/m4-browser-shell.md`.
+The canonical local server exposes the windowed native-app product shell at `/`.
+The earlier headless M4.pre diagnostic remains available explicitly at
+`/index.html`, or as the root page with `BLENDER_WEB_ENTRY=index.html`.
 
-## 1. Build the browser binary (once)
-
-```sh
-cd <repo-root>
-cmake build-wasm -DWITH_BLENDER_WEB_BROWSER=ON
-scripts/ninja-locked.sh -C build-wasm blender_browser
-```
-
-Produces `build-wasm/bin/blender_browser.{js,wasm,data}` (~0.6 MB / 112 MB / 93 MB).
-The `.data` file is the preloaded runtime payload (CPython stdlib + Blender scripts +
-datafiles); it is fetched once at page load.
-
-## 2. Serve it (COOP/COEP required)
+## 1. Serve the windowed product (COOP/COEP required)
 
 ```sh
-scripts/serve-web.sh            # http://localhost:8000/
-scripts/serve-web.sh 8123       # or pick a port
+BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin" scripts/serve-web.sh
+BLENDER_WEB_BIN="$PWD/build-wasm-windowed-opt/bin" scripts/serve-web.sh 8123
 ```
 
 The server sets `Cross-Origin-Opener-Policy: same-origin` and
@@ -33,7 +21,35 @@ The server sets `Cross-Origin-Opener-Policy: same-origin` and
 threads ⇒ SharedArrayBuffer ⇒ cross-origin isolation. Opening the files with a plain
 static server (or `file://`) will **not** work.
 
-## 3. Open in Chrome / Edge
+## 2. Open the windowed product in Chrome / Edge
+
+Navigate to the printed URL (for example, `http://localhost:8123/`). The native-app
+shell boots immediately and is the same source page installed as `/index.html` by
+the production bundle assembler.
+
+## 3. Run the legacy headless diagnostic
+
+The legacy page runs the Wasm build with `--background --factory-startup`. It is
+the browser equivalent of the Node boot in `notes/m2-python-boot.md`; its design
+and verification are recorded in `notes/m4-browser-shell.md`.
+
+Build that browser binary once:
+
+```sh
+cd <repo-root>
+cmake build-wasm -DWITH_BLENDER_WEB_BROWSER=ON
+scripts/ninja-locked.sh -C build-wasm blender_browser
+```
+
+This produces `build-wasm/bin/blender_browser.{js,wasm,data}`. The `.data` file
+contains the preloaded CPython standard library, Blender scripts, and datafiles.
+
+Start the server with the headless build and explicit legacy entry:
+
+```sh
+BLENDER_WEB_BIN="$PWD/build-wasm/bin" BLENDER_WEB_ENTRY=index.html \
+  scripts/serve-web.sh 8123
+```
 
 Navigate to the printed URL (e.g. `http://localhost:8123/`) in **current Chrome or
 Edge**, then click **Boot Blender**. stdout/stderr stream to both the on-page log box

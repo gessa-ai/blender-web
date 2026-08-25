@@ -210,6 +210,9 @@ DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs 8123
 ```
 
+Pass `/` as the optional second argument to bind the same live diagnostic to the
+canonical local-server root instead of the explicit `/windowed.html` path.
+
 This headed check forces Chromium's SwiftShader adapter under its GPU-test initialization, then
 requires the adapter to report fallback status. After `WM_main`, it bounds first-tick settlement,
 requires a positive tick delta across two further samples, sends trusted mouse input, and requires

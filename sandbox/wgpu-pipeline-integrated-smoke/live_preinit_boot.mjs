@@ -32,6 +32,10 @@ if (!chromium) {
 }
 
 const port = Number(process.argv[2] || 8123);
+const entryPath = process.argv[3] || "/windowed.html";
+if (entryPath !== "/" && entryPath !== "/windowed.html") {
+  throw new Error(`entry path must be / or /windowed.html, got: ${entryPath}`);
+}
 // This is deliberately Chromium's software WebGPU test posture, not a hardware
 // receipt profile. `--use-gpu-in-tests` initializes the GPU service before Dawn;
 // without it, current Linux Chromium destroys the forced SwiftShader device as
@@ -130,7 +134,7 @@ try {
   });
   page.on("pageerror", () => counters.pageErrors++);
 
-  await page.goto(`http://127.0.0.1:${port}/windowed.html`, {
+  await page.goto(`http://127.0.0.1:${port}${entryPath}`, {
     waitUntil: "domcontentloaded",
   });
   await page.waitForFunction(() => {

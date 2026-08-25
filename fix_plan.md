@@ -2608,11 +2608,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   headed sustained-WM/input/presentation diagnostic at `/` are green. The live run is explicitly
   fallback-software diagnostic evidence and binds no adapter, pixel, profile, or milestone receipt.
   See `notes/m4-local-product-entry-20260825.md`.
-- [ ] **M3.T10-CONTEXT-OWNED-PIPELINE-CACHES [gpu-backend, blocked-by: none,
-  claimed_by: root]:** replace the batch, immediate, and indexed-triangle-fan process-static
-  WebGPU pipeline caches with context-owned caches, preserving cache separation while preventing
-  a later device/context from receiving handles retained from an earlier device. Prove the
-  lifetime boundary device-free in native/wasm32 and rebuild the real windowed product.
+- [x] **M3.T10-CONTEXT-OWNED-PIPELINE-CACHES [gpu-backend] (c5f5565):** patch 0278 moves the
+  batch, immediate, and indexed-triangle-fan pipeline caches onto `WGPUContext`, preserving cache
+  separation while preventing a replacement device/context from receiving retained handles. The
+  fail-first eight-case native/wasm32 ownership contract, five-file isolated patch replay,
+  canonical replay, real product rebuild/no-work, OFF preflight, same-artifact headed fallback
+  diagnostic, REUSE, scoped M3, and full regression are verified. Strict live proof retains the
+  named s7 hardware blocker. See `notes/m3-t10-context-owned-pipeline-caches-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

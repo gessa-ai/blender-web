@@ -2586,6 +2586,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   callback-lifecycle/ASan, locked product/no-work/OFF-preflight, and the headed zero-rejection
   fallback diagnostic are green. The live result remains diagnostic-nonreceipt and the hardware
   blocker is unchanged. See `notes/m4-present-same-turn-submission-20260825.md`.
+- [x] **M4-LOCAL-PRODUCT-ENTRY [driver] (`3aef6f1`):** the canonical COOP/COEP development
+  server now exposes the intended windowed native-app shell and windowed-opt binary at `/` by
+  default. Explicit `BLENDER_WEB_ENTRY=index.html` preserves the legacy headless root, index-only
+  harnesses retain their old behavior, and canonicalized entry paths cannot escape the shell root.
+  Four hermetic HTTP cases, exact real-product root identity, locked product no-work, and the
+  headed sustained-WM/input/presentation diagnostic at `/` are green. The live run is explicitly
+  fallback-software diagnostic evidence and binds no adapter, pixel, profile, or milestone receipt.
+  See `notes/m4-local-product-entry-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

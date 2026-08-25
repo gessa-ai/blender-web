@@ -1827,6 +1827,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   device and one presentation pre-acquisition and zero stage-1/import failures. That diagnostic is
   explicitly non-receipt evidence and does not promote M4 pixels or alter the s7 hardware blocker.
   See `notes/m4-wm-worker-presentation-preinit-20260825.md`.
+- [x] **P0-M4-WM-WORKER-EARLY-CANVAS-REGISTRATION [ghost-web] (1fc5986):** the provisional
+  direct payload lookup now uses Emscripten's own `PThread.receiveOffscreenCanvases(d)` before
+  preflight, after which the original `cmd:2` handler repeats registration idempotently. The
+  20-case worker model requires registration before surface lookup and rejects its removal; exact
+  commit replay, native/wasm32 present transactions, locked product relink/no-work, OFF preflight,
+  and sustained headed fallback diagnostics are green with zero stage-1/import/destroyed-texture
+  failures. The live run remains diagnostic-nonreceipt and the s7 hardware blocker is unchanged.
+  See `notes/m4-wm-worker-early-canvas-registration-20260825.md`.
 - [x] **P0-B-S7-GPUADAPTERINFO-FALLBACK [driver] (30fa865):** the CAPTURE producer now
   prefers the current `GPUAdapterInfo.isFallbackAdapter` boolean and retains the retired
   `GPUAdapter.isFallbackAdapter` location only as a compatibility fallback. Its executable

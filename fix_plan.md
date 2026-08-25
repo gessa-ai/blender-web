@@ -2715,6 +2715,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   integrated native/wasm32 matrix, locked product relink/no-work, OFF preflight, sustained fallback
   diagnostic, REUSE, M4 scope, and container regression preserve their strict existing boundaries.
   See `notes/m4-web-frontbuffer-capability-20260825.md`.
+- [x] **M4-WEB-CAPABILITY-CLOSURE [ghost-web] (`315a6d6`):** the canvas backend now masks raw
+  physical trackpad direction and server-side window decorations: DOM wheel deltas arrive after
+  system preference handling, and the browser canvas has no server-owned frame. The exact-commit
+  three-source contract rejects six mutations while retaining implemented IME and RGBA cursors;
+  integrated native/wasm32 parity, locked product relink/no-work, OFF preflight, sustained fallback
+  diagnostics, REUSE, M4 scope, and container regression preserve their strict existing boundaries.
+  See `notes/m4-web-capability-closure-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

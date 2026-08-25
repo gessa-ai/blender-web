@@ -1480,3 +1480,16 @@ synchronous wait on the WM worker. Bind the flag to both the stock capability-co
 the browser kick/take implementation, and mutate the routing, pending fallback, settlement, and
 interim initialization independently. See `platform_web/ghost/GHOST_SystemWeb.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/frontbuffer_capability_contract.py`.
+
+## Class 100 — capability defaults must be audited when a platform is added
+
+Signature: a platform starts from `GHOST_CAPABILITY_FLAG_ALL` and masks its obvious unsupported
+methods, but newer or less visible capability bits remain enabled by omission. The method bodies can
+still look correct while Blender takes a platform-specific branch based on a promise the backend
+cannot fulfill. Audit every bit in the current pinned enum against the actual event and window
+surfaces, not against an older backend's exclusion list. In a browser, DOM wheel deltas are already
+adjusted by system scrolling preferences, so they cannot expose raw physical trackpad direction; a
+canvas also has no server-owned window frame. Mask both facts while retaining independently proven
+IME and RGBA cursor support. Bind exclusions to the event/window implementations and mutate each
+unsupported and implemented bit separately. See `platform_web/ghost/GHOST_SystemWeb.cc` and
+`sandbox/wgpu-pipeline-integrated-smoke/web_capability_contract.py`.

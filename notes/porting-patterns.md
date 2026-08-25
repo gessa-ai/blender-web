@@ -1218,3 +1218,20 @@ external cancellation retire the timer, request, FIFO, and uncommitted stroke to
 the initiating-event seam separately from ordinary replay on native and wasm32. See
 `patches/0266-m5-annotation-depth-cache-continuation.patch` and
 `sandbox/m5-annotation-depth-cache/`.
+
+## Class 84 — a recorded operator can become modal only after snapshotting its consumed input
+
+Signature: an operator's `exec` callback iterates an RNA collection and performs synchronous GPU
+reads between points or stroke boundaries. A pending browser read cannot retain borrowed RNA
+iteration state, and restarting `exec` would repeat already-applied points. Snapshot only the exact
+fields consumed by stock replay into owned storage, retain an explicit point cursor, and advance
+that cursor only after the point has been applied. Preserve the original boundary order: acquire
+the cache required to finish the preceding stroke, finish it, initialize the next stroke, then
+resume the same unconsumed point. Let an immediately ready request finish on the original `exec`
+stack; install the existing bounded modal poller only when a request is genuinely pending, and
+swallow unrelated events while owned recorded input is authoritative. Backend failure, context
+drift, timeout, Escape, and external cancellation must release the request, timer, cache, and
+snapshot together. Exercise native-ready, chained pending generations, input-snapshot isolation,
+non-depth and eraser modes, exact boundaries, and every terminal guard under native and wasm32.
+See `patches/0267-m5-annotation-recorded-depth-cache-continuation.patch` and
+`sandbox/m5-annotation-depth-cache/`.

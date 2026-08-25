@@ -18,6 +18,7 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
+#include "GHOST_Context.hh"
 #include "GHOST_WGPUTransaction.hh"
 #include "GHOST_WebDisplayState.hh"
 
@@ -240,10 +241,38 @@ void GHOST_WindowWeb::clientToScreen(
 
 GHOST_TSuccess GHOST_WindowWeb::setState(GHOST_TWindowState state)
 {
-  /* Fullscreen via the HTML5 Fullscreen API is a later refinement; a canvas is
-   * always "normal" in the single-surface M4 model. Accept the request. */
-  (void)state;
-  return GHOST_kSuccess;
+  const auto result_succeeded = [](const EMSCRIPTEN_RESULT result) {
+    /* A deferred request is accepted by Emscripten and runs from the next browser
+     * event carrying transient user activation. This is the required path when
+     * Blender dispatches the original DOM event through its WM queue first. */
+    return result == EMSCRIPTEN_RESULT_SUCCESS || result == EMSCRIPTEN_RESULT_DEFERRED;
+  };
+
+  switch (state) {
+    case GHOST_kWindowStateNormal:
+    case GHOST_kWindowStateMaximized: {
+      /* A browser canvas already fills its page, so normal and maximized share
+       * the same non-fullscreen state. This also cancels a deferred entry request. */
+      const EMSCRIPTEN_RESULT result = emscripten_exit_fullscreen();
+      return result_succeeded(result) ? GHOST_kSuccess : GHOST_kFailure;
+    }
+    case GHOST_kWindowStateMinimized:
+      /* A tab cannot minimize its browser window. */
+      return GHOST_kFailure;
+    case GHOST_kWindowStateFullScreen: {
+      EmscriptenFullscreenStrategy strategy = {};
+      strategy.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
+      /* The DOM side cannot resize a transferred canvas's backing store. Keep
+       * its resolution here; the shell's display bridge observes the new CSS
+       * extent and resizes the worker-owned OffscreenCanvas coherently. */
+      strategy.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_NONE;
+      strategy.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+      const EMSCRIPTEN_RESULT result = emscripten_request_fullscreen_strategy(
+          canvas_selector_.c_str(), true, &strategy);
+      return result_succeeded(result) ? GHOST_kSuccess : GHOST_kFailure;
+    }
+  }
+  return GHOST_kFailure;
 }
 
 GHOST_TWindowState GHOST_WindowWeb::getState() const

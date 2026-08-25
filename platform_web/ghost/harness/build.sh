@@ -4,8 +4,8 @@
 #
 # Build the standalone GHOST-web event harness: the platform_web/ghost classes +
 # the REAL upstream GHOST base classes (read-only include) -> a wasm test module.
-# Single-threaded on purpose (isolates the event bridge from the threading topology;
-# no COOP/COEP needed to serve it).
+# Uses the shipping PROXY_TO_PTHREAD topology: OPFS mount and HTML5 window-state
+# transitions are worker-owned, and the server must provide COOP/COEP.
 #
 # Usage: platform_web/ghost/harness/build.sh
 set -euo pipefail
@@ -53,13 +53,15 @@ SRC+=(
 )
 
 emcc \
+  -pthread \
   -std=c++17 -O1 -g2 --profiling-funcs \
   -fexceptions -funsigned-char \
   -I"$WEB" -I"$GHOST" -I"$GHOST/intern" \
   -I"$GA" -I"$ROOT/upstream/intern/atomic" \
   "${SRC[@]}" \
   -sMODULARIZE=1 -sEXPORT_NAME=createGhostTest \
-  -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 \
+  -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sWASMFS=1 -sFORCE_FILESYSTEM=1 \
+  -sPROXY_TO_PTHREAD=1 -sPTHREAD_POOL_SIZE=2 \
   -sEXPORTED_RUNTIME_METHODS=callMain,printErr \
   -o "$OUT/ghost_web_test.js"
 

@@ -26,12 +26,26 @@ document.getElementById("clear").onclick = () => {
 const canvas = document.getElementById("blender-canvas");
 canvas.addEventListener("click", () => canvas.focus());
 
-createGhostTest({
+let ghostModule = null;
+document.getElementById("fullscreen").onclick = () => {
+  if (!ghostModule) return;
+  ghostModule._ghost_harness_request_window_state(document.fullscreenElement ? 0 : 3);
+};
+
+const moduleOptions = {
   canvas,
   // Events reach the page via the wasm-side EM_JS harness_log -> ghostLog. Route
   // plain stdout/stderr to the console only, so page lines aren't duplicated.
   print: (l) => console.log(l),
   printErr: (l) => console.error(l),
-}).then(() => {
+  onRuntimeInitialized: () => {
+    ghostModule = moduleOptions;
+    globalThis.ghostModule = moduleOptions;
+  },
+};
+
+createGhostTest(moduleOptions).then((module) => {
+  ghostModule = module;
+  globalThis.ghostModule = module;
   canvas.focus();
 });

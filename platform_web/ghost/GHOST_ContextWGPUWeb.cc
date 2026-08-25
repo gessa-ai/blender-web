@@ -25,16 +25,7 @@
 #include "GHOST_WebDisplayState.hh"
 
 /* --- Present counter (ghost-keepalive) --------------------------------------- */
-/* One monotonically increasing counter of end-of-frame presents (surface submits). It is
- * the ground truth for "is the app actually drawing": GHOST_SystemWeb::processEvents reads
- * it to keep the idle keepalive fast while frames are being produced (interaction, playback,
- * notifier redraws) and to let it back off when nothing is drawn, and the shell reads it via
- * bw_present_count() to PROVE the idle loop submits no frames (flat counter) while the WM
- * tick counter keeps rising. A plain relaxed atomic - the only writer is this worker's
- * presentBackbuffer, readers just need a coherent recent value. */
 namespace {
-std::atomic<uint64_t> g_present_count{0};
-
 ghost_web::SurfaceAcquireStatus surface_acquire_status(
     const wgpu::SurfaceGetCurrentTextureStatus status)
 {
@@ -55,17 +46,6 @@ ghost_web::SurfaceAcquireStatus surface_acquire_status(
   }
 }
 }  // namespace
-
-namespace ghost_web {
-uint64_t present_count()
-{
-  return g_present_count.load(std::memory_order_relaxed);
-}
-void note_present()
-{
-  g_present_count.fetch_add(1u, std::memory_order_relaxed);
-}
-}  // namespace ghost_web
 
 /* Total presents since boot, as double (avoids a BigInt hop under -sWASM_BIGINT). Exported
  * for the ghost-keepalive no-idle-burn proof: the shell polls this across an idle window and

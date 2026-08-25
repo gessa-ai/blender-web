@@ -14,12 +14,12 @@
  * appears as GHOST-shaped events on the page + console — proving the whole bridge
  * against the genuine GHOST event machinery.
  *
- * Single-threaded on purpose (no -pthread / PROXY_TO_PTHREAD): this isolates the
- * event-bridge + GHOST integration from the threading topology. The proxied
- * main-loop design for the real Blender build is documented (citing ADR-003) in
- * notes/ghost-web-design.md and is validated at the M4 gate, not here.
+ * Runs main() on the same PROXY_TO_PTHREAD worker topology as the product. This is
+ * required by the worker-only WasmFS/OPFS mount and lets state requests exercise
+ * the real WM-worker -> browser-main HTML5 proxy boundary.
  */
 
+#include <atomic>
 #include <cstdio>
 #include <memory>
 
@@ -34,12 +34,16 @@
 #include "GHOST_Types.hh"
 
 /* Append a line to the on-page log (and it also goes to the console via printf). */
-EM_JS(void, harness_log, (const char *msg), {
-  const s = UTF8ToString(msg);
-  if (typeof globalThis.ghostLog === 'function') {
-    globalThis.ghostLog(s);
-  }
-});
+static void harness_log(const char *msg)
+{
+  MAIN_THREAD_EM_ASM(
+      {
+        if (typeof globalThis.ghostLog === "function") {
+          globalThis.ghostLog(UTF8ToString($0));
+        }
+      },
+      msg);
+}
 
 static const char *event_type_name(GHOST_TEventType t)
 {
@@ -117,12 +121,38 @@ class LoggingConsumer : public GHOST_IEventConsumer {
 };
 
 static GHOST_SystemWeb *g_system = nullptr;
+static GHOST_IWindow *g_window = nullptr;
+static std::atomic<int> g_requested_window_state{-1};
+static std::atomic<int> g_window_state_result{-2};
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_state(const int state)
+{
+  if (state < int(GHOST_kWindowStateNormal) || state > int(GHOST_kWindowStateFullScreen)) {
+    return int(GHOST_kFailure);
+  }
+  g_window_state_result.store(-2, std::memory_order_relaxed);
+  g_requested_window_state.store(state, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_window_state_result()
+{
+  return g_window_state_result.load(std::memory_order_acquire);
+}
 
 static void main_loop_tick()
 {
   /* Top-level event pump: pull native (already-queued) events, dispatch to the
    * consumer. This is exactly where a suspend point is permitted per ADR-003. */
   if (g_system) {
+    const int requested = g_requested_window_state.exchange(-1, std::memory_order_acq_rel);
+    if (requested >= int(GHOST_kWindowStateNormal) &&
+        requested <= int(GHOST_kWindowStateFullScreen))
+    {
+      const int result = g_window ? int(g_window->setState(GHOST_TWindowState(requested))) :
+                                    int(GHOST_kFailure);
+      g_window_state_result.store(result, std::memory_order_release);
+    }
     g_system->processEvents(false);
     g_system->dispatchEvents();
   }
@@ -144,10 +174,10 @@ int main()
 
   GHOST_GPUSettings gpu_settings = {};
   gpu_settings.context_type = GHOST_kDrawingContextTypeNone;
-  GHOST_IWindow *win = g_system->createWindow(
+  g_window = g_system->createWindow(
       "blender-web ghost harness", 0, 0, 800, 600, GHOST_kWindowStateNormal, gpu_settings,
       false, false, nullptr);
-  if (!win) {
+  if (!g_window) {
     harness_log("[harness] createWindow FAILED");
     return 1;
   }

@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 namespace ghost_web {
@@ -43,14 +44,23 @@ double device_pixel_ratio();
  * (WM) worker's per-tick poll. */
 bool poll_pending_backing(int32_t &w, int32_t &h);
 
-/** Total WebGPU presents (surface submits) since boot. Defined in GHOST_ContextWGPUWeb.cc
- * and bumped once per GHOST_ContextWGPUWeb::presentBackbuffer(). Read on the WM worker by
+/** Total WebGPU presents (surface submits) since boot. The inline variable keeps this
+ * platform state available to both WebGPU and device-free GHOST builds without a link-time
+ * dependency on the WebGPU context. It is bumped once per presentBackbuffer(). Read by
  * GHOST_SystemWeb::processEvents to tell whether a frame was drawn since the last tick
  * (idle-keepalive activity detection) and exported for the no-idle-burn proof
  * (bw_present_count). A single relaxed atomic load; safe to call on any thread. */
-uint64_t present_count();
+inline std::atomic<uint64_t> present_counter{0};
+
+inline uint64_t present_count()
+{
+  return present_counter.load(std::memory_order_relaxed);
+}
 
 /** Called by GHOST_ContextWGPUWeb::presentBackbuffer() to record one present. */
-void note_present();
+inline void note_present()
+{
+  present_counter.fetch_add(1u, std::memory_order_relaxed);
+}
 
 }  // namespace ghost_web

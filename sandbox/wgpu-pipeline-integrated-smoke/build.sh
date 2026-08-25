@@ -36,6 +36,7 @@ GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
 GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
 GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
+GHOST_DISPLAY_HEADER="$ROOT/platform_web/ghost/GHOST_WebDisplayState.hh"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
@@ -44,6 +45,7 @@ LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
 LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
 WINDOW_ACTIVATION_CONTRACT="$HERE/window_activation_contract.py"
 WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
+FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
 CURSOR_BRIDGE_TEST="$HERE/cursor_bridge_test.mjs"
 GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
@@ -149,6 +151,7 @@ source_digest()
                 platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                 platform_web/ghost/GHOST_WindowWeb.cc \
                 platform_web/ghost/GHOST_WindowWeb.hh \
+                platform_web/ghost/GHOST_WebDisplayState.hh \
                 platform_web/ghost/GHOST_SystemWeb.cc \
                 platform_web/ghost/GHOST_WGPUTransaction.hh \
                 platform_web/shell/wgpu-preinit-worker.js \
@@ -164,6 +167,7 @@ source_digest()
                     platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                     platform_web/ghost/GHOST_WindowWeb.cc \
                     platform_web/ghost/GHOST_WindowWeb.hh \
+                    platform_web/ghost/GHOST_WebDisplayState.hh \
                     platform_web/ghost/GHOST_SystemWeb.cc \
                     platform_web/ghost/GHOST_WGPUTransaction.hh \
                     platform_web/shell/wgpu-preinit-worker.js \
@@ -197,6 +201,7 @@ require_file "$GHOST_SOURCE"
 require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
 require_file "$GHOST_WINDOW_HEADER"
+require_file "$GHOST_DISPLAY_HEADER"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_TYPES_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
@@ -209,6 +214,7 @@ require_file "$LIVE_PREINIT_CONTRACT"
 require_file "$LIVE_PREINIT_CONTRACT_TEST"
 require_file "$WINDOW_ACTIVATION_CONTRACT"
 require_file "$WINDOW_TITLE_CONTRACT"
+require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$CURSOR_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
@@ -1667,6 +1673,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
 "$PYBIN" "$WINDOW_ACTIVATION_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_BASE_WINDOW_SOURCE" --selfcheck
 "$PYBIN" "$WINDOW_TITLE_CONTRACT" "$GHOST_WINDOW_SOURCE" --selfcheck
+"$PYBIN" "$FULLSCREEN_STATE_CONTRACT" "$GHOST_WINDOW_SOURCE" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
   "$GHOST_TYPES_SOURCE" --selfcheck

@@ -2792,6 +2792,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   registration-epoch replacement, IME, focus-state, eight-mutation source, native/wasm32,
   optimized-product, OFF-preflight, fallback-diagnostic, canonical, compliance, M4, and regression
   checks preserve their strict existing boundaries. See `notes/m4-keyboard-focus-20260825.md`.
+- [x] **M4-WEB-MOUSE-RELEASE-OWNERSHIP [ghost-web] (`d964a5f`):** a canvas-owned press now
+  receives its terminal mouse-up from window capture after the pointer leaves the canvas, while a
+  matching tracked-button gate rejects unrelated page releases and preserves their browser default.
+  Viewport release coordinates are normalized back to canvas space and listener removal follows the
+  exact registration target. The real worker outcome, 12 focused and 32 lifecycle mutations,
+  native/wasm32 matrix, locked product relink/no-work, OFF preflight, fallback diagnostic, canonical
+  replay, REUSE, M4 scope, and container regression preserve their strict existing boundaries. See
+  `notes/m4-mouse-release-ownership-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

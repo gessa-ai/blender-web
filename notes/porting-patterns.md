@@ -1560,3 +1560,16 @@ non-canvas control, require no later GHOST key event, and repeat delayed callbac
 window replacement. See `platform_web/ghost/GHOST_SystemWeb.cc`,
 `sandbox/m4-keyboard-focus/`, and
 `platform_web/ghost/harness/window_lifecycle_test.mjs`.
+
+## Class 106 — terminal pointer events outlive the canvas but not their owner
+
+Signature: mouse-down and mouse-up are both registered on a canvas. A drag that leaves the element
+then releases over the page produces no canvas mouse-up and no focus loss, so platform button state
+remains held forever. Register the terminal release on a target that outlives the interaction, but
+admit it only when the platform still owns a matching press; an unrelated page release must neither
+enter the application nor lose its browser default. A window-targeted event also changes the origin
+of Emscripten `targetX/Y`, so translate viewport coordinates back to the canvas before delivery and
+remove the listener from the exact registration target. Exercise outside release, unchanged canvas
+focus, unowned suppression, coordinate routing, and replacement/disposal epochs. See
+`platform_web/ghost/GHOST_SystemWeb.cc`, `sandbox/m4-mouse-release-ownership/`, and
+`sandbox/wgpu-pipeline-integrated-smoke/window_lifecycle_contract.py`.

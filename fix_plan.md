@@ -2700,6 +2700,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   while the final real worker harness, 17 mutations, native/wasm parity, locked product, sustained
   fallback diagnostic, canonical replay, M4 scope, and regression preserve their strict existing
   boundaries. See `notes/m4-web-window-disposal-lifecycle-20260825.md`.
+- [x] **M4-WEB-CUSTOM-CURSOR-BRIDGE [ghost-web] (`1e24fc3`):** Blender's borrowed RGBA and
+  legacy XBM custom-cursor spans are now copied synchronously on the browser main thread,
+  rasterized to a bounded CSS image cursor with the exact hotspot, and published through the
+  existing release generation. RGBA is advertised while the unimplemented generator remains
+  masked; invalid geometry/spans preserve the last valid cursor. Fail-first, 12 mutations,
+  native/wasm32 parity, real worker/browser pixels, locked product/no-work/OFF-preflight,
+  sustained fallback diagnostics, REUSE, M4 scope, and regression preserve their strict existing
+  boundaries. See `notes/m4-web-custom-cursor-bridge-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

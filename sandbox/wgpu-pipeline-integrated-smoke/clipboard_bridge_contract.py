@@ -10,7 +10,7 @@ import argparse
 from pathlib import Path
 
 
-REGISTER_MARKER = "void GHOST_SystemWeb::registerCanvasCallbacks()"
+REGISTER_MARKER = "bool GHOST_SystemWeb::registerCanvasCallbacks()"
 GET_MARKER = "char *GHOST_SystemWeb::getClipboard(bool selection) const"
 PUT_MARKER = "void GHOST_SystemWeb::putClipboard(const char *buffer, bool selection) const"
 CAPABILITIES_MARKER = "GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const"

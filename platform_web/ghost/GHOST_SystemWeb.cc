@@ -194,6 +194,69 @@ bool remove_html5_callback(const char *target,
          EMSCRIPTEN_RESULT_SUCCESS;
 }
 
+bool remove_html5_callback_prefix(const char *canvas,
+                                  const char *window,
+                                  void *user_data,
+                                  const size_t registered_count)
+{
+  bool removed = true;
+  switch (registered_count) {
+    default:
+      return false;
+    case 12:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+      [[fallthrough]];
+    case 11:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
+      [[fallthrough]];
+    case 10:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
+      [[fallthrough]];
+    case 9:
+      removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
+                                       user_data,
+                                       EMSCRIPTEN_EVENT_POINTERLOCKERROR,
+                                       cb_pointerlockerror);
+      [[fallthrough]];
+    case 8:
+      removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
+                                       user_data,
+                                       EMSCRIPTEN_EVENT_POINTERLOCKCHANGE,
+                                       cb_pointerlockchange);
+      [[fallthrough]];
+    case 7:
+      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_BLUR, cb_blur);
+      [[fallthrough]];
+    case 6:
+      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
+      [[fallthrough]];
+    case 5:
+      removed &= remove_html5_callback(
+          canvas, user_data, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
+      [[fallthrough]];
+    case 4:
+      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
+      [[fallthrough]];
+    case 3:
+      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
+      [[fallthrough]];
+    case 2:
+      removed &= remove_html5_callback(
+          canvas, user_data, EMSCRIPTEN_EVENT_MOUSEDOWN, cb_mousebtn);
+      [[fallthrough]];
+    case 1:
+      removed &= remove_html5_callback(
+          canvas, user_data, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
+      [[fallthrough]];
+    case 0:
+      break;
+  }
+  return removed;
+}
+
 }  // namespace
 
 /* -------------------------------------------------------------------------- */
@@ -419,18 +482,15 @@ GHOST_TSuccess GHOST_SystemWeb::init()
   return success;
 }
 
-void GHOST_SystemWeb::registerCanvasCallbacks()
+bool GHOST_SystemWeb::registerCanvasCallbacks()
 {
   if (callbacks_registered_) {
-    return;
+    return true;
   }
   const uint64_t epoch = g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed);
   auto registration = std::make_unique<CallbackRegistration>(CallbackRegistration{this, epoch});
-  callback_user_data_ = registration.get();
+  CallbackRegistration *user_data = registration.get();
   g_callback_registrations.push_back(std::move(registration));
-  g_active_callback_epoch.store(epoch, std::memory_order_release);
-  g_callback_registration.store(static_cast<CallbackRegistration *>(callback_user_data_),
-                                std::memory_order_release);
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
@@ -746,28 +806,76 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
     }
   });
 
-  /* Pointer + wheel on the canvas element (targetX/Y are canvas-relative). */
-  emscripten_set_mousemove_callback(canvas, callback_user_data_, false, cb_mousemove);
-  emscripten_set_mousedown_callback(canvas, callback_user_data_, false, cb_mousebtn);
-  emscripten_set_mouseup_callback(canvas, callback_user_data_, false, cb_mousebtn);
-  emscripten_set_wheel_callback(canvas, callback_user_data_, false, cb_wheel);
-  emscripten_set_contextmenu_callback(canvas, callback_user_data_, false, cb_contextmenu);
-  emscripten_set_focus_callback(canvas, callback_user_data_, false, cb_focus);
-  emscripten_set_blur_callback(canvas, callback_user_data_, false, cb_blur);
-
-  /* Pointer Lock is document-owned even though its target is the canvas. Emscripten
-   * forwards both outcomes back to this calling WM worker. */
-  emscripten_set_pointerlockchange_callback(
-      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, callback_user_data_, false, cb_pointerlockchange);
-  emscripten_set_pointerlockerror_callback(
-      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, callback_user_data_, false, cb_pointerlockerror);
-
-  /* Keyboard + resize at window scope (keyboard has no per-element target without
-   * focus juggling; resize is a window event). */
-  emscripten_set_keydown_callback(win, callback_user_data_, false, cb_key);
-  emscripten_set_keyup_callback(win, callback_user_data_, false, cb_key);
-  emscripten_set_resize_callback(win, callback_user_data_, false, cb_resize);
-  callbacks_registered_ = true;
+  size_t failed_position = 0;
+  EMSCRIPTEN_RESULT failed_result = EMSCRIPTEN_RESULT_SUCCESS;
+  const bool registration_succeeded = ghost_web::sequential_registration_transaction<12>(
+      [&](const size_t position) {
+        EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_INVALID_PARAM;
+        switch (position) {
+          case 0:
+            result = emscripten_set_mousemove_callback(canvas, user_data, false, cb_mousemove);
+            break;
+          case 1:
+            result = emscripten_set_mousedown_callback(canvas, user_data, false, cb_mousebtn);
+            break;
+          case 2:
+            result = emscripten_set_mouseup_callback(canvas, user_data, false, cb_mousebtn);
+            break;
+          case 3:
+            result = emscripten_set_wheel_callback(canvas, user_data, false, cb_wheel);
+            break;
+          case 4:
+            result = emscripten_set_contextmenu_callback(
+                canvas, user_data, false, cb_contextmenu);
+            break;
+          case 5:
+            result = emscripten_set_focus_callback(canvas, user_data, false, cb_focus);
+            break;
+          case 6:
+            result = emscripten_set_blur_callback(canvas, user_data, false, cb_blur);
+            break;
+          case 7:
+            result = emscripten_set_pointerlockchange_callback(
+                EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockchange);
+            break;
+          case 8:
+            result = emscripten_set_pointerlockerror_callback(
+                EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockerror);
+            break;
+          case 9:
+            result = emscripten_set_keydown_callback(win, user_data, false, cb_key);
+            break;
+          case 10:
+            result = emscripten_set_keyup_callback(win, user_data, false, cb_key);
+            break;
+          case 11:
+            result = emscripten_set_resize_callback(win, user_data, false, cb_resize);
+            break;
+        }
+        if (result == EMSCRIPTEN_RESULT_SUCCESS) {
+          return true;
+        }
+        failed_position = position;
+        failed_result = result;
+        return false;
+      },
+      [&](const size_t registered_count) {
+        const bool removed =
+            remove_html5_callback_prefix(canvas, win, user_data, registered_count);
+        std::fprintf(stderr,
+                     "GHOST-web: HTML5 callback registration %zu/12 failed (result %d); "
+                     "prefix rollback %s\n",
+                     failed_position + 1,
+                     int(failed_result),
+                     removed ? "succeeded" : "failed");
+      },
+      [&]() {
+        callback_user_data_ = user_data;
+        g_active_callback_epoch.store(epoch, std::memory_order_release);
+        g_callback_registration.store(user_data, std::memory_order_release);
+        callbacks_registered_ = true;
+      });
+  return registration_succeeded;
 }
 
 void GHOST_SystemWeb::unregisterCanvasCallbacks()
@@ -784,35 +892,7 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   CallbackRegistration *expected_registration = registration;
   g_callback_registration.compare_exchange_strong(
       expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
-  bool removed = true;
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEDOWN, cb_mousebtn);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
-  removed &= remove_html5_callback(
-      canvas, callback_user_data_, EMSCRIPTEN_EVENT_BLUR, cb_blur);
-  removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
-                                   callback_user_data_,
-                                   EMSCRIPTEN_EVENT_POINTERLOCKCHANGE,
-                                   cb_pointerlockchange);
-  removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
-                                   callback_user_data_,
-                                   EMSCRIPTEN_EVENT_POINTERLOCKERROR,
-                                   cb_pointerlockerror);
-  removed &= remove_html5_callback(
-      win, callback_user_data_, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
-  removed &= remove_html5_callback(
-      win, callback_user_data_, EMSCRIPTEN_EVENT_KEYUP, cb_key);
-  removed &= remove_html5_callback(
-      win, callback_user_data_, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+  const bool removed = remove_html5_callback_prefix(canvas, win, callback_user_data_, 12);
   callback_user_data_ = nullptr;
   callbacks_registered_ = false;
   if (!removed) {
@@ -1141,16 +1221,23 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
                                                 gpu_settings.context_type,
                                                 context_params,
                                                 canvas_selector_.c_str());
-  return ghost_web::window_publish_if_valid(
+  const std::string previous_canvas_selector = canvas_selector_;
+  bool publication_succeeded = true;
+  GHOST_WindowWeb *result = ghost_web::window_publish_if_valid(
       window,
       [](GHOST_WindowWeb *invalid_window) { delete invalid_window; },
       [&](GHOST_WindowWeb *valid_window) {
         if (window_ == nullptr) {
           window_ = valid_window;
-          redraw_heartbeat_ = 0;
           /* Bind HTML5 input to this (first) valid window's canvas. */
           canvas_selector_ = valid_window->getCanvasSelector();
-          registerCanvasCallbacks();
+          if (!registerCanvasCallbacks()) {
+            window_ = nullptr;
+            canvas_selector_ = previous_canvas_selector;
+            publication_succeeded = false;
+            return;
+          }
+          redraw_heartbeat_ = 0;
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {
           wm->addWindow(valid_window);
@@ -1166,6 +1253,11 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
         pushEvent(std::make_unique<GHOST_Event>(
             getMilliSeconds(), GHOST_kEventWindowSize, valid_window));
       });
+  if (!publication_succeeded) {
+    delete result;
+    return nullptr;
+  }
+  return result;
 }
 
 GHOST_IWindow *GHOST_SystemWeb::getWindowUnderCursor(const int32_t x, const int32_t y)

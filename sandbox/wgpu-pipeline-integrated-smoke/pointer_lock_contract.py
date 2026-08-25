@@ -20,8 +20,9 @@ MOVE_MARKER = "void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEve
 FOCUS_MARKER = "void on_focus(GHOST_SystemWeb &sys, bool focused)"
 CHANGE_CALLBACK_MARKER = "bool cb_pointerlockchange("
 ERROR_CALLBACK_MARKER = "bool cb_pointerlockerror("
-REGISTER_MARKER = "void GHOST_SystemWeb::registerCanvasCallbacks()"
+REGISTER_MARKER = "bool GHOST_SystemWeb::registerCanvasCallbacks()"
 UNREGISTER_MARKER = "void GHOST_SystemWeb::unregisterCanvasCallbacks()"
+REMOVE_PREFIX_MARKER = "bool remove_html5_callback_prefix(const char *canvas,"
 DISPOSE_MARKER = "GHOST_TSuccess GHOST_SystemWeb::disposeWindow(GHOST_IWindow *window)"
 CAPABILITIES_MARKER = "GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const"
 WARP_MARKER = "GHOST_TSuccess GHOST_SystemWeb::setCursorPosition(int32_t"
@@ -66,6 +67,7 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
     error_callback = method(system, ERROR_CALLBACK_MARKER)
     register = method(system, REGISTER_MARKER)
     unregister = method(system, UNREGISTER_MARKER)
+    remove_prefix = method(system, REMOVE_PREFIX_MARKER)
     dispose = method(system, DISPOSE_MARKER)
     capabilities = method(system, CAPABILITIES_MARKER)
     warp = method(system, WARP_MARKER)
@@ -194,8 +196,10 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
         "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
         "cb_pointerlockerror",
     ):
-        if unregister.count(token) != 1:
+        if remove_prefix.count(token) != 1:
             raise ValueError(f"callback retirement requires exactly one {token!r}")
+    if unregister.count("remove_html5_callback_prefix(canvas, win, callback_user_data_, 12)") != 1:
+        raise ValueError("callback retirement does not remove the complete listener set")
     if focus.count("win->releasePointerLock();") != 1:
         raise ValueError("blur does not cancel pending/active Pointer Lock")
     if dispose.count("active_window->releasePointerLock();") != 1:

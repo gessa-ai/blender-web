@@ -8,6 +8,7 @@
  * created; live descriptor validation remains part of the hardware-gated M3
  * replay. */
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdio>
@@ -2706,6 +2707,91 @@ bool ghost_window_publication_transaction_contract()
   return true;
 }
 
+bool ghost_callback_registration_transaction_contract()
+{
+  constexpr size_t listener_count = 12;
+  size_t failure_rollbacks = 0;
+  for (size_t failed_position = 0; failed_position < listener_count; failed_position++) {
+    std::array<bool, listener_count> listeners = {};
+    size_t attempted = 0;
+    size_t rollback_prefix = listener_count + 1;
+    bool published = false;
+    const bool accepted = gw::sequential_registration_transaction<listener_count>(
+        [&](const size_t index) {
+          attempted++;
+          if (index == failed_position) {
+            return false;
+          }
+          listeners[index] = true;
+          return true;
+        },
+        [&](const size_t registered_count) {
+          rollback_prefix = registered_count;
+          failure_rollbacks++;
+          for (size_t index = 0; index < registered_count; index++) {
+            listeners[index] = false;
+          }
+        },
+        [&]() { published = true; });
+    if (!require(!accepted && !published, "failed listener set stays unpublished") ||
+        !require(attempted == failed_position + 1, "registration stops at first failure") ||
+        !require(rollback_prefix == failed_position, "successful listener prefix rolls back") ||
+        !require(std::none_of(listeners.begin(), listeners.end(), [](const bool active) {
+                   return active;
+                 }),
+                 "failed listener set leaves no active prefix"))
+    {
+      return false;
+    }
+  }
+
+  std::array<uint32_t, listener_count> replacement_listeners = {};
+  uint32_t active_owner = 0;
+  const auto register_owner = [&](const uint32_t candidate_owner, const size_t failure_position) {
+    return gw::sequential_registration_transaction<listener_count>(
+        [&](const size_t index) {
+          if (index == failure_position) {
+            return false;
+          }
+          replacement_listeners[index] = candidate_owner;
+          return true;
+        },
+        [&](const size_t registered_count) {
+          for (size_t index = 0; index < registered_count; index++) {
+            replacement_listeners[index] = 0;
+          }
+        },
+        [&]() { active_owner = candidate_owner; });
+  };
+
+  const bool initial_accepted = register_owner(1, listener_count);
+  replacement_listeners.fill(0);
+  active_owner = 0;
+  constexpr size_t replacement_failure = 8;
+  const bool replacement_rejected = register_owner(2, replacement_failure);
+  const bool failed_replacement_clean =
+      active_owner == 0 &&
+      std::none_of(replacement_listeners.begin(), replacement_listeners.end(),
+                   [](const uint32_t owner) { return owner != 0; });
+  const bool retry_accepted = register_owner(3, listener_count);
+  const bool retry_complete =
+      active_owner == 3 &&
+      std::all_of(replacement_listeners.begin(), replacement_listeners.end(),
+                  [](const uint32_t owner) { return owner == 3; });
+  if (!require(failure_rollbacks == listener_count, "every failed position rolls back") ||
+      !require(initial_accepted, "initial complete listener set publishes") ||
+      !require(!replacement_rejected && replacement_failure == 8 && failed_replacement_clean,
+               "failed replacement rolls back before publication") ||
+      !require(retry_accepted && retry_complete, "replacement retries after rollback"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ghost_callback_registration_transaction PASS cases=15 "
+            "failed_positions=12 replacement=rollback-retry publication=atomic");
+  return true;
+}
+
 bool ghost_surface_publication_status_contract()
 {
   struct Case {
@@ -3948,6 +4034,7 @@ int main()
       !compute_command_transaction_contract() ||
       !buffer_command_transaction_contract() ||
       !ghost_window_publication_transaction_contract() ||
+      !ghost_callback_registration_transaction_contract() ||
       !ghost_surface_publication_status_contract() ||
       !ghost_surface_acquisition_status_contract() ||
       !ghost_device_loss_state_contract() ||
@@ -3961,12 +4048,12 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=40 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=41 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_callback_registration_cases=15 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

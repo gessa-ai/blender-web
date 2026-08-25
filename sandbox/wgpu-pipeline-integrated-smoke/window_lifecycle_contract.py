@@ -11,8 +11,9 @@ from pathlib import Path
 
 
 DISPOSE_MARKER = "GHOST_TSuccess GHOST_SystemWeb::disposeWindow(GHOST_IWindow *window)"
-REGISTER_MARKER = "void GHOST_SystemWeb::registerCanvasCallbacks()"
+REGISTER_MARKER = "bool GHOST_SystemWeb::registerCanvasCallbacks()"
 UNREGISTER_MARKER = "void GHOST_SystemWeb::unregisterCanvasCallbacks()"
+REMOVE_PREFIX_MARKER = "bool remove_html5_callback_prefix(const char *canvas,"
 DESTRUCTOR_MARKER = "GHOST_SystemWeb::~GHOST_SystemWeb()"
 CREATE_MARKER = "GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,"
 
@@ -40,10 +41,11 @@ def require_once(body: str, token: str, label: str) -> None:
         raise ValueError(f"{label} requires exactly one {token!r}")
 
 
-def validate(header: str, source: str, live_test: str) -> None:
+def validate(header: str, source: str, live_test: str, integrated_test: str) -> None:
     for token in (
         "~GHOST_SystemWeb() override;",
         "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;",
+        "bool registerCanvasCallbacks();",
         "void unregisterCanvasCallbacks();",
         "bool callbacks_registered_ = false;",
         "void *callback_user_data_ = nullptr;",
@@ -89,18 +91,53 @@ def validate(header: str, source: str, live_test: str) -> None:
     require_once(registration, "if (callbacks_registered_)", "registration")
     for token in (
         "g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed)",
-        "callback_user_data_ = registration.get();",
         "g_callback_registrations.push_back(std::move(registration));",
+        "ghost_web::sequential_registration_transaction<12>(",
+        "remove_html5_callback_prefix(canvas, win, user_data, registered_count)",
+        "callback_user_data_ = user_data;",
         "g_active_callback_epoch.store(epoch, std::memory_order_release);",
-        "g_callback_registration.store(static_cast<CallbackRegistration *>(callback_user_data_)",
+        "g_callback_registration.store(user_data, std::memory_order_release);",
+        "return registration_succeeded;",
     ):
         require_once(registration, token, "registration")
     require_once(registration, "callbacks_registered_ = true;", "registration")
-    if registration.index("g_callback_registrations.push_back") > registration.index(
-            "g_callback_registration.store"):
-        raise ValueError("callback token publishes before its durable record")
+    transaction = registration.index("ghost_web::sequential_registration_transaction<12>(")
+    durable = registration.index("g_callback_registrations.push_back")
+    publish_user_data = registration.index("callback_user_data_ = user_data;")
+    publish_epoch = registration.index("g_active_callback_epoch.store(")
+    publish_record = registration.index("g_callback_registration.store(")
+    publish_registered = registration.index("callbacks_registered_ = true;")
+    if not durable < transaction < publish_user_data < publish_epoch < publish_record < publish_registered:
+        raise ValueError("callback owner publishes before the complete listener transaction")
     if ", this, false," in registration:
         raise ValueError("listener registration still uses the reusable system pointer")
+    for setter in (
+        "emscripten_set_mousemove_callback",
+        "emscripten_set_mousedown_callback",
+        "emscripten_set_mouseup_callback",
+        "emscripten_set_wheel_callback",
+        "emscripten_set_contextmenu_callback",
+        "emscripten_set_focus_callback",
+        "emscripten_set_blur_callback",
+        "emscripten_set_pointerlockchange_callback",
+        "emscripten_set_pointerlockerror_callback",
+        "emscripten_set_keydown_callback",
+        "emscripten_set_keyup_callback",
+        "emscripten_set_resize_callback",
+    ):
+        require_once(registration, setter, "registration result")
+
+    for token in (
+        "bool ghost_callback_registration_transaction_contract()",
+        "failed_position < listener_count",
+        "rollback_prefix == failed_position",
+        "active_owner == 0",
+        "replacement_failure == 8",
+        "failed_positions=12 replacement=rollback-retry",
+    ):
+        require_once(integrated_test, token, "registration transaction behavior")
+    if integrated_test.count("sequential_registration_transaction<listener_count>(") != 2:
+        raise ValueError("registration transaction behavior requires failure matrix and replacement")
 
     unregistration = method(source, UNREGISTER_MARKER)
     require_once(unregistration, "if (!callbacks_registered_)", "unregistration")
@@ -112,6 +149,12 @@ def validate(header: str, source: str, live_test: str) -> None:
     ):
         require_once(unregistration, token, "unregistration")
     require_once(unregistration, "callbacks_registered_ = false;", "unregistration")
+    require_once(
+        unregistration,
+        "remove_html5_callback_prefix(canvas, win, callback_user_data_, 12)",
+        "unregistration",
+    )
+    removal_helper = method(source, REMOVE_PREFIX_MARKER)
     removals = (
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEMOVE", "cb_mousemove"),
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEDOWN", "cb_mousebtn"),
@@ -120,24 +163,24 @@ def validate(header: str, source: str, live_test: str) -> None:
         ("canvas", "EMSCRIPTEN_EVENT_CONTEXTMENU", "cb_contextmenu"),
         ("canvas", "EMSCRIPTEN_EVENT_FOCUS", "cb_focus"),
         ("canvas", "EMSCRIPTEN_EVENT_BLUR", "cb_blur"),
-        ("win", "EMSCRIPTEN_EVENT_KEYDOWN", "cb_key"),
-        ("win", "EMSCRIPTEN_EVENT_KEYUP", "cb_key"),
-        ("win", "EMSCRIPTEN_EVENT_RESIZE", "cb_resize"),
+        ("window", "EMSCRIPTEN_EVENT_KEYDOWN", "cb_key"),
+        ("window", "EMSCRIPTEN_EVENT_KEYUP", "cb_key"),
+        ("window", "EMSCRIPTEN_EVENT_RESIZE", "cb_resize"),
     )
     for target, event, callback in removals:
-        compact = " ".join(unregistration.split())
-        token = f"remove_html5_callback( {target}, callback_user_data_, {event}, {callback})"
+        compact = " ".join(removal_helper.split()).replace("( ", "(")
+        token = f"remove_html5_callback({target}, user_data, {event}, {callback})"
         if token not in compact:
-            raise ValueError(f"unregistration requires exact token {token!r}")
+            raise ValueError(f"prefix removal requires exact token {token!r}")
     for event, callback in (
         ("EMSCRIPTEN_EVENT_POINTERLOCKCHANGE", "cb_pointerlockchange"),
         ("EMSCRIPTEN_EVENT_POINTERLOCKERROR", "cb_pointerlockerror"),
     ):
-        require_once(unregistration, event, "unregistration")
-        require_once(unregistration, callback, "unregistration")
+        require_once(removal_helper, event, "prefix removal")
+        require_once(removal_helper, callback, "prefix removal")
     retire_epoch = unregistration.index("g_active_callback_epoch.compare_exchange_strong(")
     retire_record = unregistration.index("g_callback_registration.compare_exchange_strong(")
-    first_remove = unregistration.index("remove_html5_callback(")
+    first_remove = unregistration.index("remove_html5_callback_prefix(")
     clear_userdata = unregistration.index("callback_user_data_ = nullptr;")
     if not retire_epoch < retire_record < first_remove < clear_userdata:
         raise ValueError("callback epoch/token lifetime is not ordered around listener removal")
@@ -166,9 +209,21 @@ def validate(header: str, source: str, live_test: str) -> None:
         raise ValueError("active pointer/callback retirement does not precede base deletion")
 
     creation = method(source, CREATE_MARKER)
-    require_once(creation, "redraw_heartbeat_ = 0;", "creation")
-    if creation.index("window_ = valid_window;") > creation.index("registerCanvasCallbacks();"):
+    for token in (
+        "bool publication_succeeded = true;",
+        "if (!registerCanvasCallbacks())",
+        "window_ = nullptr;",
+        "publication_succeeded = false;",
+        "if (!publication_succeeded)",
+        "delete result;",
+        "return nullptr;",
+        "redraw_heartbeat_ = 0;",
+    ):
+        require_once(creation, token, "creation registration rollback")
+    if creation.index("window_ = valid_window;") > creation.index("if (!registerCanvasCallbacks())"):
         raise ValueError("replacement callbacks register before active-window publication")
+    if creation.index("if (!registerCanvasCallbacks())") > creation.index("redraw_heartbeat_ = 0;"):
+        raise ValueError("window state publishes before callback registration succeeds")
 
 
 def replace_once(text: str, old: str, new: str) -> str:
@@ -183,8 +238,8 @@ def mutate_method(source: str, marker: str, old: str, new: str) -> str:
     return source.replace(original, changed, 1)
 
 
-def selfcheck(header: str, source: str, live_test: str) -> None:
-    validate(header, source, live_test)
+def selfcheck(header: str, source: str, live_test: str, integrated_test: str) -> None:
+    validate(header, source, live_test, integrated_test)
     mutations = (
         (replace_once(header, "~GHOST_SystemWeb() override;", "~GHOST_SystemWeb() override = default;"), source, live_test),
         (replace_once(header, "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;", ""), source, live_test),
@@ -197,9 +252,9 @@ def selfcheck(header: str, source: str, live_test: str) -> None:
         (header, mutate_method(source, REGISTER_MARKER, "if (callbacks_registered_)", "if (false)"), live_test),
         (header, mutate_method(source, REGISTER_MARKER, "g_callback_registrations.push_back(std::move(registration));", ""), live_test),
         (header, mutate_method(source, REGISTER_MARKER, "g_active_callback_epoch.store(epoch, std::memory_order_release);", ""), live_test),
-        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN"), live_test),
-        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_KEYUP", "EMSCRIPTEN_EVENT_KEYDOWN"), live_test),
-        (header, mutate_method(source, UNREGISTER_MARKER,
+        (header, mutate_method(source, REMOVE_PREFIX_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN"), live_test),
+        (header, mutate_method(source, REMOVE_PREFIX_MARKER, "EMSCRIPTEN_EVENT_KEYUP", "EMSCRIPTEN_EVENT_KEYDOWN"), live_test),
+        (header, mutate_method(source, REMOVE_PREFIX_MARKER,
                                "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
                                "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE"), live_test),
         (header, mutate_method(source, UNREGISTER_MARKER, "g_active_callback_epoch.compare_exchange_strong(", "g_active_callback_epoch.store("), live_test),
@@ -212,11 +267,39 @@ def selfcheck(header: str, source: str, live_test: str) -> None:
         (header, mutate_method(source, DISPOSE_MARKER, "buttons_ = GHOST_Buttons();", ""), live_test),
         (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", ""), live_test),
         (header, mutate_method(source, CREATE_MARKER, "redraw_heartbeat_ = 0;", "redraw_heartbeat_ = 180;"), live_test),
-        (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", "")),
+        (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", ""), integrated_test),
     )
-    for index, (mutated_header, mutated_source, mutated_live_test) in enumerate(mutations, start=1):
+    normalized_mutations = []
+    for mutation in mutations[:-1]:
+        normalized_mutations.append((*mutation, integrated_test))
+    normalized_mutations.append(mutations[-1])
+    normalized_mutations.extend((
+        (header, mutate_method(source, REGISTER_MARKER,
+                               "ghost_web::sequential_registration_transaction<12>(",
+                               "ghost_web::sequential_registration_transaction<11>("),
+         live_test, integrated_test),
+        (header, mutate_method(source, REGISTER_MARKER,
+                               "callback_user_data_ = user_data;", ""),
+         live_test, integrated_test),
+        (header, mutate_method(source, REGISTER_MARKER,
+                               "remove_html5_callback_prefix(canvas, win, user_data, registered_count)",
+                               "true"), live_test, integrated_test),
+        (header, mutate_method(source, CREATE_MARKER,
+                               "if (!registerCanvasCallbacks())", "if (false)"),
+         live_test, integrated_test),
+        (header, source, live_test,
+         replace_once(integrated_test, "rollback_prefix == failed_position",
+                      "rollback_prefix <= failed_position")),
+        (header, source, live_test,
+         replace_once(integrated_test, "active_owner == 0", "active_owner != 0")),
+        (header, source, live_test,
+         replace_once(integrated_test, "replacement_failure == 8",
+                      "replacement_failure == 7")),
+    ))
+    for index, (mutated_header, mutated_source, mutated_live_test, mutated_integrated_test) in enumerate(
+            normalized_mutations, start=1):
         try:
-            validate(mutated_header, mutated_source, mutated_live_test)
+            validate(mutated_header, mutated_source, mutated_live_test, mutated_integrated_test)
         except ValueError:
             continue
         raise ValueError(f"mutation {index} was accepted")
@@ -227,19 +310,21 @@ def main() -> int:
     parser.add_argument("header", type=Path)
     parser.add_argument("source", type=Path)
     parser.add_argument("live_test", type=Path)
+    parser.add_argument("integrated_test", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
     header = args.header.read_text(encoding="utf-8")
     source = args.source.read_text(encoding="utf-8")
     live_test = args.live_test.read_text(encoding="utf-8")
+    integrated_test = args.integrated_test.read_text(encoding="utf-8")
     if args.selfcheck:
-        selfcheck(header, source, live_test)
+        selfcheck(header, source, live_test, integrated_test)
     else:
-        validate(header, source, live_test)
+        validate(header, source, live_test, integrated_test)
     print(
         "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=12 "
         "replacement=rebound ime=retired pointerlock=retired queued=registration-epoch "
-        "replacements=2 mutations=25"
+        "replacements=2 registration=transactional mutations=32"
     )
     return 0
 

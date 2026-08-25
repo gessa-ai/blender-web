@@ -434,6 +434,32 @@ WindowT *window_publish_if_valid(WindowT *window,
 }
 
 /**
+ * Register a fixed listener set as one publication transaction.
+ *
+ * `register_one` receives each zero-based position in order. On the first
+ * failure, `rollback_prefix` receives the number of preceding successful
+ * registrations and publication is skipped. The owner becomes observable only
+ * after the entire set succeeds.
+ */
+template<size_t RegistrationCount,
+         typename RegisterFn,
+         typename RollbackFn,
+         typename PublishFn>
+bool sequential_registration_transaction(RegisterFn &&register_one,
+                                         RollbackFn &&rollback_prefix,
+                                         PublishFn &&publish)
+{
+  for (size_t registered_count = 0; registered_count < RegistrationCount; registered_count++) {
+    if (!register_one(registered_count)) {
+      rollback_prefix(registered_count);
+      return false;
+    }
+  }
+  publish();
+  return true;
+}
+
+/**
  * Create one handle inside an implementation error scope. A WebGPU implementation may return a
  * non-null error object, so publication is deferred until the scope completes without an error.
  */

@@ -119,7 +119,7 @@ class GHOST_SystemWeb : public GHOST_System {
   }
 
  private:
-  void registerCanvasCallbacks();
+  bool registerCanvasCallbacks();
   void unregisterCanvasCallbacks();
 
   std::string canvas_selector_;

@@ -2573,9 +2573,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   synchronous browser families. Exact patch round-trip, product-TU compiles, canonical replay,
   real product relink/no-work, OFF preflight, REUSE, M5 scope, and container-backed regression
   retain their strict boundaries. See `notes/m5-particle-producer-state-20260825.md`.
-- [ ] **AUDIT-R10-CANONICAL-RECEIPT-FRESHNESS [driver, blocked-by: none]:** update the fixed-path
-  canonical freeze receipt atomically with snapshot changes, or make historical receipts
-  immutable and impossible for status consumers to present as current.
+- [x] **AUDIT-R10-CANONICAL-RECEIPT-FRESHNESS [driver] (`421e610`):** the fixed-path upstream
+  freeze receipt is now an accepted input to canonical replay: stale patch bytes/hash, pin,
+  schema/check set, manifest identity, or malformed provenance rejects before PASS. A genuine
+  full-freezer refresh binds the current 303-path snapshot, and 18 hermetic mutations fail closed;
+  absolute evidence-origin paths do not prevent byte-identical clones from verifying the proof.
+  See `notes/audit-r10-canonical-receipt-freshness-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

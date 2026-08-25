@@ -278,7 +278,7 @@ GHOST_TSuccess GHOST_WindowWeb::swapBufferRelease()
 
 GHOST_TSuccess GHOST_WindowWeb::activateDrawingContext()
 {
-  return GHOST_kFailure;
+  return GHOST_Window::activateDrawingContext();
 }
 
 GHOST_Context *GHOST_WindowWeb::newDrawingContext(GHOST_TDrawingContextType type)

@@ -2631,6 +2631,10 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, same-artifact headed fallback diagnostics, REUSE, scoped M3, and full regression
   are verified. Strict live proof retains the named s7 hardware blocker. See
   `notes/m3-context-backend-handle-registry-20260825.md`.
+- [ ] **M4-GHOST-WINDOW-ACTIVATION [ghost-web, claimed_by: agent/ghost-web-preinit-early-registration, blocked-by: none]:** replace the original bring-up stub in
+  `GHOST_WindowWeb::activateDrawingContext()` with the stock `GHOST_Window` delegation, bind the
+  exact window-to-context status path in a fail-closed source contract, and rebuild/replay the
+  windowed product without changing the hardware receipt boundary.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

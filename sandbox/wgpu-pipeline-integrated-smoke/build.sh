@@ -39,6 +39,8 @@ WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
 LIVE_PREINIT_SOURCE="$HERE/live_preinit_boot.mjs"
 LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
 LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
+WINDOW_ACTIVATION_CONTRACT="$HERE/window_activation_contract.py"
+GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -183,6 +185,7 @@ require_file "$HERE/ghost_acquisition_lifetime_test.cc"
 require_file "$GHOST_SOURCE"
 require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
+require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
 require_file "$GHOST_TRANSACTION_HEADER"
 require_file "$WGPU_PREINIT_SOURCE"
@@ -190,6 +193,7 @@ require_file "$WGPU_PREINIT_TEST"
 require_file "$LIVE_PREINIT_SOURCE"
 require_file "$LIVE_PREINIT_CONTRACT"
 require_file "$LIVE_PREINIT_CONTRACT_TEST"
+require_file "$WINDOW_ACTIVATION_CONTRACT"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
@@ -1643,6 +1647,8 @@ require_fixed_count 1 'ghost_web::window_publish_if_valid(' "$GHOST_SYSTEM_SOURC
 require_fixed_count 2 'ghost_web::drawing_context_status_is_ready(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::DrawingContextMode::PresentableWindow' "$GHOST_WINDOW_SOURCE"
 require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM_SOURCE"
+"$PYBIN" "$WINDOW_ACTIVATION_CONTRACT" \
+  "$GHOST_WINDOW_SOURCE" "$GHOST_BASE_WINDOW_SOURCE" --selfcheck
 for status in 1 2 3 4 5; do
   require_fixed_count 1 \
     "Module[\"preinitializedWebGPUPresentationStatus\"] = ${status};" \

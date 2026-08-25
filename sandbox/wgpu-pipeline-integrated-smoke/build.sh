@@ -1650,6 +1650,8 @@ for status in 1 2 3 4 5; do
 done
 require_fixed_count 1 'Module["preinitializedWebGPUSurface"] = surface;' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'Module["preinitializedWebGPUBackbuffer"] = backbuffer;' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'PThread.receiveOffscreenCanvases(d);' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 '[bw] early receiveOffscreenCanvases failed:' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'device.queue.submit([presentationCommands]);' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 \
   'await validateScoped(device, configureAndSubmitPresentationProbe, null);' \
@@ -2098,14 +2100,14 @@ mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 "$NODE" "$WGPU_PREINIT_TEST" "$WGPU_PREINIT_SOURCE" --selfcheck >"$OUT/preinit-worker.txt"
 if ! grep -qx \
-  'CONTRACT ghost_preinit_worker PASS cases=19 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved loss=pending,unknown,destroyed stale=ignored preentry=unpublished entry=once presentation=scoped-work-done fallback=diagnostic telemetry=sync,delayed,omitted adapter=current,legacy,precedence,unknown' \
+  'CONTRACT ghost_preinit_worker PASS cases=20 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved loss=pending,unknown,destroyed stale=ignored preentry=unpublished entry=once canvas_registration=early,idempotent,error-diagnosed presentation=scoped-work-done fallback=diagnostic telemetry=sync,delayed,omitted adapter=current,legacy,precedence,unknown' \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker preinit transaction evidence differs" >&2
   exit 1
 fi
 if ! grep -qx \
-  'SELFCHECK ghost_preinit_adapter_info PASS positive=1 negative=3' \
+  'SELFCHECK ghost_preinit_source PASS positive=1 negative=4 adapter=3 registration=1' \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker adapter-info mutation evidence differs" >&2

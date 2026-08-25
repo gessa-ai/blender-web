@@ -20,6 +20,7 @@ const selfcheck = process.argv.includes("--selfcheck");
 const cases = [
   { name: "device", adapterMissing: true, status: 0, device: false },
   { name: "canvas", canvasMissing: true, status: 1, device: true },
+  { name: "registration_error", registrationError: true, status: 1, device: true },
   { name: "surface", surfaceMissing: true, status: 2, device: true },
   { name: "configuration_sync_telemetry", configurationError: true, telemetry: "sync",
     status: 3, device: true, presentation: true },
@@ -61,14 +62,29 @@ async function run(test) {
   const moduleState = {};
   const logs = [];
   const glState = { offscreenCanvases: {} };
+  let receiveOffscreenCalls = 0;
+  const pthreadState = {
+    receiveOffscreenCanvases(data) {
+      receiveOffscreenCalls++;
+      if (test.registrationError && receiveOffscreenCalls === 1) {
+        throw new Error("registration rejected");
+      }
+      Object.assign(glState.offscreenCanvases, data.offscreenCanvases);
+      if (!moduleState.canvas && data.moduleCanvasId &&
+          glState.offscreenCanvases[data.moduleCanvasId]) {
+        moduleState.canvas =
+          glState.offscreenCanvases[data.moduleCanvasId].offscreenCanvas;
+        moduleState.canvas.id = data.moduleCanvasId;
+      }
+    },
+  };
   let entryCalls = 0;
   let resolveEntry;
   const entryReached = new Promise((resolve) => { resolveEntry = resolve; });
   const entryHandler = (event) => {
-    // Emscripten's cmd:2 handler publishes transferred canvases only after the
-    // pre-main wrapper forwards the message. The wrapper must therefore consume
-    // the transfer payload itself while it is still free to await WebGPU scopes.
-    Object.assign(glState.offscreenCanvases, event.data.offscreenCanvases || {});
+    // Emscripten's cmd:2 handler repeats the registration after the pre-main
+    // wrapper forwards the message. The runtime helper is intentionally idempotent.
+    pthreadState.receiveOffscreenCanvases(event.data);
     entryCalls++;
     resolveEntry();
   };
@@ -117,7 +133,11 @@ async function run(test) {
   const canvas = {
     width: 1280,
     height: 720,
-    getContext() { return test.surfaceMissing ? null : surface; },
+    getContext() {
+      assert(receiveOffscreenCalls === 1,
+             `${test.name}: surface resolved before early canvas registration`);
+      return test.surfaceMissing ? null : surface;
+    },
   };
 
   const popErrors = [
@@ -220,6 +240,7 @@ async function run(test) {
     GL: glState,
     GPUTextureUsage: { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2, COPY_SRC: 4 },
     Module: moduleState,
+    PThread: pthreadState,
     navigator: { gpu: { async requestAdapter() { return adapter; } } },
     postMessage() {},
     self: selfObject,
@@ -245,6 +266,10 @@ async function run(test) {
   ]);
 
   assert(entryCalls === 1, `${test.name}: entry was not forwarded exactly once`);
+  assert(receiveOffscreenCalls === (test.adapterMissing ? 1 : 2),
+         `${test.name}: wrong early/later canvas-registration count`);
+  assert(Boolean(moduleState.canvas) === !test.canvasMissing,
+         `${test.name}: runtime canvas publication differs`);
   assert((moduleState.preinitializedWebGPUPresentationStatus || 0) === test.status,
          `${test.name}: wrong presentation status`);
   assert(Boolean(moduleState.preinitializedWebGPUDevice) === test.device,
@@ -308,14 +333,20 @@ async function run(test) {
     }
   }
   assert(logs.length > 0, `${test.name}: expected a diagnostic`);
+  if (test.registrationError) {
+    assert(logs.some((line) =>
+      line.includes("early receiveOffscreenCanvases failed: registration rejected")),
+    `${test.name}: early registration failure was not diagnosed`);
+  }
 }
 
 for (const test of cases) {
   await run(test);
 }
-console.log("CONTRACT ghost_preinit_worker PASS cases=19 statuses=0,1,2,3,4,5 " +
+console.log("CONTRACT ghost_preinit_worker PASS cases=20 statuses=0,1,2,3,4,5 " +
             "partial=unpublished device_only=preserved loss=pending,unknown,destroyed " +
             "stale=ignored preentry=unpublished entry=once " +
+            "canvas_registration=early,idempotent,error-diagnosed " +
             "presentation=scoped-work-done fallback=diagnostic " +
             "telemetry=sync,delayed,omitted " +
             "adapter=current,legacy,precedence,unknown");
@@ -327,12 +358,34 @@ function replaceExactlyOnce(input, before, after, name) {
 }
 
 if (selfcheck) {
+  const earlyRegistration = `try {
+              if (typeof PThread !== "undefined" &&
+                  typeof PThread.receiveOffscreenCanvases === "function" &&
+                  d && d.offscreenCanvases) {
+                PThread.receiveOffscreenCanvases(d);
+              }
+            }
+            catch (registrationError) {
+              log("[bw] early receiveOffscreenCanvases failed: " +
+                  (registrationError && registrationError.message ?
+                     registrationError.message : registrationError));
+            }
+            `;
   const extraction = `var currentFallbackStatus =
             adapter.info && typeof adapter.info.isFallbackAdapter === "boolean" ?
               adapter.info.isFallbackAdapter :
               (typeof adapter.isFallbackAdapter === "boolean" ?
                  adapter.isFallbackAdapter : null);`;
   const mutations = [
+    [
+      "late_registration_only",
+      replaceExactlyOnce(
+        source,
+        earlyRegistration,
+        "",
+        "late_registration_only",
+      ),
+    ],
     [
       "legacy_only",
       replaceExactlyOnce(
@@ -385,5 +438,6 @@ if (selfcheck) {
   finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
-  console.log("SELFCHECK ghost_preinit_adapter_info PASS positive=1 negative=3");
+  console.log("SELFCHECK ghost_preinit_source PASS positive=1 negative=4 " +
+              "adapter=3 registration=1");
 }

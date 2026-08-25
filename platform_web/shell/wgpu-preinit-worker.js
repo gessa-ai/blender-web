@@ -216,22 +216,25 @@
           var surface = null;
           var backbuffer = null;
           try {
+            try {
+              if (typeof PThread !== "undefined" &&
+                  typeof PThread.receiveOffscreenCanvases === "function" &&
+                  d && d.offscreenCanvases) {
+                PThread.receiveOffscreenCanvases(d);
+              }
+            }
+            catch (registrationError) {
+              log("[bw] early receiveOffscreenCanvases failed: " +
+                  (registrationError && registrationError.message ?
+                     registrationError.message : registrationError));
+            }
             var canvas = null;
             // cmd:2 carries the OffscreenCanvas transfer, but Emscripten does not
             // publish it into GL.offscreenCanvases until `inner` handles this same
-            // message. We must finish the async preflight before forwarding to
-            // `inner`, so resolve the transfer record directly from the intercepted
-            // payload without mutating Emscripten's canvas registry early.
-            if (d && d.offscreenCanvases) {
-              var transferredCanvas =
-                d.offscreenCanvases[d.moduleCanvasId || "canvas"] ||
-                d.offscreenCanvases["canvas"] || null;
-              if (transferredCanvas && transferredCanvas.offscreenCanvas) {
-                canvas = transferredCanvas.offscreenCanvas;
-              }
-            }
+            // message. Invoke the runtime's own registration contract before the
+            // preflight; `inner` repeats this idempotently when it receives cmd:2.
             if (typeof GL !== "undefined" && GL.offscreenCanvases) {
-              canvas = canvas || GL.offscreenCanvases["canvas"] || null;
+              canvas = GL.offscreenCanvases["canvas"] || null;
             }
             if (!canvas && typeof specialHTMLTargets !== "undefined") {
               canvas = specialHTMLTargets["#canvas"] || null;

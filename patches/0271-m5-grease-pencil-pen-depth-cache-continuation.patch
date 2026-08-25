@@ -1,0 +1,506 @@
+# SPDX-FileCopyrightText: 2023 Blender Authors
+# SPDX-FileCopyrightText: 2025 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# M5: retain the Grease Pencil pen helper's exact first event and bounded FIFO
+# until its owned surface/stroke placement cache settles before drawing mutation.
+# Ported for the web from source/blender/editors/include/ED_curves.hh, source/blender/editors/curves/intern/curves_pen.cc, and source/blender/editors/grease_pencil/intern/grease_pencil_pen.cc @ fbe6228777e7.
+
+diff --git a/source/blender/editors/curves/intern/curves_pen.cc b/source/blender/editors/curves/intern/curves_pen.cc
+index edd148a44a23641b41fdf761132448e80606102d..1c53aedc7842c0d88bb4f42c4c5bec88df3cc536 100644
+--- a/source/blender/editors/curves/intern/curves_pen.cc
++++ b/source/blender/editors/curves/intern/curves_pen.cc
+@@ -1104,6 +1104,13 @@ static void invoke_curves(PenToolOperation &ptd, bContext *C, wmOperator *op, co
+   }
+ }
+ 
++void PenToolOperation::invoke_initialized(bContext *C,
++                                          wmOperator *op,
++                                          const wmEvent *event)
++{
++  invoke_curves(*this, C, op, event);
++}
++
+ static IndexMask retrieve_visible_bezier_handle_points(const bke::CurvesGeometry &curves,
+                                                        const int handle_display,
+                                                        IndexMaskMemory &memory)
+@@ -1205,7 +1212,7 @@ wmOperatorStatus PenToolOperation::invoke(bContext *C, wmOperator *op, const wmE
+   /* Add a modal handler for this operator. */
+   WM_event_add_modal_handler(C, op);
+ 
+-  invoke_curves(*this, C, op, event);
++  this->invoke_initialized(C, op, event);
+ 
+   return OPERATOR_RUNNING_MODAL;
+ }
+diff --git a/source/blender/editors/grease_pencil/intern/grease_pencil_pen.cc b/source/blender/editors/grease_pencil/intern/grease_pencil_pen.cc
+index b145d5d0fc8897d8358c564b37d13e326ec615ec..bf35d2d11c4d7a408cfcef54c4e9e1c08e5820bb 100644
+--- a/source/blender/editors/grease_pencil/intern/grease_pencil_pen.cc
++++ b/source/blender/editors/grease_pencil/intern/grease_pencil_pen.cc
+@@ -28,6 +28,7 @@
+ #include "RNA_enum_types.hh"
+ 
+ #include "DEG_depsgraph.hh"
++#include "DEG_depsgraph_query.hh"
+ 
+ #include "DNA_material_types.h"
+ 
+@@ -44,12 +45,43 @@ namespace ed::greasepencil {
+ 
+ class GreasePencilPenToolOperation : public curves::pen_tool::PenToolOperation {
+  public:
+-  GreasePencil *grease_pencil;
++  GreasePencil *grease_pencil = nullptr;
+   Vector<MutableDrawingInfo> drawings;
+ 
+   /* Helper class to project screen space coordinates to 3D. */
+   DrawingPlacement placement;
+ 
++  /* Surface/stroke placement must settle before keyframes or editable drawings are captured. */
++  std::optional<wmEvent> depth_cache_start_event_;
++  Vector<wmEvent> depth_cache_events_;
++  wmTimer *depth_cache_timer_ = nullptr;
++  wmWindowManager *depth_cache_manager_ = nullptr;
++  wmWindow *depth_cache_window_ = nullptr;
++  bScreen *depth_cache_screen_ = nullptr;
++  ScrArea *depth_cache_area_ = nullptr;
++  ARegion *depth_cache_region_ = nullptr;
++  RegionView3D *depth_cache_region_view_ = nullptr;
++  View3D *depth_cache_view3d_ = nullptr;
++  Depsgraph *depth_cache_depsgraph_ = nullptr;
++  Scene *depth_cache_scene_ = nullptr;
++  ViewLayer *depth_cache_view_layer_ = nullptr;
++  Object *depth_cache_object_ = nullptr;
++  Object *depth_cache_eval_object_ = nullptr;
++  GreasePencil *depth_cache_grease_pencil_ = nullptr;
++  bke::greasepencil::Layer *depth_cache_layer_ = nullptr;
++  int depth_cache_frame_ = 0;
++  int depth_cache_tick_count_ = 0;
++  bool depth_cache_pending_ = false;
++  bool initialized_ = false;
++
++  void depth_cache_timer_remove();
++  void depth_cache_clear();
++  bool depth_cache_wait_begin(bContext *C, const wmEvent *event);
++  bool depth_cache_context_matches(const bContext *C) const;
++  bool depth_cache_event_push(const wmEvent *event);
++  wmOperatorStatus depth_cache_poll(bContext *C, wmOperator *op, const wmEvent *event);
++  void initialize_ready(bContext *C);
++
+   float3 project(const float2 &screen_co) const override
+   {
+     return this->placement.project(screen_co);
+@@ -180,91 +212,320 @@ class GreasePencilPenToolOperation : public curves::pen_tool::PenToolOperation {
+ 
+   std::optional<wmOperatorStatus> initialize(bContext *C,
+                                              wmOperator *op,
+-                                             const wmEvent * /*event*/) override
++                                             const wmEvent *event) override;
++
++  wmOperatorStatus modal(bContext *C, wmOperator *op, const wmEvent *event);
++};
++
++void GreasePencilPenToolOperation::depth_cache_timer_remove()
++{
++  if (depth_cache_timer_ != nullptr) {
++    WM_event_timer_remove(depth_cache_manager_, depth_cache_window_, depth_cache_timer_);
++    depth_cache_timer_ = nullptr;
++  }
++  depth_cache_tick_count_ = 0;
++}
++
++void GreasePencilPenToolOperation::depth_cache_clear()
++{
++  this->depth_cache_timer_remove();
++  placement.cancel_viewport_depths();
++  depth_cache_start_event_.reset();
++  depth_cache_events_.clear();
++  depth_cache_manager_ = nullptr;
++  depth_cache_window_ = nullptr;
++  depth_cache_screen_ = nullptr;
++  depth_cache_area_ = nullptr;
++  depth_cache_region_ = nullptr;
++  depth_cache_region_view_ = nullptr;
++  depth_cache_view3d_ = nullptr;
++  depth_cache_depsgraph_ = nullptr;
++  depth_cache_scene_ = nullptr;
++  depth_cache_view_layer_ = nullptr;
++  depth_cache_object_ = nullptr;
++  depth_cache_eval_object_ = nullptr;
++  depth_cache_grease_pencil_ = nullptr;
++  depth_cache_layer_ = nullptr;
++  depth_cache_frame_ = 0;
++  depth_cache_pending_ = false;
++}
++
++bool GreasePencilPenToolOperation::depth_cache_wait_begin(bContext *C, const wmEvent *event)
++{
++  if (event == nullptr || event->custom != 0 || event->customdata != nullptr) {
++    return false;
++  }
++
++  depth_cache_manager_ = CTX_wm_manager(C);
++  depth_cache_window_ = CTX_wm_window(C);
++  depth_cache_screen_ = CTX_wm_screen(C);
++  depth_cache_area_ = CTX_wm_area(C);
++  depth_cache_region_ = CTX_wm_region(C);
++  depth_cache_region_view_ = CTX_wm_region_view3d(C);
++  depth_cache_view3d_ = CTX_wm_view3d(C);
++  depth_cache_depsgraph_ = CTX_data_depsgraph_pointer(C);
++  depth_cache_scene_ = CTX_data_scene(C);
++  depth_cache_view_layer_ = CTX_data_view_layer(C);
++  depth_cache_object_ = CTX_data_active_object(C);
++  if (ELEM(nullptr,
++           depth_cache_manager_,
++           depth_cache_window_,
++           depth_cache_screen_,
++           depth_cache_area_,
++           depth_cache_region_,
++           depth_cache_region_view_,
++           depth_cache_view3d_,
++           depth_cache_depsgraph_,
++           depth_cache_scene_,
++           depth_cache_view_layer_,
++           depth_cache_object_) ||
++      depth_cache_object_->type != OB_GREASE_PENCIL)
+   {
+-    if (this->vc.scene->toolsettings->gpencil_selectmode_edit != GP_SELECTMODE_POINT) {
+-      BKE_report(op->reports, RPT_ERROR, "Selection Mode must be Points");
+-      return OPERATOR_CANCELLED;
+-    }
++    return false;
++  }
+ 
+-    GreasePencil *grease_pencil = id_cast<GreasePencil *>(this->vc.obact->data);
+-    this->grease_pencil = grease_pencil;
+-    View3D *view3d = CTX_wm_view3d(C);
+-
+-    /* Initialize helper class for projecting screen space coordinates. */
+-    DrawingPlacement placement = DrawingPlacement(*this->vc.scene,
+-                                                  *this->vc.region,
+-                                                  *view3d,
+-                                                  *this->vc.obact,
+-                                                  grease_pencil->get_active_layer());
+-    if (placement.use_project_to_surface()) {
+-      placement.cache_viewport_depths(CTX_data_depsgraph_pointer(C), this->vc.region, view3d);
+-    }
+-    else if (placement.use_project_to_stroke()) {
+-      placement.cache_viewport_depths(CTX_data_depsgraph_pointer(C), this->vc.region, view3d);
+-    }
++  depth_cache_eval_object_ = DEG_get_evaluated(depth_cache_depsgraph_, depth_cache_object_);
++  depth_cache_grease_pencil_ = id_cast<GreasePencil *>(depth_cache_object_->data);
++  if (depth_cache_eval_object_ == nullptr || depth_cache_grease_pencil_ == nullptr ||
++      !depth_cache_grease_pencil_->has_active_layer())
++  {
++    return false;
++  }
++  depth_cache_layer_ = depth_cache_grease_pencil_->get_active_layer();
++  depth_cache_frame_ = depth_cache_scene_->r.cfra;
++
++  wmEvent retained_event = *event;
++  retained_event.next = nullptr;
++  retained_event.prev = nullptr;
++  retained_event.custom = 0;
++  retained_event.customdata = nullptr;
++  retained_event.customdata_free = false;
++  depth_cache_start_event_ = retained_event;
++  depth_cache_events_.clear();
++
++  depth_cache_timer_ = WM_event_timer_add(
++      depth_cache_manager_, depth_cache_window_, TIMER, 0.01f);
++  if (depth_cache_timer_ == nullptr) {
++    depth_cache_start_event_.reset();
++    return false;
++  }
++  depth_cache_tick_count_ = 0;
++  depth_cache_pending_ = true;
++  return true;
++}
+ 
+-    bool inserted_keyframe = false;
+-    /* For the pen tool, we don't want the auto-key to create an empty keyframe, so we
+-     * duplicate the previous key. */
+-    const bool use_duplicate_previous_key = true;
+-    for (bke::greasepencil::Layer *layer : grease_pencil->layers_for_write()) {
+-      if (layer->is_editable()) {
+-        ed::greasepencil::ensure_active_keyframe(*this->vc.scene,
+-                                                 *grease_pencil,
+-                                                 *layer,
+-                                                 use_duplicate_previous_key,
+-                                                 inserted_keyframe);
+-      }
+-    }
++bool GreasePencilPenToolOperation::depth_cache_context_matches(const bContext *C) const
++{
++  if (CTX_wm_manager(C) != depth_cache_manager_ || CTX_wm_window(C) != depth_cache_window_ ||
++      CTX_wm_screen(C) != depth_cache_screen_ || CTX_wm_area(C) != depth_cache_area_ ||
++      CTX_wm_region(C) != depth_cache_region_ ||
++      CTX_wm_region_view3d(C) != depth_cache_region_view_ ||
++      CTX_wm_view3d(C) != depth_cache_view3d_ ||
++      CTX_data_depsgraph_pointer(C) != depth_cache_depsgraph_ ||
++      CTX_data_scene(C) != depth_cache_scene_ ||
++      CTX_data_view_layer(C) != depth_cache_view_layer_ ||
++      CTX_data_active_object(C) != depth_cache_object_ ||
++      depth_cache_scene_->r.cfra != depth_cache_frame_ ||
++      depth_cache_scene_->toolsettings->gpencil_selectmode_edit != GP_SELECTMODE_POINT ||
++      DEG_get_evaluated(depth_cache_depsgraph_, depth_cache_object_) != depth_cache_eval_object_)
++  {
++    return false;
++  }
++
++  GreasePencil *grease_pencil = id_cast<GreasePencil *>(depth_cache_object_->data);
++  return grease_pencil == depth_cache_grease_pencil_ && grease_pencil->has_active_layer() &&
++         grease_pencil->get_active_layer() == depth_cache_layer_;
++}
+ 
+-    /* Update the view. */
+-    if (inserted_keyframe) {
+-      WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, nullptr);
++bool GreasePencilPenToolOperation::depth_cache_event_push(const wmEvent *event)
++{
++  constexpr int max_queued_events = 256;
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr || depth_cache_events_.size() >= max_queued_events)
++  {
++    return false;
++  }
++
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  depth_cache_events_.append(queued);
++  return true;
++}
++
++void GreasePencilPenToolOperation::initialize_ready(bContext *C)
++{
++  bool inserted_keyframe = false;
++  /* For the pen tool, we don't want the auto-key to create an empty keyframe, so we
++   * duplicate the previous key. */
++  const bool use_duplicate_previous_key = true;
++  for (bke::greasepencil::Layer *layer : grease_pencil->layers_for_write()) {
++    if (layer->is_editable()) {
++      ed::greasepencil::ensure_active_keyframe(*this->vc.scene,
++                                               *grease_pencil,
++                                               *layer,
++                                               use_duplicate_previous_key,
++                                               inserted_keyframe);
+     }
++  }
++
++  /* Update the view. */
++  if (inserted_keyframe) {
++    WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, nullptr);
++  }
+ 
+-    this->placement = placement;
+-    this->drawings = retrieve_editable_drawings(*this->vc.scene, *this->grease_pencil);
++  this->drawings = retrieve_editable_drawings(*this->vc.scene, *this->grease_pencil);
++
++  for (const int drawing_index : this->drawings.index_range()) {
++    const MutableDrawingInfo &info = this->drawings[drawing_index];
++    const bke::greasepencil::Layer &layer = this->grease_pencil->layer(info.layer_index);
++    this->layer_to_object_per_curves.append(layer.local_transform());
++    this->layer_to_world_per_curves.append(layer.to_world_space(*this->vc.obact));
++  }
++
++  this->active_drawing_index = std::nullopt;
++  const bke::greasepencil::Layer *active_layer = this->grease_pencil->get_active_layer();
++
++  if (active_layer != nullptr) {
++    const bke::greasepencil::Drawing *active_drawing =
++        this->grease_pencil->get_editable_drawing_at(*active_layer, this->vc.scene->r.cfra);
+ 
+     for (const int drawing_index : this->drawings.index_range()) {
+       const MutableDrawingInfo &info = this->drawings[drawing_index];
+-      const bke::greasepencil::Layer &layer = this->grease_pencil->layer(info.layer_index);
+-      this->layer_to_object_per_curves.append(layer.local_transform());
+-      this->layer_to_world_per_curves.append(layer.to_world_space(*this->vc.obact));
++
++      if (active_drawing == &info.drawing) {
++        BLI_assert(this->active_drawing_index == std::nullopt);
++        this->active_drawing_index = drawing_index;
++      }
+     }
++  }
++  this->initialized_ = true;
++}
+ 
+-    this->active_drawing_index = std::nullopt;
+-    const bke::greasepencil::Layer *active_layer = this->grease_pencil->get_active_layer();
++std::optional<wmOperatorStatus> GreasePencilPenToolOperation::initialize(
++    bContext *C, wmOperator *op, const wmEvent *event)
++{
++  if (this->vc.scene->toolsettings->gpencil_selectmode_edit != GP_SELECTMODE_POINT) {
++    BKE_report(op->reports, RPT_ERROR, "Selection Mode must be Points");
++    return OPERATOR_CANCELLED;
++  }
+ 
+-    if (active_layer != nullptr) {
+-      const bke::greasepencil::Drawing *active_drawing =
+-          this->grease_pencil->get_editable_drawing_at(*active_layer, this->vc.scene->r.cfra);
++  this->grease_pencil = id_cast<GreasePencil *>(this->vc.obact->data);
++  View3D *view3d = CTX_wm_view3d(C);
++
++  /* Initialize helper class for projecting screen space coordinates. */
++  this->placement = DrawingPlacement(*this->vc.scene,
++                                     *this->vc.region,
++                                     *view3d,
++                                     *this->vc.obact,
++                                     this->grease_pencil->get_active_layer());
++  DrawingPlacementDepthCacheState depth_state = DrawingPlacementDepthCacheState::Ready;
++  if (this->placement.use_project_to_surface() || this->placement.use_project_to_stroke()) {
++    depth_state = this->placement.cache_viewport_depths_async(
++        CTX_data_depsgraph_pointer(C), this->vc.region, view3d);
++  }
++  if (depth_state == DrawingPlacementDepthCacheState::Pending) {
++    if (!this->depth_cache_wait_begin(C, event)) {
++      this->placement.cancel_viewport_depths();
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain Grease Pencil pen placement depth");
++      return OPERATOR_CANCELLED;
++    }
++    WM_event_add_modal_handler(C, op);
++    return OPERATOR_RUNNING_MODAL;
++  }
+ 
+-      for (const int drawing_index : this->drawings.index_range()) {
+-        const MutableDrawingInfo &info = this->drawings[drawing_index];
++  /* A failed initial read keeps Blender's stock projection fallback. */
++  this->initialize_ready(C);
++  return std::nullopt;
++}
+ 
+-        if (active_drawing == &info.drawing) {
+-          BLI_assert(this->active_drawing_index == std::nullopt);
+-          this->active_drawing_index = drawing_index;
+-        }
+-      }
++wmOperatorStatus GreasePencilPenToolOperation::depth_cache_poll(bContext *C,
++                                                                wmOperator *op,
++                                                                const wmEvent *event)
++{
++  if (!depth_cache_pending_ || !this->depth_cache_context_matches(C)) {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting for Grease Pencil pen depth");
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type == EVT_ESCKEY) {
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != depth_cache_timer_) {
++    if (event->type == TIMER) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (!this->depth_cache_event_push(event)) {
++      BKE_report(op->reports, RPT_ERROR, "Grease Pencil pen depth event queue exceeded its safe bound");
++      return OPERATOR_CANCELLED;
+     }
++    return OPERATOR_RUNNING_MODAL;
++  }
+ 
+-    return std::nullopt;
++  constexpr int max_tick_count = 240;
++  if (++depth_cache_tick_count_ > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for Grease Pencil pen depth");
++    return OPERATOR_CANCELLED;
+   }
+-};
++
++  const DrawingPlacementDepthCacheState state = placement.poll_viewport_depths(
++      depth_cache_region_);
++  if (state == DrawingPlacementDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == DrawingPlacementDepthCacheState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Grease Pencil pen depth readback failed");
++    return OPERATOR_CANCELLED;
++  }
++
++  BLI_assert(depth_cache_start_event_.has_value());
++  const wmEvent start_event = *depth_cache_start_event_;
++  Vector<wmEvent> queued_events = std::move(depth_cache_events_);
++  depth_cache_start_event_.reset();
++  depth_cache_pending_ = false;
++  this->depth_cache_timer_remove();
++
++  this->initialize_ready(C);
++  this->invoke_initialized(C, op, &start_event);
++  for (wmEvent &queued_event : queued_events) {
++    const wmOperatorStatus result = PenToolOperation::modal(C, op, &queued_event);
++    if (result != OPERATOR_RUNNING_MODAL) {
++      return result;
++    }
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++wmOperatorStatus GreasePencilPenToolOperation::modal(bContext *C,
++                                                     wmOperator *op,
++                                                     const wmEvent *event)
++{
++  if (depth_cache_pending_) {
++    return this->depth_cache_poll(C, op, event);
++  }
++  return PenToolOperation::modal(C, op, event);
++}
+ 
+ /* Exit and free memory. */
+ static void grease_pencil_pen_exit(bContext *C, wmOperator *op)
+ {
+   GreasePencilPenToolOperation *ptd = static_cast<GreasePencilPenToolOperation *>(op->customdata);
++  if (ptd == nullptr) {
++    return;
++  }
++
++  ptd->depth_cache_clear();
+ 
+   /* Clear status message area. */
+   ED_workspace_status_text(C, nullptr);
+ 
+   WM_cursor_modal_restore(ptd->vc.win);
+ 
+-  ptd->update_view(C);
++  if (ptd->initialized_) {
++    ptd->update_view(C);
++  }
+ 
+   MEM_delete(ptd);
+   /* Clear pointer. */
+@@ -299,6 +560,11 @@ static wmOperatorStatus grease_pencil_pen_modal(bContext *C, wmOperator *op, con
+   return result;
+ }
+ 
++static void grease_pencil_pen_cancel(bContext *C, wmOperator *op)
++{
++  grease_pencil_pen_exit(C, op);
++}
++
+ static void GREASE_PENCIL_OT_pen(wmOperatorType *ot)
+ {
+   /* Identifiers. */
+@@ -309,6 +575,7 @@ static void GREASE_PENCIL_OT_pen(wmOperatorType *ot)
+   /* Callbacks. */
+   ot->invoke = grease_pencil_pen_invoke;
+   ot->modal = grease_pencil_pen_modal;
++  ot->cancel = grease_pencil_pen_cancel;
+ 
+   /* Flags. */
+   ot->flag = OPTYPE_UNDO;
+diff --git a/source/blender/editors/include/ED_curves.hh b/source/blender/editors/include/ED_curves.hh
+index 15291b4dadac6a1aa607a28ad04cc45723a579d6..9cdd2693faae15f96449a27e8f62c5619fa82a58 100644
+--- a/source/blender/editors/include/ED_curves.hh
++++ b/source/blender/editors/include/ED_curves.hh
+@@ -134,6 +134,9 @@ class PenToolOperation {
+                          const float2 &screen_co,
+                          const float3 &depth_point_layer) const;
+ 
++  /** Continue the stock first-event path after a subclass has finished initialization. */
++  void invoke_initialized(bContext *C, wmOperator *op, const wmEvent *event);
++
+   wmOperatorStatus invoke(bContext *C, wmOperator *op, const wmEvent *event);
+   wmOperatorStatus modal(bContext *C, wmOperator *op, const wmEvent *event);
+ };
+

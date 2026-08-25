@@ -207,8 +207,21 @@
           var backbuffer = null;
           try {
             var canvas = null;
+            // cmd:2 carries the OffscreenCanvas transfer, but Emscripten does not
+            // publish it into GL.offscreenCanvases until `inner` handles this same
+            // message. We must finish the async preflight before forwarding to
+            // `inner`, so resolve the transfer record directly from the intercepted
+            // payload without mutating Emscripten's canvas registry early.
+            if (d && d.offscreenCanvases) {
+              var transferredCanvas =
+                d.offscreenCanvases[d.moduleCanvasId || "canvas"] ||
+                d.offscreenCanvases["canvas"] || null;
+              if (transferredCanvas && transferredCanvas.offscreenCanvas) {
+                canvas = transferredCanvas.offscreenCanvas;
+              }
+            }
             if (typeof GL !== "undefined" && GL.offscreenCanvases) {
-              canvas = GL.offscreenCanvases["canvas"] || null;
+              canvas = canvas || GL.offscreenCanvases["canvas"] || null;
             }
             if (!canvas && typeof specialHTMLTargets !== "undefined") {
               canvas = specialHTMLTargets["#canvas"] || null;
@@ -226,23 +239,19 @@
               throw new Error("#canvas.getContext('webgpu') returned null");
             }
 
-            Module["preinitializedWebGPUPresentationStatus"] = 3;
             var surfaceWidth = canvas.width | 0;
             var surfaceHeight = canvas.height | 0;
             if (surfaceWidth <= 0 || surfaceHeight <= 0) {
               throw new Error("#canvas has a zero drawing-buffer extent");
             }
-            await validateScoped(device, function () {
-              surface.configure({
-                device: device,
-                format: "bgra8unorm",
-                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-                alphaMode: "opaque",
-              });
-              return surface.getCurrentTexture();
-            });
-            requireDeviceActive("initial surface configuration");
 
+            // Validate the ordinary texture while the device is still independent
+            // of the canvas. Chromium's fallback adapter invalidates its raw external
+            // instance when popErrorScope() follows OffscreenCanvas.configure(). Keep
+            // the strict resource scopes first, then validate the canvas synchronously
+            // plus one uncaptured-error event-loop turn without a post-configure device
+            // promise. C++ imports the validated bundle after main starts; hardware
+            // adapters take this same ordering.
             Module["preinitializedWebGPUPresentationStatus"] = 4;
             backbuffer = await validateScoped(
               device,
@@ -262,6 +271,36 @@
             requireDeviceActive("initial backbuffer creation");
             if (!backbuffer) {
               throw new Error("initial backbuffer creation returned null");
+            }
+
+            Module["preinitializedWebGPUPresentationStatus"] = 3;
+            var presentationError = null;
+            var onPresentationError = function (event) {
+              if (!presentationError) {
+                presentationError = event && event.error ? event.error :
+                  new Error("unknown uncaptured surface configuration error");
+              }
+            };
+            device.addEventListener("uncapturederror", onPresentationError);
+            try {
+              surface.configure({
+                device: device,
+                format: "bgra8unorm",
+                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+                alphaMode: "opaque",
+              });
+              var initialSurfaceTexture = surface.getCurrentTexture();
+              if (!initialSurfaceTexture) {
+                throw new Error("initial surface texture acquisition returned null");
+              }
+              await new Promise(function (resolve) { setTimeout(resolve, 0); });
+              requireDeviceActive("initial surface configuration");
+              if (presentationError) {
+                throw presentationError;
+              }
+            }
+            finally {
+              device.removeEventListener("uncapturederror", onPresentationError);
             }
 
             Module["preinitializedWebGPUSurface"] = surface;

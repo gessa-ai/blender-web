@@ -18,7 +18,7 @@ const cases = [
   { name: "backbuffer_error", backbufferError: true, status: 4, device: true },
   { name: "backbuffer_null", backbufferNull: true, status: 4, device: true },
   { name: "ready", status: 5, device: true, ready: true },
-  { name: "lost_preentry", lossBeforeEntry: "unknown", status: 3, device: true, lossStatus: 1 },
+  { name: "lost_preentry", lossBeforeEntry: "unknown", status: 4, device: true, lossStatus: 1 },
   { name: "lost_unknown", lossAfterEntry: "unknown", status: 5, device: true, ready: true,
     lossStatus: 1 },
   { name: "lost_destroyed", lossAfterEntry: "destroyed", status: 5, device: true, ready: true,
@@ -36,10 +36,15 @@ function assert(condition, message) {
 async function run(test) {
   const moduleState = {};
   const logs = [];
+  const glState = { offscreenCanvases: {} };
   let entryCalls = 0;
   let resolveEntry;
   const entryReached = new Promise((resolve) => { resolveEntry = resolve; });
-  const entryHandler = () => {
+  const entryHandler = (event) => {
+    // Emscripten's cmd:2 handler publishes transferred canvases only after the
+    // pre-main wrapper forwards the message. The wrapper must therefore consume
+    // the transfer payload itself while it is still free to await WebGPU scopes.
+    Object.assign(glState.offscreenCanvases, event.data.offscreenCanvases || {});
     entryCalls++;
     resolveEntry();
   };
@@ -53,8 +58,17 @@ async function run(test) {
 
   let unconfigureCalls = 0;
   let rejectedBackbufferDestroys = 0;
+  let surfaceConfigured = false;
+  const uncapturedErrorHandlers = new Set();
   const surface = {
-    configure() {},
+    configure() {
+      surfaceConfigured = true;
+      if (test.configurationError) {
+        for (const handler of uncapturedErrorHandlers) {
+          handler({ error: new Error("configuration rejected") });
+        }
+      }
+    },
     getCurrentTexture() { return { kind: "surface-texture" }; },
     unconfigure() { unconfigureCalls++; },
   };
@@ -64,14 +78,7 @@ async function run(test) {
     getContext() { return test.surfaceMissing ? null : surface; },
   };
 
-  const popErrors = [
-    test.configurationError ? new Error("configuration rejected") : null,
-    null,
-    null,
-    test.backbufferError ? new Error("backbuffer rejected") : null,
-    null,
-    null,
-  ];
+  const popErrors = [test.backbufferError ? new Error("backbuffer rejected") : null, null, null];
   let resolveLoss;
   const pendingLoss = new Promise((resolve) => { resolveLoss = resolve; });
   const device = {
@@ -89,9 +96,23 @@ async function run(test) {
     },
     lost: test.lossBeforeEntry ?
       Promise.resolve({ reason: test.lossBeforeEntry, message: "lost before entry" }) : pendingLoss,
-    addEventListener() {},
+    addEventListener(type, handler) {
+      if (type === "uncapturederror") {
+        uncapturedErrorHandlers.add(handler);
+      }
+    },
+    removeEventListener(type, handler) {
+      if (type === "uncapturederror") {
+        uncapturedErrorHandlers.delete(handler);
+      }
+    },
     pushErrorScope() {},
-    async popErrorScope() { return popErrors.shift() ?? null; },
+    async popErrorScope() {
+      if (surfaceConfigured) {
+        throw new Error("Instance dropped in popErrorScope");
+      }
+      return popErrors.shift() ?? null;
+    },
     createTexture() {
       if (test.backbufferNull) {
         return null;
@@ -110,17 +131,27 @@ async function run(test) {
 
   const context = vm.createContext({
     ENVIRONMENT_IS_PTHREAD: true,
-    GL: { offscreenCanvases: test.canvasMissing ? {} : { canvas } },
+    GL: glState,
     GPUTextureUsage: { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2, COPY_SRC: 4 },
     Module: moduleState,
     navigator: { gpu: { async requestAdapter() { return adapter; } } },
     postMessage() {},
     self: selfObject,
+    setTimeout,
     specialHTMLTargets: {},
     err(message) { logs.push(String(message)); },
   });
   new vm.Script(source, { filename: sourcePath }).runInContext(context);
-  registeredHandler({ data: { cmd: 2, arg: 0 } });
+  registeredHandler({
+    data: {
+      cmd: 2,
+      arg: 0,
+      moduleCanvasId: "canvas",
+      offscreenCanvases: test.canvasMissing ? {} : {
+        canvas: { id: "canvas", canvasSharedPtr: 256, offscreenCanvas: canvas },
+      },
+    },
+  });
   await Promise.race([
     entryReached,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`${test.name}: entry timeout`)),
@@ -142,7 +173,8 @@ async function run(test) {
          `${test.name}: wrong height publication`);
   assert(unconfigureCalls === (test.status >= 3 && test.status < 5 ? 1 : 0),
          `${test.name}: wrong surface cleanup`);
-  assert(rejectedBackbufferDestroys === (test.backbufferError ? 1 : 0),
+  assert(rejectedBackbufferDestroys ===
+           (test.backbufferError || test.configurationError || test.lossBeforeEntry ? 1 : 0),
          `${test.name}: rejected backbuffer was not discarded`);
   const initialLossSignal = moduleState.preinitializedWebGPUDeviceLoss;
   assert(Boolean(initialLossSignal) === test.device,

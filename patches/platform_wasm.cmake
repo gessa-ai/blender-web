@@ -393,6 +393,10 @@ function(blender_web_browser_binary src_target)
       # selector so ninja's `sh -c` does not treat `#canvas` as a comment.
       " -sOFFSCREENCANVAS_SUPPORT -sOFFSCREENCANVASES_TO_PTHREAD='#canvas'"
       " --post-js ${BLENDER_WEB_REPO_ROOT}/platform_web/shell/wgpu-preinit-worker.js")
+    # CMake does not infer dependencies from a string-valued --post-js flag.
+    # Keep incremental products bound to the source actually embedded by em++.
+    set_property(TARGET ${_new} APPEND PROPERTY LINK_DEPENDS
+      "${BLENDER_WEB_REPO_ROOT}/platform_web/shell/wgpu-preinit-worker.js")
   endif()
 
   set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")

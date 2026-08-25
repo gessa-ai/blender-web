@@ -61,19 +61,54 @@ const adapterFixture = classifyRuntimeAdapter({
   info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: ""},
 }, process.platform);
 assert.deepEqual(validateRuntimeAdapter(adapterFixture), adapterFixture);
-let adapterProbeUrl = null;
-let adapterProbeClosed = false;
-const fakeAdapterContext = {newPage: async () => ({
-  goto: async (url) => { adapterProbeUrl = url; },
-  evaluate: async () => ({
-    present: true, isFallbackAdapter: false,
-    info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: ""},
-  }),
-  close: async () => { adapterProbeClosed = true; },
-})};
-assert.deepEqual(await requireHardwareRuntimeAdapter(fakeAdapterContext), adapterFixture);
-assert.match(adapterProbeUrl, /^file:.*\/GOAL\.md$/);
-assert.equal(adapterProbeClosed, true);
+function adapterProbeFixture(adapter) {
+  const observed = {url: null, closed: false};
+  return {observed, context: {newPage: async () => ({
+    goto: async (url) => { observed.url = url; },
+    evaluate: async (action) => {
+      const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+      Object.defineProperty(globalThis, "navigator", {
+        configurable: true,
+        value: {gpu: {requestAdapter: async () => adapter}},
+      });
+      try {
+        return await action();
+      }
+      finally {
+        if (descriptor) Object.defineProperty(globalThis, "navigator", descriptor);
+        else delete globalThis.navigator;
+      }
+    },
+    close: async () => { observed.closed = true; },
+  })}};
+}
+
+for (const adapter of [
+  {info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: "",
+    isFallbackAdapter: false}},
+  {isFallbackAdapter: false,
+    info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: ""}},
+  {isFallbackAdapter: true,
+    info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: "",
+      isFallbackAdapter: false}},
+]) {
+  const fixture = adapterProbeFixture(adapter);
+  assert.deepEqual(await requireHardwareRuntimeAdapter(fixture.context), adapterFixture);
+  assert.match(fixture.observed.url, /^file:.*\/GOAL\.md$/);
+  assert.equal(fixture.observed.closed, true);
+}
+for (const adapter of [
+  {isFallbackAdapter: false,
+    info: {vendor: "NVIDIA", architecture: "Ada", device: "GeForce RTX 4090", description: "",
+      isFallbackAdapter: true}},
+  {info: {vendor: "Google", architecture: "SwiftShader", device: "", description: "",
+    isFallbackAdapter: false}},
+]) {
+  const fixture = adapterProbeFixture(adapter);
+  await assert.rejects(() => requireHardwareRuntimeAdapter(fixture.context),
+    /M8 runtime evidence: runtime adapter is not exact accepted hardware/);
+  assert.equal(fixture.observed.closed, true);
+}
 
 const matrixRow = {
   channel: "edge",

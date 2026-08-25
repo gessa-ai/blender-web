@@ -143,7 +143,8 @@ export async function requireHardwareRuntimeAdapter(context, platform = process.
       const info = adapter.info || {};
       return {
         present: true,
-        isFallbackAdapter: adapter.isFallbackAdapter ?? null,
+        isFallbackAdapter: typeof info.isFallbackAdapter === "boolean" ?
+          info.isFallbackAdapter : (adapter.isFallbackAdapter ?? null),
         info: Object.fromEntries(["vendor", "architecture", "device", "description"]
           .map((key) => [key, typeof info[key] === "string" ? info[key] : ""])),
       };

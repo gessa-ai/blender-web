@@ -23,12 +23,15 @@ context is the separate `GHOST_ContextWGPU` lane (patch 0011). Recon + tables:
 Separation rationale: the **bridge** is stateless, unit-reasonable translation; the
 **system** owns platform registration + the state the bridge writes and GHOST reads.
 Static C callback thunks (in `GHOST_SystemWeb.cc`) recover the `GHOST_SystemWeb*` from
-the HTML5 `userData` pointer and call the bridge — no globals/singleton.
+the HTML5 `userData` pointer, validate it against the atomically published live callback
+owner, and call the bridge. Disposal retires that owner before removing listeners and deleting
+the active window, so an already-queued browser-main callback drops without dereferencing stale
+storage (`64a2578`).
 
 ## Main-loop design under our threading model (ADR-003)
 
-This is the load-bearing integration decision for the real Blender build (the harness
-is deliberately single-threaded — see Verification).
+This is the load-bearing integration decision for the real Blender build and the standalone
+harness, which now uses the same WasmFS + `PROXY_TO_PTHREAD` topology (see Verification).
 
 **Topology.** Under GOAL's posture (`-pthread` + `-sPROXY_TO_PTHREAD`), Blender's
 `main()` / `WM_main` loop runs on a **worker** (the "main" pthread); the browser main
@@ -60,12 +63,10 @@ queue**, which happens at its main-loop yields.
 under the hood but also integrates emscripten's proxy-queue draining and runtime
 lifetime. A hand-rolled rAF from JS would bypass the proxy pump.
 
-**Callback thread targeting (M4 integration TODO):** register with
-`emscripten_set_*_callback_on_thread(..., wm_pthread)` so events land on the WM worker
-directly (or use `EM_CALLBACK_THREAD_CONTEXT_MAIN_BROWSER_THREAD` + explicit proxying).
-The harness (main-thread) uses the plain `_callback` convenience form. This is the one
-piece the standalone harness does not exercise; it is covered by the ADR-003 M4 gate
-(Chrome ≥137 topology smoke).
+**Callback thread targeting (resolved):** registration runs on the `main()`-owning WM worker;
+the plain Emscripten `_callback` convenience forms therefore target the calling worker and proxy
+DOM events there. The standalone harness compiles with `PROXY_TO_PTHREAD` and exercises that exact
+registration, delivery, disposal, and replacement-window rebinding path.
 
 ## State tracking
 
@@ -133,9 +134,9 @@ scroll/type over the dashed canvas; events appear in the log box.
 
 ## Open questions for M4 integration
 
-1. **Callback thread targeting** — register HTML5 callbacks on the WM pthread vs proxy
-   from the browser main thread. Decide with the real proxied loop; validated by the
-   ADR-003 M4 smoke. (The only untested-by-harness piece.)
+1. **Callback thread targeting** — resolved on the real proxied loop and worker-topology harness;
+   callback-owner retirement plus exact listener removal are covered across active-window
+   disposal and replacement (`64a2578`).
 2. **Canvas sizing / HiDPI** — reconcile CSS size vs drawing-buffer size vs
    `devicePixelRatio` with the WGPU swapchain (`GHOST_ContextWGPU`). `getDPIHint` returns
    `96*dpr`; the buffer-size policy is a context-integration call.

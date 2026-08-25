@@ -2693,6 +2693,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   parity, canonical replay, optimized product relink/no-work, zero-rejection fallback diagnostic,
   M4 scope, and container regression are verified; the live proof remains nonreceipt and s7 is
   unchanged. See `notes/m4-web-focus-state-reset-20260825.md`.
+- [x] **M4-WEB-WINDOW-DISPOSAL-LIFECYCLE [ghost-web] (`64a2578`):** active-window disposal now
+  atomically retires the callback owner, removes all ten HTML5 listeners, drains IME, clears input,
+  and detaches every system lookup before the base class deletes the window; replacement windows
+  rebind callbacks and reset first-pixel settling. The predecessor retained the deleted pointer,
+  while the final real worker harness, 17 mutations, native/wasm parity, locked product, sustained
+  fallback diagnostic, canonical replay, M4 scope, and regression preserve their strict existing
+  boundaries. See `notes/m4-web-window-disposal-lifecycle-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

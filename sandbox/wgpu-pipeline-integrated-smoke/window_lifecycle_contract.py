@@ -59,7 +59,7 @@ def validate(header: str, source: str) -> None:
         "g_callback_system.load(std::memory_order_acquire) == candidate",
         "callback owner",
     )
-    if source.count("callback_system(ud)") != 8 or source.count("if (system == nullptr)") != 7:
+    if source.count("callback_system(ud)") != 10 or source.count("if (system == nullptr)") != 7:
         raise ValueError("every HTML5 callback must validate its live system owner")
 
     destructor = method(source, DESTRUCTOR_MARKER)
@@ -104,6 +104,12 @@ def validate(header: str, source: str) -> None:
     for target, event, callback in removals:
         token = f"remove_html5_callback({target}, this, {event}, {callback})"
         require_once(unregistration, token, "unregistration")
+    for event, callback in (
+        ("EMSCRIPTEN_EVENT_POINTERLOCKCHANGE", "cb_pointerlockchange"),
+        ("EMSCRIPTEN_EVENT_POINTERLOCKERROR", "cb_pointerlockerror"),
+    ):
+        require_once(unregistration, event, "unregistration")
+        require_once(unregistration, callback, "unregistration")
     if unregistration.index("g_callback_system.compare_exchange_strong(") > unregistration.index(
         "remove_html5_callback("
     ):
@@ -114,6 +120,7 @@ def validate(header: str, source: str) -> None:
         "if (window != window_ || !validWindow(window))",
         "active_window->endIME();",
         "ghost_web_bridge::poll_ime(*this);",
+        "active_window->releasePointerLock();",
         "window_ = nullptr;",
         "unregisterCanvasCallbacks();",
         "buttons_ = GHOST_Buttons();",
@@ -124,10 +131,11 @@ def validate(header: str, source: str) -> None:
     require_once(disposal, "\n    registerCanvasCallbacks();", "disposal")
     if disposal.count("GHOST_System::disposeWindow(window)") != 2:
         raise ValueError("disposal requires guarded and active base-disposal calls")
+    release_pointer_lock = disposal.index("active_window->releasePointerLock();")
     detach = disposal.index("window_ = nullptr;")
     unregister = disposal.index("unregisterCanvasCallbacks();")
     base_dispose = disposal.rindex("GHOST_System::disposeWindow(window)")
-    if not detach < unregister < base_dispose:
+    if not release_pointer_lock < detach < unregister < base_dispose:
         raise ValueError("active pointer/callback retirement does not precede base deletion")
 
     creation = method(source, CREATE_MARKER)
@@ -160,10 +168,14 @@ def selfcheck(header: str, source: str) -> None:
         (header, mutate_method(source, REGISTER_MARKER, "g_callback_system.store(this, std::memory_order_release);", "")),
         (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN")),
         (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_KEYUP", "EMSCRIPTEN_EVENT_KEYDOWN")),
+        (header, mutate_method(source, UNREGISTER_MARKER,
+                               "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
+                               "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE")),
         (header, mutate_method(source, UNREGISTER_MARKER, "g_callback_system.compare_exchange_strong(", "g_callback_system.store(")),
         (header, mutate_method(source, DISPOSE_MARKER, "if (window != window_ || !validWindow(window))", "if (window != window_)")),
         (header, mutate_method(source, DISPOSE_MARKER, "active_window->endIME();", "")),
         (header, mutate_method(source, DISPOSE_MARKER, "ghost_web_bridge::poll_ime(*this);", "")),
+        (header, mutate_method(source, DISPOSE_MARKER, "active_window->releasePointerLock();", "")),
         (header, mutate_method(source, DISPOSE_MARKER, "window_ = nullptr;", "window_ = active_window;")),
         (header, mutate_method(source, DISPOSE_MARKER, "buttons_ = GHOST_Buttons();", "")),
         (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", "")),
@@ -190,8 +202,8 @@ def main() -> int:
     else:
         validate(header, source)
     print(
-        "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=10 "
-        "replacement=rebound ime=retired queued=owner-gated mutations=17"
+        "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=12 "
+        "replacement=rebound ime=retired pointerlock=retired queued=owner-gated mutations=19"
     )
     return 0
 

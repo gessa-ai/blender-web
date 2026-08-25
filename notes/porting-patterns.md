@@ -1493,3 +1493,16 @@ canvas also has no server-owned window frame. Mask both facts while retaining in
 IME and RGBA cursor support. Bind exclusions to the event/window implementations and mutate each
 unsupported and implemented bit separately. See `platform_web/ghost/GHOST_SystemWeb.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/web_capability_contract.py`.
+
+## Class 101 — deferred browser acceptance is not active platform state
+
+Signature: a synchronous platform API returns success after queuing a user-activation-gated
+browser request, so the platform-independent base immediately publishes the requested state even
+though the browser has neither accepted nor completed it. Track Inactive, Pending, and Active
+separately; publish the active GHOST state only from the browser's matching change callback, and
+route relative input only while Active. Error, external loss, focus loss, application release, and
+window disposal must cancel both the browser's deferred request and the platform state. Exercise
+the accepted-but-pending interval, success, error, external loss, blur, disposal, absolute-motion
+recovery, and a real product loss/reacquire cycle. See
+`platform_web/ghost/GHOST_WindowWeb.cc` and
+`platform_web/ghost/harness/pointer_lock_test.mjs`.

@@ -232,7 +232,7 @@ void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)
   GHOST_WindowWeb *win = sys.activeWindow();
   int32_t x = e.targetX;
   int32_t y = e.targetY;
-  if (win != nullptr && win->getCursorGrabModeIsWarp()) {
+  if (win != nullptr && win->isPointerLockActive()) {
     /* Pointer Lock freezes DOM absolute coordinates and reports motion only as
      * movementX/Y. Preserve GHOST's desktop contract by accumulating a virtual,
      * unbounded cursor position for Wrap/Hide grabs. Saturation avoids signed
@@ -326,8 +326,11 @@ void on_resize(GHOST_SystemWeb &sys, const EmscriptenUiEvent & /*e*/)
 
 void on_focus(GHOST_SystemWeb &sys, bool focused)
 {
-  GHOST_IWindow *win = sys.activeWindow();
+  GHOST_WindowWeb *win = sys.activeWindow();
   if (!focused) {
+    if (win != nullptr) {
+      win->releasePointerLock();
+    }
     /* A tab switch, browser-window blur, or programmatic focus move is not
      * required to deliver matching key-up/mouse-up events. Retire GHOST's
      * physical state before WindowDeactivate is dispatched: Blender handles

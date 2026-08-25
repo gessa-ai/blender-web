@@ -423,6 +423,111 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
   return GHOST_kSuccess;
 }
 
+void GHOST_WindowWeb::applyCursorGrabState(const GHOST_TGrabCursorMode mode,
+                                           const GHOST_TAxisFlag wrap_axis,
+                                           const GHOST_Rect *bounds,
+                                           const int32_t mouse_ungrab_xy[2])
+{
+  if (mouse_ungrab_xy != nullptr && mode == GHOST_kGrabDisable) {
+    cursor_grab_init_pos_[0] = mouse_ungrab_xy[0];
+    cursor_grab_init_pos_[1] = mouse_ungrab_xy[1];
+  }
+
+  if (mode == GHOST_kGrabDisable) {
+    cursor_grab_bounds_.l_ = cursor_grab_bounds_.r_ = -1;
+  }
+  else if (bounds != nullptr) {
+    cursor_grab_bounds_ = *bounds;
+  }
+  else {
+    getClientBounds(cursor_grab_bounds_);
+  }
+  cursor_grab_ = mode;
+  cursor_grab_axis_ = wrap_axis;
+}
+
+void GHOST_WindowWeb::retirePointerLock(const bool request_browser_exit)
+{
+  const bool owned_or_pending = pointer_lock_state_ != PointerLockState::Inactive ||
+                                pointer_lock_requested_mode_ == GHOST_kGrabWrap ||
+                                pointer_lock_requested_mode_ == GHOST_kGrabHide;
+  if (request_browser_exit && owned_or_pending) {
+    /* Besides releasing an active lock, Emscripten removes every deferred
+     * requestPointerLock call before returning from this function. */
+    (void)emscripten_exit_pointerlock();
+  }
+
+  pointer_lock_state_ = PointerLockState::Inactive;
+  pointer_lock_requested_mode_ = GHOST_kGrabDisable;
+  pointer_lock_requested_axis_ = GHOST_kAxisNone;
+  pointer_lock_requested_bounds_valid_ = false;
+  if (cursor_grab_ == GHOST_kGrabWrap || cursor_grab_ == GHOST_kGrabHide) {
+    applyCursorGrabState(GHOST_kGrabDisable, GHOST_kAxisNone, nullptr, nullptr);
+  }
+}
+
+GHOST_TSuccess GHOST_WindowWeb::setCursorGrab(const GHOST_TGrabCursorMode mode,
+                                              const GHOST_TAxisFlag wrap_axis,
+                                              GHOST_Rect *bounds,
+                                              int32_t mouse_ungrab_xy[2])
+{
+  switch (mode) {
+    case GHOST_kGrabWrap:
+    case GHOST_kGrabHide: {
+      if (pointer_lock_requested_mode_ == mode &&
+          pointer_lock_state_ != PointerLockState::Inactive)
+      {
+        return GHOST_kSuccess;
+      }
+
+      pointer_lock_requested_mode_ = mode;
+      pointer_lock_requested_axis_ = wrap_axis;
+      if (bounds != nullptr) {
+        pointer_lock_requested_bounds_ = *bounds;
+      }
+      else {
+        getClientBounds(pointer_lock_requested_bounds_);
+      }
+      pointer_lock_requested_bounds_valid_ = true;
+
+      if (pointer_lock_state_ == PointerLockState::Active) {
+        applyCursorGrabState(mode, wrap_axis, &pointer_lock_requested_bounds_, nullptr);
+        return GHOST_kSuccess;
+      }
+      if (pointer_lock_state_ == PointerLockState::Pending) {
+        return GHOST_kSuccess;
+      }
+
+      const GHOST_TSuccess accepted = setWindowCursorGrab(mode);
+      if (accepted == GHOST_kSuccess) {
+        pointer_lock_state_ = PointerLockState::Pending;
+        return GHOST_kSuccess;
+      }
+      pointer_lock_requested_mode_ = GHOST_kGrabDisable;
+      pointer_lock_requested_axis_ = GHOST_kAxisNone;
+      pointer_lock_requested_bounds_valid_ = false;
+      return GHOST_kFailure;
+    }
+    case GHOST_kGrabDisable:
+    case GHOST_kGrabNormal: {
+      if (pointer_lock_state_ == PointerLockState::Inactive && cursor_grab_ == mode) {
+        return GHOST_kSuccess;
+      }
+      const GHOST_TSuccess released = setWindowCursorGrab(mode);
+      if (released == GHOST_kFailure) {
+        return GHOST_kFailure;
+      }
+      pointer_lock_state_ = PointerLockState::Inactive;
+      pointer_lock_requested_mode_ = GHOST_kGrabDisable;
+      pointer_lock_requested_axis_ = GHOST_kAxisNone;
+      pointer_lock_requested_bounds_valid_ = false;
+      applyCursorGrabState(mode, wrap_axis, bounds, mouse_ungrab_xy);
+      return GHOST_kSuccess;
+    }
+  }
+  return GHOST_kFailure;
+}
+
 GHOST_TSuccess GHOST_WindowWeb::setWindowCursorGrab(GHOST_TGrabCursorMode mode)
 {
   const auto request_succeeded = [](const EMSCRIPTEN_RESULT result) {
@@ -434,13 +539,10 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorGrab(GHOST_TGrabCursorMode mode)
 
   switch (mode) {
     case GHOST_kGrabDisable:
+    case GHOST_kGrabNormal:
       /* This also removes an entry request that was deferred but not activated. */
       return request_succeeded(emscripten_exit_pointerlock()) ? GHOST_kSuccess :
                                                                 GHOST_kFailure;
-    case GHOST_kGrabNormal:
-      /* Browsers expose no visible-pointer confinement API. Match the SDL
-       * backend's successful no-adjustment grab without hiding the pointer. */
-      return GHOST_kSuccess;
     case GHOST_kGrabWrap:
     case GHOST_kGrabHide:
       /* Pointer Lock supplies unbounded relative motion for continuous viewport
@@ -453,12 +555,46 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorGrab(GHOST_TGrabCursorMode mode)
   return GHOST_kFailure;
 }
 
+void GHOST_WindowWeb::onPointerLockChange(const bool is_active)
+{
+  if (!is_active) {
+    retirePointerLock(false);
+    return;
+  }
+
+  if (pointer_lock_requested_mode_ == GHOST_kGrabWrap ||
+      pointer_lock_requested_mode_ == GHOST_kGrabHide)
+  {
+    pointer_lock_state_ = PointerLockState::Active;
+    applyCursorGrabState(pointer_lock_requested_mode_,
+                         pointer_lock_requested_axis_,
+                         pointer_lock_requested_bounds_valid_ ? &pointer_lock_requested_bounds_ :
+                                                                nullptr,
+                         nullptr);
+    return;
+  }
+
+  /* A canceled deferred request may win a race with exitPointerLock. Never
+   * publish that stale browser lock as a live GHOST grab. */
+  (void)emscripten_exit_pointerlock();
+}
+
+void GHOST_WindowWeb::onPointerLockError()
+{
+  retirePointerLock(true);
+}
+
+void GHOST_WindowWeb::releasePointerLock()
+{
+  retirePointerLock(true);
+}
+
 bool GHOST_WindowWeb::getCursorGrabUseSoftwareDisplay()
 {
   /* Pointer Lock hides the DOM cursor for both unbounded modes. Wrap retains
    * Blender's visible-cursor semantics through WM's capability-driven software
    * cursor; Hide intentionally remains invisible. */
-  return getCursorGrabMode() == GHOST_kGrabWrap;
+  return isPointerLockActive() && getCursorGrabMode() == GHOST_kGrabWrap;
 }
 
 GHOST_TSuccess GHOST_WindowWeb::swapBufferRelease()

@@ -18,12 +18,19 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 #include "GHOST_Window.hh"
 
 class GHOST_WindowWeb : public GHOST_Window {
  public:
+  enum class PointerLockState : uint8_t {
+    Inactive = 0,
+    Pending = 1,
+    Active = 2,
+  };
+
   GHOST_WindowWeb(const char *title,
                   int32_t left,
                   int32_t top,
@@ -76,6 +83,34 @@ class GHOST_WindowWeb : public GHOST_Window {
   }
   GHOST_TSuccess invalidate() override;
 
+  /** Request a cursor-grab mode without confusing an accepted/deferred browser
+   * request with an active Pointer Lock. The GHOST grab becomes Wrap/Hide only
+   * after the browser reports a matching pointerlockchange outcome. */
+  GHOST_TSuccess setCursorGrab(GHOST_TGrabCursorMode mode,
+                               GHOST_TAxisFlag wrap_axis,
+                               GHOST_Rect *bounds,
+                               int32_t mouse_ungrab_xy[2]) override;
+
+  /** Browser Pointer Lock outcomes, delivered to the WM worker by GHOST_SystemWeb. */
+  void onPointerLockChange(bool is_active);
+  void onPointerLockError();
+  void releasePointerLock();
+
+  bool isPointerLockActive() const
+  {
+    return pointer_lock_state_ == PointerLockState::Active;
+  }
+
+  PointerLockState pointerLockState() const
+  {
+    return pointer_lock_state_;
+  }
+
+  GHOST_TGrabCursorMode pointerLockRequestedMode() const
+  {
+    return pointer_lock_requested_mode_;
+  }
+
   /** Backing scale factor (== devicePixelRatio, forwarded from the browser main thread).
    * Drives Blender's HiDPI UI scale and logical<->physical coordinate conversion, mirroring
    * the macOS Cocoa backend. Returns 1.0 until the shell posts a DPR. */
@@ -111,8 +146,19 @@ class GHOST_WindowWeb : public GHOST_Window {
  private:
   GHOST_Context *newDrawingContext(GHOST_TDrawingContextType type) override;
 
+  void applyCursorGrabState(GHOST_TGrabCursorMode mode,
+                            GHOST_TAxisFlag wrap_axis,
+                            const GHOST_Rect *bounds,
+                            const int32_t mouse_ungrab_xy[2]);
+  void retirePointerLock(bool request_browser_exit);
+
   std::string canvas_selector_;
   std::string title_;
   GHOST_ContextParams context_params_web_;
   bool valid_ = true;
+  PointerLockState pointer_lock_state_ = PointerLockState::Inactive;
+  GHOST_TGrabCursorMode pointer_lock_requested_mode_ = GHOST_kGrabDisable;
+  GHOST_TAxisFlag pointer_lock_requested_axis_ = GHOST_kAxisNone;
+  GHOST_Rect pointer_lock_requested_bounds_;
+  bool pointer_lock_requested_bounds_valid_ = false;
 };

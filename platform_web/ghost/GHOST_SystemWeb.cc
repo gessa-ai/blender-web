@@ -135,6 +135,37 @@ bool cb_contextmenu(int /*t*/, const EmscriptenMouseEvent * /*e*/, void *ud)
   return true;
 }
 
+bool cb_pointerlockchange(int /*t*/, const EmscriptenPointerlockChangeEvent *e, void *ud)
+{
+  GHOST_SystemWeb *system = callback_system(ud);
+  GHOST_WindowWeb *window = system != nullptr ? system->activeWindow() : nullptr;
+  if (window == nullptr) {
+    return false;
+  }
+
+  const bool reported_active = e != nullptr && e->isActive;
+  const bool owns_lock = reported_active &&
+                         MAIN_THREAD_EM_ASM_INT(
+                             {
+                               const selector = UTF8ToString($0);
+                               return document.pointerLockElement ===
+                                      document.querySelector(selector);
+                             },
+                             window->getCanvasSelector().c_str()) != 0;
+  window->onPointerLockChange(owns_lock);
+  return false;
+}
+
+bool cb_pointerlockerror(int /*t*/, const void * /*reserved*/, void *ud)
+{
+  GHOST_SystemWeb *system = callback_system(ud);
+  GHOST_WindowWeb *window = system != nullptr ? system->activeWindow() : nullptr;
+  if (window != nullptr) {
+    window->onPointerLockError();
+  }
+  return false;
+}
+
 template<typename CallbackT>
 bool remove_html5_callback(const char *target,
                            void *user_data,
@@ -333,6 +364,9 @@ GHOST_SystemWeb::~GHOST_SystemWeb()
 #ifdef WITH_INPUT_IME
   ghost_web_bridge::set_ime_enabled(false);
 #endif
+  if (window_ != nullptr) {
+    window_->releasePointerLock();
+  }
   unregisterCanvasCallbacks();
   window_ = nullptr;
 }
@@ -656,6 +690,13 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   emscripten_set_focus_callback(canvas, this, false, cb_focus);
   emscripten_set_blur_callback(canvas, this, false, cb_blur);
 
+  /* Pointer Lock is document-owned even though its target is the canvas. Emscripten
+   * forwards both outcomes back to this calling WM worker. */
+  emscripten_set_pointerlockchange_callback(
+      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, false, cb_pointerlockchange);
+  emscripten_set_pointerlockerror_callback(
+      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, false, cb_pointerlockerror);
+
   /* Keyboard + resize at window scope (keyboard has no per-element target without
    * focus juggling; resize is a window event). */
   emscripten_set_keydown_callback(win, this, false, cb_key);
@@ -682,6 +723,14 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
   removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
   removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_BLUR, cb_blur);
+  removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
+                                   this,
+                                   EMSCRIPTEN_EVENT_POINTERLOCKCHANGE,
+                                   cb_pointerlockchange);
+  removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
+                                   this,
+                                   EMSCRIPTEN_EVENT_POINTERLOCKERROR,
+                                   cb_pointerlockerror);
   removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
   removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYUP, cb_key);
   removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
@@ -961,6 +1010,9 @@ GHOST_TSuccess GHOST_SystemWeb::disposeWindow(GHOST_IWindow *window)
   }
 
   GHOST_WindowWeb *active_window = window_;
+  /* Remove an accepted deferred request or active browser lock while the old
+   * window is still a valid callback target. Any later outcome is owner-gated. */
+  active_window->releasePointerLock();
 #ifdef WITH_INPUT_IME
   /* Blur/commit while the old window is still the event target, then materialize
    * any synchronously published composition transitions. The base disposal below

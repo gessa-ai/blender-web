@@ -206,6 +206,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_result()
   return g_cursor_grab_result.load(std::memory_order_acquire);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_state()
+{
+  if (g_window == nullptr) {
+    return -1;
+  }
+  auto *window = static_cast<GHOST_WindowWeb *>(g_window);
+  GHOST_TGrabCursorMode actual_mode = GHOST_kGrabDisable;
+  GHOST_TAxisFlag wrap_axis = GHOST_kAxisNone;
+  GHOST_Rect bounds;
+  bool software_cursor = false;
+  window->getCursorGrabState(actual_mode, wrap_axis, bounds, software_cursor);
+  return int(actual_mode) | (int(window->pointerLockRequestedMode()) << 4) |
+         (int(window->pointerLockState()) << 8);
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_custom_cursor(const int operation)
 {
   if (operation < 0 || operation > 5) {

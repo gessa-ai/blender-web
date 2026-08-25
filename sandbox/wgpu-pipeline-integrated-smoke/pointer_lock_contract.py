@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Bind browser cursor grab to Pointer Lock and relative GHOST motion."""
+"""Bind browser cursor grab to confirmed Pointer Lock outcomes and relative motion."""
 
 from __future__ import annotations
 
@@ -11,8 +11,18 @@ from pathlib import Path
 
 
 GRAB_MARKER = "GHOST_TSuccess GHOST_WindowWeb::setWindowCursorGrab(GHOST_TGrabCursorMode mode)"
+PUBLIC_GRAB_MARKER = "GHOST_TSuccess GHOST_WindowWeb::setCursorGrab("
+CHANGE_MARKER = "void GHOST_WindowWeb::onPointerLockChange(const bool is_active)"
+ERROR_MARKER = "void GHOST_WindowWeb::onPointerLockError()"
+RELEASE_MARKER = "void GHOST_WindowWeb::releasePointerLock()"
 SOFTWARE_CURSOR_MARKER = "bool GHOST_WindowWeb::getCursorGrabUseSoftwareDisplay()"
 MOVE_MARKER = "void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)"
+FOCUS_MARKER = "void on_focus(GHOST_SystemWeb &sys, bool focused)"
+CHANGE_CALLBACK_MARKER = "bool cb_pointerlockchange("
+ERROR_CALLBACK_MARKER = "bool cb_pointerlockerror("
+REGISTER_MARKER = "void GHOST_SystemWeb::registerCanvasCallbacks()"
+UNREGISTER_MARKER = "void GHOST_SystemWeb::unregisterCanvasCallbacks()"
+DISPOSE_MARKER = "GHOST_TSuccess GHOST_SystemWeb::disposeWindow(GHOST_IWindow *window)"
 CAPABILITIES_MARKER = "GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const"
 WARP_MARKER = "GHOST_TSuccess GHOST_SystemWeb::setCursorPosition(int32_t"
 
@@ -45,17 +55,41 @@ def mutate_method(source: str, marker: str, old: str, new: str) -> str:
 
 def validate(window: str, header: str, bridge: str, system: str) -> None:
     grab = method(window, GRAB_MARKER)
+    public_grab = method(window, PUBLIC_GRAB_MARKER)
+    change = method(window, CHANGE_MARKER)
+    error = method(window, ERROR_MARKER)
+    release = method(window, RELEASE_MARKER)
     software_cursor = method(window, SOFTWARE_CURSOR_MARKER)
     move = method(bridge, MOVE_MARKER)
+    focus = method(bridge, FOCUS_MARKER)
+    change_callback = method(system, CHANGE_CALLBACK_MARKER)
+    error_callback = method(system, ERROR_CALLBACK_MARKER)
+    register = method(system, REGISTER_MARKER)
+    unregister = method(system, UNREGISTER_MARKER)
+    dispose = method(system, DISPOSE_MARKER)
     capabilities = method(system, CAPABILITIES_MARKER)
     warp = method(system, WARP_MARKER)
 
+    if header.count("enum class PointerLockState : uint8_t") != 1:
+        raise ValueError("window header does not expose the pointer-lock outcome state")
+    if header.count("GHOST_TSuccess setCursorGrab(GHOST_TGrabCursorMode mode,") != 1:
+        raise ValueError("window header does not override accepted-vs-active cursor grab")
     if header.count(
         "GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode mode) override;"
     ) != 1:
         raise ValueError("window header does not declare the cursor-grab implementation")
     if header.count("bool getCursorGrabUseSoftwareDisplay() override;") != 1:
         raise ValueError("window header does not declare the software cursor policy")
+    for declaration in (
+        "void onPointerLockChange(bool is_active);",
+        "void onPointerLockError();",
+        "void releasePointerLock();",
+        "bool isPointerLockActive() const",
+        "PointerLockState pointerLockState() const",
+        "GHOST_TGrabCursorMode pointerLockRequestedMode() const",
+    ):
+        if header.count(declaration) != 1:
+            raise ValueError(f"window header requires exactly one {declaration!r}")
 
     required_grab = (
         "switch (mode)",
@@ -73,15 +107,56 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
     if grab.count("return GHOST_kFailure;") < 1:
         raise ValueError("unknown cursor-grab modes do not fail honestly")
     normal = grab[grab.index("case GHOST_kGrabNormal:") : grab.index("case GHOST_kGrabWrap:")]
-    if normal.count("return GHOST_kSuccess;") != 1:
-        raise ValueError("normal visible-pointer grab does not preserve SDL semantics")
-    if software_cursor.count("return getCursorGrabMode() == GHOST_kGrabWrap;") != 1:
-        raise ValueError("wrap grab does not preserve a visible software cursor")
+    if normal.count("emscripten_exit_pointerlock()") != 1:
+        raise ValueError("normal visible-pointer mode does not release an earlier Pointer Lock")
+    required_public_grab = (
+        "pointer_lock_requested_mode_ = mode;",
+        "pointer_lock_state_ = PointerLockState::Pending;",
+        "pointer_lock_requested_bounds_ = *bounds;",
+        "getClientBounds(pointer_lock_requested_bounds_);",
+        "case GHOST_kGrabWrap:",
+        "case GHOST_kGrabHide:",
+        "case GHOST_kGrabDisable:",
+        "case GHOST_kGrabNormal:",
+    )
+    for token in required_public_grab:
+        if public_grab.count(token) != 1:
+            raise ValueError(f"accepted-vs-active grab requires exactly one {token!r}")
+    if public_grab.count("setWindowCursorGrab(mode)") != 2:
+        raise ValueError("acquire and release must each cross the browser platform seam")
+    if public_grab.count("applyCursorGrabState(mode, wrap_axis") != 2:
+        raise ValueError("confirmed acquire and explicit release must each publish GHOST state")
+    public_positions = [
+        public_grab.index("pointer_lock_requested_mode_ = mode;"),
+        public_grab.index("setWindowCursorGrab(mode)"),
+        public_grab.index("pointer_lock_state_ = PointerLockState::Pending;"),
+    ]
+    if public_positions != sorted(public_positions):
+        raise ValueError("pointer lock publishes pending state before the request is accepted")
+
+    for token in (
+        "pointer_lock_requested_mode_ == GHOST_kGrabWrap",
+        "pointer_lock_requested_mode_ == GHOST_kGrabHide",
+        "pointer_lock_state_ = PointerLockState::Active;",
+        "applyCursorGrabState(pointer_lock_requested_mode_",
+        "retirePointerLock(false);",
+        "emscripten_exit_pointerlock();",
+    ):
+        if change.count(token) != 1:
+            raise ValueError(f"pointerlockchange reconciliation requires exactly one {token!r}")
+    if error.count("retirePointerLock(true);") != 1:
+        raise ValueError("pointerlockerror does not cancel deferred/active ownership")
+    if release.count("retirePointerLock(true);") != 1:
+        raise ValueError("explicit pointer-lock release does not cancel ownership")
+    if software_cursor.count(
+        "return isPointerLockActive() && getCursorGrabMode() == GHOST_kGrabWrap;"
+    ) != 1:
+        raise ValueError("wrap software cursor is shown before Pointer Lock becomes active")
 
     required_move = (
         "int32_t x = e.targetX;",
         "int32_t y = e.targetY;",
-        "win->getCursorGrabModeIsWarp()",
+        "win->isPointerLockActive()",
         "sys.getCursorPosition(previous_x, previous_y)",
         "int64_t(previous) + int64_t(movement)",
         "std::numeric_limits<int32_t>::min()",
@@ -96,6 +171,35 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
             raise ValueError(f"relative cursor bridge requires exactly one {token!r}")
     if "sys.noteCursor(e.targetX, e.targetY);" in move:
         raise ValueError("locked motion still publishes frozen DOM absolute coordinates")
+
+    for token in (
+        "e != nullptr && e->isActive",
+        "document.pointerLockElement ===",
+        "document.querySelector(selector)",
+        "window->onPointerLockChange(owns_lock);",
+    ):
+        if change_callback.count(token) != 1:
+            raise ValueError(f"pointerlockchange callback requires exactly one {token!r}")
+    if error_callback.count("window->onPointerLockError();") != 1:
+        raise ValueError("pointerlockerror callback does not reach the active window")
+    for token in (
+        "emscripten_set_pointerlockchange_callback(",
+        "emscripten_set_pointerlockerror_callback(",
+    ):
+        if register.count(token) != 1:
+            raise ValueError(f"callback registration requires exactly one {token!r}")
+    for token in (
+        "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE",
+        "cb_pointerlockchange",
+        "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
+        "cb_pointerlockerror",
+    ):
+        if unregister.count(token) != 1:
+            raise ValueError(f"callback retirement requires exactly one {token!r}")
+    if focus.count("win->releasePointerLock();") != 1:
+        raise ValueError("blur does not cancel pending/active Pointer Lock")
+    if dispose.count("active_window->releasePointerLock();") != 1:
+        raise ValueError("window disposal does not cancel pending/active Pointer Lock")
 
     if capabilities.count("GHOST_kCapabilityCursorWarp") != 1:
         raise ValueError("absolute cursor warp must remain masked")
@@ -122,7 +226,7 @@ def selfcheck(window: str, header: str, bridge: str, system: str) -> None:
         (window, header.replace("setWindowCursorGrab", "setWindowCursorGrabMissing", 1), bridge, system),
         (mutate_method(window, SOFTWARE_CURSOR_MARKER, "GHOST_kGrabWrap",
                        "GHOST_kGrabHide"), header, bridge, system),
-        (window, header, bridge.replace("win->getCursorGrabModeIsWarp()", "false", 1), system),
+        (window, header, bridge.replace("win->isPointerLockActive()", "false", 1), system),
         (window, header, bridge.replace("e.movementX", "e.targetX", 1), system),
         (window, header, bridge.replace("e.movementY", "e.targetY", 1), system),
         (window, header, bridge.replace("sys.getCursorPosition(previous_x, previous_y)",
@@ -131,6 +235,27 @@ def selfcheck(window: str, header: str, bridge: str, system: str) -> None:
         (window, header, bridge,
          mutate_method(system, WARP_MARKER, "return GHOST_kFailure;",
                        "return GHOST_kSuccess;")),
+        (mutate_method(window, PUBLIC_GRAB_MARKER,
+                       "pointer_lock_state_ = PointerLockState::Pending;",
+                       "pointer_lock_state_ = PointerLockState::Active;"),
+         header, bridge, system),
+        (mutate_method(window, CHANGE_MARKER, "retirePointerLock(false);", "return;"),
+         header, bridge, system),
+        (mutate_method(window, ERROR_MARKER, "retirePointerLock(true);", "return;"),
+         header, bridge, system),
+        (mutate_method(window, RELEASE_MARKER, "retirePointerLock(true);", "return;"),
+         header, bridge, system),
+        (window, header, bridge,
+         mutate_method(system, CHANGE_CALLBACK_MARKER,
+                       "window->onPointerLockChange(owns_lock);", "return false;")),
+        (window, header, bridge,
+         mutate_method(system, ERROR_CALLBACK_MARKER,
+                       "window->onPointerLockError();", "return false;")),
+        (window, header, mutate_method(bridge, FOCUS_MARKER,
+                                      "win->releasePointerLock();", "return;"), system),
+        (window, header, bridge,
+         mutate_method(system, DISPOSE_MARKER,
+                       "active_window->releasePointerLock();", "return GHOST_kFailure;")),
     )
     for index, mutation in enumerate(mutations, start=1):
         try:
@@ -163,8 +288,9 @@ def main() -> int:
     else:
         validate(*sources)
     print(
-        "POINTER_LOCK_CONTRACT PASS modes=normal,wrap,hide,disable relative=saturated "
-        "cursor=wrap-software capability=absolute-warp-off mutations=13"
+        "POINTER_LOCK_CONTRACT PASS modes=normal,wrap,hide,disable "
+        "outcomes=pending,active,error,lost,blur,disposed relative=active-only,saturated "
+        "cursor=wrap-software capability=absolute-warp-off mutations=21"
     )
     return 0
 

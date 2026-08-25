@@ -157,12 +157,14 @@ enum drift, missing release publication, direct worker DOM access, and missing r
 the Node behavior contract covers every mapping, hide/show, generation ordering, and recovery from
 temporarily missing module, canvas, or export state.
 Continuous cursor grabs use the browser Pointer Lock API rather than claiming a worker-local no-op
-success. Wrap and Hide modes accumulate `movementX/Y` into saturated virtual GHOST coordinates;
-Wrap retains a visible Blender software cursor while Hide remains invisible. Disable cancels both
-active and deferred lock requests, Normal preserves visible-pointer SDL semantics, and absolute
-cursor warp remains honestly unadvertised. The source contract rejects 13 ordering, motion,
-visibility, and capability mutations; the real worker-topology harness covers lock entry, relative
-motion, and release, while the product diagnostic drives Blender's actual middle-drag navigation.
+success. Accepted requests remain Pending until the document's `pointerlockchange` identifies the
+owned canvas; only Active Wrap/Hide modes accumulate `movementX/Y` into saturated virtual GHOST
+coordinates. Wrap retains a visible Blender software cursor while Hide remains invisible. Error,
+external loss, blur, disposal, Disable, and Normal all retire active and deferred ownership, while
+absolute cursor warp remains honestly unadvertised. The source contract rejects 21 state,
+registration, motion, visibility, and capability mutations; the real worker-topology harness covers
+pending/active/error/loss/blur/disposal plus absolute recovery, while the product diagnostic drives
+Blender's actual middle-drag navigation through external loss and successful reacquisition.
 Canvas focus loss retires all seven tracked mouse buttons and every modifier before publishing
 `WindowDeactivate`. Held buttons receive explicit release events because the browser need not
 deliver their DOM release after a tab switch; Blender's existing deactivate path reconciles the

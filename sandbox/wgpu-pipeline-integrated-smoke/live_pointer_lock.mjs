@@ -57,11 +57,27 @@ try {
   await page.waitForFunction(() =>
     document.querySelector("#state")?.dataset.state === "running", null,
   { timeout: 180000, polling: 250 });
-  await page.waitForFunction(() => {
-    const module = window.__bwModule;
-    return module && Number(module._bw_wm_tick_count?.()) >= 2 &&
-      Number(module._bw_present_count?.()) >= 2;
-  }, null, { timeout: 30000, polling: 100 });
+  try {
+    await page.waitForFunction(() => {
+      const module = window.__bwModule;
+      return module && Number(module._bw_wm_tick_count?.()) >= 2 &&
+        Number(module._bw_present_count?.()) >= 2;
+    }, null, { timeout: 30000, polling: 100 });
+  }
+  catch (error) {
+    const startup = await page.evaluate(() => {
+      const module = window.__bwModule;
+      return {
+        state: document.querySelector("#state")?.dataset.state ?? "missing",
+        ticks: Number(module?._bw_wm_tick_count?.() ?? -1),
+        presents: Number(module?._bw_present_count?.() ?? -1),
+      };
+    });
+    throw new Error(
+      `product presentation did not settle: ${JSON.stringify(startup)} ` +
+      `diagnostics=${rejected.join(" | ")}`,
+      { cause: error });
+  }
 
   const canvas = page.locator("#canvas");
   const bounds = await canvas.boundingBox();
@@ -105,8 +121,43 @@ try {
     ticks: Number(window.__bwModule._bw_wm_tick_count()),
     presents: Number(window.__bwModule._bw_present_count()),
   }));
+  let recovery = { ticks: 0, presents: 0 };
 
   if (!leaveActive) {
+    /* Simulate browser/Escape loss independently of Blender's button release.
+     * The bridged pointerlockchange must retire GHOST's active state so a later
+     * navigation gesture can acquire a fresh lock instead of believing the old
+     * DOM lock still exists. */
+    await page.evaluate(() => document.exitPointerLock());
+    await page.waitForFunction(() => document.pointerLockElement === null, null,
+      { timeout: 10000, polling: 50 });
+    await page.waitForTimeout(100);
+    await page.mouse.up({ button: "middle" });
+
+    await canvas.focus();
+    await page.mouse.move(center.x, center.y);
+    const recoveryBefore = await page.evaluate(() => ({
+      ticks: Number(window.__bwModule._bw_wm_tick_count()),
+      presents: Number(window.__bwModule._bw_present_count()),
+    }));
+    await page.mouse.down({ button: "middle" });
+    await page.mouse.move(center.x - 60, center.y + 35, { steps: 4 });
+    await page.waitForFunction(() => document.pointerLockElement?.id === "canvas", null,
+      { timeout: 10000, polling: 50 });
+    await page.mouse.move(center.x - 60, center.y + 35, { steps: 4 });
+    await page.waitForFunction((sample) => {
+      const module = window.__bwModule;
+      return Number(module._bw_wm_tick_count()) > sample.ticks &&
+        Number(module._bw_present_count()) > sample.presents;
+    }, recoveryBefore, { timeout: 10000, polling: 50 });
+    const recoveryAfter = await page.evaluate(() => ({
+      ticks: Number(window.__bwModule._bw_wm_tick_count()),
+      presents: Number(window.__bwModule._bw_present_count()),
+    }));
+    recovery = {
+      ticks: recoveryAfter.ticks - recoveryBefore.ticks,
+      presents: recoveryAfter.presents - recoveryBefore.presents,
+    };
     await page.mouse.up({ button: "middle" });
     await page.waitForFunction(() => document.pointerLockElement === null, null,
       { timeout: 10000, polling: 50 });
@@ -117,8 +168,9 @@ try {
 
   console.log(
     "PRODUCT_POINTER_LOCK_LIVE PASS evidence=diagnostic-nonreceipt adapter=fallback-software " +
-    `mode=${leaveActive ? "wrap-active" : "wrap-disable"} ` +
+    `mode=${leaveActive ? "wrap-active" : "wrap-external-loss-reacquire-disable"} ` +
     `tick_delta=${after.ticks - before.ticks} present_delta=${after.presents - before.presents} ` +
+    `recovery_tick_delta=${recovery.ticks} recovery_present_delta=${recovery.presents} ` +
     "present_rejections=0 device_lost=0");
 }
 finally {

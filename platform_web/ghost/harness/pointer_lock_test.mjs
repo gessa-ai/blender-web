@@ -35,6 +35,23 @@ const browser = await chromium.launch({
 });
 try {
   const context = await browser.newContext({ viewport: { width: 960, height: 640 } });
+  await context.addInitScript(() => {
+    /* Keep Emscripten's user-sensitive request decision deterministic in
+     * headless/headed Chromium. The trusted Playwright click still supplies the
+     * browser's real activation when this test enables the exposed getter. */
+    globalThis.__bwHarnessUserActivation = false;
+    Object.defineProperty(navigator, "userActivation", {
+      configurable: true,
+      value: {
+        get isActive() {
+          return globalThis.__bwHarnessUserActivation === true;
+        },
+        get hasBeenActive() {
+          return globalThis.__bwHarnessUserActivation === true;
+        },
+      },
+    });
+  });
   const page = await context.newPage();
   const diagnostics = [];
   page.on("console", (message) => diagnostics.push(message.text()));
@@ -45,6 +62,9 @@ try {
       const module = globalThis.ghostModule;
       return module && typeof module._ghost_harness_request_cursor_grab === "function" &&
         typeof module._ghost_harness_cursor_grab_result === "function" &&
+        typeof module._ghost_harness_cursor_grab_state === "function" &&
+        typeof module._ghost_harness_request_window_lifecycle === "function" &&
+        typeof module._ghost_harness_window_lifecycle_result === "function" &&
         document.querySelector("#log")?.textContent.includes("window created");
     });
   }
@@ -64,17 +84,88 @@ try {
       Number(globalThis.ghostModule._ghost_harness_cursor_grab_result()));
   };
 
+  const requestLifecycle = async (action) => {
+    const queued = await page.evaluate((requested) => Number(
+      globalThis.ghostModule._ghost_harness_request_window_lifecycle(requested)), action);
+    if (queued !== 1) throw new Error(`lifecycle ${action} was not queued: ${queued}`);
+    await page.waitForFunction(() =>
+      Number(globalThis.ghostModule._ghost_harness_window_lifecycle_result()) !== -2);
+    return page.evaluate(() =>
+      Number(globalThis.ghostModule._ghost_harness_window_lifecycle_result()));
+  };
+
+  const readGrabState = async () => {
+    const encoded = await page.evaluate(() =>
+      Number(globalThis.ghostModule._ghost_harness_cursor_grab_state()));
+    return encoded < 0 ? { encoded, actual: -1, requested: -1, phase: -1 } : {
+      encoded,
+      actual: encoded & 0xf,
+      requested: (encoded >> 4) & 0xf,
+      phase: (encoded >> 8) & 0xf,
+    };
+  };
+
+  const waitGrabState = async (actual, requested, phase) => {
+    await page.waitForFunction(([wantActual, wantRequested, wantPhase]) => {
+      const encoded = Number(globalThis.ghostModule._ghost_harness_cursor_grab_state());
+      return encoded >= 0 && (encoded & 0xf) === wantActual &&
+        ((encoded >> 4) & 0xf) === wantRequested &&
+        ((encoded >> 8) & 0xf) === wantPhase;
+    }, [actual, requested, phase]);
+  };
+
   const canvas = page.locator("#blender-canvas");
-  await canvas.click({ position: { x: 120, y: 100 } });
+  const activationClick = async () => {
+    await page.evaluate(() => {
+      globalThis.__bwHarnessUserActivation = true;
+    });
+    try {
+      await canvas.click({ position: { x: 120, y: 100 } });
+    }
+    finally {
+      await page.evaluate(() => {
+        globalThis.__bwHarnessUserActivation = false;
+      });
+    }
+  };
+  const activateGrab = async (mode = 2) => {
+    if (await requestGrab(mode) !== 1) {
+      throw new Error(`grab ${mode} was rejected`);
+    }
+    if (!(await page.evaluate(() => document.pointerLockElement !== null))) {
+      await activationClick();
+    }
+    await page.waitForFunction(
+      () => document.pointerLockElement?.id === "blender-canvas", null, { timeout: 5000 });
+    await waitGrabState(mode, mode, 2);
+  };
+
+  /* Seed an absolute cursor event without granting user activation. The first
+   * worker request must therefore be accepted as pending, not published as an
+   * active GHOST grab, until a later trusted click runs Emscripten's deferred call. */
+  await page.evaluate(() => {
+    const canvasElement = document.querySelector("#blender-canvas");
+    const rect = canvasElement.getBoundingClientRect();
+    canvasElement.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: rect.left + 120,
+      clientY: rect.top + 100,
+    }));
+  });
+  await page.waitForFunction(() =>
+    document.querySelector("#log")?.textContent.includes("GHOST CursorMove"));
   if (await requestGrab(2) !== 1) {
     throw new Error("wrap grab was rejected");
   }
-  if (!(await page.evaluate(() => document.pointerLockElement !== null))) {
-    await canvas.click({ position: { x: 120, y: 100 } });
+  const pending = await readGrabState();
+  if (pending.actual !== 0 || pending.requested !== 2 || pending.phase !== 1) {
+    throw new Error(`deferred grab was confused with active state: ${JSON.stringify(pending)}`);
   }
+  await activationClick();
   try {
     await page.waitForFunction(
       () => document.pointerLockElement?.id === "blender-canvas", null, { timeout: 5000 });
+    await waitGrabState(2, 2, 2);
   }
   catch (error) {
     const state = await page.evaluate(() => ({
@@ -126,15 +217,64 @@ try {
   }
 
   if (!leaveActive) {
-    if (await requestGrab(0) !== 1) {
-      throw new Error("grab release was rejected");
+    /* External Escape/loss is reported only by pointerlockchange. GHOST must
+     * retire Wrap before the next motion so frozen lock coordinates cannot win. */
+    await page.evaluate(() => document.exitPointerLock());
+    await page.waitForFunction(() => document.pointerLockElement === null);
+    await waitGrabState(0, 0, 0);
+    await page.evaluate(() => {
+      const canvasElement = document.querySelector("#blender-canvas");
+      const rect = canvasElement.getBoundingClientRect();
+      const event = new MouseEvent("mousemove", {
+        bubbles: true,
+        clientX: rect.left + 44,
+        clientY: rect.top + 55,
+      });
+      Object.defineProperties(event, {
+        movementX: { value: 1000 },
+        movementY: { value: 1000 },
+      });
+      canvasElement.dispatchEvent(event);
+    });
+    await page.waitForFunction(() =>
+      document.querySelector("#log")?.textContent.includes("GHOST CursorMove       x=44 y=55"));
+
+    /* A browser rejection must cancel both an active lock and any deferred
+     * Emscripten request, then return GHOST to absolute motion. */
+    await activateGrab();
+    await page.evaluate(() => document.dispatchEvent(new Event("pointerlockerror")));
+    await page.waitForFunction(() => document.pointerLockElement === null);
+    await waitGrabState(0, 0, 0);
+
+    /* Blur is a separate terminal path: browsers are not required to deliver
+     * the operator's matching mouse-up before focus leaves the canvas. */
+    await activateGrab();
+    await page.evaluate(() =>
+      document.querySelector("#blender-canvas").dispatchEvent(new FocusEvent("blur")));
+    await page.waitForFunction(() => document.pointerLockElement === null);
+    await waitGrabState(0, 0, 0);
+
+    /* Disposal must remove an active lock before the window and callback owner
+     * disappear, then a replacement must begin inactive. */
+    await activateGrab();
+    const disposeResult = await requestLifecycle(0);
+    if (disposeResult !== 0b1111) {
+      throw new Error(`active window disposal failed: ${disposeResult}`);
     }
     await page.waitForFunction(() => document.pointerLockElement === null);
+    if ((await readGrabState()).encoded !== -1) {
+      throw new Error("disposed window still exposes pointer-lock state");
+    }
+    if (await requestLifecycle(1) !== 0b111) {
+      throw new Error("replacement window was not published after pointer-lock disposal");
+    }
+    await waitGrabState(0, 0, 0);
   }
 
   console.log(
-    `POINTER_LOCK_LIVE PASS modes=wrap,${leaveActive ? "active" : "disable"} ` +
-    `relative=37,-19 virtual=${expected.join(",")} invalid=rejected`);
+    `POINTER_LOCK_LIVE PASS outcomes=pending,active,${leaveActive ? "left-active" :
+      "lost,error,blur,disposed"} ` +
+    `relative=37,-19 virtual=${expected.join(",")} post-loss=absolute invalid=rejected`);
 }
 finally {
   await browser.close();

@@ -5,5 +5,6 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
+SOURCE_ROOT="${BW_SOURCE_ROOT:-$ROOT/upstream}"
 exec "$ROOT/.host-tools/bin/python3.13" "$HERE/verify_source.py" \
-  --source-root "$ROOT/upstream" --selfcheck
+  --source-root "$SOURCE_ROOT" --selfcheck

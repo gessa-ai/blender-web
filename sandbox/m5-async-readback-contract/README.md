@@ -56,8 +56,10 @@ It also requires the two still-partial/synchronous caller families (depth cache 
 capture) to stay visible. The full-viewport depth-cache request now has an owned asynchronous
 primitive, but its paint, annotation, placement, and particle-edit consumers still need bounded
 continuations. Both freehand curve-draw operators now use that primitive through a bounded,
-context-guarded event FIFO; the other paint, annotation, placement, and particle-edit callers
-remain explicit. The synchronous selection-buffer API remains
+context-guarded event FIFO. Interactive legacy annotation draw, polyline update, and eraser paths
+now do the same, while its recorded-stroke `exec` callback remains an explicit synchronous
+residual alongside the other paint, placement, and particle-edit callers. The synchronous
+selection-buffer API remains
 as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer
 use it during an active browser continuation. The screenshot operator has its own
 owned-capture continuation contract; the ledger row remains `partial` for these two

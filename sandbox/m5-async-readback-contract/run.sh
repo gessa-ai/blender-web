@@ -160,6 +160,7 @@ if ! jq -e \
    .contracts.ndof_depth_continuation == true and
    .contracts.depth_cache_async_primitive == true and
    .contracts.curve_draw_depth_cache_continuations == true and
+   .contracts.annotation_depth_cache_continuation == true and
    .contracts.live_hardware_receipt == false and
    .remaining_sync_families == ["depth_cache", "window_capture"]' \
   "$OUT/source.json" >/dev/null

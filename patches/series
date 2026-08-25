@@ -1101,3 +1101,6 @@
 # 0265: force curve surface-depth redraw without a synchronous cache read, then
 # retain both curve-draw operators' exact event FIFO through bounded settlement.
 0265-m5-curve-depth-cache-continuation.patch
+# 0266: retain interactive legacy-annotation draw, polyline, and eraser events
+# through an owned depth-cache request while keeping recorded-stroke exec sync.
+0266-m5-annotation-depth-cache-continuation.patch

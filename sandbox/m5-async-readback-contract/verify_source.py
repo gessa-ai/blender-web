@@ -38,6 +38,7 @@ SOURCE_PATHS = (
     "source/blender/editors/include/ED_view3d.hh",
     "source/blender/editors/curve/editcurve_paint.cc",
     "source/blender/editors/curves/intern/curves_draw.cc",
+    "source/blender/editors/gpencil_legacy/annotate_paint.cc",
     "source/blender/editors/mesh/editmesh_select.cc",
     "source/blender/editors/sculpt_paint/paint_intern.hh",
     "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
@@ -83,9 +84,13 @@ def require_ordered(text: str, needles: tuple[str, ...], label: str) -> None:
         offset = found + len(needle)
 
 
-def braced_definition(text: str, marker: str, label: str) -> str:
-    require_once(text, marker, label)
-    start = text.index(marker)
+def braced_definition(text: str, marker: str, label: str, *, last: bool = False) -> str:
+    if last:
+        require(marker in text, f"{label}: definition marker missing")
+        start = text.rindex(marker)
+    else:
+        require_once(text, marker, label)
+        start = text.index(marker)
     brace = text.find("{", start + len(marker))
     require(brace >= 0, f"{label}: opening brace missing")
     depth = 0
@@ -171,6 +176,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     depth_draw = sources["source/blender/editors/space_view3d/view3d_draw.cc"]
     curve_draw = sources["source/blender/editors/curve/editcurve_paint.cc"]
     curves_draw = sources["source/blender/editors/curves/intern/curves_draw.cc"]
+    annotation_draw = sources[
+        "source/blender/editors/gpencil_legacy/annotate_paint.cc"
+    ]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
     paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
     paint_projection = sources[
@@ -1186,6 +1194,94 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         invoke = braced_definition(caller, invoke_marker, f"{label} draw invoke")
         require("&cdd->depths" not in invoke, f"{label} draw still blocks on a full depth cache")
 
+    for needle in (
+        "ViewportDepthCacheSession *depth_cache_session = nullptr;",
+        "Vector<wmEvent> *depth_cache_events = nullptr;",
+        "bool depth_cache_pending = false;",
+        "bool depth_cache_interactive = false;",
+        "bool depth_cache_resume_apply_event = false;",
+        "constexpr int max_queued_events = 256;",
+        "event->custom != 0",
+        "event->customdata != nullptr",
+    ):
+        require(needle in annotation_draw, f"annotation depth-cache owner missing {needle!r}")
+    annotation_begin = braced_definition(
+        annotation_draw,
+        "static AnnotationDepthCacheState annotation_depth_cache_begin(",
+        "annotation depth-cache request",
+    )
+    require_ordered(
+        annotation_begin,
+        (
+            "annotation_depth_cache_matches(p, mode)",
+            "ED_view3d_depth_override_prepare(",
+            "MEM_new<ViewportDepthCacheSession>",
+            "p->depth_cache_session->init(p->region)",
+            "ViewportDepthCacheSession::ReadbackState::Ready",
+            "WM_event_timer_add(manager, p->win, TIMER, 0.01f)",
+            "p->depth_cache_pending = true;",
+        ),
+        "annotation exact owned request",
+    )
+    annotation_poll = braced_definition(
+        annotation_draw,
+        "static wmOperatorStatus annotation_depth_poll(",
+        "annotation bounded settlement",
+    )
+    require_ordered(
+        annotation_poll,
+        (
+            "annotation_depth_context_matches(C, p)",
+            "event->customdata != p->depth_cache_timer",
+            "constexpr int max_tick_count = 240;",
+            "p->depth_cache_session->state()",
+            "annotation_depth_cache_take(p)",
+            "const bool resume_apply_event = p->depth_cache_resume_apply_event;",
+            "annotation_depth_resume_apply_event(",
+            "annotation_draw_modal(C, op",
+        ),
+        "annotation exact FIFO settlement",
+    )
+    annotation_modal = braced_definition(
+        annotation_draw,
+        "static wmOperatorStatus annotation_draw_modal(bContext *C,",
+        "annotation modal continuation",
+        last=True,
+    )
+    require_ordered(
+        annotation_modal,
+        (
+            "if (p->depth_cache_pending)",
+            "annotation_depth_poll(C, op, event)",
+            "annotation_depth_event_requires_cache(p, event)",
+            "annotation_depth_cache_defer_event(",
+            "annotation_draw_modal_dispatch(C, op, event)",
+        ),
+        "annotation modal cache barrier",
+    )
+    annotation_exec = braced_definition(
+        annotation_draw,
+        "static wmOperatorStatus annotation_draw_exec(",
+        "annotation recorded-stroke exec",
+    )
+    require(
+        "p->depth_cache_interactive = true;" not in annotation_exec
+        and "annotation_paint_strokeend(p);" in annotation_exec,
+        "annotation recorded-stroke exec residual was silently converted",
+    )
+    require(
+        annotation_draw.count("ED_view3d_depth_override(") == 3
+        and annotation_draw.count("ED_view3d_depth_override_prepare(") == 1,
+        "annotation synchronous residual or async prepare census drifted",
+    )
+    for needle in (
+        "ot->exec = annotation_draw_exec;",
+        "ot->invoke = annotation_draw_invoke;",
+        "ot->modal = annotation_draw_modal;",
+        "ot->cancel = annotation_draw_cancel;",
+    ):
+        require(needle in annotation_draw, f"annotation callback wiring missing {needle!r}")
+
     remaining_sync = {
         "depth_cache": (
             "source/blender/editors/space_view3d/view3d_draw.cc",
@@ -1634,6 +1730,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "ndof_depth_continuation": True,
             "depth_cache_async_primitive": True,
             "curve_draw_depth_cache_continuations": True,
+            "annotation_depth_cache_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1888,6 +1985,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "ED_view3d_depth_override_prepare(cdd->vc.depsgraph,",
             "ED_view3d_depth_override(cdd->vc.depsgraph,",
             "curve-draw depth-cache continuation",
+        ),
+        (
+            "source/blender/editors/gpencil_legacy/annotate_paint.cc",
+            "ED_view3d_depth_override_prepare(",
+            "ED_view3d_depth_override_legacy(",
+            "annotation depth-cache continuation",
         ),
     )
     for relative, old, new, label in mutations:

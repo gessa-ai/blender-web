@@ -1520,3 +1520,17 @@ closures from two successive registrations, replace twice, deliver both under a 
 require no stale input, then prove current input still works. See
 `platform_web/ghost/GHOST_SystemWeb.cc` and
 `platform_web/ghost/harness/window_lifecycle_test.mjs`.
+
+## Class 103 — a listener set must publish as one transaction
+
+Signature: a platform registers several browser listeners, ignores individual return values, and
+marks the set active after the last call. A selector or API failure can leave a successful prefix
+installed while the owner claims complete registration; later replacement and disposal then reason
+from a false all-or-nothing flag. Register in a fixed order, stop at the first failure, remove the
+exact successful prefix in reverse order, and keep owner userdata, epoch, and registered state
+unpublished until every result succeeds. If initial or replacement registration fails, destroy the
+candidate window before a manager or event observes it. Exercise all failure positions plus a
+failed replacement followed by a clean retry on native and wasm32, then retain a real worker
+dispose/recreate/input regression. See `platform_web/ghost/GHOST_SystemWeb.cc`,
+`platform_web/ghost/GHOST_WGPUTransaction.hh`, and
+`sandbox/wgpu-pipeline-integrated-smoke/window_lifecycle_contract.py`.

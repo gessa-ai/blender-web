@@ -2760,10 +2760,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   real-worker repeated-replacement, native/wasm32, product relink/no-work/OFF-preflight, headed
   fallback diagnostic, canonical, REUSE, M4, and regression checks preserve their strict existing
   boundaries. See `notes/m4-callback-registration-epoch-20260825.md`.
-- [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-TRANSACTION [ghost-web, claimed_by: none,
-  blocked-by: none]:** require all twelve HTML5 listener-registration results, roll back every
-  successful prefix on failure, and publish the owner/registered flag only after full success.
-  Cover each failed position and replacement rollback.
+- [x] **AUDIT-R11-M4-CALLBACK-REGISTRATION-TRANSACTION [ghost-web] (`ef25bfa`):** all twelve
+  HTML5 listener results now form one ordered transaction; failure removes the exact successful
+  prefix and leaves owner/epoch/registered state unpublished, while failed initial or replacement
+  windows are destroyed before publication. Native/wasm32 cover every failure position plus
+  replacement rollback/retry, and the real worker/product regressions preserve the strict
+  nonreceipt boundary. See `notes/m4-callback-registration-transaction-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

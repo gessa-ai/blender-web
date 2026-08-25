@@ -1008,7 +1008,8 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               ghost_web::note_present();
             });
           });
-  /* The browser auto-presents `st.texture` when this rAF tick yields — one acquire, one
-   * render pass, and one validation-gated submit all settle before the next frame. */
+  /* The browser auto-presents `st.texture` when this rAF tick yields. Acquire, render-pass
+   * encoding, and queue submission happen synchronously above; only the two error-scope results
+   * settle later, while present_pending_ prevents another in-flight transaction. */
   return true;
 }

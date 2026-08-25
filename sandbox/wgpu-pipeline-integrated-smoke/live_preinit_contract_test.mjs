@@ -21,6 +21,8 @@ const good = {
     presentationFailed: 0,
     stage1Failed: 0,
     presentableImportFailed: 0,
+    presentSubmissionRejected: 0,
+    presentTransactionRejected: 0,
     deviceLost: 0,
     pageErrors: 0,
     adapterFallback: "true",
@@ -50,6 +52,10 @@ const mutations = [
   ["presentation absent", (v) => { v.counters.presentationReady = 0; }],
   ["stage one failure", (v) => { v.counters.stage1Failed = 1; }],
   ["import failure", (v) => { v.counters.presentableImportFailed = 1; }],
+  ["present submission rejected", (v) => {
+    v.counters.presentSubmissionRejected = 1;
+  }],
+  ["present transaction rejected", (v) => { v.counters.presentTransactionRejected = 1; }],
   ["page error", (v) => { v.counters.pageErrors = 1; }],
   ["fallback mislabeled strict", (v) => { v.counters.presentationValidation = "strict"; }],
   ["hardware mislabeled fallback", (v) => {

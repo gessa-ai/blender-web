@@ -3169,7 +3169,7 @@ bool ghost_present_resource_transaction_contract()
   }
 
   constexpr std::array<uint64_t, 9> expected_before_scope = {
-      1, 12, 123, 1234, 12345, 12345678, 12345678, 12345678, 12345678};
+      1, 12, 123, 1234, 12345, 12345678, 123456789, 123456789, 123456789};
   for (int failure_stage = 0; failure_stage <= 8; failure_stage++) {
     GhostFrameTrace trace;
     trace.failure_stage = failure_stage;
@@ -3217,40 +3217,54 @@ bool ghost_present_resource_transaction_contract()
           completed = true;
           result = valid;
         });
+    const bool has_complete_command = failure_stage >= 6;
     if (!require(encode_scope.begins() == 1 && encode_scope.ends() == 1 &&
                      encode_scope.pending(),
                  "GHOST frame encode scope is balanced and pending") ||
-        !require(!completed && trace.submits == 0,
-                 "GHOST frame cannot submit before encode validation") ||
+        !require(submit_scope.pending() == has_complete_command,
+                 "GHOST frame submit scope exists exactly for a complete command") ||
+        !require(!completed && trace.submits == int(has_complete_command),
+                 "GHOST complete surface command submits in the caller tick") ||
         !require(trace.signature == expected_before_scope[size_t(failure_stage)],
                  "GHOST frame pre-scope call order"))
     {
       return false;
     }
 
-    encode_scope.resolve(failure_stage != 6);
-    const bool reaches_submit = failure_stage >= 7;
-    if (!require(trace.submits == int(reaches_submit),
-                 "GHOST validation-error command buffer is rejected before submit") ||
-        !require(submit_scope.pending() == reaches_submit,
-                 "GHOST submit scope exists only for a validated command buffer"))
-    {
-      return false;
+    if (has_complete_command) {
+      const bool encode_valid = failure_stage != 6;
+      const bool submit_valid = failure_stage != 7;
+      if ((failure_stage & 1) == 0) {
+        encode_scope.resolve(encode_valid);
+        if (!require(!completed, "GHOST present joins the pending submit scope")) {
+          return false;
+        }
+        submit_scope.resolve(submit_valid);
+      }
+      else {
+        submit_scope.resolve(submit_valid);
+        if (!require(!completed, "GHOST present joins the pending encode scope")) {
+          return false;
+        }
+        encode_scope.resolve(encode_valid);
+      }
     }
-    if (reaches_submit) {
-      if (!require(!completed, "GHOST present remains pending through submit validation")) {
+    else {
+      encode_scope.resolve(false);
+      if (!require(!submit_scope.pending(),
+                   "GHOST invalid handle path does not open a submit scope"))
+      {
         return false;
       }
-      submit_scope.resolve(failure_stage == 8);
     }
 
     const bool expect_success = failure_stage == 8;
-    const uint64_t expected_signature = reaches_submit ? 123456789 :
-                                                         expected_before_scope[size_t(failure_stage)];
+    const uint64_t expected_signature = expected_before_scope[size_t(failure_stage)];
     if (!require(completed && result == expect_success, "GHOST frame transaction result") ||
         !require(trace.signature == expected_signature, "GHOST frame transaction call order") ||
         !require(trace.dependencies_valid, "GHOST frame transaction dependency handles") ||
-        !require(trace.submits == int(reaches_submit), "GHOST frame transaction submit count"))
+        !require(trace.submits == int(has_complete_command),
+                 "GHOST frame transaction submit count"))
     {
       return false;
     }
@@ -3261,7 +3275,8 @@ bool ghost_present_resource_transaction_contract()
     return false;
   }
   std::puts("CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 "
-            "pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1");
+            "pipeline=6 frame=9 error_objects=3 publication=scoped submit=3 same_tick=3 "
+            "dual_scope=3 committed=1");
   return true;
 }
 

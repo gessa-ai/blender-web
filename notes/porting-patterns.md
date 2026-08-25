@@ -1408,3 +1408,19 @@ never pay an O(points + keys) scan. Fail closed before caller initialization on 
 exercise click, gesture, and brush owners separately because they retain different inputs and FIFOs.
 See `patches/0277-m5-particle-producer-state.patch` and
 `sandbox/m5-particle-edit-depth-cache/`.
+
+## Class 95 — a surface error scope cannot precede same-turn submission
+
+Signature: a frame acquires a browser canvas texture, encodes a command buffer under WebGPU error
+scopes, waits for those scopes to settle, and only then submits. The handles and command buffer can
+all be non-null, yet the browser destroys the transient surface texture when that event-loop turn
+yields; the delayed queue call therefore rejects a destroyed texture forever. Treat immediate
+handle validity and asynchronous error validation as separate boundaries. After encoding a
+complete command buffer, push the submission scopes and call `Queue::Submit` synchronously in the
+acquisition turn. Pop the nested submission scopes and then the encoding scopes, retain every
+dependency behind one thread-safe two-result join, and publish the present only when both groups
+accept. A null partial handle still stops before submission. Exercise encoding-first and
+submission-first callback delivery, each scope's failure, exact same-turn submit count, and a live
+trusted-input presentation with zero rejected submissions; software evidence remains explicitly
+nonreceipt. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

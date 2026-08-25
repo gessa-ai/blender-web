@@ -1627,6 +1627,10 @@ require_fixed_count 1 'if (counters.adapterFallback !== "true") {' "$LIVE_PREINI
 require_fixed_count 1 'if (!(afterInput.presents > second.presents)) {' \
   "$LIVE_PREINIT_CONTRACT"
 require_fixed_count 1 'if (counters.deviceLost !== 0)' "$LIVE_PREINIT_CONTRACT"
+require_fixed_count 1 'if (counters.presentSubmissionRejected !== 0)' \
+  "$LIVE_PREINIT_CONTRACT"
+require_fixed_count 1 'if (counters.presentTransactionRejected !== 0)' \
+  "$LIVE_PREINIT_CONTRACT"
 require_fixed_count 1 \
   'std::shared_ptr<ghost_web::DeviceCallbackState> device_state_' \
   "$GHOST_HEADER"
@@ -1727,6 +1731,7 @@ device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
 present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 fallback_loss_notify = method_from(transaction, "bool fallback_device_loss_notify(")
+present_transaction = method_from(transaction, "void present_frame_encode_submit_scoped(")
 
 destructor_cancel = destructor.index("callback_lifetime_->cancel();")
 destructor_invalidate = destructor.index("callback_lifetime_->invalidate();")
@@ -1912,15 +1917,38 @@ for needle in (
     if present.count(needle) != 1:
         raise SystemExit(f"ERROR: present transaction lacks one exact boundary: {needle}")
 
-positions = [
-    present.index('popErrorScopes(device, "present command encoding"'),
+source_positions = [
     present.index("queue.Submit(1, &command_buffer);"),
-    present.index('popErrorScopes(device, "present queue submission"'),
     present.index("if (!valid) {"),
     present.index("ghost_web::note_present();"),
 ]
-if positions != sorted(positions):
-    raise SystemExit("ERROR: present validation/submission/commit boundaries are reordered")
+if source_positions != sorted(source_positions):
+    raise SystemExit("ERROR: present submission/commit boundaries are reordered")
+
+for needle, expected in (
+    ("if (!handles_valid) {", 1),
+    ("std::forward<BeginSubmitScopeFn>(begin_submit_scope)();", 1),
+    ("std::forward<SubmitFn>(submit)(command_buffer);", 1),
+    ("std::forward<EndSubmitScopeFn>(end_submit_scope)(", 1),
+    ("std::forward<EndEncodeScopeFn>(end_encode_scope)(", 2),
+    ("std::atomic<int> pending{2};", 1),
+    ("std::atomic<bool> valid{true};", 1),
+):
+    if present_transaction.count(needle) != expected:
+        raise SystemExit(
+            f"ERROR: present helper lacks exact same-tick dual-scope boundary: {needle}"
+        )
+transaction_positions = [
+    present_transaction.index("if (!handles_valid) {"),
+    present_transaction.index("std::forward<BeginSubmitScopeFn>(begin_submit_scope)();"),
+    present_transaction.index("std::forward<SubmitFn>(submit)(command_buffer);"),
+    present_transaction.rindex("std::forward<EndSubmitScopeFn>(end_submit_scope)("),
+    present_transaction.rindex("std::forward<EndEncodeScopeFn>(end_encode_scope)("),
+]
+if transaction_positions != sorted(transaction_positions):
+    raise SystemExit(
+        "ERROR: surface submission can yield before queue submit or violates scope-pop order"
+    )
 
 for needle in (
     "ensureBackbuffer();",
@@ -2033,7 +2061,7 @@ then
 fi
 "$NODE" "$LIVE_PREINIT_CONTRACT_TEST" >"$OUT/live-preinit-classifier.txt"
 if ! grep -qx \
-  'CONTRACT ghost_preinit_live_classifier PASS positive=1 negative=23' \
+  'CONTRACT ghost_preinit_live_classifier PASS positive=1 negative=25' \
   "$OUT/live-preinit-classifier.txt"
 then
   echo "ERROR: live preinit classifier evidence differs" >&2
@@ -2200,7 +2228,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_device_loss_inflight_cancel PASS cases=10 active=5 lost=5 configure=0 publication=0 submit=0 present=0' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=2 committed=1' \
+       'CONTRACT ghost_present_resource_transaction PASS cases=18 backbuffer=3 pipeline=6 frame=9 error_objects=3 publication=scoped submit=3 same_tick=3 dual_scope=3 committed=1' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ghost_resize_coherence PASS cases=17 candidates=10 present=7 failure=preserved superseded=retried commit=atomic retry=no_event' \

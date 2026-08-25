@@ -133,16 +133,17 @@ paths bind the same resolved transient handle. Failure preserves the caller-owne
 non-indexed case publishes an explicit empty handle.
 The browser compositor additionally treats handle truthiness as only a provisional result:
 backbuffer and present-pipeline candidates remain unpublished until validation/OOM/internal scopes
-complete cleanly. Present encoding finishes under one completed scope before its command buffer can
-reach `Queue::Submit`; a second scope covers submission itself, and first-pixel/keepalive counters
-advance only after that scope succeeds. The contract covers literal null failures, non-null error
-objects, pending-state publication, encode-before-submit ordering, submit failure, and one clean
-commit. Resize requests remain separate from the last configured surface extent: a current validated
+complete cleanly. Per-frame presentation is stricter about time: a complete command buffer reaches
+`Queue::Submit` synchronously in the same event-loop turn as surface-texture acquisition, before
+either encoding or submission scopes can settle. Both scope groups then join before first-pixel/
+keepalive publication. The contract covers literal null failures, non-null error objects, pending-
+state publication, same-turn submission, both callback orders, scope failure, and one clean commit.
+Resize requests remain separate from the last configured surface extent: a current validated
 candidate configures and publishes the surface/backbuffer state atomically, stale candidates retry
 the newest request, rejected candidates retry from the next present without another resize event,
-and presentation requires exact authoritative, backbuffer, and acquired-surface extents. The
-pinned-Dawn software control exercises the same shipping helpers against real non-null
-error objects but remains explicitly non-receipt evidence.
+and presentation requires exact authoritative, backbuffer, and acquired-surface extents. The pinned-
+Dawn software control exercises the same shipping helpers against real non-null error objects but
+remains explicitly non-receipt evidence.
 The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
 presentation bundle. Its worker-side transaction validates the initial backbuffer before main
 starts, then puts non-fallback and unknown-status adapters through scoped canvas configuration,
@@ -212,7 +213,8 @@ DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
 This headed check forces Chromium's SwiftShader adapter under its GPU-test initialization, then
 requires the adapter to report fallback status. After `WM_main`, it bounds first-tick settlement,
 requires a positive tick delta across two further samples, sends trusted mouse input, and requires
-both another WM tick and a new presentation with no device loss. Its explicit
+both another WM tick and a new presentation with no device loss, rejected present submission, or
+rejected present transaction. Its explicit
 `diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel gate.
 
 The triangle-fan row deliberately exercises the backend's fail-visible fallback:

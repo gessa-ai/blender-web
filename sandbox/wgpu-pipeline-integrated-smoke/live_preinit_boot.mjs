@@ -55,6 +55,8 @@ const counters = {
   presentationFailed: 0,
   stage1Failed: 0,
   presentableImportFailed: 0,
+  presentSubmissionRejected: 0,
+  presentTransactionRejected: 0,
   deviceLost: 0,
   pageErrors: 0,
   adapterFallback: "unseen",
@@ -120,6 +122,10 @@ try {
     }
     if (line.includes("presentation preinit FAILED stage=1")) counters.stage1Failed++;
     if (line.includes("presentable preinit failed")) counters.presentableImportFailed++;
+    if (line.includes("present queue submission rejected")) {
+      counters.presentSubmissionRejected++;
+    }
+    if (line.includes("present transaction rejected")) counters.presentTransactionRejected++;
     if (line.includes("[bw][GPU-LOST]")) counters.deviceLost++;
   });
   page.on("pageerror", () => counters.pageErrors++);
@@ -204,7 +210,8 @@ try {
     `idle_sample_ms=${Math.round(result.idleElapsedMs)} idle_tick_delta=${result.idleTickDelta} ` +
     `input_round_trip_ms=${Math.round(result.inputElapsedMs)} ` +
     `input_tick_delta=${result.inputTickDelta} input_present_delta=${result.inputPresentDelta} ` +
-    `device_lost=0 playwright_root=${playwrightRoot}`,
+    `present_submission_rejected=0 present_transaction_rejected=0 device_lost=0 ` +
+    `playwright_root=${playwrightRoot}`,
   );
 }
 finally {

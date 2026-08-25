@@ -62,6 +62,12 @@ export function classifyLivePreinitDiagnostic(observation) {
   if (counters.presentableImportFailed !== 0) {
     failures.push(`presentableImportFailed=${counters.presentableImportFailed}`);
   }
+  if (counters.presentSubmissionRejected !== 0) {
+    failures.push(`presentSubmissionRejected=${counters.presentSubmissionRejected}`);
+  }
+  if (counters.presentTransactionRejected !== 0) {
+    failures.push(`presentTransactionRejected=${counters.presentTransactionRejected}`);
+  }
   if (counters.deviceLost !== 0) failures.push(`deviceLost=${counters.deviceLost}`);
   if (counters.pageErrors !== 0) failures.push(`pageErrors=${counters.pageErrors}`);
 

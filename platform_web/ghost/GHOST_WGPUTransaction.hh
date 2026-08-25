@@ -519,9 +519,11 @@ void present_pipeline_create_scoped(
 }
 
 /**
- * Encode and submit one present pass only after every transient resource and
- * command handle is valid. A failure discards the local encoder and any work it
- * already contains; only the complete command buffer reaches the queue.
+ * Encode and synchronously submit one present pass when every transient resource and command
+ * handle is non-null. A browser surface texture expires when its event-loop turn yields, so
+ * asynchronous error-scope settlement must never sit between encoding and queue submission.
+ * Both scope groups still settle before the transaction publishes success; a failed scope makes
+ * the submitted error command a rejected transaction rather than a committed present.
  */
 template<typename BeginEncodeScopeFn,
          typename CreateSourceViewFn,
@@ -590,39 +592,87 @@ void present_frame_encode_submit_scoped(
     handles_valid = command_buffer != nullptr;
   }
 
-  std::forward<EndEncodeScopeFn>(end_encode_scope)(
-      [source_view = std::move(source_view),
-       target_view = std::move(target_view),
-       bind_group = std::move(bind_group),
-       encoder = std::move(encoder),
-       pass = std::move(pass),
-       command_buffer = std::move(command_buffer),
-       handles_valid,
-       begin_submit_scope = std::forward<BeginSubmitScopeFn>(begin_submit_scope),
-       submit = std::forward<SubmitFn>(submit),
-       end_submit_scope = std::forward<EndSubmitScopeFn>(end_submit_scope),
-       complete = std::forward<CompleteFn>(complete)](const bool encode_scope_valid) mutable {
-        /* Retain all encoded dependencies until the first scope has completed. */
-        (void)source_view;
-        (void)target_view;
-        (void)bind_group;
-        (void)encoder;
-        (void)pass;
-        if (!handles_valid || !encode_scope_valid) {
+  if (!handles_valid) {
+    std::forward<EndEncodeScopeFn>(end_encode_scope)(
+        [source_view = std::move(source_view),
+         target_view = std::move(target_view),
+         bind_group = std::move(bind_group),
+         encoder = std::move(encoder),
+         pass = std::move(pass),
+         command_buffer = std::move(command_buffer),
+         complete = std::forward<CompleteFn>(complete)](const bool /*encode_scope_valid*/) mutable {
+          /* Retain every partial dependency until its scope has settled. */
+          (void)source_view;
+          (void)target_view;
+          (void)bind_group;
+          (void)encoder;
+          (void)pass;
+          (void)command_buffer;
           complete(false);
-          return;
-        }
+        });
+    return;
+  }
 
-        begin_submit_scope();
-        submit(command_buffer);
-        end_submit_scope(
-            [command_buffer = std::move(command_buffer),
-             complete = std::move(complete)](const bool submit_scope_valid) mutable {
-              /* Queue submission can itself report validation asynchronously. */
-              (void)command_buffer;
-              complete(submit_scope_valid);
-            });
-      });
+  /* These three calls must remain contiguous in this order. In particular, do not wait for the
+   * encoding scope: target_view retains a per-turn surface texture that is destroyed on yield. */
+  std::forward<BeginSubmitScopeFn>(begin_submit_scope)();
+  std::forward<SubmitFn>(submit)(command_buffer);
+
+  using CompleteT = std::decay_t<CompleteFn>;
+  struct ScopeCompletionState {
+    std::atomic<int> pending{2};
+    std::atomic<bool> valid{true};
+    SourceViewT source_view;
+    TargetViewT target_view;
+    BindGroupT bind_group;
+    CommandEncoderT encoder;
+    RenderPassT pass;
+    CommandBufferT command_buffer;
+    CompleteT complete;
+
+    ScopeCompletionState(SourceViewT source_view,
+                         TargetViewT target_view,
+                         BindGroupT bind_group,
+                         CommandEncoderT encoder,
+                         RenderPassT pass,
+                         CommandBufferT command_buffer,
+                         CompleteT complete)
+        : source_view(std::move(source_view)),
+          target_view(std::move(target_view)),
+          bind_group(std::move(bind_group)),
+          encoder(std::move(encoder)),
+          pass(std::move(pass)),
+          command_buffer(std::move(command_buffer)),
+          complete(std::move(complete))
+    {
+    }
+  };
+
+  auto completion_state = std::make_shared<ScopeCompletionState>(std::move(source_view),
+                                                                  std::move(target_view),
+                                                                  std::move(bind_group),
+                                                                  std::move(encoder),
+                                                                  std::move(pass),
+                                                                  std::move(command_buffer),
+                                                                  std::forward<CompleteFn>(
+                                                                      complete));
+  auto settle_scope = [completion_state](const bool scope_valid) mutable {
+    if (!scope_valid) {
+      completion_state->valid.store(false, std::memory_order_release);
+    }
+    if (completion_state->pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      const bool valid = completion_state->valid.load(std::memory_order_acquire);
+      auto complete = std::move(completion_state->complete);
+      complete(valid);
+    }
+  };
+
+  /* Pop the nested submit scopes first, then the encoding scopes. Their callbacks may arrive in
+   * either order (and on different threads), so the atomic join owns all dependencies. */
+  std::forward<EndSubmitScopeFn>(end_submit_scope)(
+      [settle_scope](const bool valid) mutable { settle_scope(valid); });
+  std::forward<EndEncodeScopeFn>(end_encode_scope)(
+      [settle_scope](const bool valid) mutable { settle_scope(valid); });
 }
 
 }  // namespace ghost_web

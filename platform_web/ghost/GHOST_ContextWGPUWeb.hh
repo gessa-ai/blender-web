@@ -69,8 +69,8 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   GHOST_TSuccess initializeDrawingContext() override;
   GHOST_TSuccess releaseNativeHandles() override;
   GHOST_TSuccess swapBufferAcquire() override;
-  /** Schedule the persistent-backbuffer blit. Immediate acquisition failures are
-   * returned synchronously; the browser auto-presents accepted work on event-loop yield. */
+  /** Acquire, encode, and submit the persistent-backbuffer blit synchronously. Immediate
+   * failures are returned here; scoped validation settles asynchronously before publication. */
   GHOST_TSuccess swapBufferRelease() override;
   /** No-op: WebGPU's implicit device model has no "current context" to activate. */
   GHOST_TSuccess activateDrawingContext() override;

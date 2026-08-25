@@ -2754,10 +2754,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   share the same recovery. Native/wasm32 allocation and saturation contracts, the real worker
   saturation/cancel harness, integrated matrix, baked product, and fallback diagnostic are green
   without changing the nonreceipt boundary. See `notes/m4-ime-terminal-recovery-20260825.md`.
-- [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-EPOCH [ghost-web, claimed_by: none,
-  blocked-by: none]:** replace raw-system-pointer callback ownership with a durable per-registration
-  epoch/token. Prove an event queued before disposal cannot target a replacement window even when
-  delivery occurs after rebinding, including repeated replacements.
+- [x] **AUDIT-R11-M4-CALLBACK-REGISTRATION-EPOCH [ghost-web] (`5ac001e`):** each HTML5 listener
+  set now owns durable unique userdata and an atomically retired epoch, so callbacks queued under
+  either of two prior registrations cannot target a replacement window. Exact-commit mutation,
+  real-worker repeated-replacement, native/wasm32, product relink/no-work/OFF-preflight, headed
+  fallback diagnostic, canonical, REUSE, M4, and regression checks preserve their strict existing
+  boundaries. See `notes/m4-callback-registration-epoch-20260825.md`.
 - [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-TRANSACTION [ghost-web, claimed_by: none,
   blocked-by: none]:** require all twelve HTML5 listener-registration results, roll back every
   successful prefix on failure, and publish the owner/registered flag only after full success.

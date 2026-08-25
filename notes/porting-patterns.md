@@ -1506,3 +1506,17 @@ the accepted-but-pending interval, success, error, external loss, blur, disposal
 recovery, and a real product loss/reacquire cycle. See
 `platform_web/ghost/GHOST_WindowWeb.cc` and
 `platform_web/ghost/harness/pointer_lock_test.mjs`.
+
+## Class 102 — callback userdata must identify the listener registration
+
+Signature: browser listeners all receive the owning platform-system pointer as userdata. Removal
+prevents new callbacks but cannot retract work already queued for a worker; if a replacement window
+re-registers the same system pointer before that work runs, the old callback passes a pointer-based
+owner gate and targets the replacement. Give every listener set unique durable userdata carrying a
+registration epoch/token, retire that exact token before listener removal, and never recycle or
+free it while queued delivery remains possible. Use the same userdata for exact removal and admit a
+callback only when both its record and epoch are current. In a real worker harness, retain listener
+closures from two successive registrations, replace twice, deliver both under a third registration,
+require no stale input, then prove current input still works. See
+`platform_web/ghost/GHOST_SystemWeb.cc` and
+`platform_web/ghost/harness/window_lifecycle_test.mjs`.

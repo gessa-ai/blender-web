@@ -1467,3 +1467,16 @@ the failure stub with unconditional success. Bind both the web override and the 
 window-to-context call in a source contract, with hard-coded success/failure mutations, then rebuild
 the product translation unit. See `platform_web/ghost/GHOST_WindowWeb.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/window_activation_contract.py`.
+
+## Class 99 — a platform capability bit is a runtime routing promise
+
+Signature: a browser GPU backend implements a nominally synchronous read by kicking an owned
+request, consuming a prior settled request when available, and otherwise returning a conservative
+interim buffer, while its platform layer advertises synchronous front-buffer support. Blender uses
+that flag to choose a front-buffer helper whose void call is promoted to unconditional success, so
+the interim bytes escape and the owned pending/ready continuation is never entered. Mask the
+synchronous capability at the platform boundary; do not weaken the async request or manufacture a
+synchronous wait on the WM worker. Bind the flag to both the stock capability-controlled branch and
+the browser kick/take implementation, and mutate the routing, pending fallback, settlement, and
+interim initialization independently. See `platform_web/ghost/GHOST_SystemWeb.cc` and
+`sandbox/wgpu-pipeline-integrated-smoke/frontbuffer_capability_contract.py`.

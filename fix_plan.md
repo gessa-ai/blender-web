@@ -2708,6 +2708,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 parity, real worker/browser pixels, locked product/no-work/OFF-preflight,
   sustained fallback diagnostics, REUSE, M4 scope, and regression preserve their strict existing
   boundaries. See `notes/m4-web-custom-cursor-bridge-20260825.md`.
+- [x] **M4-WEB-FRONTBUFFER-CAPABILITY [ghost-web] (`c9502ee`):** GHOST-web now masks the
+  synchronous front-buffer capability that its one-turn browser readback cannot satisfy, so stock
+  window sampling no longer promotes an interim buffer to success and browser callers reach their
+  owned pending/settled continuations. A three-source routing contract rejects six mutations; the
+  integrated native/wasm32 matrix, locked product relink/no-work, OFF preflight, sustained fallback
+  diagnostic, REUSE, M4 scope, and container regression preserve their strict existing boundaries.
+  See `notes/m4-web-frontbuffer-capability-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

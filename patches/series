@@ -1140,3 +1140,6 @@
 # 0278: bind device-backed render and indexed-fan pipeline caches to their
 # owning WebGPU context so a later device cannot receive stale handles.
 0278-gpu-webgpu-context-pipeline-caches.patch
+# 0279: keep one coherent async-compiler handle tuple across overlapping
+# WebGPU context publication and teardown orders.
+0279-gpu-webgpu-context-handle-registry.patch

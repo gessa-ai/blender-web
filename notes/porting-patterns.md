@@ -1441,3 +1441,17 @@ masked, and software identities rejected; the fix is extraction, not classifier 
 unknown fixture matrix to product-owned acquisition callbacks; the WM-worker preinit additionally
 mutates legacy-only extraction, legacy-first precedence, and unknown-as-fallback behavior in
 `sandbox/wgpu-pipeline-integrated-smoke/preinit_worker_test.mjs`.
+
+## Class 97 — overlapping contexts need one owner-tracked backend handle snapshot
+
+Signature: each GPU context copies its instance, device, and queue into independent process-static
+fields for an asynchronous worker, then every context destructor clears all three fields. With two
+live contexts, destroying an older owner erases the newer owner's device; separately reading the
+three fields can also combine different generations during publication. Store complete handle
+tuples in one locked latest-live-owner registry. Republishing an owner replaces and moves its tuple
+atomically, forgetting an older owner preserves the current tuple, forgetting the newest owner
+restores the previous live owner, and forgetting the last owner returns one empty tuple. Workers
+copy the whole tuple under the same lock before using any member. Exercise coherent republish, both
+teardown orders, previous-owner restoration, last-owner cleanup, and duplicate cleanup on native
+and wasm32. See `patches/0279-gpu-webgpu-context-handle-registry.patch` and
+`sandbox/wgpu-pipeline-integrated-smoke/`.

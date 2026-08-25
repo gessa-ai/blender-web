@@ -20,7 +20,8 @@
 # framebuffer full/scissored-clear and copy, texture render-clear, batch, and immediate-draw
 # command transactions,
 # dummy-attribute binding
-# plan, shader-lifetime cache separation, and context-owned pipeline lifetimes.
+# plan, shader-lifetime cache separation, context-owned pipeline lifetimes, and
+# overlapping-context backend-handle publication.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -389,6 +390,23 @@ require_fixed_count 1 'webgpu::WGPUPipelinePool immediate_pipeline_pool_;' \
 require_fixed_count 1 \
   'webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline> triangle_fan_pipeline_cache_;' \
   "$WEBGPU_SOURCE/wgpu_context.hh"
+require_fixed_count 1 \
+  'class LatestOwnerHandleRegistry {' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'webgpu::LatestOwnerHandleRegistry<WGPUContext, BackendHandles> s_backend_handles;' \
+  "$WEBGPU_SOURCE/wgpu_context.hh"
+require_fixed_count 1 \
+  's_backend_handles.publish(this, {instance_, device_, queue_});' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  's_backend_handles.forget(this);' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'const WGPUContext::BackendHandles handles = WGPUContext::backend_handles();' \
+  "$WEBGPU_SOURCE/wgpu_shader.cc"
+require_fixed_count 0 'wgpu::Device WGPUContext::s_device' "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 0 's_device = nullptr;' "$WEBGPU_SOURCE/wgpu_context.cc"
 require_fixed_count 1 'ctx.triangle_fan_pipeline_cache_get();' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 0 \
@@ -2177,7 +2195,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 40 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 41 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -2212,6 +2230,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT context_owned_pipeline_cache PASS cases=8 caches=3 shared_reuse=stale context_reuse=isolated creates=6' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT context_backend_handle_registry PASS cases=7 owners=2 tuples=3 publication=atomic restoration=previous cleanup=idempotent' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ordered_queue_scheduler_failure_drain PASS followers=100000 executed=0 canceled=100000 failed_epochs=100000 retained_peak=1 retained_final=0 stack=bounded retry=accepted' \
@@ -2280,7 +2301,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=39 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 context_pipeline_caches=3 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=40 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

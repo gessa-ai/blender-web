@@ -902,6 +902,79 @@ bool context_owned_pipeline_cache_contract()
   return true;
 }
 
+bool context_backend_handle_registry_contract()
+{
+  struct Handles {
+    int instance = 0;
+    int device = 0;
+    int queue = 0;
+
+    bool operator==(const Handles &) const = default;
+  };
+
+  int first_owner = 0;
+  int second_owner = 0;
+  bw::LatestOwnerHandleRegistry<int, Handles> registry;
+  const Handles empty = {};
+  const Handles first = {11, 12, 13};
+  const Handles first_republished = {21, 22, 23};
+  const Handles second = {31, 32, 33};
+
+  if (!require(registry.current() == empty && registry.size() == 0,
+               "backend handle registry starts empty"))
+  {
+    return false;
+  }
+
+  registry.publish(&first_owner, first);
+  registry.publish(&first_owner, first_republished);
+  if (!require(registry.current() == first_republished && registry.size() == 1,
+               "republishing one context atomically replaces its handle tuple"))
+  {
+    return false;
+  }
+
+  registry.publish(&second_owner, second);
+  if (!require(registry.current() == second && registry.size() == 2,
+               "latest live context supplies one coherent handle tuple"))
+  {
+    return false;
+  }
+
+  registry.forget(&first_owner);
+  if (!require(registry.current() == second && registry.size() == 1,
+               "destroying an older context preserves the current context handles"))
+  {
+    return false;
+  }
+
+  registry.publish(&first_owner, first);
+  if (!require(registry.current() == first && registry.size() == 2,
+               "republished context becomes the current handle owner"))
+  {
+    return false;
+  }
+
+  registry.forget(&first_owner);
+  if (!require(registry.current() == second && registry.size() == 1,
+               "destroying the current context restores the previous live owner"))
+  {
+    return false;
+  }
+
+  registry.forget(&second_owner);
+  registry.forget(&second_owner);
+  if (!require(registry.current() == empty && registry.size() == 0,
+               "last and duplicate context destruction leave an empty registry"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT context_backend_handle_registry PASS cases=7 owners=2 "
+            "tuples=3 publication=atomic restoration=previous cleanup=idempotent");
+  return true;
+}
+
 bool ordered_queue_scheduler_failure_drain_contract()
 {
   constexpr size_t follower_count = 100000;
@@ -3863,6 +3936,7 @@ int main()
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
       !context_owned_pipeline_cache_contract() ||
+      !context_backend_handle_registry_contract() ||
       !ordered_queue_scheduler_failure_drain_contract() ||
       !transient_resource_gate_contract() ||
       !compute_bind_group_scope_contract() ||
@@ -3887,7 +3961,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=39 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=40 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -3897,6 +3971,7 @@ int main()
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
       "context_pipeline_caches=3 "
+      "context_handle_registry_cases=7 "
       "transient_resource_gates=3 compute_bind_group_scope_cases=4 "
       "compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 "
       "layered_clear_orders=4 "

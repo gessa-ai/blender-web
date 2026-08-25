@@ -72,6 +72,11 @@ pipeline creation. Every context, framebuffer, per-shader specialization, and co
 pipeline cache likewise publishes only after validation, out-of-memory, and internal scopes
 settle. The one-shot mipmap module/pipeline pair instead reserves an ordered transient gate before
 dependent command work. Rejected keys retry without disturbing accepted entries.
+Async shader compilation additionally reads one locked instance/device/queue tuple from the latest
+live context. Republishing one owner is atomic, destroying an older context cannot clear a newer
+tuple, and destroying the newest overlapping context restores the previous live owner instead of
+leaving the compiler handle-less. Seven native/wasm32 cases cover both teardown orders, coherent
+replacement, restoration, last-owner cleanup, and duplicate cleanup.
 Sampler cache misses additionally remain pending while validation, out-of-memory, and
 internal scopes settle. A second lookup deduplicates the pending key; a non-null error
 object is discarded, and a clean retry is published without exposing a provisional handle.

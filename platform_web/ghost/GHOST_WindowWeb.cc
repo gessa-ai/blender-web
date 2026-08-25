@@ -12,6 +12,7 @@
 
 #include "GHOST_WindowWeb.hh"
 
+#include <atomic>
 #include <cmath>
 
 #include <emscripten/emscripten.h>
@@ -42,6 +43,39 @@ EM_JS(void, ghost_web_set_document_title, (const char *title), {
     document.title = UTF8ToString(title);
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* WM-worker -> browser-main cursor handshake.
+ *
+ * The transferred OffscreenCanvas owned by this worker has no DOM `style`; CSS cursor
+ * changes must be applied to the original HTMLCanvasElement on the browser main thread.
+ * Keep the desired GHOST state in shared wasm memory and publish it with a release
+ * generation. diagnostics-bootstrap.js polls that generation from the main thread and
+ * applies the corresponding CSS cursor. This mirrors the opposite-direction display-state
+ * bridge in GHOST_SystemWeb.cc and remains valid before wasm constructors run because all
+ * atomics are constant-initialized. */
+namespace {
+
+std::atomic<int32_t> g_cursor_shape{int32_t(GHOST_kStandardCursorDefault)};
+std::atomic<int32_t> g_cursor_visible{1};
+std::atomic<uint32_t> g_cursor_generation{1};
+
+}  // namespace
+
+extern "C" EMSCRIPTEN_KEEPALIVE uint32_t bw_shell_cursor_generation(void)
+{
+  return g_cursor_generation.load(std::memory_order_acquire);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int32_t bw_shell_cursor_shape(void)
+{
+  return g_cursor_shape.load(std::memory_order_relaxed);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int32_t bw_shell_cursor_visible(void)
+{
+  return g_cursor_visible.load(std::memory_order_relaxed);
+}
 
 GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
                                  int32_t /*left*/,
@@ -243,20 +277,29 @@ uint16_t GHOST_WindowWeb::getDPIHint()
   return uint16_t(96);
 }
 
+GHOST_TSuccess GHOST_WindowWeb::hasCursorShape(GHOST_TStandardCursor shape)
+{
+  const int cursor = int(shape);
+  return (cursor >= GHOST_kStandardCursorFirstCursor &&
+          cursor < int(GHOST_kStandardCursorCustom)) ?
+             GHOST_kSuccess :
+             GHOST_kFailure;
+}
+
+GHOST_TSuccess GHOST_WindowWeb::setWindowCursorShape(GHOST_TStandardCursor shape)
+{
+  if (hasCursorShape(shape) != GHOST_kSuccess) {
+    return GHOST_kFailure;
+  }
+  g_cursor_shape.store(int32_t(shape), std::memory_order_relaxed);
+  g_cursor_generation.fetch_add(1, std::memory_order_release);
+  return GHOST_kSuccess;
+}
+
 GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
 {
-  /* On the WM worker `Module['canvas']` is the transferred OffscreenCanvas (M4.T12),
-   * which has NO `.style` — guard it, or setting `.style.cursor` throws
-   * "Cannot set properties of undefined (setting 'cursor')". Cursor styling is a
-   * main-thread DOM affordance (an OffscreenCanvas cannot show a CSS cursor), so this
-   * simply no-ops on the worker. */
-  EM_ASM(
-      {
-        if (Module['canvas'] && Module['canvas'].style) {
-          Module['canvas'].style.cursor = $0 ? 'auto' : 'none';
-        }
-      },
-      visible ? 1 : 0);
+  g_cursor_visible.store(visible ? 1 : 0, std::memory_order_relaxed);
+  g_cursor_generation.fetch_add(1, std::memory_order_release);
   return GHOST_kSuccess;
 }
 

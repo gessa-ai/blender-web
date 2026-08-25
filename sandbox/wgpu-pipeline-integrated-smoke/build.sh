@@ -22,6 +22,7 @@
 # dummy-attribute binding
 # plan, shader-lifetime cache separation, context-owned pipeline lifetimes, and
 # overlapping-context backend-handle publication.
+# Browser-main standard cursor shape/visibility publication is source- and behavior-bound too.
 # Invoke through buildwrap.sh.
 set -euo pipefail
 
@@ -34,13 +35,18 @@ GHOST_HEADER="$ROOT/platform_web/ghost/GHOST_ContextWGPUWeb.hh"
 GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
 GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
+GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
+DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
 LIVE_PREINIT_SOURCE="$HERE/live_preinit_boot.mjs"
 LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
 LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
 WINDOW_ACTIVATION_CONTRACT="$HERE/window_activation_contract.py"
+CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
+CURSOR_BRIDGE_TEST="$HERE/cursor_bridge_test.mjs"
 GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
+GHOST_TYPES_SOURCE="$ROOT/upstream/intern/ghost/GHOST_Types.hh"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -141,9 +147,11 @@ source_digest()
       sha256sum platform_web/ghost/GHOST_ContextWGPUWeb.cc \
                 platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                 platform_web/ghost/GHOST_WindowWeb.cc \
+                platform_web/ghost/GHOST_WindowWeb.hh \
                 platform_web/ghost/GHOST_SystemWeb.cc \
                 platform_web/ghost/GHOST_WGPUTransaction.hh \
-                platform_web/shell/wgpu-preinit-worker.js | sha256sum | awk '{print $1}')"
+                platform_web/shell/wgpu-preinit-worker.js \
+                platform_web/shell/diagnostics-bootstrap.js | sha256sum | awk '{print $1}')"
     printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | sha256sum | awk '{print $1}'
   else
     webgpu_digest="$(cd "$WEBGPU_SOURCE" && \
@@ -154,9 +162,11 @@ source_digest()
       shasum -a 256 platform_web/ghost/GHOST_ContextWGPUWeb.cc \
                     platform_web/ghost/GHOST_ContextWGPUWeb.hh \
                     platform_web/ghost/GHOST_WindowWeb.cc \
+                    platform_web/ghost/GHOST_WindowWeb.hh \
                     platform_web/ghost/GHOST_SystemWeb.cc \
                     platform_web/ghost/GHOST_WGPUTransaction.hh \
-                    platform_web/shell/wgpu-preinit-worker.js | \
+                    platform_web/shell/wgpu-preinit-worker.js \
+                    platform_web/shell/diagnostics-bootstrap.js | \
       shasum -a 256 | awk '{print $1}')"
     printf '%s\n%s\n%s\n' "$webgpu_digest" "$upstream_digest" "$ghost_digest" | \
       shasum -a 256 | awk '{print $1}'
@@ -185,15 +195,20 @@ require_file "$HERE/ghost_acquisition_lifetime_test.cc"
 require_file "$GHOST_SOURCE"
 require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
+require_file "$GHOST_WINDOW_HEADER"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
+require_file "$GHOST_TYPES_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
 require_file "$GHOST_TRANSACTION_HEADER"
 require_file "$WGPU_PREINIT_SOURCE"
+require_file "$DIAGNOSTICS_BOOTSTRAP_SOURCE"
 require_file "$WGPU_PREINIT_TEST"
 require_file "$LIVE_PREINIT_SOURCE"
 require_file "$LIVE_PREINIT_CONTRACT"
 require_file "$LIVE_PREINIT_CONTRACT_TEST"
 require_file "$WINDOW_ACTIVATION_CONTRACT"
+require_file "$CURSOR_BRIDGE_CONTRACT"
+require_file "$CURSOR_BRIDGE_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
@@ -1649,6 +1664,9 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::PresentableWindow' "$GHOST
 require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM_SOURCE"
 "$PYBIN" "$WINDOW_ACTIVATION_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_BASE_WINDOW_SOURCE" --selfcheck
+"$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
+  "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
+  "$GHOST_TYPES_SOURCE" --selfcheck
 for status in 1 2 3 4 5; do
   require_fixed_count 1 \
     "Module[\"preinitializedWebGPUPresentationStatus\"] = ${status};" \
@@ -2117,6 +2135,14 @@ if ! grep -qx \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker adapter-info mutation evidence differs" >&2
+  exit 1
+fi
+"$NODE" "$CURSOR_BRIDGE_TEST" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" >"$OUT/cursor-bridge.txt"
+if ! grep -qx \
+  'CURSOR_BRIDGE_CONTRACT PASS standard=46 visibility=hidden,visible recovery=module,canvas,error' \
+  "$OUT/cursor-bridge.txt"
+then
+  echo "ERROR: main-thread cursor bridge evidence differs" >&2
   exit 1
 fi
 "$NODE" "$LIVE_PREINIT_CONTRACT_TEST" >"$OUT/live-preinit-classifier.txt"

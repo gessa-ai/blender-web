@@ -147,6 +147,14 @@ try {
     return module && typeof module._bw_wm_tick_count === "function" &&
       typeof module._bw_present_count === "function";
   }, null, { timeout: 10000, polling: 100 });
+  await page.waitForFunction(() => {
+    const bridge = window.__bwCursorBridge;
+    const snapshot = bridge && bridge.snapshot();
+    return bridge?.schema === 1 && bridge.standardShapeCount === 46 && snapshot &&
+      Number.isInteger(snapshot.generation) && Number.isInteger(snapshot.shape) &&
+      snapshot.shape >= 0 && snapshot.shape < bridge.standardShapeCount &&
+      snapshot.visible === true && snapshot.css === document.querySelector("#canvas")?.style.cursor;
+  }, null, { timeout: 10000, polling: 100 });
   // `state=running` is published when WM_main is entered, before the first
   // software-rendered iteration has necessarily completed. Bound that startup
   // phase by requiring a second real processEvents entry; the samples below
@@ -181,6 +189,7 @@ try {
   }
   const afterInput = await waitForInputRoundTrip(page, second);
   const snapshot = await readSample(page);
+  const cursorSnapshot = await page.evaluate(() => window.__bwCursorBridge.snapshot());
   const result = classifyLivePreinitDiagnostic({
     state: snapshot.state,
     module: snapshot.module,
@@ -214,6 +223,7 @@ try {
     `idle_sample_ms=${Math.round(result.idleElapsedMs)} idle_tick_delta=${result.idleTickDelta} ` +
     `input_round_trip_ms=${Math.round(result.inputElapsedMs)} ` +
     `input_tick_delta=${result.inputTickDelta} input_present_delta=${result.inputPresentDelta} ` +
+    `cursor_shape=${cursorSnapshot.shape} cursor_css=${cursorSnapshot.css} ` +
     `present_submission_rejected=0 present_transaction_rejected=0 device_lost=0 ` +
     `playwright_root=${playwrightRoot}`,
   );

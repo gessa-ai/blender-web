@@ -149,6 +149,13 @@ the newest request, rejected candidates retry from the next present without anot
 and presentation requires exact authoritative, backbuffer, and acquired-surface extents. The pinned-
 Dawn software control exercises the same shipping helpers against real non-null error objects but
 remains explicitly non-receipt evidence.
+The browser cursor follows the same realm boundary deliberately. Standard shape and visibility
+requests publish shared atomic state from the WM worker, while the first main-thread shell script
+maps all 46 supported `GHOST_TStandardCursor` values onto the DOM canvas. Arbitrary bitmap/mask
+cursors fail honestly instead of reporting a no-op success. The pinned source contract rejects
+enum drift, missing release publication, direct worker DOM access, and missing runtime exports;
+the Node behavior contract covers every mapping, hide/show, generation ordering, and recovery from
+temporarily missing module, canvas, or export state.
 The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
 presentation bundle. Its worker-side transaction validates the initial backbuffer before main
 starts, then puts non-fallback and unknown-status adapters through scoped canvas configuration,
@@ -222,7 +229,8 @@ This headed check forces Chromium's SwiftShader adapter under its GPU-test initi
 requires the adapter to report fallback status. After `WM_main`, it bounds first-tick settlement,
 requires a positive tick delta across two further samples, sends trusted mouse input, and requires
 both another WM tick and a new presentation with no device loss, rejected present submission, or
-rejected present transaction. Its explicit
+rejected present transaction. It also requires the real product's 46-shape cursor bridge to consume
+one shared-memory snapshot and apply the matching CSS cursor to `#canvas`. Its explicit
 `diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel gate.
 
 The triangle-fan row deliberately exercises the backend's fail-visible fallback:
@@ -233,7 +241,7 @@ byte-identical.
 The driver checksum-binds Dawn `36cf1fae` (including its stride-zero pipeline,
 16/20-byte indirect draw-range, viewport/scissor, and direct/indirect compute validation), emcc 6.0.5,
 Node 22.16.0, matching native/Wasm fmt headers, Blender's canonical clean-pin replay,
-and 31 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert/presentation source inputs before
+and 33 exact pipeline/batch/framebuffer/texture/vertex-format/enum/assert/presentation/cursor source inputs before
 evidence allocation. It also
 requires both shipping direct and indirect batch paths to call the tested strip-format
 mapping. Both targets build only through `scripts/ninja-locked.sh` and finish

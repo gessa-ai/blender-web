@@ -87,27 +87,22 @@ class GHOST_WindowWeb : public GHOST_Window {
 
   /* NOTE: setPath() is left to GHOST_Window's default (no-op). */
 
-  GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor /*shape*/) override
-  {
-    return GHOST_kSuccess;
-  }
+  GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape) override;
 
  protected:
   GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode /*mode*/) override
   {
     return GHOST_kSuccess;
   }
-  GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor /*shape*/) override
-  {
-    return GHOST_kSuccess;
-  }
+  GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor shape) override;
   GHOST_TSuccess setWindowCustomCursorShape(const uint8_t * /*bitmap*/,
                                             const uint8_t * /*mask*/,
                                             const int /*size*/[2],
                                             const int /*hot_spot*/[2],
                                             bool /*can_invert_color*/) override
   {
-    return GHOST_kSuccess;
+    /* CSS cannot represent Blender's arbitrary bitmap/mask cursor contract. */
+    return GHOST_kFailure;
   }
   GHOST_TSuccess setWindowCursorVisibility(bool visible) override;
 

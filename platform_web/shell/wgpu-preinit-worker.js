@@ -110,6 +110,15 @@
           if (!adapter) {
             throw new Error("navigator.gpu.requestAdapter() returned null");
           }
+          var currentFallbackStatus =
+            adapter.info && typeof adapter.info.isFallbackAdapter === "boolean" ?
+              adapter.info.isFallbackAdapter :
+              (typeof adapter.isFallbackAdapter === "boolean" ?
+                 adapter.isFallbackAdapter : null);
+          // Only an exact browser-reported fallback status may use the diagnostic
+          // compatibility path below. Missing/unknown status stays on strict
+          // validation and cannot manufacture a hardware-capable result.
+          var adapterIsFallback = currentFallbackStatus === true;
           // Enable every feature the adapter advertises. Blender's WebGPU backend
           // feature-gates on what the DEVICE actually exposes (wgpu_texture_format.cc
           // FeatureGate::*), so an imported device with no features cannot create e.g.
@@ -193,6 +202,7 @@
               requiredFeatures.length +
               " tier1=" + requiredFeatures.includes("texture-formats-tier1") +
               " tier2=" + requiredFeatures.includes("texture-formats-tier2") +
+              " fallback=" + String(currentFallbackStatus) +
               " maxStorageTexturesPerShaderStage=" +
               requiredLimits.maxStorageTexturesPerShaderStage +
               " maxStorageBuffersPerShaderStage=" +
@@ -247,11 +257,11 @@
 
             // Validate the ordinary texture while the device is still independent
             // of the canvas. Chromium's fallback adapter invalidates its raw external
-            // instance when popErrorScope() follows OffscreenCanvas.configure(). Keep
-            // the strict resource scopes first, then validate the canvas synchronously
-            // plus one uncaptured-error event-loop turn without a post-configure device
-            // promise. C++ imports the validated bundle after main starts; hardware
-            // adapters take this same ordering.
+            // instance when a WebGPU promise follows OffscreenCanvas.configure(), so
+            // only that exact adapter shape uses the explicitly diagnostic synchronous
+            // submission below. Non-fallback and unknown-status adapters additionally
+            // require scoped validation and queue completion before C++ can import the
+            // complete bundle after main starts.
             Module["preinitializedWebGPUPresentationStatus"] = 4;
             backbuffer = await validateScoped(
               device,
@@ -274,15 +284,7 @@
             }
 
             Module["preinitializedWebGPUPresentationStatus"] = 3;
-            var presentationError = null;
-            var onPresentationError = function (event) {
-              if (!presentationError) {
-                presentationError = event && event.error ? event.error :
-                  new Error("unknown uncaptured surface configuration error");
-              }
-            };
-            device.addEventListener("uncapturederror", onPresentationError);
-            try {
+            var configureAndSubmitPresentationProbe = function () {
               surface.configure({
                 device: device,
                 format: "bgra8unorm",
@@ -293,14 +295,51 @@
               if (!initialSurfaceTexture) {
                 throw new Error("initial surface texture acquisition returned null");
               }
-              await new Promise(function (resolve) { setTimeout(resolve, 0); });
-              requireDeviceActive("initial surface configuration");
-              if (presentationError) {
-                throw presentationError;
+              var initialSurfaceView = initialSurfaceTexture.createView();
+              if (!initialSurfaceView) {
+                throw new Error("initial surface texture view creation returned null");
               }
+              var presentationEncoder = device.createCommandEncoder({
+                label: "wgpu_web_presentation_probe_encoder",
+              });
+              if (!presentationEncoder) {
+                throw new Error("presentation probe encoder creation returned null");
+              }
+              var presentationPass = presentationEncoder.beginRenderPass({
+                label: "wgpu_web_presentation_probe_pass",
+                colorAttachments: [{
+                  view: initialSurfaceView,
+                  clearValue: { r: 1, g: 1, b: 1, a: 1 },
+                  loadOp: "clear",
+                  storeOp: "store",
+                }],
+              });
+              if (!presentationPass) {
+                throw new Error("presentation probe render pass creation returned null");
+              }
+              presentationPass.end();
+              var presentationCommands = presentationEncoder.finish();
+              if (!presentationCommands) {
+                throw new Error("presentation probe command finish returned null");
+              }
+              device.queue.submit([presentationCommands]);
+            };
+
+            if (adapterIsFallback) {
+              // Chromium's software adapter invalidates its external Instance when
+              // any WebGPU promise is created after OffscreenCanvas.configure().
+              // Keep this compatibility path explicitly diagnostic: it submits the
+              // same presentation use but cannot bind a receipt or claim strict
+              // validation. Hardware and unknown-status adapters never enter it.
+              configureAndSubmitPresentationProbe();
+              Module["preinitializedWebGPUPresentationValidation"] =
+                "fallback-diagnostic";
             }
-            finally {
-              device.removeEventListener("uncapturederror", onPresentationError);
+            else {
+              await validateScoped(device, configureAndSubmitPresentationProbe, null);
+              await device.queue.onSubmittedWorkDone();
+              requireDeviceActive("initial surface presentation completion");
+              Module["preinitializedWebGPUPresentationValidation"] = "strict";
             }
 
             Module["preinitializedWebGPUSurface"] = surface;
@@ -309,7 +348,8 @@
             Module["preinitializedWebGPUSurfaceHeight"] = surfaceHeight;
             Module["preinitializedWebGPUPresentationStatus"] = 5;
             log("[bw] WM-worker WebGPU presentation pre-acquired; canvas=" +
-                surfaceWidth + "x" + surfaceHeight);
+                surfaceWidth + "x" + surfaceHeight + " validation=" +
+                Module["preinitializedWebGPUPresentationValidation"]);
           }
           catch (ex) {
             try { if (backbuffer) { backbuffer.destroy(); } } catch (ignored) {}

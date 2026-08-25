@@ -1347,3 +1347,19 @@ caller shape independently on native and wasm32; a single generic modal model wi
 persistent-owner lifetime bugs. See
 `patches/0273-m5-particle-edit-depth-cache-continuation.patch` and
 `sandbox/m5-particle-edit-depth-cache/`.
+
+## Class 91 — optional GPU telemetry cannot validate a presentation transaction
+
+Signature: a browser preflight configures a WebGPU canvas, acquires its first texture, waits one
+event-loop turn for `uncapturederror`, and publishes the surface when no event arrives. The WebGPU
+error event is optional and may be delayed or omitted, so its absence is not a completion signal.
+For non-fallback adapters, put configuration, texture/view acquisition, command encoding, and the
+first surface submission inside validation/OOM/internal scopes, then await queue-work completion
+before publication. Chromium's fallback adapter has a separate platform defect: any WebGPU promise
+after `OffscreenCanvas.configure()` cancels because its external Instance is dropped. Admit that
+compatibility path only when the current `GPUAdapterInfo.isFallbackAdapter` (or exact legacy
+fallback) reports `true`, label it diagnostic-only, and let it bind no receipt; missing or false
+status stays on the strict path. Exercise synchronous, delayed, and omitted telemetry independently
+from scope results, exact current-spec fallback selection, strict completion, cleanup, and partial
+publication. See `platform_web/shell/wgpu-preinit-worker.js` and
+`sandbox/wgpu-pipeline-integrated-smoke/preinit_worker_test.mjs`.

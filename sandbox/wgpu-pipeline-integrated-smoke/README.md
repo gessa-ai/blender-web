@@ -144,12 +144,16 @@ and presentation requires exact authoritative, backbuffer, and acquired-surface 
 pinned-Dawn software control exercises the same shipping helpers against real non-null
 error objects but remains explicitly non-receipt evidence.
 The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
-presentation bundle. Its worker-side transaction awaits canvas configuration and initial
-backbuffer validation before main starts, records the exact failed stage without exposing partial
-handles, and preserves device acquisition only for the separately selected device-only mode. A
-seven-case pinned-Node mock covers device, canvas, surface, configuration, error-object/null
-backbuffer, and successful publication; the native/wasm32 decision table independently rejects
-every partial status before the existing window-publication transaction can run.
+presentation bundle. Its worker-side transaction validates the initial backbuffer before main
+starts, then puts non-fallback and unknown-status adapters through scoped canvas configuration,
+surface clear submission, and queue-work completion. An exact browser-reported fallback adapter
+uses a separately labeled diagnostic compatibility path because Chromium invalidates that
+adapter's external Instance when a WebGPU promise follows canvas configuration; this path binds no
+receipt. Fourteen pinned-Node cases cover device, canvas, surface, error-object/null backbuffer,
+synchronous/delayed/omitted configuration telemetry, strict work completion, exact fallback
+selection, cleanup, loss, and successful publication. The native/wasm32 decision table
+independently rejects every partial status before the existing window-publication transaction can
+run.
 Surface acquisition is a separate per-frame transaction. The status contract accepts a texture
 only for optimal or suboptimal success, retries a timeout without poisoning the configured state,
 reconfigures outdated/error or malformed-success results, and recreates a lost surface. The

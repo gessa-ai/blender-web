@@ -1599,6 +1599,15 @@ for status in 1 2 3 4 5; do
 done
 require_fixed_count 1 'Module["preinitializedWebGPUSurface"] = surface;' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'Module["preinitializedWebGPUBackbuffer"] = backbuffer;' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'device.queue.submit([presentationCommands]);' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 \
+  'await validateScoped(device, configureAndSubmitPresentationProbe, null);' \
+  "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'await device.queue.onSubmittedWorkDone();' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 'adapter.info && typeof adapter.info.isFallbackAdapter === "boolean" ?' \
+  "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 '"fallback-diagnostic";' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 0 'onPresentationError' "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 \
   'Module["preinitializedWebGPUDeviceLoss"] = deviceLossSignal;' \
   "$WGPU_PREINIT_SOURCE"
@@ -2001,7 +2010,7 @@ mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 printf '%s\n' "$SOURCE_PROOF" >"$OUT/source-replay.txt"
 "$NODE" "$WGPU_PREINIT_TEST" "$WGPU_PREINIT_SOURCE" >"$OUT/preinit-worker.txt"
 if ! grep -qx \
-  'CONTRACT ghost_preinit_worker PASS cases=11 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved loss=pending,unknown,destroyed stale=ignored preentry=unpublished entry=once' \
+  'CONTRACT ghost_preinit_worker PASS cases=14 statuses=0,1,2,3,4,5 partial=unpublished device_only=preserved loss=pending,unknown,destroyed stale=ignored preentry=unpublished entry=once presentation=scoped-work-done fallback=diagnostic telemetry=sync,delayed,omitted' \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker preinit transaction evidence differs" >&2

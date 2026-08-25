@@ -14,17 +14,24 @@ const cases = [
   { name: "device", adapterMissing: true, status: 0, device: false },
   { name: "canvas", canvasMissing: true, status: 1, device: true },
   { name: "surface", surfaceMissing: true, status: 2, device: true },
-  { name: "configuration", configurationError: true, status: 3, device: true },
+  { name: "configuration_sync_telemetry", configurationError: true, telemetry: "sync",
+    status: 3, device: true, presentation: true },
+  { name: "configuration_delayed_telemetry", configurationError: true, telemetry: "delayed",
+    status: 3, device: true, presentation: true },
+  { name: "configuration_omitted_telemetry", configurationError: true, telemetry: "omitted",
+    status: 3, device: true, presentation: true },
   { name: "backbuffer_error", backbufferError: true, status: 4, device: true },
   { name: "backbuffer_null", backbufferNull: true, status: 4, device: true },
-  { name: "ready", status: 5, device: true, ready: true },
+  { name: "ready", status: 5, device: true, ready: true, presentation: true },
+  { name: "fallback_ready", fallback: true, status: 5, device: true, ready: true,
+    presentation: true },
   { name: "lost_preentry", lossBeforeEntry: "unknown", status: 4, device: true, lossStatus: 1 },
   { name: "lost_unknown", lossAfterEntry: "unknown", status: 5, device: true, ready: true,
-    lossStatus: 1 },
+    lossStatus: 1, presentation: true },
   { name: "lost_destroyed", lossAfterEntry: "destroyed", status: 5, device: true, ready: true,
-    lossStatus: 2 },
+    lossStatus: 2, presentation: true },
   { name: "lost_stale", lossAfterEntry: "destroyed", staleLoss: true, status: 5, device: true,
-    ready: true, lossStatus: 0 },
+    ready: true, lossStatus: 0, presentation: true },
 ];
 
 function assert(condition, message) {
@@ -59,17 +66,35 @@ async function run(test) {
   let unconfigureCalls = 0;
   let rejectedBackbufferDestroys = 0;
   let surfaceConfigured = false;
+  let telemetryDispatches = 0;
+  let presentationSubmits = 0;
+  let presentationCompletions = 0;
+  let popScopeCalls = 0;
   const uncapturedErrorHandlers = new Set();
+  const dispatchConfigurationError = () => {
+    telemetryDispatches++;
+    for (const handler of uncapturedErrorHandlers) {
+      handler({ error: new Error("configuration rejected") });
+    }
+  };
   const surface = {
     configure() {
       surfaceConfigured = true;
-      if (test.configurationError) {
-        for (const handler of uncapturedErrorHandlers) {
-          handler({ error: new Error("configuration rejected") });
-        }
+      if (test.configurationError && test.telemetry === "sync") {
+        dispatchConfigurationError();
+      }
+      else if (test.configurationError && test.telemetry === "delayed") {
+        setTimeout(dispatchConfigurationError, 20);
       }
     },
-    getCurrentTexture() { return { kind: "surface-texture" }; },
+    getCurrentTexture() {
+      const texture = {
+        kind: "surface-texture",
+        valid: !test.configurationError,
+        createView() { return { kind: "surface-view", texture }; },
+      };
+      return texture;
+    },
     unconfigure() { unconfigureCalls++; },
   };
   const canvas = {
@@ -78,7 +103,10 @@ async function run(test) {
     getContext() { return test.surfaceMissing ? null : surface; },
   };
 
-  const popErrors = [test.backbufferError ? new Error("backbuffer rejected") : null, null, null];
+  const popErrors = [
+    test.backbufferError ? new Error("backbuffer rejected") : null, null, null,
+    test.configurationError ? new Error("configuration rejected") : null, null, null,
+  ];
   let resolveLoss;
   const pendingLoss = new Promise((resolve) => { resolveLoss = resolve; });
   const device = {
@@ -108,7 +136,8 @@ async function run(test) {
     },
     pushErrorScope() {},
     async popErrorScope() {
-      if (surfaceConfigured) {
+      popScopeCalls++;
+      if (surfaceConfigured && test.fallback) {
         throw new Error("Instance dropped in popErrorScope");
       }
       return popErrors.shift() ?? null;
@@ -122,9 +151,41 @@ async function run(test) {
         destroy() { rejectedBackbufferDestroys++; },
       };
     },
+    createCommandEncoder() {
+      let renderView = null;
+      let clearValue = null;
+      let renderEnded = false;
+      return {
+        beginRenderPass(descriptor) {
+          assert(descriptor.colorAttachments.length === 1,
+                 `${test.name}: wrong presentation attachment count`);
+          const attachment = descriptor.colorAttachments[0];
+          assert(attachment.loadOp === "clear" && attachment.storeOp === "store",
+                 `${test.name}: presentation probe does not clear and store`);
+          renderView = attachment.view;
+          clearValue = attachment.clearValue;
+          return { end() { renderEnded = true; } };
+        },
+        finish() { return { renderView, clearValue, renderEnded }; },
+      };
+    },
+    queue: {
+      submit(commands) {
+        presentationSubmits++;
+        const command = commands[0];
+        const texture = command && command.renderView && command.renderView.texture;
+        assert(command && command.renderEnded && texture,
+               `${test.name}: incomplete presentation-use transaction`);
+        assert(command.clearValue.r === 1 && command.clearValue.g === 1 &&
+                 command.clearValue.b === 1 && command.clearValue.a === 1,
+               `${test.name}: presentation probe must clear opaque white`);
+      },
+      async onSubmittedWorkDone() { presentationCompletions++; },
+    },
   };
   const adapter = test.adapterMissing ? null : {
     features: new Set(),
+    info: { isFallbackAdapter: Boolean(test.fallback) },
     limits: device.limits,
     async requestDevice() { return device; },
   };
@@ -176,6 +237,22 @@ async function run(test) {
   assert(rejectedBackbufferDestroys ===
            (test.backbufferError || test.configurationError || test.lossBeforeEntry ? 1 : 0),
          `${test.name}: rejected backbuffer was not discarded`);
+  assert(presentationSubmits === (test.presentation ? 1 : 0),
+         `${test.name}: presentation use was not submitted exactly once`);
+  assert(presentationCompletions === (test.ready && !test.fallback ? 1 : 0),
+         `${test.name}: wrong strict presentation-completion count`);
+  const expectedScopePops = test.status <= 2 ? 0 :
+    (test.presentation && !test.fallback ? 6 : 3);
+  assert(popScopeCalls === expectedScopePops,
+         `${test.name}: wrong pre/post-configuration scope count`);
+  assert((moduleState.preinitializedWebGPUPresentationValidation || "") ===
+           (test.ready ? (test.fallback ? "fallback-diagnostic" : "strict") : ""),
+         `${test.name}: wrong presentation-validation mode`);
+  if (test.telemetry === "delayed") {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+  assert(telemetryDispatches === (test.telemetry === "omitted" ? 0 : test.telemetry ? 1 : 0),
+         `${test.name}: wrong optional telemetry control`);
   const initialLossSignal = moduleState.preinitializedWebGPUDeviceLoss;
   assert(Boolean(initialLossSignal) === test.device,
          `${test.name}: wrong device-loss signal publication`);
@@ -211,6 +288,8 @@ async function run(test) {
 for (const test of cases) {
   await run(test);
 }
-console.log("CONTRACT ghost_preinit_worker PASS cases=11 statuses=0,1,2,3,4,5 " +
+console.log("CONTRACT ghost_preinit_worker PASS cases=14 statuses=0,1,2,3,4,5 " +
             "partial=unpublished device_only=preserved loss=pending,unknown,destroyed " +
-            "stale=ignored preentry=unpublished entry=once");
+            "stale=ignored preentry=unpublished entry=once " +
+            "presentation=scoped-work-done fallback=diagnostic " +
+            "telemetry=sync,delayed,omitted");

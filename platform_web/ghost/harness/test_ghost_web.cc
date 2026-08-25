@@ -32,7 +32,9 @@
 #include "GHOST_WindowWeb.hh"
 
 #include "GHOST_Event.hh"
+#include "GHOST_Buttons.hh"
 #include "GHOST_IEventConsumer.hh"
+#include "GHOST_ModifierKeys.hh"
 #include "GHOST_Types.hh"
 
 /* Append a line to the on-page log (and it also goes to the console via printf). */
@@ -198,6 +200,44 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_cursor_grab(const int 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_result()
 {
   return g_cursor_grab_result.load(std::memory_order_acquire);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_input_state()
+{
+  if (g_system == nullptr) {
+    return -1;
+  }
+
+  GHOST_ModifierKeys keys;
+  GHOST_Buttons buttons;
+  if (g_system->getModifierKeys(keys) != GHOST_kSuccess ||
+      g_system->getButtons(buttons) != GHOST_kSuccess)
+  {
+    return -1;
+  }
+
+  int state = 0;
+  state |= (keys.get(GHOST_kModifierKeyLeftControl) ||
+            keys.get(GHOST_kModifierKeyRightControl)) ?
+               (1 << 0) :
+               0;
+  state |= (keys.get(GHOST_kModifierKeyLeftShift) ||
+            keys.get(GHOST_kModifierKeyRightShift)) ?
+               (1 << 1) :
+               0;
+  state |= (keys.get(GHOST_kModifierKeyLeftAlt) ||
+            keys.get(GHOST_kModifierKeyRightAlt)) ?
+               (1 << 2) :
+               0;
+  state |= (keys.get(GHOST_kModifierKeyLeftOS) || keys.get(GHOST_kModifierKeyRightOS)) ?
+               (1 << 3) :
+               0;
+  state |= buttons.get(GHOST_kButtonMaskLeft) ? (1 << 4) : 0;
+  state |= buttons.get(GHOST_kButtonMaskMiddle) ? (1 << 5) : 0;
+  state |= buttons.get(GHOST_kButtonMaskRight) ? (1 << 6) : 0;
+  state |= buttons.get(GHOST_kButtonMaskButton4) ? (1 << 7) : 0;
+  state |= buttons.get(GHOST_kButtonMaskButton5) ? (1 << 8) : 0;
+  return state;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_clipboard_operation(

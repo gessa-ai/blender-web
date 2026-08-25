@@ -25,6 +25,7 @@
 #include "GHOST_SystemWeb.hh"
 #include "GHOST_WindowWeb.hh"
 
+#include "GHOST_Buttons.hh"
 #include "GHOST_EventButton.hh"
 #include "GHOST_EventCursor.hh"
 #include "GHOST_EventKey.hh"
@@ -326,6 +327,38 @@ void on_resize(GHOST_SystemWeb &sys, const EmscriptenUiEvent & /*e*/)
 void on_focus(GHOST_SystemWeb &sys, bool focused)
 {
   GHOST_IWindow *win = sys.activeWindow();
+  if (!focused) {
+    /* A tab switch, browser-window blur, or programmatic focus move is not
+     * required to deliver matching key-up/mouse-up events. Retire GHOST's
+     * physical state before WindowDeactivate is dispatched: Blender handles
+     * that event by querying GHOST and synthesizing releases for modifiers that
+     * are no longer held. Mouse buttons have no equivalent WM reconciliation,
+     * so publish their releases explicitly before the deactivate event. */
+    GHOST_Buttons held_buttons;
+    const bool have_buttons = sys.getButtons(held_buttons) == GHOST_kSuccess;
+    const uint64_t time = sys.getMilliSeconds();
+    constexpr std::array<GHOST_TButton, 7> buttons = {
+        GHOST_kButtonMaskLeft,
+        GHOST_kButtonMaskMiddle,
+        GHOST_kButtonMaskRight,
+        GHOST_kButtonMaskButton4,
+        GHOST_kButtonMaskButton5,
+        GHOST_kButtonMaskButton6,
+        GHOST_kButtonMaskButton7,
+    };
+    for (const GHOST_TButton button : buttons) {
+      const bool was_held = have_buttons && held_buttons.get(button);
+      sys.noteButton(button, false);
+      if (was_held && win != nullptr) {
+        sys.pushEvent(std::make_unique<GHOST_EventButton>(time,
+                                                          GHOST_kEventButtonUp,
+                                                          win,
+                                                          button,
+                                                          GHOST_TABLET_DATA_NONE));
+      }
+    }
+    sys.noteModifierFlags(false, false, false, false);
+  }
   sys.pushEvent(std::make_unique<GHOST_Event>(
       sys.getMilliSeconds(),
       focused ? GHOST_kEventWindowActivate : GHOST_kEventWindowDeactivate,

@@ -14,7 +14,7 @@ SOURCE_ROOT="${BW_SOURCE_ROOT:-}"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-annotation-depth-cache/native}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-annotation-depth-cache/wasm}"
 OUT="${OUT:-$ROOT/build-deps/m5-annotation-depth-cache/evidence}"
-PATCH="$ROOT/patches/0266-m5-annotation-depth-cache-continuation.patch"
+PATCH="$ROOT/patches/0267-m5-annotation-recorded-depth-cache-continuation.patch"
 CANONICAL="$ROOT/patches/PREVIEW_SNAPSHOT.patch"
 CANONICAL_SHA="$ROOT/patches/PREVIEW_SNAPSHOT.sha256"
 NATIVE_GRAPH="$ROOT/build-native-m1-parity"
@@ -118,8 +118,8 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 8 ] ||
-     ! grep -qx 'M5_ANNOTATION_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=18' "$stdout_file"; then
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 13 ] ||
+     ! grep -qx 'M5_ANNOTATION_DEPTH_CACHE_CONTRACT_PASS contracts=13 cases=31' "$stdout_file"; then
     echo "ERROR: PASS census differs: $stdout_file" >&2
     exit 1
   fi
@@ -138,10 +138,10 @@ if ! jq -e '
   .contracts.pending_event_fifo == true and
   .contracts.bounded_timer_and_context == true and
   .contracts.failure_and_external_cancel_cleanup == true and
-  .contracts.recorded_stroke_exec_retained_sync == true and
+  .contracts.recorded_stroke_exec_async == true and
   .contracts.live_hardware_receipt == false and
-  .converted_callers == ["GPENCIL_OT_annotate interactive"] and
-  .remaining_annotation_residuals == ["GPENCIL_OT_annotate recorded-stroke exec"] and
+  .converted_callers == ["GPENCIL_OT_annotate interactive", "GPENCIL_OT_annotate recorded-stroke exec"] and
+  .remaining_annotation_residuals == [] and
   .remaining_sync_families == ["depth_cache", "window_capture"]' \
   "$OUT/source.json" >/dev/null
 then
@@ -167,6 +167,6 @@ OUTPUT_SHA256="$(sha256_file "$WASM_STDOUT")"
 SOURCE_SHA256="$(jq -r '.source_sha256' "$OUT/source.json")"
 PATCH_SHA256="$(sha256_file "$PATCH")"
 CANONICAL_DIGEST="$(sha256_file "$CANONICAL")"
-printf 'PASS m5-annotation-depth-cache native/wasm bytes=%s sha256=%s source_sha256=%s patch_sha256=%s canonical_sha256=%s emcc=%s node=v22.16.0 callers=1 residuals=1 remaining_sync=2 live_receipt=false\n' \
+printf 'PASS m5-annotation-depth-cache native/wasm bytes=%s sha256=%s source_sha256=%s patch_sha256=%s canonical_sha256=%s emcc=%s node=v22.16.0 callers=2 residuals=0 remaining_sync=2 live_receipt=false\n' \
   "$OUTPUT_BYTES" "$OUTPUT_SHA256" "$SOURCE_SHA256" "$PATCH_SHA256" \
   "$CANONICAL_DIGEST" "$EMCC_VERSION"

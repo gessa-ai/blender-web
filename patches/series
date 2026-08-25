@@ -1104,3 +1104,6 @@
 # 0266: retain interactive legacy-annotation draw, polyline, and eraser events
 # through an owned depth-cache request while keeping recorded-stroke exec sync.
 0266-m5-annotation-depth-cache-continuation.patch
+# 0267: snapshot recorded annotation input and replay exact stroke boundaries
+# through owned depth-cache generations, eliminating annotation sync fallbacks.
+0267-m5-annotation-recorded-depth-cache-continuation.patch

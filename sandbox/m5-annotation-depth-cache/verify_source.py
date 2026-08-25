@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Fail-closed source contract for interactive annotation depth-cache ownership."""
+"""Fail-closed source contract for annotation depth-cache ownership."""
 
 from __future__ import annotations
 
@@ -121,8 +121,11 @@ def verify_text(source: str) -> dict[str, object]:
         "float depth_cache_winmat[4][4] = {};",
         "bool depth_cache_pending = false;",
         "bool depth_cache_valid = false;",
-        "bool depth_cache_interactive = false;",
+        "bool depth_cache_owned = false;",
         "bool depth_cache_resume_apply_event = false;",
+        "Vector<AnnotationRecordedStrokePoint> *recorded_stroke_points = nullptr;",
+        "int64_t recorded_stroke_index = 0;",
+        "bool recorded_stroke_exec = false;",
     ):
         require(needle in data, f"annotation owner state missing {needle!r}")
 
@@ -189,8 +192,8 @@ def verify_text(source: str) -> dict[str, object]:
         "interactive coordinate conversion does not bind the owned cache",
     )
     require(
-        "(depth != nullptr || !p->depth_cache_interactive)" in convert,
-        "interactive coordinate conversion can enter a synchronous point read",
+        "annotation_project_check(p) && depth != nullptr" in convert,
+        "owned coordinate conversion can enter an implicit synchronous point read",
     )
 
     addpoint = definition(source, "annotation_stroke_addpoint")
@@ -201,14 +204,13 @@ def verify_text(source: str) -> dict[str, object]:
         ("eraser", eraser, "annotation_depth_cache_matches(p, V3D_DEPTH_NO_GPENCIL)"),
         ("stroke end", stroke_end, "annotation_depth_cache_matches(p, mode)"),
     ):
-        require("p->depth_cache_interactive" in body, f"{label} interactive branch missing")
         require(mode in body, f"{label} owned cache guard missing")
-        require("else {" in body and "ED_view3d_depth_override(" in body,
-                f"{label} recorded/native fallback missing")
+        require("ED_view3d_depth_override(" not in body,
+                f"{label} retains a synchronous depth override")
 
     require(
-        source.count("ED_view3d_depth_override(") == 3,
-        "unexpected synchronous annotation depth-override census",
+        source.count("ED_view3d_depth_override(") == 0,
+        "synchronous annotation depth-override residual remains",
     )
     require(
         source.count("ED_view3d_depth_override_prepare(") == 1,
@@ -217,14 +219,57 @@ def verify_text(source: str) -> dict[str, object]:
 
     invoke = definition(source, "annotation_draw_invoke")
     execute = definition(source, "annotation_draw_exec")
-    require("p->depth_cache_interactive = true;" in invoke,
+    require("p->depth_cache_owned = true;" in invoke,
             "interactive ownership is not enabled from invoke")
-    require("p->depth_cache_interactive = true;" not in execute,
-            "recorded-stroke exec was silently converted to modal ownership")
-    require("annotation_paint_strokeend(p);" in execute,
-            "recorded-stroke exec no longer retains the stock stroke boundary")
+    ordered(
+        execute,
+        (
+            "p->depth_cache_owned = true;",
+            "p->recorded_stroke_exec = true;",
+            "MEM_new<Vector<AnnotationRecordedStrokePoint>>",
+            'RNA_float_get_array(&itemptr, "mouse", point.mouse)',
+            'point.pressure = RNA_float_get(&itemptr, "pressure")',
+            'point.time = RNA_float_get(&itemptr, "time")',
+            'point.is_start = RNA_boolean_get(&itemptr, "is_start")',
+            "p->recorded_stroke_points->append(point)",
+            "annotation_recorded_stroke_resume(C, op)",
+            "WM_event_add_modal_handler(C, op)",
+        ),
+        "recorded-stroke owned snapshot",
+    )
+    require("annotation_draw_apply(op, p" not in execute,
+            "recorded-stroke exec still applies RNA points synchronously")
     require("p->depth_cache_resume_apply_event = true;" in invoke,
             "immediate invoke cannot resume its exact initial event")
+
+    recorded_cache = definition(source, "annotation_recorded_stroke_cache_ensure")
+    for needle in (
+        "p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH",
+        "V3D_DEPTH_NO_GPENCIL",
+        "annotation_project_check(p)",
+        "annotation_depth_cache_mode_get(p)",
+    ):
+        require(needle in recorded_cache, f"recorded cache policy missing {needle!r}")
+
+    recorded_resume = definition(source, "annotation_recorded_stroke_resume")
+    ordered(
+        recorded_resume,
+        (
+            "p->recorded_stroke_index < p->recorded_stroke_points->size()",
+            "point.is_start && (p->flags & GP_PAINTFLAG_FIRSTRUN) == 0",
+            "annotation_recorded_stroke_cache_ensure(C, p, false)",
+            "annotation_paint_strokeend(p)",
+            "annotation_paint_initstroke(p, p->paintmode, depsgraph)",
+            "annotation_recorded_stroke_cache_ensure(C, p, true)",
+            "p->mval[0] = int(point.mouse[0])",
+            "annotation_draw_apply(op, p, depsgraph)",
+            "p->recorded_stroke_index++",
+            "annotation_recorded_stroke_cache_ensure(C, p, false)",
+            "annotation_draw_exit(C, op)",
+            "WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, nullptr)",
+        ),
+        "recorded-stroke bounded replay",
+    )
 
     dispatch = definition(source, "annotation_draw_modal_dispatch")
     require("p = annotation_stroke_begin(C, op);" in dispatch,
@@ -256,6 +301,8 @@ def verify_text(source: str) -> dict[str, object]:
             "annotation_depth_cache_take(p)",
             "annotation_depth_timer_remove(p)",
             "const bool resume_apply_event = p->depth_cache_resume_apply_event;",
+            "if (p->recorded_stroke_exec)",
+            "annotation_recorded_stroke_resume(C, op)",
             "annotation_depth_resume_apply_event(",
             "annotation_draw_modal(C, op",
             "if (p->depth_cache_pending)",
@@ -285,6 +332,8 @@ def verify_text(source: str) -> dict[str, object]:
             "session destruction does not retire the pending ticket/timer")
     require("annotation_depth_cache_discard(p);" in session_free,
             "session destruction does not release the owned cache")
+    require("MEM_SAFE_DELETE(p->recorded_stroke_points);" in session_free,
+            "session destruction does not release the recorded-stroke snapshot")
 
     operator_register = definition(source, "GPENCIL_OT_annotate")
     for needle in (
@@ -305,11 +354,14 @@ def verify_text(source: str) -> dict[str, object]:
             "pending_event_fifo": True,
             "bounded_timer_and_context": True,
             "failure_and_external_cancel_cleanup": True,
-            "recorded_stroke_exec_retained_sync": True,
+            "recorded_stroke_exec_async": True,
             "live_hardware_receipt": False,
         },
-        "converted_callers": ["GPENCIL_OT_annotate interactive"],
-        "remaining_annotation_residuals": ["GPENCIL_OT_annotate recorded-stroke exec"],
+        "converted_callers": [
+            "GPENCIL_OT_annotate interactive",
+            "GPENCIL_OT_annotate recorded-stroke exec",
+        ],
+        "remaining_annotation_residuals": [],
         "remaining_sync_families": ["depth_cache", "window_capture"],
     }
 
@@ -329,8 +381,25 @@ def mutation_selfcheck(source: str) -> int:
         ),
         ("initial-resume", "p->depth_cache_resume_apply_event = true;", "p->depth_cache_resume_apply_event = false;"),
         ("context", "CTX_wm_manager(C) == p->depth_cache_manager", "true"),
-        ("point-read", "(depth != nullptr || !p->depth_cache_interactive)", "true"),
-        ("invoke-owner", "p->depth_cache_interactive = true;", "p->depth_cache_interactive = false;"),
+        ("point-read", "annotation_project_check(p) && depth != nullptr", "annotation_project_check(p)"),
+        ("invoke-owner", "p->depth_cache_owned = true;", "p->depth_cache_owned = false;"),
+        ("recorded-owner", "p->recorded_stroke_exec = true;", "p->recorded_stroke_exec = false;"),
+        ("recorded-index", "p->recorded_stroke_index++;", "p->recorded_stroke_index += 0;"),
+        (
+            "recorded-boundary",
+            "annotation_recorded_stroke_cache_ensure(C, p, false)",
+            "AnnotationDepthCacheState::Ready",
+        ),
+        (
+            "recorded-snapshot",
+            'point.is_start = RNA_boolean_get(&itemptr, "is_start");',
+            "point.is_start = false;",
+        ),
+        (
+            "recorded-settlement",
+            "return annotation_recorded_stroke_resume(C, op);",
+            "return OPERATOR_RUNNING_MODAL;",
+        ),
         ("cancel", "annotation_draw_abort(C, op);", "annotation_draw_exit(C, op);"),
     )
     rejected = 0

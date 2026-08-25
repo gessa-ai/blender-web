@@ -1198,8 +1198,11 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "ViewportDepthCacheSession *depth_cache_session = nullptr;",
         "Vector<wmEvent> *depth_cache_events = nullptr;",
         "bool depth_cache_pending = false;",
-        "bool depth_cache_interactive = false;",
+        "bool depth_cache_owned = false;",
         "bool depth_cache_resume_apply_event = false;",
+        "Vector<AnnotationRecordedStrokePoint> *recorded_stroke_points = nullptr;",
+        "int64_t recorded_stroke_index = 0;",
+        "bool recorded_stroke_exec = false;",
         "constexpr int max_queued_events = 256;",
         "event->custom != 0",
         "event->customdata != nullptr",
@@ -1237,6 +1240,8 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "p->depth_cache_session->state()",
             "annotation_depth_cache_take(p)",
             "const bool resume_apply_event = p->depth_cache_resume_apply_event;",
+            "if (p->recorded_stroke_exec)",
+            "annotation_recorded_stroke_resume(C, op)",
             "annotation_depth_resume_apply_event(",
             "annotation_draw_modal(C, op",
         ),
@@ -1264,13 +1269,40 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "static wmOperatorStatus annotation_draw_exec(",
         "annotation recorded-stroke exec",
     )
-    require(
-        "p->depth_cache_interactive = true;" not in annotation_exec
-        and "annotation_paint_strokeend(p);" in annotation_exec,
-        "annotation recorded-stroke exec residual was silently converted",
+    require_ordered(
+        annotation_exec,
+        (
+            "p->depth_cache_owned = true;",
+            "p->recorded_stroke_exec = true;",
+            "MEM_new<Vector<AnnotationRecordedStrokePoint>>",
+            "p->recorded_stroke_points->append(point)",
+            "annotation_recorded_stroke_resume(C, op)",
+            "WM_event_add_modal_handler(C, op)",
+        ),
+        "annotation recorded-stroke ownership",
+    )
+    annotation_recorded_resume = braced_definition(
+        annotation_draw,
+        "static wmOperatorStatus annotation_recorded_stroke_resume(",
+        "annotation recorded-stroke replay",
+    )
+    require_ordered(
+        annotation_recorded_resume,
+        (
+            "p->recorded_stroke_index < p->recorded_stroke_points->size()",
+            "point.is_start && (p->flags & GP_PAINTFLAG_FIRSTRUN) == 0",
+            "annotation_recorded_stroke_cache_ensure(C, p, false)",
+            "annotation_paint_strokeend(p)",
+            "annotation_paint_initstroke(p, p->paintmode, depsgraph)",
+            "annotation_recorded_stroke_cache_ensure(C, p, true)",
+            "annotation_draw_apply(op, p, depsgraph)",
+            "p->recorded_stroke_index++",
+            "annotation_draw_exit(C, op)",
+        ),
+        "annotation recorded-stroke exact replay",
     )
     require(
-        annotation_draw.count("ED_view3d_depth_override(") == 3
+        annotation_draw.count("ED_view3d_depth_override(") == 0
         and annotation_draw.count("ED_view3d_depth_override_prepare(") == 1,
         "annotation synchronous residual or async prepare census drifted",
     )
@@ -1991,6 +2023,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "ED_view3d_depth_override_prepare(",
             "ED_view3d_depth_override_legacy(",
             "annotation depth-cache continuation",
+        ),
+        (
+            "source/blender/editors/gpencil_legacy/annotate_paint.cc",
+            "p->recorded_stroke_index++;",
+            "p->recorded_stroke_index += 0;",
+            "annotation recorded-stroke cursor",
         ),
     )
     for relative, old, new, label in mutations:

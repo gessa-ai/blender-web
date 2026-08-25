@@ -12370,7 +12370,7 @@ index 8aa94665017cb7802ce7e07e374157392d8b2cfd..de4e62a7e31bc7f84f724036280c3d33
    ot->poll = editable_curves_in_edit_mode_poll;
  
 diff --git a/source/blender/editors/gpencil_legacy/annotate_paint.cc b/source/blender/editors/gpencil_legacy/annotate_paint.cc
-index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5bfab60ad 100644
+index 2d612d5e43de3f614b084a3a22a606477a98f1c2..1485703770fdfcf4d21e21b333158ea2d90fca3f 100644
 --- a/source/blender/editors/gpencil_legacy/annotate_paint.cc
 +++ b/source/blender/editors/gpencil_legacy/annotate_paint.cc
 @@ -1,7 +1,11 @@
@@ -12393,7 +12393,21 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  
  #include "BLT_translation.hh"
  
-@@ -110,6 +115,22 @@ struct tGPsdata {
+@@ -91,6 +96,13 @@ enum eGPencil_PaintFlags {
+ };
+ ENUM_OPERATORS(eGPencil_PaintFlags)
+ 
++struct AnnotationRecordedStrokePoint {
++  float mouse[2] = {0.0f, 0.0f};
++  float pressure = 0.0f;
++  float time = 0.0f;
++  bool is_start = false;
++};
++
+ /* Temporary 'Stroke' Operation data
+  *   "p" = op->customdata
+  */
+@@ -110,6 +122,26 @@ struct tGPsdata {
    View2D *v2d;
    /** For operations that require occlusion testing. */
    ViewDepths *depths;
@@ -12411,12 +12425,16 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 +  int depth_cache_tick_count = 0;
 +  bool depth_cache_pending = false;
 +  bool depth_cache_valid = false;
-+  bool depth_cache_interactive = false;
++  bool depth_cache_owned = false;
 +  bool depth_cache_resume_apply_event = false;
++  /** Owned input and cursor for a recorded-stroke exec suspended on browser readback. */
++  Vector<AnnotationRecordedStrokePoint> *recorded_stroke_points = nullptr;
++  int64_t recorded_stroke_index = 0;
++  bool recorded_stroke_exec = false;
    /** for using the camera rect within the 3d view. */
    const rctf *subrect;
    rctf subrect_data;
-@@ -184,6 +205,13 @@ struct tGPsdata {
+@@ -184,6 +216,13 @@ struct tGPsdata {
    short keymodifier;
  };
  
@@ -12430,7 +12448,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  /* ------ */
  
  /* Macros for accessing sensitivity thresholds... */
-@@ -192,7 +220,7 @@ struct tGPsdata {
+@@ -192,7 +231,7 @@ struct tGPsdata {
  /* minimum length of new segment before new point can be added */
  #define MIN_EUCLIDEAN_PX (U.gp_euclideandist)
  
@@ -12439,7 +12457,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  {
    return (p->gpf && p->gpf->strokes.last && p->flags & GP_PAINTFLAG_STROKEADDED);
  }
-@@ -231,13 +259,230 @@ static bool annotation_draw_poll(bContext *C)
+@@ -231,13 +270,230 @@ static bool annotation_draw_poll(bContext *C)
  }
  
  /* check if projecting strokes into 3d-geometry in the 3D-View */
@@ -12570,7 +12588,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 +    return p->depth_cache_mode == mode ? AnnotationDepthCacheState::Pending :
 +                                         AnnotationDepthCacheState::Failed;
 +  }
-+  if (!p->depth_cache_interactive || p->area == nullptr ||
++  if (!p->depth_cache_owned || p->area == nullptr ||
 +      p->area->spacetype != SPACE_VIEW3D || p->region == nullptr ||
 +      p->region->regiondata == nullptr || CTX_wm_window(C) != p->win ||
 +      CTX_wm_area(C) != p->area || CTX_wm_region(C) != p->region)
@@ -12638,7 +12656,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 +
 +static bool annotation_depth_event_requires_cache(const tGPsdata *p, const wmEvent *event)
 +{
-+  if (!p->depth_cache_interactive || p->status != GP_STATUS_PAINTING || event == nullptr ||
++  if (!p->depth_cache_owned || p->status != GP_STATUS_PAINTING || event == nullptr ||
 +      p->area == nullptr || p->area->spacetype != SPACE_VIEW3D)
 +  {
 +    return false;
@@ -12671,7 +12689,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  /* ******************************************* */
  /* Calculations/Conversions */
  
-@@ -305,6 +550,7 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
+@@ -305,6 +561,7 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
                                              const float *depth)
  {
    bGPdata *gpd = p->gpd;
@@ -12679,23 +12697,23 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
    if (depth && (*depth == DEPTH_INVALID)) {
      depth = nullptr;
    }
-@@ -312,7 +558,14 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
+@@ -312,7 +569,14 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
    /* in 3d-space - pt->x/y/z are 3 side-by-side floats */
    if (gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) {
      int2 mval_i = int2(mval);
 -    if (annotation_project_check(p) && ED_view3d_autodist_simple(p->region, mval_i, out, 0, depth))
-+    if (depth == nullptr && p->depth_cache_interactive && annotation_project_check(p) &&
++    if (depth == nullptr && p->depth_cache_owned && annotation_project_check(p) &&
 +        annotation_depth_cache_matches(p, annotation_depth_cache_mode_get(p)) &&
 +        ED_view3d_depth_read_cached(p->depths, mval_i, 0, &cached_depth))
 +    {
 +      depth = &cached_depth;
 +    }
-+    if (annotation_project_check(p) && (depth != nullptr || !p->depth_cache_interactive) &&
++    if (annotation_project_check(p) && depth != nullptr &&
 +        ED_view3d_autodist_simple(p->region, mval_i, out, 0, depth))
      {
        /* projecting onto 3D-Geometry
         * - nothing more needs to be done here, since view_autodist_simple() has already done it
-@@ -514,7 +767,6 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+@@ -514,7 +778,6 @@ static short annotation_stroke_addpoint(tGPsdata *p,
  {
    bGPdata *gpd = p->gpd;
    tGPspoint *pt;
@@ -12703,10 +12721,11 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  
    /* check painting mode */
    if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
-@@ -646,20 +898,16 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+@@ -645,21 +908,10 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+        * so initialize depth buffer before converting coordinates
         */
        if (annotation_project_check(p)) {
-         View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
+-        View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
 -
 -        eV3DDepthOverrideMode mode = V3D_DEPTH_GPENCIL_ONLY;
 -
@@ -12716,64 +12735,53 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 -          }
 -          else {
 -            mode = V3D_DEPTH_ALL;
+-          }
 +        const eV3DDepthOverrideMode mode = annotation_depth_cache_mode_get(p);
-+        if (p->depth_cache_interactive) {
-+          if (!annotation_depth_cache_matches(p, mode)) {
-+            return GP_STROKEADD_INVALID;
-           }
++        if (!annotation_depth_cache_matches(p, mode)) {
++          return GP_STROKEADD_INVALID;
          }
 -
 -        view3d_region_operator_needs_gpu(p->region);
 -        ED_view3d_depth_override(p->depsgraph, p->region, v3d, nullptr, mode, false, nullptr);
-+        else {
-+          view3d_region_operator_needs_gpu(p->region);
-+          ED_view3d_depth_override(p->depsgraph, p->region, v3d, nullptr, mode, false, nullptr);
-+        }
        }
  
        /* convert screen-coordinates to appropriate coordinates (and store them) */
-@@ -670,6 +918,9 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+@@ -670,6 +922,9 @@ static short annotation_stroke_addpoint(tGPsdata *p,
        pts->strength = pt->strength;
        pts->time = pt->time;
        gps->tot_triangles = 0;
-+      if (p->depth_cache_interactive && annotation_project_check(p)) {
++      if (p->depth_cache_owned && annotation_project_check(p)) {
 +        annotation_depth_cache_discard(p);
 +      }
      }
  
      /* increment counters */
-@@ -1046,6 +1297,9 @@ static void annotation_stroke_newfrombuffer(tGPsdata *p)
+@@ -1046,6 +1301,9 @@ static void annotation_stroke_newfrombuffer(tGPsdata *p)
    /* add stroke to frame */
    BLI_addtail(&p->gpf->strokes, gps);
    annotation_stroke_added_enable(p);
-+  if (p->depth_cache_interactive && annotation_project_check(p)) {
++  if (p->depth_cache_owned && annotation_project_check(p)) {
 +    annotation_depth_cache_discard(p);
 +  }
  }
  
  /* --- 'Eraser' for 'Paint' Tool ------ */
-@@ -1210,9 +1464,17 @@ static void annotation_stroke_doeraser(tGPsdata *p)
+@@ -1209,10 +1467,10 @@ static void annotation_stroke_doeraser(tGPsdata *p)
+ 
    if (p->area->spacetype == SPACE_VIEW3D) {
      if (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH) {
-       View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
+-      View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
 -      view3d_region_operator_needs_gpu(p->region);
 -      ED_view3d_depth_override(
 -          p->depsgraph, p->region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, &p->depths);
-+      if (p->depth_cache_interactive) {
-+        if (!annotation_depth_cache_matches(p, V3D_DEPTH_NO_GPENCIL)) {
-+          p->status = GP_STATUS_ERROR;
-+          return;
-+        }
-+      }
-+      else {
-+        view3d_region_operator_needs_gpu(p->region);
-+        ED_view3d_depth_override(
-+            p->depsgraph, p->region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, &p->depths);
++      if (!annotation_depth_cache_matches(p, V3D_DEPTH_NO_GPENCIL)) {
++        p->status = GP_STATUS_ERROR;
++        return;
 +      }
      }
    }
  
-@@ -1495,9 +1757,8 @@ static void annotation_session_cleanup(tGPsdata *p)
+@@ -1495,9 +1753,9 @@ static void annotation_session_cleanup(tGPsdata *p)
  
  static void annotation_session_free(tGPsdata *p)
  {
@@ -12782,10 +12790,20 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 -  }
 +  annotation_depth_wait_cancel(p);
 +  annotation_depth_cache_discard(p);
++  MEM_SAFE_DELETE(p->recorded_stroke_points);
    MEM_delete(p);
  }
  
-@@ -1670,10 +1931,19 @@ static void annotation_paint_strokeend(tGPsdata *p)
+@@ -1658,8 +1916,6 @@ static void annotation_paint_strokeend(tGPsdata *p)
+    * the conversions will project the values correctly...
+    */
+   if (annotation_project_check(p)) {
+-    View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
+-
+     eV3DDepthOverrideMode mode = V3D_DEPTH_GPENCIL_ONLY;
+ 
+     if (ts->annotate_v3d_align & GP_PROJECT_DEPTH_VIEW) {
+@@ -1670,10 +1926,11 @@ static void annotation_paint_strokeend(tGPsdata *p)
          mode = V3D_DEPTH_ALL;
        }
      }
@@ -12793,23 +12811,15 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 -    view3d_region_operator_needs_gpu(p->region);
 -    ED_view3d_depth_override(
 -        p->depsgraph, p->region, v3d, nullptr, mode, false, is_eraser ? nullptr : &p->depths);
-+    if (p->depth_cache_interactive) {
-+      if (!is_eraser && !annotation_depth_cache_matches(p, mode)) {
-+        p->status = GP_STATUS_ERROR;
-+        annotation_session_validatebuffer(p);
-+        return;
-+      }
-+    }
-+    else {
-+      /* Need to restore the original projection settings before packing up. */
-+      view3d_region_operator_needs_gpu(p->region);
-+      ED_view3d_depth_override(
-+          p->depsgraph, p->region, v3d, nullptr, mode, false, is_eraser ? nullptr : &p->depths);
++    if (!is_eraser && !annotation_depth_cache_matches(p, mode)) {
++      p->status = GP_STATUS_ERROR;
++      annotation_session_validatebuffer(p);
++      return;
 +    }
    }
  
    /* check if doing eraser or not */
-@@ -1845,7 +2115,7 @@ static bool annotation_is_tablet_eraser_active(const wmEvent *event)
+@@ -1845,7 +2102,7 @@ static bool annotation_is_tablet_eraser_active(const wmEvent *event)
  
  /* ------------------------------- */
  
@@ -12818,7 +12828,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  {
    tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
  
-@@ -1869,8 +2139,13 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
+@@ -1869,8 +2126,13 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
       */
      U.gp_eraser = p->radius;
  
@@ -12834,7 +12844,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
      annotation_session_cleanup(p);
      annotation_session_free(p);
      p = nullptr;
-@@ -1879,10 +2154,25 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
+@@ -1879,10 +2141,25 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
    op->customdata = nullptr;
  }
  
@@ -12853,7 +12863,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 -  /* this is just a wrapper around exit() */
 -  annotation_draw_exit(C, op);
 +  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
-+  if (p != nullptr && p->depth_cache_interactive) {
++  if (p != nullptr && p->depth_cache_owned) {
 +    annotation_draw_abort(C, op);
 +  }
 +  else {
@@ -12862,15 +12872,202 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  }
  
  /* ------------------------------- */
-@@ -2271,6 +2561,7 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
+@@ -2180,70 +2457,146 @@ static void annotation_draw_apply_event(
+ 
+ /* ------------------------------- */
+ 
+-/* operator 'redo' (i.e. after changing some properties, but also for repeat last) */
+-static wmOperatorStatus annotation_draw_exec(bContext *C, wmOperator *op)
++static AnnotationDepthCacheState annotation_recorded_stroke_cache_ensure(
++    bContext *C, tGPsdata *p, const bool applying_point)
+ {
+-  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+-
+-  /* try to initialize context data needed while drawing */
+-  if (!annotation_draw_init(C, op, nullptr)) {
+-    tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
+-    MEM_delete(p);
+-    op->customdata = nullptr;
+-    return OPERATOR_CANCELLED;
++  if (p->area == nullptr || p->area->spacetype != SPACE_VIEW3D) {
++    return AnnotationDepthCacheState::Ready;
+   }
++  if (p->paintmode == GP_PAINTMODE_ERASER) {
++    if (!applying_point || !(p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH)) {
++      return AnnotationDepthCacheState::Ready;
++    }
++    return annotation_depth_cache_begin(C, p, V3D_DEPTH_NO_GPENCIL);
++  }
++  if (!annotation_project_check(p)) {
++    return AnnotationDepthCacheState::Ready;
++  }
++  return annotation_depth_cache_begin(C, p, annotation_depth_cache_mode_get(p));
++}
+ 
++static wmOperatorStatus annotation_recorded_stroke_fail(bContext *C,
++                                                         wmOperator *op,
++                                                         const char *message)
++{
++  BKE_report(op->reports, RPT_ERROR, message);
++  annotation_draw_abort(C, op);
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus annotation_recorded_stroke_resume(bContext *C, wmOperator *op)
++{
+   tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  if (p == nullptr || !p->recorded_stroke_exec || p->recorded_stroke_points == nullptr) {
++    return annotation_recorded_stroke_fail(C, op, "Annotation recorded-stroke state was lost");
++  }
+ 
+-  /* loop over the stroke RNA elements recorded (i.e. progress of mouse movement),
+-   * setting the relevant values in context at each step, then applying
+-   */
+-  RNA_BEGIN (op->ptr, itemptr, "stroke") {
+-    float mousef[2];
+-
+-    /* get relevant data for this point from stroke */
+-    RNA_float_get_array(&itemptr, "mouse", mousef);
+-    p->mval[0] = int(mousef[0]);
+-    p->mval[1] = int(mousef[1]);
+-    p->pressure = RNA_float_get(&itemptr, "pressure");
+-    p->curtime = double(RNA_float_get(&itemptr, "time")) + p->inittime;
+-
+-    if (RNA_boolean_get(&itemptr, "is_start")) {
+-      /* if first-run flag isn't set already (i.e. not true first stroke),
+-       * then we must terminate the previous one first before continuing
+-       */
+-      if ((p->flags & GP_PAINTFLAG_FIRSTRUN) == 0) {
+-        /* TODO: both of these ops can set error-status, but we probably don't need to worry */
+-        annotation_paint_strokeend(p);
+-        annotation_paint_initstroke(p, p->paintmode, depsgraph);
++  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
++  while (p->recorded_stroke_index < p->recorded_stroke_points->size()) {
++    const AnnotationRecordedStrokePoint &point =
++        (*p->recorded_stroke_points)[p->recorded_stroke_index];
++
++    if (point.is_start && (p->flags & GP_PAINTFLAG_FIRSTRUN) == 0) {
++      const AnnotationDepthCacheState boundary_state =
++          annotation_recorded_stroke_cache_ensure(C, p, false);
++      if (boundary_state == AnnotationDepthCacheState::Pending) {
++        return OPERATOR_RUNNING_MODAL;
++      }
++      if (boundary_state == AnnotationDepthCacheState::Failed) {
++        return annotation_recorded_stroke_fail(
++            C, op, "Unable to prepare recorded annotation stroke boundary");
++      }
++
++      annotation_paint_strokeend(p);
++      if (p->status == GP_STATUS_ERROR) {
++        return annotation_recorded_stroke_fail(
++            C, op, "Recorded annotation stroke failed at its boundary");
+       }
++      annotation_paint_initstroke(p, p->paintmode, depsgraph);
++      if (p->status == GP_STATUS_ERROR) {
++        return annotation_recorded_stroke_fail(
++            C, op, "Unable to initialize the next recorded annotation stroke");
++      }
++    }
++
++    const AnnotationDepthCacheState point_state =
++        annotation_recorded_stroke_cache_ensure(C, p, true);
++    if (point_state == AnnotationDepthCacheState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (point_state == AnnotationDepthCacheState::Failed) {
++      return annotation_recorded_stroke_fail(
++          C, op, "Unable to prepare recorded annotation point depth");
+     }
+ 
+-    /* if first run, set previous data too */
++    p->mval[0] = int(point.mouse[0]);
++    p->mval[1] = int(point.mouse[1]);
++    p->pressure = point.pressure;
++    p->curtime = double(point.time) + p->inittime;
++
+     if (p->flags & GP_PAINTFLAG_FIRSTRUN) {
+       p->flags &= ~GP_PAINTFLAG_FIRSTRUN;
+-
+       p->mvalo[0] = p->mval[0];
+       p->mvalo[1] = p->mval[1];
+       p->opressure = p->pressure;
+       p->ocurtime = p->curtime;
+     }
+ 
+-    /* apply this data as necessary now (as per usual) */
+     annotation_draw_apply(op, p, depsgraph);
++    if (p->status == GP_STATUS_ERROR) {
++      return annotation_recorded_stroke_fail(C, op, "Cannot apply recorded annotation point");
++    }
++    p->recorded_stroke_index++;
+   }
+-  RNA_END;
+ 
+-  /* cleanup */
+-  annotation_draw_exit(C, op);
++  const AnnotationDepthCacheState finish_state =
++      annotation_recorded_stroke_cache_ensure(C, p, false);
++  if (finish_state == AnnotationDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (finish_state == AnnotationDepthCacheState::Failed) {
++    return annotation_recorded_stroke_fail(C, op, "Unable to finish recorded annotation stroke");
++  }
+ 
+-  /* refreshes */
++  annotation_draw_exit(C, op);
+   WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, nullptr);
+-
+-  /* done */
+   return OPERATOR_FINISHED;
+ }
+ 
++/* operator 'redo' (i.e. after changing some properties, but also for repeat last) */
++static wmOperatorStatus annotation_draw_exec(bContext *C, wmOperator *op)
++{
++  /* try to initialize context data needed while drawing */
++  if (!annotation_draw_init(C, op, nullptr)) {
++    tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++    MEM_delete(p);
++    op->customdata = nullptr;
++    return OPERATOR_CANCELLED;
++  }
++
++  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  p->depth_cache_owned = true;
++  p->recorded_stroke_exec = true;
++  p->recorded_stroke_points = MEM_new<Vector<AnnotationRecordedStrokePoint>>(__func__);
++
++  /* Snapshot the exact fields consumed by the stock exec path before browser suspension. */
++  RNA_BEGIN (op->ptr, itemptr, "stroke") {
++    AnnotationRecordedStrokePoint point;
++    RNA_float_get_array(&itemptr, "mouse", point.mouse);
++    point.pressure = RNA_float_get(&itemptr, "pressure");
++    point.time = RNA_float_get(&itemptr, "time");
++    point.is_start = RNA_boolean_get(&itemptr, "is_start");
++    p->recorded_stroke_points->append(point);
++  }
++  RNA_END;
++
++  const wmOperatorStatus result = annotation_recorded_stroke_resume(C, op);
++  if (result == OPERATOR_RUNNING_MODAL) {
++    WM_event_add_modal_handler(C, op);
++  }
++  return result;
++}
++
+ /* ------------------------------- */
+ 
+ /* start of interactive drawing part of operator */
+@@ -2271,6 +2624,7 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
      BKE_report(op->reports, RPT_ERROR, "Nothing to erase");
      return OPERATOR_FINISHED;
    }
-+  p->depth_cache_interactive = true;
++  p->depth_cache_owned = true;
  
    /* if eraser is on, draw radial aid */
    if (p->paintmode == GP_PAINTMODE_ERASER) {
-@@ -2311,8 +2602,24 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
+@@ -2311,8 +2665,24 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
      /* hotkey invoked - start drawing */
      p->status = GP_STATUS_PAINTING;
  
@@ -12897,7 +13094,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
      op->flag |= OP_IS_MODAL_CURSOR_REGION;
    }
    else {
-@@ -2414,7 +2721,9 @@ static void annotation_add_missing_events(bContext *C,
+@@ -2414,7 +2784,9 @@ static void annotation_add_missing_events(bContext *C,
  }
  
  /* events handling during interactive drawing part of operator */
@@ -12908,7 +13105,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
  {
    tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
    /* Default exit state - pass through to support MMB view navigation, etc. */
-@@ -2608,6 +2917,19 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
+@@ -2608,6 +2980,19 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
          if (p->status == GP_STATUS_ERROR) {
            estate = OPERATOR_CANCELLED;
          }
@@ -12928,7 +13125,7 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
        }
        else if (p->status != GP_STATUS_ERROR) {
          /* User clicked outside bounds of window while idling, so exit paintmode
-@@ -2722,6 +3044,139 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
+@@ -2722,6 +3107,150 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
    return estate;
  }
  
@@ -12979,6 +13176,13 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 +    if (event->type == TIMER) {
 +      return OPERATOR_RUNNING_MODAL;
 +    }
++    if (p->recorded_stroke_exec) {
++      if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++        annotation_draw_abort(C, op);
++        return OPERATOR_CANCELLED;
++      }
++      return OPERATOR_RUNNING_MODAL;
++    }
 +    if (!annotation_depth_event_push(p, event)) {
 +      return annotation_depth_fail(C, op, "Annotation depth event queue exceeded its safe bound");
 +    }
@@ -13008,6 +13212,10 @@ index 2d612d5e43de3f614b084a3a22a606477a98f1c2..d454f3ee13bda0c340f1cfd2770816e5
 +  p->depth_cache_events = nullptr;
 +  const bool resume_apply_event = p->depth_cache_resume_apply_event;
 +  p->depth_cache_resume_apply_event = false;
++  if (p->recorded_stroke_exec) {
++    MEM_delete(queued_events);
++    return annotation_recorded_stroke_resume(C, op);
++  }
 +
 +  for (int64_t index = 0; index < queued_events->size(); index++) {
 +    const wmOperatorStatus result = (index == 0 && resume_apply_event) ?

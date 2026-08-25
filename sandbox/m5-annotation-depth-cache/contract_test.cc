@@ -281,6 +281,176 @@ class AnnotationDepthContinuation {
   }
 };
 
+struct RecordedPoint {
+  int id = 0;
+  bool is_start = false;
+};
+
+class RecordedStrokeContinuation {
+ private:
+  static constexpr int timer_id_ = 91;
+  static constexpr int max_tick_count_ = 4;
+
+  std::vector<RecordedPoint> points_;
+  std::vector<ReadbackState> begin_states_;
+  std::vector<std::string> effects_;
+  ContextKey producing_context_;
+  size_t point_index_ = 0;
+  size_t begin_index_ = 0;
+  int tick_count_ = 0;
+  int take_count_ = 0;
+  bool first_run_ = true;
+  bool needs_depth_ = true;
+  bool eraser_ = false;
+  bool cache_valid_ = false;
+  bool pending_ = false;
+  bool finished_ = false;
+  bool aborted_ = false;
+  ReadbackState readback_state_ = ReadbackState::Failed;
+
+  void abort()
+  {
+    pending_ = false;
+    cache_valid_ = false;
+    aborted_ = true;
+  }
+
+  bool ensure_cache(const ContextKey &context, const bool applying_point)
+  {
+    if (!needs_depth_ || (eraser_ && !applying_point) || cache_valid_) {
+      return true;
+    }
+    const ReadbackState state = begin_index_ < begin_states_.size() ?
+                                    begin_states_[begin_index_++] :
+                                    ReadbackState::Pending;
+    if (state == ReadbackState::Failed) {
+      abort();
+      return false;
+    }
+    if (state == ReadbackState::Ready) {
+      cache_valid_ = true;
+      take_count_++;
+      return true;
+    }
+    producing_context_ = context;
+    readback_state_ = ReadbackState::Pending;
+    pending_ = true;
+    tick_count_ = 0;
+    return false;
+  }
+
+  bool resume(const ContextKey &context)
+  {
+    while (point_index_ < points_.size()) {
+      const RecordedPoint &point = points_[point_index_];
+      if (point.is_start && !first_run_) {
+        if (!ensure_cache(context, false)) {
+          return pending_;
+        }
+        effects_.push_back("end");
+        cache_valid_ = eraser_;
+        first_run_ = true;
+      }
+      if (!ensure_cache(context, true)) {
+        return pending_;
+      }
+      if (first_run_) {
+        first_run_ = false;
+      }
+      effects_.push_back("apply:" + std::to_string(point.id));
+      point_index_++;
+    }
+
+    if (!ensure_cache(context, false)) {
+      return pending_;
+    }
+    effects_.push_back("end");
+    finished_ = true;
+    return true;
+  }
+
+ public:
+  explicit RecordedStrokeContinuation(std::vector<ReadbackState> begin_states,
+                                      const bool needs_depth = true,
+                                      const bool eraser = false)
+      : begin_states_(std::move(begin_states)), needs_depth_(needs_depth), eraser_(eraser)
+  {
+  }
+
+  bool start(const ContextKey &context, const std::vector<RecordedPoint> &points)
+  {
+    points_ = points;
+    return resume(context);
+  }
+
+  void resolve(const ReadbackState state)
+  {
+    readback_state_ = state;
+  }
+
+  bool poll(const ContextKey &context, const int timer_id)
+  {
+    if (!pending_ || aborted_ || finished_) {
+      return false;
+    }
+    if (timer_id != timer_id_) {
+      return true;
+    }
+    if (!(context == producing_context_) || ++tick_count_ > max_tick_count_ ||
+        readback_state_ == ReadbackState::Failed)
+    {
+      abort();
+      return false;
+    }
+    if (readback_state_ == ReadbackState::Pending) {
+      return true;
+    }
+
+    pending_ = false;
+    cache_valid_ = true;
+    take_count_++;
+    readback_state_ = ReadbackState::Failed;
+    return resume(context);
+  }
+
+  bool external_event(const bool escape)
+  {
+    if (!pending_) {
+      return false;
+    }
+    if (escape) {
+      abort();
+      return false;
+    }
+    return true;
+  }
+
+  const std::vector<std::string> &effects() const
+  {
+    return effects_;
+  }
+  bool pending() const
+  {
+    return pending_;
+  }
+  bool finished() const
+  {
+    return finished_;
+  }
+  bool aborted() const
+  {
+    return aborted_;
+  }
+  int take_count() const
+  {
+    return take_count_;
+  }
+  static constexpr int timer_id()
+  {
+    return timer_id_;
+  }
+};
+
 bool same(const std::vector<std::string> &actual,
           const std::initializer_list<const char *> expected)
 {
@@ -461,6 +631,122 @@ bool contract_external_cancel()
          require(continuation.cancel_count() == 1, "external cancel ticket");
 }
 
+bool contract_recorded_native_immediate()
+{
+  ContextKey context;
+  RecordedStrokeContinuation continuation({ReadbackState::Ready, ReadbackState::Ready});
+  const bool ok = continuation.start(
+      context, {{100, true}, {101, false}, {102, true}, {103, false}});
+  return require(ok, "recorded native resume") &&
+         require(continuation.finished(), "recorded native finish") &&
+         require(same(continuation.effects(),
+                      {"apply:100", "apply:101", "end", "apply:102", "apply:103", "end"}),
+                 "recorded native order") &&
+         require(continuation.take_count() == 2, "recorded native generations");
+}
+
+bool contract_recorded_pending_chain()
+{
+  ContextKey context;
+  RecordedStrokeContinuation continuation({ReadbackState::Pending, ReadbackState::Pending});
+  if (!require(continuation.start(
+                   context, {{110, true}, {111, false}, {112, true}, {113, false}}),
+               "recorded pending start") ||
+      !require(continuation.pending(), "recorded first pending") ||
+      !require(continuation.effects().empty(), "recorded no early mutation"))
+  {
+    return false;
+  }
+
+  continuation.resolve(ReadbackState::Ready);
+  if (!require(continuation.poll(context, RecordedStrokeContinuation::timer_id()),
+               "recorded first settle") ||
+      !require(continuation.pending(), "recorded successor pending") ||
+      !require(same(continuation.effects(), {"apply:110", "apply:111", "end"}),
+               "recorded first generation order"))
+  {
+    return false;
+  }
+
+  continuation.resolve(ReadbackState::Ready);
+  return require(continuation.poll(context, RecordedStrokeContinuation::timer_id()),
+                 "recorded second settle") &&
+         require(continuation.finished(), "recorded chained finish") &&
+         require(same(continuation.effects(),
+                      {"apply:110", "apply:111", "end", "apply:112", "apply:113", "end"}),
+                 "recorded chained order") &&
+         require(continuation.take_count() == 2, "recorded chained takes");
+}
+
+bool contract_recorded_snapshot_and_events()
+{
+  ContextKey context;
+  std::vector<RecordedPoint> input{{120, true}, {121, false}};
+  RecordedStrokeContinuation continuation({ReadbackState::Pending});
+  if (!continuation.start(context, input) || !continuation.pending()) {
+    return require(false, "recorded snapshot start");
+  }
+  input[0].id = 999;
+  input.clear();
+  if (!require(continuation.external_event(false), "recorded ignores unrelated event") ||
+      !require(continuation.poll(context, 999), "recorded ignores wrong timer"))
+  {
+    return false;
+  }
+  continuation.resolve(ReadbackState::Ready);
+  return require(continuation.poll(context, RecordedStrokeContinuation::timer_id()),
+                 "recorded snapshot settle") &&
+         require(same(continuation.effects(), {"apply:120", "apply:121", "end"}),
+                 "recorded snapshot isolation") &&
+         require(continuation.finished(), "recorded snapshot finish");
+}
+
+bool contract_recorded_eraser_and_direct()
+{
+  ContextKey context;
+  RecordedStrokeContinuation eraser({ReadbackState::Pending}, true, true);
+  if (!eraser.start(context, {{130, true}, {131, false}})) {
+    return require(false, "recorded eraser start");
+  }
+  eraser.resolve(ReadbackState::Ready);
+  const bool eraser_ok = eraser.poll(context, RecordedStrokeContinuation::timer_id()) &&
+                         eraser.finished() && eraser.take_count() == 1 &&
+                         same(eraser.effects(), {"apply:130", "apply:131", "end"});
+
+  RecordedStrokeContinuation direct({}, false, false);
+  const bool direct_ok = direct.start(context, {{132, true}, {133, false}}) && direct.finished() &&
+                         direct.take_count() == 0 &&
+                         same(direct.effects(), {"apply:132", "apply:133", "end"});
+  return require(eraser_ok, "recorded eraser reuse") &&
+         require(direct_ok, "recorded non-depth direct path");
+}
+
+bool contract_recorded_failure_guards()
+{
+  ContextKey context;
+  ContextKey drift = context;
+  drift.view_transform++;
+
+  RecordedStrokeContinuation failed({ReadbackState::Pending});
+  failed.start(context, {{140, true}});
+  failed.resolve(ReadbackState::Failed);
+  const bool failure_ok = !failed.poll(context, RecordedStrokeContinuation::timer_id()) &&
+                          failed.aborted() && failed.effects().empty();
+
+  RecordedStrokeContinuation drifted({ReadbackState::Pending});
+  drifted.start(context, {{141, true}});
+  drifted.resolve(ReadbackState::Ready);
+  const bool drift_ok = !drifted.poll(drift, RecordedStrokeContinuation::timer_id()) &&
+                        drifted.aborted() && drifted.effects().empty();
+
+  RecordedStrokeContinuation escaped({ReadbackState::Pending});
+  escaped.start(context, {{142, true}});
+  const bool escape_ok = !escaped.external_event(true) && escaped.aborted() &&
+                         escaped.effects().empty();
+  return require(failure_ok, "recorded backend failure") &&
+         require(drift_ok, "recorded context drift") && require(escape_ok, "recorded escape");
+}
+
 }  // namespace
 
 int main()
@@ -479,6 +765,11 @@ int main()
       {"failure_guards", 3, contract_failure_guards},
       {"safety_bounds", 3, contract_safety_bounds},
       {"external_cancel", 1, contract_external_cancel},
+      {"recorded_native_immediate", 2, contract_recorded_native_immediate},
+      {"recorded_pending_chain", 3, contract_recorded_pending_chain},
+      {"recorded_snapshot_and_events", 3, contract_recorded_snapshot_and_events},
+      {"recorded_eraser_and_direct", 2, contract_recorded_eraser_and_direct},
+      {"recorded_failure_guards", 3, contract_recorded_failure_guards},
   };
 
   int case_count = 0;
@@ -489,6 +780,6 @@ int main()
     case_count += contract.cases;
     std::printf("CONTRACT %s PASS cases=%d\n", contract.name, contract.cases);
   }
-  std::printf("M5_ANNOTATION_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=%d\n", case_count);
-  return case_count == 18 ? 0 : 1;
+  std::printf("M5_ANNOTATION_DEPTH_CACHE_CONTRACT_PASS contracts=13 cases=%d\n", case_count);
+  return case_count == 31 ? 0 : 1;
 }

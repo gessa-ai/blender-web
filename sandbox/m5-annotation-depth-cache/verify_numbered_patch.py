@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Reverse and forward patch 0266 against its exact current postimage."""
+"""Reverse and forward patch 0267 against its exact current postimage."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 
-EXPECTED_NAME = "0266-m5-annotation-depth-cache-continuation.patch"
+EXPECTED_NAME = "0267-m5-annotation-recorded-depth-cache-continuation.patch"
 EXPECTED_PATHS = {
     Path("source/blender/editors/gpencil_legacy/annotate_paint.cc"),
 }

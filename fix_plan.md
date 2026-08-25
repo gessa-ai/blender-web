@@ -2740,11 +2740,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   process defects. The three supplied P0 root fixes remain structurally correct and their focused
   Linux checks are fresh. The overclaimed IME/dead-key row is partial again and stale M4 notes are
   corrected; no receipt/result/gate/promise was promoted. See `reports/audit-20260825-r11.md`.
-- [ ] **AUDIT-R11-M4-POINTER-LOCK-OUTCOME-LIFECYCLE [ghost-web, claimed_by: none,
-  blocked-by: none]:** distinguish pending/active browser lock, bridge `pointerlockchange` and
-  `pointerlockerror` to the WM worker, and reconcile GHOST grab state on rejection, Escape/loss,
-  blur, and disposal. Add fail-first worker/product coverage without changing the nonreceipt
-  boundary.
+- [x] **AUDIT-R11-M4-POINTER-LOCK-OUTCOME-LIFECYCLE [ghost-web] (`32640eb`):** deferred
+  requests now remain Pending until the owned canvas reports an active lock; document change/error
+  callbacks reconcile GHOST and active-only relative motion on success, rejection, Escape/loss,
+  blur, explicit release, and disposal. The 21-mutation source contract, real worker lifecycle,
+  existing focus/disposal regressions, native/wasm32 matrix, locked product relink/no-work, OFF
+  preflight, and baked-product external-loss/reacquire diagnostic are green without changing the
+  nonreceipt boundary. See `notes/m4-pointer-lock-outcome-lifecycle-20260825.md`.
 - [ ] **AUDIT-R11-M4-IME-TERMINAL-RECOVERY [ghost-web, claimed_by: none, blocked-by: none]:**
   coalesce disposable updates or reserve terminal queue capacity, then guarantee explicit
   Commit/End/cancel recovery after saturation and allocation failure. Add native/wasm and worker
@@ -2754,7 +2756,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   epoch/token. Prove an event queued before disposal cannot target a replacement window even when
   delivery occurs after rebinding, including repeated replacements.
 - [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-TRANSACTION [ghost-web, claimed_by: none,
-  blocked-by: none]:** require all ten HTML5 listener-registration results, roll back every
+  blocked-by: none]:** require all twelve HTML5 listener-registration results, roll back every
   successful prefix on failure, and publish the owner/registered flag only after full success.
   Cover each failed position and replacement rollback.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,

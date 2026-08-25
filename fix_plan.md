@@ -2667,8 +2667,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   its software cursor. The fail-first false-success repro, 13 fail-closed mutations, real
   worker-topology browser runs, fullscreen regression, native/wasm32 parity, locked product
   relink/no-work, OFF preflight, and real-product middle-drag diagnostic are verified. The live
-  run is fallback-software diagnostic evidence only; M4 and the s7 blocker are unchanged. See
-  `notes/m4-web-pointer-lock-20260825.md`.
+  run is fallback-software diagnostic evidence only; M4 and the s7 blocker are unchanged. R11
+  leaves browser loss/error/deferred-outcome reconciliation open below. See
+  `notes/m4-web-pointer-lock-20260825.md` and `reports/audit-20260825-r11.md`.
 - [x] **M4-WEB-TEXT-CLIPBOARD [ghost-web] (`5d21f1c`):** trusted paste events now publish
   external text before Emscripten's queued worker key callback, while GHOST's synchronous getter
   returns an owned UTF-8 allocation and Blender copy owns its borrowed input before the browser
@@ -2683,9 +2684,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   textarea tracks Blender's requested caret rectangle, focus returns to the canvas on end, and
   the windowed product now advertises its implemented IME capability. Twenty-one fail-closed
   mutations, the real worker harness, canonical replay, optimized product relink/no-work, baked
-  runtime binding, and a real-product Unicode object-name commit are verified. The live product
-  run uses fallback software and binds no receipt; M4 and the s7 blocker are unchanged. See
-  `notes/m4-web-ime-composition-20260825.md`.
+  runtime binding, and a synthetic real-product Unicode object-name commit are verified. This
+  closes the bridge/ownership path only: R11 leaves terminal recovery and trusted physical
+  IME/dead-key evidence open below. The live product run uses fallback software and binds no
+  receipt; M4 and the s7 blocker are unchanged. See
+  `notes/m4-web-ime-composition-20260825.md` and `reports/audit-20260825-r11.md`.
 - [x] **M4-WEB-FOCUS-STATE-RESET [ghost-web] (`453d587`):** canvas/tab blur now snapshots and
   retires all seven tracked mouse buttons plus every modifier before `WindowDeactivate`,
   publishing held button releases so missing DOM release events cannot leave Blender navigation
@@ -2699,7 +2702,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebind callbacks and reset first-pixel settling. The predecessor retained the deleted pointer,
   while the final real worker harness, 17 mutations, native/wasm parity, locked product, sustained
   fallback diagnostic, canonical replay, M4 scope, and regression preserve their strict existing
-  boundaries. See `notes/m4-web-window-disposal-lifecycle-20260825.md`.
+  boundaries. R11 leaves the cross-registration queued-callback epoch open below. See
+  `notes/m4-web-window-disposal-lifecycle-20260825.md` and `reports/audit-20260825-r11.md`.
 - [x] **M4-WEB-CUSTOM-CURSOR-BRIDGE [ghost-web] (`1e24fc3`):** Blender's borrowed RGBA and
   legacy XBM custom-cursor spans are now copied synchronously on the browser main thread,
   rasterized to a bounded CSS image cursor with the exact hotspot, and published through the
@@ -2730,9 +2734,37 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   integration-product relink/no-work, OFF preflight, fallback diagnostic, REUSE, M4 scope, and
   container-backed regression preserve their strict existing boundaries. See
   `notes/m4-web-window-hit-test-20260825.md`.
+- [x] **AUDIT-20260825-R11 [driver] (`d7498de`):** adversarially reviewed exact range
+  `8942b4ed335bc730912c1e6d7a1d21d2cf311a00..9b51af8eada1b0668e1b4de3af376ad0d30199d7`
+  and found zero critical, four major, and three minor input/lifecycle, evidence, compliance, and
+  process defects. The three supplied P0 root fixes remain structurally correct and their focused
+  Linux checks are fresh. The overclaimed IME/dead-key row is partial again and stale M4 notes are
+  corrected; no receipt/result/gate/promise was promoted. See `reports/audit-20260825-r11.md`.
+- [ ] **AUDIT-R11-M4-POINTER-LOCK-OUTCOME-LIFECYCLE [ghost-web, claimed_by: none,
+  blocked-by: none]:** distinguish pending/active browser lock, bridge `pointerlockchange` and
+  `pointerlockerror` to the WM worker, and reconcile GHOST grab state on rejection, Escape/loss,
+  blur, and disposal. Add fail-first worker/product coverage without changing the nonreceipt
+  boundary.
+- [ ] **AUDIT-R11-M4-IME-TERMINAL-RECOVERY [ghost-web, claimed_by: none, blocked-by: none]:**
+  coalesce disposable updates or reserve terminal queue capacity, then guarantee explicit
+  Commit/End/cancel recovery after saturation and allocation failure. Add native/wasm and worker
+  saturation cases before calling the composition lifecycle fail-closed.
+- [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-EPOCH [ghost-web, claimed_by: none,
+  blocked-by: none]:** replace raw-system-pointer callback ownership with a durable per-registration
+  epoch/token. Prove an event queued before disposal cannot target a replacement window even when
+  delivery occurs after rebinding, including repeated replacements.
+- [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-TRANSACTION [ghost-web, claimed_by: none,
+  blocked-by: none]:** require all ten HTML5 listener-registration results, roll back every
+  successful prefix on failure, and publish the owner/registered flag only after full success.
+  Cover each failed position and replacement rollback.
+- [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
+  blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
+  browser-generated OS IME composition and a physical dead-key sequence through the real product;
+  bind trusted-event evidence and Blender text state before resolving `ime-dead-keys`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
-  `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**
+  `Assisted-by:` trailer. R11 additionally found human-authored commits `0aa45be` and `62ca5fb`
+  missing that trailer. **blocked-by external-mirror/history-rewrite coordination.**
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

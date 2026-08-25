@@ -40,6 +40,7 @@ try {
       typeof module._ghost_harness_ime_result === "function" &&
       typeof module._ghost_harness_ime_capability === "function" &&
       typeof module._bw_shell_ime_consumed_count === "function" &&
+      typeof module._bw_shell_ime_recovered_count === "function" &&
       globalThis.__bwImeBridge?.schema === 1 &&
       document.querySelector("#log")?.textContent.includes("window created");
   });
@@ -99,6 +100,7 @@ try {
     published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
     consumed: Number(globalThis.ghostModule._bw_shell_ime_consumed_count()),
     dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
     lines: document.querySelector("#log").textContent.split("\n")
       .filter((line) => line.startsWith("GHOST Ime"))
       .map((line) => line.replace(/\s+/g, " ").trim()),
@@ -112,6 +114,7 @@ try {
   ];
   if (JSON.stringify(evidence.lines) !== JSON.stringify(expected) ||
       evidence.published !== 5 || evidence.consumed !== 5 || evidence.dropped !== 0 ||
+      evidence.recovered !== 0 || evidence.snapshot.recovered !== 0 ||
       evidence.snapshot.accepted !== 5 || evidence.snapshot.rejected !== 0 ||
       evidence.snapshot.lastKind !== "end" || evidence.snapshot.lastUtf8Bytes !== 0 ||
       Object.hasOwn(evidence.snapshot, "text")) {
@@ -134,6 +137,7 @@ try {
     snapshot: globalThis.__bwImeBridge.snapshot(),
     published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
     dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
   }));
   if (disabled.snapshot.sequence !== 5 || disabled.published !== 5 || disabled.dropped !== 0) {
     throw new Error(`disabled IME accepted input: ${JSON.stringify(disabled)}`);
@@ -147,9 +151,106 @@ try {
     throw new Error(`IME rejection/diagnostic contract failed: ${JSON.stringify({invalid, diagnostics})}`);
   }
 
+  await requestIme(0);
+  const saturationBefore = await page.evaluate(() => ({
+    snapshot: globalThis.__bwImeBridge.snapshot(),
+    published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
+    consumed: Number(globalThis.ghostModule._bw_shell_ime_consumed_count()),
+    dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
+    endCount: document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.startsWith("GHOST ImeEnd")).length,
+  }));
+  const saturationPublished = await page.evaluate((recoveredBefore) => {
+    const input = document.querySelector("#bw-ime-input");
+    const dispatch = (type, data) => input.dispatchEvent(
+      new CompositionEvent(type, {data, bubbles: true}));
+    dispatch("compositionstart", "");
+    for (let index = 0; index < 2048; index += 1) {
+      dispatch("compositionupdate", `saturation-${index}`);
+      if (globalThis.__bwImeBridge.snapshot().recovered > recoveredBefore) {
+        break;
+      }
+    }
+    return globalThis.__bwImeBridge.snapshot();
+  }, saturationBefore.snapshot.recovered);
+  const acceptedDelta = saturationPublished.accepted - saturationBefore.snapshot.accepted;
+  if (saturationPublished.recovered !== saturationBefore.snapshot.recovered + 1 ||
+      saturationPublished.rejected <= saturationBefore.snapshot.rejected ||
+      saturationPublished.composing || saturationPublished.lastKind !== "cancel" ||
+      acceptedDelta < 2) {
+    throw new Error(`IME saturation did not recover terminally: ${JSON.stringify({
+      saturationBefore, saturationPublished, acceptedDelta,
+    })}`);
+  }
+  await page.waitForFunction(({consumed, endCount}) =>
+    Number(globalThis.ghostModule._bw_shell_ime_consumed_count()) >= consumed &&
+    document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.startsWith("GHOST ImeEnd")).length > endCount,
+  {
+    consumed: saturationBefore.consumed + acceptedDelta,
+    endCount: saturationBefore.endCount,
+  });
+  const saturationAfter = await page.evaluate(() => ({
+    snapshot: globalThis.__bwImeBridge.snapshot(),
+    published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
+    consumed: Number(globalThis.ghostModule._bw_shell_ime_consumed_count()),
+    dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
+  }));
+  if (saturationAfter.published - saturationBefore.published !== acceptedDelta ||
+      saturationAfter.consumed - saturationBefore.consumed !== acceptedDelta ||
+      saturationAfter.dropped <= saturationBefore.dropped ||
+      saturationAfter.recovered !== saturationBefore.recovered + 1) {
+    throw new Error(`IME saturation counters diverged: ${JSON.stringify({
+      saturationBefore, saturationAfter, acceptedDelta,
+    })}`);
+  }
+  await requestIme(1);
+
+  await requestIme(0);
+  const cancelBefore = await page.evaluate(() => ({
+    snapshot: globalThis.__bwImeBridge.snapshot(),
+    published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
+    consumed: Number(globalThis.ghostModule._bw_shell_ime_consumed_count()),
+    dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
+    endCount: document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.startsWith("GHOST ImeEnd")).length,
+  }));
+  await page.evaluate(() => {
+    const input = document.querySelector("#bw-ime-input");
+    input.dispatchEvent(new CompositionEvent("compositionstart", {data: "", bubbles: true}));
+    input.dispatchEvent(new CompositionEvent("compositionupdate", {data: "取消", bubbles: true}));
+  });
+  await requestIme(1);
+  await page.waitForFunction(({consumed, recovered, endCount}) =>
+    Number(globalThis.ghostModule._bw_shell_ime_consumed_count()) >= consumed + 3 &&
+    Number(globalThis.ghostModule._bw_shell_ime_recovered_count()) === recovered + 1 &&
+    document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.startsWith("GHOST ImeEnd")).length > endCount,
+  cancelBefore);
+  const cancelAfter = await page.evaluate(() => ({
+    snapshot: globalThis.__bwImeBridge.snapshot(),
+    published: Number(globalThis.ghostModule._bw_shell_ime_published_count()),
+    consumed: Number(globalThis.ghostModule._bw_shell_ime_consumed_count()),
+    dropped: Number(globalThis.ghostModule._bw_shell_ime_dropped_count()),
+    recovered: Number(globalThis.ghostModule._bw_shell_ime_recovered_count()),
+    active: document.activeElement?.id,
+  }));
+  if (cancelAfter.published !== cancelBefore.published + 3 ||
+      cancelAfter.consumed !== cancelBefore.consumed + 3 ||
+      cancelAfter.dropped !== cancelBefore.dropped ||
+      cancelAfter.recovered !== cancelBefore.recovered + 1 ||
+      cancelAfter.snapshot.composing || cancelAfter.snapshot.enabled ||
+      cancelAfter.snapshot.lastKind !== "cancel" || cancelAfter.active !== "blender-canvas") {
+    throw new Error(`IME explicit cancel diverged: ${JSON.stringify({cancelBefore, cancelAfter})}`);
+  }
+
   console.log(
     "GHOST_IME_BROWSER PASS events=start,update,commit,end utf8=3,10 " +
-    "worker=spsc focus=caret,canvas disabled=rejected capability=on");
+    "worker=spsc terminal=reserved,recovered focus=caret,canvas " +
+    "disabled=rejected capability=on");
 }
 finally {
   await browser.close();

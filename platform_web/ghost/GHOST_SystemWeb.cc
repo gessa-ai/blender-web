@@ -442,37 +442,73 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
       var sequence = 0;
       var accepted = 0;
       var rejected = 0;
+      var recovered = 0;
       var lastKind = "none";
       var lastUtf8Bytes = 0;
       var activeCanvas = null;
 
-      var publish = function (kind, text, cursorPosition, targetStart, targetEnd) {
-        text = String(text || "");
-        var size = lengthBytesUTF8(text) + 1;
-        var pointer = _malloc(size);
-        var ok = 0;
-        if (pointer) {
-          stringToUTF8(text, pointer, size);
-          var publishFunction = Module["_bw_shell_ime_publish"];
-          if (typeof publishFunction === "function") {
-            ok = publishFunction(
-                kind, pointer, size - 1, cursorPosition, targetStart, targetEnd);
-          }
-          _free(pointer);
-        }
+      var recordPublish = function (kind, utf8Bytes, ok) {
         sequence += 1;
-        lastKind = kind === 0 ? "start" :
-                   kind === 1 ? "update" :
-                   kind === 2 ? "commit" :
-                   kind === 3 ? "end" : "invalid";
-        lastUtf8Bytes = size - 1;
+        lastKind = kind;
+        lastUtf8Bytes = utf8Bytes;
         if (ok) {
           accepted += 1;
         }
         else {
           rejected += 1;
         }
-        return ok === 1;
+        return ok;
+      };
+
+      var cancelComposition = function () {
+        var cancelFunction = Module["_bw_shell_ime_cancel"];
+        var ok = typeof cancelFunction === "function" && cancelFunction() === 1;
+        if (recordPublish("cancel", 0, ok)) {
+          recovered += 1;
+        }
+        composing = false;
+        return ok;
+      };
+
+      var publish = function (kind, text, cursorPosition, targetStart, targetEnd) {
+        text = String(text || "");
+        var utf8Bytes = lengthBytesUTF8(text);
+        var pointer = 0;
+        var ok = 0;
+        var publishFunction = Module["_bw_shell_ime_publish"];
+        if (typeof publishFunction === "function") {
+          if (utf8Bytes === 0) {
+            ok = publishFunction(kind, 0, 0, cursorPosition, targetStart, targetEnd);
+          }
+          else {
+            try {
+              pointer = _malloc(utf8Bytes + 1);
+              if (pointer) {
+                stringToUTF8(text, pointer, utf8Bytes + 1);
+                ok = publishFunction(
+                    kind, pointer, utf8Bytes, cursorPosition, targetStart, targetEnd);
+              }
+            }
+            catch (_) {
+              ok = 0;
+            }
+          }
+        }
+        if (pointer) {
+          _free(pointer);
+        }
+        var kindName = kind === 0 ? "start" :
+                       kind === 1 ? "update" :
+                       kind === 2 ? "commit" :
+                       kind === 3 ? "end" : "invalid";
+        var acceptedMessage = recordPublish(kindName, utf8Bytes, ok === 1);
+        if (!acceptedMessage && kind !== 3 && composing) {
+          /* A disposable update may saturate or any owned-text allocation may
+           * fail. The queue reserves a no-allocation terminal slot, so cancel
+           * explicitly before ignoring the rest of this browser composition. */
+          cancelComposition();
+        }
+        return acceptedMessage;
       };
 
       input.addEventListener("compositionstart", function (event) {
@@ -484,19 +520,21 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
         publish(0, text, lengthBytesUTF8(text), -1, -1);
       });
       input.addEventListener("compositionupdate", function (event) {
-        if (!enabled) {
+        if (!enabled || !composing) {
           return;
         }
         var text = event.data || "";
         publish(1, text, lengthBytesUTF8(text), -1, -1);
       });
       input.addEventListener("compositionend", function (event) {
-        if (!enabled) {
+        if (!enabled || !composing) {
+          input.value = "";
           return;
         }
         var text = event.data || "";
-        publish(2, text, -1, -1, -1);
-        publish(3, "", -1, -1, -1);
+        if (publish(2, text, -1, -1, -1) && composing) {
+          publish(3, "", -1, -1, -1);
+        }
         composing = false;
         queueMicrotask(function () {
           if (!composing) {
@@ -519,8 +557,8 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
           }
           enabled = true;
           if (completed && composing) {
+            cancelComposition();
             input.blur();
-            composing = false;
           }
           var bounds = activeCanvas.getBoundingClientRect();
           input.style.left = Math.round(bounds.left + x) + "px";
@@ -531,6 +569,9 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
           return document.activeElement === input;
         },
         end: function () {
+          if (composing) {
+            cancelComposition();
+          }
           if (document.activeElement === input) {
             input.blur();
           }
@@ -550,6 +591,7 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
             sequence: sequence,
             accepted: accepted,
             rejected: rejected,
+            recovered: recovered,
             lastKind: lastKind,
             lastUtf8Bytes: lastUtf8Bytes,
             focused: document.activeElement === input,

@@ -36,6 +36,7 @@ GHOST_WINDOW_SOURCE="$ROOT/platform_web/ghost/GHOST_WindowWeb.cc"
 GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_SYSTEM_HEADER="$ROOT/platform_web/ghost/GHOST_SystemWeb.hh"
 GHOST_EVENT_BRIDGE_SOURCE="$ROOT/platform_web/ghost/GHOST_EventBridgeWeb.cc"
+GHOST_IME_QUEUE_HEADER="$ROOT/platform_web/ghost/GHOST_IMEQueueWeb.hh"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
 GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
 GHOST_DISPLAY_HEADER="$ROOT/platform_web/ghost/GHOST_WebDisplayState.hh"
@@ -214,6 +215,7 @@ require_file "$GHOST_HEADER"
 require_file "$GHOST_WINDOW_SOURCE"
 require_file "$GHOST_WINDOW_HEADER"
 require_file "$GHOST_EVENT_BRIDGE_SOURCE"
+require_file "$GHOST_IME_QUEUE_HEADER"
 require_file "$GHOST_DISPLAY_HEADER"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_TYPES_SOURCE"
@@ -1721,7 +1723,8 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \
-  "$GHOST_EVENT_BRIDGE_SOURCE" "$ROOT/platform_web/ghost/GHOST_EventBridgeWeb.hh" \
+  "$GHOST_EVENT_BRIDGE_SOURCE" "$GHOST_IME_QUEUE_HEADER" \
+  "$ROOT/platform_web/ghost/GHOST_EventBridgeWeb.hh" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" \
   "$ROOT/patches/blender_web.cmake" "$ROOT/upstream/CMakeLists.txt" \
   "$ROOT/patches/0280-ghost-web-input-ime-option.patch" "$ROOT/patches/series" --selfcheck

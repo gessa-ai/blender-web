@@ -93,14 +93,16 @@ front-buffer reads, physical trackpad direction, and server-side decorations. RG
 IME are advertised through browser-main bridges.
 
 Constraints and deferrals (with a named blocker wherever work remains):
-- **IME / dead-keys** — bridge implemented; terminal recovery and trusted-input evidence remain.
+- **IME / dead-keys** — bridge and terminal recovery are implemented; trusted-input evidence
+  remains.
   A hidden browser textarea follows Blender's requested caret
   rectangle and turns `compositionstart/update/end` into owned UTF-8 start/update/commit/end
   messages. A bounded SPSC queue crosses from the browser main thread to the WM worker, where
-  `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Disabled input rejects
-  and the capability is advertised, but saturation/allocation failure can currently drop a
-  terminal Commit/End. Existing browser tests dispatch synthetic untrusted CompositionEvents, so
-  physical OS IME and dead-key behavior is not yet receipt-backed (`reports/audit-20260825-r11.md`).
+  `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Fixed storage reserves
+  capacity for Commit and allocation-free End/cancel, so saturation or text-allocation failure
+  terminates composition instead of stranding it. Existing browser tests dispatch synthetic
+  untrusted CompositionEvents, so physical OS IME and dead-key behavior is not yet receipt-backed
+  (`notes/m4-ime-terminal-recovery-20260825.md`).
 - **Text clipboard** — implemented through a browser-main cache. Trusted `paste` events publish
   external text before the queued worker key event; `putClipboard` synchronously owns Blender's
   borrowed UTF-8 before starting `navigator.clipboard.writeText`, and `getClipboard` allocates an
@@ -108,9 +110,11 @@ Constraints and deferrals (with a named blocker wherever work remains):
   before menu interaction. Primary selection and image clipboard remain capability-masked.
 - **Cursor grab / absolute warp** — wrap and hide grabs use Pointer Lock and consume relative
   movement; wrap retains Blender's software cursor while hide does not. Disable exits Pointer
-  Lock, and normal preserves visible-pointer semantics. Browser-driven loss/error and deferred
-  request outcomes still need to be reconciled with GHOST grab state. Absolute
-  `setCursorPosition` remains unavailable and returns failure, so `CursorWarp` stays honestly off.
+  Lock, and normal preserves visible-pointer semantics. Pending requests become GHOST grabs only
+  after the owned canvas reports an active lock; browser error/loss, blur, disposal, and teardown
+  retire the request and grab state. Absolute `setCursorPosition` remains unavailable and returns
+  failure, so `CursorWarp` stays honestly off
+  (`notes/m4-pointer-lock-outcome-lifecycle-20260825.md`).
 - **Fullscreen state transitions** — implemented with the HTML5 Fullscreen API. Entry
   accepts Emscripten's deferred user-activation result; normal/maximized exit fullscreen,
   and browser-impossible minimization fails honestly. The shell display bridge owns the

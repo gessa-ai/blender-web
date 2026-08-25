@@ -149,7 +149,7 @@ mapped onto `platform_web/ghost/`:
 | `swapBufferAcquire`/`swapBufferRelease`/`activateDrawingContext` | **covered** | the persistent backbuffer is copied to the transient surface texture and submitted synchronously in the acquisition turn; activation is lightweight. |
 | `beginIME`/`endIME` | **covered** | hidden textarea at Blender's caret rectangle; owned UTF-8 composition crosses a bounded browser-main-to-WM-worker queue. |
 | `setPath`/`setOrder`/`setProgressBar`/`endProgressBar`/`setModifiedState`/`set*DecorationStyle*` | base default / stub | non-boot-critical; decoration remains deferred. |
-| `setWindowCursorShape`/`Visibility`/`Grab` (protected) | **covered / Pointer Lock outcome partial** | standard/custom RGBA cursors and visibility publish through the browser-main CSS bridge; wrap/hide use Pointer Lock, whose browser loss/error outcome still needs GHOST-state reconciliation. |
+| `setWindowCursorShape`/`Visibility`/`Grab` (protected) | **covered** | standard/custom RGBA cursors and visibility publish through the browser-main CSS bridge; wrap/hide use Pointer Lock, and pending/active/error/loss/blur/disposal outcomes reconcile with GHOST state. |
 
 ### WGPU context duality — recommendation
 
@@ -191,8 +191,7 @@ getSurface/getSurfaceFormat` off whichever context the seam returned — one
 **Target:** one canvas window, default startup workspace (Layout), default scene
 (cube/camera/light), correct theme, splash on top, first frame matching the native golden
 within idiff. **Explicitly deferred/partial:** multi-window, drag-n-drop, trusted physical
-IME/dead-key evidence plus terminal-queue recovery, Pointer Lock outcome reconciliation,
-absolute cursor-warp, tablet/NDOF, retina swapchain
+IME/dead-key evidence, absolute cursor-warp, tablet/NDOF, retina swapchain
 tuning, staged/lazy payload (M7).
 
 **Dispatch gate:** M3's WebGPU `gpu` suite green (native Dawn) — this list wires the

@@ -55,11 +55,11 @@
       "id": "ime-dead-keys",
       "status": "partial",
       "milestone": "M4 (GHOST-web design)",
-      "revisit": "M4 input closure: terminal-recovery contract plus a trusted physical IME/dead-key receipt on a supported browser/OS",
-      "blocker": "The DOM-to-GHOST bridge is implemented, but its bounded queue may drop Commit/End under saturation or allocation failure and no trusted browser-generated IME/dead-key receipt exists; current browser tests dispatch untrusted synthetic CompositionEvent objects.",
-      "impact": "Synthetic start/update/commit/end proves UTF-8 ownership and cross-thread delivery only. A terminal drop can leave Blender composition active, and dead-key/OS-IME interoperability is not yet proven.",
-      "workaround": "Coalesce disposable updates or reserve terminal capacity and guarantee explicit cancel/end recovery; retain synthetic harness coverage, then add a trusted physical browser/OS receipt before resolving this row.",
-      "evidence": "reports/audit-20260825-r11.md; notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
+      "revisit": "M4 input closure: obtain a trusted physical IME/dead-key receipt on a supported browser/OS",
+      "blocker": "Terminal recovery is implemented: fixed queue slots reserve Commit and allocation-free End/cancel, and saturation or text-allocation failure explicitly terminates composition. The remaining blocker is that current browser tests dispatch untrusted synthetic CompositionEvent objects; no trusted browser-generated OS IME/dead-key receipt exists.",
+      "impact": "Synthetic coverage proves UTF-8 ownership, bounded terminal recovery, cross-thread delivery, and focus restoration, but cannot prove physical OS IME/dead-key interoperability.",
+      "workaround": "Retain the fail-closed terminal-recovery contracts and synthetic browser coverage, then add a trusted physical browser/OS receipt before resolving this row.",
+      "evidence": "notes/m4-ime-terminal-recovery-20260825.md; reports/audit-20260825-r11.md; notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
     },
     {
       "id": "node-ungroup-socket-flake",

@@ -82,12 +82,15 @@ piece the standalone harness does not exercise; it is covered by the ADR-003 M4 
 
 `getCapabilities()` = `GHOST_CAPABILITY_FLAG_ALL` minus a sandboxed-canvas mask:
 `WindowPosition` (no OS window), `CursorWarp` (absolute positioning is unavailable),
-`Clipboard{Primary,Image}`, `DesktopSample`, `InputIME`, `WindowDecorationStyles`,
+`Clipboard{Primary,Image}`, `DesktopSample`, `WindowDecorationStyles`,
 `KeyboardHyperKey`, `Cursor{RGBA,Generator}`, `MultiMonitorPlacement`, `WindowPath`.
 
 Constraints and deferrals (with a named blocker wherever work remains):
-- **IME / dead-keys** — needs `compositionstart/update/end` → `GHOST_kEventImeComposition*`
-  + `GHOST_TEventImeData`; browser IME is async. Deferred; capability off.
+- **IME / dead-keys** — implemented. A hidden browser textarea follows Blender's requested caret
+  rectangle and turns `compositionstart/update/end` into owned UTF-8 start/update/commit/end
+  messages. A bounded SPSC queue crosses from the browser main thread to the WM worker, where
+  `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Disabled input and
+  saturation reject without overwriting earlier transitions; the capability is advertised.
 - **Text clipboard** — implemented through a browser-main cache. Trusted `paste` events publish
   external text before the queued worker key event; `putClipboard` synchronously owns Blender's
   borrowed UTF-8 before starting `navigator.clipboard.writeText`, and `getClipboard` allocates an

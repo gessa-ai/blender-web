@@ -79,10 +79,11 @@ NOT `key`; the produced character rides in `utf8_buf` (from `key`). Full table i
 | punctuation | `Minus/Equal/Bracket*/Backslash/Semicolon/Quote/Backquote/Comma/Period/Slash/IntlBackslash` | Backquote→`AccentGrave`, IntlBackslash→`GrLess` |
 | whitespace | `Enter/Escape/Backspace/Tab/Space` | |
 
-**Deferred (documented):** dead-keys / IME composition (`compositionstart/update/end`,
-`GHOST_kEventImeComposition*`), matching GOAL.md's SDL IME-gap rationale — we don't
-advertise `GHOST_kCapabilityInputIME`. Layout note: `code` is physical (US-QWERTY
-positions); the localized character is always correct because it comes from `key`.
+**Resolved 2026-08-25:** dead-keys / IME composition now maps browser
+`compositionstart/update/end` through owned worker messages to
+`GHOST_kEventImeComposition*`, and the product advertises `GHOST_kCapabilityInputIME`.
+Layout note: `code` is physical (US-QWERTY positions); the localized character is always
+correct because it comes from `key` or the composition payload.
 
 ## 4. Standalone link dependency set (verified empirically)
 

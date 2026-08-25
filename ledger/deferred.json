@@ -53,13 +53,13 @@
     },
     {
       "id": "ime-dead-keys",
-      "status": "deferred",
+      "status": "resolved",
       "milestone": "M4 (GHOST-web design)",
-      "revisit": "M4+ GHOST-web \u2014 capability currently off",
-      "blocker": "Browser IME is asynchronous (compositionstart/update/end events); wiring dead-keys / composition needs mapping to GHOST_kEventImeComposition* + GHOST_TEventImeData.",
-      "impact": "IME / dead-key composition input path not implemented in the custom GHOST-web backend; the Infrom-IME capability is off. Direct key input is unaffected.",
-      "workaround": "Add the compositionstart/update/end -> GHOST_kEventImeComposition* bridge when a locale/IME-dependent workflow is in scope.",
-      "evidence": "notes/ghost-web-design.md (IME / dead-keys)"
+      "revisit": "closed by 9608169; retain this row as resolved audit history",
+      "blocker": "Resolved: DOM compositionstart/update/end callbacks publish owned UTF-8 through a bounded browser-main-to-WM-worker queue and materialize Blender's stock GHOST_kEventImeComposition* events on the owning worker.",
+      "impact": "The windowed web product now advertises GHOST_kCapabilityInputIME. Composition start/update/commit/end reaches Blender text editing with byte-correct Unicode cursor offsets; disabled input and queue saturation fail closed.",
+      "workaround": "No workaround remains. Keep the hidden textarea focused at Blender's requested caret rectangle and preserve the bounded SPSC ownership boundary.",
+      "evidence": "notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
     },
     {
       "id": "node-ungroup-socket-flake",

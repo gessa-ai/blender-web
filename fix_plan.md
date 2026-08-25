@@ -2677,6 +2677,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   relink/no-work, and product Python-Console paste/copy round-trip are verified. The live product
   run uses fallback software and binds no receipt; M4 and the s7 blocker are unchanged. See
   `notes/m4-web-text-clipboard-20260825.md`.
+- [x] **M4-WEB-IME-COMPOSITION [ghost-web] (`9608169`):** DOM composition now crosses from
+  the browser main thread to the owning WM worker through a bounded SPSC queue of owned UTF-8
+  messages, where start/update/commit/end become Blender's stock GHOST IME events. The hidden
+  textarea tracks Blender's requested caret rectangle, focus returns to the canvas on end, and
+  the windowed product now advertises its implemented IME capability. Twenty-one fail-closed
+  mutations, the real worker harness, canonical replay, optimized product relink/no-work, baked
+  runtime binding, and a real-product Unicode object-name commit are verified. The live product
+  run uses fallback software and binds no receipt; M4 and the s7 blocker are unchanged. See
+  `notes/m4-web-ime-composition-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

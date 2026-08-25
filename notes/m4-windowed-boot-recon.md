@@ -147,7 +147,8 @@ mapped onto `platform_web/ghost/`:
 | **Window:** `getState`/`setState`/`setTitle`/`getTitle`/`getClientBounds`/`screenToClient`/`clientToScreen`/`setClientSize`/`invalidate`/`getDPIHint` | **covered** | `GHOST_WindowWeb`. |
 | `getNativePixelSize` (11× in wm) | base default → `1.0f` | acceptable for M4 (HiDPI via `getDPIHint`); revisit for retina swapchain. |
 | `swapBufferAcquire`/`swapBufferRelease`/`activateDrawingContext` | **covered / no-op** | web auto-presents on yield (wgpu-context note delta #3); `swapBufferRelease`→no-op. |
-| `setPath`/`setOrder`/`setProgressBar`/`endProgressBar`/`setModifiedState`/`beginIME`/`endIME`/`set*DecorationStyle*` | base default / stub | non-boot-critical; IME + decoration deferred. |
+| `beginIME`/`endIME` | **covered** | hidden textarea at Blender's caret rectangle; owned UTF-8 composition crosses a bounded browser-main-to-WM-worker queue. |
+| `setPath`/`setOrder`/`setProgressBar`/`endProgressBar`/`setModifiedState`/`set*DecorationStyle*` | base default / stub | non-boot-critical; decoration remains deferred. |
 | `setWindowCursorShape`/`Visibility`/`Grab` (protected) | **stub (no-op)** | M4 uses the browser/CSS cursor; map to `canvas.style.cursor` later. |
 
 ### WGPU context duality — recommendation

@@ -1113,3 +1113,6 @@
 # 0269: suspend all six Grease Pencil primitive operators before their first
 # projected point, then replay safe modal input after bounded depth settlement.
 0269-m5-grease-pencil-primitive-depth-cache-continuation.patch
+# 0270: retain one Grease Pencil fill click while its viewport cache settles,
+# then run pixel rendering or Delaunay triangulation with the ready placement.
+0270-m5-grease-pencil-fill-depth-cache-continuation.patch

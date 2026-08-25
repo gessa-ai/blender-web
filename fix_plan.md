@@ -1827,6 +1827,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   device and one presentation pre-acquisition and zero stage-1/import failures. That diagnostic is
   explicitly non-receipt evidence and does not promote M4 pixels or alter the s7 hardware blocker.
   See `notes/m4-wm-worker-presentation-preinit-20260825.md`.
+- [x] **P0-B-S7-GPUADAPTERINFO-FALLBACK [driver] (30fa865):** the CAPTURE producer now
+  prefers the current `GPUAdapterInfo.isFallbackAdapter` boolean and retains the retired
+  `GPUAdapter.isFallbackAdapter` location only as a compatibility fallback. Its executable
+  fixtures cover current, legacy, precedence, true-fallback, absent, masked, and software shapes;
+  both immutable receipt consumers and the complete two-phase source contract remain green. No
+  adapter or receipt was produced, and the exact s7 blocker is unchanged. See
+  `notes/s7-adapter-info-fallback-20260825.md`.
 - [x] **M4.T21-GHOST-PRESENT-RESOURCE-TRANSACTION [ghost-web] (844e683):** the browser
   compositor preserves the last usable resize texture until replacement succeeds, publishes its
   bind-group layout/pipeline only as a complete pair, and rejects failed per-frame views, bind

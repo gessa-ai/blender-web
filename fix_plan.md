@@ -2722,6 +2722,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   integrated native/wasm32 parity, locked product relink/no-work, OFF preflight, sustained fallback
   diagnostics, REUSE, M4 scope, and container regression preserve their strict existing boundaries.
   See `notes/m4-web-capability-closure-20260825.md`.
+- [x] **M4-WEB-WINDOW-HIT-TEST [ghost-web] (`e113f1a`):** the single-canvas system now returns
+  its active window only when the supplied screen/client point lies inside the live client bounds,
+  and returns null after disposal or beyond every edge as required by the pinned GHOST interface.
+  The predecessor real worker harness returned only the four interior bits; final exact-commit and
+  10-mutation contracts, seven-point browser behavior, integrated native/wasm32 parity, locked
+  integration-product relink/no-work, OFF preflight, fallback diagnostic, REUSE, M4 scope, and
+  container-backed regression preserve their strict existing boundaries. See
+  `notes/m4-web-window-hit-test-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

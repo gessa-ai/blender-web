@@ -2555,9 +2555,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rejects 23 frozen/missing/late/hardware/error mutations. The live result remains explicitly
   `diagnostic-nonreceipt`; it binds no adapter, pixel, profile, or hardware receipt. See
   `notes/m4-sustained-wm-liveness-20260825.md`.
-- [ ] **AUDIT-R10-M5-AXIS-TARGET-PRODUCER-STATE [driver, blocked-by: none]:** bind axis-target
-  depth to safely retained producer frame, selection identities, and transform state, cancel on
-  same-pointer mutation, and add frame/selection/transform drift contracts.
+- [x] **AUDIT-R10-M5-AXIS-TARGET-PRODUCER-STATE [driver] (`7271d4e`, patch 0276):** pending
+  Look at Surface depth now retains the producer frame plus exact compatible-target pointer/session,
+  parent/data, local-channel, inverse, and evaluated-matrix state before suspension, and rejects any
+  same-pointer drift before cache transfer or modal-backup creation. The predecessor fails before
+  evidence; final focused native/wasm32 verification passes 9 contracts/39 cases and 23 mutations,
+  while the 51-source aggregate passes 52 mutations with zero synchronous browser families. Exact
+  patch round-trip, native/windowed product-TU compiles, canonical replay, real product relink/no-work,
+  OFF preflight, REUSE, M5 scope, and container-backed regression retain their strict boundaries. See
+  `notes/m5-axis-target-producer-state-20260825.md`.
 - [ ] **AUDIT-R10-M5-PARTICLE-PRODUCER-STATE [driver, blocked-by: none]:** bind particle-edit
   depth to a conservative producer frame/object-transform/edit-data state token across click,
   gesture, and brush paths, with same-pointer mutation controls.

@@ -2425,6 +2425,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   compile. Grease Pencil placement, object axis-target placement, particle edit, and WM window
   capture remain explicit residuals; live M5 acceptance retains its named hardware blocker. See
   `notes/m5-annotation-recorded-depth-cache-continuation-20260825.md`.
+- [x] **M5-GREASE-PENCIL-PAINT-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE
+  (`148d1bc`, patch 0268; Linux receipts `20260825T030716-764796`/
+  `20260825T030658-764357`): freehand `GREASE_PENCIL_OT_brush_stroke` surface/stroke placement now
+  owns one full-viewport depth-cache request and retains its exact first plus generated input
+  samples behind one bounded, producing-view-guarded modal timer. Settlement replays the sample
+  FIFO and a sanitized terminal event through the stock paint dispatcher, preserving release-time
+  line/anchored-brush finalization; native-ready and non-depth paths remain immediate. Eight
+  byte-identical native/wasm32 contracts and 18 cases pass, 12 source mutations fail closed, and
+  exact native/wasm product-graph compiles plus the real windowed product are green. Grease Pencil
+  primitive/fill/pen-helper placement, object axis-target placement, particle edit, and WM window
+  capture remain explicit residuals; live M5 acceptance retains its named hardware blocker. See
+  `notes/m5-grease-pencil-depth-cache-continuation-20260825.md`.
+- [ ] **M5-GREASE-PENCIL-PRIMITIVE-DEPTH-CACHE-CONTINUATION [driver]:** convert the shared invoke
+  path for all six `GREASE_PENCIL_OT_primitive_*` operators to one bounded, producing-view-guarded
+  placement continuation before the first projected control point is committed; preserve exact
+  native-immediate initialization, cursor/navigation ownership, start coordinates, and modal
+  teardown. Fill and pen-helper placement remain separate follow-ups. **blocked-by: none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

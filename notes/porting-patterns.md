@@ -1235,3 +1235,22 @@ snapshot together. Exercise native-ready, chained pending generations, input-sna
 non-depth and eraser modes, exact boundaries, and every terminal guard under native and wasm32.
 See `patches/0267-m5-annotation-recorded-depth-cache-continuation.patch` and
 `sandbox/m5-annotation-depth-cache/`.
+
+## Class 85 — a shared modal dispatcher owns both processed samples and terminal semantics
+
+Signature: a paint operator creates a placement helper during its first processed sample, but
+surface or stroke projection needs an asynchronous full-viewport depth cache. Retaining only the
+raw initiating event is insufficient once the shared paint dispatcher has already converted that
+event into an `InputSample`; retaining only samples is also insufficient because release and
+confirm events perform dispatcher-owned line or anchored-brush finalization. Let the operation own
+the placement request, exact first sample, and bounded FIFO of already-processed generated samples,
+while the modal stroke owner owns the one identified timer and a custom-data-free copy of the
+terminal event. Preserve immediately ready and non-depth execution on the original stack. After
+settlement, apply the first sample exactly once, replay generated samples FIFO, then feed the
+sanitized terminal event back through the stock dispatcher rather than calling the operation's
+finish hook directly. Producing manager/window/screen/area/region/view/scene/object drift, backend
+failure, timeout, sample overflow, Escape, and external cancellation must retire the timer, request,
+placement cache, FIFO, and terminal event together. Exercise terminal line-end replay separately
+from sample replay, because both paths can otherwise look complete while losing different stock
+semantics. See `patches/0268-m5-grease-pencil-depth-cache-continuation.patch` and
+`sandbox/m5-grease-pencil-depth-cache/`.

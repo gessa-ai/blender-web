@@ -90,10 +90,8 @@ class GHOST_WindowWeb : public GHOST_Window {
   GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape) override;
 
  protected:
-  GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode /*mode*/) override
-  {
-    return GHOST_kSuccess;
-  }
+  GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode mode) override;
+  bool getCursorGrabUseSoftwareDisplay() override;
   GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor shape) override;
   GHOST_TSuccess setWindowCustomCursorShape(const uint8_t * /*bitmap*/,
                                             const uint8_t * /*mask*/,

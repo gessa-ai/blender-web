@@ -124,6 +124,8 @@ static GHOST_SystemWeb *g_system = nullptr;
 static GHOST_IWindow *g_window = nullptr;
 static std::atomic<int> g_requested_window_state{-1};
 static std::atomic<int> g_window_state_result{-2};
+static std::atomic<int> g_requested_cursor_grab{-1};
+static std::atomic<int> g_cursor_grab_result{-2};
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_state(const int state)
 {
@@ -140,6 +142,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_window_state_result()
   return g_window_state_result.load(std::memory_order_acquire);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_cursor_grab(const int mode)
+{
+  if (mode < int(GHOST_kGrabDisable) || mode > int(GHOST_kGrabHide)) {
+    return int(GHOST_kFailure);
+  }
+  g_cursor_grab_result.store(-2, std::memory_order_relaxed);
+  g_requested_cursor_grab.store(mode, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_result()
+{
+  return g_cursor_grab_result.load(std::memory_order_acquire);
+}
+
 static void main_loop_tick()
 {
   /* Top-level event pump: pull native (already-queued) events, dispatch to the
@@ -152,6 +169,17 @@ static void main_loop_tick()
       const int result = g_window ? int(g_window->setState(GHOST_TWindowState(requested))) :
                                     int(GHOST_kFailure);
       g_window_state_result.store(result, std::memory_order_release);
+    }
+    const int requested_grab = g_requested_cursor_grab.exchange(-1, std::memory_order_acq_rel);
+    if (requested_grab >= int(GHOST_kGrabDisable) && requested_grab <= int(GHOST_kGrabHide)) {
+      const int result = g_window ?
+                             int(g_window->setCursorGrab(GHOST_TGrabCursorMode(requested_grab),
+                                                         GHOST_TAxisFlag(GHOST_kAxisX |
+                                                                         GHOST_kAxisY),
+                                                         nullptr,
+                                                         nullptr)) :
+                             int(GHOST_kFailure);
+      g_cursor_grab_result.store(result, std::memory_order_release);
     }
     g_system->processEvents(false);
     g_system->dispatchEvents();

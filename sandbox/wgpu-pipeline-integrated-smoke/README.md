@@ -156,6 +156,13 @@ cursors fail honestly instead of reporting a no-op success. The pinned source co
 enum drift, missing release publication, direct worker DOM access, and missing runtime exports;
 the Node behavior contract covers every mapping, hide/show, generation ordering, and recovery from
 temporarily missing module, canvas, or export state.
+Continuous cursor grabs use the browser Pointer Lock API rather than claiming a worker-local no-op
+success. Wrap and Hide modes accumulate `movementX/Y` into saturated virtual GHOST coordinates;
+Wrap retains a visible Blender software cursor while Hide remains invisible. Disable cancels both
+active and deferred lock requests, Normal preserves visible-pointer SDL semantics, and absolute
+cursor warp remains honestly unadvertised. The source contract rejects 13 ordering, motion,
+visibility, and capability mutations; the real worker-topology harness covers lock entry, relative
+motion, and release, while the product diagnostic drives Blender's actual middle-drag navigation.
 The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
 presentation bundle. Its worker-side transaction validates the initial backbuffer before main
 starts, then puts non-fallback and unknown-status adapters through scoped canvas configuration,

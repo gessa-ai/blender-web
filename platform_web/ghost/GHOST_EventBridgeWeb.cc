@@ -12,6 +12,9 @@
 
 #include "GHOST_EventBridgeWeb.hh"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <memory>
 
 #include "GHOST_SystemWeb.hh"
@@ -47,11 +50,30 @@ GHOST_TButton button_from_dom(unsigned short dom_button)
 void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)
 {
   sys.noteModifierFlags(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey);
-  sys.noteCursor(e.targetX, e.targetY);
-  GHOST_IWindow *win = sys.activeWindow();
+  GHOST_WindowWeb *win = sys.activeWindow();
+  int32_t x = e.targetX;
+  int32_t y = e.targetY;
+  if (win != nullptr && win->getCursorGrabModeIsWarp()) {
+    /* Pointer Lock freezes DOM absolute coordinates and reports motion only as
+     * movementX/Y. Preserve GHOST's desktop contract by accumulating a virtual,
+     * unbounded cursor position for Wrap/Hide grabs. Saturation avoids signed
+     * overflow during an exceptionally long continuous session. */
+    int32_t previous_x = 0;
+    int32_t previous_y = 0;
+    if (sys.getCursorPosition(previous_x, previous_y) == GHOST_kSuccess) {
+      const auto add_motion = [](const int32_t previous, const int movement) {
+        const int64_t sum = int64_t(previous) + int64_t(movement);
+        return int32_t(std::clamp(sum,
+                                  int64_t(std::numeric_limits<int32_t>::min()),
+                                  int64_t(std::numeric_limits<int32_t>::max())));
+      };
+      x = add_motion(previous_x, e.movementX);
+      y = add_motion(previous_y, e.movementY);
+    }
+  }
+  sys.noteCursor(x, y);
   sys.pushEvent(std::make_unique<GHOST_EventCursor>(
-      sys.getMilliSeconds(), GHOST_kEventCursorMove, win, e.targetX, e.targetY,
-      GHOST_TABLET_DATA_NONE));
+      sys.getMilliSeconds(), GHOST_kEventCursorMove, win, x, y, GHOST_TABLET_DATA_NONE));
 }
 
 void on_mouse_button(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenMouseEvent &e)

@@ -337,6 +337,44 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
   return GHOST_kSuccess;
 }
 
+GHOST_TSuccess GHOST_WindowWeb::setWindowCursorGrab(GHOST_TGrabCursorMode mode)
+{
+  const auto request_succeeded = [](const EMSCRIPTEN_RESULT result) {
+    /* Blender reaches this method from its WM-worker event queue, after the
+     * originating DOM callback has returned. Emscripten's deferred result is a
+     * real accepted request: it runs from the next user-activation event. */
+    return result == EMSCRIPTEN_RESULT_SUCCESS || result == EMSCRIPTEN_RESULT_DEFERRED;
+  };
+
+  switch (mode) {
+    case GHOST_kGrabDisable:
+      /* This also removes an entry request that was deferred but not activated. */
+      return request_succeeded(emscripten_exit_pointerlock()) ? GHOST_kSuccess :
+                                                                GHOST_kFailure;
+    case GHOST_kGrabNormal:
+      /* Browsers expose no visible-pointer confinement API. Match the SDL
+       * backend's successful no-adjustment grab without hiding the pointer. */
+      return GHOST_kSuccess;
+    case GHOST_kGrabWrap:
+    case GHOST_kGrabHide:
+      /* Pointer Lock supplies unbounded relative motion for continuous viewport
+       * navigation and hides the system pointer. Relative coordinates are
+       * accumulated by GHOST_EventBridgeWeb while these modes are active. */
+      return request_succeeded(emscripten_request_pointerlock(canvas_selector_.c_str(), true)) ?
+                 GHOST_kSuccess :
+                 GHOST_kFailure;
+  }
+  return GHOST_kFailure;
+}
+
+bool GHOST_WindowWeb::getCursorGrabUseSoftwareDisplay()
+{
+  /* Pointer Lock hides the DOM cursor for both unbounded modes. Wrap retains
+   * Blender's visible-cursor semantics through WM's capability-driven software
+   * cursor; Hide intentionally remains invisible. */
+  return getCursorGrabMode() == GHOST_kGrabWrap;
+}
+
 GHOST_TSuccess GHOST_WindowWeb::swapBufferRelease()
 {
   /* Delegate the end-of-frame present to the WebGPU drawing context (M4.T21):

@@ -2564,9 +2564,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   patch round-trip, native/windowed product-TU compiles, canonical replay, real product relink/no-work,
   OFF preflight, REUSE, M5 scope, and container-backed regression retain their strict boundaries. See
   `notes/m5-axis-target-producer-state-20260825.md`.
-- [ ] **AUDIT-R10-M5-PARTICLE-PRODUCER-STATE [driver, blocked-by: none]:** bind particle-edit
-  depth to a conservative producer frame/object-transform/edit-data state token across click,
-  gesture, and brush paths, with same-pointer mutation controls.
+- [x] **AUDIT-R10-M5-PARTICLE-PRODUCER-STATE [driver] (`9e9fc95`, patch 0277):** pending
+  particle depth now retains the producer frame, object identity/matrices, and a 128-bit token over
+  particle-system, topology, coordinate, time, and flag state before preparation. The token is
+  recomputed only at readiness immediately before depth transfer; drift fails while click, gesture,
+  and brush callers remain uninitialized. Final focused native/wasm32 verification passes 9
+  contracts/53 cases and 26 mutations, while the 51-source aggregate passes 56 mutations with zero
+  synchronous browser families. Exact patch round-trip, product-TU compiles, canonical replay,
+  real product relink/no-work, OFF preflight, REUSE, M5 scope, and container-backed regression
+  retain their strict boundaries. See `notes/m5-particle-producer-state-20260825.md`.
 - [ ] **AUDIT-R10-CANONICAL-RECEIPT-FRESHNESS [driver, blocked-by: none]:** update the fixed-path
   canonical freeze receipt atomically with snapshot changes, or make historical receipts
   immutable and impossible for status consumers to present as current.

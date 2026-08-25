@@ -1394,3 +1394,17 @@ failed guard has nothing to restore. Exercise same-pointer frame, same-size sele
 and transform drift separately on native and wasm32, and mutate the source guard in the aggregate
 census. See `patches/0276-m5-axis-target-producer-state.patch` and
 `sandbox/m5-object-axis-target-depth-cache/`.
+
+## Class 94 — large mutable producer state belongs at the readiness boundary
+
+Signature: a deferred viewport read retains a particle-edit pointer, but the same edit allocation
+can change frame, object transform, point/key topology, coordinates, visibility/selection flags,
+or particle-system state while depth is pending. Pointer identity and a coarse `edited` boolean do
+not describe the pixels that produced the request. Capture the exact frame and evaluated object
+matrices plus a short-lived 128-bit token over storage identities and the values used by traversal
+before starting the readback. Recompute that potentially linear token only after the backend reports
+Ready, immediately before the one-shot `take`; pending mouse events keep the cheap identity guard and
+never pay an O(points + keys) scan. Fail closed before caller initialization on any mismatch, and
+exercise click, gesture, and brush owners separately because they retain different inputs and FIFOs.
+See `patches/0277-m5-particle-producer-state.patch` and
+`sandbox/m5-particle-edit-depth-cache/`.

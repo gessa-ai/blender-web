@@ -14,7 +14,7 @@ SOURCE_ROOT="${BW_SOURCE_ROOT:-}"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-particle-edit-depth-cache/native}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-particle-edit-depth-cache/wasm}"
 OUT="${OUT:-$ROOT/build-deps/m5-particle-edit-depth-cache/evidence}"
-PATCH="$ROOT/patches/0273-m5-particle-edit-depth-cache-continuation.patch"
+PATCH="$ROOT/patches/0277-m5-particle-producer-state.patch"
 CANONICAL="$ROOT/patches/PREVIEW_SNAPSHOT.patch"
 CANONICAL_SHA="$ROOT/patches/PREVIEW_SNAPSHOT.sha256"
 PIN="fbe6228777e7d9afefcd61a413844e790ae75db7"
@@ -124,8 +124,8 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 8 ] ||
-     ! grep -qx 'M5_PARTICLE_EDIT_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=44' \
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ] ||
+     ! grep -qx 'M5_PARTICLE_EDIT_DEPTH_CACHE_CONTRACT_PASS contracts=9 cases=53' \
        "$stdout_file"; then
     echo "ERROR: PASS census differs: $stdout_file" >&2
     exit 1
@@ -146,12 +146,13 @@ if ! jq -e '
   .contracts.circle_persistent_and_direct == true and
   .contracts.brush_invoke_and_exec == true and
   .contracts.bounded_identified_cleanup == true and
+  .contracts.same_pointer_producer_state_guard == true and
   .contracts.live_hardware_receipt == false and
   .converted_callers == ["click", "linked", "box", "lasso", "circle", "brush"] and
   .remaining_depth_cache_callers == [] and
   .remaining_sync_families == ["window_capture"] and
   .sync_particle_depth_calls == 0 and
-  .mutation_controls == 20' "$OUT/source.json" >/dev/null; then
+  .mutation_controls == 26' "$OUT/source.json" >/dev/null; then
   echo "ERROR: source receipt contract differs" >&2
   exit 1
 fi

@@ -1349,7 +1349,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "ViewportDepthCacheSession readback;",
         "session->consumed = true;",
         "data->depths = session->readback.take(session->region);",
-        "return XRAY_ENABLED(session->view3d) == session->xray_bypass;",
+        "XRAY_ENABLED(session->view3d) == session->xray_bypass",
         "struct ParticleLinkedPickData",
         "struct ParticleCircleSelectData",
         "constexpr int max_queued_events = 512",
@@ -1366,6 +1366,87 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "view3d_particle_circle_direct_operators",
     ):
         require(needle in view_select, f"particle-edit caller owner missing {needle!r}")
+
+    particle_producer = braced_definition(
+        particle_edit,
+        "struct ParticleEditDepthProducerState",
+        "particle-edit producer snapshot",
+    )
+    for needle in (
+        "float scene_frame = 0.0f;",
+        "unsigned int object_session_uid = 0;",
+        "float object_to_world[4][4]{};",
+        "float world_to_object[4][4]{};",
+        "ParticleEditDepthHash edit_state{};",
+        "bool captured = false;",
+    ):
+        require(needle in particle_producer, f"particle producer snapshot missing {needle!r}")
+    particle_edit_hash = braced_definition(
+        particle_edit,
+        "static bool PE_depth_cache_edit_state_hash(",
+        "particle-edit state token",
+    )
+    for needle in (
+        "edit->totpoint",
+        "point->totkey",
+        "point->flag",
+        "PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));",
+        "key->world_co",
+        "key->flag",
+    ):
+        require(needle in particle_edit_hash, f"particle edit-state token missing {needle!r}")
+    particle_capture = braced_definition(
+        particle_edit,
+        "static bool PE_depth_cache_producer_state_capture(",
+        "particle-edit producer capture",
+    )
+    for needle in (
+        "BKE_scene_frame_get(session->scene)",
+        "session->object->id.session_uid",
+        "copy_m4_m4(session->producer_state.object_to_world,",
+        "copy_m4_m4(session->producer_state.world_to_object,",
+        "PE_depth_cache_edit_state_hash(session->edit, &session->producer_state.edit_state)",
+        "session->producer_state.captured = true;",
+    ):
+        require(needle in particle_capture, f"particle producer capture missing {needle!r}")
+    particle_guard = braced_definition(
+        particle_edit,
+        "static bool PE_depth_cache_producer_state_matches(",
+        "particle-edit producer guard",
+    )
+    for needle in (
+        "BKE_scene_frame_get(session->scene) != state.scene_frame",
+        "session->object->id.session_uid != state.object_session_uid",
+        "std::memcmp(state.object_to_world,",
+        "std::memcmp(state.world_to_object,",
+        "current_edit_state.low != state.edit_state.low",
+        "current_edit_state.high != state.edit_state.high",
+    ):
+        require(needle in particle_guard, f"particle producer guard missing {needle!r}")
+    particle_ready_guard = braced_definition(
+        particle_edit,
+        "ParticleEditDepthCacheState PE_depth_cache_session_state(",
+        "particle-edit ready-state guard",
+    )
+    require(
+        "PE_depth_cache_producer_state_matches(session)" in particle_ready_guard,
+        "particle ready-state guard omits same-pointer producer state",
+    )
+    particle_prepare = braced_definition(
+        particle_edit,
+        "static ParticleEditDepthCacheState PE_set_view3d_data(",
+        "particle-edit prepare/consume",
+    )
+    require_ordered(
+        particle_prepare,
+        (
+            "PE_depth_cache_producer_state_capture(session)",
+            "ED_view3d_depth_override_prepare(",
+            "PE_depth_cache_session_state(C, session)",
+            "session->readback.take(session->region)",
+        ),
+        "particle producer snapshot and guard before old-depth transfer",
+    )
 
     axis_producer = braced_definition(
         object_transform,
@@ -1934,6 +2015,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "curve_draw_depth_cache_continuations": True,
             "annotation_depth_cache_continuation": True,
             "particle_edit_depth_cache_continuation": True,
+            "particle_producer_state_guard": True,
             "axis_target_producer_state_guard": True,
             "asset_preview_window_capture_continuation": True,
             "python_window_screenshot_browser_deferral": True,
@@ -2224,6 +2306,30 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "constexpr int max_queued_events = 256",
             "constexpr int max_queued_events = 0",
             "particle-edit brush FIFO bound",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "BKE_scene_frame_get(session->scene) != state.scene_frame",
+            "false",
+            "particle-edit same-pointer frame drift",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "std::memcmp(state.object_to_world,",
+            "std::memcmp(state.object_to_world_lost,",
+            "particle-edit same-pointer object transform drift",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));",
+            "PE_depth_cache_hash_bytes(&hash, key->world_co, sizeof(float[3]));",
+            "particle-edit same-pointer edit data drift",
+        ),
+        (
+            "source/blender/editors/physics/particle_edit.cc",
+            "PE_depth_cache_producer_state_matches(session)",
+            "true",
+            "particle-edit producer-state ready guard",
         ),
         (
             "source/blender/editors/object/object_transform.cc",

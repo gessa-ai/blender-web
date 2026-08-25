@@ -58,7 +58,9 @@ actionable deferral. The full-viewport depth-cache request has an owned asynchro
 annotation, Grease Pencil, object-placement, and particle-edit consumers now enter bounded
 continuations before depth-dependent traversal or mutation. The aggregate particle check binds the
 opaque one-shot session, XRAY bypass, six public operator surfaces, exact FIFO bounds, and the
-gesture/direct caller owners. The aggregate object-placement check also rejects same-pointer frame,
+gesture/direct caller owners. It also rejects same-pointer frame, object-transform, particle
+topology, coordinate, flag, and system-state drift before old depth can enter any click, gesture,
+or brush continuation. The aggregate object-placement check rejects same-pointer frame,
 target-selection, identity, and transform drift before old depth can enter the delayed initialization
 tail. The synchronous selection-buffer API remains
 as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer

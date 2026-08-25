@@ -1134,3 +1134,6 @@
 # 0276: reject deferred Look at Surface depth after same-pointer frame,
 # target-selection, local-transform, parent, or evaluated-matrix drift.
 0276-m5-axis-target-producer-state.patch
+# 0277: reject deferred particle-edit depth after same-pointer frame, object
+# transform, particle topology, coordinate, flag, or system-state drift.
+0277-m5-particle-producer-state.patch

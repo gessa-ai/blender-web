@@ -35,6 +35,9 @@ EXPECTED_PATHS_BY_NAME = {
         Path("source/blender/editors/physics/particle_edit.cc"),
         Path("source/blender/editors/space_view3d/view3d_select.cc"),
     },
+    "0277-m5-particle-producer-state.patch": {
+        Path("source/blender/editors/physics/particle_edit.cc"),
+    },
 }
 
 

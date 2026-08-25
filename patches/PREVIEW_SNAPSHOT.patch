@@ -16815,18 +16815,21 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..206a1cec9401f3862abc949740bceff2
  {
    /* identifiers */
 diff --git a/source/blender/editors/physics/particle_edit.cc b/source/blender/editors/physics/particle_edit.cc
-index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da58e0d540 100644
+index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..e2800b8e7b5a4b7a2344a0a851847a0e0176c14d 100644
 --- a/source/blender/editors/physics/particle_edit.cc
 +++ b/source/blender/editors/physics/particle_edit.cc
-@@ -10,6 +10,7 @@
+@@ -8,8 +8,10 @@
+ 
+ #include <algorithm>
  #include <cmath>
++#include <cstdint>
  #include <cstdlib>
  #include <cstring>
 +#include <utility>
  
  #include "MEM_guardedalloc.h"
  
-@@ -31,6 +32,7 @@
+@@ -31,6 +33,7 @@
  #include "BLI_task.h"
  #include "BLI_time.h"
  #include "BLI_utildefines.h"
@@ -16834,10 +16837,24 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  
  #include "BLT_translation.hh"
  
-@@ -500,6 +502,38 @@ struct PEData {
+@@ -500,6 +503,53 @@ struct PEData {
    void *user_data;
  };
  
++struct ParticleEditDepthHash {
++  uint64_t low = 1469598103934665603ULL;
++  uint64_t high = 1099511628211ULL;
++};
++
++struct ParticleEditDepthProducerState {
++  float scene_frame = 0.0f;
++  unsigned int object_session_uid = 0;
++  float object_to_world[4][4]{};
++  float world_to_object[4][4]{};
++  ParticleEditDepthHash edit_state{};
++  bool captured = false;
++};
++
 +struct ParticleEditDepthCacheSession {
 +  ViewportDepthCacheSession readback;
 +  wmWindowManager *manager = nullptr;
@@ -16853,6 +16870,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +  ViewLayer *view_layer = nullptr;
 +  Object *object = nullptr;
 +  PTCacheEdit *edit = nullptr;
++  ParticleEditDepthProducerState producer_state;
 +  bool initialized = false;
 +  bool xray_bypass = false;
 +  bool consumed = false;
@@ -16873,15 +16891,168 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  static void PE_set_data(bContext *C, PEData *data)
  {
    *data = {};
-@@ -513,21 +547,124 @@ static void PE_set_data(bContext *C, PEData *data)
+@@ -513,21 +563,275 @@ static void PE_set_data(bContext *C, PEData *data)
    data->edit = PE_get_current(data->depsgraph, data->scene, data->ob);
  }
  
 -static void PE_set_view3d_data(bContext *C, PEData *data)
-+static bool PE_depth_cache_context_matches(bContext *C,
-+                                           const ParticleEditDepthCacheSession *session)
++static void PE_depth_cache_hash_bytes(ParticleEditDepthHash *hash,
++                                      const void *data,
++                                      const size_t size)
  {
 -  PE_set_data(C, data);
++  /* This short-lived same-process token uses two independent 64-bit accumulators. It is not a
++   * persistent content identity; its only job is to make an in-place edit collision practically
++   * impossible while one depth request crosses browser event-loop ticks. */
++  const uint8_t *bytes = static_cast<const uint8_t *>(data);
++  for (size_t index = 0; index < size; index++) {
++    hash->low ^= uint64_t(bytes[index]);
++    hash->low *= 1099511628211ULL;
++    hash->high ^= uint64_t(bytes[index]) + 0x9e3779b97f4a7c15ULL + (hash->high << 6) +
++                  (hash->high >> 2);
++    hash->high *= 0x165667919e3779f9ULL;
++  }
++}
+ 
+-  data->vc = ED_view3d_viewcontext_init(C, data->depsgraph);
++template<typename T>
++static void PE_depth_cache_hash_value(ParticleEditDepthHash *hash, const T &value)
++{
++  PE_depth_cache_hash_bytes(hash, &value, sizeof(value));
++}
+ 
+-  if (!XRAY_ENABLED(data->vc.v3d)) {
+-    ED_view3d_depth_override(data->depsgraph,
+-                             data->vc.region,
+-                             data->vc.v3d,
+-                             data->vc.obact,
+-                             V3D_DEPTH_OBJECT_ONLY,
+-                             false,
+-                             &data->depths);
++static bool PE_depth_cache_edit_state_hash(const PTCacheEdit *edit,
++                                           ParticleEditDepthHash *r_hash)
++{
++  if (edit == nullptr || edit->totpoint < 0 ||
++      (edit->totpoint != 0 && edit->points == nullptr))
++  {
++    return false;
+   }
++
++  ParticleEditDepthHash hash;
++  PE_depth_cache_hash_value(&hash, edit->flags);
++  PE_depth_cache_hash_value(&hash, edit->points);
++  PE_depth_cache_hash_value(&hash, edit->psys);
++  PE_depth_cache_hash_value(&hash, edit->psys_eval);
++  PE_depth_cache_hash_value(&hash, edit->psmd);
++  PE_depth_cache_hash_value(&hash, edit->psmd_eval);
++  PE_depth_cache_hash_value(&hash, edit->totpoint);
++  PE_depth_cache_hash_value(&hash, edit->totframes);
++  PE_depth_cache_hash_value(&hash, edit->totcached);
++  PE_depth_cache_hash_value(&hash, edit->edited);
++
++  if (edit->psys != nullptr) {
++    if (edit->psys->totpart < 0 ||
++        (edit->psys->totpart != 0 && edit->psys->particles == nullptr) ||
++        size_t(edit->psys->totpart) > SIZE_MAX / sizeof(*edit->psys->particles))
++    {
++      return false;
++    }
++    PE_depth_cache_hash_value(&hash, edit->psys->part);
++    PE_depth_cache_hash_value(&hash, edit->psys->particles);
++    PE_depth_cache_hash_value(&hash, edit->psys->totpart);
++    PE_depth_cache_hash_value(&hash, edit->psys->flag);
++    if (edit->psys->part != nullptr) {
++      PE_depth_cache_hash_value(&hash, edit->psys->part->from);
++    }
++    if (edit->psys->totpart != 0) {
++      PE_depth_cache_hash_bytes(&hash,
++                                edit->psys->particles,
++                                sizeof(*edit->psys->particles) * size_t(edit->psys->totpart));
++    }
++  }
++
++  for (int point_index = 0; point_index < edit->totpoint; point_index++) {
++    const PTCacheEditPoint *point = &edit->points[point_index];
++    if (point->totkey < 0 || (point->totkey != 0 && point->keys == nullptr)) {
++      return false;
++    }
++    PE_depth_cache_hash_value(&hash, point->keys);
++    PE_depth_cache_hash_value(&hash, point->totkey);
++    PE_depth_cache_hash_value(&hash, point->flag);
++    for (int key_index = 0; key_index < point->totkey; key_index++) {
++      const PTCacheEditKey *key = &point->keys[key_index];
++      PE_depth_cache_hash_value(&hash, key->co);
++      PE_depth_cache_hash_value(&hash, key->vel);
++      PE_depth_cache_hash_value(&hash, key->rot);
++      PE_depth_cache_hash_value(&hash, key->time);
++      if (key->co != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));
++      }
++      if (key->vel != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->vel, sizeof(float[3]));
++      }
++      if (key->rot != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->rot, sizeof(float[4]));
++      }
++      if (key->time != nullptr) {
++        PE_depth_cache_hash_value(&hash, *key->time);
++      }
++      PE_depth_cache_hash_bytes(&hash, key->world_co, sizeof(key->world_co));
++      PE_depth_cache_hash_value(&hash, key->ftime);
++      PE_depth_cache_hash_value(&hash, key->length);
++      PE_depth_cache_hash_value(&hash, key->flag);
++    }
++  }
++
++  *r_hash = hash;
++  return true;
++}
++
++static bool PE_depth_cache_producer_state_capture(ParticleEditDepthCacheSession *session)
++{
++  session->producer_state.captured = false;
++  session->producer_state.scene_frame = BKE_scene_frame_get(session->scene);
++  session->producer_state.object_session_uid = session->object->id.session_uid;
++  copy_m4_m4(session->producer_state.object_to_world, session->object->object_to_world().ptr());
++  copy_m4_m4(session->producer_state.world_to_object, session->object->world_to_object().ptr());
++  if (!PE_depth_cache_edit_state_hash(session->edit, &session->producer_state.edit_state)) {
++    return false;
++  }
++  session->producer_state.captured = true;
++  return true;
++}
++
++static bool PE_depth_cache_producer_state_matches(
++    const ParticleEditDepthCacheSession *session)
++{
++  const ParticleEditDepthProducerState &state = session->producer_state;
++  if (!state.captured || BKE_scene_frame_get(session->scene) != state.scene_frame ||
++      session->object->id.session_uid != state.object_session_uid ||
++      std::memcmp(state.object_to_world,
++                  session->object->object_to_world().ptr(),
++                  sizeof(state.object_to_world)) != 0 ||
++      std::memcmp(state.world_to_object,
++                  session->object->world_to_object().ptr(),
++                  sizeof(state.world_to_object)) != 0)
++  {
++    return false;
++  }
++
++  ParticleEditDepthHash current_edit_state;
++  if (!PE_depth_cache_edit_state_hash(session->edit, &current_edit_state)) {
++    return false;
++  }
++  if (current_edit_state.low != state.edit_state.low ||
++      current_edit_state.high != state.edit_state.high)
++  {
++    return false;
++  }
++  return true;
++}
++
++static bool PE_depth_cache_context_matches(bContext *C,
++                                           const ParticleEditDepthCacheSession *session)
++{
 +  if (session == nullptr || !session->initialized || session->consumed ||
 +      CTX_wm_manager(C) != session->manager || CTX_wm_window(C) != session->window ||
 +      CTX_wm_screen(C) != session->screen || CTX_wm_area(C) != session->area ||
@@ -16915,7 +17086,11 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +    case ViewportDepthCacheSession::ReadbackState::Pending:
 +      return ParticleEditDepthCacheState::Pending;
 +    case ViewportDepthCacheSession::ReadbackState::Ready:
-+      return ParticleEditDepthCacheState::Ready;
++      /* Traversing every key can be expensive, so recompute the token once at the readiness
++       * boundary, immediately before the caller is allowed to take the old depth. */
++      return PE_depth_cache_producer_state_matches(session) ?
++                 ParticleEditDepthCacheState::Ready :
++                 ParticleEditDepthCacheState::Failed;
 +    case ViewportDepthCacheSession::ReadbackState::Failed:
 +      return ParticleEditDepthCacheState::Failed;
 +  }
@@ -16970,6 +17145,9 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +
 +    session->xray_bypass = XRAY_ENABLED(session->view3d);
 +    if (!session->xray_bypass) {
++      if (!PE_depth_cache_producer_state_capture(session)) {
++        return ParticleEditDepthCacheState::Failed;
++      }
 +      ED_view3d_depth_override_prepare(session->depsgraph,
 +                                       session->region,
 +                                       session->view3d,
@@ -16981,21 +17159,12 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +      }
 +    }
 +  }
- 
--  data->vc = ED_view3d_viewcontext_init(C, data->depsgraph);
++
 +  const ParticleEditDepthCacheState state = PE_depth_cache_session_state(C, session);
 +  if (state != ParticleEditDepthCacheState::Ready) {
 +    return state;
 +  }
- 
--  if (!XRAY_ENABLED(data->vc.v3d)) {
--    ED_view3d_depth_override(data->depsgraph,
--                             data->vc.region,
--                             data->vc.v3d,
--                             data->vc.obact,
--                             V3D_DEPTH_OBJECT_ONLY,
--                             false,
--                             &data->depths);
++
 +  PE_set_data(C, data);
 +  data->vc = ED_view3d_viewcontext_init(C, data->depsgraph);
 +  if (!session->xray_bypass) {
@@ -17003,13 +17172,13 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +    if (data->depths == nullptr) {
 +      return ParticleEditDepthCacheState::Failed;
 +    }
-   }
++  }
 +  session->consumed = true;
 +  return ParticleEditDepthCacheState::Ready;
  }
  
  static bool PE_create_shape_tree(PEData *data, Object *shapeob)
-@@ -1851,15 +1988,23 @@ static void nearest_key_fn(PEData *data, int point_index, int key_index, bool /*
+@@ -1851,15 +2155,23 @@ static void nearest_key_fn(PEData *data, int point_index, int key_index, bool /*
    data->is_changed = true;
  }
  
@@ -17038,7 +17207,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    data.mval = mval;
    data.rad = ED_view3d_select_dist_px();
  
-@@ -1870,10 +2015,15 @@ static bool pe_nearest_point_and_key(bContext *C,
+@@ -1870,10 +2182,15 @@ static bool pe_nearest_point_and_key(bContext *C,
  
    *r_point = user_data.point;
    *r_key = user_data.key;
@@ -17056,7 +17225,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
    Scene *scene = CTX_data_scene(C);
-@@ -1882,14 +2032,22 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
+@@ -1882,14 +2199,22 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
    PTCacheEdit *edit = PE_get_current(depsgraph, scene, ob);
  
    if (!PE_start_edit(edit)) {
@@ -17081,7 +17250,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  
    if (params.sel_op == SEL_OP_SET) {
      if ((found && params.select_passthrough) && (key->flag & PEK_SELECT)) {
-@@ -1945,7 +2103,8 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
+@@ -1945,7 +2270,8 @@ bool PE_mouse_particles(bContext *C, const int mval[2], const SelectPick_Params
      WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
    }
  
@@ -17091,7 +17260,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  }
  
  /** \} */
-@@ -2218,20 +2377,58 @@ void PARTICLE_OT_select_linked(wmOperatorType *ot)
+@@ -2218,20 +2544,58 @@ void PARTICLE_OT_select_linked(wmOperatorType *ot)
    /* properties */
  }
  
@@ -17160,7 +17329,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  
    for_mouse_hit_keys(&data, select_keys, PSEL_NEAREST);
    PE_update_selection(data.depsgraph, data.scene, data.ob, 1);
-@@ -2241,6 +2438,66 @@ static wmOperatorStatus select_linked_pick_exec(bContext *C, wmOperator *op)
+@@ -2241,6 +2605,66 @@ static wmOperatorStatus select_linked_pick_exec(bContext *C, wmOperator *op)
    return OPERATOR_FINISHED;
  }
  
@@ -17227,7 +17396,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  static wmOperatorStatus select_linked_pick_invoke(bContext *C,
                                                    wmOperator *op,
                                                    const wmEvent *event)
-@@ -2259,6 +2516,8 @@ void PARTICLE_OT_select_linked_pick(wmOperatorType *ot)
+@@ -2259,6 +2683,8 @@ void PARTICLE_OT_select_linked_pick(wmOperatorType *ot)
    /* API callbacks. */
    ot->exec = select_linked_pick_exec;
    ot->invoke = select_linked_pick_invoke;
@@ -17236,7 +17405,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    ot->poll = PE_poll_view3d;
  
    /* flags */
-@@ -2306,7 +2565,11 @@ bool PE_deselect_all_visible(bContext *C)
+@@ -2306,7 +2732,11 @@ bool PE_deselect_all_visible(bContext *C)
    return PE_deselect_all_visible_ex(edit);
  }
  
@@ -17249,7 +17418,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  {
    Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
    Scene *scene = CTX_data_scene(C);
-@@ -2315,10 +2578,16 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+@@ -2315,10 +2745,16 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
    PEData data;
  
    if (!PE_start_edit(edit)) {
@@ -17268,7 +17437,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    data.rect = rect;
    data.sel_op = eSelectOp(sel_op);
  
-@@ -2340,7 +2609,8 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+@@ -2340,7 +2776,8 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
      PE_update_selection(depsgraph, scene, ob, 1);
      WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
    }
@@ -17278,7 +17447,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  }
  
  /** \} */
-@@ -2349,22 +2619,58 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
+@@ -2349,22 +2786,58 @@ bool PE_box_select(bContext *C, const rcti *rect, const int sel_op)
  /** \name Circle Select Operator
   * \{ */
  
@@ -17300,22 +17469,18 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +};
 +
 +static void pe_circle_select_depth_timer_remove(ParticleCircleSelectData *circle)
- {
--  PE_data_free(static_cast<PEData *>(data));
--  MEM_delete(static_cast<PEData *>(data));
++{
 +  if (circle->timer != nullptr) {
 +    WM_event_timer_remove(circle->manager, circle->window, circle->timer);
 +    circle->timer = nullptr;
 +  }
 +  circle->tick_count = 0;
- }
- 
--static void pe_select_cache_init_with_generic_userdata(bContext *C, wmGenericUserData *wm_userdata)
++}
++
 +static void pe_circle_select_free_generic_userdata(void *data)
  {
--  PEData *data = MEM_new_zeroed<PEData>(__func__);
--  wm_userdata->data = data;
--  wm_userdata->free_fn = pe_select_cache_free_generic_userdata;
+-  PE_data_free(static_cast<PEData *>(data));
+-  MEM_delete(static_cast<PEData *>(data));
 +  ParticleCircleSelectData *circle = static_cast<ParticleCircleSelectData *>(data);
 +  pe_circle_select_depth_timer_remove(circle);
 +  circle->depth_events.clear();
@@ -17324,11 +17489,15 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
 +    PE_data_free(&circle->data);
 +  }
 +  MEM_delete(circle);
-+}
-+
+ }
+ 
+-static void pe_select_cache_init_with_generic_userdata(bContext *C, wmGenericUserData *wm_userdata)
 +static ParticleCircleSelectData *pe_circle_select_data_ensure(
 +    wmGenericUserData *wm_userdata)
-+{
+ {
+-  PEData *data = MEM_new_zeroed<PEData>(__func__);
+-  wm_userdata->data = data;
+-  wm_userdata->free_fn = pe_select_cache_free_generic_userdata;
 +  if (wm_userdata->data != nullptr) {
 +    return static_cast<ParticleCircleSelectData *>(wm_userdata->data);
 +  }
@@ -17346,7 +17515,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
      bContext *C, wmGenericUserData *wm_userdata, const int sel_op, const int mval[2], float rad)
  {
    BLI_assert(ELEM(sel_op, SEL_OP_SET, SEL_OP_ADD, SEL_OP_SUB));
-@@ -2374,19 +2680,60 @@ bool PE_circle_select(
+@@ -2374,19 +2847,60 @@ bool PE_circle_select(
    PTCacheEdit *edit = PE_get_current(depsgraph, scene, ob);
  
    if (!PE_start_edit(edit)) {
@@ -17416,7 +17585,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
      data->is_changed = PE_deselect_all_visible_ex(edit);
    }
    for_mouse_hit_keys(data, select_key, eParticleSelectFlag(0));
-@@ -2395,7 +2742,76 @@ bool PE_circle_select(
+@@ -2395,7 +2909,76 @@ bool PE_circle_select(
      PE_update_selection(depsgraph, scene, ob, 1);
      WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
    }
@@ -17494,7 +17663,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  }
  
  /** \} */
-@@ -2404,7 +2820,12 @@ bool PE_circle_select(
+@@ -2404,7 +2987,12 @@ bool PE_circle_select(
  /** \name Lasso Select Operator
   * \{ */
  
@@ -17508,7 +17677,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  {
    Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
    Scene *scene = CTX_data_scene(C);
-@@ -2422,11 +2843,17 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
+@@ -2422,11 +3010,17 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
    unit_m4(mat);
  
    if (!PE_start_edit(edit)) {
@@ -17528,7 +17697,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      data.is_changed |= PE_deselect_all_visible_ex(edit);
-@@ -2493,9 +2920,9 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
+@@ -2493,9 +3087,9 @@ int PE_lasso_select(bContext *C, const int mcoords[][2], const int mcoords_len,
    if (is_changed) {
      PE_update_selection(depsgraph, scene, ob, 1);
      WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_SELECTED, ob);
@@ -17540,7 +17709,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  }
  
  /** \} */
-@@ -4694,28 +5121,106 @@ static int brush_add(const bContext *C, PEData *data, short number)
+@@ -4694,28 +5288,106 @@ static int brush_add(const bContext *C, PEData *data, short number)
   * \{ */
  
  struct BrushEdit {
@@ -17663,7 +17832,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    float3 min, max;
  
    /* set the 'distance factor' for grabbing (used in comb etc) */
-@@ -4723,9 +5228,7 @@ static int brush_edit_init(bContext *C, wmOperator *op)
+@@ -4723,9 +5395,7 @@ static int brush_edit_init(bContext *C, wmOperator *op)
    PE_minmax(depsgraph, scene, view_layer, min, max);
    mid_v3_v3v3(min, min, max);
  
@@ -17673,7 +17842,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  
    bedit->scene = scene;
    bedit->view_layer = view_layer;
-@@ -4734,11 +5237,13 @@ static int brush_edit_init(bContext *C, wmOperator *op)
+@@ -4734,11 +5404,13 @@ static int brush_edit_init(bContext *C, wmOperator *op)
  
    bedit->zfac = ED_view3d_calc_zfac(static_cast<const RegionView3D *>(region->regiondata), min);
  
@@ -17690,7 +17859,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  }
  
  static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
-@@ -4980,17 +5485,21 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
+@@ -4980,17 +5652,21 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
  static void brush_edit_exit(wmOperator *op)
  {
    BrushEdit *bedit = static_cast<BrushEdit *>(op->customdata);
@@ -17719,7 +17888,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    RNA_BEGIN (op->ptr, itemptr, "stroke") {
      brush_edit_apply(C, op, &itemptr);
    }
-@@ -5001,6 +5510,27 @@ static wmOperatorStatus brush_edit_exec(bContext *C, wmOperator *op)
+@@ -5001,6 +5677,27 @@ static wmOperatorStatus brush_edit_exec(bContext *C, wmOperator *op)
    return OPERATOR_FINISHED;
  }
  
@@ -17747,7 +17916,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  static void brush_edit_apply_event(bContext *C, wmOperator *op, const wmEvent *event)
  {
    PointerRNA itemptr;
-@@ -5019,12 +5549,25 @@ static void brush_edit_apply_event(bContext *C, wmOperator *op, const wmEvent *e
+@@ -5019,12 +5716,25 @@ static void brush_edit_apply_event(bContext *C, wmOperator *op, const wmEvent *e
  
  static wmOperatorStatus brush_edit_invoke(bContext *C, wmOperator *op, const wmEvent *event)
  {
@@ -17776,7 +17945,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
    brush_edit_apply_event(C, op, event);
  
    WM_event_add_modal_handler(C, op);
-@@ -5032,7 +5575,9 @@ static wmOperatorStatus brush_edit_invoke(bContext *C, wmOperator *op, const wmE
+@@ -5032,7 +5742,9 @@ static wmOperatorStatus brush_edit_invoke(bContext *C, wmOperator *op, const wmE
    return OPERATOR_RUNNING_MODAL;
  }
  
@@ -17787,7 +17956,7 @@ index 31fd6f6bc9ee09e332f85d76b9145a31cec61828..a53c70d594bbd359effc71dc9cfc47da
  {
    switch (event->type) {
      case LEFTMOUSE:
-@@ -5054,6 +5599,98 @@ static wmOperatorStatus brush_edit_modal(bContext *C, wmOperator *op, const wmEv
+@@ -5054,6 +5766,98 @@ static wmOperatorStatus brush_edit_modal(bContext *C, wmOperator *op, const wmEv
    return OPERATOR_RUNNING_MODAL;
  }
  

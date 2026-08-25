@@ -77,10 +77,22 @@ def verify_texts(texts: dict[Path, str]) -> dict[str, object]:
             "particle prepare/consume caller census differs")
     require("ViewportDepthCacheSession readback;" in particle,
             "opaque session does not own the readback")
+    producer_state = function_body(particle, "struct ParticleEditDepthProducerState")
+    for token in (
+        "float scene_frame = 0.0f;",
+        "unsigned int object_session_uid = 0;",
+        "float object_to_world[4][4]{};",
+        "float world_to_object[4][4]{};",
+        "ParticleEditDepthHash edit_state{};",
+        "bool captured = false;",
+    ):
+        require(token in producer_state, f"producer-state snapshot missing {token}")
+    require("ParticleEditDepthProducerState producer_state;" in particle,
+            "depth session does not own producer state")
     require("session->consumed = true;" in particle, "session lacks one-shot consumption")
     require("data->depths = session->readback.take(session->region);" in particle,
             "cache transfer differs")
-    require("return XRAY_ENABLED(session->view3d) == session->xray_bypass;" in particle,
+    require("XRAY_ENABLED(session->view3d) == session->xray_bypass" in particle,
             "XRAY bypass guard differs")
 
     context_body = function_body(particle, "static bool PE_depth_cache_context_matches")
@@ -100,6 +112,53 @@ def verify_texts(texts: dict[Path, str]) -> dict[str, object]:
         "PE_get_current(",
     ):
         require(token in context_body, f"producing-context guard missing {token}")
+    session_state = function_body(particle, "ParticleEditDepthCacheState PE_depth_cache_session_state")
+    require("PE_depth_cache_producer_state_matches(session)" in session_state,
+            "ready-state guard omits same-pointer producer state")
+
+    edit_hash = function_body(particle, "static bool PE_depth_cache_edit_state_hash")
+    for token in (
+        "edit->totpoint",
+        "point->totkey",
+        "point->flag",
+        "key->co",
+        "key->world_co",
+        "key->flag",
+        "PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));",
+    ):
+        require(token in edit_hash, f"edit-state token omits {token}")
+
+    capture = function_body(particle, "static bool PE_depth_cache_producer_state_capture")
+    for token in (
+        "session->producer_state.scene_frame = BKE_scene_frame_get(session->scene);",
+        "session->producer_state.object_session_uid = session->object->id.session_uid;",
+        "copy_m4_m4(session->producer_state.object_to_world,",
+        "copy_m4_m4(session->producer_state.world_to_object,",
+        "PE_depth_cache_edit_state_hash(session->edit, &session->producer_state.edit_state)",
+        "session->producer_state.captured = true;",
+    ):
+        require(token in capture, f"producer-state capture missing {token}")
+
+    matches = function_body(particle, "static bool PE_depth_cache_producer_state_matches")
+    for token in (
+        "BKE_scene_frame_get(session->scene) != state.scene_frame",
+        "session->object->id.session_uid != state.object_session_uid",
+        "std::memcmp(state.object_to_world,",
+        "std::memcmp(state.world_to_object,",
+        "current_edit_state.low != state.edit_state.low",
+        "current_edit_state.high != state.edit_state.high",
+    ):
+        require(token in matches, f"producer-state comparison missing {token}")
+
+    set_view_data = function_body(particle, "static ParticleEditDepthCacheState PE_set_view3d_data")
+    before(set_view_data,
+           "PE_depth_cache_producer_state_capture(session)",
+           "ED_view3d_depth_override_prepare",
+           "producer state captured after depth preparation")
+    before(set_view_data,
+           "PE_depth_cache_session_state(C, session)",
+           "session->readback.take(session->region)",
+           "old depth transferred before producer-state validation")
 
     nearest = function_body(particle, "static ParticleEditOperationResult pe_nearest_point_and_key")
     linked = function_body(particle, "static wmOperatorStatus select_linked_pick_apply")
@@ -193,13 +252,14 @@ def verify_texts(texts: dict[Path, str]) -> dict[str, object]:
             "circle_persistent_and_direct": True,
             "brush_invoke_and_exec": True,
             "bounded_identified_cleanup": True,
+            "same_pointer_producer_state_guard": True,
             "live_hardware_receipt": False,
         },
         "converted_callers": ["click", "linked", "box", "lasso", "circle", "brush"],
         "remaining_depth_cache_callers": [],
         "remaining_sync_families": ["window_capture"],
         "sync_particle_depth_calls": 0,
-        "mutation_controls": 20,
+        "mutation_controls": 26,
     }
 
 
@@ -208,7 +268,17 @@ MUTATIONS: tuple[tuple[Path, str, str], ...] = (
     (PARTICLE, "CTX_wm_manager(C) != session->manager", "false"),
     (PARTICLE, "session->consumed = true;", "session->consumed = false;"),
     (PARTICLE, "data->depths = session->readback.take(session->region);", "data->depths = nullptr;"),
-    (PARTICLE, "return XRAY_ENABLED(session->view3d) == session->xray_bypass;", "return true;"),
+    (PARTICLE, "XRAY_ENABLED(session->view3d) == session->xray_bypass", "true"),
+    (PARTICLE,
+     "PE_depth_cache_producer_state_capture(session)",
+     "PE_depth_cache_producer_state_capture_lost(session)"),
+    (PARTICLE, "PE_depth_cache_producer_state_matches(session)", "true"),
+    (PARTICLE, "BKE_scene_frame_get(session->scene) != state.scene_frame", "false"),
+    (PARTICLE, "std::memcmp(state.object_to_world,", "std::memcmp(state.object_to_world_lost,"),
+    (PARTICLE,
+     "PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));",
+     "PE_depth_cache_hash_bytes(&hash, key->world_co, sizeof(float[3]));"),
+    (PARTICLE, "current_edit_state.low != state.edit_state.low", "false"),
     (PARTICLE, "select_linked_pick_modal", "select_linked_pick_wait"),
     (PARTICLE, "select_linked_pick_cancel_callback", "select_linked_pick_cancel_lost"),
     (PARTICLE, "struct ParticleCircleSelectData", "struct LostCircleSelectData"),

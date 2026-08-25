@@ -1,0 +1,223 @@
+# SPDX-FileCopyrightText: 2007 by Janne Karhu. All rights reserved.
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# M5: reject deferred particle-edit depth when its producing frame, object
+# transform, particle topology, coordinates, flags, or system state changes.
+# Ported for the web from source/blender/editors/physics/particle_edit.cc @ fbe6228777e7.
+
+diff --git a/source/blender/editors/physics/particle_edit.cc b/source/blender/editors/physics/particle_edit.cc
+index a53c70d..e2800b8 100644
+--- a/source/blender/editors/physics/particle_edit.cc
++++ b/source/blender/editors/physics/particle_edit.cc
+@@ -8,6 +8,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstdint>
+ #include <cstdlib>
+ #include <cstring>
+ #include <utility>
+@@ -502,6 +503,20 @@ struct PEData {
+   void *user_data;
+ };
+ 
++struct ParticleEditDepthHash {
++  uint64_t low = 1469598103934665603ULL;
++  uint64_t high = 1099511628211ULL;
++};
++
++struct ParticleEditDepthProducerState {
++  float scene_frame = 0.0f;
++  unsigned int object_session_uid = 0;
++  float object_to_world[4][4]{};
++  float world_to_object[4][4]{};
++  ParticleEditDepthHash edit_state{};
++  bool captured = false;
++};
++
+ struct ParticleEditDepthCacheSession {
+   ViewportDepthCacheSession readback;
+   wmWindowManager *manager = nullptr;
+@@ -517,6 +532,7 @@ struct ParticleEditDepthCacheSession {
+   ViewLayer *view_layer = nullptr;
+   Object *object = nullptr;
+   PTCacheEdit *edit = nullptr;
++  ParticleEditDepthProducerState producer_state;
+   bool initialized = false;
+   bool xray_bypass = false;
+   bool consumed = false;
+@@ -547,6 +563,150 @@ static void PE_set_data(bContext *C, PEData *data)
+   data->edit = PE_get_current(data->depsgraph, data->scene, data->ob);
+ }
+ 
++static void PE_depth_cache_hash_bytes(ParticleEditDepthHash *hash,
++                                      const void *data,
++                                      const size_t size)
++{
++  /* This short-lived same-process token uses two independent 64-bit accumulators. It is not a
++   * persistent content identity; its only job is to make an in-place edit collision practically
++   * impossible while one depth request crosses browser event-loop ticks. */
++  const uint8_t *bytes = static_cast<const uint8_t *>(data);
++  for (size_t index = 0; index < size; index++) {
++    hash->low ^= uint64_t(bytes[index]);
++    hash->low *= 1099511628211ULL;
++    hash->high ^= uint64_t(bytes[index]) + 0x9e3779b97f4a7c15ULL + (hash->high << 6) +
++                  (hash->high >> 2);
++    hash->high *= 0x165667919e3779f9ULL;
++  }
++}
++
++template<typename T>
++static void PE_depth_cache_hash_value(ParticleEditDepthHash *hash, const T &value)
++{
++  PE_depth_cache_hash_bytes(hash, &value, sizeof(value));
++}
++
++static bool PE_depth_cache_edit_state_hash(const PTCacheEdit *edit,
++                                           ParticleEditDepthHash *r_hash)
++{
++  if (edit == nullptr || edit->totpoint < 0 ||
++      (edit->totpoint != 0 && edit->points == nullptr))
++  {
++    return false;
++  }
++
++  ParticleEditDepthHash hash;
++  PE_depth_cache_hash_value(&hash, edit->flags);
++  PE_depth_cache_hash_value(&hash, edit->points);
++  PE_depth_cache_hash_value(&hash, edit->psys);
++  PE_depth_cache_hash_value(&hash, edit->psys_eval);
++  PE_depth_cache_hash_value(&hash, edit->psmd);
++  PE_depth_cache_hash_value(&hash, edit->psmd_eval);
++  PE_depth_cache_hash_value(&hash, edit->totpoint);
++  PE_depth_cache_hash_value(&hash, edit->totframes);
++  PE_depth_cache_hash_value(&hash, edit->totcached);
++  PE_depth_cache_hash_value(&hash, edit->edited);
++
++  if (edit->psys != nullptr) {
++    if (edit->psys->totpart < 0 ||
++        (edit->psys->totpart != 0 && edit->psys->particles == nullptr) ||
++        size_t(edit->psys->totpart) > SIZE_MAX / sizeof(*edit->psys->particles))
++    {
++      return false;
++    }
++    PE_depth_cache_hash_value(&hash, edit->psys->part);
++    PE_depth_cache_hash_value(&hash, edit->psys->particles);
++    PE_depth_cache_hash_value(&hash, edit->psys->totpart);
++    PE_depth_cache_hash_value(&hash, edit->psys->flag);
++    if (edit->psys->part != nullptr) {
++      PE_depth_cache_hash_value(&hash, edit->psys->part->from);
++    }
++    if (edit->psys->totpart != 0) {
++      PE_depth_cache_hash_bytes(&hash,
++                                edit->psys->particles,
++                                sizeof(*edit->psys->particles) * size_t(edit->psys->totpart));
++    }
++  }
++
++  for (int point_index = 0; point_index < edit->totpoint; point_index++) {
++    const PTCacheEditPoint *point = &edit->points[point_index];
++    if (point->totkey < 0 || (point->totkey != 0 && point->keys == nullptr)) {
++      return false;
++    }
++    PE_depth_cache_hash_value(&hash, point->keys);
++    PE_depth_cache_hash_value(&hash, point->totkey);
++    PE_depth_cache_hash_value(&hash, point->flag);
++    for (int key_index = 0; key_index < point->totkey; key_index++) {
++      const PTCacheEditKey *key = &point->keys[key_index];
++      PE_depth_cache_hash_value(&hash, key->co);
++      PE_depth_cache_hash_value(&hash, key->vel);
++      PE_depth_cache_hash_value(&hash, key->rot);
++      PE_depth_cache_hash_value(&hash, key->time);
++      if (key->co != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->co, sizeof(float[3]));
++      }
++      if (key->vel != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->vel, sizeof(float[3]));
++      }
++      if (key->rot != nullptr) {
++        PE_depth_cache_hash_bytes(&hash, key->rot, sizeof(float[4]));
++      }
++      if (key->time != nullptr) {
++        PE_depth_cache_hash_value(&hash, *key->time);
++      }
++      PE_depth_cache_hash_bytes(&hash, key->world_co, sizeof(key->world_co));
++      PE_depth_cache_hash_value(&hash, key->ftime);
++      PE_depth_cache_hash_value(&hash, key->length);
++      PE_depth_cache_hash_value(&hash, key->flag);
++    }
++  }
++
++  *r_hash = hash;
++  return true;
++}
++
++static bool PE_depth_cache_producer_state_capture(ParticleEditDepthCacheSession *session)
++{
++  session->producer_state.captured = false;
++  session->producer_state.scene_frame = BKE_scene_frame_get(session->scene);
++  session->producer_state.object_session_uid = session->object->id.session_uid;
++  copy_m4_m4(session->producer_state.object_to_world, session->object->object_to_world().ptr());
++  copy_m4_m4(session->producer_state.world_to_object, session->object->world_to_object().ptr());
++  if (!PE_depth_cache_edit_state_hash(session->edit, &session->producer_state.edit_state)) {
++    return false;
++  }
++  session->producer_state.captured = true;
++  return true;
++}
++
++static bool PE_depth_cache_producer_state_matches(
++    const ParticleEditDepthCacheSession *session)
++{
++  const ParticleEditDepthProducerState &state = session->producer_state;
++  if (!state.captured || BKE_scene_frame_get(session->scene) != state.scene_frame ||
++      session->object->id.session_uid != state.object_session_uid ||
++      std::memcmp(state.object_to_world,
++                  session->object->object_to_world().ptr(),
++                  sizeof(state.object_to_world)) != 0 ||
++      std::memcmp(state.world_to_object,
++                  session->object->world_to_object().ptr(),
++                  sizeof(state.world_to_object)) != 0)
++  {
++    return false;
++  }
++
++  ParticleEditDepthHash current_edit_state;
++  if (!PE_depth_cache_edit_state_hash(session->edit, &current_edit_state)) {
++    return false;
++  }
++  if (current_edit_state.low != state.edit_state.low ||
++      current_edit_state.high != state.edit_state.high)
++  {
++    return false;
++  }
++  return true;
++}
++
+ static bool PE_depth_cache_context_matches(bContext *C,
+                                            const ParticleEditDepthCacheSession *session)
+ {
+@@ -583,7 +743,11 @@ ParticleEditDepthCacheState PE_depth_cache_session_state(
+     case ViewportDepthCacheSession::ReadbackState::Pending:
+       return ParticleEditDepthCacheState::Pending;
+     case ViewportDepthCacheSession::ReadbackState::Ready:
+-      return ParticleEditDepthCacheState::Ready;
++      /* Traversing every key can be expensive, so recompute the token once at the readiness
++       * boundary, immediately before the caller is allowed to take the old depth. */
++      return PE_depth_cache_producer_state_matches(session) ?
++                 ParticleEditDepthCacheState::Ready :
++                 ParticleEditDepthCacheState::Failed;
+     case ViewportDepthCacheSession::ReadbackState::Failed:
+       return ParticleEditDepthCacheState::Failed;
+   }
+@@ -638,6 +802,9 @@ static ParticleEditDepthCacheState PE_set_view3d_data(
+ 
+     session->xray_bypass = XRAY_ENABLED(session->view3d);
+     if (!session->xray_bypass) {
++      if (!PE_depth_cache_producer_state_capture(session)) {
++        return ParticleEditDepthCacheState::Failed;
++      }
+       ED_view3d_depth_override_prepare(session->depsgraph,
+                                        session->region,
+                                        session->view3d,

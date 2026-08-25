@@ -15,6 +15,17 @@ namespace {
 enum class State : uint8_t { Pending, Ready, Failed };
 enum class Result : uint8_t { Pending, Failed, Cancelled, Finished };
 
+struct ProducerState {
+  int frame = 1;
+  int object_transform = 2;
+  int edit_state = 3;
+
+  auto identity() const
+  {
+    return std::array<int, 3>{frame, object_transform, edit_state};
+  }
+};
+
 struct Context {
   int manager = 1;
   int window = 2;
@@ -29,6 +40,7 @@ struct Context {
   int object = 11;
   int edit = 12;
   bool xray = false;
+  ProducerState producer_state;
 
   auto identity() const
   {
@@ -49,6 +61,7 @@ struct Context {
 
 struct DepthSession {
   std::array<int, 12> producing{};
+  std::array<int, 3> producing_state{};
   State backend = State::Pending;
   bool producing_xray = false;
   bool initialized = false;
@@ -58,6 +71,7 @@ struct DepthSession {
   State begin(const Context &context, const State initial)
   {
     producing = context.identity();
+    producing_state = context.producer_state.identity();
     producing_xray = context.xray;
     initialized = true;
     backend = context.xray ? State::Ready : initial;
@@ -67,7 +81,7 @@ struct DepthSession {
   State state(const Context &context) const
   {
     if (!initialized || consumed || cancelled || context.identity() != producing ||
-        context.xray != producing_xray)
+        context.producer_state.identity() != producing_state || context.xray != producing_xray)
     {
       return State::Failed;
     }
@@ -335,6 +349,40 @@ void contract_brush_continuation()
   emit_contract("brush_continuation", 6, "pending-preinit-move-release-settle-replay");
 }
 
+void contract_same_pointer_producer_state()
+{
+  const std::array<int, 3> caller_kinds = {1, 3, 6};
+  for (const int caller_kind : caller_kinds) {
+    for (int drift = 0; drift < 3; drift++) {
+      Context producing;
+      Continuation operation;
+      require(operation.start(producing, Input{caller_kind, 4, 5, 6, false}, State::Pending) ==
+                  Result::Pending,
+              "producer-state pending");
+
+      Context current = producing;
+      if (drift == 0) {
+        current.producer_state.frame++;
+      }
+      else if (drift == 1) {
+        current.producer_state.object_transform++;
+      }
+      else {
+        current.producer_state.edit_state++;
+      }
+      operation.depth.backend = State::Ready;
+      require(current.identity() == producing.identity(),
+              "producer-state case changed a context pointer");
+      require(operation.event(current, Event{1, operation.timer, 0, false, false}) ==
+                  Result::Failed,
+              "same-pointer producer-state drift was accepted");
+      require(operation.cleaned && !operation.initialized && !operation.depth.consumed,
+              "producer-state failure consumed old depth or initialized a caller");
+    }
+  }
+  emit_contract("same_pointer_producer_state", 9, "click-gesture-brush-frame-transform-edit");
+}
+
 void contract_bounds_identified_timer()
 {
   Context context;
@@ -383,8 +431,9 @@ int main()
   contract_gesture_owners();
   contract_circle_continuation();
   contract_brush_continuation();
+  contract_same_pointer_producer_state();
   contract_bounds_identified_timer();
   contract_failure_cleanup();
-  std::cout << "M5_PARTICLE_EDIT_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=44\n";
+  std::cout << "M5_PARTICLE_EDIT_DEPTH_CACHE_CONTRACT_PASS contracts=9 cases=53\n";
   return 0;
 }

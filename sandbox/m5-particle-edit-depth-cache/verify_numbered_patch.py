@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Reverse and forward patch 0273 against its exact current postimages."""
+"""Reverse and forward the particle producer-state corrective patch."""
 
 from __future__ import annotations
 
@@ -13,12 +13,8 @@ import subprocess
 import tempfile
 
 
-EXPECTED_NAME = "0273-m5-particle-edit-depth-cache-continuation.patch"
-EXPECTED_PATHS = {
-    Path("source/blender/editors/include/ED_particle.hh"),
-    Path("source/blender/editors/physics/particle_edit.cc"),
-    Path("source/blender/editors/space_view3d/view3d_select.cc"),
-}
+EXPECTED_NAME = "0277-m5-particle-producer-state.patch"
+EXPECTED_PATHS = {Path("source/blender/editors/physics/particle_edit.cc")}
 
 
 class VerificationError(RuntimeError):
@@ -60,7 +56,7 @@ def main() -> int:
         raise VerificationError("numbered patch identity or path set differs")
 
     postimages = {relative: (source_root / relative).read_bytes() for relative in EXPECTED_PATHS}
-    with tempfile.TemporaryDirectory(prefix="m5-object-axis-target-depth-patch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="m5-particle-producer-state-patch-") as temporary:
         replay = Path(temporary)
         for relative, postimage in postimages.items():
             target = replay / relative
@@ -77,7 +73,10 @@ def main() -> int:
                 raise VerificationError(f"forward replay differs from postimage: {relative}")
 
     digest = hashlib.sha256(patch.read_bytes()).hexdigest()
-    print(f"M5_PARTICLE_EDIT_DEPTH_CACHE_NUMBERED_PATCH_PASS files=3 sha256={digest}")
+    print(
+        f"M5_PARTICLE_EDIT_DEPTH_CACHE_NUMBERED_PATCH_PASS "
+        f"files={len(EXPECTED_PATHS)} sha256={digest}"
+    )
     return 0
 
 

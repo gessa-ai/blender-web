@@ -2579,6 +2579,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   full-freezer refresh binds the current 303-path snapshot, and 18 hermetic mutations fail closed;
   absolute evidence-origin paths do not prevent byte-identical clones from verifying the proof.
   See `notes/audit-r10-canonical-receipt-freshness-20260825.md`.
+- [x] **P0-M4-SURFACE-SAME-TURN-SUBMISSION [ghost-web] (`69307e4`):** complete surface command
+  buffers now submit synchronously in their acquisition turn instead of waiting for asynchronous
+  encoding scopes to yield and destroy Chromium's transient texture. Encoding and submission
+  results join before present publication, while null handles still submit nothing. Native/wasm32,
+  callback-lifecycle/ASan, locked product/no-work/OFF-preflight, and the headed zero-rejection
+  fallback diagnostic are green. The live result remains diagnostic-nonreceipt and the hardware
+  blocker is unchanged. See `notes/m4-present-same-turn-submission-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

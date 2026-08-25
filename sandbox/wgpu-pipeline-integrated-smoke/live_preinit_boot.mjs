@@ -8,6 +8,12 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  LIVE_INPUT_ROUND_TRIP_MAX_MS,
+  LIVE_STARTUP_SETTLE_MAX_MS,
+  classifyLivePreinitDiagnostic,
+} from "./live_preinit_contract.mjs";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const moduleRoots = [process.env.BW_NODE_MODULES, resolve(root, ".m4-node/node_modules")]
   .filter(Boolean);
@@ -26,7 +32,16 @@ if (!chromium) {
 }
 
 const port = Number(process.argv[2] || 8123);
-const browserArgs = ["--enable-unsafe-webgpu"];
+// This is deliberately Chromium's software WebGPU test posture, not a hardware
+// receipt profile. `--use-gpu-in-tests` initializes the GPU service before Dawn;
+// without it, current Linux Chromium destroys the forced SwiftShader device as
+// soon as an OffscreenCanvas is configured, producing a false one-tick product
+// diagnosis. The classifier below requires the resulting fallback status.
+const browserArgs = [
+  "--enable-unsafe-webgpu",
+  "--use-webgpu-adapter=swiftshader",
+  "--use-gpu-in-tests",
+];
 if (process.platform === "darwin") {
   browserArgs.push("--use-angle=metal");
 }
@@ -42,7 +57,39 @@ const counters = {
   presentableImportFailed: 0,
   deviceLost: 0,
   pageErrors: 0,
+  adapterFallback: "unseen",
+  presentationValidation: "unseen",
 };
+
+const diagnosticConsole = [];
+
+async function readSample(page) {
+  const sampledAtMs = performance.now();
+  return page.evaluate((at) => {
+    const module = window.__bwModule;
+    return {
+      state: document.querySelector("#state")?.dataset.state || "missing",
+      loader: document.querySelector("#bw-pct")?.textContent || "missing",
+      module: Boolean(module),
+      ticks: module && typeof module._bw_wm_tick_count === "function" ?
+        Number(module._bw_wm_tick_count()) : null,
+      presents: module && typeof module._bw_present_count === "function" ?
+        Number(module._bw_present_count()) : null,
+      sampledAtMs: at,
+    };
+  }, sampledAtMs);
+}
+
+async function waitForInputRoundTrip(page, before) {
+  const deadline = performance.now() + LIVE_INPUT_ROUND_TRIP_MAX_MS;
+  let sample = await readSample(page);
+  while (performance.now() <= deadline) {
+    if (sample.ticks > before.ticks && sample.presents > before.presents) return sample;
+    await page.waitForTimeout(100);
+    sample = await readSample(page);
+  }
+  return sample;
+}
 
 const browser = await chromium.launch({ headless: false, args: browserArgs });
 try {
@@ -53,8 +100,21 @@ try {
   const page = await context.newPage();
   page.on("console", (message) => {
     const line = message.text();
+    if (line.includes("[bw][GPU-") || line.includes("[WebGPU]") ||
+        line.includes("WGPUWeb:") ||
+        line.includes("WM-worker WebGPU device pre-acquired") ||
+        line.includes("WM-worker WebGPU presentation pre-acquired") ||
+        /error|abort|assert|exception|keepalive|main loop/i.test(line)) {
+      diagnosticConsole.push(line);
+    }
     if (line.includes("WM-worker WebGPU device pre-acquired")) counters.deviceReady++;
-    if (line.includes("WM-worker WebGPU presentation pre-acquired")) counters.presentationReady++;
+    if (line.includes("WM-worker WebGPU device pre-acquired")) {
+      counters.adapterFallback = /\bfallback=([^ ]+)/.exec(line)?.[1] || "unseen";
+    }
+    if (line.includes("WM-worker WebGPU presentation pre-acquired")) {
+      counters.presentationReady++;
+      counters.presentationValidation = /\bvalidation=([^ ]+)/.exec(line)?.[1] || "unseen";
+    }
     if (line.includes("WM-worker WebGPU presentation preinit FAILED")) {
       counters.presentationFailed++;
     }
@@ -71,44 +131,80 @@ try {
     const state = document.querySelector("#state")?.dataset.state;
     return state === "running" || state === "aborted";
   }, null, { timeout: 180000, polling: 250 });
-  await page.waitForTimeout(6000);
 
-  const snapshot = await page.evaluate(() => {
+  await page.waitForFunction(() => {
     const module = window.__bwModule;
-    return {
-      state: document.querySelector("#state")?.dataset.state || "missing",
-      loader: document.querySelector("#bw-pct")?.textContent || "missing",
-      module: Boolean(module),
-      ticks: module && typeof module._bw_wm_tick_count === "function" ?
-        Number(module._bw_wm_tick_count()) : 0,
-    };
-  });
+    return module && typeof module._bw_wm_tick_count === "function" &&
+      typeof module._bw_present_count === "function";
+  }, null, { timeout: 10000, polling: 100 });
+  // `state=running` is published when WM_main is entered, before the first
+  // software-rendered iteration has necessarily completed. Bound that startup
+  // phase by requiring a second real processEvents entry; the samples below
+  // then prove continued progress rather than counting the entry tick twice.
+  const settleStartedAtMs = performance.now();
+  let secondTickSettled = true;
+  try {
+    await page.waitForFunction(() => {
+      const module = window.__bwModule;
+      return module && Number(module._bw_wm_tick_count?.()) >= 2;
+    }, null, { timeout: LIVE_STARTUP_SETTLE_MAX_MS, polling: 250 });
+  }
+  catch (_) {
+    secondTickSettled = false;
+  }
+  const startupSettleMs = performance.now() - settleStartedAtMs;
+  const first = await readSample(page);
+  await page.waitForTimeout(1250);
+  const second = await readSample(page);
 
-  const failures = [];
-  if (snapshot.state !== "running") failures.push(`state=${snapshot.state}`);
-  if (!snapshot.module) failures.push("module=missing");
-  if (!(snapshot.ticks > 0)) failures.push(`ticks=${snapshot.ticks}`);
-  if (snapshot.loader.includes("boot failed")) failures.push("loader=boot-failed");
-  if (counters.deviceReady !== 1) failures.push(`deviceReady=${counters.deviceReady}`);
-  if (counters.presentationReady !== 1) {
-    failures.push(`presentationReady=${counters.presentationReady}`);
+  const canvas = page.locator("#canvas");
+  const bounds = await canvas.boundingBox();
+  let trustedInputIssued = false;
+  const inputStartedAtMs = performance.now();
+  if (bounds && bounds.width >= 80 && bounds.height >= 80) {
+    const x = bounds.x + bounds.width * 0.5;
+    const y = bounds.y + bounds.height * 0.5;
+    await page.mouse.move(x - 20, y - 20);
+    await page.mouse.move(x, y);
+    await page.mouse.click(x, y);
+    trustedInputIssued = true;
   }
-  if (counters.presentationFailed !== 0) {
-    failures.push(`presentationFailed=${counters.presentationFailed}`);
-  }
-  if (counters.stage1Failed !== 0) failures.push(`stage1Failed=${counters.stage1Failed}`);
-  if (counters.presentableImportFailed !== 0) {
-    failures.push(`presentableImportFailed=${counters.presentableImportFailed}`);
-  }
-  if (counters.pageErrors !== 0) failures.push(`pageErrors=${counters.pageErrors}`);
-  if (failures.length) {
-    throw new Error(`live WM-worker preinit diagnostic failed: ${failures.join(" ")}`);
+  const afterInput = await waitForInputRoundTrip(page, second);
+  const snapshot = await readSample(page);
+  const result = classifyLivePreinitDiagnostic({
+    state: snapshot.state,
+    module: snapshot.module,
+    loader: snapshot.loader,
+    secondTickSettled,
+    startupSettleMs,
+    first,
+    second,
+    inputStartedAtMs,
+    trustedInputIssued,
+    afterInput,
+    counters,
+  });
+  if (!result.accepted) {
+    const context = [
+      ...diagnosticConsole.filter((line) => line.includes("[bw][GPU-")),
+      ...diagnosticConsole.slice(0, 12),
+      ...diagnosticConsole.slice(-8),
+    ].join(" | ");
+    throw new Error(
+      `live WM-worker preinit diagnostic failed: ${result.failures.join(" ")}` +
+      (context ? ` console=${context}` : ""),
+    );
   }
 
   console.log(
     `CONTRACT ghost_preinit_live PASS evidence=diagnostic-nonreceipt state=running ` +
-    `device=1 presentation=1 stage1_failure=0 import_failure=0 ticks=${snapshot.ticks} ` +
-    `device_lost=${counters.deviceLost} playwright_root=${playwrightRoot}`,
+    `adapter=${result.adapterMode} validation=${counters.presentationValidation} ` +
+    `device=1 presentation=1 stage1_failure=0 import_failure=0 ` +
+    `startup_settle_ms=${Math.round(result.startupSettleMs ?? startupSettleMs)} ` +
+    `idle_sample_ms=${Math.round(result.idleElapsedMs)} idle_tick_delta=${result.idleTickDelta} ` +
+    `input_round_trip_ms=${Math.round(result.inputElapsedMs)} ` +
+    `input_tick_delta=${result.inputTickDelta} input_present_delta=${result.inputPresentDelta} ` +
+    `device_lost=0 playwright_root=${playwrightRoot}`,
   );
 }
 finally {

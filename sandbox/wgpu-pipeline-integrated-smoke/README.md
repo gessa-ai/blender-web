@@ -209,9 +209,11 @@ DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs 8123
 ```
 
-This headed check accepts fallback adapters so it can catch boot-order regressions without special
-hardware. Its `diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel
-gate.
+This headed check forces Chromium's SwiftShader adapter under its GPU-test initialization, then
+requires the adapter to report fallback status. After `WM_main`, it bounds first-tick settlement,
+requires a positive tick delta across two further samples, sends trusted mouse input, and requires
+both another WM tick and a new presentation with no device loss. Its explicit
+`diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel gate.
 
 The triangle-fan row deliberately exercises the backend's fail-visible fallback:
 both executions must emit the exact canonical `BLI_assert_unreachable` diagnostic

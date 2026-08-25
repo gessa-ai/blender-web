@@ -1363,3 +1363,19 @@ status stays on the strict path. Exercise synchronous, delayed, and omitted tele
 from scope results, exact current-spec fallback selection, strict completion, cleanup, and partial
 publication. See `platform_web/shell/wgpu-preinit-worker.js` and
 `sandbox/wgpu-pipeline-integrated-smoke/preinit_worker_test.mjs`.
+
+## Class 92 — entering WM_main is not a browser liveness receipt
+
+Signature: a headed browser verifier waits for the shell's `running` marker, sleeps once, and
+accepts any nonzero WM tick. The marker is published when WM_main is entered, before the first
+software-rendered iteration has completed, so a one-tick dead loop passes. On Linux test Chromium,
+an uninitialized software GPU service can also destroy a forced SwiftShader device immediately
+after OffscreenCanvas configuration, confusing harness setup with a product failure. Bind this
+diagnostic explicitly to Chromium's software adapter plus `--use-gpu-in-tests`, require current
+fallback status, and label the result nonreceipt. Bound startup by a second real WM tick; then take
+two further bounded samples with a positive tick delta. Finally send trusted canvas input and
+require both another tick and a presentation delta, while rejecting any device loss, page error,
+stage-1 failure, or import failure. Keep the classifier device-free and mutation-tested so a
+single sample, missing input, hardware adapter, or presentation-free response cannot silently
+restore the false green. See `sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs` and
+`live_preinit_contract_test.mjs`.

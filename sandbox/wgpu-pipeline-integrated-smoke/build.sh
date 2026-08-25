@@ -35,6 +35,9 @@ GHOST_SYSTEM_SOURCE="$ROOT/platform_web/ghost/GHOST_SystemWeb.cc"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
+LIVE_PREINIT_SOURCE="$HERE/live_preinit_boot.mjs"
+LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
+LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
 DAWN_SRC="${DAWN_SRC:-$ROOT/build-dawn/dawn}"
 DAWN_PIN="36cf1fae0cd8a81a4fb4580751648b80b2e6255c"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-dawn/probe-build}"
@@ -183,6 +186,9 @@ require_file "$GHOST_SYSTEM_SOURCE"
 require_file "$GHOST_TRANSACTION_HEADER"
 require_file "$WGPU_PREINIT_SOURCE"
 require_file "$WGPU_PREINIT_TEST"
+require_file "$LIVE_PREINIT_SOURCE"
+require_file "$LIVE_PREINIT_CONTRACT"
+require_file "$LIVE_PREINIT_CONTRACT_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/VertexStateValidationTests.cpp"
 require_file "$DAWN_SRC/src/dawn/tests/unittests/validation/DrawIndirectValidationTests.cpp"
@@ -1612,6 +1618,15 @@ require_fixed_count 1 \
   'Module["preinitializedWebGPUDeviceLoss"] = deviceLossSignal;' \
   "$WGPU_PREINIT_SOURCE"
 require_fixed_count 1 'device.lost.then(function (info) {' "$WGPU_PREINIT_SOURCE"
+require_fixed_count 1 '"--use-webgpu-adapter=swiftshader",' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 '"--use-gpu-in-tests",' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 'Number(module._bw_wm_tick_count?.()) >= 2;' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 'await page.mouse.click(x, y);' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 'classifyLivePreinitDiagnostic({' "$LIVE_PREINIT_SOURCE"
+require_fixed_count 1 'if (counters.adapterFallback !== "true") {' "$LIVE_PREINIT_CONTRACT"
+require_fixed_count 1 'if (!(afterInput.presents > second.presents)) {' \
+  "$LIVE_PREINIT_CONTRACT"
+require_fixed_count 1 'if (counters.deviceLost !== 0)' "$LIVE_PREINIT_CONTRACT"
 require_fixed_count 1 \
   'std::shared_ptr<ghost_web::DeviceCallbackState> device_state_' \
   "$GHOST_HEADER"
@@ -2014,6 +2029,14 @@ if ! grep -qx \
   "$OUT/preinit-worker.txt"
 then
   echo "ERROR: worker preinit transaction evidence differs" >&2
+  exit 1
+fi
+"$NODE" "$LIVE_PREINIT_CONTRACT_TEST" >"$OUT/live-preinit-classifier.txt"
+if ! grep -qx \
+  'CONTRACT ghost_preinit_live_classifier PASS positive=1 negative=23' \
+  "$OUT/live-preinit-classifier.txt"
+then
+  echo "ERROR: live preinit classifier evidence differs" >&2
   exit 1
 fi
 

@@ -1841,6 +1841,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the actual page callback; the normalized receipt and consumers remain strictly fail-closed. No
   adapter or receipt was produced, and the exact s7 blocker is unchanged. See
   `notes/m8-runtime-adapter-info-fallback-20260825.md`.
+- [x] **P0-B-M4-PREINIT-ADAPTER-SHAPE-CONTRACT [driver] (b41258d):** the shipping WM-worker
+  preinit model now executes current, legacy, both conflicting-precedence, and unknown fallback
+  shapes through the real source. Three source mutations reject legacy-only extraction,
+  legacy-first precedence, and unknown-as-fallback behavior; the CAPTURE and shared M5–M8 producer
+  self-checks keep the other acceptance-critical adapter callbacks covered. No adapter or receipt
+  was produced, and the exact s7 blocker is unchanged. See
+  `notes/m4-preinit-adapter-info-shapes-20260825.md`.
 - [x] **M4.T21-GHOST-PRESENT-RESOURCE-TRANSACTION [ghost-web] (844e683):** the browser
   compositor preserves the last usable resize texture until replacement succeeds, publishes its
   bind-group layout/pipeline only as a complete pair, and rejects failed per-frame views, bind

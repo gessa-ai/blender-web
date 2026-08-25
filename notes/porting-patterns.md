@@ -1437,4 +1437,7 @@ fake `navigator.gpu.requestAdapter()`. Prefer a boolean
 fallback, and require the current location to win conflicts. Keep true, absent, malformed,
 masked, and software identities rejected; the fix is extraction, not classifier relaxation. See
 `sandbox/m8-wasm-split/capture_blender_profile.mjs` and
-`sandbox/m8-launch-gate/runtime_evidence.mjs`.
+`sandbox/m8-launch-gate/runtime_evidence.mjs`. Apply the same raw current/legacy/conflicting/
+unknown fixture matrix to product-owned acquisition callbacks; the WM-worker preinit additionally
+mutates legacy-only extraction, legacy-first precedence, and unknown-as-fallback behavior in
+`sandbox/wgpu-pipeline-integrated-smoke/preinit_worker_test.mjs`.

@@ -287,7 +287,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_clipboard_result()
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_lifecycle(const int action)
 {
-  if (action < 0 || action > 1) {
+  if (action < 0 || action > 2) {
     return int(GHOST_kFailure);
   }
   g_window_lifecycle_result.store(-2, std::memory_order_relaxed);
@@ -493,6 +493,31 @@ static void main_loop_tick()
       result |= g_window != nullptr && g_system->getWindowUnderCursor(0, 0) == g_window ?
                     (1 << 2) :
                     0;
+      g_window_lifecycle_result.store(result, std::memory_order_release);
+    }
+    else if (requested_lifecycle == 2) {
+      int result = 0;
+      if (g_window != nullptr) {
+        GHOST_Rect bounds;
+        g_window->getClientBounds(bounds);
+        const auto hits_window = [&](const int32_t x, const int32_t y) {
+          return g_system->getWindowUnderCursor(x, y) == g_window;
+        };
+        const auto hits_nothing = [&](const int32_t x, const int32_t y) {
+          return g_system->getWindowUnderCursor(x, y) == nullptr;
+        };
+        result |= (!bounds.isEmpty() && g_system->activeWindow() == g_window) ? (1 << 0) : 0;
+        result |= hits_window(bounds.l_, bounds.t_) ? (1 << 1) : 0;
+        result |= hits_window(bounds.r_, bounds.b_) ? (1 << 2) : 0;
+        result |= hits_window(bounds.l_ + bounds.getWidth() / 2,
+                              bounds.t_ + bounds.getHeight() / 2) ?
+                      (1 << 3) :
+                      0;
+        result |= hits_nothing(bounds.l_ - 1, bounds.t_) ? (1 << 4) : 0;
+        result |= hits_nothing(bounds.l_, bounds.t_ - 1) ? (1 << 5) : 0;
+        result |= hits_nothing(bounds.r_ + 1, bounds.b_) ? (1 << 6) : 0;
+        result |= hits_nothing(bounds.r_, bounds.b_ + 1) ? (1 << 7) : 0;
+      }
       g_window_lifecycle_result.store(result, std::memory_order_release);
     }
 #ifdef WITH_INPUT_IME

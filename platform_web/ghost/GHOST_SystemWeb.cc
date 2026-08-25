@@ -1036,7 +1036,16 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
       });
 }
 
-GHOST_IWindow *GHOST_SystemWeb::getWindowUnderCursor(int32_t /*x*/, int32_t /*y*/)
+GHOST_IWindow *GHOST_SystemWeb::getWindowUnderCursor(const int32_t x, const int32_t y)
 {
-  return window_;
+  if (window_ == nullptr) {
+    return nullptr;
+  }
+
+  /* GHOST_ISystem.hh requires nullptr when no owned window contains the supplied
+   * screen point. Web screen/client coordinates share the canvas origin, so the
+   * base GHOST_System::getWindowUnderCursor() bounds rule applies directly. */
+  GHOST_Rect bounds;
+  window_->getClientBounds(bounds);
+  return bounds.isInside(x, y) ? window_ : nullptr;
 }

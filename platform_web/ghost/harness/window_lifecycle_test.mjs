@@ -92,6 +92,13 @@ try {
     throw new Error(`replacement window was not published: result=${recreateResult}`);
   }
 
+  const hitTestResult = await request(2);
+  // Bits: active/non-empty; left-top, right-bottom, and center inside;
+  // one point beyond each of the left, top, right, and bottom edges outside.
+  if (hitTestResult !== 0b11111111) {
+    throw new Error(`window-under-cursor bounds were not enforced: result=${hitTestResult}`);
+  }
+
   await page.evaluate(() => {
     document.querySelector("#log").textContent = "";
   });
@@ -108,7 +115,7 @@ try {
 
   console.log(
     "WINDOW_LIFECYCLE_LIVE PASS dispose=detached callbacks=rebound replacement=input-target " +
-    "worker=proxy-pthread");
+    "hit-test=bounded worker=proxy-pthread");
 }
 finally {
   await browser.close();

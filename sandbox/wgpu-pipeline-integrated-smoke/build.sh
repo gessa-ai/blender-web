@@ -53,6 +53,7 @@ FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 WINDOW_LIFECYCLE_CONTRACT="$HERE/window_lifecycle_contract.py"
+WINDOW_HIT_TEST_CONTRACT="$HERE/window_hit_test_contract.py"
 CLIPBOARD_BRIDGE_CONTRACT="$HERE/clipboard_bridge_contract.py"
 IME_BRIDGE_CONTRACT="$HERE/ime_bridge_contract.py"
 CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
@@ -233,6 +234,7 @@ require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
 require_file "$WINDOW_LIFECYCLE_CONTRACT"
+require_file "$WINDOW_HIT_TEST_CONTRACT"
 require_file "$CLIPBOARD_BRIDGE_CONTRACT"
 require_file "$IME_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_CONTRACT"
@@ -1709,6 +1711,13 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
 "$PYBIN" "$WINDOW_LIFECYCLE_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" --selfcheck
+"$PYBIN" "$WINDOW_HIT_TEST_CONTRACT" \
+  "$ROOT/upstream/intern/ghost/GHOST_ISystem.hh" \
+  "$ROOT/upstream/intern/ghost/intern/GHOST_System.cc" \
+  "$GHOST_SYSTEM_SOURCE" \
+  "$ROOT/platform_web/ghost/harness/test_ghost_web.cc" \
+  "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" \
+  --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \

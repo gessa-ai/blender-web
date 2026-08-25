@@ -88,8 +88,11 @@ piece the standalone harness does not exercise; it is covered by the ADR-003 M4 
 Constraints and deferrals (with a named blocker wherever work remains):
 - **IME / dead-keys** — needs `compositionstart/update/end` → `GHOST_kEventImeComposition*`
   + `GHOST_TEventImeData`; browser IME is async. Deferred; capability off.
-- **Clipboard** — GHOST's `getClipboard` is synchronous; the browser async Clipboard API
-  can't satisfy it on the main thread → worker-side shim later. Returns null / no-op now.
+- **Text clipboard** — implemented through a browser-main cache. Trusted `paste` events publish
+  external text before the queued worker key event; `putClipboard` synchronously owns Blender's
+  borrowed UTF-8 before starting `navigator.clipboard.writeText`, and `getClipboard` allocates an
+  owned UTF-8 result on the main runtime thread. Already-granted read permission also refreshes
+  before menu interaction. Primary selection and image clipboard remain capability-masked.
 - **Cursor grab / absolute warp** — wrap and hide grabs use Pointer Lock and consume relative
   movement; wrap retains Blender's software cursor while hide does not. Disable exits Pointer
   Lock, and normal preserves visible-pointer semantics. Absolute `setCursorPosition` remains

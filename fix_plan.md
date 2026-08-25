@@ -2669,6 +2669,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   relink/no-work, OFF preflight, and real-product middle-drag diagnostic are verified. The live
   run is fallback-software diagnostic evidence only; M4 and the s7 blocker are unchanged. See
   `notes/m4-web-pointer-lock-20260825.md`.
+- [x] **M4-WEB-TEXT-CLIPBOARD [ghost-web] (`5d21f1c`):** trusted paste events now publish
+  external text before Emscripten's queued worker key callback, while GHOST's synchronous getter
+  returns an owned UTF-8 allocation and Blender copy owns its borrowed input before the browser
+  write promise. Primary/image clipboards remain honestly unsupported. The predecessor stub,
+  17 mutations, real worker harness, native/wasm32 integration, baked optimized runtime, locked
+  relink/no-work, and product Python-Console paste/copy round-trip are verified. The live product
+  run uses fallback software and binds no receipt; M4 and the s7 blocker are unchanged. See
+  `notes/m4-web-text-clipboard-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -138,7 +138,7 @@ mapped onto `platform_web/ghost/`:
 | `createOffscreenContext` / `newDrawingContext` | **stub — wrong class** | both return the **native** `GHOST_ContextWGPU` (SystemWeb.cc:215, WindowWeb.cc:161) whose `initializeDrawingContext()` does sync `instance_.WaitAny(...)` (`GHOST_ContextWGPU.cc:39,65`) → **deadlocks the browser** (wgpu-context note delta #2). Must use the async `GHOST_ContextWGPUWeb`. See reconciliation below. |
 | `processEvents`/`dispatchEvents` | **covered** | `processEvents` non-blocking (SystemWeb); `dispatchEvents` + `addEventConsumer` via `GHOST_System` base (`ghost_event_proc`/`GHOST_CallbackEventConsumer` `wm_window.cc:2278`). |
 | `getModifierKeys`/`getButtons`/`getCapabilities`/`getCursorPosition`/`getMainDisplayDimensions`/`getAllDisplayDimensions`/`getMilliSeconds`/`getWindowUnderCursor` | **covered** | implemented in `GHOST_SystemWeb`. |
-| `getClipboard`/`putClipboard` | **stub (deferred)** | null/no-op — async browser clipboard; capability off. |
+| `getClipboard`/`putClipboard` | **covered** | trusted-paste/browser-main cache bridges the synchronous GHOST text contract; primary selection remains off. |
 | `hasClipboardImage`/`getClipboardImage`/`putClipboardImage` | base default (no-op) | deferred; not on boot path. |
 | `initDebug`/`useNativePixel`/`useWindowFocus`/`setTabletAPI`/`setMultitouchGestures`/`getTime` | base default (`GHOST_System`) | fine. |
 | `setConsoleWindowState` | **covered** (returns false) | `wm_init_exit.cc:340`. |
@@ -188,8 +188,8 @@ getSurface/getSurfaceFormat` off whichever context the seam returned — one
 
 **Target:** one canvas window, default startup workspace (Layout), default scene
 (cube/camera/light), correct theme, splash on top, first frame matching the native golden
-within idiff. **Explicitly deferred:** multi-window, drag-n-drop, IME/dead-keys, clipboard,
-cursor-warp / Pointer-Lock, tablet/NDOF, software cursor (use CSS cursor), retina swapchain
+within idiff. **Explicitly deferred:** multi-window, drag-n-drop, IME/dead-keys,
+absolute cursor-warp, tablet/NDOF, retina swapchain
 tuning, staged/lazy payload (M7).
 
 **Dispatch gate:** M3's WebGPU `gpu` suite green (native Dawn) — this list wires the

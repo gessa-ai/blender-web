@@ -85,6 +85,11 @@ class GHOST_WindowWeb : public GHOST_Window {
    * getNativePixelSize(), which WM_window_dpi_set_userdef multiplies in. */
   uint16_t getDPIHint() override;
 
+#ifdef WITH_INPUT_IME
+  void beginIME(int32_t x, int32_t y, int32_t w, int32_t h, bool completed) override;
+  void endIME() override;
+#endif
+
   /* NOTE: setPath() is left to GHOST_Window's default (no-op). */
 
   GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape) override;

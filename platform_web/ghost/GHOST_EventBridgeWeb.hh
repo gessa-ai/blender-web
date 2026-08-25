@@ -49,4 +49,12 @@ void on_resize(GHOST_SystemWeb &sys, const EmscriptenUiEvent &e);
 /** #GHOST_kEventWindowActivate / #GHOST_kEventWindowDeactivate from focus/blur. */
 void on_focus(GHOST_SystemWeb &sys, bool focused);
 
+#ifdef WITH_INPUT_IME
+/** Enable or disable acceptance of browser-main composition events. */
+void set_ime_enabled(bool enabled);
+
+/** Drain browser-main composition events into the WM worker's GHOST queue. */
+void poll_ime(GHOST_SystemWeb &sys);
+#endif
+
 }  // namespace ghost_web_bridge

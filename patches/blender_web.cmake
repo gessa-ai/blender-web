@@ -78,7 +78,11 @@ set(WITH_GHOST_X11          OFF CACHE BOOL "" FORCE)
 set(WITH_GHOST_WAYLAND      OFF CACHE BOOL "" FORCE)
 set(WITH_GHOST_XDND         OFF CACHE BOOL "" FORCE)
 set(WITH_X11_XINPUT         OFF CACHE BOOL "" FORCE)
-set(WITH_INPUT_IME          OFF CACHE BOOL "" FORCE)
+if(WITH_BLENDER_WEB_WINDOWED)
+  set(WITH_INPUT_IME        ON  CACHE BOOL "" FORCE)
+else()
+  set(WITH_INPUT_IME        OFF CACHE BOOL "" FORCE)
+endif()
 set(WITH_INPUT_NDOF         OFF CACHE BOOL "" FORCE)
 
 # ---- Python: ON for M2.3 (mandatory for the UI + bpy) ----------------------

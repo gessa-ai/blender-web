@@ -1143,3 +1143,6 @@
 # 0279: keep one coherent async-compiler handle tuple across overlapping
 # WebGPU context publication and teardown orders.
 0279-gpu-webgpu-context-handle-registry.patch
+# 0280: expose Blender's stock IME event path to the custom browser GHOST
+# backend while keeping headless and unsupported platform profiles unchanged.
+0280-ghost-web-input-ime-option.patch

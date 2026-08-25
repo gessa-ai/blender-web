@@ -19,6 +19,7 @@
 #include <emscripten/html5.h>
 
 #include "GHOST_Context.hh"
+#include "GHOST_EventBridgeWeb.hh"
 #include "GHOST_WGPUTransaction.hh"
 #include "GHOST_WebDisplayState.hh"
 
@@ -310,6 +311,48 @@ uint16_t GHOST_WindowWeb::getDPIHint()
    * DOUBLE-count against getNativePixelSize()==DPR and blow the UI up ~DPR x too large. */
   return uint16_t(96);
 }
+
+#ifdef WITH_INPUT_IME
+
+void GHOST_WindowWeb::beginIME(
+    const int32_t x, const int32_t y, const int32_t w, const int32_t h, const bool completed)
+{
+  /* Blender calls this both to enter text input and to move the candidate
+   * rectangle. Enable publication before the synchronous main-thread proxy so
+   * completing an existing browser composition during begin() cannot lose its
+   * final compositionend transition. */
+  ghost_web_bridge::set_ime_enabled(true);
+  const int focused = MAIN_THREAD_EM_ASM_INT(
+      {
+        var bridge = globalThis.__bwImeBridge;
+        return bridge && bridge.begin(UTF8ToString($0), $1, $2, $3, $4, $5) ? 1 : 0;
+      },
+      canvas_selector_.c_str(),
+      x,
+      y,
+      w,
+      h,
+      completed ? 1 : 0);
+  if (!focused) {
+    ghost_web_bridge::set_ime_enabled(false);
+  }
+}
+
+void GHOST_WindowWeb::endIME()
+{
+  /* Blur first while publication remains enabled: browsers may synchronously
+   * commit the active composition from blur. Disable only after that proxy has
+   * returned, then restore keyboard focus to the visible canvas. */
+  MAIN_THREAD_EM_ASM({
+    var bridge = globalThis.__bwImeBridge;
+    if (bridge) {
+      bridge.end();
+    }
+  });
+  ghost_web_bridge::set_ime_enabled(false);
+}
+
+#endif /* WITH_INPUT_IME */
 
 GHOST_TSuccess GHOST_WindowWeb::hasCursorShape(GHOST_TStandardCursor shape)
 {

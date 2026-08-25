@@ -50,6 +50,7 @@ WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
 FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 CLIPBOARD_BRIDGE_CONTRACT="$HERE/clipboard_bridge_contract.py"
+IME_BRIDGE_CONTRACT="$HERE/ime_bridge_contract.py"
 CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
 CURSOR_BRIDGE_TEST="$HERE/cursor_bridge_test.mjs"
 GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
@@ -225,6 +226,7 @@ require_file "$WINDOW_TITLE_CONTRACT"
 require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$CLIPBOARD_BRIDGE_CONTRACT"
+require_file "$IME_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_TEST"
 require_file "$ROOT/sandbox/wgpu-pipeline-wasm-smoke/CMakeLists.txt"
@@ -1689,6 +1691,11 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$GHOST_SYSTEM_SOURCE" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
+"$PYBIN" "$IME_BRIDGE_CONTRACT" \
+  "$GHOST_EVENT_BRIDGE_SOURCE" "$ROOT/platform_web/ghost/GHOST_EventBridgeWeb.hh" \
+  "$GHOST_SYSTEM_SOURCE" "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" \
+  "$ROOT/patches/blender_web.cmake" "$ROOT/upstream/CMakeLists.txt" \
+  "$ROOT/patches/0280-ghost-web-input-ime-option.patch" "$ROOT/patches/series" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
   "$GHOST_TYPES_SOURCE" --selfcheck

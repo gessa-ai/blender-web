@@ -68,6 +68,14 @@ static const char *event_type_name(GHOST_TEventType t)
       return "WindowActivate";
     case GHOST_kEventWindowDeactivate:
       return "WindowDeactivate";
+#ifdef WITH_INPUT_IME
+    case GHOST_kEventImeCompositionStart:
+      return "ImeStart";
+    case GHOST_kEventImeComposition:
+      return "ImeComposition";
+    case GHOST_kEventImeCompositionEnd:
+      return "ImeEnd";
+#endif
     default:
       return "Other";
   }
@@ -78,7 +86,7 @@ class LoggingConsumer : public GHOST_IEventConsumer {
  public:
   bool processEvent(const GHOST_IEvent *event) override
   {
-    char line[256];
+    char line[1024];
     const GHOST_TEventType type = event->getType();
     const char *name = event_type_name(type);
     const void *raw = event->getData();
@@ -112,6 +120,23 @@ class LoggingConsumer : public GHOST_IEventConsumer {
                       int(d->key), utf8, int(d->is_repeat));
         break;
       }
+#ifdef WITH_INPUT_IME
+      case GHOST_kEventImeCompositionStart:
+      case GHOST_kEventImeComposition:
+      case GHOST_kEventImeCompositionEnd: {
+        auto *d = static_cast<const GHOST_TEventImeData *>(raw);
+        std::snprintf(line,
+                      sizeof(line),
+                      "GHOST %-16s result='%s' composite='%s' cursor=%d target=%d:%d",
+                      name,
+                      d->result.c_str(),
+                      d->composite.c_str(),
+                      d->cursor_position,
+                      d->target_start,
+                      d->target_end);
+        break;
+      }
+#endif
       default:
         std::snprintf(line, sizeof(line), "GHOST %-16s", name);
         break;
@@ -130,6 +155,15 @@ static std::atomic<int> g_requested_cursor_grab{-1};
 static std::atomic<int> g_cursor_grab_result{-2};
 static std::atomic<int> g_requested_clipboard_operation{-1};
 static std::atomic<int> g_clipboard_result{-2};
+#ifdef WITH_INPUT_IME
+static std::atomic<int> g_requested_ime_action{-1};
+static std::atomic<int> g_ime_result{-2};
+static std::atomic<int> g_ime_x{0};
+static std::atomic<int> g_ime_y{0};
+static std::atomic<int> g_ime_w{0};
+static std::atomic<int> g_ime_h{0};
+static std::atomic<int> g_ime_completed{0};
+#endif
 
 static constexpr const char *CLIPBOARD_EXTERNAL =
     "from-browser-paste-\xF0\x9F\xAA\xB6";
@@ -181,6 +215,40 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_clipboard_result()
 {
   return g_clipboard_result.load(std::memory_order_acquire);
 }
+
+#ifdef WITH_INPUT_IME
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_ime_capability()
+{
+  return g_system && (g_system->getCapabilities() & GHOST_kCapabilityInputIME) != 0;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_ime(const int action,
+                                                               const int x,
+                                                               const int y,
+                                                               const int w,
+                                                               const int h,
+                                                               const int completed)
+{
+  if ((action != 0 && action != 1) || x < 0 || y < 0 || w < 0 || h < 0 ||
+      (completed != 0 && completed != 1))
+  {
+    return int(GHOST_kFailure);
+  }
+  g_ime_x.store(x, std::memory_order_relaxed);
+  g_ime_y.store(y, std::memory_order_relaxed);
+  g_ime_w.store(w, std::memory_order_relaxed);
+  g_ime_h.store(h, std::memory_order_relaxed);
+  g_ime_completed.store(completed, std::memory_order_relaxed);
+  g_ime_result.store(-2, std::memory_order_relaxed);
+  g_requested_ime_action.store(action, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_ime_result()
+{
+  return g_ime_result.load(std::memory_order_acquire);
+}
+#endif
 
 static bool clipboard_equals(const char *expected, const bool selection = false)
 {
@@ -255,6 +323,31 @@ static void main_loop_tick()
                                    int(GHOST_kSuccess) : int(GHOST_kFailure),
                                std::memory_order_release);
     }
+#ifdef WITH_INPUT_IME
+    const int requested_ime = g_requested_ime_action.exchange(-1, std::memory_order_acq_rel);
+    if (requested_ime == 0) {
+      if (g_window) {
+        g_window->beginIME(g_ime_x.load(std::memory_order_relaxed),
+                           g_ime_y.load(std::memory_order_relaxed),
+                           g_ime_w.load(std::memory_order_relaxed),
+                           g_ime_h.load(std::memory_order_relaxed),
+                           g_ime_completed.load(std::memory_order_relaxed) != 0);
+        g_ime_result.store(int(GHOST_kSuccess), std::memory_order_release);
+      }
+      else {
+        g_ime_result.store(int(GHOST_kFailure), std::memory_order_release);
+      }
+    }
+    else if (requested_ime == 1) {
+      if (g_window) {
+        g_window->endIME();
+        g_ime_result.store(int(GHOST_kSuccess), std::memory_order_release);
+      }
+      else {
+        g_ime_result.store(int(GHOST_kFailure), std::memory_order_release);
+      }
+    }
+#endif
     g_system->processEvents(false);
     g_system->dispatchEvents();
   }

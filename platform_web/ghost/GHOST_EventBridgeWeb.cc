@@ -13,9 +13,14 @@
 #include "GHOST_EventBridgeWeb.hh"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <new>
+#include <string>
+#include <utility>
 
 #include "GHOST_SystemWeb.hh"
 #include "GHOST_WindowWeb.hh"
@@ -28,6 +33,179 @@
 #include "GHOST_KeyMapWeb.hh"
 
 namespace ghost_web_bridge {
+
+#ifdef WITH_INPUT_IME
+
+namespace {
+
+/* DOM composition callbacks execute on the browser main thread while GHOST and
+ * its event manager belong to the PROXY_TO_PTHREAD WM worker. A bounded SPSC
+ * queue transfers heap-owned UTF-8 messages without calling GHOST cross-thread.
+ * The producer never waits on the browser thread; a saturated queue rejects the
+ * event and records the failure instead of overwriting an earlier transition. */
+constexpr uint64_t IME_QUEUE_CAPACITY = 64;
+constexpr int32_t IME_TEXT_LIMIT = 16 * 1024 * 1024;
+
+enum class ImeMessageKind : int32_t {
+  Start = 0,
+  Update = 1,
+  Commit = 2,
+  End = 3,
+};
+
+struct ImeMessage {
+  ImeMessageKind kind;
+  std::string text;
+  int cursor_position;
+  int target_start;
+  int target_end;
+};
+
+std::array<std::atomic<ImeMessage *>, IME_QUEUE_CAPACITY> g_ime_slots{};
+std::atomic<uint64_t> g_ime_write_sequence{0};
+std::atomic<uint64_t> g_ime_read_sequence{0};
+std::atomic<uint64_t> g_ime_published{0};
+std::atomic<uint64_t> g_ime_consumed{0};
+std::atomic<uint64_t> g_ime_dropped{0};
+std::atomic<bool> g_ime_enabled{false};
+
+class GHOST_EventIMEWeb : public GHOST_Event {
+ private:
+  GHOST_TEventImeData event_ime_data_;
+
+ public:
+  GHOST_EventIMEWeb(uint64_t msec,
+                    GHOST_TEventType type,
+                    GHOST_IWindow *window,
+                    GHOST_TEventImeData data)
+      : GHOST_Event(msec, type, window), event_ime_data_(std::move(data))
+  {
+    /* Own the strings until the event manager has dispatched this event. */
+    data_ = &event_ime_data_;
+  }
+};
+
+bool valid_ime_message(const int32_t kind,
+                       const int32_t text_length,
+                       const int cursor_position,
+                       const int target_start,
+                       const int target_end)
+{
+  return kind >= int32_t(ImeMessageKind::Start) && kind <= int32_t(ImeMessageKind::End) &&
+         text_length >= 0 && text_length <= IME_TEXT_LIMIT && cursor_position >= -1 &&
+         target_start >= -1 && target_end >= -1 &&
+         (target_start == -1 || target_end == -1 || target_start <= target_end);
+}
+
+}  // namespace
+
+extern "C" EMSCRIPTEN_KEEPALIVE int bw_shell_ime_publish(const int32_t kind,
+                                                           const char *text,
+                                                           const int32_t text_length,
+                                                           const int cursor_position,
+                                                           const int target_start,
+                                                           const int target_end)
+{
+  if (!g_ime_enabled.load(std::memory_order_acquire) ||
+      !valid_ime_message(kind, text_length, cursor_position, target_start, target_end) ||
+      (text_length != 0 && text == nullptr))
+  {
+    g_ime_dropped.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  }
+
+  const uint64_t sequence = g_ime_write_sequence.load(std::memory_order_relaxed);
+  std::atomic<ImeMessage *> &slot = g_ime_slots[sequence % IME_QUEUE_CAPACITY];
+  if (slot.load(std::memory_order_acquire) != nullptr) {
+    g_ime_dropped.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  }
+
+  ImeMessage *message = nullptr;
+  try {
+    message = new ImeMessage{ImeMessageKind(kind),
+                             std::string(text_length == 0 ? "" : text, size_t(text_length)),
+                             cursor_position,
+                             target_start,
+                             target_end};
+  }
+  catch (...) {
+    g_ime_dropped.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  }
+
+  slot.store(message, std::memory_order_release);
+  g_ime_write_sequence.store(sequence + 1, std::memory_order_relaxed);
+  g_ime_published.fetch_add(1, std::memory_order_relaxed);
+  return 1;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_shell_ime_published_count()
+{
+  return double(g_ime_published.load(std::memory_order_relaxed));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_shell_ime_consumed_count()
+{
+  return double(g_ime_consumed.load(std::memory_order_relaxed));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_shell_ime_dropped_count()
+{
+  return double(g_ime_dropped.load(std::memory_order_relaxed));
+}
+
+void set_ime_enabled(const bool enabled)
+{
+  g_ime_enabled.store(enabled, std::memory_order_release);
+}
+
+void poll_ime(GHOST_SystemWeb &sys)
+{
+  for (;;) {
+    const uint64_t sequence = g_ime_read_sequence.load(std::memory_order_relaxed);
+    std::atomic<ImeMessage *> &slot = g_ime_slots[sequence % IME_QUEUE_CAPACITY];
+    std::unique_ptr<ImeMessage> message(slot.exchange(nullptr, std::memory_order_acq_rel));
+    if (!message) {
+      break;
+    }
+    g_ime_read_sequence.store(sequence + 1, std::memory_order_relaxed);
+
+    GHOST_TEventImeData data;
+    data.cursor_position = message->cursor_position;
+    data.target_start = message->target_start;
+    data.target_end = message->target_end;
+
+    GHOST_TEventType event_type = GHOST_kEventImeComposition;
+    switch (message->kind) {
+      case ImeMessageKind::Start:
+        event_type = GHOST_kEventImeCompositionStart;
+        data.composite = std::move(message->text);
+        break;
+      case ImeMessageKind::Update:
+        data.composite = std::move(message->text);
+        break;
+      case ImeMessageKind::Commit:
+        data.result = std::move(message->text);
+        data.cursor_position = -1;
+        data.target_start = -1;
+        data.target_end = -1;
+        break;
+      case ImeMessageKind::End:
+        event_type = GHOST_kEventImeCompositionEnd;
+        data.cursor_position = -1;
+        data.target_start = -1;
+        data.target_end = -1;
+        break;
+    }
+
+    sys.pushEvent(std::make_unique<GHOST_EventIMEWeb>(
+        sys.getMilliSeconds(), event_type, sys.activeWindow(), std::move(data)));
+    g_ime_consumed.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+#endif /* WITH_INPUT_IME */
 
 GHOST_TButton button_from_dom(unsigned short dom_button)
 {

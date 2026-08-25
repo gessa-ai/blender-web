@@ -313,6 +313,161 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
+#ifdef WITH_INPUT_IME
+  /* Browser composition events originate on the DOM main thread, while the
+   * GHOST event manager is owned by the WM worker. Keep the browser's real text
+   * input focused at Blender's requested caret rectangle and publish owned UTF-8
+   * messages into EventBridgeWeb's bounded SPSC queue. The WM worker drains that
+   * queue from processEvents(); no GHOST object is touched cross-thread. */
+  MAIN_THREAD_EM_ASM({
+    if (typeof globalThis.__bwImeBridge !== "object") {
+      var input = document.createElement("textarea");
+      input.id = "bw-ime-input";
+      input.tabIndex = -1;
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.setAttribute("aria-hidden", "true");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      input.style.pointerEvents = "none";
+      input.style.border = "0";
+      input.style.padding = "0";
+      input.style.margin = "0";
+      input.style.outline = "0";
+      input.style.resize = "none";
+      input.style.overflow = "hidden";
+      input.style.zIndex = "-1";
+      document.body.appendChild(input);
+
+      var enabled = false;
+      var composing = false;
+      var sequence = 0;
+      var accepted = 0;
+      var rejected = 0;
+      var lastKind = "none";
+      var lastUtf8Bytes = 0;
+      var activeCanvas = null;
+
+      var publish = function (kind, text, cursorPosition, targetStart, targetEnd) {
+        text = String(text || "");
+        var size = lengthBytesUTF8(text) + 1;
+        var pointer = _malloc(size);
+        var ok = 0;
+        if (pointer) {
+          stringToUTF8(text, pointer, size);
+          var publishFunction = Module["_bw_shell_ime_publish"];
+          if (typeof publishFunction === "function") {
+            ok = publishFunction(
+                kind, pointer, size - 1, cursorPosition, targetStart, targetEnd);
+          }
+          _free(pointer);
+        }
+        sequence += 1;
+        lastKind = kind === 0 ? "start" :
+                   kind === 1 ? "update" :
+                   kind === 2 ? "commit" :
+                   kind === 3 ? "end" : "invalid";
+        lastUtf8Bytes = size - 1;
+        if (ok) {
+          accepted += 1;
+        }
+        else {
+          rejected += 1;
+        }
+        return ok === 1;
+      };
+
+      input.addEventListener("compositionstart", function (event) {
+        if (!enabled) {
+          return;
+        }
+        composing = true;
+        var text = event.data || "";
+        publish(0, text, lengthBytesUTF8(text), -1, -1);
+      });
+      input.addEventListener("compositionupdate", function (event) {
+        if (!enabled) {
+          return;
+        }
+        var text = event.data || "";
+        publish(1, text, lengthBytesUTF8(text), -1, -1);
+      });
+      input.addEventListener("compositionend", function (event) {
+        if (!enabled) {
+          return;
+        }
+        var text = event.data || "";
+        publish(2, text, -1, -1, -1);
+        publish(3, "", -1, -1, -1);
+        composing = false;
+        queueMicrotask(function () {
+          if (!composing) {
+            input.value = "";
+          }
+        });
+      });
+      input.addEventListener("input", function () {
+        if (!composing) {
+          input.value = "";
+        }
+      });
+
+      var api = Object.freeze({
+        schema: 1,
+        begin: function (selector, x, y, width, height, completed) {
+          activeCanvas = document.querySelector(selector);
+          if (!activeCanvas) {
+            return false;
+          }
+          enabled = true;
+          if (completed && composing) {
+            input.blur();
+            composing = false;
+          }
+          var bounds = activeCanvas.getBoundingClientRect();
+          input.style.left = Math.round(bounds.left + x) + "px";
+          input.style.top = Math.round(bounds.top + y) + "px";
+          input.style.width = Math.max(1, Math.round(width)) + "px";
+          input.style.height = Math.max(1, Math.round(height)) + "px";
+          input.focus({preventScroll: true});
+          return document.activeElement === input;
+        },
+        end: function () {
+          if (document.activeElement === input) {
+            input.blur();
+          }
+          enabled = false;
+          composing = false;
+          input.value = "";
+          if (activeCanvas && typeof activeCanvas.focus === "function") {
+            activeCanvas.focus({preventScroll: true});
+          }
+          return true;
+        },
+        snapshot: function () {
+          return {
+            schema: 1,
+            enabled: enabled,
+            composing: composing,
+            sequence: sequence,
+            accepted: accepted,
+            rejected: rejected,
+            lastKind: lastKind,
+            lastUtf8Bytes: lastUtf8Bytes,
+            focused: document.activeElement === input,
+          };
+        },
+      });
+      Object.defineProperty(globalThis, "__bwImeBridge", {
+        value: api,
+        writable: false,
+        configurable: false,
+        enumerable: false,
+      });
+    }
+  });
+#endif /* WITH_INPUT_IME */
+
   /* Text clipboard bridge. GHOST's API is synchronous, but navigator.clipboard is
    * promise-based and this system runs on the PROXY_TO_PTHREAD WM worker. Keep the
    * latest ordinary text clipboard value on the browser main thread instead:
@@ -451,6 +606,12 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
 
+#ifdef WITH_INPUT_IME
+  /* Composition messages cross from the DOM main thread through a bounded
+   * ownership queue; materialize GHOST events only here on the WM worker. */
+  ghost_web_bridge::poll_ime(*this);
+#endif
+
   /* ghost-keepalive: count every WM main-loop iteration (this is called once per tick from
    * wm_window_events_process). Exported via bw_wm_tick_count for the liveness proof. */
   g_wm_tick_count.fetch_add(1u, std::memory_order_relaxed);
@@ -584,15 +745,15 @@ GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const
 {
   /* Advertise input + windowing, mask the affordances a sandboxed canvas can't do.
    * Same posture as GHOST_SystemHeadless's mask (cursor warp, primary/image
-   * clipboard, desktop sampling, IME, decoration styles, hyper key, RGBA/generated
+   * clipboard, desktop sampling, decoration styles, hyper key, RGBA/generated
    * cursors, multi-monitor placement, window path) plus WindowPosition (a canvas
-   * has no OS-level position). IME is a documented deferral. */
+   * has no OS-level position). */
   return GHOST_TCapabilityFlag(
       GHOST_CAPABILITY_FLAG_ALL &
       ~(GHOST_kCapabilityWindowPosition | GHOST_kCapabilityCursorWarp |
         GHOST_kCapabilityClipboardPrimary | GHOST_kCapabilityClipboardImage |
-        GHOST_kCapabilityDesktopSample | GHOST_kCapabilityInputIME |
-        GHOST_kCapabilityWindowDecorationStyles | GHOST_kCapabilityKeyboardHyperKey |
+        GHOST_kCapabilityDesktopSample | GHOST_kCapabilityWindowDecorationStyles |
+        GHOST_kCapabilityKeyboardHyperKey |
         GHOST_kCapabilityCursorRGBA | GHOST_kCapabilityCursorGenerator |
         GHOST_kCapabilityMultiMonitorPlacement | GHOST_kCapabilityWindowPath));
 }

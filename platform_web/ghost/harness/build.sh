@@ -55,7 +55,7 @@ SRC+=(
 emcc \
   -pthread \
   -std=c++17 -O1 -g2 --profiling-funcs \
-  -fexceptions -funsigned-char \
+  -fexceptions -funsigned-char -DWITH_INPUT_IME \
   -I"$WEB" -I"$GHOST" -I"$GHOST/intern" \
   -I"$GA" -I"$ROOT/upstream/intern/atomic" \
   "${SRC[@]}" \

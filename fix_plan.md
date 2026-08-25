@@ -2449,11 +2449,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   product are green. Fill/pen-helper placement, object axis-target placement, particle edit, and WM
   window capture remain explicit residuals; live M5 acceptance retains its named hardware blocker.
   See `notes/m5-grease-pencil-primitive-depth-cache-continuation-20260825.md`.
-- [ ] **M5-GREASE-PENCIL-FILL-DEPTH-CACHE-CONTINUATION [driver]:** move the pixel and Delaunay
-  fill helpers' two synchronous surface/stroke cache reads behind an operation-owned bounded phase
-  before image or triangulation results consume placement; preserve exact native-ready fit,
-  boundary, fill-point, and result semantics. Pen-helper placement remains a separate follow-up.
-  **blocked-by: none.**
+- [x] **M5-GREASE-PENCIL-FILL-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE
+  (`340a412`, patch 0270; Linux receipts `20260825T042956-838065`/
+  `20260825T042859-837447`): the fill operator now owns one exact click and full-viewport
+  placement request before editable drawings, pixel images, or Delaunay results exist. Both solvers
+  consume the same ready placement through explicit helper parameters; non-depth, native-ready,
+  and initial-failure fallback remain immediate. Eight native/wasm32 contracts and 28 cases are
+  byte-identical, 12 source mutations fail closed, and exact native/wasm product translation units
+  plus the real windowed product are green. Pen-helper placement, object axis-target placement,
+  particle edit, and WM window capture remain explicit residuals; live M5 acceptance retains its
+  named hardware blocker. See
+  `notes/m5-grease-pencil-fill-depth-cache-continuation-20260825.md`.
+- [ ] **M5-GREASE-PENCIL-PEN-DEPTH-CACHE-CONTINUATION [driver]:** move the pen operation's
+  branch-identical surface/stroke synchronous cache reads behind an owned bounded initialization
+  phase before it duplicates keyframes or captures editable drawings; preserve native-ready
+  placement, layer transforms, and first-event semantics. **blocked-by: none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

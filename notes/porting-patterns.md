@@ -1273,3 +1273,22 @@ fallback, pre-projection suspension, FIFO/navigation replay, and both pre/post-i
 teardown on native and wasm32. See
 `patches/0269-m5-grease-pencil-primitive-depth-cache-continuation.patch` and
 `sandbox/m5-grease-pencil-primitive-depth-cache/`.
+
+## Class 87 — an atomic result helper needs its asynchronous prerequisite hoisted to the owner
+
+Signature: a modal operator calls one of several library helpers, and each helper performs the same
+synchronous full-viewport depth read immediately before expensive or irreversible result work.
+Starting a continuation inside the helper is too late: its borrowed arguments and partially built
+image or triangulation result cannot survive a browser tick. Construct the shared placement in the
+operator before any editable-data mutation, start its owned request there, and pass the ready
+placement explicitly through every helper signature. Retain only the exact triggering event when
+the stock operator would have completed on that event; unrelated events are swallowed rather than
+replayed into an operation that should already be terminal. Preserve non-depth, immediately ready,
+and initial-read-failure fallback on the original stack. A pending request uses one identified,
+bounded timer plus producing manager/window/screen/area/region/view/depsgraph/scene/view-layer/
+object/data/layer/frame/paint/brush guards; later failure, drift, timeout, Escape, or external
+cancellation retires the timer, event, placement, and request before any result helper runs.
+Exercise each result algorithm separately and prove that fit inputs, boundary mask, fill point, and
+solver choice remain exact across settlement. See
+`patches/0270-m5-grease-pencil-fill-depth-cache-continuation.patch` and
+`sandbox/m5-grease-pencil-fill-depth-cache/`.

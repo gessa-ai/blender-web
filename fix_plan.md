@@ -2391,6 +2391,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   both product-graph translation-unit compiles pass. This is an enabler only: depth-cache caller
   continuations and WM window capture remain open, while live M5 acceptance retains its named
   hardware blocker. See `notes/m5-depth-cache-readback-primitive-20260825.md`.
+- [x] **M5-CURVE-DRAW-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE (`2d6dd6a`,
+  patch 0265; Linux receipts `20260825T004848-645324`/`20260825T004914-645849`): both
+  `CURVE_OT_draw` and `CURVES_OT_draw` now force the stock depth pass without a synchronous cache
+  read, retain their producing context and a bounded custom-data-free event FIFO while the owned
+  cache settles, and replay through the original modal dispatcher. Native-immediate, pending
+  wait/non-wait, fallback, drift, failure, timeout, queue, Escape, and external-cancel behavior
+  passes eight byte-identical native/wasm32 contracts and 16 cases; 19 source mutations fail closed
+  and all three product-graph translation units compile. Legacy annotation, Grease Pencil surface
+  placement, object axis-target placement, and particle edit keep the depth-cache family partial;
+  WM window capture remains the other synchronous family, and live M5 acceptance retains its named
+  hardware blocker. See `notes/m5-curve-depth-cache-continuation-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

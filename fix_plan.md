@@ -2747,10 +2747,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   existing focus/disposal regressions, native/wasm32 matrix, locked product relink/no-work, OFF
   preflight, and baked-product external-loss/reacquire diagnostic are green without changing the
   nonreceipt boundary. See `notes/m4-pointer-lock-outcome-lifecycle-20260825.md`.
-- [ ] **AUDIT-R11-M4-IME-TERMINAL-RECOVERY [ghost-web, claimed_by: none, blocked-by: none]:**
-  coalesce disposable updates or reserve terminal queue capacity, then guarantee explicit
-  Commit/End/cancel recovery after saturation and allocation failure. Add native/wasm and worker
-  saturation cases before calling the composition lifecycle fail-closed.
+- [x] **AUDIT-R11-M4-IME-TERMINAL-RECOVERY [ghost-web] (`5daef5f`):** the browser-main/WM-worker
+  SPSC queue now reserves its final two slots for Commit and End, stores messages in fixed slots,
+  and publishes End/cancel without allocation. Saturation or text-allocation failure explicitly
+  cancels composition and suppresses later disposable updates; completed begin and explicit end
+  share the same recovery. Native/wasm32 allocation and saturation contracts, the real worker
+  saturation/cancel harness, integrated matrix, baked product, and fallback diagnostic are green
+  without changing the nonreceipt boundary. See `notes/m4-ime-terminal-recovery-20260825.md`.
 - [ ] **AUDIT-R11-M4-CALLBACK-REGISTRATION-EPOCH [ghost-web, claimed_by: none,
   blocked-by: none]:** replace raw-system-pointer callback ownership with a durable per-registration
   epoch/token. Prove an event queued before disposal cannot target a replacement window even when

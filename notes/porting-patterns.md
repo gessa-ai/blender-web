@@ -1186,3 +1186,19 @@ consumer has its own bounded continuation—the primitive alone does not close t
 pending and immediate completion, consume failure, replacement, invalid geometry, and producing-
 view drift on native and wasm32. See `patches/0264-m5-depth-cache-readback-primitive.patch` and
 `sandbox/m5-depth-cache-readback/`.
+
+## Class 82 — an already-overridden depth pass needs an explicit asynchronous prepare path
+
+Signature: a modal drawing tool asks the shared View3D helper for a full depth cache, but the helper
+returns early when its override flag is already set unless a synchronous output pointer forces a
+redraw. Replacing only the read with an owned request therefore risks sampling an old texture, while
+keeping the output pointer blocks the browser event loop. Factor the stock depth pass behind an
+explicit force flag and expose a draw-only prepare call that never allocates or reads a cache. Start
+the owned request immediately afterward. If it is pending, retain the producing context and a
+bounded, custom-data-free event FIFO, poll on one identified timer, then transfer the cache and
+replay through the unmodified modal dispatcher. Preserve native-immediate execution and the stock
+initial-failure fallback; context drift, unsafe payloads, overflow, timeout, backend failure,
+Escape, and external cancellation must retire timer, FIFO, and request together. Exercise both
+wait-for-input and immediate-start operators on native and wasm32. See
+`patches/0265-m5-curve-depth-cache-continuation.patch` and
+`sandbox/m5-curve-depth-cache/`.

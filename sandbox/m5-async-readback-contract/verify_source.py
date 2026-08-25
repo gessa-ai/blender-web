@@ -36,6 +36,8 @@ SOURCE_PATHS = (
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
     "source/blender/editors/include/ED_view3d.hh",
+    "source/blender/editors/curve/editcurve_paint.cc",
+    "source/blender/editors/curves/intern/curves_draw.cc",
     "source/blender/editors/mesh/editmesh_select.cc",
     "source/blender/editors/sculpt_paint/paint_intern.hh",
     "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
@@ -167,6 +169,8 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
     depth_api = sources["source/blender/editors/include/ED_view3d.hh"]
     depth_draw = sources["source/blender/editors/space_view3d/view3d_draw.cc"]
+    curve_draw = sources["source/blender/editors/curve/editcurve_paint.cc"]
+    curves_draw = sources["source/blender/editors/curves/intern/curves_draw.cc"]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
     paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
     paint_projection = sources[
@@ -1145,6 +1149,43 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in depth_cache_take, f"owned depth-cache transfer missing {needle!r}")
 
+    require(
+        "void ED_view3d_depth_override_prepare(" in depth_api,
+        "forced draw-only depth API missing",
+    )
+    depth_prepare = braced_definition(
+        depth_draw,
+        "void ED_view3d_depth_override_prepare(",
+        "forced draw-only depth implementation",
+    )
+    require(
+        "view3d_depth_override_impl(depsgraph, region, v3d, mode, use_overlay, nullptr, true);"
+        in depth_prepare,
+        "forced draw-only depth route differs",
+    )
+    for label, caller in (("curve", curve_draw), ("curves", curves_draw)):
+        for needle in (
+            "ViewportDepthCacheSession *depth_cache_session;",
+            "Vector<wmEvent> *depth_cache_events;",
+            "constexpr int max_queued_events = 256;",
+            "event->custom != 0",
+            "CTX_wm_area(C) == cdd->depth_cache_area",
+            "ED_view3d_depth_override_prepare(",
+            "ViewportDepthCacheSession::ReadbackState::Pending",
+            "constexpr int max_tick_count = 240;",
+            "cdd->depth_cache_session->take(cdd->vc.region)",
+            "curve_draw_modal_dispatch(C, op, &queued)",
+            "ot->cancel = curve_draw_cancel;",
+        ):
+            require(needle in caller, f"{label} depth-cache continuation missing {needle!r}")
+        invoke_marker = (
+            "static wmOperatorStatus curve_draw_invoke"
+            if label == "curve"
+            else "static wmOperatorStatus curves_draw_invoke"
+        )
+        invoke = braced_definition(caller, invoke_marker, f"{label} draw invoke")
+        require("&cdd->depths" not in invoke, f"{label} draw still blocks on a full depth cache")
+
     remaining_sync = {
         "depth_cache": (
             "source/blender/editors/space_view3d/view3d_draw.cc",
@@ -1592,6 +1633,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "zoom_border_continuation": True,
             "ndof_depth_continuation": True,
             "depth_cache_async_primitive": True,
+            "curve_draw_depth_cache_continuations": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
@@ -1840,6 +1882,12 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "GPU_texture_read_async(depth_tx, GPU_DATA_FLOAT, 0)",
             "GPU_texture_read(depth_tx, GPU_DATA_FLOAT, 0)",
             "depth-cache async primitive",
+        ),
+        (
+            "source/blender/editors/curve/editcurve_paint.cc",
+            "ED_view3d_depth_override_prepare(cdd->vc.depsgraph,",
+            "ED_view3d_depth_override(cdd->vc.depsgraph,",
+            "curve-draw depth-cache continuation",
         ),
     )
     for relative, old, new, label in mutations:

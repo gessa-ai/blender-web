@@ -1,0 +1,884 @@
+# SPDX-FileCopyrightText: 2023 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Ported for the web from source/blender/editors/include/ED_view3d.hh, source/blender/editors/space_view3d/view3d_draw.cc, source/blender/editors/curve/editcurve_paint.cc, and source/blender/editors/curves/intern/curves_draw.cc @ fbe6228777e7
+#
+# M5: force the stock curve surface-depth draw without a synchronous full-cache
+# read, then retain both curve operators' exact bounded event FIFO until the
+# owned cache settles or a terminal guard cancels it.
+diff --git a/source/blender/editors/include/ED_view3d.hh b/source/blender/editors/include/ED_view3d.hh
+index faf9466..c456319 100644
+--- a/source/blender/editors/include/ED_view3d.hh
++++ b/source/blender/editors/include/ED_view3d.hh
+@@ -224,6 +224,16 @@ void ED_view3d_depth_override(Depsgraph *depsgraph,
+                               eV3DDepthOverrideMode mode,
+                               bool use_overlay,
+                               ViewDepths **r_depths);
++/**
++ * Force the same depth redraw as #ED_view3d_depth_override without performing a synchronous
++ * full-texture read. Browser callers start an owned readback after this returns.
++ */
++void ED_view3d_depth_override_prepare(Depsgraph *depsgraph,
++                                      ARegion *region,
++                                      View3D *v3d,
++                                      Object *obact,
++                                      eV3DDepthOverrideMode mode,
++                                      bool use_overlay);
+ void ED_view3d_depths_free(ViewDepths *depths);
+ bool ED_view3d_depth_read_cached(const ViewDepths *vd,
+                                  const int mval[2],
+diff --git a/source/blender/editors/space_view3d/view3d_draw.cc b/source/blender/editors/space_view3d/view3d_draw.cc
+index a536b9a..182efd2 100644
+--- a/source/blender/editors/space_view3d/view3d_draw.cc
++++ b/source/blender/editors/space_view3d/view3d_draw.cc
+@@ -2821,17 +2821,17 @@ float view3d_depth_near(ViewDepths *d)
+   return view3d_depth_near_ex(d, nullptr);
+ }
+ 
+-void ED_view3d_depth_override(Depsgraph *depsgraph,
+-                              ARegion *region,
+-                              View3D *v3d,
+-                              Object * /* obact */,
+-                              eV3DDepthOverrideMode mode,
+-                              bool use_overlay,
+-                              ViewDepths **r_depths)
++static void view3d_depth_override_impl(Depsgraph *depsgraph,
++                                       ARegion *region,
++                                       View3D *v3d,
++                                       eV3DDepthOverrideMode mode,
++                                       bool use_overlay,
++                                       ViewDepths **r_depths,
++                                       const bool force_depth_update)
+ {
+   if (v3d->runtime.flag & V3D_RUNTIME_DEPTHBUF_OVERRIDDEN) {
+-    /* Force redraw if `r_depths` is required. */
+-    if (!r_depths || *r_depths != nullptr) {
++    /* Force redraw if a new synchronous or asynchronous full cache is required. */
++    if (!force_depth_update && (!r_depths || *r_depths != nullptr)) {
+       return;
+     }
+   }
+@@ -2915,6 +2915,28 @@ void ED_view3d_depth_override(Depsgraph *depsgraph,
+   ui::theme::theme_restore(&theme_state);
+ }
+ 
++void ED_view3d_depth_override(Depsgraph *depsgraph,
++                              ARegion *region,
++                              View3D *v3d,
++                              Object * /* obact */,
++                              eV3DDepthOverrideMode mode,
++                              bool use_overlay,
++                              ViewDepths **r_depths)
++{
++  view3d_depth_override_impl(
++      depsgraph, region, v3d, mode, use_overlay, r_depths, false);
++}
++
++void ED_view3d_depth_override_prepare(Depsgraph *depsgraph,
++                                      ARegion *region,
++                                      View3D *v3d,
++                                      Object * /* obact */,
++                                      eV3DDepthOverrideMode mode,
++                                      bool use_overlay)
++{
++  view3d_depth_override_impl(depsgraph, region, v3d, mode, use_overlay, nullptr, true);
++}
++
+ void ED_view3d_depths_free(ViewDepths *depths)
+ {
+   if (depths->depths) {
+diff --git a/source/blender/editors/curve/editcurve_paint.cc b/source/blender/editors/curve/editcurve_paint.cc
+index c103851..51f7270 100644
+--- a/source/blender/editors/curve/editcurve_paint.cc
++++ b/source/blender/editors/curve/editcurve_paint.cc
+@@ -1,9 +1,12 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup edcurve
++ *
++ * Ported for the web from source/blender/editors/curve/editcurve_paint.cc @ fbe6228777e7.
+  */
+ 
+ #include "DNA_object_types.h"
+@@ -16,6 +19,7 @@
+ #include "BLI_math_rotation.h"
+ #include "BLI_math_vector.h"
+ #include "BLI_mempool.h"
++#include "BLI_vector.hh"
+ 
+ #include "BLT_translation.hh"
+ 
+@@ -133,6 +137,15 @@ struct CurveDrawData {
+ 
+   ViewContext vc;
+   ViewDepths *depths;
++  ViewportDepthCacheSession *depth_cache_session;
++  Vector<wmEvent> *depth_cache_events;
++  wmWindowManager *depth_cache_manager;
++  wmTimer *depth_cache_timer;
++  wmWindow *depth_cache_window;
++  bScreen *depth_cache_screen;
++  ScrArea *depth_cache_area;
++  int depth_cache_tick_count;
++  bool depth_cache_pending;
+   CurveDrawState state;
+ 
+   /* StrokeElem */
+@@ -141,6 +154,10 @@ struct CurveDrawData {
+   void *draw_handle_view;
+ };
+ 
++static wmOperatorStatus curve_draw_modal_dispatch(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event);
++
+ static float stroke_elem_radius_from_pressure(const CurveDrawData *cdd, const float pressure)
+ {
+   const Curve *cu = id_cast<const Curve *>(cdd->vc.obedit->data);
+@@ -623,10 +640,83 @@ static bool curve_draw_init(bContext *C, wmOperator *op, bool is_invoke)
+   return true;
+ }
+ 
++static void curve_draw_depth_timer_remove(CurveDrawData *cdd)
++{
++  if (cdd->depth_cache_timer != nullptr) {
++    WM_event_timer_remove(
++        cdd->depth_cache_manager, cdd->depth_cache_window, cdd->depth_cache_timer);
++    cdd->depth_cache_timer = nullptr;
++  }
++  cdd->depth_cache_tick_count = 0;
++}
++
++static bool curve_draw_depth_context_matches(const bContext *C, const CurveDrawData *cdd)
++{
++  return CTX_wm_manager(C) == cdd->depth_cache_manager &&
++         CTX_wm_window(C) == cdd->depth_cache_window &&
++         CTX_wm_screen(C) == cdd->depth_cache_screen &&
++         CTX_wm_area(C) == cdd->depth_cache_area && CTX_wm_region(C) == cdd->vc.region &&
++         CTX_wm_region_view3d(C) == cdd->vc.rv3d && CTX_wm_view3d(C) == cdd->vc.v3d &&
++         CTX_data_scene(C) == cdd->vc.scene &&
++         CTX_data_edit_object(C) == cdd->vc.obedit;
++}
++
++static bool curve_draw_depth_event_push(CurveDrawData *cdd, const wmEvent *event)
++{
++  constexpr int max_queued_events = 256;
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr ||
++      cdd->depth_cache_events == nullptr ||
++      cdd->depth_cache_events->size() >= max_queued_events)
++  {
++    return false;
++  }
++
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  cdd->depth_cache_events->append(queued);
++  return true;
++}
++
++static bool curve_draw_depth_wait_begin(bContext *C, CurveDrawData *cdd)
++{
++  cdd->depth_cache_manager = CTX_wm_manager(C);
++  cdd->depth_cache_window = CTX_wm_window(C);
++  cdd->depth_cache_screen = CTX_wm_screen(C);
++  cdd->depth_cache_area = CTX_wm_area(C);
++  if (ELEM(nullptr,
++           cdd->depth_cache_manager,
++           cdd->depth_cache_window,
++           cdd->depth_cache_screen,
++           cdd->depth_cache_area))
++  {
++    return false;
++  }
++
++  cdd->depth_cache_events = MEM_new<Vector<wmEvent>>(__func__);
++  cdd->depth_cache_timer = WM_event_timer_add(
++      cdd->depth_cache_manager, cdd->depth_cache_window, TIMER, 0.01f);
++  if (cdd->depth_cache_timer == nullptr) {
++    MEM_SAFE_DELETE(cdd->depth_cache_events);
++    return false;
++  }
++  cdd->depth_cache_pending = true;
++  cdd->depth_cache_tick_count = 0;
++  return true;
++}
++
+ static void curve_draw_exit(wmOperator *op)
+ {
+   CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
+   if (cdd) {
++    curve_draw_depth_timer_remove(cdd);
++    MEM_SAFE_DELETE(cdd->depth_cache_events);
++    MEM_SAFE_DELETE(cdd->depth_cache_session);
++
+     if (cdd->draw_handle_view) {
+       ED_region_draw_cb_exit(cdd->vc.region->runtime->type, cdd->draw_handle_view);
+       WM_cursor_modal_restore(cdd->vc.win);
+@@ -1061,6 +1151,109 @@ static wmOperatorStatus curve_draw_exec(bContext *C, wmOperator *op)
+   return OPERATOR_FINISHED;
+ }
+ 
++static void curve_draw_project_finalize(CurveDrawData *cdd)
++{
++  RegionView3D *rv3d = cdd->vc.rv3d;
++  Object *obedit = cdd->vc.obedit;
++  Curve *cu = id_cast<Curve *>(obedit->data);
++  const float *plane_no = nullptr;
++  const float *plane_co = nullptr;
++
++  if (CU_IS_2D(cu)) {
++    /* 2D overrides other options. */
++    plane_co = obedit->object_to_world().location();
++    plane_no = obedit->object_to_world().ptr()[2];
++    cdd->project.use_plane = true;
++  }
++  else {
++    /* Use the view plane when requested or as a fallback when surface depth is unavailable. */
++    if (!cdd->project.use_depth) {
++      plane_co = cdd->vc.scene->cursor.location;
++      plane_no = rv3d->viewinv[2];
++      cdd->project.use_plane = true;
++    }
++    if (cdd->project.use_depth && cdd->curve_type != CU_POLY) {
++      cdd->sample.use_substeps = true;
++    }
++  }
++
++  if (cdd->project.use_plane) {
++    normalize_v3_v3(cdd->project.plane, plane_no);
++    cdd->project.plane[3] = -dot_v3v3(cdd->project.plane, plane_co);
++  }
++}
++
++static wmOperatorStatus curve_draw_depth_poll(bContext *C,
++                                              wmOperator *op,
++                                              const wmEvent *event)
++{
++  CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
++  if (cdd == nullptr || !cdd->depth_cache_pending ||
++      !curve_draw_depth_context_matches(C, cdd))
++  {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting for curve depth cache");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  if (ELEM(event->type, EVT_ESCKEY, RIGHTMOUSE)) {
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != cdd->depth_cache_timer) {
++    if (event->type == TIMER) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (!curve_draw_depth_event_push(cdd, event)) {
++      BKE_report(op->reports, RPT_ERROR, "Curve depth event queue exceeded its safe bound");
++      curve_draw_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++cdd->depth_cache_tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for curve depth cache");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = cdd->depth_cache_session->state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ViewportDepthCacheSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Curve depth cache readback failed");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  cdd->depths = cdd->depth_cache_session->take(cdd->vc.region);
++  if (cdd->depths == nullptr) {
++    BKE_report(op->reports, RPT_ERROR, "Curve depth cache became stale before settlement");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  cdd->project.use_depth = true;
++  cdd->depth_cache_pending = false;
++  MEM_SAFE_DELETE(cdd->depth_cache_session);
++  curve_draw_project_finalize(cdd);
++  curve_draw_depth_timer_remove(cdd);
++
++  Vector<wmEvent> *queued_events = cdd->depth_cache_events;
++  cdd->depth_cache_events = nullptr;
++  for (const wmEvent &queued : *queued_events) {
++    const wmOperatorStatus result = curve_draw_modal_dispatch(C, op, &queued);
++    if (result != OPERATOR_RUNNING_MODAL) {
++      MEM_delete(queued_events);
++      return result;
++    }
++  }
++  MEM_delete(queued_events);
++  return OPERATOR_RUNNING_MODAL;
++}
++
+ static wmOperatorStatus curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   if (RNA_struct_property_is_set(op->ptr, "stroke")) {
+@@ -1090,68 +1283,61 @@ static wmOperatorStatus curve_draw_invoke(bContext *C, wmOperator *op, const wmE
+       cdd->vc.region->runtime->type, curve_draw_stroke_3d, op, REGION_DRAW_POST_VIEW);
+   WM_cursor_modal_set(cdd->vc.win, WM_CURSOR_PAINT_BRUSH);
+ 
++  Curve *cu = id_cast<Curve *>(cdd->vc.obedit->data);
++  if (!CU_IS_2D(cu) && cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE &&
++      cdd->vc.v3d->shading.type > OB_WIRE)
+   {
+-    View3D *v3d = cdd->vc.v3d;
+-    RegionView3D *rv3d = cdd->vc.rv3d;
+-    Object *obedit = cdd->vc.obedit;
+-    Curve *cu = id_cast<Curve *>(obedit->data);
+-
+-    const float *plane_no = nullptr;
+-    const float *plane_co = nullptr;
++    /* Needed or else the draw matrix can be incorrect. */
++    view3d_operator_needs_gpu(C);
+ 
+-    if (CU_IS_2D(cu)) {
+-      /* 2D overrides other options */
+-      plane_co = obedit->object_to_world().location();
+-      plane_no = obedit->object_to_world().ptr()[2];
+-      cdd->project.use_plane = true;
++    eV3DDepthOverrideMode depth_mode = V3D_DEPTH_ALL;
++    if (cps->flag & CURVE_PAINT_FLAG_DEPTH_ONLY_SELECTED) {
++      depth_mode = V3D_DEPTH_SELECTED_ONLY;
+     }
+-    else {
+-      if ((cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE) && (v3d->shading.type > OB_WIRE)) {
+-        /* needed or else the draw matrix can be incorrect */
+-        view3d_operator_needs_gpu(C);
+-
+-        eV3DDepthOverrideMode depth_mode = V3D_DEPTH_ALL;
+-        if (cps->flag & CURVE_PAINT_FLAG_DEPTH_ONLY_SELECTED) {
+-          depth_mode = V3D_DEPTH_SELECTED_ONLY;
+-        }
+ 
+-        ED_view3d_depth_override(cdd->vc.depsgraph,
+-                                 cdd->vc.region,
+-                                 cdd->vc.v3d,
+-                                 nullptr,
+-                                 depth_mode,
+-                                 false,
+-                                 &cdd->depths);
+-
+-        if (cdd->depths != nullptr) {
+-          cdd->project.use_depth = true;
+-        }
+-        else {
+-          BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
+-          cdd->project.use_depth = false;
+-        }
+-      }
+-
+-      /* use view plane (when set or as a fallback when surface can't be found) */
+-      if (cdd->project.use_depth == false) {
+-        plane_co = cdd->vc.scene->cursor.location;
+-        plane_no = rv3d->viewinv[2];
+-        cdd->project.use_plane = true;
++    ED_view3d_depth_override_prepare(cdd->vc.depsgraph,
++                                     cdd->vc.region,
++                                     cdd->vc.v3d,
++                                     nullptr,
++                                     depth_mode,
++                                     false);
++    cdd->depth_cache_session = MEM_new<ViewportDepthCacheSession>(__func__);
++    if (cdd->depth_cache_session->init(cdd->vc.region)) {
++      const ViewportDepthCacheSession::ReadbackState state = cdd->depth_cache_session->state();
++      if (state == ViewportDepthCacheSession::ReadbackState::Ready) {
++        cdd->depths = cdd->depth_cache_session->take(cdd->vc.region);
++        cdd->project.use_depth = cdd->depths != nullptr;
++        MEM_SAFE_DELETE(cdd->depth_cache_session);
+       }
+-
+-      if (cdd->project.use_depth && (cdd->curve_type != CU_POLY)) {
+-        cdd->sample.use_substeps = true;
++      else if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++        if (!curve_draw_depth_wait_begin(C, cdd)) {
++          MEM_SAFE_DELETE(cdd->depth_cache_session);
++        }
+       }
+     }
+-
+-    if (cdd->project.use_plane) {
+-      normalize_v3_v3(cdd->project.plane, plane_no);
+-      cdd->project.plane[3] = -dot_v3v3(cdd->project.plane, plane_co);
++    else {
++      MEM_SAFE_DELETE(cdd->depth_cache_session);
+     }
++    if (!cdd->project.use_depth && !cdd->depth_cache_pending) {
++      BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
++    }
++  }
++
++  if (!cdd->depth_cache_pending) {
++    curve_draw_project_finalize(cdd);
+   }
+ 
+   if (is_modal == false) {
+-    curve_draw_event_add_first(op, event);
++    if (cdd->depth_cache_pending) {
++      if (!curve_draw_depth_event_push(cdd, event)) {
++        BKE_report(op->reports, RPT_ERROR, "Unable to retain curve draw event during readback");
++        curve_draw_exit(op);
++        return OPERATOR_CANCELLED;
++      }
++    }
++    else {
++      curve_draw_event_add_first(op, event);
++    }
+   }
+ 
+   /* add temp handler */
+@@ -1165,14 +1351,14 @@ static void curve_draw_cancel(bContext * /*C*/, wmOperator *op)
+   curve_draw_exit(op);
+ }
+ 
+-/* Modal event handling of frame changing */
+-static wmOperatorStatus curve_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
++/* Modal event handling of frame changing. */
++static wmOperatorStatus curve_draw_modal_dispatch(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event)
+ {
+   wmOperatorStatus ret = OPERATOR_RUNNING_MODAL;
+   CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
+ 
+-  UNUSED_VARS(C, op);
+-
+   if (event->type == cdd->init_event_type) {
+     if (event->val == KM_RELEASE) {
+       ED_region_tag_redraw(cdd->vc.region);
+@@ -1208,6 +1394,18 @@ static wmOperatorStatus curve_draw_modal(bContext *C, wmOperator *op, const wmEv
+   return ret;
+ }
+ 
++static wmOperatorStatus curve_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
++{
++  CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
++  if (cdd == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++  if (cdd->depth_cache_pending) {
++    return curve_draw_depth_poll(C, op, event);
++  }
++  return curve_draw_modal_dispatch(C, op, event);
++}
++
+ void CURVE_OT_draw(wmOperatorType *ot)
+ {
+   /* identifiers */
+diff --git a/source/blender/editors/curves/intern/curves_draw.cc b/source/blender/editors/curves/intern/curves_draw.cc
+index 8aa9466..de4e62a 100644
+--- a/source/blender/editors/curves/intern/curves_draw.cc
++++ b/source/blender/editors/curves/intern/curves_draw.cc
+@@ -1,13 +1,17 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
++/* Ported for the web from source/blender/editors/curves/intern/curves_draw.cc @ fbe6228777e7. */
++
+ #include "DNA_curve_types.h"
+ 
+ #include "BLI_math_matrix.h"
+ #include "BLI_math_rotation.h"
+ #include "BLI_math_vector.h"
+ #include "BLI_mempool.h"
++#include "BLI_vector.hh"
+ 
+ #include "BLT_translation.hh"
+ 
+@@ -121,6 +125,15 @@ struct CurveDrawData {
+ 
+   ViewContext vc;
+   ViewDepths *depths;
++  ViewportDepthCacheSession *depth_cache_session;
++  Vector<wmEvent> *depth_cache_events;
++  wmWindowManager *depth_cache_manager;
++  wmTimer *depth_cache_timer;
++  wmWindow *depth_cache_window;
++  bScreen *depth_cache_screen;
++  ScrArea *depth_cache_area;
++  int depth_cache_tick_count;
++  bool depth_cache_pending;
+   CurveDrawState state;
+ 
+   /* StrokeElem */
+@@ -129,6 +142,10 @@ struct CurveDrawData {
+   void *draw_handle_view;
+ };
+ 
++static wmOperatorStatus curve_draw_modal_dispatch(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event);
++
+ static float stroke_elem_radius_from_pressure(const CurveDrawData *cdd, const float pressure)
+ {
+   return ((pressure * cdd->radius.range) + cdd->radius.min) * cdd->bevel_radius;
+@@ -558,10 +575,83 @@ static void curve_draw_event_add_first(wmOperator *op, const wmEvent *event)
+   cdd->state = CURVE_DRAW_PAINTING;
+ }
+ 
++static void curve_draw_depth_timer_remove(CurveDrawData *cdd)
++{
++  if (cdd->depth_cache_timer != nullptr) {
++    WM_event_timer_remove(
++        cdd->depth_cache_manager, cdd->depth_cache_window, cdd->depth_cache_timer);
++    cdd->depth_cache_timer = nullptr;
++  }
++  cdd->depth_cache_tick_count = 0;
++}
++
++static bool curve_draw_depth_context_matches(const bContext *C, const CurveDrawData *cdd)
++{
++  return CTX_wm_manager(C) == cdd->depth_cache_manager &&
++         CTX_wm_window(C) == cdd->depth_cache_window &&
++         CTX_wm_screen(C) == cdd->depth_cache_screen &&
++         CTX_wm_area(C) == cdd->depth_cache_area && CTX_wm_region(C) == cdd->vc.region &&
++         CTX_wm_region_view3d(C) == cdd->vc.rv3d && CTX_wm_view3d(C) == cdd->vc.v3d &&
++         CTX_data_scene(C) == cdd->vc.scene &&
++         CTX_data_edit_object(C) == cdd->vc.obedit;
++}
++
++static bool curve_draw_depth_event_push(CurveDrawData *cdd, const wmEvent *event)
++{
++  constexpr int max_queued_events = 256;
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr ||
++      cdd->depth_cache_events == nullptr ||
++      cdd->depth_cache_events->size() >= max_queued_events)
++  {
++    return false;
++  }
++
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  cdd->depth_cache_events->append(queued);
++  return true;
++}
++
++static bool curve_draw_depth_wait_begin(bContext *C, CurveDrawData *cdd)
++{
++  cdd->depth_cache_manager = CTX_wm_manager(C);
++  cdd->depth_cache_window = CTX_wm_window(C);
++  cdd->depth_cache_screen = CTX_wm_screen(C);
++  cdd->depth_cache_area = CTX_wm_area(C);
++  if (ELEM(nullptr,
++           cdd->depth_cache_manager,
++           cdd->depth_cache_window,
++           cdd->depth_cache_screen,
++           cdd->depth_cache_area))
++  {
++    return false;
++  }
++
++  cdd->depth_cache_events = MEM_new<Vector<wmEvent>>(__func__);
++  cdd->depth_cache_timer = WM_event_timer_add(
++      cdd->depth_cache_manager, cdd->depth_cache_window, TIMER, 0.01f);
++  if (cdd->depth_cache_timer == nullptr) {
++    MEM_SAFE_DELETE(cdd->depth_cache_events);
++    return false;
++  }
++  cdd->depth_cache_pending = true;
++  cdd->depth_cache_tick_count = 0;
++  return true;
++}
++
+ static void curve_draw_exit(wmOperator *op)
+ {
+   CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
+   if (cdd) {
++    curve_draw_depth_timer_remove(cdd);
++    MEM_SAFE_DELETE(cdd->depth_cache_events);
++    MEM_SAFE_DELETE(cdd->depth_cache_session);
++
+     if (cdd->draw_handle_view) {
+       ED_region_draw_cb_exit(cdd->vc.region->runtime->type, cdd->draw_handle_view);
+       WM_cursor_modal_restore(cdd->vc.win);
+@@ -1046,6 +1136,108 @@ static wmOperatorStatus curves_draw_exec(bContext *C, wmOperator *op)
+   return OPERATOR_FINISHED;
+ }
+ 
++static void curve_draw_project_finalize(CurveDrawData *cdd)
++{
++  RegionView3D *rv3d = cdd->vc.rv3d;
++  Object *obedit = cdd->vc.obedit;
++  const float *plane_no = nullptr;
++  const float *plane_co = nullptr;
++
++  if (cdd->is_curve_2d) {
++    /* 2D overrides other options. */
++    plane_co = obedit->object_to_world().location();
++    plane_no = obedit->object_to_world().ptr()[2];
++    cdd->project.use_plane = true;
++  }
++  else {
++    /* Use the view plane when requested or as a fallback when surface depth is unavailable. */
++    if (!cdd->project.use_depth) {
++      plane_co = cdd->vc.scene->cursor.location;
++      plane_no = rv3d->viewinv[2];
++      cdd->project.use_plane = true;
++    }
++    if (cdd->project.use_depth && cdd->curve_type != CU_POLY) {
++      cdd->sample.use_substeps = true;
++    }
++  }
++
++  if (cdd->project.use_plane) {
++    normalize_v3_v3(cdd->project.plane, plane_no);
++    cdd->project.plane[3] = -dot_v3v3(cdd->project.plane, plane_co);
++  }
++}
++
++static wmOperatorStatus curve_draw_depth_poll(bContext *C,
++                                              wmOperator *op,
++                                              const wmEvent *event)
++{
++  CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
++  if (cdd == nullptr || !cdd->depth_cache_pending ||
++      !curve_draw_depth_context_matches(C, cdd))
++  {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting for curve depth cache");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  if (ELEM(event->type, EVT_ESCKEY, RIGHTMOUSE)) {
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != cdd->depth_cache_timer) {
++    if (event->type == TIMER) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (!curve_draw_depth_event_push(cdd, event)) {
++      BKE_report(op->reports, RPT_ERROR, "Curve depth event queue exceeded its safe bound");
++      curve_draw_exit(op);
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++cdd->depth_cache_tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for curve depth cache");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = cdd->depth_cache_session->state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ViewportDepthCacheSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Curve depth cache readback failed");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  cdd->depths = cdd->depth_cache_session->take(cdd->vc.region);
++  if (cdd->depths == nullptr) {
++    BKE_report(op->reports, RPT_ERROR, "Curve depth cache became stale before settlement");
++    curve_draw_exit(op);
++    return OPERATOR_CANCELLED;
++  }
++  cdd->project.use_depth = true;
++  cdd->depth_cache_pending = false;
++  MEM_SAFE_DELETE(cdd->depth_cache_session);
++  curve_draw_project_finalize(cdd);
++  curve_draw_depth_timer_remove(cdd);
++
++  Vector<wmEvent> *queued_events = cdd->depth_cache_events;
++  cdd->depth_cache_events = nullptr;
++  for (const wmEvent &queued : *queued_events) {
++    const wmOperatorStatus result = curve_draw_modal_dispatch(C, op, &queued);
++    if (result != OPERATOR_RUNNING_MODAL) {
++      MEM_delete(queued_events);
++      return result;
++    }
++  }
++  MEM_delete(queued_events);
++  return OPERATOR_RUNNING_MODAL;
++}
++
+ static wmOperatorStatus curves_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   if (RNA_struct_property_is_set(op->ptr, "stroke")) {
+@@ -1075,67 +1267,60 @@ static wmOperatorStatus curves_draw_invoke(bContext *C, wmOperator *op, const wm
+       cdd->vc.region->runtime->type, curve_draw_stroke_3d, op, REGION_DRAW_POST_VIEW);
+   WM_cursor_modal_set(cdd->vc.win, WM_CURSOR_PAINT_BRUSH);
+ 
++  if (!cdd->is_curve_2d && cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE &&
++      cdd->vc.v3d->shading.type > OB_WIRE)
+   {
+-    View3D *v3d = cdd->vc.v3d;
+-    RegionView3D *rv3d = cdd->vc.rv3d;
+-    Object *obedit = cdd->vc.obedit;
+-
+-    const float *plane_no = nullptr;
+-    const float *plane_co = nullptr;
++    /* Needed or else the draw matrix can be incorrect. */
++    view3d_operator_needs_gpu(C);
+ 
+-    if (cdd->is_curve_2d) {
+-      /* 2D overrides other options */
+-      plane_co = obedit->object_to_world().location();
+-      plane_no = obedit->object_to_world().ptr()[2];
+-      cdd->project.use_plane = true;
++    eV3DDepthOverrideMode depth_mode = V3D_DEPTH_ALL;
++    if (cps->flag & CURVE_PAINT_FLAG_DEPTH_ONLY_SELECTED) {
++      depth_mode = V3D_DEPTH_SELECTED_ONLY;
+     }
+-    else {
+-      if ((cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE) && (v3d->shading.type > OB_WIRE)) {
+-        /* needed or else the draw matrix can be incorrect */
+-        view3d_operator_needs_gpu(C);
+-
+-        eV3DDepthOverrideMode depth_mode = V3D_DEPTH_ALL;
+-        if (cps->flag & CURVE_PAINT_FLAG_DEPTH_ONLY_SELECTED) {
+-          depth_mode = V3D_DEPTH_SELECTED_ONLY;
+-        }
+-
+-        ED_view3d_depth_override(cdd->vc.depsgraph,
+-                                 cdd->vc.region,
+-                                 cdd->vc.v3d,
+-                                 nullptr,
+-                                 depth_mode,
+-                                 false,
+-                                 &cdd->depths);
+-
+-        if (cdd->depths != nullptr) {
+-          cdd->project.use_depth = true;
+-        }
+-        else {
+-          BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
+-          cdd->project.use_depth = false;
+-        }
+-      }
+ 
+-      /* use view plane (when set or as a fallback when surface can't be found) */
+-      if (cdd->project.use_depth == false) {
+-        plane_co = cdd->vc.scene->cursor.location;
+-        plane_no = rv3d->viewinv[2];
+-        cdd->project.use_plane = true;
++    ED_view3d_depth_override_prepare(cdd->vc.depsgraph,
++                                     cdd->vc.region,
++                                     cdd->vc.v3d,
++                                     nullptr,
++                                     depth_mode,
++                                     false);
++    cdd->depth_cache_session = MEM_new<ViewportDepthCacheSession>(__func__);
++    if (cdd->depth_cache_session->init(cdd->vc.region)) {
++      const ViewportDepthCacheSession::ReadbackState state = cdd->depth_cache_session->state();
++      if (state == ViewportDepthCacheSession::ReadbackState::Ready) {
++        cdd->depths = cdd->depth_cache_session->take(cdd->vc.region);
++        cdd->project.use_depth = cdd->depths != nullptr;
++        MEM_SAFE_DELETE(cdd->depth_cache_session);
+       }
+-
+-      if (cdd->project.use_depth && (cdd->curve_type != CU_POLY)) {
+-        cdd->sample.use_substeps = true;
++      else if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++        if (!curve_draw_depth_wait_begin(C, cdd)) {
++          MEM_SAFE_DELETE(cdd->depth_cache_session);
++        }
+       }
+     }
+-
+-    if (cdd->project.use_plane) {
+-      normalize_v3_v3(cdd->project.plane, plane_no);
+-      cdd->project.plane[3] = -dot_v3v3(cdd->project.plane, plane_co);
++    else {
++      MEM_SAFE_DELETE(cdd->depth_cache_session);
+     }
++    if (!cdd->project.use_depth && !cdd->depth_cache_pending) {
++      BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
++    }
++  }
++
++  if (!cdd->depth_cache_pending) {
++    curve_draw_project_finalize(cdd);
+   }
+ 
+   if (is_modal == false) {
+-    curve_draw_event_add_first(op, event);
++    if (cdd->depth_cache_pending) {
++      if (!curve_draw_depth_event_push(cdd, event)) {
++        BKE_report(op->reports, RPT_ERROR, "Unable to retain curve draw event during readback");
++        curve_draw_exit(op);
++        return OPERATOR_CANCELLED;
++      }
++    }
++    else {
++      curve_draw_event_add_first(op, event);
++    }
+   }
+ 
+   /* add temp handler */
+@@ -1270,13 +1455,13 @@ static void curve_draw_exec_precalc(wmOperator *op)
+   }
+ }
+ 
+-static wmOperatorStatus curves_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
++static wmOperatorStatus curve_draw_modal_dispatch(bContext *C,
++                                                  wmOperator *op,
++                                                  const wmEvent *event)
+ {
+   wmOperatorStatus ret = OPERATOR_RUNNING_MODAL;
+   CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
+ 
+-  UNUSED_VARS(C, op);
+-
+   if (event->type == cdd->init_event_type) {
+     if (event->val == KM_RELEASE) {
+       ED_region_tag_redraw(cdd->vc.region);
+@@ -1312,6 +1497,18 @@ static wmOperatorStatus curves_draw_modal(bContext *C, wmOperator *op, const wmE
+   return ret;
+ }
+ 
++static wmOperatorStatus curves_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
++{
++  CurveDrawData *cdd = static_cast<CurveDrawData *>(op->customdata);
++  if (cdd == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++  if (cdd->depth_cache_pending) {
++    return curve_draw_depth_poll(C, op, event);
++  }
++  return curve_draw_modal_dispatch(C, op, event);
++}
++
+ void CURVES_OT_draw(wmOperatorType *ot)
+ {
+   ot->name = "Draw Curves";
+@@ -1320,6 +1517,7 @@ void CURVES_OT_draw(wmOperatorType *ot)
+ 
+   ot->exec = curves_draw_exec;
+   ot->invoke = curves_draw_invoke;
++  ot->cancel = curve_draw_cancel;
+   ot->modal = curves_draw_modal;
+   ot->poll = editable_curves_in_edit_mode_poll;
+ 
+

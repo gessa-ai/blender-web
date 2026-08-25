@@ -161,7 +161,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     removals = (
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEMOVE", "cb_mousemove"),
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEDOWN", "cb_mousebtn"),
-        ("canvas", "EMSCRIPTEN_EVENT_MOUSEUP", "cb_mousebtn"),
+        ("window", "EMSCRIPTEN_EVENT_MOUSEUP", "cb_mousebtn"),
         ("canvas", "EMSCRIPTEN_EVENT_WHEEL", "cb_wheel"),
         ("canvas", "EMSCRIPTEN_EVENT_CONTEXTMENU", "cb_contextmenu"),
         ("canvas", "EMSCRIPTEN_EVENT_FOCUS", "cb_focus"),

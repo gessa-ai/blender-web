@@ -95,7 +95,42 @@ bool cb_mousebtn(int t, const EmscriptenMouseEvent *e, void *ud)
   if (system == nullptr) {
     return false;
   }
-  ghost_web_bridge::on_mouse_button(*system, t, *e);
+
+  EmscriptenMouseEvent event = *e;
+  if (t == EMSCRIPTEN_EVENT_MOUSEUP) {
+    const GHOST_TButton button = ghost_web_bridge::button_from_dom(e->button);
+    bool held = false;
+    if (button == GHOST_kButtonMaskNone ||
+        system->getButtonState(button, held) != GHOST_kSuccess || !held)
+    {
+      /* Mouse-up is registered on `window` so a Blender-owned drag cannot lose
+       * its terminal release after leaving the canvas. Do not turn unrelated
+       * page releases into GHOST input or consume their browser defaults. */
+      return false;
+    }
+
+    /* A window-targeted Emscripten event reports targetX/Y relative to the
+     * viewport. Translate it back to the canvas coordinate contract used by
+     * EventBridgeWeb; the shipping canvas begins at zero, while gate and harness
+     * layouts can be offset. Match Emscripten's integer rect truncation. */
+    const char *selector = system->canvasSelector().c_str();
+    const int canvas_left = MAIN_THREAD_EM_ASM_INT(
+        {
+          const canvas = document.querySelector(UTF8ToString($0));
+          return canvas ? (canvas.getBoundingClientRect().left | 0) : 0;
+        },
+        selector);
+    const int canvas_top = MAIN_THREAD_EM_ASM_INT(
+        {
+          const canvas = document.querySelector(UTF8ToString($0));
+          return canvas ? (canvas.getBoundingClientRect().top | 0) : 0;
+        },
+        selector);
+    event.targetX = e->clientX - canvas_left;
+    event.targetY = e->clientY - canvas_top;
+  }
+
+  ghost_web_bridge::on_mouse_button(*system, t, event);
   return true;
 }
 bool cb_wheel(int /*t*/, const EmscriptenWheelEvent *e, void *ud)
@@ -241,7 +276,7 @@ bool remove_html5_callback_prefix(const char *canvas,
       removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
       [[fallthrough]];
     case 3:
-      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
+      removed &= remove_html5_callback(window, user_data, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
       [[fallthrough]];
     case 2:
       removed &= remove_html5_callback(
@@ -819,7 +854,10 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
             result = emscripten_set_mousedown_callback(canvas, user_data, false, cb_mousebtn);
             break;
           case 2:
-            result = emscripten_set_mouseup_callback(canvas, user_data, false, cb_mousebtn);
+            /* Capture the terminal half of a Blender-owned press across the
+             * browser viewport. cb_mousebtn filters releases with no matching
+             * tracked press, preserving ordinary page input ownership. */
+            result = emscripten_set_mouseup_callback(win, user_data, true, cb_mousebtn);
             break;
           case 3:
             result = emscripten_set_wheel_callback(canvas, user_data, false, cb_wheel);

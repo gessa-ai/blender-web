@@ -2533,7 +2533,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   deferral. The real product rebuild/no-work, OFF preflight, canonical replay, REUSE, M5 scope, and
   container-backed regression retain their strict boundaries. See
   `notes/m5-python-window-screenshot-browser-deferral-20260825.md`.
-- [x] **AUDIT-20260825-R10 [driver] (`AUDIT_COMMIT`):** adversarially reviewed exact range
+- [x] **AUDIT-20260825-R10 [driver] (`b190bbe`):** adversarially reviewed exact range
   `2d6dd6a519db13d1f8e4b479f35a59372073eb18..88572261b39a85dea9a1b8e44e9aee4f64ae4bec`
   and found zero critical, four major, and three minor presentation-validation, liveness,
   stale-producer, evidence-freshness, and process defects. Both reported P0 root fixes are

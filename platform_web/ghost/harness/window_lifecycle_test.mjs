@@ -68,7 +68,8 @@ try {
     };
 
     EventTarget.prototype.addEventListener = function (type, listener, options) {
-      if (this === window && type === "keydown" && typeof listener === "function") {
+      if (this instanceof HTMLCanvasElement && this.id === "blender-canvas" &&
+          type === "keydown" && typeof listener === "function") {
         const wrapped = function (event) {
           if (probe.armed) {
             probe.armed = false;
@@ -153,7 +154,7 @@ try {
     const snapshot = await page.evaluate(({ eventKey, eventCode }) => {
       const probe = globalThis.__bwStaleCallbackProbe;
       probe.arm();
-      window.dispatchEvent(new KeyboardEvent("keydown", {
+      document.querySelector("#blender-canvas").dispatchEvent(new KeyboardEvent("keydown", {
         key: eventKey,
         code: eventCode,
         bubbles: true,

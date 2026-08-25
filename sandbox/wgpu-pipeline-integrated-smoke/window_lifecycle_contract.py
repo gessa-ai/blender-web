@@ -72,9 +72,12 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
 
     for token in (
         "Object.defineProperty(globalThis, \"__bwStaleCallbackProbe\"",
+        "this instanceof HTMLCanvasElement",
+        "this.id === \"blender-canvas\"",
         "probe.held.push(() => listener.call(this, event));",
         "await queueOldKey(\"q\", \"KeyQ\", 1);",
         "await queueOldKey(\"w\", \"KeyW\", 2);",
+        "document.querySelector(\"#blender-canvas\").dispatchEvent(",
         "globalThis.__bwStaleCallbackProbe.deliverAll();",
         "staleLog.includes(\"KeyDown\")",
         "queued=registration-epoch repeated-replacements=2",
@@ -163,8 +166,8 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         ("canvas", "EMSCRIPTEN_EVENT_CONTEXTMENU", "cb_contextmenu"),
         ("canvas", "EMSCRIPTEN_EVENT_FOCUS", "cb_focus"),
         ("canvas", "EMSCRIPTEN_EVENT_BLUR", "cb_blur"),
-        ("window", "EMSCRIPTEN_EVENT_KEYDOWN", "cb_key"),
-        ("window", "EMSCRIPTEN_EVENT_KEYUP", "cb_key"),
+        ("canvas", "EMSCRIPTEN_EVENT_KEYDOWN", "cb_key"),
+        ("canvas", "EMSCRIPTEN_EVENT_KEYUP", "cb_key"),
         ("window", "EMSCRIPTEN_EVENT_RESIZE", "cb_resize"),
     )
     for target, event, callback in removals:

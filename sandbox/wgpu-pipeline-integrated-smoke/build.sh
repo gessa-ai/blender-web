@@ -55,6 +55,7 @@ WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
 FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
+KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
 WINDOW_LIFECYCLE_CONTRACT="$HERE/window_lifecycle_contract.py"
 WINDOW_HIT_TEST_CONTRACT="$HERE/window_hit_test_contract.py"
 CLIPBOARD_BRIDGE_CONTRACT="$HERE/clipboard_bridge_contract.py"
@@ -1715,6 +1716,10 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$GHOST_EVENT_BRIDGE_SOURCE" \
   "$GHOST_SYSTEM_SOURCE" --selfcheck
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
+"$PYBIN" "$KEYBOARD_FOCUS_CONTRACT" \
+  "$GHOST_SYSTEM_SOURCE" \
+  "$ROOT/sandbox/m4-keyboard-focus/keyboard_focus_test.mjs" \
+  "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" --selfcheck
 "$PYBIN" "$WINDOW_LIFECYCLE_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" \
   "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" \

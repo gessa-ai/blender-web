@@ -171,6 +171,10 @@ deliver their DOM release after a tab switch; Blender's existing deactivate path
 already-cleared modifier query. The source contract rejects ten state, ordering, coverage, and
 event-kind mutations, and the real worker-topology browser harness proves Ctrl+left cannot remain
 held or reappear after blur/refocus.
+Raw key listeners are registered on that focusable canvas, not on the browser window, so a DOM
+control or Blender's hidden IME textarea cannot feed the same keystroke into GHOST. The source
+contract rejects eight registration, removal, live-focus, and stale-registration mutations; the
+real worker harness requires focused delivery and suppresses key-down/up after focus moves away.
 Ordinary text clipboard traffic crosses that worker/main boundary through a main-realm cache. A
 trusted paste event publishes external UTF-8 before the queued GHOST key event is consumed, while
 Blender copy synchronously owns its borrowed pointer before starting `navigator.clipboard.writeText`.

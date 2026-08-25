@@ -209,11 +209,11 @@ bool remove_html5_callback_prefix(const char *canvas,
       [[fallthrough]];
     case 11:
       removed &= remove_html5_callback(
-          window, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
+          canvas, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
       [[fallthrough]];
     case 10:
       removed &= remove_html5_callback(
-          window, user_data, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
+          canvas, user_data, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
       [[fallthrough]];
     case 9:
       removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
@@ -843,10 +843,13 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
                 EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockerror);
             break;
           case 9:
-            result = emscripten_set_keydown_callback(win, user_data, false, cb_key);
+            /* Keyboard ownership follows DOM focus. Register on the focusable
+             * canvas rather than window so controls outside Blender and the
+             * hidden IME textarea do not also feed raw key events into GHOST. */
+            result = emscripten_set_keydown_callback(canvas, user_data, false, cb_key);
             break;
           case 10:
-            result = emscripten_set_keyup_callback(win, user_data, false, cb_key);
+            result = emscripten_set_keyup_callback(canvas, user_data, false, cb_key);
             break;
           case 11:
             result = emscripten_set_resize_callback(win, user_data, false, cb_resize);

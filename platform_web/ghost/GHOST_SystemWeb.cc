@@ -52,45 +52,98 @@
 
 namespace {
 
+/* Browser-main event listeners can already have queued a callback to the WM
+ * worker when disposal unregisters them. Validate the opaque user pointer
+ * against this atomically retired owner before dereferencing it. */
+std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};
+
+GHOST_SystemWeb *callback_system(void *user_data)
+{
+  GHOST_SystemWeb *candidate = static_cast<GHOST_SystemWeb *>(user_data);
+  return g_callback_system.load(std::memory_order_acquire) == candidate ? candidate : nullptr;
+}
+
 bool cb_mousemove(int /*t*/, const EmscriptenMouseEvent *e, void *ud)
 {
-  ghost_web_bridge::on_mouse_move(*static_cast<GHOST_SystemWeb *>(ud), *e);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_mouse_move(*system, *e);
   return true;
 }
 bool cb_mousebtn(int t, const EmscriptenMouseEvent *e, void *ud)
 {
-  ghost_web_bridge::on_mouse_button(*static_cast<GHOST_SystemWeb *>(ud), t, *e);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_mouse_button(*system, t, *e);
   return true;
 }
 bool cb_wheel(int /*t*/, const EmscriptenWheelEvent *e, void *ud)
 {
-  ghost_web_bridge::on_wheel(*static_cast<GHOST_SystemWeb *>(ud), *e);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_wheel(*system, *e);
   return true;
 }
 bool cb_key(int t, const EmscriptenKeyboardEvent *e, void *ud)
 {
-  ghost_web_bridge::on_key(*static_cast<GHOST_SystemWeb *>(ud), t, *e);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_key(*system, t, *e);
   return true;
 }
 bool cb_resize(int /*t*/, const EmscriptenUiEvent *e, void *ud)
 {
-  ghost_web_bridge::on_resize(*static_cast<GHOST_SystemWeb *>(ud), *e);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_resize(*system, *e);
   return true;
 }
 bool cb_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 {
-  ghost_web_bridge::on_focus(*static_cast<GHOST_SystemWeb *>(ud), true);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_focus(*system, true);
   return true;
 }
 bool cb_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 {
-  ghost_web_bridge::on_focus(*static_cast<GHOST_SystemWeb *>(ud), false);
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr) {
+    return false;
+  }
+  ghost_web_bridge::on_focus(*system, false);
   return true;
 }
-bool cb_contextmenu(int /*t*/, const EmscriptenMouseEvent * /*e*/, void * /*ud*/)
+bool cb_contextmenu(int /*t*/, const EmscriptenMouseEvent * /*e*/, void *ud)
 {
+  if (callback_system(ud) == nullptr) {
+    return false;
+  }
   /* Swallow the browser context menu so right-drag works. */
   return true;
+}
+
+template<typename CallbackT>
+bool remove_html5_callback(const char *target,
+                           void *user_data,
+                           const int event_type,
+                           CallbackT callback)
+{
+  return emscripten_html5_remove_event_listener(
+             target, user_data, event_type, reinterpret_cast<void *>(callback)) ==
+         EMSCRIPTEN_RESULT_SUCCESS;
 }
 
 }  // namespace
@@ -275,7 +328,14 @@ GHOST_SystemWeb::GHOST_SystemWeb(const char *canvas_selector)
 {
 }
 
-GHOST_SystemWeb::~GHOST_SystemWeb() = default;
+GHOST_SystemWeb::~GHOST_SystemWeb()
+{
+#ifdef WITH_INPUT_IME
+  ghost_web_bridge::set_ime_enabled(false);
+#endif
+  unregisterCanvasCallbacks();
+  window_ = nullptr;
+}
 
 GHOST_TSuccess GHOST_SystemWeb::init()
 {
@@ -310,6 +370,10 @@ GHOST_TSuccess GHOST_SystemWeb::init()
 
 void GHOST_SystemWeb::registerCanvasCallbacks()
 {
+  if (callbacks_registered_) {
+    return;
+  }
+  g_callback_system.store(this, std::memory_order_release);
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
@@ -597,6 +661,34 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   emscripten_set_keydown_callback(win, this, false, cb_key);
   emscripten_set_keyup_callback(win, this, false, cb_key);
   emscripten_set_resize_callback(win, this, false, cb_resize);
+  callbacks_registered_ = true;
+}
+
+void GHOST_SystemWeb::unregisterCanvasCallbacks()
+{
+  if (!callbacks_registered_) {
+    return;
+  }
+  const char *canvas = canvas_selector_.c_str();
+  const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
+  GHOST_SystemWeb *expected_system = this;
+  g_callback_system.compare_exchange_strong(
+      expected_system, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
+  bool removed = true;
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEDOWN, cb_mousebtn);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
+  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_BLUR, cb_blur);
+  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
+  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYUP, cb_key);
+  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+  callbacks_registered_ = false;
+  if (!removed) {
+    std::fprintf(stderr, "GHOST-web: one or more HTML5 callbacks failed to unregister\n");
+  }
 }
 
 bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
@@ -857,6 +949,39 @@ GHOST_TSuccess GHOST_SystemWeb::disposeContext(GHOST_IContext *context)
   return GHOST_kSuccess;
 }
 
+GHOST_TSuccess GHOST_SystemWeb::disposeWindow(GHOST_IWindow *window)
+{
+  if (window != window_ || !validWindow(window)) {
+    return GHOST_System::disposeWindow(window);
+  }
+
+  GHOST_WindowWeb *active_window = window_;
+#ifdef WITH_INPUT_IME
+  /* Blur/commit while the old window is still the event target, then materialize
+   * any synchronously published composition transitions. The base disposal below
+   * removes those window-owned events before deleting the window. */
+  active_window->endIME();
+  ghost_web_bridge::poll_ime(*this);
+#endif
+
+  /* Detach every callback-facing pointer before the base class deletes the
+   * concrete window. A queued browser event can now observe only a null active
+   * window, never freed storage. A later createWindow() rebinds the callbacks. */
+  window_ = nullptr;
+  unregisterCanvasCallbacks();
+  buttons_ = GHOST_Buttons();
+  noteModifierFlags(false, false, false, false);
+
+  const GHOST_TSuccess result = GHOST_System::disposeWindow(window);
+  if (result != GHOST_kSuccess) {
+    /* validWindow() made this path defensive-only, but keep the system usable if
+     * a platform/base failure does occur before ownership transfers. */
+    window_ = active_window;
+    registerCanvasCallbacks();
+  }
+  return result;
+}
+
 GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
                                              int32_t left,
                                              int32_t top,
@@ -885,6 +1010,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
       [&](GHOST_WindowWeb *valid_window) {
         if (window_ == nullptr) {
           window_ = valid_window;
+          redraw_heartbeat_ = 0;
           /* Bind HTML5 input to this (first) valid window's canvas. */
           canvas_selector_ = valid_window->getCanvasSelector();
           registerCanvasCallbacks();

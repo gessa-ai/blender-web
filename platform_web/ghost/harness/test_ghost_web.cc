@@ -157,6 +157,8 @@ static std::atomic<int> g_requested_cursor_grab{-1};
 static std::atomic<int> g_cursor_grab_result{-2};
 static std::atomic<int> g_requested_clipboard_operation{-1};
 static std::atomic<int> g_clipboard_result{-2};
+static std::atomic<int> g_requested_window_lifecycle{-1};
+static std::atomic<int> g_window_lifecycle_result{-2};
 #ifdef WITH_INPUT_IME
 static std::atomic<int> g_requested_ime_action{-1};
 static std::atomic<int> g_ime_result{-2};
@@ -256,6 +258,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_clipboard_result()
   return g_clipboard_result.load(std::memory_order_acquire);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_lifecycle(const int action)
+{
+  if (action < 0 || action > 1) {
+    return int(GHOST_kFailure);
+  }
+  g_window_lifecycle_result.store(-2, std::memory_order_relaxed);
+  g_requested_window_lifecycle.store(action, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_window_lifecycle_result()
+{
+  return g_window_lifecycle_result.load(std::memory_order_acquire);
+}
+
 #ifdef WITH_INPUT_IME
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_ime_capability()
 {
@@ -332,6 +349,22 @@ static bool run_clipboard_operation(const int operation)
   return false;
 }
 
+static GHOST_IWindow *create_harness_window()
+{
+  GHOST_GPUSettings gpu_settings = {};
+  gpu_settings.context_type = GHOST_kDrawingContextTypeNone;
+  return g_system->createWindow("blender-web ghost harness",
+                                0,
+                                0,
+                                800,
+                                600,
+                                GHOST_kWindowStateNormal,
+                                gpu_settings,
+                                false,
+                                false,
+                                nullptr);
+}
+
 static void main_loop_tick()
 {
   /* Top-level event pump: pull native (already-queued) events, dispatch to the
@@ -362,6 +395,36 @@ static void main_loop_tick()
       g_clipboard_result.store(run_clipboard_operation(requested_clipboard) ?
                                    int(GHOST_kSuccess) : int(GHOST_kFailure),
                                std::memory_order_release);
+    }
+    const int requested_lifecycle =
+        g_requested_window_lifecycle.exchange(-1, std::memory_order_acq_rel);
+    if (requested_lifecycle == 0) {
+      GHOST_IWindow *disposed_window = g_window;
+      int result = 0;
+      result |= (disposed_window != nullptr && g_system->activeWindow() == disposed_window) ?
+                    (1 << 0) :
+                    0;
+      const GHOST_TSuccess disposed =
+          disposed_window ? g_system->disposeWindow(disposed_window) : GHOST_kFailure;
+      result |= disposed == GHOST_kSuccess ? (1 << 1) : 0;
+      if (disposed == GHOST_kSuccess) {
+        g_window = nullptr;
+      }
+      result |= g_system->activeWindow() == nullptr ? (1 << 2) : 0;
+      result |= g_system->getWindowUnderCursor(0, 0) == nullptr ? (1 << 3) : 0;
+      g_window_lifecycle_result.store(result, std::memory_order_release);
+    }
+    else if (requested_lifecycle == 1) {
+      if (g_window == nullptr) {
+        g_window = create_harness_window();
+      }
+      int result = 0;
+      result |= g_window != nullptr ? (1 << 0) : 0;
+      result |= (g_window != nullptr && g_system->activeWindow() == g_window) ? (1 << 1) : 0;
+      result |= g_window != nullptr && g_system->getWindowUnderCursor(0, 0) == g_window ?
+                    (1 << 2) :
+                    0;
+      g_window_lifecycle_result.store(result, std::memory_order_release);
     }
 #ifdef WITH_INPUT_IME
     const int requested_ime = g_requested_ime_action.exchange(-1, std::memory_order_acq_rel);
@@ -407,11 +470,7 @@ int main()
 
   g_system->addEventConsumer(new LoggingConsumer());
 
-  GHOST_GPUSettings gpu_settings = {};
-  gpu_settings.context_type = GHOST_kDrawingContextTypeNone;
-  g_window = g_system->createWindow(
-      "blender-web ghost harness", 0, 0, 800, 600, GHOST_kWindowStateNormal, gpu_settings,
-      false, false, nullptr);
+  g_window = create_harness_window();
   if (!g_window) {
     harness_log("[harness] createWindow FAILED");
     return 1;

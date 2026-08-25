@@ -102,9 +102,12 @@ def validate(files: dict[str, str]) -> None:
         "publish(2, text, -1, -1, -1);",
         'publish(3, "", -1, -1, -1);',
         'Object.defineProperty(globalThis, "__bwImeBridge"',
-        "ghost_web_bridge::poll_ime(*this);",
     ):
         require_once(system, token, "browser composition bridge")
+    if system.count("ghost_web_bridge::poll_ime(*this);") != 2:
+        raise ValueError(
+            "browser composition bridge requires main-loop and disposal drains"
+        )
     capabilities = system[system.index("GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const") :]
     capabilities = capabilities[: capabilities.index("char *GHOST_SystemWeb::getClipboard")]
     if "GHOST_kCapabilityInputIME" in capabilities:

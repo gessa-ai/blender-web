@@ -66,6 +66,7 @@ class GHOST_SystemWeb : public GHOST_System {
 
   GHOST_IContext *createOffscreenContext(GHOST_GPUSettings gpu_settings) override;
   GHOST_TSuccess disposeContext(GHOST_IContext *context) override;
+  GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;
 
   GHOST_IWindow *createWindow(const char *title,
                               int32_t left,
@@ -119,9 +120,11 @@ class GHOST_SystemWeb : public GHOST_System {
 
  private:
   void registerCanvasCallbacks();
+  void unregisterCanvasCallbacks();
 
   std::string canvas_selector_;
   GHOST_WindowWeb *window_ = nullptr;
+  bool callbacks_registered_ = false;
 
   /* Main-loop tick counter for the redraw heartbeat (processEvents). */
   uint32_t redraw_heartbeat_ = 0;

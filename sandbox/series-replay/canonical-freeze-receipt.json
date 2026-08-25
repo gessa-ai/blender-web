@@ -11,7 +11,7 @@
     "source_real_index_pristine": true,
     "source_repository_operation_idle": true
   },
-  "created_utc": "2026-08-25T03:05:40.835096Z",
+  "created_utc": "2026-08-25T03:44:00.779050Z",
   "expected_pin": "fbe6228777e7d9afefcd61a413844e790ae75db7",
   "git_version": "git version 2.53.0",
   "ignored_worktree_paths": {
@@ -23,12 +23,12 @@
     "bytes": 3477339,
     "entries": 20258,
     "path": "live.manifest.jsonl",
-    "sha256": "691a1b812dd323dd9d6890ae5cd4d7f8ef598a26833c50a572f93975bcd346be"
+    "sha256": "7288fc64eb70b97607ff8fa02e1f8a0b4b1c7cc46a50b985fda5f47836abf742"
   },
   "patch": {
-    "bytes": 2173710,
+    "bytes": 2190506,
     "path": "canonical-source.patch",
-    "sha256": "bcf670e96390cad3f76a1d2b03f482d6b2968bd7933c964f4c1d63785c40243f"
+    "sha256": "30133a7b7631a240bd5e110999fc2b33afdb8ab91d3f269442d468a841ce551c"
   },
   "recorded_pin_file": {
     "path": "/home/pc/gessa/blender-web/oracle/PIN",
@@ -38,9 +38,9 @@
     "bytes": 3477339,
     "entries": 20258,
     "path": "replay.manifest.jsonl",
-    "sha256": "691a1b812dd323dd9d6890ae5cd4d7f8ef598a26833c50a572f93975bcd346be"
+    "sha256": "7288fc64eb70b97607ff8fa02e1f8a0b4b1c7cc46a50b985fda5f47836abf742"
   },
   "schema": 1,
-  "source": "/home/pc/gessa/blender-web/build-deps/m5-gp-compose.ieFMRy/source",
+  "source": "/home/pc/gessa/blender-web/build-deps/m5-gp-primitive-compose.r3gor9/source",
   "verdict": "PASS"
 }

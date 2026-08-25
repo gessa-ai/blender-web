@@ -1110,3 +1110,6 @@
 # 0268: retain freehand Grease Pencil surface/stroke placement and replay its
 # exact first-sample FIFO and sanitized terminal event after bounded settlement.
 0268-m5-grease-pencil-depth-cache-continuation.patch
+# 0269: suspend all six Grease Pencil primitive operators before their first
+# projected point, then replay safe modal input after bounded depth settlement.
+0269-m5-grease-pencil-primitive-depth-cache-continuation.patch

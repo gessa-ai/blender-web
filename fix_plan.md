@@ -2631,10 +2631,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rebuild/no-work, same-artifact headed fallback diagnostics, REUSE, scoped M3, and full regression
   are verified. Strict live proof retains the named s7 hardware blocker. See
   `notes/m3-context-backend-handle-registry-20260825.md`.
-- [ ] **M4-GHOST-WINDOW-ACTIVATION [ghost-web, claimed_by: agent/ghost-web-preinit-early-registration, blocked-by: none]:** replace the original bring-up stub in
-  `GHOST_WindowWeb::activateDrawingContext()` with the stock `GHOST_Window` delegation, bind the
-  exact window-to-context status path in a fail-closed source contract, and rebuild/replay the
-  windowed product without changing the hardware receipt boundary.
+- [x] **M4-GHOST-WINDOW-ACTIVATION [ghost-web] (8942b4e):** the browser window now delegates
+  activation through stock `GHOST_Window`, returning the imported WebGPU context's real device
+  status instead of the original unconditional failure stub. The fail-first/final source contract,
+  three mutations, integrated native/wasm32 matrix, locked product relink/no-work, OFF preflight,
+  sustained headed fallback diagnostic, REUSE, scoped M4, and container-backed regression are
+  verified. Live proof remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
+  `notes/m4-ghost-window-activation-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

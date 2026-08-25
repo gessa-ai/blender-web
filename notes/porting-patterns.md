@@ -1455,3 +1455,15 @@ copy the whole tuple under the same lock before using any member. Exercise coher
 teardown orders, previous-owner restoration, last-owner cleanup, and duplicate cleanup on native
 and wasm32. See `patches/0279-gpu-webgpu-context-handle-registry.patch` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 98 — a platform-window override must preserve context activation
+
+Signature: a custom platform window overrides `activateDrawingContext()` during bring-up and
+leaves an unconditional failure stub after its real drawing context begins shipping. Blender's
+window manager activates through `GHOST_IWindow`, so the override bypasses the stock
+`GHOST_Window` delegation even though the owned context implements device-aware activation.
+Delegate to `GHOST_Window::activateDrawingContext()` and propagate its exact result; do not replace
+the failure stub with unconditional success. Bind both the web override and the stock
+window-to-context call in a source contract, with hard-coded success/failure mutations, then rebuild
+the product translation unit. See `platform_web/ghost/GHOST_WindowWeb.cc` and
+`sandbox/wgpu-pipeline-integrated-smoke/window_activation_contract.py`.

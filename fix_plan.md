@@ -2437,11 +2437,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   primitive/fill/pen-helper placement, object axis-target placement, particle edit, and WM window
   capture remain explicit residuals; live M5 acceptance retains its named hardware blocker. See
   `notes/m5-grease-pencil-depth-cache-continuation-20260825.md`.
-- [ ] **M5-GREASE-PENCIL-PRIMITIVE-DEPTH-CACHE-CONTINUATION [driver]:** convert the shared invoke
-  path for all six `GREASE_PENCIL_OT_primitive_*` operators to one bounded, producing-view-guarded
-  placement continuation before the first projected control point is committed; preserve exact
-  native-immediate initialization, cursor/navigation ownership, start coordinates, and modal
-  teardown. Fill and pen-helper placement remain separate follow-ups. **blocked-by: none.**
+- [x] **M5-GREASE-PENCIL-PRIMITIVE-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE
+  (`72e1939`, patch 0269; Linux receipts `20260825T034959-802925`/
+  `20260825T034535-798854`): the shared invoke for all six `GREASE_PENCIL_OT_primitive_*`
+  operators now owns one bounded full-viewport cache request before its first projected point.
+  Invoke-time coordinates/type/subdivision plus up to 256 safe modal events remain behind one
+  producing-context-guarded 240-tick timer; settlement creates navigation, geometry, preview, and
+  modal state exactly once before FIFO replay. Native-ready, non-depth, and stock initial-failure
+  fallback paths remain immediate. Eight byte-identical native/wasm32 contracts and 28 cases pass,
+  16 mutations fail closed, and exact native/wasm product-graph compiles plus the real windowed
+  product are green. Fill/pen-helper placement, object axis-target placement, particle edit, and WM
+  window capture remain explicit residuals; live M5 acceptance retains its named hardware blocker.
+  See `notes/m5-grease-pencil-primitive-depth-cache-continuation-20260825.md`.
+- [ ] **M5-GREASE-PENCIL-FILL-DEPTH-CACHE-CONTINUATION [driver]:** move the pixel and Delaunay
+  fill helpers' two synchronous surface/stroke cache reads behind an operation-owned bounded phase
+  before image or triangulation results consume placement; preserve exact native-ready fit,
+  boundary, fill-point, and result semantics. Pen-helper placement remains a separate follow-up.
+  **blocked-by: none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

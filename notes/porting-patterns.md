@@ -1254,3 +1254,22 @@ placement cache, FIFO, and terminal event together. Exercise terminal line-end r
 from sample replay, because both paths can otherwise look complete while losing different stock
 semantics. See `patches/0268-m5-grease-pencil-depth-cache-continuation.patch` and
 `sandbox/m5-grease-pencil-depth-cache/`.
+
+## Class 86 — an invoke continuation needs a pre-initialized modal teardown
+
+Signature: one shared operator invoke blocks for a full viewport depth cache before it projects its
+first control point, creates navigation state, mutates editable geometry, or installs its preview
+callback. Move the entire post-cache tail into one ready-only helper and snapshot the invoke-time
+operator properties and start coordinates before starting the owned request. A pending request must
+still own the modal cursor, one identified timer, and a bounded custom-data-free event FIFO, but it
+must not expose navigation, drawing, preview, or control-point state until settlement. Validate the
+producing manager/window/screen/area/region/view/depsgraph/scene/object/layer/drawing/paint/brush
+identity on every owned tick, then initialize exactly once and replay retained events through the
+stock modal dispatcher. Preserve the synchronous helper's initial read-failure projection fallback;
+a later backend failure, view drift, timeout, unsafe payload, overflow, Escape, or external cancel
+uses an uninitialized exit branch that retires the timer, request, FIFO, and cursor without touching
+draw handles or geometry that do not yet exist. Exercise every operator sharing the invoke, initial
+fallback, pre-projection suspension, FIFO/navigation replay, and both pre/post-initialization
+teardown on native and wasm32. See
+`patches/0269-m5-grease-pencil-primitive-depth-cache-continuation.patch` and
+`sandbox/m5-grease-pencil-primitive-depth-cache/`.

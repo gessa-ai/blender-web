@@ -29,6 +29,12 @@ if(NOT DEFINED BW_GHOST_PRESENT_TRANSACTION_HEADER OR
   message(FATAL_ERROR
     "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header")
 endif()
+if(NOT DEFINED BW_GHOST_DISPLAY_STATE_HEADER OR
+   NOT IS_ABSOLUTE "${BW_GHOST_DISPLAY_STATE_HEADER}" OR
+   NOT EXISTS "${BW_GHOST_DISPLAY_STATE_HEADER}")
+  message(FATAL_ERROR
+    "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header")
+endif()
 
 foreach(_bw_source wgpu_pipeline.cc wgpu_pipeline.hh)
   set(_bw_source_path "${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/${_bw_source}")
@@ -94,6 +100,23 @@ target_link_options(wgpu_pipeline_integrated_smoke PRIVATE
   "-sINITIAL_MEMORY=67108864"
   "-sALLOW_MEMORY_GROWTH=1"
   "-sPTHREAD_POOL_SIZE=1"
+)
+
+add_executable(ghost_first_pixel_settle_wasm
+  "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc"
+)
+target_compile_definitions(ghost_first_pixel_settle_wasm PRIVATE
+  BW_GHOST_DISPLAY_STATE_HEADER="${BW_GHOST_DISPLAY_STATE_HEADER}"
+)
+set_target_properties(ghost_first_pixel_settle_wasm PROPERTIES
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  OUTPUT_NAME ghost_first_pixel_settle
+  SUFFIX .js
+)
+target_link_options(ghost_first_pixel_settle_wasm PRIVATE
+  "-sENVIRONMENT=node"
+  "-sEXIT_RUNTIME=1"
 )
 
 set(_bw_ghost_acquisition_lifetime_test

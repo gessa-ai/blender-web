@@ -40,6 +40,8 @@ GHOST_IME_QUEUE_HEADER="$ROOT/platform_web/ghost/GHOST_IMEQueueWeb.hh"
 GHOST_TRANSACTION_HEADER="$ROOT/platform_web/ghost/GHOST_WGPUTransaction.hh"
 GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
 GHOST_DISPLAY_HEADER="$ROOT/platform_web/ghost/GHOST_WebDisplayState.hh"
+FIRST_PIXEL_SETTLE_CONTRACT="$HERE/first_pixel_settle_contract.py"
+FIRST_PIXEL_SETTLE_TEST="$HERE/first_pixel_settle_test.cc"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
@@ -217,6 +219,8 @@ require_file "$GHOST_WINDOW_HEADER"
 require_file "$GHOST_EVENT_BRIDGE_SOURCE"
 require_file "$GHOST_IME_QUEUE_HEADER"
 require_file "$GHOST_DISPLAY_HEADER"
+require_file "$FIRST_PIXEL_SETTLE_CONTRACT"
+require_file "$FIRST_PIXEL_SETTLE_TEST"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_TYPES_SOURCE"
 require_file "$GHOST_SYSTEM_SOURCE"
@@ -1722,6 +1726,9 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/platform_web/ghost/harness/test_ghost_web.cc" \
   "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" \
   --selfcheck
+"$PYBIN" "$FIRST_PIXEL_SETTLE_CONTRACT" \
+  "$GHOST_DISPLAY_HEADER" "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" \
+  "$ROOT/upstream/source/blender/windowmanager/intern/wm_window.cc" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \
@@ -2236,10 +2243,11 @@ echo "== [1/3] canonical native render-pipeline mappings =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_PIPELINE_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
+  -DBW_GHOST_DISPLAY_STATE_HEADER="$GHOST_DISPLAY_HEADER" \
   -DBW_NATIVE_FMT_INCLUDE_DIR="$NATIVE_FMT_INCLUDE" \
   -DPython3_EXECUTABLE="$PYBIN"
 "$ROOT/scripts/ninja-locked.sh" -C "$NATIVE_BUILD" \
-  wgpu_pipeline_integrated_test ghost_acquisition_lifetime_asan
+  wgpu_pipeline_integrated_test ghost_acquisition_lifetime_asan ghost_first_pixel_settle_test
 
 echo "== [2/3] canonical Wasm render-pipeline mappings =="
 "$EMSDK/upstream/emscripten/emcmake" "$HOST_CMAKE" -G Ninja \
@@ -2249,9 +2257,10 @@ echo "== [2/3] canonical Wasm render-pipeline mappings =="
   -DBW_UPSTREAM_DIR="$ROOT/upstream" \
   -DBW_INTEGRATED_PIPELINE_SOURCE_DIR="$WEBGPU_SOURCE" \
   -DBW_GHOST_PRESENT_TRANSACTION_HEADER="$GHOST_TRANSACTION_HEADER" \
+  -DBW_GHOST_DISPLAY_STATE_HEADER="$GHOST_DISPLAY_HEADER" \
   -DBW_WASM_INCLUDE_DIR="$WASM_INCLUDE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" \
-  wgpu_pipeline_integrated_smoke ghost_acquisition_lifetime_wasm
+  wgpu_pipeline_integrated_smoke ghost_acquisition_lifetime_wasm ghost_first_pixel_settle_wasm
 
 echo "== [3/3] exact native/Wasm parity =="
 NATIVE_STDOUT="$OUT/native.stdout"
@@ -2260,6 +2269,26 @@ WASM_STDOUT="$OUT/wasm.stdout"
 WASM_STDERR="$OUT/wasm.stderr"
 "$NATIVE_BUILD/wgpu_pipeline_integrated_test" >"$NATIVE_STDOUT" 2>"$NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/integrated_pipeline.js" >"$WASM_STDOUT" 2>"$WASM_STDERR"
+
+FIRST_PIXEL_NATIVE_STDOUT="$OUT/first-pixel-native.stdout"
+FIRST_PIXEL_NATIVE_STDERR="$OUT/first-pixel-native.stderr"
+FIRST_PIXEL_WASM_STDOUT="$OUT/first-pixel-wasm.stdout"
+FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
+"$NATIVE_BUILD/ghost_first_pixel_settle_test" \
+  >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
+"$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
+  >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
+FIRST_PIXEL_VERDICT='CONTRACT ghost_first_pixel_settle PASS cases=14 requests=4 initial=complete replacement=complete timeout=bounded wrap=complete'
+for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
+  if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
+    echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2
+    exit 1
+  fi
+done
+if ! cmp -s "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; then
+  echo "ERROR: native and Wasm first-pixel settle evidence differs" >&2
+  exit 1
+fi
 
 ACQUISITION_NATIVE_STDOUT="$OUT/acquisition-native.stdout"
 ACQUISITION_NATIVE_STDERR="$OUT/acquisition-native.stderr"

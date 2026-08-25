@@ -958,28 +958,18 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
     }
   }
 
-  /* Boot-settle redraw burst. Blender redraws on demand, but at boot the tab stays BLACK
-   * until the first real input: the initial GHOST_kEventWindowSize only forces a redraw
-   * when the size actually CHANGES (wm_window_update_size_position), which it does not once
-   * the window already matches the canvas — so WM_main has no pending redraw and never
-   * composites unprompted. A plain GHOST_kEventWindowUpdate (NC_WINDOW only) proved too
-   * weak to kick the first frame. GHOST_kEventWindowActivate is the window's focus-repaint
-   * path: its wm_window.cc handler sets winactive, wm_window_make_drawable, addmousemove=1
-   * and injects a MOUSEMOVE — the same broad re-tag a real pointer entering the window
-   * does, which is what actually composited the first frame in testing. Burst it a few
-   * times a second across the first ~3 s (boot has async settle — device import, surface
-   * configure, script register) so one lands after the window is fully drawable, then STOP:
-   * the OffscreenCanvas retains the last composited frame indefinitely, so no ongoing
-   * heartbeat is needed to HOLD the image (verified: stable with zero input). Bounding the
-   * burst avoids injecting perpetual MOUSEMOVEs that would fight real interaction.
-   * (M4 first-pixels; a proper invalidate-driven present is a later optimization —
-   * notes/gpu-r22-*.md.) */
-  if (window_ != nullptr && redraw_heartbeat_ < 180u) {
-    if ((redraw_heartbeat_ % 12u) == 0u) {
-      pushEvent(
-          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowActivate, window_));
-    }
-    redraw_heartbeat_++;
+  /* First-pixel settle. Surface creation may publish one cleared frame before Blender's
+   * regions are tagged. Request ordinary window updates until a second frame is published,
+   * then stop permanently. The Emscripten WindowUpdate handler adds the screen invalidation
+   * needed to draw regions; this avoids synthetic focus/mouse events and replaces the public
+   * shell's Python redraw dependency. Keep the existing 180-tick ceiling so a lost device or
+   * hidden canvas cannot create an unbounded event source. */
+  if (window_ != nullptr &&
+      ghost_web::first_pixel_settle_tick(
+          ghost_web::present_count(), redraw_present_baseline_, redraw_heartbeat_))
+  {
+    pushEvent(
+        std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
   }
 
   /* --- Idle keepalive (ghost-keepalive) ---------------------------------------------
@@ -1237,6 +1227,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
             publication_succeeded = false;
             return;
           }
+          redraw_present_baseline_ = ghost_web::present_count();
           redraw_heartbeat_ = 0;
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {

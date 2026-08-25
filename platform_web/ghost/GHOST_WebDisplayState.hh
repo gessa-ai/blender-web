@@ -63,4 +63,29 @@ inline void note_present()
   present_counter.fetch_add(1u, std::memory_order_relaxed);
 }
 
+/** First-pixel redraw settling is relative to one published window. The global present counter
+ * intentionally remains monotonic across window replacement, so callers capture a baseline when
+ * publishing each window and pass it here. Two submitted frames cover the initial cleared surface
+ * followed by Blender's region composite. The event source remains bounded even if presentation
+ * never starts. */
+inline constexpr uint64_t FIRST_PIXEL_SETTLE_PRESENTS = 2u;
+inline constexpr uint32_t FIRST_PIXEL_SETTLE_TICKS = 180u;
+inline constexpr uint32_t FIRST_PIXEL_SETTLE_INTERVAL = 12u;
+
+inline bool first_pixel_settle_tick(const uint64_t present_count,
+                                    const uint64_t present_baseline,
+                                    uint32_t &heartbeat)
+{
+  if ((present_count - present_baseline) >= FIRST_PIXEL_SETTLE_PRESENTS) {
+    heartbeat = FIRST_PIXEL_SETTLE_TICKS;
+    return false;
+  }
+  if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
+    return false;
+  }
+  const bool request_update = (heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u;
+  heartbeat++;
+  return request_update;
+}
+
 }  // namespace ghost_web

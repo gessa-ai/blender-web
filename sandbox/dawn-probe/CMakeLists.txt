@@ -465,6 +465,12 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header")
   endif()
+  if(NOT DEFINED BW_GHOST_DISPLAY_STATE_HEADER OR
+     NOT IS_ABSOLUTE "${BW_GHOST_DISPLAY_STATE_HEADER}" OR
+     NOT EXISTS "${BW_GHOST_DISPLAY_STATE_HEADER}")
+    message(FATAL_ERROR
+      "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header")
+  endif()
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -519,6 +525,17 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
   )
   target_link_options(wgpu_pipeline_integrated_test PRIVATE -Wl,--gc-sections)
   target_link_libraries(wgpu_pipeline_integrated_test PRIVATE dawn::webgpu_dawn)
+
+  add_executable(ghost_first_pixel_settle_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc"
+  )
+  target_compile_definitions(ghost_first_pixel_settle_test PRIVATE
+    BW_GHOST_DISPLAY_STATE_HEADER="${BW_GHOST_DISPLAY_STATE_HEADER}"
+  )
+  set_target_properties(ghost_first_pixel_settle_test PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+  )
 
   # Focused delayed-callback lifetime seam. AddressSanitizer makes the unsafe
   # raw-owner control observable while the accepted path includes only the

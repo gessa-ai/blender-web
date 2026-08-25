@@ -127,7 +127,8 @@ class GHOST_SystemWeb : public GHOST_System {
   bool callbacks_registered_ = false;
   void *callback_user_data_ = nullptr;
 
-  /* Main-loop tick counter for the redraw heartbeat (processEvents). */
+  /* Per-window present epoch and main-loop tick counter for first-pixel settling. */
+  uint64_t redraw_present_baseline_ = 0;
   uint32_t redraw_heartbeat_ = 0;
 
   /* Idle-keepalive bookkeeping (ghost-keepalive; all touched only on the WM worker in

@@ -2,13 +2,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const sourcePath = process.argv[2];
 if (!sourcePath) {
-  throw new Error("usage: node preinit_worker_test.mjs <wgpu-preinit-worker.js>");
+  throw new Error(
+    "usage: node preinit_worker_test.mjs <wgpu-preinit-worker.js> [--selfcheck]",
+  );
 }
 const source = fs.readFileSync(sourcePath, "utf8");
+const selfcheck = process.argv.includes("--selfcheck");
 
 const cases = [
   { name: "device", adapterMissing: true, status: 0, device: false },
@@ -25,6 +32,16 @@ const cases = [
   { name: "ready", status: 5, device: true, ready: true, presentation: true },
   { name: "fallback_ready", fallback: true, status: 5, device: true, ready: true,
     presentation: true },
+  { name: "current_hardware_precedence", infoFallback: false, legacyFallback: true,
+    status: 5, device: true, ready: true, presentation: true },
+  { name: "current_fallback_precedence", fallback: true, infoFallback: true,
+    legacyFallback: false, status: 5, device: true, ready: true, presentation: true },
+  { name: "legacy_fallback_ready", fallback: true, omitInfoFallback: true,
+    legacyFallback: true, status: 5, device: true, ready: true, presentation: true },
+  { name: "legacy_hardware_ready", omitInfoFallback: true, legacyFallback: false,
+    status: 5, device: true, ready: true, presentation: true },
+  { name: "unknown_status_ready", omitInfoFallback: true,
+    status: 5, device: true, ready: true, presentation: true },
   { name: "lost_preentry", lossBeforeEntry: "unknown", status: 4, device: true, lossStatus: 1 },
   { name: "lost_unknown", lossAfterEntry: "unknown", status: 5, device: true, ready: true,
     lossStatus: 1, presentation: true },
@@ -183,12 +200,20 @@ async function run(test) {
       async onSubmittedWorkDone() { presentationCompletions++; },
     },
   };
+  const adapterInfo = {};
+  if (!test.omitInfoFallback) {
+    adapterInfo.isFallbackAdapter = Object.prototype.hasOwnProperty.call(test, "infoFallback") ?
+      test.infoFallback : Boolean(test.fallback);
+  }
   const adapter = test.adapterMissing ? null : {
     features: new Set(),
-    info: { isFallbackAdapter: Boolean(test.fallback) },
+    info: adapterInfo,
     limits: device.limits,
     async requestDevice() { return device; },
   };
+  if (adapter && Object.prototype.hasOwnProperty.call(test, "legacyFallback")) {
+    adapter.isFallbackAdapter = test.legacyFallback;
+  }
 
   const context = vm.createContext({
     ENVIRONMENT_IS_PTHREAD: true,
@@ -288,8 +313,77 @@ async function run(test) {
 for (const test of cases) {
   await run(test);
 }
-console.log("CONTRACT ghost_preinit_worker PASS cases=14 statuses=0,1,2,3,4,5 " +
+console.log("CONTRACT ghost_preinit_worker PASS cases=19 statuses=0,1,2,3,4,5 " +
             "partial=unpublished device_only=preserved loss=pending,unknown,destroyed " +
             "stale=ignored preentry=unpublished entry=once " +
             "presentation=scoped-work-done fallback=diagnostic " +
-            "telemetry=sync,delayed,omitted");
+            "telemetry=sync,delayed,omitted " +
+            "adapter=current,legacy,precedence,unknown");
+
+function replaceExactlyOnce(input, before, after, name) {
+  const pieces = input.split(before);
+  assert(pieces.length === 2, `${name}: source anchor count was ${pieces.length - 1}, expected 1`);
+  return pieces[0] + after + pieces[1];
+}
+
+if (selfcheck) {
+  const extraction = `var currentFallbackStatus =
+            adapter.info && typeof adapter.info.isFallbackAdapter === "boolean" ?
+              adapter.info.isFallbackAdapter :
+              (typeof adapter.isFallbackAdapter === "boolean" ?
+                 adapter.isFallbackAdapter : null);`;
+  const mutations = [
+    [
+      "legacy_only",
+      replaceExactlyOnce(
+        source,
+        extraction,
+        `var currentFallbackStatus =
+            typeof adapter.isFallbackAdapter === "boolean" ?
+              adapter.isFallbackAdapter : null;`,
+        "legacy_only",
+      ),
+    ],
+    [
+      "legacy_precedence",
+      replaceExactlyOnce(
+        source,
+        extraction,
+        `var currentFallbackStatus =
+            typeof adapter.isFallbackAdapter === "boolean" ?
+              adapter.isFallbackAdapter :
+              (adapter.info && typeof adapter.info.isFallbackAdapter === "boolean" ?
+                 adapter.info.isFallbackAdapter : null);`,
+        "legacy_precedence",
+      ),
+    ],
+    [
+      "unknown_as_fallback",
+      replaceExactlyOnce(
+        source,
+        "var adapterIsFallback = currentFallbackStatus === true;",
+        "var adapterIsFallback = currentFallbackStatus !== false;",
+        "unknown_as_fallback",
+      ),
+    ],
+  ];
+
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "bw-preinit-adapter-info-"));
+  try {
+    for (const [name, mutatedSource] of mutations) {
+      const mutatedPath = path.join(temporaryRoot, `${name}.js`);
+      fs.writeFileSync(mutatedPath, mutatedSource);
+      const result = spawnSync(
+        process.execPath,
+        [fileURLToPath(import.meta.url), mutatedPath],
+        { encoding: "utf8", timeout: 10000 },
+      );
+      assert(result.error === undefined, `${name}: mutation runner failed: ${result.error}`);
+      assert(result.status !== 0, `${name}: source mutation was accepted`);
+    }
+  }
+  finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+  console.log("SELFCHECK ghost_preinit_adapter_info PASS positive=1 negative=3");
+}

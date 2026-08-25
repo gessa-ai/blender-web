@@ -2510,6 +2510,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   windowed product are green. This closes the depth-cache caller family; WM window capture is the
   sole synchronous residual, and live M5 acceptance retains its named hardware blocker. See
   `notes/m5-particle-edit-depth-cache-continuation-20260825.md`.
+- [x] **M5-ASSET-PREVIEW-WINDOW-CAPTURE-CONTINUATION [driver, complete]:** COMPLETE
+  (`564cd59`, patch 0274; Linux receipts `20260825T081222-1026760`/
+  `20260825T081000-1024727`): `ASSET_OT_screenshot_preview` now owns its general-window snapshot,
+  exact crop, producing window context, asset type, and weak reference behind an identified
+  240-tick timer before preview or asset mutation. Native-ready and 3D-viewport offscreen paths
+  remain immediate; direct execution gains a modal owner, and every drift/failure/timeout/cancel
+  path retires the timer and request. Eight native/wasm32 contracts and 28 cases are byte-identical,
+  18 focused and 46 aggregate mutations fail closed, and exact product-graph compiles plus the real
+  windowed product are green. Only synchronous Python `Window.screenshot()` remains in the WM
+  capture family; it requires a separate API/design decision, while live M5 acceptance retains its
+  named hardware blocker. See
+  `notes/m5-asset-preview-window-capture-continuation-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

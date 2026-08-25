@@ -54,7 +54,7 @@ override `getDPIHint` only (devicePixelRatio HiDPI).
 | `GHOST_kEventWheel` | `GHOST_TEventWheelData{axis,value}` | `wheel` `deltaX/Y` | value ±1/notch; deltaY>0→−1 (up=+1) |
 | `GHOST_kEventKeyDown/Up` | `GHOST_TEventKeyData{key,utf8_buf[6],is_repeat}` | `keydown/up` `code`+`key`+`repeat` | key from `code`; utf8 from `key` |
 | `GHOST_kEventWindowSize` | (none) | `resize` (window) | WM re-queries `getClientBounds` |
-| `GHOST_kEventWindowActivate/Deactivate` | (none) | `focus`/`blur` (canvas) | |
+| `GHOST_kEventWindowActivate/Deactivate` | (none) | `focus`/`blur` (canvas) | blur clears tracked modifiers/buttons and emits held button releases before deactivation |
 
 Event ctors (all `push`ed via `GHOST_System::pushEvent(std::unique_ptr<const GHOST_IEvent>)`,
 public — GHOST_System.hh:224): `GHOST_EventCursor(msec,type,win,x,y,tablet)`,

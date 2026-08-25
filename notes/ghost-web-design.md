@@ -73,7 +73,10 @@ piece the standalone harness does not exercise; it is covered by the ADR-003 M4 
   `getModifierKeys()` reports **left variants** (DOM flags don't distinguish sides);
   key *events* carry the exact left/right `GHOST_TKey` via `code`. SDL-grade limitation,
   documented.
-- **Buttons**: `GHOST_Buttons` updated on down/up; returned by `getButtons()`.
+- **Buttons**: `GHOST_Buttons` updated on down/up; returned by `getButtons()`. Browser focus loss
+  snapshots the held set, clears all seven tracked buttons and every modifier, and emits a
+  `ButtonUp` for each held button before `WindowDeactivate`. This retires physical state even
+  when a tab switch or browser blur supplies no matching DOM release event.
 - **Cursor**: last canvas-relative `targetX/targetY` while unlocked. During a wrap/hide grab,
   Pointer Lock `movementX/Y` advances the virtual cursor with signed-int saturation;
   `getCursorPosition()` returns that virtual position.
@@ -138,8 +141,9 @@ scroll/type over the dashed canvas; events appear in the log box.
    `96*dpr`; the buffer-size policy is a context-integration call.
 3. **`processEvents` cadence** — confirm the WM's expectation that `processEvents` never
    blocks holds across modal operators (they run their own inner `GHOST` pumps).
-4. **Focus model** — keyboard is captured at window scope; when there are multiple GHOST
-   windows (later), route by focused canvas.
+4. **Focus model** — single-canvas blur state retirement is resolved: tracked modifiers/buttons
+   clear before deactivation and held buttons receive releases. When there are multiple GHOST
+   windows (later), route keyboard input by focused canvas.
 5. **Coordinate origin** — GHOST expects top-left client origin; `targetX/Y` match. The
    Pointer Lock wrap path now preserves a virtual GHOST position through relative deltas; the
    real product middle-drag path is covered by the 2026-08-25 diagnostic.

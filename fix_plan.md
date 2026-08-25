@@ -2686,6 +2686,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   runtime binding, and a real-product Unicode object-name commit are verified. The live product
   run uses fallback software and binds no receipt; M4 and the s7 blocker are unchanged. See
   `notes/m4-web-ime-composition-20260825.md`.
+- [x] **M4-WEB-FOCUS-STATE-RESET [ghost-web] (`453d587`):** canvas/tab blur now snapshots and
+  retires all seven tracked mouse buttons plus every modifier before `WindowDeactivate`,
+  publishing held button releases so missing DOM release events cannot leave Blender navigation
+  or shortcuts stuck. Fail-first/final real worker harness, 10 mutations, 5,139-byte native/wasm
+  parity, canonical replay, optimized product relink/no-work, zero-rejection fallback diagnostic,
+  M4 scope, and container regression are verified; the live proof remains nonreceipt and s7 is
+  unchanged. See `notes/m4-web-focus-state-reset-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

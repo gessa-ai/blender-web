@@ -1834,6 +1834,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   both immutable receipt consumers and the complete two-phase source contract remain green. No
   adapter or receipt was produced, and the exact s7 blocker is unchanged. See
   `notes/s7-adapter-info-fallback-20260825.md`.
+- [x] **P0-B-M8-RUNTIME-GPUADAPTERINFO-FALLBACK [driver] (fe9ef91):** the shared M5–M8
+  runtime-evidence probe now prefers the current `GPUAdapterInfo.isFallbackAdapter` boolean while
+  retaining the legacy adapter property only as a compatibility fallback. Executable fixtures
+  drive current, legacy, conflicting-precedence, true-fallback, and software raw shapes through
+  the actual page callback; the normalized receipt and consumers remain strictly fail-closed. No
+  adapter or receipt was produced, and the exact s7 blocker is unchanged. See
+  `notes/m8-runtime-adapter-info-fallback-20260825.md`.
 - [x] **M4.T21-GHOST-PRESENT-RESOURCE-TRANSACTION [ghost-web] (844e683):** the browser
   compositor preserves the last usable resize texture until replacement succeeds, publishes its
   bind-group layout/pipeline only as a complete pair, and rejects failed per-frame views, bind

@@ -1424,3 +1424,17 @@ submission-first callback delivery, each scope's failure, exact same-turn submit
 trusted-input presentation with zero rejected submissions; software evidence remains explicitly
 nonreceipt. See `platform_web/ghost/GHOST_WGPUTransaction.hh` and
 `sandbox/wgpu-pipeline-integrated-smoke/`.
+
+## Class 96 — normalized adapter fixtures can hide browser API shape drift
+
+Signature: a browser receipt producer extracts adapter fields inside `page.evaluate()`, but its
+self-check bypasses that callback and returns an already-normalized
+`{isFallbackAdapter: false, info: ...}` record. A browser API property move can therefore make
+every live adapter fail closed while the classifier fixtures remain green. Exercise the actual
+page callback by installing current-spec, legacy, and conflicting raw adapter objects behind a
+fake `navigator.gpu.requestAdapter()`. Prefer a boolean
+`GPUAdapterInfo.isFallbackAdapter`, use `GPUAdapter.isFallbackAdapter` only as a compatibility
+fallback, and require the current location to win conflicts. Keep true, absent, malformed,
+masked, and software identities rejected; the fix is extraction, not classifier relaxation. See
+`sandbox/m8-wasm-split/capture_blender_profile.mjs` and
+`sandbox/m8-launch-gate/runtime_evidence.mjs`.

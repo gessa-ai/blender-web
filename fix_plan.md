@@ -2777,6 +2777,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   events. Eleven mutations, 14 native/wasm cases, the real worker replacement harness, optimized
   product relink/no-work, OFF preflight, and sustained fallback diagnostic are green without
   changing the hardware receipt boundary. See `notes/m4-first-pixel-settle-epoch-20260825.md`.
+- [x] **P0-M4-BOOT-PRESENT-ADAPTER-POST-HEAD-REVALIDATION [driver]:** after the first-pixel
+  lifecycle change, the committed early canvas registration, same-turn surface submission, and
+  current/legacy adapter-shape fixes remain green in the integrated native/wasm matrix and all
+  strict producer/consumer self-checks. The exact no-work OFF artifact reaches running WM at the
+  canonical windowed `/` entry, advances idle and trusted-input ticks, presents after input, and
+  reports zero stage-1/import/submission/transaction/device-loss failures. A stale pre-existing
+  port-8123 process was isolated as the retired headless root and binds no evidence; the current
+  server on an unused port supplied the passing diagnostic. No hardware receipt or gate changed.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

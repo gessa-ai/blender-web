@@ -2548,9 +2548,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   closed through strict validation. Fourteen production-shaped cases decouple synchronous,
   delayed, and omitted telemetry from deterministic scope results. See
   `notes/m4-surface-preflight-validation-20260825.md`.
-- [ ] **AUDIT-R10-M4-SUSTAINED-WM-LIVENESS [ghost-web, blocked-by: none]:** make the headed P0
-  diagnostic require a positive WM-tick delta across two bounded post-running samples plus one
-  input/redraw round trip; retain explicit software-adapter nonreceipt status.
+- [x] **AUDIT-R10-M4-SUSTAINED-WM-LIVENESS [ghost-web] (`17f1265`):** the fallback-only headed
+  diagnostic now uses Chromium's software GPU-test posture, waits boundedly for a second real WM
+  tick, proves continued progress across two further samples, and requires trusted canvas input to
+  produce both another tick and presentation with zero device loss. A device-free classifier
+  rejects 23 frozen/missing/late/hardware/error mutations. The live result remains explicitly
+  `diagnostic-nonreceipt`; it binds no adapter, pixel, profile, or hardware receipt. See
+  `notes/m4-sustained-wm-liveness-20260825.md`.
 - [ ] **AUDIT-R10-M5-AXIS-TARGET-PRODUCER-STATE [driver, blocked-by: none]:** bind axis-target
   depth to safely retained producer frame, selection identities, and transform state, cancel on
   same-pointer mutation, and add frame/selection/transform drift contracts.

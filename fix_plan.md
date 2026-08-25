@@ -2771,9 +2771,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Pointer Lock outcome lifecycle. The `ime-dead-keys` row remains partial solely for trusted
   physical browser/OS evidence; 29 IME and 21 Pointer Lock mutations, REUSE, scoped M4, and
   container-backed regression preserve the existing receipt boundaries.
-- [ ] **M4-WEB-FIRST-PIXEL-SETTLE-EPOCH [ghost-web, claimed_by: /root]:** complete the preserved
-  first-pixel redraw change with a per-window present baseline, so replacement canvases request
-  their own bounded ordinary updates instead of inheriting a process-global completed count.
+- [x] **M4-WEB-FIRST-PIXEL-SETTLE-EPOCH [ghost-web] (`f08f451`):** first-pixel settling now uses
+  bounded ordinary WindowUpdate events relative to each published window's present baseline;
+  replacements no longer inherit a process-global completed count or require synthetic focus/mouse
+  events. Eleven mutations, 14 native/wasm cases, the real worker replacement harness, optimized
+  product relink/no-work, OFF preflight, and sustained fallback diagnostic are green without
+  changing the hardware receipt boundary. See `notes/m4-first-pixel-settle-epoch-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

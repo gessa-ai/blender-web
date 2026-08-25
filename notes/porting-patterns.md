@@ -1534,3 +1534,15 @@ failed replacement followed by a clean retry on native and wasm32, then retain a
 dispose/recreate/input regression. See `platform_web/ghost/GHOST_SystemWeb.cc`,
 `platform_web/ghost/GHOST_WGPUTransaction.hh`, and
 `sandbox/wgpu-pipeline-integrated-smoke/window_lifecycle_contract.py`.
+
+## Class 104 — monotonic process counters need per-owner epochs
+
+Signature: bounded startup work stops after a process-global counter reaches a fixed value. The
+first owner behaves correctly, but a replacement inherits the already-completed count and skips
+its own initialization. Keep the global counter monotonic, capture its value when each owner is
+published, and decide completion from the unsigned delta relative to that baseline. Reset the
+owner's bounded tick state in the same publication transaction. Exercise initial and replacement
+epochs, first/second completions, terminal and timeout behavior, and counter wrap on native and
+wasm32. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_SystemWeb.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

@@ -1327,3 +1327,23 @@ queued terminal events, backend/consume failure, drift, timeout, queue bounds, a
 on native and wasm32. See
 `patches/0272-m5-object-axis-target-depth-cache-continuation.patch` and
 `sandbox/m5-object-axis-target-depth-cache/`.
+
+## Class 90 — a shared stack-data initializer needs ownership lifted into every caller shape
+
+Signature: click, linked-pick, generic gesture, persistent circle, and brush operators all create
+stack-local traversal data through one helper that synchronously fills a full depth cache. The
+helper cannot suspend because its output aliases the caller's stack, while no single operator
+owner covers direct `exec`, invoked modal, generic-gesture handoff, and persistent custom data.
+Split the helper into an opaque one-shot prepare/consume session and a ready-only stack-data fill.
+Lift session ownership into each caller shape: extend the existing click owner, give linked-pick an
+identified timer, attach box/lasso to the generic gesture owner, retain circle state for both
+persistent and direct execution, and delay brush initialization before random generators or stroke
+state exist. Snapshot exact operator inputs and queue only custom-data-free events behind bounded
+FIFOs. Validate manager/window/screen/area/region/view/depsgraph/scene/view-layer/object/edit and
+mode identity before transfer, including the XRAY decision that bypassed depth at preparation.
+Consume once, enter the unchanged traversal or modal dispatcher, and retire every timer/session/
+FIFO on drift, failure, timeout, overflow, Escape, external cancel, or destruction. Exercise each
+caller shape independently on native and wasm32; a single generic modal model will miss direct and
+persistent-owner lifetime bugs. See
+`patches/0273-m5-particle-edit-depth-cache-continuation.patch` and
+`sandbox/m5-particle-edit-depth-cache/`.

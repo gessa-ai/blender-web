@@ -2483,11 +2483,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   product are green. Particle edit is the sole depth-cache residual; WM window capture remains the
   other synchronous family, and live M5 acceptance retains its named hardware blocker. See
   `notes/m5-object-axis-target-depth-cache-continuation-20260825.md`.
-- [ ] **M5-PARTICLE-EDIT-DEPTH-CACHE-CONTINUATION [driver]:** replace
-  `PE_set_view3d_data`'s full-cache output read with an owned prepare/consume session and move its
-  click, linked, box/lasso/circle, and brush-start callers behind bounded continuations before any
-  stack `PEData` traversal; preserve the XRAY bypass, exact operator inputs, selection semantics,
-  brush state, cleanup, and native behavior. **blocked-by: none.**
+- [x] **M5-PARTICLE-EDIT-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE
+  (`32c338a`, patch 0273; Linux receipts `20260825T064636-947776`/
+  `20260825T064916-950503`): click, linked-pick, box, lasso, circle, and brush-start now own an
+  exact full-viewport prepare/consume session before any `PEData` traversal or selection mutation.
+  XRAY and native-ready paths remain immediate; pending paths retain exact inputs behind identified
+  240-tick polls and bounded 512/256-event FIFOs, with producing-context validation and complete
+  cleanup. Eight native/wasm32 contracts and 44 cases are byte-identical, 20 focused and 44
+  aggregate mutations fail closed, and exact native/wasm product-graph compiles plus the real
+  windowed product are green. This closes the depth-cache caller family; WM window capture is the
+  sole synchronous residual, and live M5 acceptance retains its named hardware blocker. See
+  `notes/m5-particle-edit-depth-cache-continuation-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

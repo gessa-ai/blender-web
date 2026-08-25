@@ -2646,6 +2646,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   a real headed fallback cursor snapshot, REUSE, scoped M4, and container-backed regression are
   verified. The live run remains diagnostic-nonreceipt and the s7 blocker is unchanged. See
   `notes/m4-web-cursor-main-thread-bridge-20260825.md`.
+- [x] **M4-WEB-WINDOW-TITLE-MAIN-THREAD [ghost-web] (`93df837`):** window-title changes now
+  synchronously proxy their owned UTF-8 input from the WM worker to the browser main thread instead
+  of silently executing a worker-local DOM no-op. A pinned `PROXY_TO_PTHREAD` repro covers Unicode
+  and empty titles, five source mutations fail closed, native/wasm32 integration stays
+  byte-identical, and the relinked product publishes `(Unsaved) - Blender 5.2.0 LTS` while retaining
+  sustained fallback input/presentation progress and zero presentation rejections. The live run is
+  diagnostic-nonreceipt and the s7 blocker is unchanged. See
+  `notes/m4-web-window-title-main-thread-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

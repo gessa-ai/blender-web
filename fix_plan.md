@@ -2533,6 +2533,31 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   deferral. The real product rebuild/no-work, OFF preflight, canonical replay, REUSE, M5 scope, and
   container-backed regression retain their strict boundaries. See
   `notes/m5-python-window-screenshot-browser-deferral-20260825.md`.
+- [x] **AUDIT-20260825-R10 [driver] (`AUDIT_COMMIT`):** adversarially reviewed exact range
+  `2d6dd6a519db13d1f8e4b479f35a59372073eb18..88572261b39a85dea9a1b8e44e9aee4f64ae4bec`
+  and found zero critical, four major, and three minor presentation-validation, liveness,
+  stale-producer, evidence-freshness, and process defects. Both reported P0 root fixes are
+  structurally correct; focused contracts, current canonical replay, the product no-work build,
+  compliance, protected-path ownership, authorship, and hardware/non-receipt boundaries remain
+  clean. Four asset-preview fixture EOF defects are fixed here. See
+  `reports/audit-20260825-r10.md`.
+- [ ] **AUDIT-R10-M4-SURFACE-PREFLIGHT-VALIDATION [ghost-web, blocked-by: none]:** replace the
+  worker's optional one-turn `uncapturederror` observation with a deterministic presentation-use
+  completion boundary that detects delayed/omitted configuration errors without reintroducing the
+  software-adapter post-configure error-scope failure; add production-shaped delayed and absent
+  telemetry controls.
+- [ ] **AUDIT-R10-M4-SUSTAINED-WM-LIVENESS [ghost-web, blocked-by: none]:** make the headed P0
+  diagnostic require a positive WM-tick delta across two bounded post-running samples plus one
+  input/redraw round trip; retain explicit software-adapter nonreceipt status.
+- [ ] **AUDIT-R10-M5-AXIS-TARGET-PRODUCER-STATE [driver, blocked-by: none]:** bind axis-target
+  depth to safely retained producer frame, selection identities, and transform state, cancel on
+  same-pointer mutation, and add frame/selection/transform drift contracts.
+- [ ] **AUDIT-R10-M5-PARTICLE-PRODUCER-STATE [driver, blocked-by: none]:** bind particle-edit
+  depth to a conservative producer frame/object-transform/edit-data state token across click,
+  gesture, and brush paths, with same-pointer mutation controls.
+- [ ] **AUDIT-R10-CANONICAL-RECEIPT-FRESHNESS [driver, blocked-by: none]:** update the fixed-path
+  canonical freeze receipt atomically with snapshot changes, or make historical receipts
+  immutable and impossible for status consumers to present as current.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

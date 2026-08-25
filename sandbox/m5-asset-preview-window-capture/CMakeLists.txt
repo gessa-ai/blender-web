@@ -18,4 +18,3 @@ if(EMSCRIPTEN)
   )
   set_target_properties(m5_asset_preview_window_capture_contract PROPERTIES SUFFIX ".js")
 endif()
-

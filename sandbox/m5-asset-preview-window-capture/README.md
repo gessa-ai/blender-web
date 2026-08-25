@@ -20,4 +20,3 @@ Run through the build wrapper:
 ```sh
 harness/buildwrap.sh bash sandbox/m5-asset-preview-window-capture/run.sh
 ```
-

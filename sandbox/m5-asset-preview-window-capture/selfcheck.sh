@@ -7,4 +7,3 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 "$ROOT/.host-tools/bin/python3.13" "$HERE/verify_source.py" \
   --source-root "$ROOT/upstream" --selfcheck
-

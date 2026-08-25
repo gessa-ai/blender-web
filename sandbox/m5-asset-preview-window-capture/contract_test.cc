@@ -412,4 +412,3 @@ int main()
   std::puts("M5_ASSET_PREVIEW_WINDOW_CAPTURE_CONTRACT_PASS contracts=8 cases=28");
   return 0;
 }
-

@@ -839,16 +839,20 @@ GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const
    * Same posture as GHOST_SystemHeadless's mask (cursor warp, primary/image
    * clipboard, desktop sampling, decoration styles, hyper key, generated cursors,
    * multi-monitor placement, window path) plus WindowPosition (a canvas has no
-   * OS-level position) and synchronous front-buffer reads (browser mapping settles
-   * asynchronously). RGBA cursors are supported through the CSS image bridge. */
+   * OS-level position), synchronous front-buffer reads (browser mapping settles
+   * asynchronously), physical trackpad direction (DOM wheel deltas are already
+   * preference-adjusted), and server-side decorations (there is no OS window frame).
+   * IME and RGBA cursors are supported through browser-main bridges. */
   return GHOST_TCapabilityFlag(
       GHOST_CAPABILITY_FLAG_ALL &
       ~(GHOST_kCapabilityWindowPosition | GHOST_kCapabilityCursorWarp |
         GHOST_kCapabilityClipboardPrimary | GHOST_kCapabilityGPUReadFrontBuffer |
         GHOST_kCapabilityClipboardImage |
-        GHOST_kCapabilityDesktopSample | GHOST_kCapabilityWindowDecorationStyles |
+        GHOST_kCapabilityDesktopSample | GHOST_kCapabilityTrackpadPhysicalDirection |
+        GHOST_kCapabilityWindowDecorationStyles |
         GHOST_kCapabilityKeyboardHyperKey | GHOST_kCapabilityCursorGenerator |
-        GHOST_kCapabilityMultiMonitorPlacement | GHOST_kCapabilityWindowPath));
+        GHOST_kCapabilityMultiMonitorPlacement | GHOST_kCapabilityWindowPath |
+        GHOST_kCapabilityWindowDecorationServerSide));
 }
 
 char *GHOST_SystemWeb::getClipboard(bool selection) const

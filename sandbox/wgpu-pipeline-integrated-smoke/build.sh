@@ -47,6 +47,7 @@ LIVE_PREINIT_CONTRACT="$HERE/live_preinit_contract.mjs"
 LIVE_PREINIT_CONTRACT_TEST="$HERE/live_preinit_contract_test.mjs"
 WINDOW_ACTIVATION_CONTRACT="$HERE/window_activation_contract.py"
 FRONTBUFFER_CAPABILITY_CONTRACT="$HERE/frontbuffer_capability_contract.py"
+WEB_CAPABILITY_CONTRACT="$HERE/web_capability_contract.py"
 WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
 FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
@@ -226,6 +227,7 @@ require_file "$LIVE_PREINIT_CONTRACT"
 require_file "$LIVE_PREINIT_CONTRACT_TEST"
 require_file "$WINDOW_ACTIVATION_CONTRACT"
 require_file "$FRONTBUFFER_CAPABILITY_CONTRACT"
+require_file "$WEB_CAPABILITY_CONTRACT"
 require_file "$WINDOW_TITLE_CONTRACT"
 require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
@@ -1695,6 +1697,9 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/upstream/source/blender/windowmanager/intern/wm_draw.cc" \
   "$ROOT/upstream/source/blender/editors/interface/eyedroppers/eyedropper_color.cc" \
   "$WEBGPU_SOURCE/wgpu_texture.cc" \
+  --selfcheck
+"$PYBIN" "$WEB_CAPABILITY_CONTRACT" \
+  "$GHOST_SYSTEM_SOURCE" "$GHOST_EVENT_BRIDGE_SOURCE" "$GHOST_WINDOW_SOURCE" \
   --selfcheck
 "$PYBIN" "$WINDOW_TITLE_CONTRACT" "$GHOST_WINDOW_SOURCE" --selfcheck
 "$PYBIN" "$FULLSCREEN_STATE_CONTRACT" "$GHOST_WINDOW_SOURCE" --selfcheck

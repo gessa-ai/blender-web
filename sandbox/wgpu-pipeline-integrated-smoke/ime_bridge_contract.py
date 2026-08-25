@@ -152,9 +152,8 @@ def selfcheck(files: dict[str, str]) -> None:
         ("system", "publish(2, text, -1, -1, -1);", ""),
         ("system", 'publish(3, "", -1, -1, -1);', ""),
         ("system", "ghost_web_bridge::poll_ime(*this);", ""),
-        ("system", "GHOST_kCapabilityDesktopSample | GHOST_kCapabilityWindowDecorationStyles",
-                   "GHOST_kCapabilityDesktopSample | GHOST_kCapabilityInputIME | "
-                   "GHOST_kCapabilityWindowDecorationStyles"),
+        ("system", "GHOST_kCapabilityWindowDecorationStyles |",
+                   "GHOST_kCapabilityInputIME | GHOST_kCapabilityWindowDecorationStyles |"),
         ("config", "set(WITH_INPUT_IME        ON", "set(WITH_INPUT_IME        OFF"),
         ("root_cmake", " OR WITH_GHOST_WEB OR", " OR"),
         ("patch", "+if(WIN32 OR APPLE OR WITH_GHOST_WEB OR", "+if(WIN32 OR APPLE OR"),

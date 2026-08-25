@@ -5,9 +5,12 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
+import json
 import os
 from pathlib import Path
+import re
 import shlex
 import stat
 import subprocess
@@ -20,6 +23,37 @@ RETIRED_PATCHES = {
     "0117-gpu-webgpu-diag-readback.patch",
     "0125-gpu-webgpu-render-result-bridge.patch",
 }
+CANONICAL_FREEZE_RECEIPT = "sandbox/series-replay/canonical-freeze-receipt.json"
+CANONICAL_RECEIPT_CHECKS = frozenset(
+    {
+        "initialized_submodules_clean",
+        "live_resnapshot_byte_exact",
+        "manifest_replay_byte_exact",
+        "outputs_created_without_overwrite",
+        "patch_regenerated_byte_exact",
+        "pin_and_ignore_inputs_stable",
+        "replay_started_pristine",
+        "source_head_exact_pin",
+        "source_real_index_pristine",
+        "source_repository_operation_idle",
+    }
+)
+CANONICAL_RECEIPT_KEYS = frozenset(
+    {
+        "checks",
+        "created_utc",
+        "expected_pin",
+        "git_version",
+        "ignored_worktree_paths",
+        "live_manifest",
+        "patch",
+        "recorded_pin_file",
+        "replay_manifest",
+        "schema",
+        "source",
+        "verdict",
+    }
+)
 
 
 class ReplayError(RuntimeError):
@@ -43,6 +77,154 @@ def run(
         stderr = result.stderr.decode("utf-8", "replace").strip()
         raise ReplayError(f"command failed ({result.returncode}): {' '.join(argv)}\n{stderr}")
     return result
+
+
+def exact_dict(value: object, expected_keys: frozenset[str], label: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise ReplayError(f"{label} is not an object")
+    actual_keys = frozenset(value)
+    if actual_keys != expected_keys:
+        raise ReplayError(
+            f"{label} keys differ: expected={sorted(expected_keys)} actual={sorted(actual_keys)}"
+        )
+    return value
+
+
+def require_sha256(value: object, label: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise ReplayError(f"{label} is not a lowercase SHA-256 digest")
+    return value
+
+
+def require_nonnegative_int(value: object, label: str, *, positive: bool = False) -> int:
+    if type(value) is not int or value < (1 if positive else 0):
+        qualifier = "positive" if positive else "nonnegative"
+        raise ReplayError(f"{label} is not a {qualifier} integer")
+    return value
+
+
+def validate_canonical_freeze_receipt(
+    receipt_path: Path,
+    canonical_patch: Path,
+    source: Path,
+    pin_file: Path,
+    expected_pin: str,
+) -> str:
+    try:
+        receipt_bytes = receipt_path.read_bytes()
+        receipt_value = json.loads(receipt_bytes)
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ReplayError(f"could not read canonical freeze receipt: {error}") from error
+
+    receipt = exact_dict(receipt_value, CANONICAL_RECEIPT_KEYS, "canonical freeze receipt")
+    if (
+        type(receipt["schema"]) is not int
+        or receipt["schema"] != 1
+        or receipt["verdict"] != "PASS"
+    ):
+        raise ReplayError("canonical freeze receipt is not an exact schema-1 PASS")
+    if receipt["expected_pin"] != expected_pin:
+        raise ReplayError("canonical freeze receipt expected pin differs")
+    receipt_source = receipt["source"]
+    if (
+        not isinstance(receipt_source, str)
+        or not Path(receipt_source).is_absolute()
+        or Path(receipt_source).name != source.resolve(strict=True).name
+    ):
+        raise ReplayError("canonical freeze receipt source provenance is malformed")
+    if not isinstance(receipt["git_version"], str) or not receipt["git_version"].startswith(
+        "git version "
+    ):
+        raise ReplayError("canonical freeze receipt git version is malformed")
+
+    created_utc = receipt["created_utc"]
+    if not isinstance(created_utc, str) or not created_utc.endswith("Z"):
+        raise ReplayError("canonical freeze receipt timestamp is not UTC")
+    try:
+        parsed_time = dt.datetime.fromisoformat(created_utc[:-1] + "+00:00")
+    except ValueError as error:
+        raise ReplayError("canonical freeze receipt timestamp is malformed") from error
+    if parsed_time.utcoffset() != dt.timedelta(0):
+        raise ReplayError("canonical freeze receipt timestamp is not UTC")
+
+    checks = exact_dict(
+        receipt["checks"], CANONICAL_RECEIPT_CHECKS, "canonical freeze receipt checks"
+    )
+    failed_checks = sorted(name for name, value in checks.items() if value is not True)
+    if failed_checks:
+        raise ReplayError(
+            "canonical freeze receipt contains non-PASS checks: " + ", ".join(failed_checks)
+        )
+
+    patch = exact_dict(
+        receipt["patch"], frozenset({"bytes", "path", "sha256"}), "receipt patch"
+    )
+    canonical_bytes = canonical_patch.read_bytes()
+    canonical_sha256 = hashlib.sha256(canonical_bytes).hexdigest()
+    if patch["path"] != "canonical-source.patch":
+        raise ReplayError("canonical freeze receipt patch path differs")
+    if require_nonnegative_int(patch["bytes"], "receipt patch bytes", positive=True) != len(
+        canonical_bytes
+    ):
+        raise ReplayError("canonical freeze receipt patch byte count is stale")
+    if require_sha256(patch["sha256"], "receipt patch SHA-256") != canonical_sha256:
+        raise ReplayError("canonical freeze receipt patch SHA-256 is stale")
+
+    manifests: list[dict[str, object]] = []
+    for field, expected_path in (
+        ("live_manifest", "live.manifest.jsonl"),
+        ("replay_manifest", "replay.manifest.jsonl"),
+    ):
+        manifest = exact_dict(
+            receipt[field],
+            frozenset({"bytes", "entries", "path", "sha256"}),
+            f"receipt {field}",
+        )
+        if manifest["path"] != expected_path:
+            raise ReplayError(f"canonical freeze receipt {field} path differs")
+        require_nonnegative_int(manifest["bytes"], f"receipt {field} bytes", positive=True)
+        require_nonnegative_int(manifest["entries"], f"receipt {field} entries", positive=True)
+        require_sha256(manifest["sha256"], f"receipt {field} SHA-256")
+        manifests.append(manifest)
+    if manifests[0] != {
+        **manifests[1],
+        "path": "live.manifest.jsonl",
+    }:
+        raise ReplayError("canonical freeze receipt live/replay manifests differ")
+
+    try:
+        pin_file_resolved = pin_file.resolve(strict=True)
+        pin_file_bytes = pin_file_resolved.read_bytes()
+    except OSError as error:
+        raise ReplayError(f"could not read canonical pin file: {error}") from error
+    recorded_pin = exact_dict(
+        receipt["recorded_pin_file"],
+        frozenset({"path", "sha256"}),
+        "receipt recorded pin file",
+    )
+    recorded_pin_path = recorded_pin["path"]
+    if (
+        not isinstance(recorded_pin_path, str)
+        or not Path(recorded_pin_path).is_absolute()
+        or Path(recorded_pin_path).parts[-2:] != pin_file_resolved.parts[-2:]
+    ):
+        raise ReplayError("canonical freeze receipt pin-file provenance is malformed")
+    if require_sha256(recorded_pin["sha256"], "receipt pin-file SHA-256") != hashlib.sha256(
+        pin_file_bytes
+    ).hexdigest():
+        raise ReplayError("canonical freeze receipt pin-file SHA-256 differs")
+
+    ignored = exact_dict(
+        receipt["ignored_worktree_paths"],
+        frozenset({"count", "nul_list_sha256", "policy"}),
+        "receipt ignored paths",
+    )
+    if ignored["policy"] != "excluded by the repository's standard Git ignore rules":
+        raise ReplayError("canonical freeze receipt ignored-path policy differs")
+    require_nonnegative_int(ignored["count"], "receipt ignored-path count")
+    require_sha256(ignored["nul_list_sha256"], "receipt ignored-path SHA-256")
+
+    return hashlib.sha256(receipt_bytes).hexdigest()
 
 
 def active_manifest(manifest_path: Path) -> list[str]:
@@ -149,9 +331,11 @@ def main() -> int:
 
     root = Path(__file__).resolve().parents[2]
     source = root / "upstream"
+    pin_file = root / "oracle" / "PIN"
     patches = root / "patches"
     series_path = patches / "series"
     canonical_path = patches / "canonical"
+    freeze_receipt_path = root / CANONICAL_FREEZE_RECEIPT
 
     source_head = run(["git", "-C", str(source), "rev-parse", "HEAD"]).stdout.decode().strip()
     if source_head != EXPECTED_PIN:
@@ -185,16 +369,23 @@ def main() -> int:
 
     source_dirty = dirty_paths(source)
     canonical_patch = patches / canonical_name
-    canonical_receipt = canonical_patch.with_suffix(".sha256")
-    receipt_fields = canonical_receipt.read_text(encoding="utf-8").split()
+    canonical_digest = canonical_patch.with_suffix(".sha256")
+    receipt_fields = canonical_digest.read_text(encoding="utf-8").split()
     if len(receipt_fields) != 2 or receipt_fields[1] != canonical_patch.name:
-        raise ReplayError(f"malformed {canonical_receipt.name} receipt")
+        raise ReplayError(f"malformed {canonical_digest.name} receipt")
     canonical_sha256 = hashlib.sha256(canonical_patch.read_bytes()).hexdigest()
     if canonical_sha256 != receipt_fields[0]:
         raise ReplayError(
             "canonical source digest mismatch: "
             f"expected {receipt_fields[0]}, got {canonical_sha256}"
         )
+    freeze_receipt_sha256 = validate_canonical_freeze_receipt(
+        freeze_receipt_path,
+        canonical_patch,
+        source,
+        pin_file,
+        EXPECTED_PIN,
+    )
     canonical_paths = patch_paths(canonical_patch)
     if canonical_paths != source_dirty:
         missing_from_canonical = sorted(source_dirty - canonical_paths)
@@ -244,6 +435,7 @@ def main() -> int:
         "CANONICAL_REPLAY_PASS "
         f"pin={EXPECTED_PIN[:12]} patches={len(entries)} retired={len(RETIRED_PATCHES)} "
         f"numbered_touched={len(touched)} canonical_sha256={canonical_sha256[:12]} "
+        f"freeze_receipt_sha256={freeze_receipt_sha256[:12]} "
         f"canonical_paths={len(canonical_paths)} canonical_only={len(canonical_only_paths)} "
         f"numbered_history={'verified' if verify_numbered_history else 'diagnostic-only'}"
     )

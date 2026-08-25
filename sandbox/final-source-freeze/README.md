@@ -53,6 +53,16 @@ rejected.
 `freeze.py` remains the canonical one-repository primitive. Its direct upstream
 invocation is useful for diagnosis, but is not the complete release receipt.
 
+The upstream diagnostic's `receipt.json` is retained at
+`sandbox/series-replay/canonical-freeze-receipt.json` only when its generated
+`canonical-source.patch` is byte-identical to `patches/PREVIEW_SNAPSHOT.patch`.
+Those two files and `patches/PREVIEW_SNAPSHOT.sha256` are one accepted update:
+`sandbox/series-replay/verify.py` rejects a stale receipt, snapshot/pin mismatch,
+malformed exclusion proof, failed freezer check, or unequal live/replay manifest
+before publishing `CANONICAL_REPLAY_PASS`. Never present the fixed-path JSON as current evidence
+without that verdict. Run `sandbox/series-replay/selfcheck.py` to exercise the
+fail-closed receipt mutations without reading the Blender source tree.
+
 ## One-repository diagnostic invocation
 
 Use a new receipt directory outside `upstream/`. The full commit ID is required;

@@ -1202,3 +1202,19 @@ Escape, and external cancellation must retire timer, FIFO, and request together.
 wait-for-input and immediate-start operators on native and wasm32. See
 `patches/0265-m5-curve-depth-cache-continuation.patch` and
 `sandbox/m5-curve-depth-cache/`.
+
+## Class 83 — replay must resume after any state transition already performed
+
+Signature: a modal event starts a stroke and only then discovers that its first point needs an
+asynchronous depth cache. Replaying that mouse press through the whole modal dispatcher after
+settlement repeats the already-completed idle-to-painting transition; the dispatcher now sees an
+active stroke and interprets the same press as its terminal button event. Retain an explicit resume
+disposition beside the queued initiating event. After cache transfer, resume that event at the exact
+post-transition apply seam, while later events still enter the stock modal dispatcher in FIFO order.
+If one replayed event invalidates the cache and starts a successor request, transfer every remaining
+event to the successor FIFO without applying or dropping it. Preserve immediate-ready execution on
+the original stack, and make context drift, unsafe payloads, overflow, timeout, backend failure, and
+external cancellation retire the timer, request, FIFO, and uncommitted stroke together. Exercise
+the initiating-event seam separately from ordinary replay on native and wasm32. See
+`patches/0266-m5-annotation-depth-cache-continuation.patch` and
+`sandbox/m5-annotation-depth-cache/`.

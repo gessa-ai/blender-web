@@ -2402,6 +2402,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   placement, object axis-target placement, and particle edit keep the depth-cache family partial;
   WM window capture remains the other synchronous family, and live M5 acceptance retains its named
   hardware blocker. See `notes/m5-curve-depth-cache-continuation-20260825.md`.
+- [x] **M5-ANNOTATION-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE (`940fccd`, patch
+  0266; Linux receipts `20260825T014913-693360`/`20260825T013752-683591`): interactive
+  `GPENCIL_OT_annotate` draw, polyline-update, and depth-aware eraser events now retain the exact
+  initiating disposition plus a bounded custom-data-free FIFO behind one producing-view-guarded
+  depth-cache request. Native-immediate, pending initial apply, eraser FIFO, chained polyline
+  refresh, failure, drift, timeout, bounds, and external cancellation pass eight byte-identical
+  native/wasm32 contracts and 18 cases; 12 focused and 39 aggregate mutations fail closed. The
+  recorded-stroke `exec` callback remains an explicit synchronous residual alongside Grease Pencil
+  placement, object axis-target placement, particle edit, and WM window capture; live M5 acceptance
+  retains its named hardware blocker. See
+  `notes/m5-annotation-depth-cache-continuation-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -1546,3 +1546,17 @@ epochs, first/second completions, terminal and timeout behavior, and counter wra
 wasm32. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_SystemWeb.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 105 — DOM listener targets are input-ownership boundaries
+
+Signature: a canvas application registers keyboard callbacks on `window` so shortcuts keep working,
+but the callback also receives keys after canvas blur and while a hidden IME input owns focus. The
+same physical keystroke can then enter both the browser text/composition path and GHOST, while an
+unrelated page control still drives Blender. Register key-down/up on the focusable canvas itself;
+register only genuinely global events such as resize on `window`, and remove every listener from
+the exact target used during registration. Retain registration-epoch gating because changing the
+DOM target does not retract already queued worker deliveries. Exercise one focused key, blur to a
+non-canvas control, require no later GHOST key event, and repeat delayed callback delivery across
+window replacement. See `platform_web/ghost/GHOST_SystemWeb.cc`,
+`sandbox/m4-keyboard-focus/`, and
+`platform_web/ghost/harness/window_lifecycle_test.mjs`.

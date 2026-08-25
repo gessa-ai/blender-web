@@ -2785,6 +2785,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   reports zero stage-1/import/submission/transaction/device-loss failures. A stale pre-existing
   port-8123 process was isolated as the retired headless root and binds no evidence; the current
   server on an unused port supplied the passing diagnostic. No hardware receipt or gate changed.
+- [x] **M4-WEB-KEYBOARD-FOCUS-OWNERSHIP [ghost-web] (`55db332`):** raw key-down/up listeners
+  now register and unregister on the focusable canvas rather than `window`, so ordinary DOM
+  controls and Blender's hidden IME textarea cannot also feed their keys into GHOST. The fail-first
+  worker run delivered both events while `#clear` owned focus; final focused/blurred browser,
+  registration-epoch replacement, IME, focus-state, eight-mutation source, native/wasm32,
+  optimized-product, OFF-preflight, fallback-diagnostic, canonical, compliance, M4, and regression
+  checks preserve their strict existing boundaries. See `notes/m4-keyboard-focus-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

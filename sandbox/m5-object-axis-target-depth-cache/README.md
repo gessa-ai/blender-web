@@ -8,10 +8,16 @@ full-viewport request. The render override is restored before any readback retur
 objects plus transform backups remain untouched until a valid cache settles. The stock immediate,
 pass-through, no-depth cancellation, initiating-event, and modal behavior stay intact.
 
+Pending requests retain a producer-only snapshot of the exact frame, compatible target identities,
+local transform channels, parent/data identities, and evaluated transform matrices. Every pending
+event fails closed before cache transfer if any of that state changes while the manager, viewport,
+scene, and active-object pointers remain unchanged.
+
 The source verifier checks the exact ready-only tail, start event, bounded safe FIFO,
 producing-context identity, identified 240-tick poll, render-override restoration, cleanup, and
-external cancellation. Seventeen mutations must fail closed. The native/wasm32 model exercises eight
-contracts and 36 cases byte-for-byte. The receipt also reverses and reapplies patch 0272 and
+external cancellation. Twenty-three mutations must fail closed. The native/wasm32 model exercises
+nine contracts and 39 cases byte-for-byte, including same-pointer frame, target-selection, and
+transform drift. The receipt also reverses and reapplies corrective patch 0276 and
 compiles the exact `object_transform.cc` production translation unit in the native and windowed
 Wasm graphs.
 

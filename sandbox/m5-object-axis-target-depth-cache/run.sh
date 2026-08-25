@@ -14,7 +14,7 @@ SOURCE_ROOT="${BW_SOURCE_ROOT:-}"
 NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-object-axis-target-depth-cache/native}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-object-axis-target-depth-cache/wasm}"
 OUT="${OUT:-$ROOT/build-deps/m5-object-axis-target-depth-cache/evidence}"
-PATCH="$ROOT/patches/0272-m5-object-axis-target-depth-cache-continuation.patch"
+PATCH="$ROOT/patches/0276-m5-axis-target-producer-state.patch"
 CANONICAL="$ROOT/patches/PREVIEW_SNAPSHOT.patch"
 CANONICAL_SHA="$ROOT/patches/PREVIEW_SNAPSHOT.sha256"
 PIN="fbe6228777e7d9afefcd61a413844e790ae75db7"
@@ -120,9 +120,9 @@ for stderr_file in "$NATIVE_STDERR" "$WASM_STDERR"; do
   fi
 done
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 8 ] ||
+  if [ "$(grep -c '^CONTRACT .* PASS ' "$stdout_file")" -ne 9 ] ||
      ! grep -qx \
-       'M5_OBJECT_AXIS_TARGET_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=36' \
+       'M5_OBJECT_AXIS_TARGET_DEPTH_CACHE_CONTRACT_PASS contracts=9 cases=39' \
        "$stdout_file"; then
     echo "ERROR: PASS census differs: $stdout_file" >&2
     exit 1
@@ -141,13 +141,14 @@ if ! jq -e '
   .contracts.pre_selection_suspension == true and
   .contracts.retained_start_event_and_fifo == true and
   .contracts.producing_context_guard == true and
+  .contracts.same_pointer_producer_state_guard == true and
   .contracts.bounded_identified_poll == true and
   .contracts.failure_timeout_cancellation == true and
   .contracts.live_hardware_receipt == false and
   .converted_callers == ["OBJECT_OT_transform_axis_target"] and
   .remaining_depth_cache_callers == ["particle-edit"] and
   .remaining_sync_families == ["depth_cache", "window_capture"] and
-  .mutation_controls == 17' "$OUT/source.json" >/dev/null
+  .mutation_controls == 23' "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2
   exit 1

@@ -16337,11 +16337,27 @@ index 24c0171bd779f88131e1b49af9879aaa6a455cac..4bdc89ae3f39a6372981bb5b1c26f983
    if (params.sel_op == SEL_OP_SET) {
      BMElem *ele = efa ? reinterpret_cast<BMElem *>(efa) :
 diff --git a/source/blender/editors/object/object_transform.cc b/source/blender/editors/object/object_transform.cc
-index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3e96bc643 100644
+index 7b292f43984c32e771fad22a9b4328011dd310b6..206a1cec9401f3862abc949740bceff26d3de035 100644
 --- a/source/blender/editors/object/object_transform.cc
 +++ b/source/blender/editors/object/object_transform.cc
-@@ -1976,7 +1976,19 @@ struct XFormAxisItem {
+@@ -1974,9 +1974,37 @@ struct XFormAxisItem {
+ #endif
+ };
  
++struct XFormAxisProducerObjectState {
++  Object *ob = nullptr;
++  Object *parent = nullptr;
++  ID *data = nullptr;
++  unsigned int session_uid = 0;
++  unsigned int parent_session_uid = 0;
++  short rotation_mode = 0;
++  ObjectTfmProtectedChannels transform_channels{};
++  float object_to_world[4][4]{};
++  float world_to_object[4][4]{};
++  float parent_inverse[4][4]{};
++  float constraint_inverse[4][4]{};
++};
++
  struct XFormAxisData {
    ViewContext vc;
 -  ViewDepths *depths;
@@ -16354,6 +16370,8 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
 +  wmWindow *depth_cache_window = nullptr;
 +  bScreen *depth_cache_screen = nullptr;
 +  ScrArea *depth_cache_area = nullptr;
++  Vector<XFormAxisProducerObjectState> depth_cache_producer_objects;
++  float depth_cache_producer_frame = 0.0f;
 +  int depth_cache_tick_count = 0;
 +  bool depth_cache_start_event_valid = false;
 +  bool depth_cache_pending = false;
@@ -16361,10 +16379,104 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
    struct {
      float depth;
      float normal[3];
-@@ -2034,9 +2046,27 @@ static bool object_is_target_compat(const Object *ob)
+@@ -2034,9 +2062,122 @@ static bool object_is_target_compat(const Object *ob)
    return false;
  }
  
++static Vector<Object *> object_transform_axis_target_selected_targets(const bContext *C,
++                                                                      Object *obact)
++{
++  Vector<Object *> targets;
++  targets.append(obact);
++  CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects) {
++    if (ob != obact && object_is_target_compat(ob)) {
++      targets.append(ob);
++    }
++  }
++  CTX_DATA_END;
++  return targets;
++}
++
++static XFormAxisProducerObjectState
++object_transform_axis_target_depth_producer_object_snapshot(Object *ob)
++{
++  XFormAxisProducerObjectState snapshot;
++  snapshot.ob = ob;
++  snapshot.session_uid = ob->id.session_uid;
++  snapshot.parent = ob->parent;
++  snapshot.parent_session_uid = ob->parent != nullptr ? ob->parent->id.session_uid : 0;
++  snapshot.data = ob->data;
++  snapshot.rotation_mode = ob->rotmode;
++  BKE_object_tfm_protected_backup(ob, &snapshot.transform_channels);
++  copy_m4_m4(snapshot.object_to_world, ob->object_to_world().ptr());
++  copy_m4_m4(snapshot.world_to_object, ob->world_to_object().ptr());
++  copy_m4_m4(snapshot.parent_inverse, ob->parentinv);
++  copy_m4_m4(snapshot.constraint_inverse, ob->constinv);
++  return snapshot;
++}
++
++static bool object_transform_axis_target_depth_producer_object_matches(
++    const XFormAxisProducerObjectState &snapshot, const Object *ob)
++{
++  const unsigned int parent_session_uid = ob->parent != nullptr ? ob->parent->id.session_uid : 0;
++  if (snapshot.ob != ob || snapshot.session_uid != ob->id.session_uid ||
++      snapshot.parent != ob->parent || snapshot.parent_session_uid != parent_session_uid ||
++      snapshot.data != ob->data || snapshot.rotation_mode != ob->rotmode)
++  {
++    return false;
++  }
++
++  ObjectTfmProtectedChannels transform_channels{};
++  BKE_object_tfm_protected_backup(ob, &transform_channels);
++  return std::memcmp(
++             &snapshot.transform_channels, &transform_channels, sizeof(transform_channels)) == 0 &&
++         std::memcmp(snapshot.object_to_world,
++                     ob->object_to_world().ptr(),
++                     sizeof(snapshot.object_to_world)) == 0 &&
++         std::memcmp(snapshot.world_to_object,
++                     ob->world_to_object().ptr(),
++                     sizeof(snapshot.world_to_object)) == 0 &&
++         std::memcmp(snapshot.parent_inverse, ob->parentinv, sizeof(snapshot.parent_inverse)) == 0 &&
++         std::memcmp(
++             snapshot.constraint_inverse, ob->constinv, sizeof(snapshot.constraint_inverse)) == 0;
++}
++
++static bool object_transform_axis_target_depth_producer_state_capture(const bContext *C,
++                                                                      XFormAxisData *xfd)
++{
++  xfd->depth_cache_producer_frame = BKE_scene_frame_get(xfd->vc.scene);
++  const Vector<Object *> targets = object_transform_axis_target_selected_targets(C, xfd->vc.obact);
++  xfd->depth_cache_producer_objects.clear();
++  xfd->depth_cache_producer_objects.reserve(targets.size());
++  for (Object *ob : targets) {
++    xfd->depth_cache_producer_objects.append(
++        object_transform_axis_target_depth_producer_object_snapshot(ob));
++  }
++  return !xfd->depth_cache_producer_objects.is_empty();
++}
++
++static bool object_transform_axis_target_depth_producer_state_matches(const bContext *C,
++                                                                      const XFormAxisData *xfd)
++{
++  if (BKE_scene_frame_get(xfd->vc.scene) != xfd->depth_cache_producer_frame) {
++    return false;
++  }
++
++  const Vector<Object *> current_targets = object_transform_axis_target_selected_targets(
++      C, xfd->vc.obact);
++  if (current_targets.size() != xfd->depth_cache_producer_objects.size()) {
++    return false;
++  }
++  for (const int index : current_targets.index_range()) {
++    if (!object_transform_axis_target_depth_producer_object_matches(
++            xfd->depth_cache_producer_objects[index], current_targets[index]))
++    {
++      return false;
++    }
++  }
++  return true;
++}
++
 +static void object_transform_axis_target_depth_timer_remove(XFormAxisData *xfd)
 +{
 +  if (xfd->depth_cache_timer != nullptr) {
@@ -16384,12 +16496,13 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
 +
 +  object_transform_axis_target_depth_timer_remove(xfd);
 +  xfd->depth_cache_events.clear();
++  xfd->depth_cache_producer_objects.clear();
 +  xfd->depth_cache_start_event_valid = false;
 +  xfd->depth_cache_pending = false;
  
  #ifdef USE_RENDER_OVERRIDE
    if (xfd->depths) {
-@@ -2136,54 +2166,109 @@ void object_transform_axis_target_modal_keymap(wmKeyConfig *keyconf)
+@@ -2136,54 +2277,113 @@ void object_transform_axis_target_modal_keymap(wmKeyConfig *keyconf)
  static void object_transform_axis_target_cancel(bContext *C, wmOperator *op)
  {
    XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
@@ -16429,7 +16542,8 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
 +  {
 +    return false;
 +  }
-+  return xfd->vc.obact != nullptr && object_is_target_compat(xfd->vc.obact);
++  return xfd->vc.obact != nullptr && object_is_target_compat(xfd->vc.obact) &&
++         object_transform_axis_target_depth_producer_state_matches(C, xfd);
 +}
  
 -  if (vc.obact == nullptr || !object_is_target_compat(vc.obact)) {
@@ -16486,6 +16600,9 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
 +  {
 +    return false;
 +  }
++  if (!object_transform_axis_target_depth_producer_state_capture(C, xfd)) {
++    return false;
++  }
  
 -#ifdef USE_RENDER_OVERRIDE
 -  vc.v3d->flag2 = flag2_prev;
@@ -16530,7 +16647,7 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
    xfd->vc.mval[0] = event->mval[0];
    xfd->vc.mval[1] = event->mval[1];
  
-@@ -2214,15 +2299,72 @@ static wmOperatorStatus object_transform_axis_target_invoke(bContext *C,
+@@ -2214,15 +2414,72 @@ static wmOperatorStatus object_transform_axis_target_invoke(bContext *C,
      BKE_object_to_mat3(item.ob, full_mat3);
      item.is_z_flip = dot_v3v3(item.rot_mat[2], full_mat3[2]) < 0.0f;
    }
@@ -16606,7 +16723,7 @@ index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3
  {
    XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
    ARegion *region = xfd->vc.region;
-@@ -2454,6 +2596,90 @@ static wmOperatorStatus object_transform_axis_target_modal(bContext *C,
+@@ -2454,6 +2711,90 @@ static wmOperatorStatus object_transform_axis_target_modal(bContext *C,
    return status;
  }
  

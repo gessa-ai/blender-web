@@ -1379,3 +1379,18 @@ stage-1 failure, or import failure. Keep the classifier device-free and mutation
 single sample, missing input, hardware adapter, or presentation-free response cannot silently
 restore the false green. See `sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs` and
 `live_preinit_contract_test.mjs`.
+
+## Class 93 — pointer identity does not freeze mutable producer state
+
+Signature: a deferred GPU read retains manager, viewport, depsgraph, scene, view-layer, and active-
+object pointers, then creates its selection list and transform backups only after settlement. A
+frame step, selection change, or in-place transform edit can preserve every pointer while pairing
+old pixels with new operation state. Before suspension, retain a producer-only snapshot of the
+exact frame, selected target identities/session IDs, local transform channels, parent/data
+identities, and evaluated transform matrices. Re-enumerate and compare that state on every pending
+event before transferring the readback; deletion or replacement is handled by comparing stored raw
+identities only against currently valid objects. Keep modal backups delayed until settlement so a
+failed guard has nothing to restore. Exercise same-pointer frame, same-size selection replacement,
+and transform drift separately on native and wasm32, and mutate the source guard in the aggregate
+census. See `patches/0276-m5-axis-target-producer-state.patch` and
+`sandbox/m5-object-axis-target-depth-cache/`.

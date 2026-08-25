@@ -42,6 +42,14 @@ struct ContextIdentity {
   bool operator==(const ContextIdentity &) const = default;
 };
 
+struct ProducerState {
+  int frame = 1;
+  std::vector<int> selected_objects = {11, 12, 13};
+  std::vector<int> object_transforms = {101, 102, 103};
+
+  bool operator==(const ProducerState &) const = default;
+};
+
 class AxisTargetModel {
  public:
   static constexpr int owned_timer = 72;
@@ -50,6 +58,8 @@ class AxisTargetModel {
 
   ContextIdentity producing;
   ContextIdentity current;
+  ProducerState current_state;
+  std::optional<ProducerState> producing_state;
   DepthPoll poll_result = DepthPoll::Pending;
 
   bool overlay_hidden = false;
@@ -66,6 +76,7 @@ class AxisTargetModel {
   int restore_calls = 0;
   int tick_count = 0;
   int selected_captures = 0;
+  int producer_state_captures = 0;
   int transform_backups = 0;
   int restored_backups = 0;
   int start_type = -1;
@@ -105,6 +116,8 @@ class AxisTargetModel {
     }
 
     producing = current;
+    producing_state = current_state;
+    ++producer_state_captures;
     Event retained = event;
     retained.custom_payload = false;
     start_event = retained;
@@ -118,7 +131,9 @@ class AxisTargetModel {
 
   Status dispatch(const Event &event)
   {
-    if (!pending || current != producing || !start_event.has_value()) {
+    if (!pending || current != producing || !producing_state.has_value() ||
+        current_state != *producing_state || !start_event.has_value())
+    {
       retire();
       return Status::Cancelled;
     }
@@ -153,6 +168,7 @@ class AxisTargetModel {
     const Event retained_start = *start_event;
     std::vector<Event> retained_events = std::move(events);
     start_event.reset();
+    producing_state.reset();
     pending = false;
     request_owned = false;
     timer_owned = false;
@@ -212,6 +228,7 @@ class AxisTargetModel {
     timer_owned = false;
     depths_owned = false;
     start_event.reset();
+    producing_state.reset();
     events.clear();
     retired = true;
   }
@@ -280,6 +297,8 @@ int main()
               "pending request is not operation-owned");
       require(model.selected_captures == 0 && model.transform_backups == 0,
               "selected objects or backups were captured before settlement");
+      require(model.producer_state_captures == 1 && model.producing_state.has_value(),
+              "safe producer state was not retained before suspension");
     });
 
     contract("immediate_deferred_exact_initialization", 4, [] {
@@ -340,6 +359,29 @@ int main()
         require(model.dispatch({EventType::Move, 2}) == Status::Cancelled,
                 "producing-context drift was accepted");
         require(model.retired && !model.initialized, "context failure captured object state");
+      }
+    });
+
+    contract("same_pointer_producer_state_guard", 3, [] {
+      for (const int drift : {0, 1, 2}) {
+        AxisTargetModel model;
+        model.begin(DepthStart::Pending, start_event());
+        if (drift == 0) {
+          ++model.current_state.frame;
+        }
+        else if (drift == 1) {
+          model.current_state.selected_objects[1] = 14;
+        }
+        else {
+          ++model.current_state.object_transforms[1];
+        }
+        require(model.current == model.producing,
+                "producer-state case accidentally changed a context pointer");
+        require(model.dispatch({EventType::Move, 2}) == Status::Cancelled,
+                "same-pointer producer-state drift was accepted");
+        require(model.retired && !model.initialized && model.selected_captures == 0 &&
+                    model.transform_backups == 0,
+                "producer-state failure entered mutable initialization");
       }
     });
 
@@ -408,6 +450,6 @@ int main()
     return 1;
   }
 
-  std::cout << "M5_OBJECT_AXIS_TARGET_DEPTH_CACHE_CONTRACT_PASS contracts=8 cases=36\n";
+  std::cout << "M5_OBJECT_AXIS_TARGET_DEPTH_CACHE_CONTRACT_PASS contracts=9 cases=39\n";
   return 0;
 }

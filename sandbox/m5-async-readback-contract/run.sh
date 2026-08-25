@@ -165,6 +165,7 @@ if ! jq -e \
    .contracts.curve_draw_depth_cache_continuations == true and
    .contracts.annotation_depth_cache_continuation == true and
    .contracts.particle_edit_depth_cache_continuation == true and
+   .contracts.axis_target_producer_state_guard == true and
    .contracts.asset_preview_window_capture_continuation == true and
    .contracts.python_window_screenshot_browser_deferral == true and
    .contracts.live_hardware_receipt == false and

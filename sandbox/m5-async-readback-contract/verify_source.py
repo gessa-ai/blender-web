@@ -42,6 +42,7 @@ SOURCE_PATHS = (
     "source/blender/editors/curves/intern/curves_draw.cc",
     "source/blender/editors/gpencil_legacy/annotate_paint.cc",
     "source/blender/editors/mesh/editmesh_select.cc",
+    "source/blender/editors/object/object_transform.cc",
     "source/blender/editors/physics/particle_edit.cc",
     "source/blender/editors/sculpt_paint/paint_intern.hh",
     "source/blender/editors/sculpt_paint/mesh/paint_image_proj.cc",
@@ -186,6 +187,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "source/blender/editors/gpencil_legacy/annotate_paint.cc"
     ]
     editmesh_select = sources["source/blender/editors/mesh/editmesh_select.cc"]
+    object_transform = sources["source/blender/editors/object/object_transform.cc"]
     particle_edit = sources["source/blender/editors/physics/particle_edit.cc"]
     paint_api = sources["source/blender/editors/sculpt_paint/paint_intern.hh"]
     paint_projection = sources[
@@ -1365,6 +1367,75 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in view_select, f"particle-edit caller owner missing {needle!r}")
 
+    axis_producer = braced_definition(
+        object_transform,
+        "struct XFormAxisProducerObjectState",
+        "axis-target producer object snapshot",
+    )
+    for needle in (
+        "unsigned int session_uid = 0;",
+        "unsigned int parent_session_uid = 0;",
+        "ObjectTfmProtectedChannels transform_channels{};",
+        "float object_to_world[4][4]{};",
+        "float world_to_object[4][4]{};",
+        "float parent_inverse[4][4]{};",
+        "float constraint_inverse[4][4]{};",
+    ):
+        require(needle in axis_producer, f"axis-target producer snapshot missing {needle!r}")
+    axis_object_guard = braced_definition(
+        object_transform,
+        "static bool object_transform_axis_target_depth_producer_object_matches(",
+        "axis-target producer object guard",
+    )
+    for needle in (
+        "snapshot.session_uid != ob->id.session_uid",
+        "snapshot.parent_session_uid != parent_session_uid",
+        "snapshot.data != ob->data",
+        "snapshot.rotation_mode != ob->rotmode",
+        "&snapshot.transform_channels",
+        "std::memcmp(snapshot.object_to_world,",
+        "std::memcmp(snapshot.world_to_object,",
+        "std::memcmp(snapshot.parent_inverse,",
+        "snapshot.constraint_inverse, ob->constinv",
+    ):
+        require(needle in axis_object_guard, f"axis-target producer guard missing {needle!r}")
+    axis_state_guard = braced_definition(
+        object_transform,
+        "static bool object_transform_axis_target_depth_producer_state_matches(",
+        "axis-target producer state guard",
+    )
+    for needle in (
+        "BKE_scene_frame_get(xfd->vc.scene) != xfd->depth_cache_producer_frame",
+        "object_transform_axis_target_selected_targets(",
+        "current_targets.size() != xfd->depth_cache_producer_objects.size()",
+        "object_transform_axis_target_depth_producer_object_matches(",
+    ):
+        require(needle in axis_state_guard, f"axis-target state guard missing {needle!r}")
+    axis_context_guard = braced_definition(
+        object_transform,
+        "static bool object_transform_axis_target_depth_context_matches(",
+        "axis-target context guard",
+    )
+    require(
+        "object_transform_axis_target_depth_producer_state_matches(C, xfd)"
+        in axis_context_guard,
+        "axis-target context guard does not bind mutable producer state",
+    )
+    axis_wait = braced_definition(
+        object_transform,
+        "static bool object_transform_axis_target_depth_wait_begin(",
+        "axis-target wait begin",
+    )
+    require_ordered(
+        axis_wait,
+        (
+            "object_transform_axis_target_depth_producer_state_capture(C, xfd)",
+            "WM_event_timer_add(",
+            "xfd->depth_cache_pending = true;",
+        ),
+        "axis-target producer snapshot before suspension",
+    )
+
     native_sync_controls = {
         "window_capture": (
             "source/blender/windowmanager/intern/wm_draw.cc",
@@ -1863,6 +1934,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "curve_draw_depth_cache_continuations": True,
             "annotation_depth_cache_continuation": True,
             "particle_edit_depth_cache_continuation": True,
+            "axis_target_producer_state_guard": True,
             "asset_preview_window_capture_continuation": True,
             "python_window_screenshot_browser_deferral": True,
             "native_wasm_contract_required": True,
@@ -2152,6 +2224,30 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "constexpr int max_queued_events = 256",
             "constexpr int max_queued_events = 0",
             "particle-edit brush FIFO bound",
+        ),
+        (
+            "source/blender/editors/object/object_transform.cc",
+            "BKE_scene_frame_get(xfd->vc.scene) != xfd->depth_cache_producer_frame",
+            "false",
+            "axis-target same-pointer frame drift",
+        ),
+        (
+            "source/blender/editors/object/object_transform.cc",
+            "current_targets.size() != xfd->depth_cache_producer_objects.size()",
+            "false",
+            "axis-target same-pointer selection drift",
+        ),
+        (
+            "source/blender/editors/object/object_transform.cc",
+            "snapshot.session_uid != ob->id.session_uid",
+            "false",
+            "axis-target selected identity drift",
+        ),
+        (
+            "source/blender/editors/object/object_transform.cc",
+            "std::memcmp(snapshot.object_to_world,",
+            "std::memcmp(ob->object_to_world().ptr(),",
+            "axis-target same-pointer transform drift",
         ),
         (
             "source/blender/editors/space_view3d/view3d_select.cc",

@@ -74,6 +74,24 @@ def braced_definition(source: str, signature: str, label: str) -> str:
 
 
 def verify(source: str) -> None:
+    producer_object = braced_definition(
+        source, "struct XFormAxisProducerObjectState", "producer object snapshot"
+    )
+    for token in (
+        "Object *ob = nullptr;",
+        "Object *parent = nullptr;",
+        "ID *data = nullptr;",
+        "unsigned int session_uid = 0;",
+        "unsigned int parent_session_uid = 0;",
+        "short rotation_mode = 0;",
+        "ObjectTfmProtectedChannels transform_channels{};",
+        "float object_to_world[4][4]{};",
+        "float world_to_object[4][4]{};",
+        "float parent_inverse[4][4]{};",
+        "float constraint_inverse[4][4]{};",
+    ):
+        require(token in producer_object, f"producer object snapshot missing: {token}")
+
     owner = braced_definition(source, "struct XFormAxisData", "axis-target owner")
     for token in (
         "ViewDepths *depths = nullptr;",
@@ -85,12 +103,102 @@ def verify(source: str) -> None:
         "wmWindow *depth_cache_window = nullptr;",
         "bScreen *depth_cache_screen = nullptr;",
         "ScrArea *depth_cache_area = nullptr;",
+        "Vector<XFormAxisProducerObjectState> depth_cache_producer_objects;",
+        "float depth_cache_producer_frame = 0.0f;",
         "int depth_cache_tick_count = 0;",
         "bool depth_cache_start_event_valid = false;",
         "bool depth_cache_pending = false;",
         "bool initialized = false;",
     ):
         require(token in owner, f"axis-target continuation ownership missing: {token}")
+
+    selected_targets = braced_definition(
+        source,
+        "static Vector<Object *> object_transform_axis_target_selected_targets(",
+        "selected target collector",
+    )
+    for token in (
+        "targets.append(obact);",
+        "selected_editable_objects",
+        "ob != obact",
+        "object_is_target_compat(ob)",
+        "targets.append(ob);",
+    ):
+        require(token in selected_targets, f"selected target collector missing: {token}")
+
+    producer_snapshot = braced_definition(
+        source,
+        "object_transform_axis_target_depth_producer_object_snapshot(",
+        "producer object capture",
+    )
+    for token in (
+        "snapshot.ob = ob;",
+        "snapshot.session_uid = ob->id.session_uid;",
+        "snapshot.parent = ob->parent;",
+        "snapshot.parent_session_uid = ob->parent != nullptr ? ob->parent->id.session_uid : 0;",
+        "snapshot.data = ob->data;",
+        "snapshot.rotation_mode = ob->rotmode;",
+        "BKE_object_tfm_protected_backup(ob, &snapshot.transform_channels);",
+        "copy_m4_m4(snapshot.object_to_world, ob->object_to_world().ptr());",
+        "copy_m4_m4(snapshot.world_to_object, ob->world_to_object().ptr());",
+        "copy_m4_m4(snapshot.parent_inverse, ob->parentinv);",
+        "copy_m4_m4(snapshot.constraint_inverse, ob->constinv);",
+    ):
+        require(token in producer_snapshot, f"producer object capture missing: {token}")
+
+    producer_object_match = braced_definition(
+        source,
+        "static bool object_transform_axis_target_depth_producer_object_matches(",
+        "producer object guard",
+    )
+    for token in (
+        "snapshot.ob != ob",
+        "snapshot.session_uid != ob->id.session_uid",
+        "snapshot.parent != ob->parent",
+        "snapshot.parent_session_uid != parent_session_uid",
+        "snapshot.data != ob->data",
+        "snapshot.rotation_mode != ob->rotmode",
+        "&snapshot.transform_channels",
+        "&transform_channels",
+        "sizeof(transform_channels)",
+        "std::memcmp(snapshot.object_to_world,",
+        "ob->object_to_world().ptr()",
+        "sizeof(snapshot.object_to_world)",
+        "std::memcmp(snapshot.world_to_object,",
+        "ob->world_to_object().ptr()",
+        "sizeof(snapshot.world_to_object)",
+        "std::memcmp(snapshot.parent_inverse, ob->parentinv, sizeof(snapshot.parent_inverse))",
+        "snapshot.constraint_inverse, ob->constinv, sizeof(snapshot.constraint_inverse)",
+    ):
+        require(token in producer_object_match, f"producer object guard missing: {token}")
+
+    producer_capture = braced_definition(
+        source,
+        "static bool object_transform_axis_target_depth_producer_state_capture(",
+        "producer state capture",
+    )
+    for token in (
+        "xfd->depth_cache_producer_frame = BKE_scene_frame_get(xfd->vc.scene);",
+        "const Vector<Object *> targets",
+        "object_transform_axis_target_selected_targets(C, xfd->vc.obact)",
+        "xfd->depth_cache_producer_objects.clear();",
+        "object_transform_axis_target_depth_producer_object_snapshot(ob)",
+    ):
+        require(token in producer_capture, f"producer state capture missing: {token}")
+
+    producer_match = braced_definition(
+        source,
+        "static bool object_transform_axis_target_depth_producer_state_matches(",
+        "producer state guard",
+    )
+    for token in (
+        "BKE_scene_frame_get(xfd->vc.scene) != xfd->depth_cache_producer_frame",
+        "const Vector<Object *> current_targets",
+        "object_transform_axis_target_selected_targets(",
+        "current_targets.size() != xfd->depth_cache_producer_objects.size()",
+        "object_transform_axis_target_depth_producer_object_matches(",
+    ):
+        require(token in producer_match, f"producer state guard missing: {token}")
 
     invoke = braced_definition(
         source, "static wmOperatorStatus object_transform_axis_target_invoke(", "axis-target invoke"
@@ -171,9 +279,15 @@ def verify(source: str) -> None:
         "depth_cache_start_event.customdata_free = false;",
         "WM_event_timer_add(",
         "TIMER, 0.01f",
+        "object_transform_axis_target_depth_producer_state_capture(C, xfd)",
         "depth_cache_pending = true;",
     ):
         require(token in wait_begin, f"pending invoke ownership missing: {token}")
+    require(
+        wait_begin.find("object_transform_axis_target_depth_producer_state_capture(C, xfd)")
+        < wait_begin.find("WM_event_timer_add("),
+        "producer state is captured after the continuation can suspend",
+    )
 
     context_match = braced_definition(
         source,
@@ -192,6 +306,7 @@ def verify(source: str) -> None:
         "CTX_data_scene(C) != xfd->vc.scene",
         "CTX_data_view_layer(C) != xfd->vc.view_layer",
         "CTX_data_active_object(C) != xfd->vc.obact",
+        "object_transform_axis_target_depth_producer_state_matches(C, xfd)",
     ):
         require(token in context_match, f"producing-context guard missing: {token}")
 
@@ -264,6 +379,7 @@ def verify(source: str) -> None:
     for token in (
         "object_transform_axis_target_depth_timer_remove(xfd);",
         "xfd->depth_cache_events.clear();",
+        "xfd->depth_cache_producer_objects.clear();",
         "xfd->depth_cache_pending = false;",
         "MEM_delete(xfd);",
         "op->customdata = nullptr;",
@@ -326,6 +442,27 @@ def run_selfcheck(source: str) -> None:
         ("item.obtfm = BKE_object_tfm_backup(item.ob);", "item.obtfm = nullptr;"),
         ("event->type == EVT_MODAL_MAP && event->val == AXIS_TARGET_MODAL_CANCEL", "false"),
         ("if (xfd->initialized)", "if (true)"),
+        (
+            "object_transform_axis_target_depth_producer_state_capture(C, xfd)",
+            "false",
+        ),
+        (
+            "BKE_scene_frame_get(xfd->vc.scene) != xfd->depth_cache_producer_frame",
+            "false",
+        ),
+        (
+            "current_targets.size() != xfd->depth_cache_producer_objects.size()",
+            "false",
+        ),
+        ("snapshot.session_uid != ob->id.session_uid", "false"),
+        (
+            "&snapshot.transform_channels",
+            "&transform_channels /* producer channels ignored */",
+        ),
+        (
+            "std::memcmp(snapshot.object_to_world,",
+            "std::memcmp(ob->object_to_world().ptr(),",
+        ),
     )
     for old, new in mutations:
         require(old in source, f"selfcheck mutation source missing: {old}")
@@ -359,6 +496,7 @@ def main() -> int:
                 "pre_selection_suspension": True,
                 "retained_start_event_and_fifo": True,
                 "producing_context_guard": True,
+                "same_pointer_producer_state_guard": True,
                 "bounded_identified_poll": True,
                 "failure_timeout_cancellation": True,
                 "live_hardware_receipt": False,
@@ -382,7 +520,7 @@ def main() -> int:
     return 0
 
 
-MUTATIONS_FOR_COUNT = tuple(range(17))
+MUTATIONS_FOR_COUNT = tuple(range(23))
 
 
 if __name__ == "__main__":

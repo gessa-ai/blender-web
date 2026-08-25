@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Reverse and forward patch 0272 against its exact current postimage."""
+"""Reverse and forward the axis-target producer-state corrective patch."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 
-EXPECTED_NAME = "0272-m5-object-axis-target-depth-cache-continuation.patch"
+EXPECTED_NAME = "0276-m5-axis-target-producer-state.patch"
 EXPECTED_PATHS = {Path("source/blender/editors/object/object_transform.cc")}
 
 

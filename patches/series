@@ -1131,3 +1131,6 @@
 # 0275: preserve the native immediate Window.screenshot memoryview while the
 # browser fails closed onto the async screenshot operator under ADR-006.
 0275-m5-python-window-screenshot-browser-deferral.patch
+# 0276: reject deferred Look at Surface depth after same-pointer frame,
+# target-selection, local-transform, parent, or evaluated-matrix drift.
+0276-m5-axis-target-producer-state.patch

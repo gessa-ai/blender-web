@@ -2522,6 +2522,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   capture family; it requires a separate API/design decision, while live M5 acceptance retains its
   named hardware blocker. See
   `notes/m5-asset-preview-window-capture-continuation-20260825.md`.
+- [x] **M5-PYTHON-WINDOW-SCREENSHOT-BROWSER-DEFERRAL [driver, blocked-by: none]:** COMPLETE
+  (`ea8dc3c`, patch 0275): the stock `Window.screenshot()` method, keyword parsing, background
+  error, crop/alpha handling, and immediate owned-memoryview return remain exact on native, while
+  Emscripten raises an actionable `RuntimeError` before any synchronous pixel read and directs file
+  capture to the already-owned screenshot-operator continuation. Focused post-commit source,
+  numbered-round-trip, exact native/wasm product-object, and 12-mutation checks are green; symbol
+  inspection proves only the native object references `WM_window_pixels_read`. The aggregate
+  50-source/48-mutation contract reports zero remaining browser-sync families and one explicit API
+  deferral. The real product rebuild/no-work, OFF preflight, canonical replay, REUSE, M5 scope, and
+  container-backed regression retain their strict boundaries. See
+  `notes/m5-python-window-screenshot-browser-deferral-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

@@ -46,8 +46,8 @@ WM window capture remains the other open family.
   (`20260824T235910-602614`/`20260825T000109-605443`). OFF preflight
   `20260825T000723-611824` binds the existing 657,928-byte JavaScript, 118,955,345-byte Wasm, and
   167,143,248-byte data artifacts.
-- Repository-wide REUSE 6.2.0 is GREEN for 2,422/2,422 files
-  (`20260825T000343-607592`). Required M5 remains honestly RED only at the absent
+- Repository-wide REUSE 6.2.0 is GREEN for 2,420/2,420 files
+  (`20260825T001228-615750`). Required M5 remains honestly RED only at the absent
   `blender_browser.deferred.wasm` boundary (`20260825T000418-607865`). Container-backed regression
   `20260825T000429-608785` restores M0 6/6 GREEN while M1–M8 retain their existing strict-receipt,
   browser, split-product, hardware, run-label, and release boundaries.

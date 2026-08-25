@@ -2383,6 +2383,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 contracts and 20 cases are byte-identical; eight source mutations fail closed. This
   closes the depth-pick family at the source/device-free boundary, leaving exactly depth cache and
   WM window capture synchronous. See `notes/m5-ndof-depth-continuation-20260824.md`.
+- [x] **M5-DEPTH-CACHE-READBACK-PRIMITIVE [driver, complete]:** COMPLETE (`f81d38e`, patch 0264;
+  Linux receipts `20260825T000145-605723`/`20260824T235745-601686`): one owned full-viewport
+  request now retains the exact texture dimensions, producing region and view matrices, validates
+  byte/allocation/index geometry, and transfers one `ViewDepths` only after settlement. Six
+  native/wasm32 contracts and 14 cases are byte-identical; nine source mutations fail closed and
+  both product-graph translation-unit compiles pass. This is an enabler only: depth-cache caller
+  continuations and WM window capture remain open, while live M5 acceptance retains its named
+  hardware blocker. See `notes/m5-depth-cache-readback-primitive-20260825.md`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

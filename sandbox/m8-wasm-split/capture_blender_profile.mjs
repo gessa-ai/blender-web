@@ -237,7 +237,8 @@ async function probeAdapter(page) {
     const info = adapter.info || {};
     return {
       present: true,
-      isFallbackAdapter: adapter.isFallbackAdapter ?? null,
+      isFallbackAdapter: typeof info.isFallbackAdapter === 'boolean' ? info.isFallbackAdapter :
+        (adapter.isFallbackAdapter ?? null),
       info: Object.fromEntries(['vendor', 'architecture', 'device', 'description']
         .map((key) => [key, typeof info[key] === 'string' ? info[key] : ''])),
     };
@@ -273,7 +274,7 @@ function pixelProof(PNG, buffer) {
   };
 }
 
-function runSelfcheck() {
+async function runSelfcheck() {
   let positive = 0;
   let negative = 0;
   const check = (condition, message) => {
@@ -338,16 +339,39 @@ function runSelfcheck() {
     playwrightVersion: PLAYWRIGHT_VERSION, pngjsVersion: PNGJS_VERSION,
   })));
 
-  for (const raw of [
-    { present: true, isFallbackAdapter: false,
-      info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' } },
-    { present: true, isFallbackAdapter: false,
+  const probeFixture = async (adapter) => {
+    const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { gpu: { requestAdapter: async () => adapter } },
+    });
+    try {
+      return await probeAdapter({ evaluate: (action) => action() });
+    }
+    finally {
+      if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor);
+      else delete globalThis.navigator;
+    }
+  };
+  for (const adapter of [
+    { info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '',
+      isFallbackAdapter: false } },
+    { isFallbackAdapter: false,
       info: { vendor: 'apple', architecture: 'apple m3 max', device: '', description: '' } },
+    { isFallbackAdapter: true,
+      info: { vendor: 'apple', architecture: 'metal-3', device: '', description: '',
+        isFallbackAdapter: false } },
   ]) {
-    const accepted = classifyAdapterProbe(raw, raw.info.vendor === 'apple' ? 'darwin' : 'linux');
+    const accepted = await probeFixture(adapter);
     check(accepted.status === 'ACCEPTED' && accepted.reason === 'accepted-hardware' &&
       accepted.softwareMatches.length === 0, 'hardware adapter fixture was rejected');
   }
+  const currentFallback = await probeFixture({
+    info: { vendor: 'fixture', architecture: 'hardware', device: 'GPU', description: '',
+      isFallbackAdapter: true },
+  });
+  check(currentFallback.status === 'REJECTED' && currentFallback.reason === 'fallback-adapter',
+    'current-spec fallback adapter fixture was accepted');
   for (const [name, raw] of [
     ['absent', { present: false, info: null }],
     ['fallback', { present: true, isFallbackAdapter: true,
@@ -985,7 +1009,7 @@ async function main(options) {
 
 const invocation = parseArgs(process.argv.slice(2));
 if (invocation.selfcheck) {
-  runSelfcheck();
+  runSelfcheck().catch((error) => { console.error(error); process.exitCode = 1; });
 }
 else {
   main(invocation).catch((error) => { console.error(error); process.exitCode = 1; });

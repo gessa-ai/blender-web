@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Bind Blender's standard cursor contract to the main-thread canvas bridge."""
+"""Bind Blender's standard/custom cursor contract to the main-thread canvas bridge."""
 
 from __future__ import annotations
 
@@ -97,7 +97,13 @@ def require_once(source: str, token: str, label: str) -> None:
         raise ValueError(f"expected one {label}, found {count}")
 
 
-def validate(window_source: str, window_header: str, shell_source: str, types_source: str) -> None:
+def validate(
+    window_source: str,
+    window_header: str,
+    system_source: str,
+    shell_source: str,
+    types_source: str,
+) -> None:
     names = cursor_names(types_source)
     if names != EXPECTED_CURSOR_NAMES:
         raise ValueError("GHOST standard cursor order differs from the browser mapping contract")
@@ -105,12 +111,9 @@ def validate(window_source: str, window_header: str, shell_source: str, types_so
     for declaration in (
         "GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape) override;",
         "GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor shape) override;",
+        "GHOST_TSuccess setWindowCustomCursorShape(const uint8_t *bitmap,",
     ):
         require_once(window_header, declaration, declaration)
-
-    custom = method(window_header, "GHOST_TSuccess setWindowCustomCursorShape(")
-    if custom.count("return GHOST_kFailure;") != 1 or "return GHOST_kSuccess;" in custom:
-        raise ValueError("unsupported custom cursors must fail instead of reporting a no-op success")
 
     has_shape = method(window_source, "GHOST_TSuccess GHOST_WindowWeb::hasCursorShape(")
     if "GHOST_kStandardCursorFirstCursor" not in has_shape:
@@ -128,6 +131,23 @@ def validate(window_source: str, window_header: str, shell_source: str, types_so
     if "g_cursor_generation.fetch_add(1, std::memory_order_release);" not in set_shape:
         raise ValueError("cursor shape publication has no release generation")
 
+    custom = method(window_source, "GHOST_TSuccess GHOST_WindowWeb::setWindowCustomCursorShape(")
+    for token in (
+        "kWebCustomCursorMaxDimension = 128",
+        "MAIN_THREAD_EM_ASM_INT(",
+        "bridge.installCustomCursor(",
+        "HEAPU8, $0, $1, $2, $3, $4, $5",
+        "g_cursor_shape.store(int32_t(GHOST_kStandardCursorCustom), std::memory_order_relaxed);",
+        "g_cursor_generation.fetch_add(1, std::memory_order_release);",
+    ):
+        source = window_source if token == "kWebCustomCursorMaxDimension = 128" else custom
+        if token not in source:
+            raise ValueError(f"custom cursor publication is missing: {token}")
+    if custom.count("return GHOST_kFailure;") != 2 or custom.count("return GHOST_kSuccess;") != 1:
+        raise ValueError("custom cursor must fail both validation/bridge errors and publish one success")
+    if window_source.count("g_cursor_generation.fetch_add(1, std::memory_order_release);") != 3:
+        raise ValueError("standard/custom/visibility cursor publications must each release a generation")
+
     visibility = method(window_source, "GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(")
     if "g_cursor_visible.store(visible ? 1 : 0, std::memory_order_relaxed);" not in visibility:
         raise ValueError("cursor visibility is not published to shared wasm memory")
@@ -135,6 +155,12 @@ def validate(window_source: str, window_header: str, shell_source: str, types_so
         raise ValueError("cursor visibility publication has no release generation")
     if "EM_ASM" in visibility:
         raise ValueError("worker cursor visibility still attempts direct DOM access")
+
+    capabilities = method(system_source, "GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities(")
+    if "GHOST_kCapabilityCursorRGBA" in capabilities:
+        raise ValueError("implemented RGBA cursor capability is still masked")
+    if "GHOST_kCapabilityCursorGenerator" not in capabilities:
+        raise ValueError("unimplemented cursor generator capability is not masked")
 
     export_contract = {
         "bw_shell_cursor_generation": (
@@ -164,14 +190,29 @@ def validate(window_source: str, window_header: str, shell_source: str, types_so
         "Number(mod._bw_shell_cursor_shape())",
         "Number(mod._bw_shell_cursor_visible())",
         "const CSS_CURSOR_BY_GHOST_SHAPE = Object.freeze([",
+        "const CUSTOM_CURSOR_SHAPE = CSS_CURSOR_BY_GHOST_SHAPE.length;",
+        "const CUSTOM_CURSOR_MAX_DIMENSION = 128;",
+        "function installCustomCursor(heap, bitmapPointer, maskPointer, width, height, hotX, hotY)",
+        "const bit = 1 << (x & 7);",
+        "context.putImageData(image, 0, 0);",
+        "customCursorCss = `url(${JSON.stringify(dataUrl)}) ${hotX} ${hotY}, default`;",
+        "schema: 2,",
+        "installCustomCursor,",
+        "mod.canvas && mod.canvas.style ? mod.canvas :",
     ):
         require_once(shell_source, token, token)
     if shell_source.count("window.requestAnimationFrame(frame)") != 2:
         raise ValueError("cursor bridge must seed and continue one animation-frame poll")
 
 
-def selfcheck(window_source: str, window_header: str, shell_source: str, types_source: str) -> None:
-    validate(window_source, window_header, shell_source, types_source)
+def selfcheck(
+    window_source: str,
+    window_header: str,
+    system_source: str,
+    shell_source: str,
+    types_source: str,
+) -> None:
+    validate(window_source, window_header, system_source, shell_source, types_source)
     mutations = (
         (
             window_source.replace(
@@ -180,6 +221,7 @@ def selfcheck(window_source: str, window_header: str, shell_source: str, types_s
                 1,
             ),
             window_header,
+            system_source,
             shell_source,
             types_source,
         ),
@@ -190,24 +232,102 @@ def selfcheck(window_source: str, window_header: str, shell_source: str, types_s
                 1,
             ),
             window_header,
+            system_source,
+            shell_source,
+            types_source,
+        ),
+        (
+            window_source.replace("bridge.installCustomCursor(", "bridge.ignoreCustomCursor(", 1),
+            window_header,
+            system_source,
+            shell_source,
+            types_source,
+        ),
+        (
+            window_source.replace(
+                "g_cursor_shape.store(int32_t(GHOST_kStandardCursorCustom), std::memory_order_relaxed);",
+                "(void)bitmap;",
+                1,
+            ),
+            window_header,
+            system_source,
             shell_source,
             types_source,
         ),
         (
             window_source,
-            window_header.replace("return GHOST_kFailure;", "return GHOST_kSuccess;", 1),
+            window_header.replace(
+                "GHOST_TSuccess setWindowCustomCursorShape(const uint8_t *bitmap,",
+                "GHOST_TSuccess ignoreWindowCustomCursorShape(const uint8_t *bitmap,",
+                1,
+            ),
+            system_source,
             shell_source,
             types_source,
         ),
         (
             window_source,
             window_header,
+            system_source.replace(
+                "GHOST_kCapabilityKeyboardHyperKey | GHOST_kCapabilityCursorGenerator |",
+                "GHOST_kCapabilityKeyboardHyperKey | GHOST_kCapabilityCursorRGBA | "
+                "GHOST_kCapabilityCursorGenerator |",
+                1,
+            ),
+            shell_source,
+            types_source,
+        ),
+        (
+            window_source,
+            window_header,
+            system_source,
             shell_source.replace("_bw_shell_cursor_generation", "_bw_shell_cursor_epoch", 1),
             types_source,
         ),
         (
             window_source,
             window_header,
+            system_source,
+            shell_source.replace("function installCustomCursor(", "function ignoreCustomCursor(", 1),
+            types_source,
+        ),
+        (
+            window_source,
+            window_header,
+            system_source,
+            shell_source.replace(
+                "const CUSTOM_CURSOR_MAX_DIMENSION = 128;",
+                "const CUSTOM_CURSOR_MAX_DIMENSION = 129;",
+                1,
+            ),
+            types_source,
+        ),
+        (
+            window_source,
+            window_header,
+            system_source,
+            shell_source.replace(
+                "const bit = 1 << (x & 7);",
+                "const bit = 1 << (7 - (x & 7));",
+                1,
+            ),
+            types_source,
+        ),
+        (
+            window_source.replace(
+                "const int installed = MAIN_THREAD_EM_ASM_INT(",
+                "const int installed = EM_ASM_INT(",
+                1,
+            ),
+            window_header,
+            system_source,
+            shell_source,
+            types_source,
+        ),
+        (
+            window_source,
+            window_header,
+            system_source,
             shell_source,
             types_source.replace("  GHOST_kStandardCursorSlip,", "", 1),
         ),
@@ -224,6 +344,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("window_source", type=Path)
     parser.add_argument("window_header", type=Path)
+    parser.add_argument("system_source", type=Path)
     parser.add_argument("shell_source", type=Path)
     parser.add_argument("types_source", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
@@ -232,6 +353,7 @@ def main() -> int:
     sources = tuple(path.read_text(encoding="utf-8") for path in (
         args.window_source,
         args.window_header,
+        args.system_source,
         args.shell_source,
         args.types_source,
     ))
@@ -239,7 +361,7 @@ def main() -> int:
         selfcheck(*sources)
     else:
         validate(*sources)
-    print("CURSOR_BRIDGE_SOURCE_CONTRACT PASS standard=46 custom=unsupported mutations=5")
+    print("CURSOR_BRIDGE_SOURCE_CONTRACT PASS standard=46 custom=rgba,xbm max=128 mutations=12")
     return 0
 
 

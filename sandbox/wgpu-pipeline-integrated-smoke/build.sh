@@ -1704,7 +1704,8 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/patches/blender_web.cmake" "$ROOT/upstream/CMakeLists.txt" \
   "$ROOT/patches/0280-ghost-web-input-ime-option.patch" "$ROOT/patches/series" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
-  "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
+  "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$GHOST_SYSTEM_SOURCE" \
+  "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
   "$GHOST_TYPES_SOURCE" --selfcheck
 for status in 1 2 3 4 5; do
   require_fixed_count 1 \
@@ -2179,7 +2180,7 @@ then
 fi
 "$NODE" "$CURSOR_BRIDGE_TEST" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" >"$OUT/cursor-bridge.txt"
 if ! grep -qx \
-  'CURSOR_BRIDGE_CONTRACT PASS standard=46 visibility=hidden,visible recovery=module,canvas,error' \
+  'CURSOR_BRIDGE_CONTRACT PASS standard=46 custom=rgba,xbm invalid=closed visibility=hidden,visible recovery=module,canvas,error' \
   "$OUT/cursor-bridge.txt"
 then
   echo "ERROR: main-thread cursor bridge evidence differs" >&2

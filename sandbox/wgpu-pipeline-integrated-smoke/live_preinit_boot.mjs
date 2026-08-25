@@ -154,7 +154,8 @@ try {
   await page.waitForFunction(() => {
     const bridge = window.__bwCursorBridge;
     const snapshot = bridge && bridge.snapshot();
-    return bridge?.schema === 1 && bridge.standardShapeCount === 46 && snapshot &&
+    return bridge?.schema === 2 && bridge.standardShapeCount === 46 &&
+      bridge.customShape === 46 && bridge.customMaxDimension === 128 && snapshot &&
       Number.isInteger(snapshot.generation) && Number.isInteger(snapshot.shape) &&
       snapshot.shape >= 0 && snapshot.shape < bridge.standardShapeCount &&
       snapshot.visible === true && snapshot.css === document.querySelector("#canvas")?.style.cursor;

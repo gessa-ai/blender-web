@@ -39,8 +39,9 @@
 // atomics; this main-thread loop applies it to the original HTMLCanvasElement.
 (() => {
   // Numeric order is bound to GHOST_TStandardCursor by cursor_bridge_contract.py.
-  // GHOST_kStandardCursorCustom is deliberately excluded: arbitrary bitmap/mask cursors
-  // have no lossless CSS equivalent and GHOST_WindowWeb reports them unsupported.
+  // The final Custom sentinel is handled separately: GHOST publishes owned RGBA/XBM
+  // pixels synchronously, this main-thread bridge rasterizes them to a PNG data URL,
+  // and the ordinary release generation applies that image plus its exact hotspot.
   const CSS_CURSOR_BY_GHOST_SHAPE = Object.freeze([
     "default", "default", "default", "help", "not-allowed", "help", "wait", "text",
     "crosshair", "crosshair", "crosshair", "crosshair", "crosshair", "n-resize", "s-resize",
@@ -50,11 +51,85 @@
     "sw-resize", "copy", "w-resize", "e-resize", "ew-resize", "grab", "grabbing", "pointer",
     "crosshair", "move",
   ]);
+  const CUSTOM_CURSOR_SHAPE = CSS_CURSOR_BY_GHOST_SHAPE.length;
+  // Chromium and Firefox reject CSS image cursors larger than 128x128. Blender's
+  // ordinary SVG/time cursors are smaller; reject larger inputs instead of claiming
+  // success for a browser cursor that will be ignored.
+  const CUSTOM_CURSOR_MAX_DIMENSION = 128;
 
   let lastGeneration = null;
   let lastSnapshot = null;
+  let customCursorCss = null;
+
+  function heapSpanIsValid(heap, pointer, length) {
+    return heap && typeof heap.length === "number" &&
+      Number.isSafeInteger(pointer) && pointer > 0 &&
+      Number.isSafeInteger(length) && length > 0 &&
+      pointer <= heap.length && length <= heap.length - pointer;
+  }
+
+  function installCustomCursor(heap, bitmapPointer, maskPointer, width, height, hotX, hotY) {
+    try {
+      if (![bitmapPointer, maskPointer, width, height, hotX, hotY].every(Number.isSafeInteger) ||
+          width <= 0 || height <= 0 ||
+          width > CUSTOM_CURSOR_MAX_DIMENSION || height > CUSTOM_CURSOR_MAX_DIMENSION ||
+          hotX < 0 || hotY < 0 || hotX >= width || hotY >= height) {
+        return false;
+      }
+
+      const rowBytes = Math.ceil(width / 8);
+      const sourceBytes = maskPointer === 0 ? width * height * 4 : rowBytes * height;
+      if (!heapSpanIsValid(heap, bitmapPointer, sourceBytes) ||
+          (maskPointer !== 0 && !heapSpanIsValid(heap, maskPointer, sourceBytes))) {
+        return false;
+      }
+
+      const raster = typeof document !== "undefined" ? document.createElement("canvas") : null;
+      if (!raster) {
+        return false;
+      }
+      raster.width = width;
+      raster.height = height;
+      const context = raster.getContext("2d");
+      if (!context) {
+        return false;
+      }
+      const image = context.createImageData(width, height);
+      if (maskPointer === 0) {
+        image.data.set(heap.subarray(bitmapPointer, bitmapPointer + sourceBytes));
+      }
+      else {
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const bit = 1 << (x & 7);
+            const sourceIndex = y * rowBytes + (x >> 3);
+            const targetIndex = (y * width + x) * 4;
+            const opaque = (heap[maskPointer + sourceIndex] & bit) !== 0;
+            const white = (heap[bitmapPointer + sourceIndex] & bit) !== 0;
+            image.data[targetIndex + 0] = white ? 255 : 0;
+            image.data[targetIndex + 1] = white ? 255 : 0;
+            image.data[targetIndex + 2] = white ? 255 : 0;
+            image.data[targetIndex + 3] = opaque ? 255 : 0;
+          }
+        }
+      }
+      context.putImageData(image, 0, 0);
+      const dataUrl = raster.toDataURL("image/png");
+      if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png")) {
+        return false;
+      }
+      customCursorCss = `url(${JSON.stringify(dataUrl)}) ${hotX} ${hotY}, default`;
+      return true;
+    }
+    catch (_) {
+      return false;
+    }
+  }
 
   function cssForShape(shape) {
+    if (shape === CUSTOM_CURSOR_SHAPE && customCursorCss) {
+      return customCursorCss;
+    }
     return Number.isInteger(shape) && shape >= 0 && shape < CSS_CURSOR_BY_GHOST_SHAPE.length ?
       CSS_CURSOR_BY_GHOST_SHAPE[shape] : "default";
   }
@@ -72,7 +147,8 @@
     if (!Number.isInteger(generation) || generation === lastGeneration) {
       return false;
     }
-    const canvas = typeof document !== "undefined" ? document.getElementById("canvas") : null;
+    const canvas = mod.canvas && mod.canvas.style ? mod.canvas :
+      (typeof document !== "undefined" ? document.getElementById("canvas") : null);
     if (!canvas || !canvas.style) {
       return false;
     }
@@ -97,8 +173,11 @@
   }
 
   const api = Object.freeze({
-    schema: 1,
+    schema: 2,
     standardShapeCount: CSS_CURSOR_BY_GHOST_SHAPE.length,
+    customShape: CUSTOM_CURSOR_SHAPE,
+    customMaxDimension: CUSTOM_CURSOR_MAX_DIMENSION,
+    installCustomCursor,
     cssForShape,
     snapshot: () => lastSnapshot && {...lastSnapshot},
   });

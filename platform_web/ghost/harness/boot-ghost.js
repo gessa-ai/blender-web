@@ -41,11 +41,13 @@ const moduleOptions = {
   onRuntimeInitialized: () => {
     ghostModule = moduleOptions;
     globalThis.ghostModule = moduleOptions;
+    globalThis.__bwModule = moduleOptions;
   },
 };
 
 createGhostTest(moduleOptions).then((module) => {
   ghostModule = module;
   globalThis.ghostModule = module;
+  globalThis.__bwModule = module;
   canvas.focus();
 });

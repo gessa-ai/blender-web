@@ -15,6 +15,7 @@ GHOST="$ROOT/upstream/intern/ghost"
 WEB="$ROOT/platform_web/ghost"
 OUT="$WEB/harness/build"
 mkdir -p "$OUT"
+cp "$ROOT/platform_web/shell/diagnostics-bootstrap.js" "$OUT/diagnostics-bootstrap.js"
 
 # shellcheck disable=SC1091
 source "$ROOT/tools/emsdk/emsdk_env.sh" >/dev/null 2>&1

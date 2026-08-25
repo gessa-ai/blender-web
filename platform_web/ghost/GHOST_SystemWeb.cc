@@ -837,16 +837,15 @@ GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const
 {
   /* Advertise input + windowing, mask the affordances a sandboxed canvas can't do.
    * Same posture as GHOST_SystemHeadless's mask (cursor warp, primary/image
-   * clipboard, desktop sampling, decoration styles, hyper key, RGBA/generated
-   * cursors, multi-monitor placement, window path) plus WindowPosition (a canvas
-   * has no OS-level position). */
+   * clipboard, desktop sampling, decoration styles, hyper key, generated cursors,
+   * multi-monitor placement, window path) plus WindowPosition (a canvas has no
+   * OS-level position). RGBA cursors are supported through the CSS image bridge. */
   return GHOST_TCapabilityFlag(
       GHOST_CAPABILITY_FLAG_ALL &
       ~(GHOST_kCapabilityWindowPosition | GHOST_kCapabilityCursorWarp |
         GHOST_kCapabilityClipboardPrimary | GHOST_kCapabilityClipboardImage |
         GHOST_kCapabilityDesktopSample | GHOST_kCapabilityWindowDecorationStyles |
-        GHOST_kCapabilityKeyboardHyperKey |
-        GHOST_kCapabilityCursorRGBA | GHOST_kCapabilityCursorGenerator |
+        GHOST_kCapabilityKeyboardHyperKey | GHOST_kCapabilityCursorGenerator |
         GHOST_kCapabilityMultiMonitorPlacement | GHOST_kCapabilityWindowPath));
 }
 

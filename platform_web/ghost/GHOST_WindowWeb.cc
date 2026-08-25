@@ -55,6 +55,7 @@ namespace {
 std::atomic<int32_t> g_cursor_shape{int32_t(GHOST_kStandardCursorDefault)};
 std::atomic<int32_t> g_cursor_visible{1};
 std::atomic<uint32_t> g_cursor_generation{1};
+constexpr int kWebCustomCursorMaxDimension = 128;
 
 }  // namespace
 
@@ -369,6 +370,48 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorShape(GHOST_TStandardCursor shape
     return GHOST_kFailure;
   }
   g_cursor_shape.store(int32_t(shape), std::memory_order_relaxed);
+  g_cursor_generation.fetch_add(1, std::memory_order_release);
+  return GHOST_kSuccess;
+}
+
+GHOST_TSuccess GHOST_WindowWeb::setWindowCustomCursorShape(const uint8_t *bitmap,
+                                                            const uint8_t *mask,
+                                                            const int size[2],
+                                                            const int hot_spot[2],
+                                                            bool /*can_invert_color*/)
+{
+  /* CSS image cursors preserve Blender's RGBA or legacy XBM pixels and hotspot,
+   * but the DOM canvas and PNG encoder exist only on the browser main thread.
+   * The synchronous proxy copies the borrowed Wasm spans before this call returns;
+   * only after that succeeds do we publish Custom through the same release-generation
+   * handshake used by standard shapes and visibility. */
+  if (bitmap == nullptr || size == nullptr || hot_spot == nullptr || size[0] <= 0 ||
+      size[1] <= 0 || size[0] > kWebCustomCursorMaxDimension ||
+      size[1] > kWebCustomCursorMaxDimension || hot_spot[0] < 0 || hot_spot[1] < 0 ||
+      hot_spot[0] >= size[0] || hot_spot[1] >= size[1])
+  {
+    return GHOST_kFailure;
+  }
+
+  const int installed = MAIN_THREAD_EM_ASM_INT(
+      {
+        const bridge = globalThis.__bwCursorBridge;
+        return bridge && bridge.installCustomCursor(
+                             HEAPU8, $0, $1, $2, $3, $4, $5) ?
+                   1 :
+                   0;
+      },
+      bitmap,
+      mask,
+      size[0],
+      size[1],
+      hot_spot[0],
+      hot_spot[1]);
+  if (!installed) {
+    return GHOST_kFailure;
+  }
+
+  g_cursor_shape.store(int32_t(GHOST_kStandardCursorCustom), std::memory_order_relaxed);
   g_cursor_generation.fetch_add(1, std::memory_order_release);
   return GHOST_kSuccess;
 }

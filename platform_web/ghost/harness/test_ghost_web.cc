@@ -155,6 +155,8 @@ static std::atomic<int> g_requested_window_state{-1};
 static std::atomic<int> g_window_state_result{-2};
 static std::atomic<int> g_requested_cursor_grab{-1};
 static std::atomic<int> g_cursor_grab_result{-2};
+static std::atomic<int> g_requested_custom_cursor{-1};
+static std::atomic<int> g_custom_cursor_result{-2};
 static std::atomic<int> g_requested_clipboard_operation{-1};
 static std::atomic<int> g_clipboard_result{-2};
 static std::atomic<int> g_requested_window_lifecycle{-1};
@@ -202,6 +204,31 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_cursor_grab(const int 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_result()
 {
   return g_cursor_grab_result.load(std::memory_order_acquire);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_custom_cursor(const int operation)
+{
+  if (operation < 0 || operation > 5) {
+    return int(GHOST_kFailure);
+  }
+  g_custom_cursor_result.store(-2, std::memory_order_relaxed);
+  g_requested_custom_cursor.store(operation, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_custom_cursor_result()
+{
+  return g_custom_cursor_result.load(std::memory_order_acquire);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_custom_cursor_capabilities()
+{
+  if (g_system == nullptr) {
+    return -1;
+  }
+  const GHOST_TCapabilityFlag capabilities = g_system->getCapabilities();
+  return ((capabilities & GHOST_kCapabilityCursorRGBA) ? (1 << 0) : 0) |
+         ((capabilities & GHOST_kCapabilityCursorGenerator) ? (1 << 1) : 0);
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_input_state()
@@ -349,6 +376,42 @@ static bool run_clipboard_operation(const int operation)
   return false;
 }
 
+static GHOST_TSuccess run_custom_cursor_operation(const int operation)
+{
+  if (g_window == nullptr) {
+    return GHOST_kFailure;
+  }
+  switch (operation) {
+    case 0: {
+      static constexpr uint8_t rgba[16] = {
+          255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64, 255, 255, 255, 0};
+      const int size[2] = {2, 2};
+      const int hot_spot[2] = {1, 0};
+      return g_window->setCustomCursorShape(rgba, nullptr, size, hot_spot, false);
+    }
+    case 1: {
+      static constexpr uint8_t bitmap[2] = {0b01, 0b10};
+      static constexpr uint8_t mask[2] = {0b11, 0b10};
+      const int size[2] = {2, 2};
+      const int hot_spot[2] = {0, 1};
+      return g_window->setCustomCursorShape(bitmap, mask, size, hot_spot, false);
+    }
+    case 2: {
+      static constexpr uint8_t rgba[16] = {};
+      const int size[2] = {2, 2};
+      const int invalid_hot_spot[2] = {2, 0};
+      return g_window->setCustomCursorShape(rgba, nullptr, size, invalid_hot_spot, false);
+    }
+    case 3:
+      return g_window->setCursorShape(GHOST_kStandardCursorText);
+    case 4:
+      return g_window->setCursorVisibility(false);
+    case 5:
+      return g_window->setCursorVisibility(true);
+  }
+  return GHOST_kFailure;
+}
+
 static GHOST_IWindow *create_harness_window()
 {
   GHOST_GPUSettings gpu_settings = {};
@@ -388,6 +451,12 @@ static void main_loop_tick()
                                                          nullptr)) :
                              int(GHOST_kFailure);
       g_cursor_grab_result.store(result, std::memory_order_release);
+    }
+    const int requested_custom_cursor =
+        g_requested_custom_cursor.exchange(-1, std::memory_order_acq_rel);
+    if (requested_custom_cursor >= 0 && requested_custom_cursor <= 5) {
+      g_custom_cursor_result.store(int(run_custom_cursor_operation(requested_custom_cursor)),
+                                   std::memory_order_release);
     }
     const int requested_clipboard =
         g_requested_clipboard_operation.exchange(-1, std::memory_order_acq_rel);

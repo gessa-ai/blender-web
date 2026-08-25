@@ -2471,11 +2471,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   units plus the real windowed product are green. Object axis-target placement, particle edit, and
   WM window capture remain explicit residuals; live M5 acceptance retains its named hardware
   blocker. See `notes/m5-grease-pencil-pen-depth-cache-continuation-20260825.md`.
-- [ ] **M5-OBJECT-AXIS-TARGET-DEPTH-CACHE-CONTINUATION [driver]:** move
-  `OBJECT_OT_transform_axis_target`'s full-viewport depth read behind an owned bounded invoke
-  continuation before it captures selected objects or transform backups; preserve the exact
-  initiating event, render-override restoration, stock no-depth cancellation, and modal semantics.
-  **blocked-by: none.**
+- [x] **M5-OBJECT-AXIS-TARGET-DEPTH-CACHE-CONTINUATION [driver, complete]:** COMPLETE
+  (`d2a2456`, patch 0272; Linux receipts `20260825T054216-898447`/
+  `20260825T054234-898674`): `OBJECT_OT_transform_axis_target` now restores its temporary render
+  override before starting one owned full-viewport cache request, retains the exact initiating
+  event plus up to 256 safe modal events behind a producing-context-guarded 240-tick timer, and
+  captures selected objects/transform backups only after exact cache transfer. Immediate-ready,
+  incompatible-target, stock no-depth cancellation, translation, confirm/release, and cancellation
+  semantics remain intact. Eight native/wasm32 contracts and 36 cases are byte-identical, 17
+  mutations fail closed, and exact native/wasm product-graph compiles plus the real windowed
+  product are green. Particle edit is the sole depth-cache residual; WM window capture remains the
+  other synchronous family, and live M5 acceptance retains its named hardware blocker. See
+  `notes/m5-object-axis-target-depth-cache-continuation-20260825.md`.
+- [ ] **M5-PARTICLE-EDIT-DEPTH-CACHE-CONTINUATION [driver]:** replace
+  `PE_set_view3d_data`'s full-cache output read with an owned prepare/consume session and move its
+  click, linked, box/lasso/circle, and brush-start callers behind bounded continuations before any
+  stack `PEData` traversal; preserve the XRAY bypass, exact operator inputs, selection semantics,
+  brush state, cleanup, and native behavior. **blocked-by: none.**
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. **blocked-by external-mirror/history-rewrite coordination.**

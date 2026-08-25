@@ -1310,3 +1310,20 @@ timer, initiating event, and FIFO before any keyframe, drawing, transform, or ot
 captured. Exercise immediate/deferred first-event identity and a queued terminal event separately.
 See `patches/0271-m5-grease-pencil-pen-depth-cache-continuation.patch` and
 `sandbox/m5-grease-pencil-pen-depth-cache/`.
+
+## Class 89 — a temporary render override must end before an invoke continuation suspends
+
+Signature: an invoke callback temporarily changes viewport render state, synchronously reads a
+full depth cache, restores the viewport, then captures selected objects and transform backups for
+modal use. Replacing only the read can leak the temporary render state across browser ticks or
+capture mutable state before the cache is valid. Allocate the operation owner first, constrain the
+override to a draw-only prepare call, and restore it before readback initialization or any return.
+If the request is pending, retain a custom-data-free initiating event plus a bounded safe FIFO and
+do not collect selection or backups. After exact producing-context settlement, transfer the cache,
+run one ready-only stock initialization tail, then replay the FIFO through the unchanged modal
+dispatcher. Track whether initialization occurred so pending cancellation never restores backups
+that were not created. Exercise pass-through, immediate ready, initial no-depth cancellation,
+queued terminal events, backend/consume failure, drift, timeout, queue bounds, and external cancel
+on native and wasm32. See
+`patches/0272-m5-object-axis-target-depth-cache-continuation.patch` and
+`sandbox/m5-object-axis-target-depth-cache/`.

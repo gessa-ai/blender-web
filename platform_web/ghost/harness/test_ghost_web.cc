@@ -20,7 +20,9 @@
  */
 
 #include <atomic>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 
 #include <emscripten/emscripten.h>
@@ -126,6 +128,13 @@ static std::atomic<int> g_requested_window_state{-1};
 static std::atomic<int> g_window_state_result{-2};
 static std::atomic<int> g_requested_cursor_grab{-1};
 static std::atomic<int> g_cursor_grab_result{-2};
+static std::atomic<int> g_requested_clipboard_operation{-1};
+static std::atomic<int> g_clipboard_result{-2};
+
+static constexpr const char *CLIPBOARD_EXTERNAL =
+    "from-browser-paste-\xF0\x9F\xAA\xB6";
+static constexpr const char *CLIPBOARD_OUTBOUND =
+    "from-ghost-worker-\xE2\x9C\x93-\xF0\x9F\xAA\xB6\nline-2";
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_state(const int state)
 {
@@ -157,6 +166,64 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_cursor_grab_result()
   return g_cursor_grab_result.load(std::memory_order_acquire);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_clipboard_operation(
+    const int operation)
+{
+  if (operation < 0 || operation > 7) {
+    return int(GHOST_kFailure);
+  }
+  g_clipboard_result.store(-2, std::memory_order_relaxed);
+  g_requested_clipboard_operation.store(operation, std::memory_order_release);
+  return int(GHOST_kSuccess);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_clipboard_result()
+{
+  return g_clipboard_result.load(std::memory_order_acquire);
+}
+
+static bool clipboard_equals(const char *expected, const bool selection = false)
+{
+  char *actual = g_system->getClipboard(selection);
+  const bool equal = actual != nullptr && std::strcmp(actual, expected) == 0;
+  std::free(actual);
+  return equal;
+}
+
+static bool clipboard_is_null(const bool selection = false)
+{
+  char *actual = g_system->getClipboard(selection);
+  const bool is_null = actual == nullptr;
+  std::free(actual);
+  return is_null;
+}
+
+static bool run_clipboard_operation(const int operation)
+{
+  switch (operation) {
+    case 0:
+      return clipboard_is_null();
+    case 1:
+      return clipboard_equals(CLIPBOARD_EXTERNAL);
+    case 2:
+      g_system->putClipboard(CLIPBOARD_OUTBOUND, false);
+      return true;
+    case 3:
+      return clipboard_equals(CLIPBOARD_OUTBOUND);
+    case 4:
+      g_system->putClipboard("primary-selection-must-not-replace-ordinary", true);
+      return true;
+    case 5:
+      return clipboard_is_null(true) && clipboard_equals(CLIPBOARD_OUTBOUND);
+    case 6:
+      g_system->putClipboard("", false);
+      return true;
+    case 7:
+      return clipboard_equals("");
+  }
+  return false;
+}
+
 static void main_loop_tick()
 {
   /* Top-level event pump: pull native (already-queued) events, dispatch to the
@@ -180,6 +247,13 @@ static void main_loop_tick()
                                                          nullptr)) :
                              int(GHOST_kFailure);
       g_cursor_grab_result.store(result, std::memory_order_release);
+    }
+    const int requested_clipboard =
+        g_requested_clipboard_operation.exchange(-1, std::memory_order_acq_rel);
+    if (requested_clipboard >= 0 && requested_clipboard <= 7) {
+      g_clipboard_result.store(run_clipboard_operation(requested_clipboard) ?
+                                   int(GHOST_kSuccess) : int(GHOST_kFailure),
+                               std::memory_order_release);
     }
     g_system->processEvents(false);
     g_system->dispatchEvents();

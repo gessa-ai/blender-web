@@ -313,6 +313,121 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
+  /* Text clipboard bridge. GHOST's API is synchronous, but navigator.clipboard is
+   * promise-based and this system runs on the PROXY_TO_PTHREAD WM worker. Keep the
+   * latest ordinary text clipboard value on the browser main thread instead:
+   *
+   * - a trusted DOM `paste` event publishes its synchronous clipboardData before
+   *   Emscripten's queued worker key callback is dispatched;
+   * - putClipboard synchronously copies Blender's borrowed pointer into this realm,
+   *   then starts the browser write without retaining the Wasm pointer;
+   * - getClipboard synchronously proxies here and allocates the GHOST-owned UTF-8
+   *   result from the shared Wasm allocator.
+   *
+   * Pointer-down refresh is permission-gated, so an already-authorized browser can
+   * refresh before a menu-driven Paste without prompting on ordinary interaction.
+   * Keyboard paste does not require that permission: its trusted paste event is the
+   * authoritative path. */
+  MAIN_THREAD_EM_ASM({
+    if (typeof globalThis.__bwTextClipboardBridge !== "object") {
+      var clipboardText = null;
+      var sequence = 0;
+      var lastSource = "none";
+      var writeStatus = "idle";
+      var readStatus = "event-only";
+      var readPending = false;
+      var writeRequest = 0;
+
+      var publish = function (text, source) {
+        clipboardText = String(text);
+        lastSource = source;
+        sequence += 1;
+      };
+
+      var refreshIfGranted = function () {
+        if (readPending || typeof navigator === "undefined" || !navigator.clipboard ||
+            typeof navigator.clipboard.readText !== "function" || !navigator.permissions ||
+            typeof navigator.permissions.query !== "function") {
+          return;
+        }
+        readPending = true;
+        var startedAt = sequence;
+        navigator.permissions.query({name: "clipboard-read"}).then(function (permission) {
+          if (!permission || permission.state !== "granted") {
+            readStatus = permission ? permission.state : "unavailable";
+            return null;
+          }
+          readStatus = "pending";
+          return navigator.clipboard.readText().then(function (text) {
+            if (sequence === startedAt) {
+              publish(text, "clipboard-read");
+              readStatus = "fulfilled";
+            }
+            else {
+              readStatus = "superseded";
+            }
+          });
+        }).catch(function () {
+          readStatus = "rejected";
+        }).finally(function () {
+          readPending = false;
+        });
+      };
+
+      var api = Object.freeze({
+        schema: 1,
+        readForBlender: function () {
+          return clipboardText;
+        },
+        writeFromBlender: function (text) {
+          publish(text, "blender");
+          var request = ++writeRequest;
+          if (typeof navigator === "undefined" || !navigator.clipboard ||
+              typeof navigator.clipboard.writeText !== "function") {
+            writeStatus = "unavailable";
+            return;
+          }
+          writeStatus = "pending";
+          navigator.clipboard.writeText(clipboardText).then(function () {
+            if (request === writeRequest) {
+              writeStatus = "fulfilled";
+            }
+          }).catch(function () {
+            if (request === writeRequest) {
+              writeStatus = "rejected";
+            }
+          });
+        },
+        refreshIfGranted: refreshIfGranted,
+        snapshot: function () {
+          return {
+            schema: 1,
+            sequence: sequence,
+            source: lastSource,
+            utf8Bytes: clipboardText === null ?
+                null :
+                new TextEncoder().encode(clipboardText).length,
+            writeStatus: writeStatus,
+            readStatus: readStatus,
+          };
+        },
+      });
+      Object.defineProperty(globalThis, "__bwTextClipboardBridge", {
+        value: api,
+        writable: false,
+        configurable: false,
+        enumerable: false,
+      });
+      document.addEventListener("paste", function (event) {
+        if (event.clipboardData) {
+          publish(event.clipboardData.getData("text/plain"), "paste-event");
+          readStatus = "event";
+        }
+      }, true);
+      document.addEventListener("pointerdown", refreshIfGranted, true);
+    }
+  });
+
   /* Pointer + wheel on the canvas element (targetX/Y are canvas-relative). */
   emscripten_set_mousemove_callback(canvas, this, false, cb_mousemove);
   emscripten_set_mousedown_callback(canvas, this, false, cb_mousebtn);
@@ -482,16 +597,42 @@ GHOST_TCapabilityFlag GHOST_SystemWeb::getCapabilities() const
         GHOST_kCapabilityMultiMonitorPlacement | GHOST_kCapabilityWindowPath));
 }
 
-char *GHOST_SystemWeb::getClipboard(bool /*selection*/) const
+char *GHOST_SystemWeb::getClipboard(bool selection) const
 {
-  /* The async Clipboard API can't satisfy GHOST's synchronous contract on the main
-   * thread; wired up as a worker-side shim in a later milestone. */
-  return nullptr;
+  /* Primary selection is intentionally unsupported and absent from capabilities.
+   * For the ordinary clipboard, allocate exactly as the desktop backends do: the
+   * caller owns the returned null-terminated string and releases it with free(). */
+  return static_cast<char *>(MAIN_THREAD_EM_ASM_PTR({
+    if ($0 || typeof globalThis.__bwTextClipboardBridge !== "object") {
+      return 0;
+    }
+    var text = globalThis.__bwTextClipboardBridge.readForBlender();
+    if (text === null) {
+      return 0;
+    }
+    var size = lengthBytesUTF8(text) + 1;
+    var result = _malloc(size);
+    if (!result) {
+      return 0;
+    }
+    stringToUTF8(text, result, size);
+    return result;
+  }, selection ? 1 : 0));
 }
 
-void GHOST_SystemWeb::putClipboard(const char * /*buffer*/, bool /*selection*/) const
+void GHOST_SystemWeb::putClipboard(const char *buffer, bool selection) const
 {
-  /* See getClipboard(): deferred. */
+  if (selection || buffer == nullptr) {
+    return;
+  }
+  /* This is a synchronous main-thread proxy on purpose: UTF8ToString copies the
+   * borrowed GHOST pointer before this method returns. The later clipboard promise
+   * owns only the resulting JavaScript string. */
+  MAIN_THREAD_EM_ASM({
+    if (typeof globalThis.__bwTextClipboardBridge === "object") {
+      globalThis.__bwTextClipboardBridge.writeFromBlender(UTF8ToString($0));
+    }
+  }, buffer);
 }
 
 uint64_t GHOST_SystemWeb::getMilliSeconds() const

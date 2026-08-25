@@ -163,6 +163,14 @@ active and deferred lock requests, Normal preserves visible-pointer SDL semantic
 cursor warp remains honestly unadvertised. The source contract rejects 13 ordering, motion,
 visibility, and capability mutations; the real worker-topology harness covers lock entry, relative
 motion, and release, while the product diagnostic drives Blender's actual middle-drag navigation.
+Ordinary text clipboard traffic crosses that worker/main boundary through a main-realm cache. A
+trusted paste event publishes external UTF-8 before the queued GHOST key event is consumed, while
+Blender copy synchronously owns its borrowed pointer before starting `navigator.clipboard.writeText`.
+The synchronous getter allocates a caller-owned UTF-8 result from the shared Wasm allocator. Primary
+selection and image clipboard remain unadvertised; diagnostics expose lengths and status only. The
+source contract rejects 17 ownership, ordering, permission, selection, and privacy mutations, and
+the real worker-topology browser harness covers external paste, system copy, Unicode/newlines, and
+the null-versus-empty distinction.
 The synchronous GHOST window constructor additionally consumes only a complete pre-main browser
 presentation bundle. Its worker-side transaction validates the initial backbuffer before main
 starts, then puts non-fallback and unknown-status adapters through scoped canvas configuration,

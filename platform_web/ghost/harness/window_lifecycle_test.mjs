@@ -3,7 +3,9 @@
 //
 // Headed browser contract: disposing the active canvas window must detach every
 // system lookup before deletion, and a replacement window must become the new
-// callback/event target in the shipping PROXY_TO_PTHREAD topology.
+// callback/event target in the shipping PROXY_TO_PTHREAD topology. Browser
+// events captured under an old listener registration must remain retired even
+// when their delivery is delayed until after repeated window replacement.
 
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -37,6 +39,61 @@ const browser = await chromium.launch({
 try {
   const context = await browser.newContext({ viewport: { width: 960, height: 640 } });
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    const nativeAdd = EventTarget.prototype.addEventListener;
+    const nativeRemove = EventTarget.prototype.removeEventListener;
+    const keydownWrappers = new WeakMap();
+    const probe = {
+      armed: false,
+      captured: 0,
+      delivered: 0,
+      held: [],
+      arm() {
+        if (this.armed) throw new Error("stale callback probe is already armed");
+        this.armed = true;
+      },
+      deliverAll() {
+        const pending = this.held.splice(0);
+        for (const deliver of pending) deliver();
+        this.delivered += pending.length;
+      },
+      snapshot() {
+        return {
+          armed: this.armed,
+          captured: this.captured,
+          delivered: this.delivered,
+          pending: this.held.length,
+        };
+      },
+    };
+
+    EventTarget.prototype.addEventListener = function (type, listener, options) {
+      if (this === window && type === "keydown" && typeof listener === "function") {
+        const wrapped = function (event) {
+          if (probe.armed) {
+            probe.armed = false;
+            probe.captured += 1;
+            probe.held.push(() => listener.call(this, event));
+            return;
+          }
+          return listener.call(this, event);
+        };
+        keydownWrappers.set(listener, wrapped);
+        return nativeAdd.call(this, type, wrapped, options);
+      }
+      return nativeAdd.call(this, type, listener, options);
+    };
+    EventTarget.prototype.removeEventListener = function (type, listener, options) {
+      const wrapped = type === "keydown" && typeof listener === "function" ?
+        keydownWrappers.get(listener) : null;
+      return nativeRemove.call(this, type, wrapped || listener, options);
+    };
+    Object.defineProperty(globalThis, "__bwStaleCallbackProbe", {
+      value: probe,
+      writable: false,
+      configurable: false,
+    });
+  });
   const diagnostics = [];
   page.on("console", (message) => diagnostics.push(message.text()));
   page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
@@ -92,6 +149,50 @@ try {
     throw new Error(`replacement window was not published: result=${recreateResult}`);
   }
 
+  const queueOldKey = async (key, code, expectedCaptured) => {
+    const snapshot = await page.evaluate(({ eventKey, eventCode }) => {
+      const probe = globalThis.__bwStaleCallbackProbe;
+      probe.arm();
+      window.dispatchEvent(new KeyboardEvent("keydown", {
+        key: eventKey,
+        code: eventCode,
+        bubbles: true,
+        cancelable: true,
+      }));
+      return probe.snapshot();
+    }, { eventKey: key, eventCode: code });
+    if (snapshot.armed || snapshot.captured !== expectedCaptured ||
+        snapshot.pending !== expectedCaptured) {
+      throw new Error(`old-registration callback was not captured: ${JSON.stringify(snapshot)}`);
+    }
+  };
+
+  // Hold one callback from each of two successive registrations, replace the
+  // window after each capture, then invoke both stale listener closures only
+  // after the third registration has become current.
+  await page.evaluate(() => { document.querySelector("#log").textContent = ""; });
+  await queueOldKey("q", "KeyQ", 1);
+  if (await request(0) !== 0b1111 || await request(1) !== 0b111) {
+    throw new Error("first repeated replacement failed");
+  }
+  await queueOldKey("w", "KeyW", 2);
+  if (await request(0) !== 0b1111 || await request(1) !== 0b111) {
+    throw new Error("second repeated replacement failed");
+  }
+  const staleSnapshot = await page.evaluate(() => {
+    globalThis.__bwStaleCallbackProbe.deliverAll();
+    return globalThis.__bwStaleCallbackProbe.snapshot();
+  });
+  await page.waitForTimeout(100);
+  const staleLog = await page.locator("#log").textContent();
+  if (staleSnapshot.captured !== 2 || staleSnapshot.delivered !== 2 ||
+      staleSnapshot.pending !== 0 || staleLog.includes("KeyDown") ||
+      staleLog.includes("KeyUp")) {
+    throw new Error(
+      `stale registration reached replacement: probe=${JSON.stringify(staleSnapshot)} ` +
+      `log=${staleLog}`);
+  }
+
   const hitTestResult = await request(2);
   // Bits: active/non-empty; left-top, right-bottom, and center inside;
   // one point beyond each of the left, top, right, and bottom edges outside.
@@ -115,7 +216,7 @@ try {
 
   console.log(
     "WINDOW_LIFECYCLE_LIVE PASS dispose=detached callbacks=rebound replacement=input-target " +
-    "hit-test=bounded worker=proxy-pthread");
+    "queued=registration-epoch repeated-replacements=2 hit-test=bounded worker=proxy-pthread");
 }
 finally {
   await browser.close();

@@ -125,6 +125,7 @@ class GHOST_SystemWeb : public GHOST_System {
   std::string canvas_selector_;
   GHOST_WindowWeb *window_ = nullptr;
   bool callbacks_registered_ = false;
+  void *callback_user_data_ = nullptr;
 
   /* Main-loop tick counter for the redraw heartbeat (processEvents). */
   uint32_t redraw_heartbeat_ = 0;

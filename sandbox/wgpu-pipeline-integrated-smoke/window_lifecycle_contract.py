@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Bind GHOST-web active-window disposal to callback and pointer retirement."""
+"""Bind GHOST-web window disposal to registration-epoch callback retirement."""
 
 from __future__ import annotations
 
@@ -40,27 +40,44 @@ def require_once(body: str, token: str, label: str) -> None:
         raise ValueError(f"{label} requires exactly one {token!r}")
 
 
-def validate(header: str, source: str) -> None:
+def validate(header: str, source: str, live_test: str) -> None:
     for token in (
         "~GHOST_SystemWeb() override;",
         "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;",
         "void unregisterCanvasCallbacks();",
         "bool callbacks_registered_ = false;",
+        "void *callback_user_data_ = nullptr;",
     ):
         require_once(header, token, "header")
 
-    require_once(
-        source,
-        "std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};",
-        "callback owner",
-    )
-    require_once(
-        source,
-        "g_callback_system.load(std::memory_order_acquire) == candidate",
-        "callback owner",
-    )
+    for token in (
+        "struct CallbackRegistration {",
+        "GHOST_SystemWeb *const system;",
+        "const uint64_t epoch;",
+        "std::atomic<CallbackRegistration *> g_callback_registration{nullptr};",
+        "std::atomic<uint64_t> g_active_callback_epoch{0};",
+        "std::atomic<uint64_t> g_next_callback_epoch{1};",
+        "std::vector<std::unique_ptr<CallbackRegistration>> g_callback_registrations;",
+        "active == candidate",
+        "candidate->epoch == active_epoch",
+    ):
+        require_once(source, token, "registration epoch")
+    if "std::atomic<GHOST_SystemWeb *> g_callback_system" in source or \
+            "static_cast<GHOST_SystemWeb *>(user_data)" in source:
+        raise ValueError("callback admission still reuses the system pointer")
     if source.count("callback_system(ud)") != 10 or source.count("if (system == nullptr)") != 7:
         raise ValueError("every HTML5 callback must validate its live system owner")
+
+    for token in (
+        "Object.defineProperty(globalThis, \"__bwStaleCallbackProbe\"",
+        "probe.held.push(() => listener.call(this, event));",
+        "await queueOldKey(\"q\", \"KeyQ\", 1);",
+        "await queueOldKey(\"w\", \"KeyW\", 2);",
+        "globalThis.__bwStaleCallbackProbe.deliverAll();",
+        "staleLog.includes(\"KeyDown\")",
+        "queued=registration-epoch repeated-replacements=2",
+    ):
+        require_once(live_test, token, "live stale-callback test")
 
     destructor = method(source, DESTRUCTOR_MARKER)
     require_once(destructor, "unregisterCanvasCallbacks();", "destructor")
@@ -70,24 +87,30 @@ def validate(header: str, source: str) -> None:
 
     registration = method(source, REGISTER_MARKER)
     require_once(registration, "if (callbacks_registered_)", "registration")
-    require_once(
-        registration,
-        "g_callback_system.store(this, std::memory_order_release);",
-        "registration",
-    )
-    require_once(registration, "callbacks_registered_ = true;", "registration")
-    if registration.index("g_callback_system.store") > registration.index(
-        "emscripten_set_mousemove_callback"
+    for token in (
+        "g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed)",
+        "callback_user_data_ = registration.get();",
+        "g_callback_registrations.push_back(std::move(registration));",
+        "g_active_callback_epoch.store(epoch, std::memory_order_release);",
+        "g_callback_registration.store(static_cast<CallbackRegistration *>(callback_user_data_)",
     ):
-        raise ValueError("callback owner publishes after listener registration")
+        require_once(registration, token, "registration")
+    require_once(registration, "callbacks_registered_ = true;", "registration")
+    if registration.index("g_callback_registrations.push_back") > registration.index(
+            "g_callback_registration.store"):
+        raise ValueError("callback token publishes before its durable record")
+    if ", this, false," in registration:
+        raise ValueError("listener registration still uses the reusable system pointer")
 
     unregistration = method(source, UNREGISTER_MARKER)
     require_once(unregistration, "if (!callbacks_registered_)", "unregistration")
-    require_once(
-        unregistration,
-        "g_callback_system.compare_exchange_strong(",
-        "unregistration",
-    )
+    for token in (
+        "static_cast<CallbackRegistration *>(callback_user_data_)",
+        "g_active_callback_epoch.compare_exchange_strong(",
+        "g_callback_registration.compare_exchange_strong(",
+        "callback_user_data_ = nullptr;",
+    ):
+        require_once(unregistration, token, "unregistration")
     require_once(unregistration, "callbacks_registered_ = false;", "unregistration")
     removals = (
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEMOVE", "cb_mousemove"),
@@ -102,18 +125,22 @@ def validate(header: str, source: str) -> None:
         ("win", "EMSCRIPTEN_EVENT_RESIZE", "cb_resize"),
     )
     for target, event, callback in removals:
-        token = f"remove_html5_callback({target}, this, {event}, {callback})"
-        require_once(unregistration, token, "unregistration")
+        compact = " ".join(unregistration.split())
+        token = f"remove_html5_callback( {target}, callback_user_data_, {event}, {callback})"
+        if token not in compact:
+            raise ValueError(f"unregistration requires exact token {token!r}")
     for event, callback in (
         ("EMSCRIPTEN_EVENT_POINTERLOCKCHANGE", "cb_pointerlockchange"),
         ("EMSCRIPTEN_EVENT_POINTERLOCKERROR", "cb_pointerlockerror"),
     ):
         require_once(unregistration, event, "unregistration")
         require_once(unregistration, callback, "unregistration")
-    if unregistration.index("g_callback_system.compare_exchange_strong(") > unregistration.index(
-        "remove_html5_callback("
-    ):
-        raise ValueError("callback owner retires after listener removal")
+    retire_epoch = unregistration.index("g_active_callback_epoch.compare_exchange_strong(")
+    retire_record = unregistration.index("g_callback_registration.compare_exchange_strong(")
+    first_remove = unregistration.index("remove_html5_callback(")
+    clear_userdata = unregistration.index("callback_user_data_ = nullptr;")
+    if not retire_epoch < retire_record < first_remove < clear_userdata:
+        raise ValueError("callback epoch/token lifetime is not ordered around listener removal")
 
     disposal = method(source, DISPOSE_MARKER)
     for token in (
@@ -156,34 +183,40 @@ def mutate_method(source: str, marker: str, old: str, new: str) -> str:
     return source.replace(original, changed, 1)
 
 
-def selfcheck(header: str, source: str) -> None:
-    validate(header, source)
+def selfcheck(header: str, source: str, live_test: str) -> None:
+    validate(header, source, live_test)
     mutations = (
-        (replace_once(header, "~GHOST_SystemWeb() override;", "~GHOST_SystemWeb() override = default;"), source),
-        (replace_once(header, "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;", ""), source),
-        (replace_once(header, "bool callbacks_registered_ = false;", "bool callbacks_registered_ = true;"), source),
-        (header, replace_once(source, "std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};", "")),
-        (header, replace_once(source, "if (callback_system(ud) == nullptr)", "if (false)")),
-        (header, mutate_method(source, REGISTER_MARKER, "if (callbacks_registered_)", "if (false)")),
-        (header, mutate_method(source, REGISTER_MARKER, "g_callback_system.store(this, std::memory_order_release);", "")),
-        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN")),
-        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_KEYUP", "EMSCRIPTEN_EVENT_KEYDOWN")),
+        (replace_once(header, "~GHOST_SystemWeb() override;", "~GHOST_SystemWeb() override = default;"), source, live_test),
+        (replace_once(header, "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;", ""), source, live_test),
+        (replace_once(header, "bool callbacks_registered_ = false;", "bool callbacks_registered_ = true;"), source, live_test),
+        (replace_once(header, "void *callback_user_data_ = nullptr;", ""), source, live_test),
+        (header, replace_once(source, "std::atomic<uint64_t> g_active_callback_epoch{0};", ""), live_test),
+        (header, replace_once(source, "active == candidate", "active != candidate"), live_test),
+        (header, replace_once(source, "candidate->epoch == active_epoch", "candidate->epoch != active_epoch"), live_test),
+        (header, replace_once(source, "if (callback_system(ud) == nullptr)", "if (false)"), live_test),
+        (header, mutate_method(source, REGISTER_MARKER, "if (callbacks_registered_)", "if (false)"), live_test),
+        (header, mutate_method(source, REGISTER_MARKER, "g_callback_registrations.push_back(std::move(registration));", ""), live_test),
+        (header, mutate_method(source, REGISTER_MARKER, "g_active_callback_epoch.store(epoch, std::memory_order_release);", ""), live_test),
+        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN"), live_test),
+        (header, mutate_method(source, UNREGISTER_MARKER, "EMSCRIPTEN_EVENT_KEYUP", "EMSCRIPTEN_EVENT_KEYDOWN"), live_test),
         (header, mutate_method(source, UNREGISTER_MARKER,
                                "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
-                               "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE")),
-        (header, mutate_method(source, UNREGISTER_MARKER, "g_callback_system.compare_exchange_strong(", "g_callback_system.store(")),
-        (header, mutate_method(source, DISPOSE_MARKER, "if (window != window_ || !validWindow(window))", "if (window != window_)")),
-        (header, mutate_method(source, DISPOSE_MARKER, "active_window->endIME();", "")),
-        (header, mutate_method(source, DISPOSE_MARKER, "ghost_web_bridge::poll_ime(*this);", "")),
-        (header, mutate_method(source, DISPOSE_MARKER, "active_window->releasePointerLock();", "")),
-        (header, mutate_method(source, DISPOSE_MARKER, "window_ = nullptr;", "window_ = active_window;")),
-        (header, mutate_method(source, DISPOSE_MARKER, "buttons_ = GHOST_Buttons();", "")),
-        (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", "")),
-        (header, mutate_method(source, CREATE_MARKER, "redraw_heartbeat_ = 0;", "redraw_heartbeat_ = 180;")),
+                               "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE"), live_test),
+        (header, mutate_method(source, UNREGISTER_MARKER, "g_active_callback_epoch.compare_exchange_strong(", "g_active_callback_epoch.store("), live_test),
+        (header, mutate_method(source, UNREGISTER_MARKER, "callback_user_data_ = nullptr;", ""), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "if (window != window_ || !validWindow(window))", "if (window != window_)"), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "active_window->endIME();", ""), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "ghost_web_bridge::poll_ime(*this);", ""), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "active_window->releasePointerLock();", ""), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "window_ = nullptr;", "window_ = active_window;"), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "buttons_ = GHOST_Buttons();", ""), live_test),
+        (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", ""), live_test),
+        (header, mutate_method(source, CREATE_MARKER, "redraw_heartbeat_ = 0;", "redraw_heartbeat_ = 180;"), live_test),
+        (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", "")),
     )
-    for index, (mutated_header, mutated_source) in enumerate(mutations, start=1):
+    for index, (mutated_header, mutated_source, mutated_live_test) in enumerate(mutations, start=1):
         try:
-            validate(mutated_header, mutated_source)
+            validate(mutated_header, mutated_source, mutated_live_test)
         except ValueError:
             continue
         raise ValueError(f"mutation {index} was accepted")
@@ -193,17 +226,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("header", type=Path)
     parser.add_argument("source", type=Path)
+    parser.add_argument("live_test", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
     header = args.header.read_text(encoding="utf-8")
     source = args.source.read_text(encoding="utf-8")
+    live_test = args.live_test.read_text(encoding="utf-8")
     if args.selfcheck:
-        selfcheck(header, source)
+        selfcheck(header, source, live_test)
     else:
-        validate(header, source)
+        validate(header, source, live_test)
     print(
         "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=12 "
-        "replacement=rebound ime=retired pointerlock=retired queued=owner-gated mutations=19"
+        "replacement=rebound ime=retired pointerlock=retired queued=registration-epoch "
+        "replacements=2 mutations=25"
     )
     return 0
 

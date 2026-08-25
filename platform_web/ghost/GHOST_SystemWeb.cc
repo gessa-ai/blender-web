@@ -15,6 +15,8 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
+#include <memory>
+#include <vector>
 
 #include <sys/stat.h>
 
@@ -33,8 +35,6 @@
 #include "GHOST_ModifierKeys.hh"
 #include "GHOST_WindowManager.hh"
 
-#include <memory>
-
 #ifdef WITH_WEBGPU_BACKEND
 /* M4 T4 selection seam (see GHOST_WindowWeb.cc). */
 #  ifdef __EMSCRIPTEN__
@@ -46,21 +46,38 @@
 #include "GHOST_ContextNone.hh"
 
 /* -------------------------------------------------------------------------- */
-/* HTML5 -> bridge callback thunks. `userData` is the GHOST_SystemWeb*. Returning
- * true marks the DOM event as consumed (preventDefault), which is what Blender
- * wants for input over its canvas. */
+/* HTML5 -> bridge callback thunks. Returning true marks the DOM event as consumed
+ * (preventDefault), which is what Blender wants for input over its canvas. */
 
 namespace {
 
 /* Browser-main event listeners can already have queued a callback to the WM
- * worker when disposal unregisters them. Validate the opaque user pointer
- * against this atomically retired owner before dereferencing it. */
-std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};
+ * worker when disposal unregisters them. A system pointer is reused by every
+ * replacement window, so it cannot identify the registration that captured the
+ * event. Give each registration a unique, process-lifetime record instead. Old
+ * records remain safe to inspect after system destruction but can never become
+ * the current token again. Registration and record retention run only on the WM
+ * worker; callback admission is atomic because delivery is asynchronously
+ * proxied back to that worker. */
+struct CallbackRegistration {
+  GHOST_SystemWeb *const system;
+  const uint64_t epoch;
+};
+
+std::atomic<CallbackRegistration *> g_callback_registration{nullptr};
+std::atomic<uint64_t> g_active_callback_epoch{0};
+std::atomic<uint64_t> g_next_callback_epoch{1};
+std::vector<std::unique_ptr<CallbackRegistration>> g_callback_registrations;
 
 GHOST_SystemWeb *callback_system(void *user_data)
 {
-  GHOST_SystemWeb *candidate = static_cast<GHOST_SystemWeb *>(user_data);
-  return g_callback_system.load(std::memory_order_acquire) == candidate ? candidate : nullptr;
+  CallbackRegistration *candidate = static_cast<CallbackRegistration *>(user_data);
+  CallbackRegistration *active = g_callback_registration.load(std::memory_order_acquire);
+  const uint64_t active_epoch = g_active_callback_epoch.load(std::memory_order_acquire);
+  return candidate != nullptr && active == candidate && active_epoch != 0 &&
+                 candidate->epoch == active_epoch ?
+             candidate->system :
+             nullptr;
 }
 
 bool cb_mousemove(int /*t*/, const EmscriptenMouseEvent *e, void *ud)
@@ -407,7 +424,13 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   if (callbacks_registered_) {
     return;
   }
-  g_callback_system.store(this, std::memory_order_release);
+  const uint64_t epoch = g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed);
+  auto registration = std::make_unique<CallbackRegistration>(CallbackRegistration{this, epoch});
+  callback_user_data_ = registration.get();
+  g_callback_registrations.push_back(std::move(registration));
+  g_active_callback_epoch.store(epoch, std::memory_order_release);
+  g_callback_registration.store(static_cast<CallbackRegistration *>(callback_user_data_),
+                                std::memory_order_release);
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
@@ -724,26 +747,26 @@ void GHOST_SystemWeb::registerCanvasCallbacks()
   });
 
   /* Pointer + wheel on the canvas element (targetX/Y are canvas-relative). */
-  emscripten_set_mousemove_callback(canvas, this, false, cb_mousemove);
-  emscripten_set_mousedown_callback(canvas, this, false, cb_mousebtn);
-  emscripten_set_mouseup_callback(canvas, this, false, cb_mousebtn);
-  emscripten_set_wheel_callback(canvas, this, false, cb_wheel);
-  emscripten_set_contextmenu_callback(canvas, this, false, cb_contextmenu);
-  emscripten_set_focus_callback(canvas, this, false, cb_focus);
-  emscripten_set_blur_callback(canvas, this, false, cb_blur);
+  emscripten_set_mousemove_callback(canvas, callback_user_data_, false, cb_mousemove);
+  emscripten_set_mousedown_callback(canvas, callback_user_data_, false, cb_mousebtn);
+  emscripten_set_mouseup_callback(canvas, callback_user_data_, false, cb_mousebtn);
+  emscripten_set_wheel_callback(canvas, callback_user_data_, false, cb_wheel);
+  emscripten_set_contextmenu_callback(canvas, callback_user_data_, false, cb_contextmenu);
+  emscripten_set_focus_callback(canvas, callback_user_data_, false, cb_focus);
+  emscripten_set_blur_callback(canvas, callback_user_data_, false, cb_blur);
 
   /* Pointer Lock is document-owned even though its target is the canvas. Emscripten
    * forwards both outcomes back to this calling WM worker. */
   emscripten_set_pointerlockchange_callback(
-      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, false, cb_pointerlockchange);
+      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, callback_user_data_, false, cb_pointerlockchange);
   emscripten_set_pointerlockerror_callback(
-      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, false, cb_pointerlockerror);
+      EMSCRIPTEN_EVENT_TARGET_DOCUMENT, callback_user_data_, false, cb_pointerlockerror);
 
   /* Keyboard + resize at window scope (keyboard has no per-element target without
    * focus juggling; resize is a window event). */
-  emscripten_set_keydown_callback(win, this, false, cb_key);
-  emscripten_set_keyup_callback(win, this, false, cb_key);
-  emscripten_set_resize_callback(win, this, false, cb_resize);
+  emscripten_set_keydown_callback(win, callback_user_data_, false, cb_key);
+  emscripten_set_keyup_callback(win, callback_user_data_, false, cb_key);
+  emscripten_set_resize_callback(win, callback_user_data_, false, cb_resize);
   callbacks_registered_ = true;
 }
 
@@ -754,28 +777,43 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   }
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
-  GHOST_SystemWeb *expected_system = this;
-  g_callback_system.compare_exchange_strong(
-      expected_system, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
+  CallbackRegistration *registration = static_cast<CallbackRegistration *>(callback_user_data_);
+  uint64_t expected_epoch = registration->epoch;
+  g_active_callback_epoch.compare_exchange_strong(
+      expected_epoch, 0, std::memory_order_acq_rel, std::memory_order_acquire);
+  CallbackRegistration *expected_registration = registration;
+  g_callback_registration.compare_exchange_strong(
+      expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
   bool removed = true;
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEDOWN, cb_mousebtn);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
-  removed &= remove_html5_callback(canvas, this, EMSCRIPTEN_EVENT_BLUR, cb_blur);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEDOWN, cb_mousebtn);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_MOUSEUP, cb_mousebtn);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_WHEEL, cb_wheel);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_CONTEXTMENU, cb_contextmenu);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
+  removed &= remove_html5_callback(
+      canvas, callback_user_data_, EMSCRIPTEN_EVENT_BLUR, cb_blur);
   removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
-                                   this,
+                                   callback_user_data_,
                                    EMSCRIPTEN_EVENT_POINTERLOCKCHANGE,
                                    cb_pointerlockchange);
   removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
-                                   this,
+                                   callback_user_data_,
                                    EMSCRIPTEN_EVENT_POINTERLOCKERROR,
                                    cb_pointerlockerror);
-  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
-  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_KEYUP, cb_key);
-  removed &= remove_html5_callback(win, this, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+  removed &= remove_html5_callback(
+      win, callback_user_data_, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
+  removed &= remove_html5_callback(
+      win, callback_user_data_, EMSCRIPTEN_EVENT_KEYUP, cb_key);
+  removed &= remove_html5_callback(
+      win, callback_user_data_, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+  callback_user_data_ = nullptr;
   callbacks_registered_ = false;
   if (!removed) {
     std::fprintf(stderr, "GHOST-web: one or more HTML5 callbacks failed to unregister\n");

@@ -1128,3 +1128,6 @@
 # 0274: retain the asset-preview window capture's exact crop and target behind
 # an owned, context-guarded timer before preview or asset mutation.
 0274-m5-asset-preview-window-capture-continuation.patch
+# 0275: preserve the native immediate Window.screenshot memoryview while the
+# browser fails closed onto the async screenshot operator under ADR-006.
+0275-m5-python-window-screenshot-browser-deferral.patch

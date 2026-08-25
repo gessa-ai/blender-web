@@ -166,10 +166,12 @@ if ! jq -e \
    .contracts.annotation_depth_cache_continuation == true and
    .contracts.particle_edit_depth_cache_continuation == true and
    .contracts.asset_preview_window_capture_continuation == true and
+   .contracts.python_window_screenshot_browser_deferral == true and
    .contracts.live_hardware_receipt == false and
    .converted_window_capture_callers == ["asset_preview"] and
-   .remaining_window_capture_callers == ["python_window_screenshot"] and
-   .remaining_sync_families == ["window_capture"]' \
+   .deferred_window_capture_callers == ["python_window_screenshot_memoryview"] and
+   .remaining_window_capture_callers == [] and
+   .remaining_sync_families == []' \
   "$OUT/source.json" >/dev/null
 then
   echo "ERROR: source receipt contract differs" >&2

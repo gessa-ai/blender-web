@@ -1365,14 +1365,14 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     ):
         require(needle in view_select, f"particle-edit caller owner missing {needle!r}")
 
-    remaining_sync = {
+    native_sync_controls = {
         "window_capture": (
             "source/blender/windowmanager/intern/wm_draw.cc",
             "GPU_offscreen_read_color(offscreen, GPU_DATA_UBYTE, rect);",
         ),
     }
-    for family, (relative, needle) in remaining_sync.items():
-        require(needle in sources[relative], f"remaining sync census drifted: {family}")
+    for family, (relative, needle) in native_sync_controls.items():
+        require(needle in sources[relative], f"native sync control drifted: {family}")
     require(
         "WM_window_pixels_read(C, win, dumprect_size)" not in asset_ops,
         "asset-preview operator retains synchronous WM capture",
@@ -1389,9 +1389,41 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         "ot->cancel = screenshot_preview_cancel;",
     ):
         require(needle in asset_ops, f"asset-preview continuation missing {needle!r}")
+    python_screenshot = braced_definition(
+        python_wm,
+        "static PyObject *bpy_rna_window_screenshot(",
+        "Python Window.screenshot",
+    )
+    require_once(python_screenshot, "#ifdef __EMSCRIPTEN__", "Python browser policy")
+    require_once(python_screenshot, "#else", "Python browser/native branch")
+    require_once(python_screenshot, "#endif", "Python browser policy terminator")
+    python_prefix, python_guarded = python_screenshot.split("#ifdef __EMSCRIPTEN__", 1)
+    python_browser, python_native_guarded = python_guarded.split("#else", 1)
+    python_native, python_suffix = python_native_guarded.split("#endif", 1)
     require(
-        python_wm.count("WM_window_pixels_read(C, win, dumprect_size)") == 1,
-        "synchronous Python Window.screenshot caller census drifted",
+        "Window.screenshot() is not available in background mode" in python_prefix,
+        "Python background behavior does not precede browser policy",
+    )
+    for needle in (
+        "PyExc_RuntimeError",
+        "Window.screenshot() is unavailable in the browser because WebGPU readback is",
+        "asynchronous; use bpy.ops.screen.screenshot() for file capture",
+        "return nullptr;",
+    ):
+        require(needle in python_browser, f"Python browser policy missing {needle!r}")
+    require(
+        "WM_window_pixels_read" not in python_browser and
+        "PyC_MemoryView_FromBufferOwned" not in python_browser,
+        "Python browser policy retains synchronous capture or fabricates pixels",
+    )
+    require(
+        python_native.count("WM_window_pixels_read(C, win, dumprect_size)") == 1 and
+        "PyC_MemoryView_FromBufferOwned(&info)" in python_native,
+        "native Python Window.screenshot contract drifted",
+    )
+    require(
+        python_suffix.strip() == "}",
+        "Python browser policy does not terminate with the method",
     )
     require(
         "GPU_framebuffer_read_depth(depth_read_fb" in sources[
@@ -1832,12 +1864,14 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "annotation_depth_cache_continuation": True,
             "particle_edit_depth_cache_continuation": True,
             "asset_preview_window_capture_continuation": True,
+            "python_window_screenshot_browser_deferral": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
         "converted_window_capture_callers": ["asset_preview"],
-        "remaining_window_capture_callers": ["python_window_screenshot"],
-        "remaining_sync_families": sorted(remaining_sync),
+        "deferred_window_capture_callers": ["python_window_screenshot_memoryview"],
+        "remaining_window_capture_callers": [],
+        "remaining_sync_families": [],
         "source_count": len(SOURCE_PATHS),
         "source_sha256": source_digest(sources),
     }
@@ -2135,7 +2169,19 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "source/blender/python/intern/bpy_rna_wm.cc",
             "WM_window_pixels_read(C, win, dumprect_size)",
             "WM_window_pixels_read_async(C, win)",
-            "remaining Python window capture caller census",
+            "native Python window capture control",
+        ),
+        (
+            "source/blender/python/intern/bpy_rna_wm.cc",
+            "#ifdef __EMSCRIPTEN__",
+            "#if 0",
+            "Python browser policy guard",
+        ),
+        (
+            "source/blender/python/intern/bpy_rna_wm.cc",
+            "asynchronous; use bpy.ops.screen.screenshot() for file capture",
+            "asynchronous capture unavailable",
+            "Python browser policy workaround",
         ),
     )
     for relative, old, new, label in mutations:

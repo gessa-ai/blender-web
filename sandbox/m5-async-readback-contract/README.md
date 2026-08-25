@@ -52,15 +52,17 @@ temporary select-engine ownership transfer, and the bounded object/edit-mesh
 selection continuations. All three non-viewport eyedroppers share one owned
 window snapshot while browser mapping is pending and preserve native immediate
 completion.
-It also requires the sole still-partial synchronous caller family, WM window capture, to stay
-visible. The full-viewport depth-cache request has an owned asynchronous primitive, and its curve,
+It also requires the native WM window-capture control to stay visible while the browser excludes
+the structurally impossible synchronous `Window.screenshot()` memoryview path behind an explicit,
+actionable deferral. The full-viewport depth-cache request has an owned asynchronous primitive, and its curve,
 annotation, Grease Pencil, object-placement, and particle-edit consumers now enter bounded
 continuations before depth-dependent traversal or mutation. The aggregate particle check binds the
 opaque one-shot session, XRAY bypass, six public operator surfaces, exact FIFO bounds, and the
 gesture/direct caller owners. The synchronous selection-buffer API remains
 as the native/direct-execution fallback, but its edit-mesh gesture consumers no longer
 use it during an active browser continuation. The screenshot operator has its own
-owned-capture continuation contract; the ledger row remains `partial` for WM capture only.
+owned-capture continuation contract. No synchronous caller family remains in the browser source;
+the Python memoryview method is disclosed as deferred rather than represented as converted.
 
 Run through the build wrapper:
 

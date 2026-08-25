@@ -1,0 +1,26 @@
+diff --git a/source/blender/python/intern/bpy_rna_wm.cc b/source/blender/python/intern/bpy_rna_wm.cc
+index 31b09505cde..642e5c244b8 100644
+--- a/source/blender/python/intern/bpy_rna_wm.cc
++++ b/source/blender/python/intern/bpy_rna_wm.cc
+@@ -191,6 +191,13 @@ static PyObject *bpy_rna_window_screenshot(PyObject *self, PyObject *args, PyObj
+     return nullptr;
+   }
+ 
++#ifdef __EMSCRIPTEN__
++  PyErr_SetString(
++      PyExc_RuntimeError,
++      "Window.screenshot() is unavailable in the browser because WebGPU readback is "
++      "asynchronous; use bpy.ops.screen.screenshot() for file capture");
++  return nullptr;
++#else
+   bContext *C = BPY_context_get();
+ 
+   int dumprect_size[2];
+@@ -262,6 +269,7 @@ static PyObject *bpy_rna_window_screenshot(PyObject *self, PyObject *args, PyObj
+   info.shape = shape;
+   info.strides = strides;
+   return PyC_MemoryView_FromBufferOwned(&info);
++#endif
+ }
+ 
+ #ifdef __GNUC__

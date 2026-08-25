@@ -1292,3 +1292,21 @@ Exercise each result algorithm separately and prove that fit inputs, boundary ma
 solver choice remain exact across settlement. See
 `patches/0270-m5-grease-pencil-fill-depth-cache-continuation.patch` and
 `sandbox/m5-grease-pencil-fill-depth-cache/`.
+
+## Class 88 — a virtual initializer needs one shared post-initialize first-event seam
+
+Signature: a shared modal base invokes a subclass initializer and then immediately consumes the
+initiating event through a file-local helper. One subclass needs to suspend initialization for an
+asynchronous prerequisite, but returning `RUNNING_MODAL` from the virtual initializer skips both
+the base's modal-handler registration and its first-event work; replaying the whole base invoke
+would instead reread properties and repeat pre-initialize state. Expose one narrow base method that
+contains only the existing post-initialize first-event helper. The pending subclass installs the
+modal handler once, snapshots a custom-data-free initiating event plus a bounded safe FIFO, and
+calls that seam exactly once after its prerequisite and ready-only tail settle. Replay later events
+through the unchanged base modal method. Keep non-depth, immediately ready, and initial-read-failure
+paths on the original stack; context drift, backend failure, timer-allocation failure, timeout,
+unsafe payload, overflow, Escape, external cancellation, and destruction must retire the request,
+timer, initiating event, and FIFO before any keyframe, drawing, transform, or other mutable tail is
+captured. Exercise immediate/deferred first-event identity and a queued terminal event separately.
+See `patches/0271-m5-grease-pencil-pen-depth-cache-continuation.patch` and
+`sandbox/m5-grease-pencil-pen-depth-cache/`.

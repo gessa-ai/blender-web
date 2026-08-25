@@ -1119,3 +1119,6 @@
 # 0271: retain the Grease Pencil pen helper's first event and bounded modal FIFO
 # before keyframe duplication while its owned placement cache settles.
 0271-m5-grease-pencil-pen-depth-cache-continuation.patch
+# 0272: retain Look at Surface's invoke event and bounded modal FIFO before
+# selected-object capture while its owned full-viewport cache settles.
+0272-m5-object-axis-target-depth-cache-continuation.patch

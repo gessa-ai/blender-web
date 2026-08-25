@@ -1125,3 +1125,6 @@
 # 0273: retain particle click/linked/gesture/brush inputs behind one owned,
 # context-guarded full-viewport depth cache before any PEData traversal.
 0273-m5-particle-edit-depth-cache-continuation.patch
+# 0274: retain the asset-preview window capture's exact crop and target behind
+# an owned, context-guarded timer before preview or asset mutation.
+0274-m5-asset-preview-window-capture-continuation.patch

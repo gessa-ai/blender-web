@@ -68,6 +68,9 @@ fi
 "$PYBIN" "$HERE/verify_numbered_patch.py" \
   --source-root "$SOURCE_ROOT" \
   --patch "$ROOT/patches/0273-m5-particle-edit-depth-cache-continuation.patch"
+"$PYBIN" "$ROOT/sandbox/m5-asset-preview-window-capture/verify_numbered_patch.py" \
+  --source-root "$SOURCE_ROOT" \
+  --patch "$ROOT/patches/0274-m5-asset-preview-window-capture-continuation.patch"
 if [ "$SOURCE_ROOT" = "$ROOT/upstream" ]; then
   SOURCE_PROOF="$("$PYBIN" "$SERIES_VERIFY" --canonical-only)"
 else
@@ -162,7 +165,10 @@ if ! jq -e \
    .contracts.curve_draw_depth_cache_continuations == true and
    .contracts.annotation_depth_cache_continuation == true and
    .contracts.particle_edit_depth_cache_continuation == true and
+   .contracts.asset_preview_window_capture_continuation == true and
    .contracts.live_hardware_receipt == false and
+   .converted_window_capture_callers == ["asset_preview"] and
+   .remaining_window_capture_callers == ["python_window_screenshot"] and
    .remaining_sync_families == ["window_capture"]' \
   "$OUT/source.json" >/dev/null
 then

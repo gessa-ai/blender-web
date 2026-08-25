@@ -35,6 +35,7 @@ SOURCE_PATHS = (
     "source/blender/draw/DRW_select_buffer.hh",
     "source/blender/draw/engines/select/select_instance.hh",
     "source/blender/draw/intern/draw_select_buffer.cc",
+    "source/blender/editors/asset/intern/asset_ops.cc",
     "source/blender/editors/include/ED_particle.hh",
     "source/blender/editors/include/ED_view3d.hh",
     "source/blender/editors/curve/editcurve_paint.cc",
@@ -59,6 +60,7 @@ SOURCE_PATHS = (
     "source/blender/editors/interface/eyedroppers/eyedropper_depth.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc",
     "source/blender/editors/interface/eyedroppers/eyedropper_intern.hh",
+    "source/blender/python/intern/bpy_rna_wm.cc",
     "source/blender/windowmanager/WM_api.hh",
     "source/blender/windowmanager/intern/wm_draw.cc",
 )
@@ -174,6 +176,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     select_buffer_api = sources["source/blender/draw/DRW_select_buffer.hh"]
     select_buffer = sources["source/blender/draw/intern/draw_select_buffer.cc"]
     select_engine = sources["source/blender/draw/engines/select/select_instance.hh"]
+    asset_ops = sources["source/blender/editors/asset/intern/asset_ops.cc"]
     particle_api = sources["source/blender/editors/include/ED_particle.hh"]
     depth_api = sources["source/blender/editors/include/ED_view3d.hh"]
     depth_draw = sources["source/blender/editors/space_view3d/view3d_draw.cc"]
@@ -221,6 +224,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     eyedropper_api = sources[
         "source/blender/editors/interface/eyedroppers/eyedropper_intern.hh"
     ]
+    python_wm = sources["source/blender/python/intern/bpy_rna_wm.cc"]
     wm_api = sources["source/blender/windowmanager/WM_api.hh"]
     wm_draw = sources["source/blender/windowmanager/intern/wm_draw.cc"]
 
@@ -1370,6 +1374,26 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     for family, (relative, needle) in remaining_sync.items():
         require(needle in sources[relative], f"remaining sync census drifted: {family}")
     require(
+        "WM_window_pixels_read(C, win, dumprect_size)" not in asset_ops,
+        "asset-preview operator retains synchronous WM capture",
+    )
+    for needle in (
+        "WMWindowPixelsRead *readback = nullptr;",
+        "std::optional<AssetWeakReference> readback_asset_reference;",
+        "static bool screenshot_preview_readback_context_matches(",
+        "data->readback = WM_window_pixels_read_async(C, win);",
+        "WM_window_pixels_read_async_consume(data->readback, dumprect_size)",
+        "event->customdata != data->readback_timer",
+        "constexpr int max_tick_count = 240;",
+        "WM_window_pixels_read_async_cancel(data->readback);",
+        "ot->cancel = screenshot_preview_cancel;",
+    ):
+        require(needle in asset_ops, f"asset-preview continuation missing {needle!r}")
+    require(
+        python_wm.count("WM_window_pixels_read(C, win, dumprect_size)") == 1,
+        "synchronous Python Window.screenshot caller census drifted",
+    )
+    require(
         "GPU_framebuffer_read_depth(depth_read_fb" in sources[
             "source/blender/editors/space_view3d/view3d_draw.cc"
         ],
@@ -1807,9 +1831,12 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "curve_draw_depth_cache_continuations": True,
             "annotation_depth_cache_continuation": True,
             "particle_edit_depth_cache_continuation": True,
+            "asset_preview_window_capture_continuation": True,
             "native_wasm_contract_required": True,
             "live_hardware_receipt": False,
         },
+        "converted_window_capture_callers": ["asset_preview"],
+        "remaining_window_capture_callers": ["python_window_screenshot"],
         "remaining_sync_families": sorted(remaining_sync),
         "source_count": len(SOURCE_PATHS),
         "source_sha256": source_digest(sources),
@@ -2097,6 +2124,18 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "struct View3DParticleCircleDirectData",
             "struct LostParticleCircleDirectData",
             "particle-edit direct circle owner",
+        ),
+        (
+            "source/blender/editors/asset/intern/asset_ops.cc",
+            "data->readback = WM_window_pixels_read_async(C, win);",
+            "data->readback = nullptr;",
+            "asset-preview window capture continuation",
+        ),
+        (
+            "source/blender/python/intern/bpy_rna_wm.cc",
+            "WM_window_pixels_read(C, win, dumprect_size)",
+            "WM_window_pixels_read_async(C, win)",
+            "remaining Python window capture caller census",
         ),
     )
     for relative, old, new, label in mutations:

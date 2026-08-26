@@ -60,6 +60,7 @@ pin.
 | `platform_web/ghost/GHOST_ContextWGPUWeb.{cc,hh}` | `intern/ghost/intern/GHOST_ContextWGPU.{cc,hh}` | fbe6228777e7 |
 | `platform_web/ghost/GHOST_EventBridgeWeb.{cc,hh}` and web key/display headers | `intern/ghost/` event/key/window contracts | fbe6228777e7 |
 | `platform_web/shell/` | new browser shell and byte bridge; no direct upstream source | fbe6228777e7 |
+| `platform_web/shader_cache/first_boot.bwsp` | generated WGSL from the pinned Blender shader library through shaderc v2025.4 + Tint/Dawn 36cf1fae | fbe6228777e7 |
 | `sandbox/m8-staged-deploy/` | new static packaging, cache and verification tooling; no direct upstream source | fbe6228777e7 |
 | `patches/0147-gltf-lazy-optional-compression.patch` | `scripts/addons_core/io_scene_gltf2/` optional compression imports | fbe6228777e7 |
 

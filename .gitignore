@@ -64,6 +64,7 @@ build-wasm-*/
 /sandbox/m7-product-gate/verify_files.json
 /sandbox/m7-product-gate/bundle-identity.json
 /sandbox/m8-launch-gate/artifacts/
+/sandbox/m8-shader-cache-seed/artifacts/
 /sandbox/m7-usd-prep/browser-roundtrip/*/
 /sandbox/m7-usd-prep/native-capability/*/
 

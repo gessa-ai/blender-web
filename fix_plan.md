@@ -1095,13 +1095,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     to with-input boots. The dead-tab window is the INLINE SHADER COMPILE blocking the WM
     worker (+1.0s to +17.4s, load-sensitive; frame 1 presents the instant it finishes).
     Capture rigs no longer need the mouse-nudge for correctness (keep it for older builds).
-  - [~] **M4.T29/M8 boot-latency: shader-compile block [gpu]: warm path fixed by r51/0128.**
+  - [~] **M4.T29/M8 boot-latency: shader-compile block [gpu]: persistent + first-boot paths fixed.**
     The OPFS WGSL translation cache cuts retained clean zero-input first-UI timing from
-    ~16.3s cold to ~3.0s warm, with 101/101 cached shaders byte-identical and exact shaderc
-    v2025.4 plus Tint/Dawn 36cf1fae invalidation pins. Cache format v2 adds bounded payloads
-    and a checksum. Cold first draw still compiles inline on the WM worker; async/off-thread
-    translation or faithful lazy per-object engine loading remains the cold lever. Feeds the
-    M8 30-second bar directly (staged loading is at 27.8s TTFP cold).
+    ~16.3s cold to ~3.0s warm, with exact shaderc v2025.4 plus Tint/Dawn 36cf1fae
+    invalidation pins. Patch 0285 adds a deterministic read-only 100-entry first-boot seed,
+    guarded by the same key/salt/length/checksum envelope and a bounded fail-closed pack
+    parser. On the exact rebuilt CAPTURE product's software-adapter diagnostic, seed-disabled
+    first presentation is 22,472 ms versus 5,207 ms bundled (101 hits, zero misses, zero page
+    errors), a 17,265 ms reduction. This is not a hardware performance receipt. The 87,696 B
+    Brotli seed also moves the conservative complete-wire projection to ~15,056,447 B, about
+    56.4 kB over the 15 MB bar before the small Wasm delta; the next staging cut must recover
+    >=60 kB and the current APPLY product must be remeasured. Evidence:
+    `notes/m8-first-boot-shader-cache-seed-20260826.md`.
   - P3 python (cattrs) follows separately.
 
 ### Migration save point — 2026-08-18 (ornith-lab, WSL2 Linux)

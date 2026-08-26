@@ -1,0 +1,381 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.cc b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+index 977e423ca78856ab11a6e5ca38fee3d8b23dd381..3f03c12551e5cb8a015bf2d59ae9ffa645f88b1d 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader_cache.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_cache.cc
+@@ -15,6 +15,7 @@
+ #include <cstdio>
+ #include <cstring>
+ #include <string>
++#include <vector>
+ 
+ #include <sys/stat.h>
+ #include <unistd.h>
+@@ -25,6 +26,10 @@ namespace {
+ 
+ /* Cache directory under the persistent OPFS user-resources mount (M7 store). */
+ constexpr const char *kCacheDir = "/projects/.shadercache";
++/* Read-only first-boot seed packaged in blender_browser.data. It contains the
++ * exact checksummed cache envelopes produced by this same translator; content
++ * keys and the tool/policy salt still decide whether an entry is usable. */
++constexpr const char *kSeedPath = "/bw/shader-cache/first_boot.bwsp";
+ 
+ const char *cache_dir()
+ {
+@@ -46,6 +51,10 @@ constexpr const char *kSalt =
+ constexpr uint32_t kFormatVersion = 3u;
+ constexpr char kMagic[4] = {'B', 'W', 'S', 'C'};
+ constexpr uint32_t kMaxStageBytes = 16u * 1024u * 1024u;
++constexpr char kSeedMagic[4] = {'B', 'W', 'S', 'P'};
++constexpr uint32_t kSeedFormatVersion = 1u;
++constexpr uint32_t kMaxSeedEntries = 2048u;
++constexpr size_t kMaxSeedPackBytes = 32u * 1024u * 1024u;
+ 
+ /* Two differently seeded 64-bit FNV-1a streams form the 128-bit content address.
+  * This is an accidental-collision guard, not a cryptographic hash. */
+@@ -104,6 +113,226 @@ bool read_exact(FILE *f, void *out, size_t n)
+   return std::fread(out, 1, n, f) == n;
+ }
+ 
++struct ByteReader {
++  const unsigned char *data = nullptr;
++  size_t size = 0;
++  size_t offset = 0;
++
++  bool read(void *out, size_t bytes)
++  {
++    if (offset > size || bytes > size - offset) {
++      return false;
++    }
++    if (bytes != 0) {
++      std::memcpy(out, data + offset, bytes);
++    }
++    offset += bytes;
++    return true;
++  }
++
++  template<typename T> bool scalar(T &out)
++  {
++    return read(&out, sizeof(out));
++  }
++
++  bool skip(size_t bytes)
++  {
++    if (offset > size || bytes > size - offset) {
++      return false;
++    }
++    offset += bytes;
++    return true;
++  }
++
++  bool at_end() const { return offset == size; }
++};
++
++constexpr size_t kCacheHeaderBytes = sizeof(kMagic) + sizeof(uint32_t) + sizeof(uint64_t) * 3 +
++                                     sizeof(uint32_t) * 3 + sizeof(uint64_t);
++
++bool read_bounded_file(const char *path, size_t max_bytes, std::vector<unsigned char> &out)
++{
++  FILE *f = std::fopen(path, "rb");
++  if (f == nullptr) {
++    return false;
++  }
++  bool ok = false;
++  do {
++    if (std::fseek(f, 0, SEEK_END) != 0) {
++      break;
++    }
++    const long end = std::ftell(f);
++    if (end < 0 || static_cast<unsigned long>(end) > max_bytes ||
++        std::fseek(f, 0, SEEK_SET) != 0)
++    {
++      break;
++    }
++    std::vector<unsigned char> bytes(static_cast<size_t>(end));
++    if (!bytes.empty() && !read_exact(f, bytes.data(), bytes.size())) {
++      break;
++    }
++    if (std::fgetc(f) != EOF || std::ferror(f) != 0) {
++      break;
++    }
++    out = std::move(bytes);
++    ok = true;
++  } while (false);
++  std::fclose(f);
++  return ok;
++}
++
++bool decode_cache_entry(const unsigned char *data,
++                        size_t size,
++                        const ShaderCacheKey &key,
++                        std::string &vertex_wgsl,
++                        std::string &fragment_wgsl,
++                        std::string &compute_wgsl)
++{
++  ByteReader reader{data, size};
++  char magic[4];
++  uint32_t fmt = 0;
++  uint64_t salt = 0;
++  uint64_t stored_key_hi = 0, stored_key_lo = 0;
++  uint32_t vlen = 0, flen = 0, clen = 0;
++  uint64_t expected_payload_hash = 0;
++  if (!reader.read(magic, sizeof(magic)) || std::memcmp(magic, kMagic, sizeof(magic)) != 0 ||
++      !reader.scalar(fmt) || fmt != kFormatVersion || !reader.scalar(salt) ||
++      salt != salt_hash() || !reader.scalar(stored_key_hi) || !reader.scalar(stored_key_lo) ||
++      stored_key_hi != key.hi || stored_key_lo != key.lo || !reader.scalar(vlen) ||
++      !reader.scalar(flen) || !reader.scalar(clen) || vlen > kMaxStageBytes ||
++      flen > kMaxStageBytes || clen > kMaxStageBytes ||
++      !reader.scalar(expected_payload_hash))
++  {
++    return false;
++  }
++  const size_t payload_bytes = size_t(vlen) + size_t(flen) + size_t(clen);
++  if (reader.offset > reader.size || payload_bytes != reader.size - reader.offset) {
++    return false;
++  }
++  std::string v(vlen, '\0'), fr(flen, '\0'), c(clen, '\0');
++  if ((vlen != 0 && !reader.read(v.data(), vlen)) ||
++      (flen != 0 && !reader.read(fr.data(), flen)) ||
++      (clen != 0 && !reader.read(c.data(), clen)) || !reader.at_end() ||
++      payload_hash(v, fr, c) != expected_payload_hash)
++  {
++    return false;
++  }
++  vertex_wgsl = std::move(v);
++  fragment_wgsl = std::move(fr);
++  compute_wgsl = std::move(c);
++  return true;
++}
++
++struct SeedRecord {
++  ShaderCacheKey key;
++  size_t offset = 0;
++  uint32_t size = 0;
++};
++
++struct SeedIndex {
++  bool attempted = false;
++  bool valid = false;
++  std::vector<unsigned char> bytes;
++  std::vector<SeedRecord> records;
++};
++
++const char *seed_path()
++{
++  const char *override_path = std::getenv("BW_SHADER_CACHE_SEED");
++  if (override_path == nullptr) {
++    return kSeedPath;
++  }
++  return std::strcmp(override_path, "0") == 0 ? nullptr : override_path;
++}
++
++SeedIndex &seed_index()
++{
++  static SeedIndex index;
++  if (index.attempted) {
++    return index;
++  }
++  index.attempted = true;
++  const char *path = seed_path();
++  if (path == nullptr || !read_bounded_file(path, kMaxSeedPackBytes, index.bytes)) {
++    return index;
++  }
++
++  ByteReader reader{index.bytes.data(), index.bytes.size()};
++  char magic[4];
++  uint32_t format = 0, count = 0;
++  if (!reader.read(magic, sizeof(magic)) ||
++      std::memcmp(magic, kSeedMagic, sizeof(magic)) != 0 || !reader.scalar(format) ||
++      format != kSeedFormatVersion || !reader.scalar(count) || count == 0 ||
++      count > kMaxSeedEntries)
++  {
++    index.bytes.clear();
++    return index;
++  }
++
++  index.records.reserve(count);
++  ShaderCacheKey previous{};
++  bool have_previous = false;
++  for (uint32_t entry = 0; entry < count; entry++) {
++    SeedRecord record;
++    if (!reader.scalar(record.key.hi) || !reader.scalar(record.key.lo) ||
++        !reader.scalar(record.size) || record.size < kCacheHeaderBytes)
++    {
++      index.records.clear();
++      index.bytes.clear();
++      return index;
++    }
++    const bool ordered = !have_previous || previous.hi < record.key.hi ||
++                         (previous.hi == record.key.hi && previous.lo < record.key.lo);
++    if (!ordered) {
++      index.records.clear();
++      index.bytes.clear();
++      return index;
++    }
++    record.offset = reader.offset;
++    if (!reader.skip(record.size)) {
++      index.records.clear();
++      index.bytes.clear();
++      return index;
++    }
++    index.records.push_back(record);
++    previous = record.key;
++    have_previous = true;
++  }
++  if (!reader.at_end()) {
++    index.records.clear();
++    index.bytes.clear();
++    return index;
++  }
++  index.valid = true;
++  printf("[bw] BW_SHADER_CACHE_SEED loaded entries=%zu bytes=%zu\n",
++         index.records.size(),
++         index.bytes.size());
++  fflush(stdout);
++  return index;
++}
++
++bool seed_cache_lookup(const ShaderCacheKey &key,
++                       std::string &vertex_wgsl,
++                       std::string &fragment_wgsl,
++                       std::string &compute_wgsl)
++{
++  SeedIndex &index = seed_index();
++  if (!index.valid) {
++    return false;
++  }
++  for (const SeedRecord &record : index.records) {
++    if (record.key.hi == key.hi && record.key.lo == key.lo) {
++      return decode_cache_entry(index.bytes.data() + record.offset,
++                                record.size,
++                                key,
++                                vertex_wgsl,
++                                fragment_wgsl,
++                                compute_wgsl);
++    }
++  }
++  return false;
++}
++
+ }  // namespace
+ 
+ bool cache_available()
+@@ -157,69 +386,26 @@ bool cache_lookup(const ShaderCacheKey &key,
+                   std::string &fragment_wgsl,
+                   std::string &compute_wgsl)
+ {
+-  if (!cache_available()) {
+-    return false;
+-  }
+-  const std::string path = key_path(key);
+-  FILE *f = std::fopen(path.c_str(), "rb");
+-  if (f == nullptr) {
+-    return false;
+-  }
+-  bool ok = false;
+-  do {
+-    char magic[4];
+-    uint32_t fmt = 0;
+-    uint64_t salt = 0;
+-    uint64_t stored_key_hi = 0, stored_key_lo = 0;
+-    uint32_t vlen = 0, flen = 0, clen = 0;
+-    uint64_t expected_payload_hash = 0;
+-    if (!read_exact(f, magic, sizeof(magic)) || std::memcmp(magic, kMagic, 4) != 0) {
+-      break;
+-    }
+-    if (!read_exact(f, &fmt, sizeof(fmt)) || fmt != kFormatVersion) {
+-      break;
+-    }
+-    if (!read_exact(f, &salt, sizeof(salt)) || salt != salt_hash()) {
+-      break;
+-    }
+-    if (!read_exact(f, &stored_key_hi, sizeof(stored_key_hi)) ||
+-        !read_exact(f, &stored_key_lo, sizeof(stored_key_lo)) || stored_key_hi != key.hi ||
+-        stored_key_lo != key.lo)
++  if (cache_available()) {
++    std::vector<unsigned char> entry;
++    const size_t max_entry_bytes = kCacheHeaderBytes + size_t(kMaxStageBytes) * 3;
++    const std::string path = key_path(key);
++    if (read_bounded_file(path.c_str(), max_entry_bytes, entry) &&
++        decode_cache_entry(entry.data(),
++                           entry.size(),
++                           key,
++                           vertex_wgsl,
++                           fragment_wgsl,
++                           compute_wgsl))
+     {
+-      break;
+-    }
+-    if (!read_exact(f, &vlen, sizeof(vlen)) || !read_exact(f, &flen, sizeof(flen)) ||
+-        !read_exact(f, &clen, sizeof(clen)))
+-    {
+-      break;
++      return true;
+     }
+-    if (vlen > kMaxStageBytes || flen > kMaxStageBytes || clen > kMaxStageBytes) {
+-      break;
+-    }
+-    if (!read_exact(f, &expected_payload_hash, sizeof(expected_payload_hash))) {
+-      break;
+-    }
+-    std::string v(vlen, '\0'), fr(flen, '\0'), c(clen, '\0');
+-    if ((vlen && !read_exact(f, &v[0], vlen)) || (flen && !read_exact(f, &fr[0], flen)) ||
+-        (clen && !read_exact(f, &c[0], clen)))
+-    {
+-      break;
+-    }
+-    /* A cache entry is one exact envelope. A valid checksummed prefix followed by
+-     * stale or torn bytes is still corruption and must re-enter translation. */
+-    if (std::fgetc(f) != EOF || std::ferror(f) != 0) {
+-      break;
+-    }
+-    if (payload_hash(v, fr, c) != expected_payload_hash) {
+-      break;
+-    }
+-    vertex_wgsl = std::move(v);
+-    fragment_wgsl = std::move(fr);
+-    compute_wgsl = std::move(c);
+-    ok = true;
+-  } while (false);
+-  std::fclose(f);
+-  return ok;
++  }
++  /* A new origin has no persistent OPFS translations yet. Fall back to the
++   * build-produced read-only first-frame seed. Every envelope is still checked
++   * against this exact content key, cache salt, bounded lengths, and checksum;
++   * stale/corrupt entries simply miss and take the normal shaderc+Tint path. */
++  return seed_cache_lookup(key, vertex_wgsl, fragment_wgsl, compute_wgsl);
+ }
+ 
+ void cache_store(const ShaderCacheKey &key,
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_cache.hh b/source/blender/gpu/webgpu/wgpu_shader_cache.hh
+index 5d81441956d0ff0559dbd2e42098101d28e1fb2e..15dfe7a4d4dc9773a8b5034286aa16c2afd4dc3c 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader_cache.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader_cache.hh
+@@ -24,9 +24,10 @@
+  *
+  * Storage: plain synchronous file I/O under the persistent OPFS mount at
+  * `/projects/.shadercache` (the M7 store proved synchronous WasmFS-OPFS I/O from
+- * the WM worker). The cache is INERT wherever that mount is absent (e.g. the
+- * native gpu build): `cache_available()` returns false and every entry point is
+- * a no-op, so cold behaviour is byte-for-byte unchanged.
++ * the WM worker). A new browser origin can also read exact cache envelopes from
++ * the build-produced `/bw/shader-cache/first_boot.bwsp` seed. The seed uses the
++ * same key, salt, bounds, and payload checksum as OPFS; an absent, stale, or
++ * corrupt record simply misses and runs the normal translator.
+  *
+  * Key = 128-bit content address of {salt (exact pinned shaderc and Tint/Dawn
+  * revisions plus translation policy), name, per-stage GLSL (which already
+@@ -66,9 +67,10 @@ ShaderCacheKey cache_key(const ShaderStageSources &sources,
+                          uint32_t sampler_base,
+                          const std::vector<SamplerRemap> &sampler_mappings);
+ 
+-/** Read a cached translation. On a hit, fills the three WGSL strings (empty for
+- * an absent stage, matching the fresh path) and returns true. On any miss /
+- * corruption / version-mismatch returns false and leaves the strings untouched. */
++/** Read a persistent or build-seeded translation. On a hit, fills the three WGSL
++ * strings (empty for an absent stage, matching the fresh path) and returns true.
++ * On any miss / corruption / version-mismatch returns false and leaves the
++ * strings untouched. */
+ bool cache_lookup(const ShaderCacheKey &key,
+                   std::string &vertex_wgsl,
+                   std::string &fragment_wgsl,

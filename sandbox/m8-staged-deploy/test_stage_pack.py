@@ -69,6 +69,7 @@ def run_packer(source: Path, output: Path) -> subprocess.CompletedProcess[str]:
 
 def main() -> None:
     classifications = {
+        "/bw/shader-cache/first_boot.bwsp": "keep",
         "/bw/python/lib/python3.13/os.py": "keep",
         "/bw/python/lib/python3.13/asyncio/tasks.py": "defer",
         "/bw/python/lib/python3.13/encodings/__init__.py": "keep",

@@ -378,16 +378,27 @@ function(blender_web_browser_binary src_target)
   set(_py_home   "${BLENDER_WEB_REPO_ROOT}/lib/wasm/lib/python3.13")
   set(_scripts   "${BLENDER_WEB_REPO_ROOT}/upstream/scripts")
   set(_datafiles "${BLENDER_WEB_REPO_ROOT}/upstream/release/datafiles")
+  set(_shader_cache_seed
+    "${BLENDER_WEB_REPO_ROOT}/platform_web/shader_cache/first_boot.bwsp")
   set(_bw_preload_roots "${_py_home}" "${_scripts}" "${_datafiles}")
   foreach(_p IN LISTS _bw_preload_roots)
     if(NOT EXISTS "${_p}")
       message(FATAL_ERROR "blender-web browser: preload root missing: ${_p}")
     endif()
   endforeach()
+  if(NOT EXISTS "${_shader_cache_seed}")
+    message(FATAL_ERROR
+      "blender-web browser: first-boot shader-cache seed missing: ${_shader_cache_seed}")
+  endif()
   string(APPEND _bw_browser_flags
     " --preload-file ${_py_home}@/bw/python/lib/python3.13"
     " --preload-file ${_scripts}@/bw/scripts"
-    " --preload-file ${_datafiles}@/bw/datafiles")
+    " --preload-file ${_datafiles}@/bw/datafiles"
+    " --preload-file ${_shader_cache_seed}@/bw/shader-cache/first_boot.bwsp")
+  # A string-valued --preload-file argument is not an inferred Ninja input.
+  # Force an incremental relink whenever the version-pinned seed changes.
+  set_property(TARGET ${_new} APPEND PROPERTY LINK_DEPENDS
+    "${_shader_cache_seed}")
 
   # OpenUSD's generated Emscripten targets normally embed each schema resource.
   # The browser target already uses a preloaded WasmFS payload, and current

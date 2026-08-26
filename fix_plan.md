@@ -2931,12 +2931,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   technical compliance, and pinned-container M0 6/6 regression are green; M1-M8 retain their
   existing receipt/APPLY/product boundaries. No public snapshot, bundle, profile, receipt, or
   result was produced. See `notes/release-publication-metadata-scrub-20260826.md`.
-- [~] **P1-M8-PUBLIC-PARITY-DASHBOARD [compliance, claimed_by: root]:** generate a public,
-  scrubbed Markdown proof page from committed milestone receipts plus the complete named deferral
-  registry. The page must fail closed on missing inputs, expose red and unavailable states without
-  promotion, omit verbatim fleet activity and local paths, reproduce byte-for-byte from the Git
-  index/HEAD, and be linked from the public README. This closes the LAUNCH.md dashboard artifact
-  only; it cannot promote a milestone, receipt, profile, product, or launch gate.
+- [x] **P1-M8-PUBLIC-PARITY-DASHBOARD [compliance] (`d22c195`):** `PARITY.md` now publishes all
+  nine strict milestone receipt rows plus all 53 named deferral-registry rows directly from a Git
+  index/commit view. Missing receipts stay `UNAVAILABLE`; raw check details, fleet activity, local
+  paths, host names, and ledger evidence paths never enter the public page. The generator rejects
+  private-path and unnamed-blocker mutations, reproduces byte-for-byte from committed HEAD at input
+  SHA-256 `ba4db8ab0b414d055ededc69759910f1de509d0dac4113dbb9fff8f416a11dfe`, and the public README
+  links it. Focused verification, REUSE, technical compliance, and container-backed regression are
+  green at their applicable boundaries; refreshed M8 remains honestly RED at its pre-existing 23
+  APPLY/browser/tier failures. No public deployment, product, profile, receipt, result, or promise
+  was promoted. See `notes/m8-public-parity-dashboard-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
   120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256

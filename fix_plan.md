@@ -2920,6 +2920,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   CAPTURE relink is nonshipping; Apple P0-E/P0-G pixels and fresh exact-generation profiles remain
   mandatory before APPLY or publication. See
   `notes/m4-release-loader-redesign-20260826.md`.
+- [x] **P1-RELEASE-PUBLICATION-METADATA-SCRUB [compliance] (`a920bfd`):** the two public-facing
+  migration comments no longer publish the private host runbook name, and the preserved
+  outer-worktree recovery patch is regenerated from its exact `0577f7f` anchor without private
+  user paths in either the carrier or its 178-path reconstructed postimage. Path-bearing historical
+  preimages use replay-safe Git binary deltas; the new SHA-256 is
+  `563dfe303d9e401c73938d733e118d3f0e21dbeec5e4216a3b43154031b8e4b1`. The fail-closed contract
+  binds the checksum, applies the patch, scans the postimage, reverse-applies it, and proves every
+  touched path returns to its exact anchor state. Exact-commit verification, REUSE 6.2.0,
+  technical compliance, and pinned-container M0 6/6 regression are green; M1-M8 retain their
+  existing receipt/APPLY/product boundaries. No public snapshot, bundle, profile, receipt, or
+  result was produced. See `notes/release-publication-metadata-scrub-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
   120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256

@@ -25,6 +25,7 @@ from public_shell_hardening import harden_boot_source
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_PACK = ROOT / "sandbox/m8-staged-deploy/stage_pack.py"
+STAGE_PACK_CONTRACT = ROOT / "sandbox/m8-staged-deploy/test_stage_pack.py"
 DERIVED_NAMES = (
     "blender_browser.js",
     "blender_browser.data",
@@ -291,6 +292,12 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
 
 
 def selfcheck() -> None:
+    packer_contract = subprocess.run(
+        [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
+    )
+    assert packer_contract.returncode == 0 and \
+        "BW_STAGE_PACK_CONTRACT_PASS classifications=24 positive=5 negative=10" in \
+        packer_contract.stdout
     with tempfile.TemporaryDirectory(prefix="bw-stage-provenance-selfcheck-") as temporary:
         root = Path(temporary)
         source = root / "source"
@@ -359,7 +366,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 "
-          "coherent=diagnostics+worker+register")
+          "packer=24/5/10 coherent=diagnostics+worker+register")
 
 
 def main() -> int:

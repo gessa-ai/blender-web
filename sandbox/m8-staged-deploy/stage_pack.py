@@ -26,15 +26,21 @@
 #   DEFER - not touched at English --factory-startup boot (-> stage-1):
 #           dead stdlib modules, non-enabled addons (rigify, ...), CJK/intl fonts
 #           (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
-#           (keep config.ocio + the default AgX display path).  [--defer-datafiles]
+#           (keep config.ocio + the default AgX display path), build-time/compiled-in
+#           source assets, external StudioLight images, and NumPy's test corpus.
+#           [--defer-datafiles]
 #   KEEP  - everything else (-> stage-0).
 import argparse
+from decimal import Decimal, InvalidOperation
 import json
 import os
 import re
 import sys
 
-RE_ENTRY = re.compile(r'\{filename:"((?:[^"\\]|\\.)*)",start:(\d+),end:(\d+)\}')
+RE_ENTRY = re.compile(
+    r'\{filename:"((?:[^"\\]|\\.)*)",start:([0-9]+(?:[eE]\+?[0-9]+)?),'
+    r'end:([0-9]+(?:[eE]\+?[0-9]+)?)\}'
+)
 
 # --- oracle-validated partition sets (notes/m8-staged-loading.md sec 2-3) --------
 DEAD_STDLIB = (
@@ -47,7 +53,7 @@ DEAD_STDLIB = (
 )
 # Addons whose register() runs at --factory-startup (native oracle) MUST be stage-0.
 STAGE0_ADDONS = (
-    "bl_pkg", "io_scene_fbx", "io_scene_gltf2", "io_anim_bvh", "pose_library",
+    "bl_pkg", "cycles", "io_scene_fbx", "io_scene_gltf2", "io_anim_bvh", "pose_library",
     "io_curve_svg", "io_mesh_uv_layout",
 )
 INTL_FONT_KEEP = ("Inter.woff2", "DejaVuSansMono.woff2")
@@ -69,12 +75,40 @@ def classify(fn, defer_datafiles):
     # DEFER: python stdlib not imported at boot.
     if in_py(fn) and any(d in fn for d in DEAD_STDLIB):
         return "defer"
+    # DEFER: NumPy itself is needed by enabled add-ons, but its upstream unit-test
+    # corpus is not part of registration or any supported product IO operation.
+    if "/site-packages/numpy/" in fn and ("/tests/" in fn or "/test_" in fn):
+        return "defer"
+    # DEFER: OpenUSD schema/plugin resources are consumed only when a USD
+    # import/export operator runs. The operator lane is a post-Stage-1 M7 gate;
+    # keeping these out of the first-pixel payload is both safe and measurable.
+    if fn.startswith("/usd/"):
+        return "defer"
     # DEFER: addons not enabled at --factory-startup.
     if "/bw/scripts/addons_core/" in fn and not any(
         "addons_core/" + a + "/" in fn for a in STAGE0_ADDONS
     ):
         return "defer"
     if defer_datafiles:
+        # DEFER: source assets compiled into Blender (preview*.blend and splash.png),
+        # authoring-only splash_template.xcf, and toolbar.blend (a build-time input
+        # to blender_icons_geom_update.py). Runtime icon output remains Stage 0.
+        if "/datafiles/icons_blend/" in fn:
+            return "defer"
+        if any(suffix in fn for suffix in (
+            "/datafiles/preview.blend",
+            "/datafiles/preview_grease_pencil.blend",
+            "/datafiles/splash.png",
+            "/datafiles/splash_template.xcf",
+        )):
+            return "defer"
+        # Solid Workbench's factory-startup selection names an external `.sl`
+        # preset even though the light implementation also has an internal
+        # fallback. Keep the tiny text presets so the first frame cannot select a
+        # zero-length placeholder and shade black. World/matcap images are lazy
+        # choices and can arrive after first pixels with the rest of Stage 1.
+        if "/datafiles/studiolights/" in fn and not fn.endswith(".sl"):
+            return "defer"
         # DEFER: non-Latin / CJK fonts (English UI never demands them at boot).
         if "/datafiles/fonts/" in fn and not any(k in fn for k in INTL_FONT_KEEP):
             return "defer"
@@ -105,9 +139,59 @@ def parse_manifest(glue_text):
     meta_start = open_brace
     meta_end = i + m.end()  # position just past the closing '})'
     meta_text = glue_text[meta_start:meta_end]
-    entries = [(fn, int(s), int(e)) for fn, s, e in RE_ENTRY.findall(meta_text)]
+    def js_integer(value):
+        try:
+            parsed = Decimal(value)
+        except InvalidOperation:
+            sys.exit(f"stage_pack: FATAL: invalid JS integer literal {value!r}")
+        integral = parsed.to_integral_value()
+        if parsed != integral or integral < 0:
+            sys.exit(f"stage_pack: FATAL: non-integer JS range literal {value!r}")
+        return int(integral)
+
+    entries = [(fn, js_integer(s), js_integer(e)) for fn, s, e in RE_ENTRY.findall(meta_text)]
+    declared_entries = meta_text.count('{filename:"')
+    if declared_entries != len(entries):
+        sys.exit(
+            f"stage_pack: FATAL: parsed {len(entries)} of {declared_entries} manifest entries"
+        )
     remote_size = int(m.group(1))
     return meta_start, meta_end, entries, remote_size
+
+
+def validate_source_manifest(entries, remote_size, blob_size):
+    if remote_size != blob_size:
+        sys.exit(
+            f"stage_pack: FATAL: remote_package_size {remote_size} != data bytes {blob_size}"
+        )
+    if not entries:
+        sys.exit("stage_pack: FATAL: preload manifest contains no entries")
+
+    seen = set()
+    intervals = []
+    for index, (filename, start, end) in enumerate(entries):
+        if not filename.startswith("/") or "\\" in filename or "\0" in filename:
+            sys.exit(f"stage_pack: FATAL: unsafe manifest path at {index}: {filename!r}")
+        if filename in seen:
+            sys.exit(f"stage_pack: FATAL: duplicate manifest path: {filename}")
+        seen.add(filename)
+        if not (0 <= start <= end <= blob_size):
+            sys.exit(
+                f"stage_pack: FATAL: invalid range [{start},{end})/{blob_size} for {filename}"
+            )
+        intervals.append((start, end, filename))
+
+    cursor = 0
+    for start, end, filename in sorted(intervals):
+        if start != cursor:
+            relation = "overlap" if start < cursor else "gap"
+            sys.exit(
+                f"stage_pack: FATAL: source interval {relation}: expected {cursor}, "
+                f"got [{start},{end}) for {filename}"
+            )
+        cursor = end
+    if cursor != blob_size:
+        sys.exit(f"stage_pack: FATAL: source coverage ends at {cursor}, expected {blob_size}")
 
 
 def main():
@@ -124,9 +208,7 @@ def main():
     glue = open(glue_path).read()
     meta_start, meta_end, entries, remote_size = parse_manifest(glue)
     blob = open(data_path, "rb").read()
-    if remote_size != len(blob):
-        print(f"stage_pack: WARN remote_package_size {remote_size} != data bytes {len(blob)}",
-              file=sys.stderr)
+    validate_source_manifest(entries, remote_size, len(blob))
 
     buckets = {"keep": [], "defer": [], "drop": []}
     for fn, s, e in entries:
@@ -140,6 +222,11 @@ def main():
         n = len(buckets[b]); t = total(b)
         print(f"  {b:5s}: {n:5d} files  {t:12,d} bytes  ({t/1048576:7.2f} MiB)")
     stage0_bytes = total("keep")
+    classified_bytes = sum(total(bucket) for bucket in ("keep", "defer", "drop"))
+    if classified_bytes != len(blob):
+        sys.exit(
+            f"stage_pack: FATAL: classified coverage {classified_bytes} != data bytes {len(blob)}"
+        )
     print(f"  => stage0.data {stage0_bytes/1048576:.2f} MiB   stage1.data {total('defer')/1048576:.2f} MiB")
 
     if args.dry_run:

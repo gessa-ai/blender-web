@@ -2900,6 +2900,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   produce the exact success plus terminal-error profiles; only their accepted union can authorize
   the hash-bound APPLY relink. Any intervening relink requires new profiles. See
   `notes/m4-split-capture-product-20260826.md`.
+- [x] **P1-M8-PROVISIONAL-SPLIT-SHAPE [driver]:** an isolated, explicitly non-receipt use of the
+  failed Apple success+terminal profiles proves the production Binaryen checksum rejects the
+  12-byte-newer CAPTURE generation, then measures the structurally compatible provisional split
+  without touching the build tree. The primary is 12,292,157 bytes Brotli q11 versus 24,212,144
+  unsplit, but primary + current stage-0 data + glue totals 17,917,410 bytes, still 2,917,410 over
+  LAUNCH.md's 15 MB bar. The exact 48-function controller closure remains PASS. This does not
+  authorize APPLY; accepted hash-bound Apple profiles remain mandatory. See
+  `notes/m8-provisional-split-shape-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

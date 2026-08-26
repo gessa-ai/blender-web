@@ -2887,6 +2887,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green. **Not resolved:** no public bundle can be assembled or browser-attacked until the current
   CAPTURE generation receives the two Apple profiles and is relinked to a hash-bound APPLY
   primary/deferred product. See `notes/m8-public-query-hardening-20260826.md`.
+- [x] **P1-RELEASE-SHIPPING-SOURCE-RECONCILIATION [driver] (`410e7ad` + `559b106` +
+  `5426e76`):** the four named runtime sources that the optimized CAPTURE product was built from
+  are now direct committed inputs: the ten-limit WebGPU device requests, persistent and
+  activation-safe file bridge with bounded share/inspection operations, and byte-level loader
+  progress. All four paths are clean against HEAD, the optimized `blender_browser` target is exact
+  Ninja no-work, focused source/mutation contracts and REUSE 6.2.0 are green, and container-backed
+  regression restores M0 6/6. No artifact, profile, receipt, or milestone result changed; unrelated
+  shared-worktree residue remains unclaimed. See
+  `notes/release-shipping-source-reconciliation-20260826.md`.
 - [x] **P1-M8-DEFERRAL-REGISTRY-COMPLETENESS [compliance] (`0e7f2ec`):** sixteen named
   launch-visible feature rows now bind 33 forced-OFF build flags, covering IK, Bullet/physics,
   Ocean, remesh/Quadriflow, exact boolean, SLIM UV, video, audio, FBX, Alembic, Grease Pencil

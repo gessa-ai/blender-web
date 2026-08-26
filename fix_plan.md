@@ -2967,6 +2967,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   wire falls 16,248,072 -> 16,198,355 bytes, still honestly 1,198,355 over LAUNCH.md. Accepted
   Apple profiles, APPLY, and hardware staged pixels remain mandatory. See
   `notes/m8-stage0-python-encodings-20260826.md`.
+- [x] **P1-M8-STAGE0-PYTHON-SUPPORT [driver] (`8ea65f3`):** the pinned native oracle and exact
+  windowed CAPTURE product load none of the help, translation-tooling, Freestyle, template, test,
+  or inactive-preset sources before the stable main loop. The packer explicitly retains the two
+  indirectly executed active Blender-keymap files rather than trusting `sys.modules`. A real
+  monolith/candidate browser A/B preserves the complete active keymap, startup state, and trusted
+  viewport input before Stage 1, then restores all 2,477 files / 147,569,290 bytes, imports and
+  compiles representative support paths, and reports zero serious/page errors. Stage-0 data/glue
+  q11 falls 3,699,553+80,383 -> 3,521,872+78,953; provisional critical wire falls 16,198,355 ->
+  16,019,244 bytes, still honestly 1,019,244 over LAUNCH.md. Accepted Apple profiles, APPLY, and
+  hardware staged pixels remain mandatory. See `notes/m8-stage0-python-support-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

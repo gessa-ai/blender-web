@@ -2929,6 +2929,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   fallback-software product boot/input, and REUSE are green. Hardware staged pixels remain
   mandatory; no profile, APPLY artifact, or receipt changed. See
   `notes/m8-stage0-app-templates-20260826.md`.
+- [x] **P1-M8-STAGE0-NUMPY [driver] (`d8de1d2`):** the pinned native oracle and real windowed
+  CAPTURE product both load zero NumPy modules before the first stable WM state, so the complete
+  520-file package now rides Stage 1 instead of keeping a partial 203-file core in Stage 0. A
+  monolith/candidate browser contract proves exact version/add-on/area/default-object state,
+  trusted-input progress, zero serious/page errors, zero-byte Stage-0 placeholders, then uses the
+  production Stage-1 loader to restore all 141,182,163 deferred bytes and import 86 NumPy modules
+  with real array arithmetic. Stage-0 data q11 falls 5,123,738 -> 4,432,412 bytes and rewritten
+  glue falls 86,578 -> 85,524; unchanged provisional primary + glue + data is 16,936,355 bytes,
+  still honestly 1,936,355 over LAUNCH.md's 15 MB bar. Accepted Apple profiles, APPLY, and
+  hardware staged pixels remain mandatory. See `notes/m8-stage0-numpy-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

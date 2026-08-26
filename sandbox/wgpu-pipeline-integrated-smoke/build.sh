@@ -63,6 +63,7 @@ MODIFIER_SIDE_CONTRACT="$ROOT/sandbox/m4-modifier-side-state/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_CONTRACT="$ROOT/sandbox/m4-mouse-release-ownership/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_TEST="$ROOT/sandbox/m4-mouse-release-ownership/mouse_release_test.mjs"
 WINDOW_LIFECYCLE_CONTRACT="$HERE/window_lifecycle_contract.py"
+CALLBACK_REGISTRATION_SOAK_CONTRACT="$ROOT/sandbox/m8-callback-registration-soak/source_contract.py"
 WINDOW_HIT_TEST_CONTRACT="$HERE/window_hit_test_contract.py"
 CLIPBOARD_BRIDGE_CONTRACT="$HERE/clipboard_bridge_contract.py"
 IME_BRIDGE_CONTRACT="$HERE/ime_bridge_contract.py"
@@ -260,6 +261,7 @@ require_file "$MOUSE_RELEASE_OWNERSHIP_CONTRACT"
 require_file "$MODIFIER_SIDE_CONTRACT"
 require_file "$MOUSE_RELEASE_OWNERSHIP_TEST"
 require_file "$WINDOW_LIFECYCLE_CONTRACT"
+require_file "$CALLBACK_REGISTRATION_SOAK_CONTRACT"
 require_file "$WINDOW_HIT_TEST_CONTRACT"
 require_file "$CLIPBOARD_BRIDGE_CONTRACT"
 require_file "$IME_BRIDGE_CONTRACT"
@@ -1761,6 +1763,9 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/platform_web/ghost/harness/test_ghost_web.cc" \
   "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" \
   "$HERE/integrated_pipeline_test.cc" --selfcheck
+"$PYBIN" "$CALLBACK_REGISTRATION_SOAK_CONTRACT" \
+  "$GHOST_SYSTEM_SOURCE" \
+  "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" --selfcheck
 "$PYBIN" "$WINDOW_HIT_TEST_CONTRACT" \
   "$ROOT/upstream/intern/ghost/GHOST_ISystem.hh" \
   "$ROOT/upstream/intern/ghost/intern/GHOST_System.cc" \

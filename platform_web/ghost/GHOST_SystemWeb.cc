@@ -16,8 +16,6 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
-#include <memory>
-#include <vector>
 
 #include <sys/stat.h>
 
@@ -55,20 +53,30 @@ namespace {
 /* Browser-main event listeners can already have queued a callback to the WM
  * worker when disposal unregisters them. A system pointer is reused by every
  * replacement window, so it cannot identify the registration that captured the
- * event. Give each registration a unique, process-lifetime record instead. Old
- * records remain safe to inspect after system destruction but can never become
- * the current token again. Registration and record retention run only on the WM
- * worker; callback admission is atomic because delivery is asynchronously
- * proxied back to that worker. */
-struct CallbackRegistration {
-  GHOST_SystemWeb *const system;
-  const uint64_t epoch;
-};
+ * event. Give every attempt a unique opaque token address instead. Tokens are
+ * never dereferenced, freed, or reused; a fixed process-lifetime pool bounds the
+ * metadata at 4 KiB, and exhaustion fails closed. This includes failed prefix
+ * transactions because their briefly installed listeners can already have
+ * queued delivery before rollback. */
+constexpr uint32_t kCallbackRegistrationBudget = 4096;
+std::array<uint8_t, kCallbackRegistrationBudget> g_callback_registration_tokens{};
+std::atomic<uint32_t> g_callback_registration_token_count{0};
+std::atomic<void *> g_callback_registration{nullptr};
+std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};
 
-std::atomic<CallbackRegistration *> g_callback_registration{nullptr};
-std::atomic<uint64_t> g_active_callback_epoch{0};
-std::atomic<uint64_t> g_next_callback_epoch{1};
-std::vector<std::unique_ptr<CallbackRegistration>> g_callback_registrations;
+void *callback_registration_token_acquire()
+{
+  uint32_t index = g_callback_registration_token_count.load(std::memory_order_relaxed);
+  while (index < kCallbackRegistrationBudget) {
+    const uint32_t next = index + 1;
+    if (g_callback_registration_token_count.compare_exchange_weak(
+            index, next, std::memory_order_relaxed, std::memory_order_relaxed))
+    {
+      return &g_callback_registration_tokens[index];
+    }
+  }
+  return nullptr;
+}
 
 #ifdef WITH_INPUT_IME
 constexpr const char *kImeInputSelector = "#bw-ime-input";
@@ -79,13 +87,12 @@ constexpr size_t kWebCallbackCount = 14;
 
 GHOST_SystemWeb *callback_system(void *user_data)
 {
-  CallbackRegistration *candidate = static_cast<CallbackRegistration *>(user_data);
-  CallbackRegistration *active = g_callback_registration.load(std::memory_order_acquire);
-  const uint64_t active_epoch = g_active_callback_epoch.load(std::memory_order_acquire);
-  return candidate != nullptr && active == candidate && active_epoch != 0 &&
-                 candidate->epoch == active_epoch ?
-             candidate->system :
-             nullptr;
+  if (user_data == nullptr ||
+      g_callback_registration.load(std::memory_order_acquire) != user_data)
+  {
+    return nullptr;
+  }
+  return g_callback_system.load(std::memory_order_acquire);
 }
 
 bool cb_mousemove(int /*t*/, const EmscriptenMouseEvent *e, void *ud)
@@ -382,6 +389,24 @@ bool remove_html5_callback_prefix(const char *canvas,
 
 }  // namespace
 
+/* Read-only lifecycle diagnostics for the M8 bounded-metadata soak. The count
+ * includes successful and rolled-back registration attempts because both consume
+ * a never-recycled token. Doubles avoid a BigInt hop in browser harnesses. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_callback_registration_attempt_count()
+{
+  return double(g_callback_registration_token_count.load(std::memory_order_relaxed));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_callback_registration_budget()
+{
+  return double(kCallbackRegistrationBudget);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_callback_registration_metadata_bytes()
+{
+  return double(sizeof(g_callback_registration_tokens));
+}
+
 /* -------------------------------------------------------------------------- */
 /* Shell -> WM-worker display-state handshake (GHOST_WebDisplayState.hh).
  *
@@ -636,10 +661,13 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
     std::fprintf(stderr, "GHOST-web: canvas client rectangle is unavailable\n");
     return false;
   }
-  const uint64_t epoch = g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed);
-  auto registration = std::make_unique<CallbackRegistration>(CallbackRegistration{this, epoch});
-  CallbackRegistration *user_data = registration.get();
-  g_callback_registrations.push_back(std::move(registration));
+  void *user_data = callback_registration_token_acquire();
+  if (user_data == nullptr) {
+    std::fprintf(stderr,
+                 "GHOST-web: callback registration token budget exhausted (%u attempts)\n",
+                 kCallbackRegistrationBudget);
+    return false;
+  }
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
 
@@ -1204,7 +1232,7 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
       },
       [&]() {
         callback_user_data_ = user_data;
-        g_active_callback_epoch.store(epoch, std::memory_order_release);
+        g_callback_system.store(this, std::memory_order_release);
         g_callback_registration.store(user_data, std::memory_order_release);
         callbacks_registered_ = true;
         /* The shell may have focused the canvas before callback registration.
@@ -1230,13 +1258,14 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
       bridge.unbind(UTF8ToString($0));
     }
   }, canvas);
-  CallbackRegistration *registration = static_cast<CallbackRegistration *>(callback_user_data_);
-  uint64_t expected_epoch = registration->epoch;
-  g_active_callback_epoch.compare_exchange_strong(
-      expected_epoch, 0, std::memory_order_acq_rel, std::memory_order_acquire);
-  CallbackRegistration *expected_registration = registration;
-  g_callback_registration.compare_exchange_strong(
-      expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
+  void *expected_registration = callback_user_data_;
+  if (g_callback_registration.compare_exchange_strong(
+          expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire))
+  {
+    GHOST_SystemWeb *expected_system = this;
+    g_callback_system.compare_exchange_strong(
+        expected_system, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
+  }
   const bool removed =
       remove_html5_callback_prefix(canvas, win, callback_user_data_, kWebCallbackCount);
   callback_user_data_ = nullptr;

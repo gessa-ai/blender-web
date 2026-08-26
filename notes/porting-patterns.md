@@ -1678,3 +1678,16 @@ semantic pixels on hardware. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_shader.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_pipeline.cc`, and
 `notes/p0-redraw-recovery-20260826.md`.
+
+## Class 114 — delayed callback safety needs bounded, non-recycled identity
+
+Signature: browser listener removal prevents new events but cannot retract callbacks already
+proxied to a worker. Retaining one heap record per registration makes stale userdata safe, yet
+failed prefix transactions and repeated replacement grow process-lifetime metadata without limit.
+Use opaque addresses from a fixed token pool: never dereference, free, or reuse a token; compare it
+with the active token before loading the owner; publish the owner before the token; and retire the
+token and owner before removing listeners. Budget every attempt, including rolled-back prefixes,
+and fail closed at exhaustion. Soak real failed registrations and replacement windows while
+holding an old callback, require exact token accounting and listener balance, then prove stale
+delivery is rejected and fresh input survives. See `platform_web/ghost/GHOST_SystemWeb.cc` and
+`sandbox/m8-callback-registration-soak/`.

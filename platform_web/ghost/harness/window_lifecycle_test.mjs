@@ -43,6 +43,36 @@ try {
     const nativeAdd = EventTarget.prototype.addEventListener;
     const nativeRemove = EventTarget.prototype.removeEventListener;
     const keydownWrappers = new WeakMap();
+    const listenerIds = new WeakMap();
+    const targetIds = new WeakMap();
+    const trackedTypes = new Set([
+      "mousemove", "mousedown", "mouseup", "wheel", "contextmenu", "focus", "blur",
+      "pointerlockchange", "pointerlockerror", "keydown", "keyup", "resize",
+    ]);
+    const activeListeners = new Set();
+    let nextListenerId = 1;
+    let nextTargetId = 1;
+    let addedListeners = 0;
+    let removedListeners = 0;
+    const objectId = (map, object, next) => {
+      let id = map.get(object);
+      if (!id) {
+        id = next();
+        map.set(object, id);
+      }
+      return id;
+    };
+    const listenerKey = (target, type, listener, options) => {
+      if (!trackedTypes.has(type) ||
+          (typeof listener !== "function" &&
+           (typeof listener !== "object" || listener === null))) {
+        return null;
+      }
+      const targetId = objectId(targetIds, target, () => nextTargetId++);
+      const listenerId = objectId(listenerIds, listener, () => nextListenerId++);
+      const capture = typeof options === "boolean" ? options : Boolean(options?.capture);
+      return `${targetId}:${type}:${capture ? 1 : 0}:${listenerId}`;
+    };
     const probe = {
       armed: false,
       captured: 0,
@@ -68,6 +98,7 @@ try {
     };
 
     EventTarget.prototype.addEventListener = function (type, listener, options) {
+      let installed = listener;
       if (this instanceof HTMLCanvasElement && this.id === "blender-canvas" &&
           type === "keydown" && typeof listener === "function") {
         const wrapped = function (event) {
@@ -80,17 +111,42 @@ try {
           return listener.call(this, event);
         };
         keydownWrappers.set(listener, wrapped);
-        return nativeAdd.call(this, type, wrapped, options);
+        installed = wrapped;
       }
-      return nativeAdd.call(this, type, listener, options);
+      const result = nativeAdd.call(this, type, installed, options);
+      const key = listenerKey(this, type, installed, options);
+      if (key !== null && !activeListeners.has(key)) {
+        activeListeners.add(key);
+        addedListeners += 1;
+      }
+      return result;
     };
     EventTarget.prototype.removeEventListener = function (type, listener, options) {
       const wrapped = type === "keydown" && typeof listener === "function" ?
         keydownWrappers.get(listener) : null;
-      return nativeRemove.call(this, type, wrapped || listener, options);
+      const installed = wrapped || listener;
+      const result = nativeRemove.call(this, type, installed, options);
+      const key = listenerKey(this, type, installed, options);
+      if (key !== null && activeListeners.delete(key)) {
+        removedListeners += 1;
+      }
+      return result;
     };
     Object.defineProperty(globalThis, "__bwStaleCallbackProbe", {
       value: probe,
+      writable: false,
+      configurable: false,
+    });
+    Object.defineProperty(globalThis, "__bwListenerBudgetProbe", {
+      value: Object.freeze({
+        snapshot() {
+          return {
+            active: activeListeners.size,
+            added: addedListeners,
+            removed: removedListeners,
+          };
+        },
+      }),
       writable: false,
       configurable: false,
     });
@@ -129,6 +185,18 @@ try {
 
   const managerState = () => page.evaluate(() => Number(
     globalThis.ghostModule._ghost_harness_window_manager_state()));
+  const registrationBudget = () => page.evaluate(() => {
+    const module = globalThis.ghostModule;
+    return {
+      attempts: Number(module._bw_callback_registration_attempt_count()),
+      budget: Number(module._bw_callback_registration_budget()),
+      metadataBytes: Number(module._bw_callback_registration_metadata_bytes()),
+    };
+  });
+  const listenerBudget = () => page.evaluate(() =>
+    globalThis.__bwListenerBudgetProbe.snapshot());
+  const FAILED_REGISTRATION_SOAK = 128;
+  const REPLACEMENT_REGISTRATION_SOAK = 256;
 
   const initialManagerState = await managerState();
   if (initialManagerState !== 1) {
@@ -197,7 +265,7 @@ try {
       return probe.snapshot();
     }, { eventKey: key, eventCode: code });
     if (snapshot.armed || snapshot.captured !== expectedCaptured ||
-        snapshot.pending !== expectedCaptured) {
+        snapshot.pending !== snapshot.captured - snapshot.delivered) {
       throw new Error(`old-registration callback was not captured: ${JSON.stringify(snapshot)}`);
     }
   };
@@ -235,6 +303,91 @@ try {
     throw new Error(`window-under-cursor bounds were not enforced: result=${hitTestResult}`);
   }
 
+  // Hold one more callback across a much longer registration churn. Failed
+  // prefix registrations also need unique userdata because their already-added
+  // listeners can have queued work before rollback removes them.
+  await page.evaluate(() => { document.querySelector("#log").textContent = ""; });
+  await queueOldKey("e", "KeyE", 3);
+  const beforeBudget = await registrationBudget();
+  const beforeListeners = await listenerBudget();
+
+  if (await request(0) !== 0b1111 || await managerState() !== 0) {
+    throw new Error("registration soak could not dispose its starting window");
+  }
+  const renamedInput = await page.evaluate(() => {
+    const input = document.querySelector("#bw-ime-input");
+    if (!(input instanceof HTMLTextAreaElement)) return false;
+    input.id = "bw-ime-input-missing";
+    return true;
+  });
+  if (!renamedInput) {
+    throw new Error("registration soak could not hide the IME listener target");
+  }
+  for (let index = 0; index < FAILED_REGISTRATION_SOAK; index++) {
+    const failedResult = await request(1);
+    if (failedResult !== 0 || await managerState() !== 0) {
+      throw new Error(
+        `failed registration ${index + 1}/${FAILED_REGISTRATION_SOAK} published a window: ` +
+        `result=${failedResult} manager=${await managerState()}`);
+    }
+  }
+  await page.evaluate(() => {
+    const input = document.querySelector("#bw-ime-input-missing");
+    if (!(input instanceof HTMLTextAreaElement)) {
+      throw new Error("renamed IME input disappeared during failed-registration soak");
+    }
+    input.id = "bw-ime-input";
+  });
+  if (await request(1) !== 0b111 || await managerState() !== 1) {
+    throw new Error("clean registration did not recover after the failed-prefix soak");
+  }
+
+  for (let index = 0; index < REPLACEMENT_REGISTRATION_SOAK; index++) {
+    if (await request(0) !== 0b1111 || await request(1) !== 0b111) {
+      throw new Error(
+        `replacement registration ${index + 1}/${REPLACEMENT_REGISTRATION_SOAK} failed`);
+    }
+  }
+
+  const afterBudget = await registrationBudget();
+  const afterListeners = await listenerBudget();
+  const expectedAttempts = beforeBudget.attempts + FAILED_REGISTRATION_SOAK + 1 +
+    REPLACEMENT_REGISTRATION_SOAK;
+  if (afterBudget.attempts !== expectedAttempts) {
+    throw new Error(
+      `registration attempts did not include failed and replacement prefixes: ` +
+      `before=${beforeBudget.attempts} after=${afterBudget.attempts} ` +
+      `expected=${expectedAttempts}`);
+  }
+  if (afterBudget.budget !== 4096 || afterBudget.metadataBytes !== 4096) {
+    throw new Error(`callback metadata is not fixed at 4096 bytes: ${JSON.stringify(afterBudget)}`);
+  }
+  if (!(afterBudget.attempts < afterBudget.budget)) {
+    throw new Error(`callback token soak exhausted its fail-closed budget: ${JSON.stringify(afterBudget)}`);
+  }
+  const added = afterListeners.added - beforeListeners.added;
+  const removed = afterListeners.removed - beforeListeners.removed;
+  if (afterListeners.active !== beforeListeners.active || added !== removed) {
+    throw new Error(
+      `HTML5 listener metadata did not return to its active baseline: ` +
+      `before=${JSON.stringify(beforeListeners)} after=${JSON.stringify(afterListeners)} ` +
+      `added=${added} removed=${removed}`);
+  }
+
+  const soakStaleSnapshot = await page.evaluate(() => {
+    globalThis.__bwStaleCallbackProbe.deliverAll();
+    return globalThis.__bwStaleCallbackProbe.snapshot();
+  });
+  await page.waitForTimeout(100);
+  const soakStaleLog = await page.locator("#log").textContent();
+  if (soakStaleSnapshot.captured !== 3 || soakStaleSnapshot.delivered !== 3 ||
+      soakStaleSnapshot.pending !== 0 || soakStaleLog.includes("KeyDown") ||
+      soakStaleLog.includes("KeyUp")) {
+    throw new Error(
+      `long-lived stale registration reached the final replacement: ` +
+      `probe=${JSON.stringify(soakStaleSnapshot)} log=${soakStaleLog}`);
+  }
+
   await page.evaluate(() => {
     document.querySelector("#log").textContent = "";
   });
@@ -248,10 +401,19 @@ try {
   if (callbackFailures.length !== 0) {
     throw new Error(`callback removal reported failure: ${callbackFailures.join(" | ")}`);
   }
+  const expectedRegistrationFailures = diagnostics.filter((line) =>
+    line.includes("HTML5 callback registration") && line.includes("prefix rollback succeeded"));
+  if (expectedRegistrationFailures.length !== FAILED_REGISTRATION_SOAK) {
+    throw new Error(
+      `failed-registration soak diagnostics differ: expected=${FAILED_REGISTRATION_SOAK} ` +
+      `actual=${expectedRegistrationFailures.length}`);
+  }
 
   console.log(
     "WINDOW_LIFECYCLE_LIVE PASS dispose=detached callbacks=rebound replacement=input-target " +
     "queued=registration-epoch repeated-replacements=2 hit-test=bounded " +
+    "registration-soak=failed:128,replacements:256 token-budget=4096 metadata=4096B " +
+    "listeners=balanced " +
     "manager=create-focus-blur-dispose-replace second-window=fail-closed worker=proxy-pthread");
 }
 finally {

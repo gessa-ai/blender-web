@@ -58,18 +58,17 @@ def validate(
         require_once(header, token, "header")
 
     for token in (
-        "struct CallbackRegistration {",
-        "GHOST_SystemWeb *const system;",
-        "const uint64_t epoch;",
-        "std::atomic<CallbackRegistration *> g_callback_registration{nullptr};",
-        "std::atomic<uint64_t> g_active_callback_epoch{0};",
-        "std::atomic<uint64_t> g_next_callback_epoch{1};",
-        "std::vector<std::unique_ptr<CallbackRegistration>> g_callback_registrations;",
-        "active == candidate",
-        "candidate->epoch == active_epoch",
+        "constexpr uint32_t kCallbackRegistrationBudget = 4096;",
+        "std::array<uint8_t, kCallbackRegistrationBudget> g_callback_registration_tokens{};",
+        "std::atomic<uint32_t> g_callback_registration_token_count{0};",
+        "std::atomic<void *> g_callback_registration{nullptr};",
+        "std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};",
+        "g_callback_registration.load(std::memory_order_acquire) != user_data",
+        "g_callback_system.load(std::memory_order_acquire)",
     ):
         require_once(source, token, "registration epoch")
-    if "std::atomic<GHOST_SystemWeb *> g_callback_system" in source or \
+    if "struct CallbackRegistration" in source or \
+            "g_callback_registrations" in source or \
             "static_cast<GHOST_SystemWeb *>(user_data)" in source:
         raise ValueError("callback admission still reuses the system pointer")
     if source.count("callback_system(ud)") != 12 or source.count("if (system == nullptr)") != 8:
@@ -83,7 +82,7 @@ def validate(
         "await queueOldKey(\"q\", \"KeyQ\", 1);",
         "await queueOldKey(\"w\", \"KeyW\", 2);",
         "document.querySelector(\"#blender-canvas\").dispatchEvent(",
-        "globalThis.__bwStaleCallbackProbe.deliverAll();",
+        "const staleSnapshot = await page.evaluate(() => {",
         "staleLog.includes(\"KeyDown\")",
         "queued=registration-epoch repeated-replacements=2",
         "const managerState = () => page.evaluate(() => Number(",
@@ -119,25 +118,26 @@ def validate(
     registration = method(source, REGISTER_MARKER)
     require_once(registration, "if (callbacks_registered_)", "registration")
     for token in (
-        "g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed)",
-        "g_callback_registrations.push_back(std::move(registration));",
+        "void *user_data = callback_registration_token_acquire();",
+        "if (user_data == nullptr)",
+        "callback registration token budget exhausted",
         "ghost_web::sequential_registration_transaction<kWebCallbackCount>(",
         "remove_html5_callback_prefix(canvas, win, user_data, registered_count)",
         "callback_user_data_ = user_data;",
-        "g_active_callback_epoch.store(epoch, std::memory_order_release);",
+        "g_callback_system.store(this, std::memory_order_release);",
         "g_callback_registration.store(user_data, std::memory_order_release);",
         "return registration_succeeded;",
     ):
         require_once(registration, token, "registration")
     require_once(registration, "callbacks_registered_ = true;", "registration")
+    acquire = registration.index("callback_registration_token_acquire()")
     transaction = registration.index(
         "ghost_web::sequential_registration_transaction<kWebCallbackCount>(")
-    durable = registration.index("g_callback_registrations.push_back")
     publish_user_data = registration.index("callback_user_data_ = user_data;")
-    publish_epoch = registration.index("g_active_callback_epoch.store(")
+    publish_owner = registration.index("g_callback_system.store(")
     publish_record = registration.index("g_callback_registration.store(")
     publish_registered = registration.index("callbacks_registered_ = true;")
-    if not durable < transaction < publish_user_data < publish_epoch < publish_record < publish_registered:
+    if not acquire < transaction < publish_user_data < publish_owner < publish_record < publish_registered:
         raise ValueError("callback owner publishes before the complete listener transaction")
     if ", this, false," in registration:
         raise ValueError("listener registration still uses the reusable system pointer")
@@ -174,9 +174,10 @@ def validate(
     unregistration = method(source, UNREGISTER_MARKER)
     require_once(unregistration, "if (!callbacks_registered_)", "unregistration")
     for token in (
-        "static_cast<CallbackRegistration *>(callback_user_data_)",
-        "g_active_callback_epoch.compare_exchange_strong(",
+        "void *expected_registration = callback_user_data_;",
         "g_callback_registration.compare_exchange_strong(",
+        "GHOST_SystemWeb *expected_system = this;",
+        "g_callback_system.compare_exchange_strong(",
         "callback_user_data_ = nullptr;",
     ):
         require_once(unregistration, token, "unregistration")
@@ -214,11 +215,11 @@ def validate(
     ):
         require_once(removal_helper, event, "prefix removal")
         require_once(removal_helper, callback, "prefix removal")
-    retire_epoch = unregistration.index("g_active_callback_epoch.compare_exchange_strong(")
     retire_record = unregistration.index("g_callback_registration.compare_exchange_strong(")
+    retire_owner = unregistration.index("g_callback_system.compare_exchange_strong(")
     first_remove = unregistration.index("remove_html5_callback_prefix(")
     clear_userdata = unregistration.index("callback_user_data_ = nullptr;")
-    if not retire_epoch < retire_record < first_remove < clear_userdata:
+    if not retire_record < retire_owner < first_remove < clear_userdata:
         raise ValueError("callback epoch/token lifetime is not ordered around listener removal")
 
     disposal = method(source, DISPOSE_MARKER)
@@ -295,13 +296,13 @@ def selfcheck(
         (replace_once(header, "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;", ""), source, live_test),
         (replace_once(header, "bool callbacks_registered_ = false;", "bool callbacks_registered_ = true;"), source, live_test),
         (replace_once(header, "void *callback_user_data_ = nullptr;", ""), source, live_test),
-        (header, replace_once(source, "std::atomic<uint64_t> g_active_callback_epoch{0};", ""), live_test),
-        (header, replace_once(source, "active == candidate", "active != candidate"), live_test),
-        (header, replace_once(source, "candidate->epoch == active_epoch", "candidate->epoch != active_epoch"), live_test),
+        (header, replace_once(source, "std::atomic<uint32_t> g_callback_registration_token_count{0};", ""), live_test),
+        (header, replace_once(source, "g_callback_registration.load(std::memory_order_acquire) != user_data", "g_callback_registration.load(std::memory_order_acquire) == user_data"), live_test),
+        (header, replace_once(source, "g_callback_system.load(std::memory_order_acquire)", "nullptr"), live_test),
         (header, replace_once(source, "if (callback_system(ud) == nullptr)", "if (false)"), live_test),
         (header, mutate_method(source, REGISTER_MARKER, "if (callbacks_registered_)", "if (false)"), live_test),
-        (header, mutate_method(source, REGISTER_MARKER, "g_callback_registrations.push_back(std::move(registration));", ""), live_test),
-        (header, mutate_method(source, REGISTER_MARKER, "g_active_callback_epoch.store(epoch, std::memory_order_release);", ""), live_test),
+        (header, mutate_method(source, REGISTER_MARKER, "void *user_data = callback_registration_token_acquire();", "void *user_data = this;"), live_test),
+        (header, mutate_method(source, REGISTER_MARKER, "g_callback_system.store(this, std::memory_order_release);", ""), live_test),
         (header, mutate_method(source, REMOVE_PREFIX_MARKER, "EMSCRIPTEN_EVENT_MOUSEUP", "EMSCRIPTEN_EVENT_MOUSEDOWN"), live_test),
         (header, mutate_method(
             source,
@@ -311,7 +312,7 @@ def selfcheck(
         (header, mutate_method(source, REMOVE_PREFIX_MARKER,
                                "EMSCRIPTEN_EVENT_POINTERLOCKERROR",
                                "EMSCRIPTEN_EVENT_POINTERLOCKCHANGE"), live_test),
-        (header, mutate_method(source, UNREGISTER_MARKER, "g_active_callback_epoch.compare_exchange_strong(", "g_active_callback_epoch.store("), live_test),
+        (header, mutate_method(source, UNREGISTER_MARKER, "g_callback_registration.compare_exchange_strong(", "g_callback_registration.store("), live_test),
         (header, mutate_method(source, UNREGISTER_MARKER, "callback_user_data_ = nullptr;", ""), live_test),
         (header, mutate_method(source, DISPOSE_MARKER, "if (window != window_ || !validWindow(window))", "if (window != window_)"), live_test),
         (header, mutate_method(source, DISPOSE_MARKER, "active_window->endIME();", ""), live_test),
@@ -326,7 +327,7 @@ def selfcheck(
                                "if (false) {\n    return nullptr;\n  }"), live_test),
         (header, mutate_method(source, CREATE_MARKER,
                                "wm->setActiveWindow(valid_window);", ""), live_test),
-        (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", ""), integrated_test),
+        (header, source, replace_once(live_test, "const staleSnapshot = await page.evaluate(() => {", "const staleSnapshot = (() => {"), integrated_test),
     )
     normalized_mutations = []
     for mutation in mutations[:-1]:

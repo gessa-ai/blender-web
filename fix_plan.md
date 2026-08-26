@@ -2830,6 +2830,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input, focus loss, 19 mutations, integrated parity, the relinked product, and neighboring input
   contracts are green without changing the hardware receipt boundary. See
   `notes/m4-modifier-side-state-20260825.md`.
+- [x] **M4-WEB-FOCUS-TRANSITION-ORDER [ghost-web] (`aae9c9a`):** a capturing DOM blur now
+  publishes a monotonic loss boundary before Emscripten's proxied callback can observe a later
+  refocus and suppress it. The WM worker retires held input before reconciling current focus,
+  ordinary blurs acknowledge their publication to prevent duplicate transitions, and explicit
+  IME handoffs remain domain-internal. Seventeen mutations, repeated real-worker rapid/ordinary
+  cases, all adjacent focus/input contracts, integrated native/wasm32 parity, locked product
+  relink/no-work, OFF preflight, sustained fallback diagnostic, M4 scope, and container regression
+  preserve their strict existing boundaries. See `notes/m4-focus-transition-order-20260825.md`.
 - [x] **P0-M4-BOOT-PRESENT-ADAPTER-CURRENT-HEAD-REVALIDATION [driver, current-head
   `b8f1850`]:** the committed early cmd:2 canvas registration, same-turn surface submission, and
   current/legacy adapter-shape fixes remain green together in the native/wasm matrix and strict

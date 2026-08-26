@@ -146,13 +146,15 @@ assert.equal(negative, 6);
 
 function makeStageEnvironment(stageSource, {
   search = '', devHooksAllowed = false, trustedManual = false, bodyGate = false,
-  stream = true, httpFailure = false, chunks = [[1, 2, 3], [4, 5, 6]], total = 6,
+  stream = true, httpFailure = false, dataFailures = [],
+  chunks = [[1, 2, 3], [4, 5, 6]], total = 6,
 } = {}) {
   const elements = new Map();
   const writes = [];
   const timers = [];
   let now = 0;
   let fetchCount = 0;
+  let dataFetchCount = 0;
   const loader = {
     id: 'loader',
     classList: {contains: (name) => name === 'bw-hidden'},
@@ -193,15 +195,18 @@ function makeStageEnvironment(stageSource, {
       {filename: '/bw/b', start: Math.min(3, total), end: total},
     ],
   };
-  const payload = Uint8Array.from(chunks.flat());
   const fetch = async (url) => {
     fetchCount += 1;
     if (url.endsWith('stage1-manifest.json')) return {json: async () => manifest};
     assert.ok(url.endsWith('stage1.data'));
-    if (httpFailure) {
+    const failure = dataFailures[dataFetchCount++] || null;
+    if (httpFailure || failure === 'http') {
+      const payload = Uint8Array.from(chunks.flat());
       return {ok: false, status: 503, headers: {get: () => null}, body: null,
         arrayBuffer: async () => payload.buffer};
     }
+    const responseChunks = failure === 'underflow' ? [[1, 2, 3]] : chunks;
+    const payload = Uint8Array.from(responseChunks.flat());
     let chunkIndex = 0;
     return {
       ok: true,
@@ -209,8 +214,13 @@ function makeStageEnvironment(stageSource, {
       headers: {get: (name) => name === 'content-length' ? String(total) : null},
       body: stream ? {
         getReader() {
-          return {read: async () => chunkIndex < chunks.length ?
-            {done: false, value: Uint8Array.from(chunks[chunkIndex++])} : {done: true}};
+          return {read: async () => {
+            if (failure === 'interrupted' && chunkIndex === 1) {
+              throw new Error('stream interrupted');
+            }
+            return chunkIndex < responseChunks.length ?
+              {done: false, value: Uint8Array.from(responseChunks[chunkIndex++])} : {done: true};
+          }};
         },
       } : null,
       arrayBuffer: async () => payload.buffer.slice(
@@ -227,7 +237,8 @@ function makeStageEnvironment(stageSource, {
     clearTimeout() {}, console,
   });
   vm.runInContext(stageSource, context, {filename: 'stage1-loader.contract.js'});
-  return {window, elements, writes, timers, fetchCount: () => fetchCount};
+  return {window, elements, writes, timers,
+    fetchCount: () => fetchCount, dataFetchCount: () => dataFetchCount};
 }
 
 async function assertStageContract(stageSource) {
@@ -275,11 +286,61 @@ async function assertStageContract(stageSource) {
   assert.equal(fallbackState.phase, 'done');
   assert.equal(fallbackState.bytesDone, 6);
 
+  const concurrent = makeStageEnvironment(stageSource, {trustedManual: true});
+  const firstConcurrent = concurrent.window.__bwStage1Load();
+  const secondConcurrent = concurrent.window.__bwStage1Load();
+  assert.strictEqual(secondConcurrent, firstConcurrent,
+    'concurrent Stage-1 calls did not share one in-flight Promise');
+  assert.equal((await firstConcurrent).phase, 'done');
+  assert.equal(concurrent.dataFetchCount(), 1);
+
+  const transientHttp = makeStageEnvironment(stageSource, {
+    trustedManual: true, dataFailures: ['http'],
+  });
+  const transientHttpState = await transientHttp.window.__bwStage1Load();
+  assert.equal(transientHttpState.phase, 'done');
+  assert.equal(transientHttpState.error, null);
+  assert.equal(transientHttpState.attempt, 2);
+  assert.equal(transientHttp.dataFetchCount(), 2);
+  assert.equal(transientHttp.writes.length, 2);
+  assert.ok(Array.from(transientHttpState.visiblePhases).includes('Retrying assets'));
+  assert.equal(Array.from(transientHttpState.visiblePhases).at(-1), 'Assets ready');
+
+  const transientStream = makeStageEnvironment(stageSource, {
+    trustedManual: true, dataFailures: ['interrupted'],
+  });
+  const transientStreamState = await transientStream.window.__bwStage1Load();
+  assert.equal(transientStreamState.phase, 'done');
+  assert.equal(transientStreamState.error, null);
+  assert.equal(transientStreamState.attempt, 2);
+  assert.equal(transientStream.dataFetchCount(), 2);
+  assert.deepEqual(transientStream.writes, [
+    {filename: '/bw/a', bytes: [1, 2, 3]},
+    {filename: '/bw/b', bytes: [4, 5, 6]},
+  ]);
+
   const httpError = makeStageEnvironment(stageSource, {httpFailure: true});
   const httpState = await httpError.window.__bwStage1Load();
   assert.equal(httpState.phase, 'error');
   assert.match(httpState.error, /stage1\.data HTTP 503/);
+  assert.equal(httpState.attempt, 3);
+  assert.equal(httpState.retryable, true);
+  assert.equal(httpError.dataFetchCount(), 3,
+    'persistent failure did not stop at the bounded automatic-attempt ceiling');
   assert.equal(httpError.writes.length, 0);
+
+  const explicitRetry = makeStageEnvironment(stageSource, {
+    trustedManual: true, dataFailures: ['http', 'http', 'http'],
+  });
+  const exhaustedState = await explicitRetry.window.__bwStage1Load();
+  assert.equal(exhaustedState.phase, 'error');
+  assert.equal(exhaustedState.attempt, 3);
+  const recoveredState = await explicitRetry.window.__bwStage1Load();
+  assert.equal(recoveredState.phase, 'done');
+  assert.equal(recoveredState.error, null);
+  assert.equal(recoveredState.attempt, 1);
+  assert.equal(explicitRetry.dataFetchCount(), 4);
+  assert.equal(explicitRetry.writes.length, 2);
 
   const overflow = makeStageEnvironment(stageSource, {chunks: [[1, 2, 3, 4, 5, 6, 7]]});
   const overflowState = await overflow.window.__bwStage1Load();
@@ -299,7 +360,7 @@ await assertStageContract(stageSource);
 
 if (POSITIVE_ONLY) {
   console.log('M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS positive=3 ' +
-    'python=off argv=off controls=off stage1_positive=7 progress=visible');
+    'python=off argv=off controls=off stage1_positive=11 recovery=4 progress=visible');
   process.exit(0);
 }
 
@@ -337,13 +398,23 @@ await rejectStage('stream_underflow_ignored', replaceOnce(stageSource,
   'if (false && offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);'));
 await rejectStage('installed_byte_accounting_removed', replaceOnce(stageSource,
   'state.bytesDone += (f.end - f.start);', 'state.bytesDone += 0;'));
+await rejectStage('single_flight_removed', replaceOnce(stageSource,
+  'if (inFlight) return inFlight;', 'if (false && inFlight) return inFlight;'));
+await rejectStage('automatic_retry_removed', replaceOnce(stageSource,
+  'const MAX_ATTEMPTS = 3;', 'const MAX_ATTEMPTS = 1;'));
+await rejectStage('retry_release_removed', replaceOnce(stageSource,
+  'if (inFlight === operation) inFlight = null;',
+  'if (false && inFlight === operation) inFlight = null;'));
+await rejectStage('retry_error_reset_removed', replaceOnce(stageSource,
+  '    state.error = null;\n  }\n\n  async function runAttempt',
+  '  }\n\n  async function runAttempt'));
 
-assert.equal(stageNegative, 8);
+assert.equal(stageNegative, 12);
 const measureSource = fs.readFileSync(MEASURE, 'utf8');
 assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
   'cold and warm timing contexts must install the trusted Stage-1 manual control');
 assert.equal(count(measureSource, 'stage1=manual'), 0,
   'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off stage1_positive=7 stage1_negative=8 ' +
+  'python=off argv=off controls=off stage1_positive=11 stage1_negative=12 recovery=4 ' +
   'progress=visible stage1_query_controls=off trusted_measurement_contexts=2');

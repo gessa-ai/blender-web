@@ -22,11 +22,13 @@
 (function () {
   const BIN_PREFIX = "/bin/";
   const YIELD_EVERY = 24;              // files per tick, so the WM loop keeps breathing
+  const MAX_ATTEMPTS = 3;              // initial transfer plus two bounded automatic retries
   const state = {
     phase: "idle",                    // idle -> fetching -> writing -> done | error
     filesTotal: 0, filesDone: 0,
     bytesTotal: 0, bytesDone: 0,
     startedAt: 0, fetchedAt: 0, doneAt: 0,
+    attempt: 0, maxAttempts: MAX_ATTEMPTS, retryable: false,
     error: null, visible: false, visibleLabel: "", visiblePhases: [],
   };
   window.__bwStage1 = state;
@@ -114,22 +116,29 @@
     return out;
   }
 
-  let started = false;
-  async function run() {
-    if (started) return state;
-    started = true;
-    const mod = window.__bwModule;
-    if (!mod || !mod.FS) { state.phase = "error"; state.error = "no __bwModule.FS"; log(state.error); return state; }
-    const FS = mod.FS;
+  function beginAttempt(attempt) {
+    clearTimeout(hideTimer);
+    hideTimer = 0;
     state.phase = "fetching";
+    state.filesTotal = 0;
+    state.filesDone = 0;
+    state.bytesTotal = 0;
+    state.bytesDone = 0;
     state.startedAt = performance.now();
-    let man, buf;
-    try {
-      man = await (await fetch(BIN_PREFIX + "stage1-manifest.json")).json();
-      buf = await fetchStageData(man);
-    } catch (e) {
-      state.phase = "error"; state.error = "fetch: " + (e && e.message || e); log(state.error); return state;
-    }
+    state.fetchedAt = 0;
+    state.doneAt = 0;
+    state.attempt = attempt;
+    state.retryable = false;
+    state.error = null;
+  }
+
+  async function runAttempt(attempt) {
+    beginAttempt(attempt);
+    const mod = window.__bwModule;
+    if (!mod || !mod.FS) throw new Error("no __bwModule.FS");
+    const FS = mod.FS;
+    const man = await (await fetch(BIN_PREFIX + "stage1-manifest.json")).json();
+    let buf = await fetchStageData(man);
     state.fetchedAt = performance.now();
     state.filesTotal = man.files.length;
     state.bytesTotal = man.total_bytes || buf.length;
@@ -162,6 +171,47 @@
         (state.doneAt - state.fetchedAt).toFixed(0) + " ms" +
         (state.error ? " [first error: " + state.error + "]" : ""));
     return state;
+  }
+
+  async function runWithRetries() {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await runAttempt(attempt);
+      } catch (e) {
+        const detail = e && e.message ? e.message : String(e);
+        state.error = detail === "no __bwModule.FS" ? detail : "fetch: " + detail;
+        state.retryable = true;
+        if (attempt < MAX_ATTEMPTS) {
+          state.phase = "retrying";
+          updateVisibleProgress("Retrying assets", state.bytesDone, state.bytesTotal, false);
+          log(state.error + "; retrying attempt " + (attempt + 1) + "/" + MAX_ATTEMPTS);
+          // Yield one microtask so concurrent callers can observe the honest retry state.
+          await Promise.resolve();
+          continue;
+        }
+        state.phase = "error";
+        updateVisibleProgress("Assets unavailable - retry available",
+                              state.bytesDone, state.bytesTotal, false);
+        log(state.error + "; automatic retry limit reached");
+        return state;
+      }
+    }
+    return state;
+  }
+
+  let inFlight = null;
+  function clearInFlight(operation) {
+    if (inFlight === operation) inFlight = null;
+  }
+  function run() {
+    if (state.phase === "done" || state.phase === "done-with-errors") {
+      return Promise.resolve(state);
+    }
+    if (inFlight) return inFlight;
+    const operation = runWithRetries();
+    inFlight = operation;
+    operation.then(() => clearInFlight(operation), () => clearInFlight(operation));
+    return operation;
   }
   // manual, idempotent trigger (deferred-asset proof / on-demand callers)
   window.__bwStage1Load = run;

@@ -1648,3 +1648,16 @@ input. Record which signal a receipt consumes and mutation-test the consumer; ne
 presentation from the first-two-frame `presentBackbuffer` messages. See
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc` and
 `sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs`.
+
+## Class 112 — mutable attachment wrappers leave identity-keyed framebuffer caches stale
+
+Signature: a persistent backend texture wrapper adopts a replacement native handle and new extent
+in place, while a framebuffer caches dimensions derived from that wrapper. Reattaching the same
+pointer is correctly an identity no-op, so it does not dirty the derived cache; viewport/scissor
+planning then uses the old dimensions against the new render attachment and validation rejects the
+draw. Trace both the platform resize and application relayout before changing event ordering. At
+the wrapper-adoption seam, explicitly refresh every framebuffer cache derived from mutable fields,
+and exercise shrink plus restoration against the real product. See
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
+`upstream/source/blender/gpu/intern/gpu_framebuffer.cc`, and
+`sandbox/m4-resize-recovery/`.

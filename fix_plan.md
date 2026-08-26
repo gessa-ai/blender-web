@@ -2856,11 +2856,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   pixels remain black and bind no receipt; the Apple hardware rig must paint semantic viewport
   pixels, capture a real `overlay_grid_next` binding set, retain complete `OCIO_Display`, and show
   pixel change across interaction. See `notes/p0-bind-group-readiness-20260826.md`.
-- [ ] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [ghost-web, claimed_by: none]:** browser resize
-  reconfigures the WebGPU surface before Blender relayouts its areas, so old-height scissors are
-  rejected against the new surface and rendering never recovers. Deliver and order the real
-  GHOST/WM resize before draws at the new extent; add shrink/grow and restoration pixel coverage.
-  This is a launch blocker and is independent of P0-D.
+- [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282]:** live tracing disproved
+  a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
+  `WGPUTexture` wrapper adopts the new handle/extent in place, but pointer-identical
+  `FrameBuffer::attachment_set()` leaves the default framebuffers' cached width/height stale.
+  `sync_backbuffer()` now publishes the live extent to both caches on every activation. The exact
+  shipping product shrinks 1280x720 -> 1100x640 and restores with WM/presentation progress and zero
+  scissor, encode, submit, transaction, or device-loss errors on the local fallback adapter.
+  **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
+  pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
   25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
   or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while

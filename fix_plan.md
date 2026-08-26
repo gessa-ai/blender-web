@@ -2958,6 +2958,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   4,028,170+81,589 -> 3,748,720+80,933; provisional critical wire falls 16,528,178 ->
   16,248,072 bytes, still honestly 1,248,072 over LAUNCH.md. Accepted Apple profiles, APPLY, and
   hardware staged pixels remain mandatory. See `notes/m8-stage0-format-addons-20260826.md`.
+- [x] **P1-M8-STAGE0-PYTHON-ENCODINGS [driver] (`11a4afd`):** pinned native factory startup and
+  the exact windowed CAPTURE product agree on the five-file encoding registry/UTF-8 union, so the
+  other 117 Python codec sources now ride Stage 1. A real monolith/candidate browser A/B preserves
+  startup, UTF-8, and trusted input, restores all 2,189 deferred files / 146,061,813 bytes, then
+  proves byte-exact CP1252, Latin-1, and Shift-JIS imports and round-trips with zero serious/page
+  errors. Stage-0 data/glue q11 falls 3,748,720+80,933 -> 3,699,553+80,383; provisional critical
+  wire falls 16,248,072 -> 16,198,355 bytes, still honestly 1,198,355 over LAUNCH.md. Accepted
+  Apple profiles, APPLY, and hardware staged pixels remain mandatory. See
+  `notes/m8-stage0-python-encodings-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

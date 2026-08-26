@@ -16,8 +16,9 @@
 //   4. Native input hardening: no HTML context menu (right-clicks reach Blender),
 //      no page scroll / selection / pinch-zoom, focus-gated key capture.
 //
-// PRESERVED verification/gate contract (the M4 rig depends on ALL of these):
-//   (a) `?pyexpr=` and `?args=` URL dev hooks behave exactly as before.
+// PRESERVED development/gate contract (the M4 rig depends on ALL of these):
+//   (a) `?pyexpr=` and `?args=` URL dev hooks behave exactly as before in the
+//       development shell. Public bundle assembly fail-closes them below.
 //   (b) `window.__bwModule` is exposed after module init.
 //   (c) `?gate=WxH` renders the canvas at EXACTLY that CSS+backing size (DPR
 //       forced to 1), centred on black, no loading UI - for the golden capture.
@@ -75,6 +76,12 @@ const BIN_PREFIX = "/bin/";
 // DEV HOOKS - PRESERVED contract (a): `?pyexpr=` and `?args=`
 // ===========================================================================
 
+// Development source defaults ON for local rigs. The public staged-bundle
+// assembler rewrites this exact declaration to false in its COPY only. Keep it
+// a literal so packaging can fail closed if the expected seam ever moves.
+const BW_ALLOW_QUERY_DEV_HOOKS = true;
+window.__bwDevHooksAllowed = BW_ALLOW_QUERY_DEV_HOOKS;
+
 // `?pyexpr=` (or window.__BW_PYEXPR): append a `--python-expr` to the boot argv
 // so the verification rig can drive Blender's own screenshot path
 // (bpy.ops.screen.screenshot via a bpy.app.timer) without a rebuild. The creator
@@ -82,6 +89,7 @@ const BIN_PREFIX = "/bin/";
 // a timer registered here fires INSIDE the main loop after first pixels. NOT
 // shipped behaviour: empty by default = pristine argv.
 function bootPythonExpr() {
+  if (!BW_ALLOW_QUERY_DEV_HOOKS) return null;
   try {
     if (typeof window.__BW_PYEXPR === "string" && window.__BW_PYEXPR.length) {
       return window.__BW_PYEXPR;
@@ -99,6 +107,7 @@ function bootPythonExpr() {
 // shipped behaviour: empty by default. Quoting: `%20` separates args; there is
 // deliberately NO shell-style quote handling - `--log gpu.*` is two entries.
 function bootExtraArgs() {
+  if (!BW_ALLOW_QUERY_DEV_HOOKS) return [];
   try {
     if (Array.isArray(window.__BW_ARGS) && window.__BW_ARGS.length) {
       return window.__BW_ARGS.slice();
@@ -115,6 +124,7 @@ function bootExtraArgs() {
 // golden comparator captures the canvas at exactly WxH regardless of the test
 // browser's deviceScaleFactor. Returns {w,h} or null.
 function gateMode() {
+  if (!BW_ALLOW_QUERY_DEV_HOOKS) return null;
   try {
     const u = new URLSearchParams(location.search);
     let g = u.get("gate");
@@ -142,6 +152,7 @@ const GATE = gateMode();
 // Default ON so the idle stall is fixed out of the box. Returns {enabled, active, idle}.
 function keepaliveConfig() {
   const cfg = { enabled: 1, active: 0, idle: 0 };
+  if (!BW_ALLOW_QUERY_DEV_HOOKS) return cfg;
   try {
     const u = new URLSearchParams(location.search);
     let k = u.get("keepalive");
@@ -159,6 +170,7 @@ function keepaliveConfig() {
 }
 
 const KEEPALIVE = keepaliveConfig();
+window.__bwKeepaliveConfig = Object.freeze({...KEEPALIVE});
 
 // ===========================================================================
 // DOM handles (hidden diagnostics preserve the boot-windowed.js + rig contract)

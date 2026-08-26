@@ -1914,6 +1914,10 @@ def runtime_consumer_selfcheck() -> None:
     for script, marker in (
         (SELF / "runtime_evidence_selfcheck.mjs", "M8_RUNTIME_EVIDENCE_SELFCHECK_PASS"),
         (SELF / "browser_matrix.mjs", "M8_BROWSER_MATRIX_SELFCHECK_PASS"),
+        (ROOT / "sandbox/m8-staged-deploy/public_shell_hardening.py",
+         "M8_PUBLIC_SHELL_HARDENING_SELFCHECK_PASS"),
+        (ROOT / "sandbox/m8-staged-deploy/verify_public_query_hardening.mjs",
+         "M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/stage_provenance.py",
          "M8_STAGE_PROVENANCE_SELFCHECK_PASS"),
     ):

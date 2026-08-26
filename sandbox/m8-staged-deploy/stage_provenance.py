@@ -20,6 +20,8 @@ import subprocess
 import sys
 import tempfile
 
+from public_shell_hardening import harden_boot_source
+
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_PACK = ROOT / "sandbox/m8-staged-deploy/stage_pack.py"
@@ -213,13 +215,13 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         if (bundle / name).is_file():
             derived[name] = identity(bundle / name)
 
-    boot = (shell / "boot-windowed.js").read_text(encoding="utf-8")
-    seam = "const BW_ALLOW_QUERY_DEV_HOOKS = true;"
-    if boot.count(seam) != 1:
-        failures.append("boot-windowed public hardening seam is absent/ambiguous")
+    boot = (shell / "boot-windowed.js").read_bytes()
+    try:
+        hardened_boot = harden_boot_source(boot)
+    except ValueError as error:
+        failures.append(f"boot-windowed public hardening failed: {error}")
     else:
-        _compare_bytes(bundle / "boot-windowed.js",
-                       boot.replace(seam, "const BW_ALLOW_QUERY_DEV_HOOKS = false;", 1).encode(),
+        _compare_bytes(bundle / "boot-windowed.js", hardened_boot,
                        "deterministic boot-windowed hardening", failures)
     index = (shell / "windowed.html").read_text(encoding="utf-8")
     boot_tag = '<script src="/boot-windowed.js"></script>'

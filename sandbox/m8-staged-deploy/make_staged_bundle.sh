@@ -62,11 +62,12 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
   for f in GOAL.md platform_web/shell/windowed.html \
     sandbox/m8-staged-deploy/stage_pack.py \
     sandbox/m8-staged-deploy/prepare_split_inventory.py \
+    sandbox/m8-staged-deploy/public_shell_hardening.py \
     sandbox/m8-staged-deploy/service-worker.js \
     sandbox/m8-staged-deploy/service-worker-register.js; do
     [ -f "${REPO}/${f}" ] || die "self-check source missing: ${f}"
   done
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=6 apply_manifest_reads=0 writes=0"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=7 apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
@@ -136,15 +137,10 @@ share_sha="$(shasum -a 256 "${OUT}/scenes/stress-mixed.blend" | cut -d' ' -f1)"
 [ "${share_sha}" = "c2a7974ceec3da3ed11a102d924f3318ea82ffa29fd393a8ff5103b6181b4e2e" ] || \
   die "allowlisted share scene integrity drift: ${share_sha}"
 # Public static bundles MUST NOT expose arbitrary Python/argv execution through
-# URL parameters. Development source retains the hooks for local rigs; fail if
-# the literal seam moved instead of silently shipping it enabled.
-python3 - "$OUT/boot-windowed.js" <<'PY'
-import sys
-p=sys.argv[1]; t=open(p).read()
-needle='const BW_ALLOW_QUERY_DEV_HOOKS = true;'
-assert t.count(needle) == 1, "public dev-hook hardening seam missing or ambiguous"
-open(p,"w").write(t.replace(needle, 'const BW_ALLOW_QUERY_DEV_HOOKS = false;', 1))
-PY
+# URL parameters. Development source retains the hooks for local rigs; the
+# shared deterministic transformer fails if the literal seam moves.
+python3 "${SELF_DIR}/public_shell_hardening.py" \
+  --input "${OUT}/boot-windowed.js" --output "${OUT}/boot-windowed.js"
 # inject the stage-1 loader AFTER boot-windowed.js (bundle-only edit)
 python3 - "$OUT/index.html" <<'PY'
 import sys

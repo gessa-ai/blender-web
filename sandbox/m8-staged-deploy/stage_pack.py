@@ -25,10 +25,10 @@
 #           pip .whl.  Omitted from both stages.
 #   DEFER - not touched at English --factory-startup boot (-> stage-1):
 #           dead stdlib modules, non-enabled addons (rigify, ...), factory-unselected
-#           application templates, CJK/intl fonts
+#           application templates, NumPy (not imported before first pixels), CJK/intl fonts
 #           (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
 #           (keep config.ocio + the default AgX display path), build-time/compiled-in
-#           source assets, external StudioLight images, and NumPy's test corpus.
+#           source assets and external StudioLight images.
 #           [--defer-datafiles]
 #   KEEP  - everything else (-> stage-0).
 import argparse
@@ -76,9 +76,10 @@ def classify(fn, defer_datafiles):
     # DEFER: python stdlib not imported at boot.
     if in_py(fn) and any(d in fn for d in DEAD_STDLIB):
         return "defer"
-    # DEFER: NumPy itself is needed by enabled add-ons, but its upstream unit-test
-    # corpus is not part of registration or any supported product IO operation.
-    if "/site-packages/numpy/" in fn and ("/tests/" in fn or "/test_" in fn):
+    # DEFER: the real windowed product and pinned native factory startup both import
+    # zero NumPy modules before the first stable WM state. Stage 1 restores the whole
+    # package before IO/operator coverage, avoiding a partial-package boundary.
+    if "/site-packages/numpy/" in fn:
         return "defer"
     # DEFER: OpenUSD schema/plugin resources are consumed only when a USD
     # import/export operator runs. The operator lane is a post-Stage-1 M7 gate;

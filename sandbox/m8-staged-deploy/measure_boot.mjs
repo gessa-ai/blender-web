@@ -21,7 +21,7 @@ const RUNS = parseInt(process.argv[4] || '3', 10);
 const THROTTLE_MBPS = process.argv[5] !== undefined ? parseFloat(process.argv[5]) : 1.5; // 0 = skip throttled pass
 const ONLY = process.argv[6] || 'all'; // 'all' | 'throttle' (skip unthrottled) | 'plain'
 const BASE = `http://localhost:${PORT}`;
-const URL = `${BASE}/index.html?stage1=manual`; // manual: keep stage-1 off the boot path we time
+const URL = `${BASE}/index.html`; // trusted init state keeps stage-1 off the boot path we time
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BOOT_MS = 300000;
 const OUTDIR = '/Users/paws/blender-web/sandbox/m8-staged-deploy/artifacts';
@@ -59,6 +59,7 @@ async function coldPass(name, mbps) {
   results[name] = [];
   for (let i = 0; i < RUNS; i++) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    await ctx.addInitScript(() => { window.__BW_STAGE1_MANUAL = true; });
     const page = await ctx.newPage();
     if (mbps) await throttle(page, mbps);
     const r = await bootOnce(page);
@@ -72,6 +73,7 @@ async function coldPass(name, mbps) {
 async function warmPass(name) {
   results[name] = [];
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+  await ctx.addInitScript(() => { window.__BW_STAGE1_MANUAL = true; });
   const page = await ctx.newPage();
   const w = await bootOnce(page); // warm-up (discarded)
   console.log(`  ${name} warmup (discarded): WM_main=${w.wm}ms`);

@@ -13,6 +13,8 @@ import {fileURLToPath} from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 const BOOT = join(ROOT, 'platform_web/shell/boot-windowed.js');
+const STAGE1 = process.argv[2] ? resolve(process.argv[2]) : join(HERE, 'stage1-loader.js');
+const MEASURE = join(HERE, 'measure_boot.mjs');
 const DEVELOPMENT_SEAM = 'const BW_ALLOW_QUERY_DEV_HOOKS = true;';
 const PUBLIC_SEAM = 'const BW_ALLOW_QUERY_DEV_HOOKS = false;';
 const CUTOFF = '// DOM handles (hidden diagnostics preserve the boot-windowed.js + rig contract)';
@@ -137,5 +139,201 @@ reject('keepalive_guard_removed', replaceOnce(publicSource,
   '  const cfg = { enabled: 1, active: 0, idle: 0 };'));
 
 assert.equal(negative, 6);
+
+function makeStageEnvironment(stageSource, {
+  search = '', devHooksAllowed = false, trustedManual = false, bodyGate = false,
+  stream = true, httpFailure = false, chunks = [[1, 2, 3], [4, 5, 6]], total = 6,
+} = {}) {
+  const elements = new Map();
+  const writes = [];
+  const timers = [];
+  let now = 0;
+  let fetchCount = 0;
+  const loader = {
+    id: 'loader',
+    classList: {contains: (name) => name === 'bw-hidden'},
+  };
+  elements.set(loader.id, loader);
+
+  const document = {
+    body: {
+      classList: {contains: (name) => bodyGate && name === 'bw-gate'},
+      appendChild(element) {
+        if (element.id) elements.set(element.id, element);
+      },
+    },
+    createElement(tagName) {
+      return {
+        tagName, id: '', textContent: '', style: {}, dataset: {}, attributes: {},
+        setAttribute(name, value) { this.attributes[name] = String(value); },
+        remove() { if (this.id) elements.delete(this.id); },
+      };
+    },
+    getElementById(id) { return elements.get(id) || null; },
+  };
+  const window = {
+    __bwDevHooksAllowed: devHooksAllowed,
+    __BW_STAGE1_MANUAL: trustedManual,
+    __bwModule: {
+      FS: {
+        writeFile(filename, bytes) {
+          writes.push({filename, bytes: Array.from(bytes)});
+        },
+      },
+    },
+  };
+  const manifest = {
+    total_bytes: total,
+    files: [
+      {filename: '/bw/a', start: 0, end: Math.min(3, total)},
+      {filename: '/bw/b', start: Math.min(3, total), end: total},
+    ],
+  };
+  const payload = Uint8Array.from(chunks.flat());
+  const fetch = async (url) => {
+    fetchCount += 1;
+    if (url.endsWith('stage1-manifest.json')) return {json: async () => manifest};
+    assert.ok(url.endsWith('stage1.data'));
+    if (httpFailure) {
+      return {ok: false, status: 503, headers: {get: () => null}, body: null,
+        arrayBuffer: async () => payload.buffer};
+    }
+    let chunkIndex = 0;
+    return {
+      ok: true,
+      status: 200,
+      headers: {get: (name) => name === 'content-length' ? String(total) : null},
+      body: stream ? {
+        getReader() {
+          return {read: async () => chunkIndex < chunks.length ?
+            {done: false, value: Uint8Array.from(chunks[chunkIndex++])} : {done: true}};
+        },
+      } : null,
+      arrayBuffer: async () => payload.buffer.slice(
+        payload.byteOffset, payload.byteOffset + payload.byteLength),
+    };
+  };
+  const setTimeout = (callback, delay) => {
+    timers.push({callback, delay});
+    return timers.length;
+  };
+  const context = vm.createContext({
+    window, document, location: {search}, URLSearchParams, Uint8Array,
+    performance: {now: () => (now += 100)}, fetch, setTimeout,
+    clearTimeout() {}, console,
+  });
+  vm.runInContext(stageSource, context, {filename: 'stage1-loader.contract.js'});
+  return {window, elements, writes, timers, fetchCount: () => fetchCount};
+}
+
+async function assertStageContract(stageSource) {
+  const publicAttack = makeStageEnvironment(stageSource, {
+    search: '?stage1=manual&gate=1x1',
+  });
+  assert.equal(publicAttack.window.__bwStage1.phase, 'idle',
+    'public query unexpectedly disabled automatic Stage-1 loading');
+  const publicState = await publicAttack.window.__bwStage1Load();
+  assert.equal(publicState.phase, 'done');
+  assert.equal(publicState.error, null);
+  assert.equal(publicState.filesDone, 2);
+  assert.equal(publicState.filesTotal, 2);
+  assert.equal(publicState.bytesDone, 6);
+  assert.equal(publicState.bytesTotal, 6);
+  assert.deepEqual(Array.from(publicState.visiblePhases),
+    ['Downloading assets', 'Installing assets', 'Assets ready']);
+  assert.deepEqual(publicAttack.writes, [
+    {filename: '/bw/a', bytes: [1, 2, 3]},
+    {filename: '/bw/b', bytes: [4, 5, 6]},
+  ]);
+  const progress = publicAttack.elements.get('bw-stage-progress');
+  assert.ok(progress, 'public Stage-1 progress element is missing');
+  assert.equal(progress.attributes.role, 'status');
+  assert.equal(progress.attributes['aria-live'], 'polite');
+  assert.match(progress.textContent, /^Assets ready .* MB$/);
+  assert.equal(progress.dataset.bytesDone, '6');
+  assert.equal(progress.dataset.bytesTotal, '6');
+
+  const developmentManual = makeStageEnvironment(stageSource, {
+    search: '?stage1=manual', devHooksAllowed: true,
+  });
+  assert.equal(developmentManual.window.__bwStage1.phase, 'manual');
+  const trustedManual = makeStageEnvironment(stageSource, {trustedManual: true});
+  assert.equal(trustedManual.window.__bwStage1.phase, 'manual');
+
+  const trustedGate = makeStageEnvironment(stageSource, {bodyGate: true});
+  const gateState = await trustedGate.window.__bwStage1Load();
+  assert.equal(gateState.phase, 'done');
+  assert.deepEqual(Array.from(gateState.visiblePhases), []);
+  assert.equal(trustedGate.elements.has('bw-stage-progress'), false);
+
+  const fallback = makeStageEnvironment(stageSource, {stream: false});
+  const fallbackState = await fallback.window.__bwStage1Load();
+  assert.equal(fallbackState.phase, 'done');
+  assert.equal(fallbackState.bytesDone, 6);
+
+  const httpError = makeStageEnvironment(stageSource, {httpFailure: true});
+  const httpState = await httpError.window.__bwStage1Load();
+  assert.equal(httpState.phase, 'error');
+  assert.match(httpState.error, /stage1\.data HTTP 503/);
+  assert.equal(httpError.writes.length, 0);
+
+  const overflow = makeStageEnvironment(stageSource, {chunks: [[1, 2, 3, 4, 5, 6, 7]]});
+  const overflowState = await overflow.window.__bwStage1Load();
+  assert.equal(overflowState.phase, 'error');
+  assert.match(overflowState.error, /stage1\.data exceeds manifest size/);
+  assert.equal(overflow.writes.length, 0);
+
+  const underflow = makeStageEnvironment(stageSource, {chunks: [[1, 2, 3]]});
+  const underflowState = await underflow.window.__bwStage1Load();
+  assert.equal(underflowState.phase, 'error');
+  assert.match(underflowState.error, /stage1\.data size 3 != 6/);
+  assert.equal(underflow.writes.length, 0);
+}
+
+const stageSource = fs.readFileSync(STAGE1, 'utf8');
+await assertStageContract(stageSource);
+
+let stageNegative = 0;
+async function rejectStage(name, mutated) {
+  try {
+    await assertStageContract(mutated);
+  }
+  catch (_) {
+    stageNegative += 1;
+    return;
+  }
+  throw new Error(`Stage-1 loader mutation survived: ${name}`);
+}
+
+await rejectStage('query_marker_forged', replaceOnce(stageSource,
+  'const queryDevHooks = window.__bwDevHooksAllowed === true;',
+  'const queryDevHooks = true;'));
+await rejectStage('gate_query_guard_removed', replaceOnce(stageSource,
+  '(queryDevHooks && new URLSearchParams(location.search).has("gate"))',
+  'new URLSearchParams(location.search).has("gate")'));
+await rejectStage('manual_query_guard_removed', replaceOnce(stageSource,
+  'if (queryDevHooks && new URLSearchParams(location.search).get("stage1") === "manual") manual = true;',
+  'if (new URLSearchParams(location.search).get("stage1") === "manual") manual = true;'));
+await rejectStage('trusted_manual_removed', replaceOnce(stageSource,
+  'let manual = window.__BW_STAGE1_MANUAL === true;', 'let manual = false;'));
+await rejectStage('http_status_ignored', replaceOnce(stageSource,
+  'if (!resp.ok) throw new Error("stage1.data HTTP " + resp.status);',
+  'if (false && !resp.ok) throw new Error("stage1.data HTTP " + resp.status);'));
+await rejectStage('stream_overflow_ignored', replaceOnce(stageSource,
+  'if (offset + value.length > out.length) throw new Error("stage1.data exceeds manifest size");',
+  'if (false && offset + value.length > out.length) throw new Error("stage1.data exceeds manifest size");'));
+await rejectStage('stream_underflow_ignored', replaceOnce(stageSource,
+  'if (offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);',
+  'if (false && offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);'));
+await rejectStage('installed_byte_accounting_removed', replaceOnce(stageSource,
+  'state.bytesDone += (f.end - f.start);', 'state.bytesDone += 0;'));
+
+assert.equal(stageNegative, 8);
+const measureSource = fs.readFileSync(MEASURE, 'utf8');
+assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
+  'cold and warm timing contexts must install the trusted Stage-1 manual control');
+assert.equal(count(measureSource, 'stage1=manual'), 0,
+  'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off');
+  'python=off argv=off controls=off stage1_positive=7 stage1_negative=8 ' +
+  'progress=visible stage1_query_controls=off trusted_measurement_contexts=2');

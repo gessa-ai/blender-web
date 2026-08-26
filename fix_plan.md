@@ -2939,6 +2939,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   glue falls 86,578 -> 85,524; unchanged provisional primary + glue + data is 16,936,355 bytes,
   still honestly 1,936,355 over LAUNCH.md's 15 MB bar. Accepted Apple profiles, APPLY, and
   hardware staged pixels remain mandatory. See `notes/m8-stage0-numpy-20260826.md`.
+- [x] **P1-M8-STAGE0-COMPILED-SOURCES [driver] (`4a43751`):** 833 icon/cursor SVGs,
+  embedded-font inputs, compiled theme source, and generator scripts now ride Stage 1 while their
+  linked runtime data stays in the primary/Stage-0 product. A real monolith/candidate browser A/B
+  preserves version/add-ons/editors/default objects and trusted-input progress, proves eight
+  zero-length source placeholders plus the retained runtime icon, and restores all 1,932 deferred
+  files / 142,757,962 bytes with exact representative hashes and zero serious/page errors.
+  Stage-0 data/glue q11 falls 4,432,412+85,524 -> 4,028,170+81,589; provisional critical wire
+  falls 16,936,355 -> 16,528,178, still honestly 1,528,178 over LAUNCH.md. Accepted Apple
+  profiles, APPLY, and hardware staged pixels remain mandatory. See
+  `notes/m8-stage0-compiled-sources-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

@@ -2830,6 +2830,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input, focus loss, 19 mutations, integrated parity, the relinked product, and neighboring input
   contracts are green without changing the hardware receipt boundary. See
   `notes/m4-modifier-side-state-20260825.md`.
+- [x] **P0-M4-BOOT-PRESENT-ADAPTER-CURRENT-HEAD-REVALIDATION [driver, current-head
+  `b8f1850`]:** the committed early cmd:2 canvas registration, same-turn surface submission, and
+  current/legacy adapter-shape fixes remain green together in the native/wasm matrix and strict
+  producer/consumer self-checks. Locked Ninja is exact no-work, the built JavaScript contains the
+  early registration exactly once, and the canonical `/` windowed product advances 78 idle ticks
+  plus nine trusted-input ticks/two presents with zero stage-1/import/submission/transaction/loss
+  failures. The live run is fallback-software diagnostic evidence only; no receipt or s7 boundary
+  changed. See `notes/p0-boot-present-adapter-current-head-revalidation-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

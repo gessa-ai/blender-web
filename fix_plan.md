@@ -3033,6 +3033,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   The 218-byte compressed glue cost leaves provisional complete wire approximately 14,979,291,
   still 20,709 under LAUNCH.md. Accepted profiles, APPLY, hardware staged pixels, and <=8 second
   timing remain mandatory. See `notes/m8-stage0-studiolight-discovery-20260826.md`.
+- [x] **P1-M8-PUBLIC-SHELL-MINIFICATION [driver] (`faff477`):** the public assembler now
+  minifies diagnostics, file bridge, the already-hardened boot shell, and the Stage-1 loader with
+  repository-owned deterministic Terser 5.39.0 on pinned Node 22.16.0. Exact package-lock and
+  executable-bundle identities, SPDX preservation, source-freeze coverage, independent
+  provenance replay, minified Stage-1 execution, and six identity/syntax negatives fail closed;
+  generated service-worker controls stay readable for their exact transactional audit. Pinned
+  q11/lgwin-24 replay reduces those four public programs from 22,880 to 10,911 bytes, saving
+  11,969 bytes. Applied conservatively to the current StudioLight projection, complete critical
+  wire is approximately 14,967,322 bytes, 32,678 under LAUNCH.md. This is still not an exact APPLY
+  bundle, hardware timing, or launch receipt; accepted Apple profiles, APPLY assembly, staged
+  pixels, and the <=8-second interaction bar remain mandatory. See
+  `notes/m8-public-shell-minification-20260826.md`.
 - [x] **P1-M8-STAGE0-FALSE-COLOR-LUT [driver] (`a5ab84c`):** the pinned native oracle and
   exact windowed CAPTURE product both select `sRGB / AgX / None` at factory startup, so the
   127,040-byte non-default `AgX_False_Color.spi1d` LUT now rides Stage 1 while the default AgX

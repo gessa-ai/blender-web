@@ -390,6 +390,35 @@ def selfcheck() -> None:
              "--positive-only"], cwd=ROOT, capture_output=True, text=True)
         assert minified_contract.returncode == 0 and \
             "M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS" in minified_contract.stdout
+    wire_sources = (
+        ("diagnostics-bootstrap.js",
+         (ROOT / "platform_web/shell/diagnostics-bootstrap.js").read_bytes()),
+        ("file-bridge.js", (ROOT / "platform_web/shell/file-bridge.js").read_bytes()),
+        ("boot-windowed.js", harden_boot_source(
+            (ROOT / "platform_web/shell/boot-windowed.js").read_bytes())),
+        ("stage1-loader.js",
+         (ROOT / "sandbox/m8-staged-deploy/stage1-loader.js").read_bytes()),
+    )
+    raw_wire = 0
+    minified_wire = 0
+    with tempfile.TemporaryDirectory(prefix="bw-public-shell-wire-") as temporary:
+        wire_root = Path(temporary)
+        for name, source in wire_sources:
+            raw = wire_root / f"raw-{name}"
+            minified = wire_root / f"minified-{name}"
+            raw.write_bytes(source)
+            minified.write_bytes(minify_bytes(source))
+            for path, kind in ((raw, "raw"), (minified, "minified")):
+                encoded = wire_root / f"{path.name}.br"
+                result = subprocess.run(
+                    [str(PINNED_NODE), str(BROTLI_CODEC), "encode",
+                     str(path), str(encoded)], cwd=ROOT, capture_output=True, text=True)
+                assert result.returncode == 0 and encoded.is_file()
+                if kind == "raw":
+                    raw_wire += encoded.stat().st_size
+                else:
+                    minified_wire += encoded.stat().st_size
+    assert (raw_wire, minified_wire, raw_wire - minified_wire) == (22880, 10911, 11969)
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -492,7 +521,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=7 packer=569/6/12 "
+          "minifier=5/6 minified_stage=7 wire=22880->10911(-11969) packer=569/6/12 "
           "coherent=diagnostics+worker+register")
 
 

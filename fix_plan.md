@@ -2871,8 +2871,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,142,963-byte `.wasm.orig` at
-  SHA-256 `7f6d20fd94d76f8f97d419a0c587be3c7d71bfc812c163b3b25ac9614e23dc9c`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,143,435-byte `.wasm.orig` at
+  SHA-256 `7146e9a1e24c7d5882bf0dc13b3b27e5ab0c7971583f30141dfa2bf1b32925e4`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
@@ -2913,9 +2913,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Seventeen source mutations, baked-runtime coverage, the 16-listener native/wasm matrix, CAPTURE
   inventory, and REUSE are green. Physical OS IME/dead-key evidence remains separately blocked.
   See `notes/m4-ime-noncomposing-key-bridge-20260826.md`.
-- [ ] **AUDIT-R12-M4-FOCUS-INPUT-BARRIER [ghost-web, claimed_by: none]:** give focus boundaries
-  and later keyboard/pointer input one total order, so blur -> refocus -> input cannot enqueue a new
-  Down before deactivate/activate. Add exact same-task keyboard and mouse ordering assertions.
+- [x] **AUDIT-R12-M4-FOCUS-INPUT-BARRIER [ghost-web] (`4056b2a`):** queued canvas focus callbacks
+  now consume the capture-time loss before consulting the later live DOM, placing the boundary and
+  later keyboard/pointer input in Emscripten's existing worker callback order. The fail-first exact
+  inversion becomes deactivate/activate before immediate key and mouse down/up; 20 source mutations,
+  adjacent focus/IME/input/lifecycle contracts, native/wasm32 integration, locked CAPTURE relink,
+  exact-artifact fallback boot, split producer checks, and REUSE are green. Required M4 remains
+  hardware-pixel RED. See `notes/m4-focus-input-barrier-20260826.md`.
 - [ ] **AUDIT-R12-M4-SINGLE-CANVAS-SECOND-WINDOW [ghost-web, claimed_by: none]:** fail closed on a
   simultaneous second valid `createWindow()` until per-window canvas/input/presentation routing
   exists; add a two-live-window lifecycle test and retain the named ledger deferral.

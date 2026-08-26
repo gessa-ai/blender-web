@@ -3,11 +3,10 @@
 
 # M4 focus-transition ordering — 2026-08-25
 
-> **R12 audit correction:** `aae9c9a` preserves and retires the focus-loss boundary, but it does
-> not totally order that boundary before later input already enqueued by proxied callbacks. A
-> same-task blur/refocus followed immediately by key input dispatches KeyDown/KeyUp before
-> WindowDeactivate/WindowActivate. The device-free corrective task and repro are recorded in
-> `reports/audit-20260825-r12.md`; this note's receipts remain valid only for boundary retention.
+> **R12 audit resolution:** `aae9c9a` preserves and retires the focus-loss boundary, but it does
+> not totally order that boundary before later proxied input. Commit `4056b2a` closes that residual;
+> see `notes/m4-focus-input-barrier-20260826.md`. This note's receipts remain the boundary-retention
+> predecessor evidence.
 
 ## Outcome
 

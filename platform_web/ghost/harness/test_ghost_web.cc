@@ -36,6 +36,7 @@
 #include "GHOST_IEventConsumer.hh"
 #include "GHOST_ModifierKeys.hh"
 #include "GHOST_Types.hh"
+#include "GHOST_WindowManager.hh"
 
 /* Append a line to the on-page log (and it also goes to the console via printf). */
 static void harness_log(const char *msg)
@@ -313,6 +314,18 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_lifecycle(const
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_window_lifecycle_result()
 {
   return g_window_lifecycle_result.load(std::memory_order_acquire);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_window_manager_state()
+{
+  if (g_system == nullptr || g_system->getWindowManager() == nullptr) {
+    return -2;
+  }
+  GHOST_IWindow *active = g_system->getWindowManager()->getActiveWindow();
+  if (active == nullptr) {
+    return 0;
+  }
+  return active == g_window ? 1 : -1;
 }
 
 #ifdef WITH_INPUT_IME

@@ -47,6 +47,10 @@ def require_once(body: str, token: str) -> None:
 def validate(source: str) -> None:
     focus = method(source, FOCUS_MARKER)
     required = (
+        "if (GHOST_WindowManager *window_manager = sys.getWindowManager())",
+        "if (focused)",
+        "window_manager->setActiveWindow(win);",
+        "window_manager->setWindowInactive(win);",
         "if (!focused)",
         "sys.getButtons(held_buttons) == GHOST_kSuccess",
         "const bool was_held = have_buttons && held_buttons.get(button);",
@@ -73,16 +77,30 @@ def validate(source: str) -> None:
 
     modifier_clear = focus.index("sys.noteModifierFlags(false, false, false, false);")
     button_release = focus.index("GHOST_kEventButtonUp")
+    manager_activate = focus.index("window_manager->setActiveWindow(win);")
+    manager_deactivate = focus.index("window_manager->setWindowInactive(win);")
     deactivation = focus.index(
         "focused ? GHOST_kEventWindowActivate : GHOST_kEventWindowDeactivate"
     )
-    if modifier_clear > deactivation or button_release > deactivation:
-        raise ValueError("physical input state is retired after WindowDeactivate")
+    if (modifier_clear > deactivation or button_release > deactivation or
+            manager_activate > deactivation or manager_deactivate > deactivation):
+        raise ValueError("focus state is reconciled after the GHOST focus event")
 
 
 def selfcheck(source: str) -> None:
     validate(source)
     mutations = (
+        mutate_method(
+            source,
+            "window_manager->setActiveWindow(win);",
+            "window_manager->setWindowInactive(win);",
+        ),
+        mutate_method(
+            source,
+            "window_manager->setWindowInactive(win);",
+            "window_manager->setActiveWindow(win);",
+        ),
+        mutate_method(source, "if (focused)", "if (!focused)"),
         mutate_method(source, "if (!focused)", "if (focused)"),
         mutate_method(
             source,
@@ -138,8 +156,8 @@ def main() -> int:
     else:
         validate(source)
     print(
-        "FOCUS_STATE_CONTRACT PASS modifiers=cleared buttons=release-before-deactivate "
-        "coverage=7 mutations=10"
+        "FOCUS_STATE_CONTRACT PASS manager=active-inactive modifiers=cleared "
+        "buttons=release-before-deactivate coverage=7 mutations=13"
     )
     return 0
 

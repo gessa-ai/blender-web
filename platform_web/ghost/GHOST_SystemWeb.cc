@@ -1333,6 +1333,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {
           wm->addWindow(valid_window);
+          wm->setActiveWindow(valid_window);
         }
         /* Deliver an initial size/expose event, exactly as the native back-ends do when a
          * window is first mapped (SDL posts SDL_WINDOWEVENT_EXPOSED/SIZE_CHANGED; X11 posts

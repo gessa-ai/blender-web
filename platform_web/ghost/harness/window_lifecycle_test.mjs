@@ -105,6 +105,7 @@ try {
       return module &&
         typeof module._ghost_harness_request_window_lifecycle === "function" &&
         typeof module._ghost_harness_window_lifecycle_result === "function" &&
+        typeof module._ghost_harness_window_manager_state === "function" &&
         document.querySelector("#log")?.textContent.includes("window created");
     });
   }
@@ -126,11 +127,30 @@ try {
       globalThis.ghostModule._ghost_harness_window_lifecycle_result()));
   };
 
+  const managerState = () => page.evaluate(() => Number(
+    globalThis.ghostModule._ghost_harness_window_manager_state()));
+
+  const initialManagerState = await managerState();
+  if (initialManagerState !== 1) {
+    throw new Error(
+      `created canvas window was not published active: state=${initialManagerState}`);
+  }
+
+  await page.evaluate(() => document.querySelector("#clear").focus());
+  await page.waitForFunction(() => Number(
+    globalThis.ghostModule._ghost_harness_window_manager_state()) === 0);
+  await page.locator("#blender-canvas").focus();
+  await page.waitForFunction(() => Number(
+    globalThis.ghostModule._ghost_harness_window_manager_state()) === 1);
+
   const disposeResult = await request(0);
   // Bits: active-before, base-dispose-success, active-null, under-cursor-null.
   if (disposeResult !== 0b1111) {
     throw new Error(
       `active window was not detached before/after disposal: result=${disposeResult}`);
+  }
+  if (await managerState() !== 0) {
+    throw new Error("disposed canvas window remained active in GHOST_WindowManager");
   }
 
   await page.evaluate(() => {
@@ -148,6 +168,9 @@ try {
   // Bits: replacement-created, replacement-active, under-cursor-is-replacement.
   if (recreateResult !== 0b111) {
     throw new Error(`replacement window was not published: result=${recreateResult}`);
+  }
+  if (await managerState() !== 1) {
+    throw new Error("replacement canvas window was not published active");
   }
 
   const queueOldKey = async (key, code, expectedCaptured) => {
@@ -217,7 +240,8 @@ try {
 
   console.log(
     "WINDOW_LIFECYCLE_LIVE PASS dispose=detached callbacks=rebound replacement=input-target " +
-    "queued=registration-epoch repeated-replacements=2 hit-test=bounded worker=proxy-pthread");
+    "queued=registration-epoch repeated-replacements=2 hit-test=bounded " +
+    "manager=create-focus-blur-dispose-replace worker=proxy-pthread");
 }
 finally {
   await browser.close();

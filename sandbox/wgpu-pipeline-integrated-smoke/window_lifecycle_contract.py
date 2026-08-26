@@ -81,6 +81,11 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "globalThis.__bwStaleCallbackProbe.deliverAll();",
         "staleLog.includes(\"KeyDown\")",
         "queued=registration-epoch repeated-replacements=2",
+        "const managerState = () => page.evaluate(() => Number(",
+        "created canvas window was not published active",
+        "disposed canvas window remained active in GHOST_WindowManager",
+        "replacement canvas window was not published active",
+        "manager=create-focus-blur-dispose-replace",
     ):
         require_once(live_test, token, "live stale-callback test")
 
@@ -221,12 +226,16 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "delete result;",
         "return nullptr;",
         "redraw_heartbeat_ = 0;",
+        "wm->setActiveWindow(valid_window);",
     ):
         require_once(creation, token, "creation registration rollback")
     if creation.index("window_ = valid_window;") > creation.index("if (!registerCanvasCallbacks())"):
         raise ValueError("replacement callbacks register before active-window publication")
     if creation.index("if (!registerCanvasCallbacks())") > creation.index("redraw_heartbeat_ = 0;"):
         raise ValueError("window state publishes before callback registration succeeds")
+    if creation.index("wm->addWindow(valid_window);") > creation.index(
+            "wm->setActiveWindow(valid_window);"):
+        raise ValueError("window becomes active before window-manager publication")
 
 
 def replace_once(text: str, old: str, new: str) -> str:
@@ -270,6 +279,8 @@ def selfcheck(header: str, source: str, live_test: str, integrated_test: str) ->
         (header, mutate_method(source, DISPOSE_MARKER, "buttons_ = GHOST_Buttons();", ""), live_test),
         (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", ""), live_test),
         (header, mutate_method(source, CREATE_MARKER, "redraw_heartbeat_ = 0;", "redraw_heartbeat_ = 180;"), live_test),
+        (header, mutate_method(source, CREATE_MARKER,
+                               "wm->setActiveWindow(valid_window);", ""), live_test),
         (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", ""), integrated_test),
     )
     normalized_mutations = []
@@ -327,7 +338,7 @@ def main() -> int:
     print(
         "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=12 "
         "replacement=rebound ime=retired pointerlock=retired queued=registration-epoch "
-        "replacements=2 registration=transactional mutations=32"
+        "replacements=2 manager=active-lifecycle registration=transactional mutations=33"
     )
     return 0
 

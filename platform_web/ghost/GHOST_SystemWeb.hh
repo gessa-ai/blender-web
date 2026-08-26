@@ -83,7 +83,7 @@ class GHOST_SystemWeb : public GHOST_System {
 
   /* --- Bridge-facing state API (called by GHOST_EventBridgeWeb) ---------------- */
 
-  /** The single canvas window (event target). */
+  /** The live single canvas window (event target, independent of DOM focus). */
   GHOST_WindowWeb *activeWindow() const
   {
     return window_;

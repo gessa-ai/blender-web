@@ -29,6 +29,7 @@
 #include "GHOST_EventCursor.hh"
 #include "GHOST_EventKey.hh"
 #include "GHOST_EventWheel.hh"
+#include "GHOST_WindowManager.hh"
 
 #include "GHOST_KeyMapWeb.hh"
 
@@ -294,6 +295,14 @@ void on_resize(GHOST_SystemWeb &sys, const EmscriptenUiEvent & /*e*/)
 void on_focus(GHOST_SystemWeb &sys, bool focused)
 {
   GHOST_WindowWeb *win = sys.activeWindow();
+  if (GHOST_WindowManager *window_manager = sys.getWindowManager()) {
+    if (focused) {
+      window_manager->setActiveWindow(win);
+    }
+    else {
+      window_manager->setWindowInactive(win);
+    }
+  }
   if (!focused) {
     if (win != nullptr) {
       win->releasePointerLock();

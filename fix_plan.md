@@ -2865,6 +2865,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   scissor, encode, submit, transaction, or device-loss errors on the local fallback adapter.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
+- [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
+  now a strict CAPTURE generation with instrumented Wasm, 119,142,174-byte `.wasm.orig` at
+  SHA-256 `0f815b8dee5b0ec1461fb83993b7ed4909578d9c69711d0ebaef244273d29e00`, and a schema-1 PASS
+  split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
+  contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
+  CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
+  produce the exact success plus terminal-error profiles; only their accepted union can authorize
+  the hash-bound APPLY relink. Any intervening relink requires new profiles. See
+  `notes/m4-split-capture-product-20260826.md`.
 - [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
   25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
   or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while

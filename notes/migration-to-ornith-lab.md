@@ -206,7 +206,7 @@ Use the canonical configure with paths naturally rooted at the Linux checkout:
 
 ```bash
 source tools/emsdk/emsdk_env.sh
-export EMSDK_PYTHON="$PWD/tools/emsdk/python/3.13.3_64bit/bin/python3"
+export EMSDK_PYTHON="$PWD/.host-tools/bin/python3.13"
 export CCACHE_DIR="$PWD/.ci-cache/ccache"
 export EM_CACHE="$PWD/.ci-cache/emscripten"
 

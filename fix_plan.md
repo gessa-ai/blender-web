@@ -3023,6 +3023,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   approximately 14,979,754 bytes, 20,246 under the bar. Accepted profiles, APPLY, exact public
   assembly, hardware pixels, and <=8 second timing remain mandatory. See
   `notes/m8-stage0-preload-manifest-20260826.md`.
+- [x] **P1-M8-STAGE0-STUDIOLIGHT-DISCOVERY [driver] (`d2e890f`):** the absent-file rewrite
+  exposed a one-time-registry exception: `BKE_studiolight_init()` enumerates matcap/world names
+  before Stage 1, so restoring bytes later could not restore the missing choices. Exactly 35 image
+  names now remain as zero-byte discovery entries while all payload bytes stay deferred; eager
+  `.sl` presets remain real. The pinned oracle proves 6/27/8 StudioLight types, and the real
+  browser A/B preserves all 41 entries before Stage 1, restores 2,963 files byte-exactly, then
+  selects `forest.exr` and `basic_bright.exr` with trusted input and zero serious/page errors.
+  The 218-byte compressed glue cost leaves provisional complete wire approximately 14,979,291,
+  still 20,709 under LAUNCH.md. Accepted profiles, APPLY, hardware staged pixels, and <=8 second
+  timing remain mandatory. See `notes/m8-stage0-studiolight-discovery-20260826.md`.
 - [x] **P1-M8-STAGE0-FALSE-COLOR-LUT [driver] (`a5ab84c`):** the pinned native oracle and
   exact windowed CAPTURE product both select `sRGB / AgX / None` at factory startup, so the
   127,040-byte non-default `AgX_False_Color.spi1d` LUT now rides Stage 1 while the default AgX

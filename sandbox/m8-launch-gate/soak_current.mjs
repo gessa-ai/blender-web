@@ -34,6 +34,41 @@ const MODULE_ROOTS = Object.freeze([...new Set([
   ...LOCAL_MODULE_ROOTS,
 ].filter(Boolean).flatMap((entry) => entry.split(delimiter)).filter(Boolean)
   .map((entry) => resolve(entry)))]);
+const STAGE1_BUFFER_LIMIT_BYTES = 16 * 1024 * 1024;
+
+function stage1MemorySummary(stage) {
+  const summary = {
+    payload_bytes: Number(stage?.bytesTotal || 0),
+    fetched_bytes: Number(stage?.bytesFetched || 0),
+    buffer_limit_bytes: Number(stage?.bufferLimitBytes || 0),
+    largest_file_bytes: Number(stage?.largestFileBytes || 0),
+    peak_buffered_bytes: Number(stage?.peakBufferedBytes || 0),
+    buffered_bytes_at_completion: Number(stage?.bufferedBytes || 0),
+    stream_chunk_limit_bytes: Number(stage?.streamChunkLimitBytes || 0),
+    peak_stream_chunk_bytes: Number(stage?.peakChunkBytes || 0),
+    stream_chunk_bytes_at_completion: Number(stage?.chunkBytes || 0),
+    transient_limit_bytes: Number(stage?.transientLimitBytes || 0),
+    peak_transient_bytes: Number(stage?.peakTransientBytes || 0),
+  };
+  summary.bounded = stage?.phase === "done" && !stage?.error &&
+    stage?.filesDone === stage?.filesTotal && stage?.bytesDone === stage?.bytesTotal &&
+    Object.values(summary).every((value) => Number.isSafeInteger(value)) &&
+    summary.buffer_limit_bytes === STAGE1_BUFFER_LIMIT_BYTES &&
+    summary.stream_chunk_limit_bytes === STAGE1_BUFFER_LIMIT_BYTES &&
+    summary.transient_limit_bytes === 2 * STAGE1_BUFFER_LIMIT_BYTES &&
+    summary.payload_bytes > summary.buffer_limit_bytes &&
+    summary.fetched_bytes === summary.payload_bytes &&
+    summary.largest_file_bytes > 0 &&
+    summary.largest_file_bytes <= summary.peak_buffered_bytes &&
+    summary.peak_buffered_bytes <= summary.buffer_limit_bytes &&
+    summary.buffered_bytes_at_completion === 0 &&
+    summary.peak_stream_chunk_bytes <= summary.stream_chunk_limit_bytes &&
+    summary.stream_chunk_bytes_at_completion === 0 &&
+    Math.max(summary.peak_buffered_bytes, summary.peak_stream_chunk_bytes) <=
+      summary.peak_transient_bytes &&
+    summary.peak_transient_bytes <= summary.transient_limit_bytes;
+  return summary;
+}
 
 function requireNodeVersion(version = process.version) {
   if (version !== NODE_VERSION) throw new Error(`Node ${NODE_VERSION} required, got ${version}`);
@@ -213,6 +248,37 @@ async function runSelfcheck() {
     "  999 chrome --user-data-dir=/fixture/other\n";
   check(sumProfileRss(rssFixture, profile) === 350 * 1024,
     "GNU/Darwin ps RSS parser drifted");
+  const memoryFixture = stage1MemorySummary({
+    phase: "done", error: null, bytesTotal: 152_362_255, bytesFetched: 152_362_255,
+    bytesDone: 152_362_255, filesDone: 2_963, filesTotal: 2_963,
+    bufferLimitBytes: STAGE1_BUFFER_LIMIT_BYTES, largestFileBytes: 11_425_316,
+    peakBufferedBytes: 11_425_316, bufferedBytes: 0,
+    streamChunkLimitBytes: STAGE1_BUFFER_LIMIT_BYTES, peakChunkBytes: 65_536, chunkBytes: 0,
+    transientLimitBytes: 2 * STAGE1_BUFFER_LIMIT_BYTES, peakTransientBytes: 11_490_852,
+  });
+  check(memoryFixture.bounded === true, "bounded Stage-1 streaming memory was rejected");
+  for (const [name, mutation] of [
+    ["whole_payload_buffer", {peakBufferedBytes: 152_362_255}],
+    ["whole_payload_chunk", {peakChunkBytes: 152_362_255}],
+    ["whole_payload_transient", {peakTransientBytes: 152_362_255}],
+    ["retained_buffer", {bufferedBytes: 11_425_316}],
+    ["incomplete_fetch", {bytesFetched: 152_362_254}],
+    ["fallback_sized_payload", {bytesTotal: STAGE1_BUFFER_LIMIT_BYTES,
+      bytesFetched: STAGE1_BUFFER_LIMIT_BYTES}],
+  ]) {
+    await reject(`stage1_memory_${name}`, () => {
+      const candidate = stage1MemorySummary({
+        phase: "done", error: null, bytesTotal: 152_362_255, bytesFetched: 152_362_255,
+        bytesDone: 152_362_255, filesDone: 2_963, filesTotal: 2_963,
+        bufferLimitBytes: STAGE1_BUFFER_LIMIT_BYTES, largestFileBytes: 11_425_316,
+        peakBufferedBytes: 11_425_316, bufferedBytes: 0,
+        streamChunkLimitBytes: STAGE1_BUFFER_LIMIT_BYTES, peakChunkBytes: 65_536, chunkBytes: 0,
+        transientLimitBytes: 2 * STAGE1_BUFFER_LIMIT_BYTES, peakTransientBytes: 11_490_852,
+        ...mutation,
+      });
+      if (!candidate.bounded) throw new Error(name);
+    });
+  }
   const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
   check(!source.includes("/Users/" + "paws") &&
     source.includes("browserIdentityContract(\"chrome\", HOST_PLATFORM)") &&
@@ -300,6 +366,8 @@ const state = {
   interaction_failures: [],
   external_requests: [],
   samples: [],
+  stage1_memory: null,
+  stage1_memory_samples: [],
   errors: [],
   stalls: [],
   verdict: null,
@@ -398,11 +466,43 @@ try {
     const el = document.querySelector("#state");
     return el && el.textContent.includes("main loop (WM_main)") && window.__bwModule;
   }, null, {timeout: 240_000});
-  await page.waitForFunction(() => {
-    const stage = window.__bwStage1;
-    return stage && stage.phase === "done" && !stage.error &&
-      stage.filesDone === stage.filesTotal && stage.bytesDone === stage.bytesTotal;
-  }, null, {timeout: 600_000});
+  const stage1Started = Date.now();
+  let terminalStage = null;
+  while (Date.now() - stage1Started < 600_000) {
+    const probe = await page.evaluate(() => ({
+      stage: window.__bwStage1 ? {...window.__bwStage1} : null,
+      js_heap_bytes: Number(performance.memory && performance.memory.usedJSHeapSize || 0),
+    }));
+    state.stage1_memory_samples.push({
+      t_ms: Date.now() - stage1Started,
+      js_heap_bytes: probe.js_heap_bytes,
+      process_rss_bytes: browserRssBytes(),
+      phase: probe.stage?.phase || "absent",
+      bytes_fetched: Number(probe.stage?.bytesFetched || 0),
+      bytes_installed: Number(probe.stage?.bytesDone || 0),
+      buffered_bytes: Number(probe.stage?.bufferedBytes || 0),
+      stream_chunk_bytes: Number(probe.stage?.chunkBytes || 0),
+      transient_bytes: Number(probe.stage?.bufferedBytes || 0) +
+        Number(probe.stage?.chunkBytes || 0),
+    });
+    terminalStage = probe.stage;
+    if (terminalStage && (terminalStage.phase === "done" ||
+        terminalStage.phase === "done-with-errors" || terminalStage.phase === "error")) break;
+    await page.waitForTimeout(500);
+  }
+  const loaderMemory = stage1MemorySummary(terminalStage);
+  state.stage1_memory = {
+    ...loaderMemory,
+    sample_count: state.stage1_memory_samples.length,
+    peak_js_heap_bytes: Math.max(...state.stage1_memory_samples.map(
+      (sample) => sample.js_heap_bytes)),
+    peak_process_rss_bytes: Math.max(...state.stage1_memory_samples.map(
+      (sample) => sample.process_rss_bytes)),
+  };
+  if (!loaderMemory.bounded) {
+    throw new Error("Stage-1 transient payload memory is not bounded: " +
+      JSON.stringify(state.stage1_memory));
+  }
   await page.waitForFunction(() => window.__bwServiceWorker && window.__bwServiceWorker.phase === "done",
     null, {timeout: 600_000});
   let pixelProof = null;
@@ -563,6 +663,7 @@ const verdict = {
   boot_ok: bootOk,
   js_heap_ok: jsGrowth < 10,
   process_rss_ok: rssGrowth < 10,
+  stage1_memory_ok: state.stage1_memory?.bounded === true,
   sample_integrity_ok: sampleIntegrity,
   live_ok: state.stalls.length === 0 && state.samples.every((sample) => sample.module_alive) &&
     state.interaction_failures.length === 0 &&

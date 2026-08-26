@@ -148,13 +148,17 @@ function makeStageEnvironment(stageSource, {
   search = '', devHooksAllowed = false, trustedManual = false, bodyGate = false,
   stream = true, httpFailure = false, dataFailures = [],
   chunks = [[1, 2, 3], [4, 5, 6]], total = 6, manifestFiles = null,
+  allocationLimit = Number.POSITIVE_INFINITY, oversizedStreamChunkLength = null,
 } = {}) {
   const elements = new Map();
   const writes = [];
+  const temporaryFiles = new Map();
   const timers = [];
   let now = 0;
   let fetchCount = 0;
   let dataFetchCount = 0;
+  let arrayBufferCount = 0;
+  let largestAllocation = 0;
   const loader = {
     id: 'loader',
     classList: {contains: (name) => name === 'bw-hidden'},
@@ -183,7 +187,17 @@ function makeStageEnvironment(stageSource, {
     __bwModule: {
       FS: {
         writeFile(filename, bytes) {
-          writes.push({filename, bytes: Array.from(bytes)});
+          const row = {filename, bytes: Array.from(bytes)};
+          if (filename.startsWith('/tmp/.bw-stage1-')) temporaryFiles.set(filename, row.bytes);
+          else writes.push(row);
+        },
+        rename(source, filename) {
+          if (!temporaryFiles.has(source)) throw new Error(`missing temporary file: ${source}`);
+          writes.push({filename, bytes: temporaryFiles.get(source)});
+          temporaryFiles.delete(source);
+        },
+        unlink(filename) {
+          if (!temporaryFiles.delete(filename)) throw new Error(`missing temporary file: ${filename}`);
         },
       },
     },
@@ -218,27 +232,47 @@ function makeStageEnvironment(stageSource, {
             if (failure === 'interrupted' && chunkIndex === 1) {
               throw new Error('stream interrupted');
             }
+            if (oversizedStreamChunkLength !== null && chunkIndex++ === 0) {
+              return {done: false, value: {
+                length: oversizedStreamChunkLength,
+                subarray() { throw new Error('oversized chunk was consumed'); },
+              }};
+            }
             return chunkIndex < responseChunks.length ?
               {done: false, value: Uint8Array.from(responseChunks[chunkIndex++])} : {done: true};
           }};
         },
       } : null,
-      arrayBuffer: async () => payload.buffer.slice(
-        payload.byteOffset, payload.byteOffset + payload.byteLength),
+      arrayBuffer: async () => {
+        arrayBufferCount += 1;
+        return payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+      },
     };
   };
   const setTimeout = (callback, delay) => {
     timers.push({callback, delay});
     return timers.length;
   };
+  const TrackedUint8Array = new Proxy(Uint8Array, {
+    construct(target, args) {
+      const view = Reflect.construct(target, args, target);
+      largestAllocation = Math.max(largestAllocation, view.byteLength);
+      if (view.byteLength > allocationLimit) {
+        throw new RangeError(`typed-array allocation ${view.byteLength} exceeds ${allocationLimit}`);
+      }
+      return view;
+    },
+  });
   const context = vm.createContext({
-    window, document, location: {search}, URLSearchParams, Uint8Array,
+    window, document, location: {search}, URLSearchParams, Uint8Array: TrackedUint8Array,
     performance: {now: () => (now += 100)}, fetch, setTimeout,
     clearTimeout() {}, console,
   });
   vm.runInContext(stageSource, context, {filename: 'stage1-loader.contract.js'});
   return {window, elements, writes, timers,
-    fetchCount: () => fetchCount, dataFetchCount: () => dataFetchCount};
+    fetchCount: () => fetchCount, dataFetchCount: () => dataFetchCount,
+    arrayBufferCount: () => arrayBufferCount, largestAllocation: () => largestAllocation,
+    temporaryFileCount: () => temporaryFiles.size};
 }
 
 async function assertStageContract(stageSource) {
@@ -267,6 +301,78 @@ async function assertStageContract(stageSource) {
   assert.match(progress.textContent, /^Assets ready .* MB$/);
   assert.equal(progress.dataset.bytesDone, '6');
   assert.equal(progress.dataset.bytesTotal, '6');
+
+  const bounded = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [[1, 2, 3, 4], [5, 6, 7, 8, 9, 10, 11], [12, 13, 14, 15, 16, 17, 18]],
+    total: 18,
+    manifestFiles: [
+      {filename: '/bw/a', start: 0, end: 6},
+      {filename: '/bw/b', start: 6, end: 12},
+      {filename: '/bw/c', start: 12, end: 18},
+    ],
+    allocationLimit: 6,
+  });
+  const boundedState = await bounded.window.__bwStage1Load();
+  assert.equal(boundedState.phase, 'done');
+  assert.equal(boundedState.peakBufferedBytes, 6);
+  assert.equal(boundedState.bufferedBytes, 0);
+  assert.equal(boundedState.largestFileBytes, 6);
+  assert.equal(boundedState.bytesFetched, 18);
+  assert.equal(boundedState.bufferLimitBytes, 16 * 1024 * 1024);
+  assert.equal(boundedState.streamChunkLimitBytes, 16 * 1024 * 1024);
+  assert.equal(boundedState.transientLimitBytes, 32 * 1024 * 1024);
+  assert.equal(boundedState.peakChunkBytes, 7);
+  assert.equal(boundedState.peakTransientBytes, 13);
+  assert.equal(boundedState.chunkBytes, 0);
+  assert.ok(boundedState.peakBufferedBytes <= boundedState.bufferLimitBytes);
+  assert.ok(bounded.largestAllocation() <= 6,
+    'streaming loader allocated more than one manifest file');
+  assert.deepEqual(bounded.writes, [
+    {filename: '/bw/a', bytes: [1, 2, 3, 4, 5, 6]},
+    {filename: '/bw/b', bytes: [7, 8, 9, 10, 11, 12]},
+    {filename: '/bw/c', bytes: [13, 14, 15, 16, 17, 18]},
+  ]);
+  assert.equal(bounded.temporaryFileCount(), 0);
+
+  const oversizedFile = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [],
+    total: 16 * 1024 * 1024 + 1,
+    manifestFiles: [
+      {filename: '/bw/oversized', start: 0, end: 16 * 1024 * 1024 + 1},
+    ],
+  });
+  const oversizedFileState = await oversizedFile.window.__bwStage1Load();
+  assert.equal(oversizedFileState.phase, 'error');
+  assert.match(oversizedFileState.error, /buffer limit is 16777216/);
+  assert.equal(oversizedFile.dataFetchCount(), 0);
+  assert.equal(oversizedFile.writes.length, 0);
+
+  const oversizedFallback = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    stream: false,
+    chunks: [],
+    total: 16 * 1024 * 1024 + 2,
+    manifestFiles: [
+      {filename: '/bw/a', start: 0, end: 8 * 1024 * 1024 + 1},
+      {filename: '/bw/b', start: 8 * 1024 * 1024 + 1, end: 16 * 1024 * 1024 + 2},
+    ],
+  });
+  const oversizedFallbackState = await oversizedFallback.window.__bwStage1Load();
+  assert.equal(oversizedFallbackState.phase, 'error');
+  assert.match(oversizedFallbackState.error, /streaming response required/);
+  assert.equal(oversizedFallback.arrayBufferCount(), 0);
+  assert.equal(oversizedFallback.writes.length, 0);
+
+  const oversizedChunk = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    oversizedStreamChunkLength: 16 * 1024 * 1024 + 1,
+  });
+  const oversizedChunkState = await oversizedChunk.window.__bwStage1Load();
+  assert.equal(oversizedChunkState.phase, 'error');
+  assert.match(oversizedChunkState.error, /response chunk 16777217 exceeds limit 16777216/);
+  assert.equal(oversizedChunk.writes.length, 0);
 
   const developmentManual = makeStageEnvironment(stageSource, {
     search: '?stage1=manual', devHooksAllowed: true,
@@ -411,7 +517,7 @@ await assertStageContract(stageSource);
 
 if (POSITIVE_ONLY) {
   console.log('M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS positive=3 ' +
-    'python=off argv=off controls=off stage1_positive=16 recovery=4 progress=visible');
+    'python=off argv=off controls=off stage1_positive=20 recovery=4 progress=visible memory=bounded');
   process.exit(0);
 }
 
@@ -442,8 +548,8 @@ await rejectStage('http_status_ignored', replaceOnce(stageSource,
   'if (!resp.ok) throw new Error("stage1.data HTTP " + resp.status);',
   'if (false && !resp.ok) throw new Error("stage1.data HTTP " + resp.status);'));
 await rejectStage('stream_overflow_ignored', replaceOnce(stageSource,
-  'if (offset + value.length > out.length) throw new Error("stage1.data exceeds manifest size");',
-  'if (false && offset + value.length > out.length) throw new Error("stage1.data exceeds manifest size");'));
+  'if (offset + value.length > expected) throw new Error("stage1.data exceeds manifest size");',
+  'if (false && offset + value.length > expected) throw new Error("stage1.data exceeds manifest size");'));
 await rejectStage('stream_underflow_ignored', replaceOnce(stageSource,
   'if (offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);',
   'if (false && offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);'));
@@ -468,15 +574,33 @@ await rejectStage('retry_release_removed', replaceOnce(stageSource,
   'if (inFlight === operation) inFlight = null;',
   'if (false && inFlight === operation) inFlight = null;'));
 await rejectStage('retry_error_reset_removed', replaceOnce(stageSource,
-  '    state.error = null;\n  }\n\n  async function runAttempt',
-  '  }\n\n  async function runAttempt'));
+  '    state.error = null;\n  }\n\n  let stagingGeneration',
+  '  }\n\n  let stagingGeneration'));
+await rejectStage('file_buffer_ceiling_removed', replaceOnce(stageSource,
+  'if (fileBytes > MAX_BUFFERED_FILE_BYTES) {',
+  'if (false && fileBytes > MAX_BUFFERED_FILE_BYTES) {'));
+await rejectStage('fallback_ceiling_removed', replaceOnce(stageSource,
+  'if (expected > MAX_BUFFERED_FILE_BYTES) {',
+  'if (false && expected > MAX_BUFFERED_FILE_BYTES) {'));
+await rejectStage('whole_payload_reallocated', replaceOnce(stageSource,
+  'fileBuffer = new Uint8Array(fileBytes);',
+  'fileBuffer = new Uint8Array(expected);'));
+await rejectStage('transactional_staging_removed', replaceOnce(stageSource,
+  'const TEMP_PREFIX = "/tmp/.bw-stage1-";',
+  'const TEMP_PREFIX = "/bw/.bw-stage1-";'));
+await rejectStage('stream_chunk_ceiling_removed', replaceOnce(stageSource,
+  'if (bytes > MAX_STREAM_CHUNK_BYTES) {',
+  'if (false && bytes > MAX_STREAM_CHUNK_BYTES) {'));
+await rejectStage('transient_peak_accounting_removed', replaceOnce(stageSource,
+  'state.peakTransientBytes = Math.max(state.peakTransientBytes, transient);',
+  'state.peakTransientBytes += 0;'));
 
-assert.equal(stageNegative, 16);
+assert.equal(stageNegative, 22);
 const measureSource = fs.readFileSync(MEASURE, 'utf8');
 assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
   'cold and warm timing contexts must install the trusted Stage-1 manual control');
 assert.equal(count(measureSource, 'stage1=manual'), 0,
   'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off stage1_positive=16 stage1_negative=16 recovery=4 ' +
-  'progress=visible stage1_query_controls=off trusted_measurement_contexts=2');
+  'python=off argv=off controls=off stage1_positive=20 stage1_negative=22 recovery=4 ' +
+  'progress=visible memory=bounded stage1_query_controls=off trusted_measurement_contexts=2');

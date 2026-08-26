@@ -237,6 +237,8 @@ const receipt = {
   interactive_viewport_under_8s: false,
   stage1_byte_exact: false,
   stage1_complete: false,
+  stage1_memory_bounded: false,
+  stage1_memory: null,
   progress_phases_visible: false,
   service_worker_complete: false,
   service_worker_inventory_exact: false,
@@ -707,6 +709,32 @@ receipt.stage1_complete = !!st && st.phase === 'done' && !st.error &&
   st.filesDone === st.filesTotal && st.filesTotal > 0 &&
   st.bytesDone === st.bytesTotal && st.bytesTotal > 0;
 if (!receipt.stage1_complete) fail('stage-1 did not install every byte/file cleanly: ' + JSON.stringify(st));
+receipt.stage1_memory = st ? {
+  payload_bytes: st.bytesTotal,
+  fetched_bytes: st.bytesFetched,
+  buffer_limit_bytes: st.bufferLimitBytes,
+  largest_file_bytes: st.largestFileBytes,
+  peak_buffered_bytes: st.peakBufferedBytes,
+  buffered_bytes_at_completion: st.bufferedBytes,
+  stream_chunk_limit_bytes: st.streamChunkLimitBytes,
+  peak_stream_chunk_bytes: st.peakChunkBytes,
+  stream_chunk_bytes_at_completion: st.chunkBytes,
+  transient_limit_bytes: st.transientLimitBytes,
+  peak_transient_bytes: st.peakTransientBytes,
+} : null;
+receipt.stage1_memory_bounded = !!st && Number.isSafeInteger(st.bufferLimitBytes) &&
+  st.bufferLimitBytes === 16 * 1024 * 1024 &&
+  st.streamChunkLimitBytes === 16 * 1024 * 1024 &&
+  st.transientLimitBytes === 32 * 1024 * 1024 &&
+  Number.isSafeInteger(st.largestFileBytes) && st.largestFileBytes > 0 &&
+  st.largestFileBytes <= st.peakBufferedBytes &&
+  st.peakBufferedBytes <= st.bufferLimitBytes && st.bufferedBytes === 0 &&
+  st.peakChunkBytes <= st.streamChunkLimitBytes && st.chunkBytes === 0 &&
+  Math.max(st.peakBufferedBytes, st.peakChunkBytes) <= st.peakTransientBytes &&
+  st.peakTransientBytes <= st.transientLimitBytes &&
+  st.bytesFetched === st.bytesTotal && st.bytesTotal > st.bufferLimitBytes;
+log('stage1 memory proof: ' + JSON.stringify(receipt.stage1_memory));
+if (!receipt.stage1_memory_bounded) fail('stage-1 transient payload memory is not bounded');
 const progressProof = await page.evaluate(() => {
   const el = document.getElementById('bw-stage-progress');
   return { phases: window.__bwStage1 && window.__bwStage1.visiblePhases,

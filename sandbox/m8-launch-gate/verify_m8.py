@@ -1167,6 +1167,8 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
     require(proof.get("stage1_byte_exact") is True, "stage-1 byte-exact proof missing", failures)
     require(proof.get("stage1_complete") is True,
             "stage-1 did not install every deferred byte/file cleanly", failures)
+    require(proof.get("stage1_memory_bounded") is True,
+            "stage-1 transient payload memory proof missing", failures)
     require(proof.get("progress_phases_visible") is True, "visible phase/MB progress proof missing", failures)
     require(proof.get("service_worker_complete") is True, "service-worker cache proof missing", failures)
     require(proof.get("service_worker_inventory_exact") is True,
@@ -1203,8 +1205,42 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
     if isinstance(runtime_evidence, dict):
         split = runtime_evidence.get("split_runtime", {})
         transport = runtime_evidence.get("transport", {})
+        stage1_memory = runtime_evidence.get("stage1_memory", {})
         require(isinstance(split, dict), "split runtime evidence is not an object", failures)
         require(isinstance(transport, dict), "transport evidence is not an object", failures)
+        expected_memory_keys = {
+            "payload_bytes", "fetched_bytes", "buffer_limit_bytes", "largest_file_bytes",
+            "peak_buffered_bytes", "buffered_bytes_at_completion",
+            "stream_chunk_limit_bytes", "peak_stream_chunk_bytes",
+            "stream_chunk_bytes_at_completion", "transient_limit_bytes",
+            "peak_transient_bytes",
+        }
+        require(isinstance(stage1_memory, dict) and set(stage1_memory) == expected_memory_keys,
+                "stage-1 memory evidence keys are not exact", failures)
+        if isinstance(stage1_memory, dict):
+            require(all(type(stage1_memory.get(key)) is int for key in expected_memory_keys),
+                    "stage-1 memory evidence contains a non-integer", failures)
+            require(stage1_memory.get("buffer_limit_bytes") == 16 * 1024 * 1024,
+                    "stage-1 buffer limit differs from 16 MiB", failures)
+            require(stage1_memory.get("stream_chunk_limit_bytes") == 16 * 1024 * 1024 and
+                    stage1_memory.get("transient_limit_bytes") == 32 * 1024 * 1024,
+                    "stage-1 stream/transient limits differ from 16/32 MiB", failures)
+            require(stage1_memory.get("payload_bytes", 0) >
+                    stage1_memory.get("buffer_limit_bytes", 0) and
+                    stage1_memory.get("fetched_bytes") == stage1_memory.get("payload_bytes"),
+                    "stage-1 payload was not fully streamed above the fallback limit", failures)
+            require(0 < stage1_memory.get("largest_file_bytes", 0) <=
+                    stage1_memory.get("peak_buffered_bytes", -1) <=
+                    stage1_memory.get("buffer_limit_bytes", -1) and
+                    stage1_memory.get("buffered_bytes_at_completion") == 0 and
+                    0 <= stage1_memory.get("peak_stream_chunk_bytes", -1) <=
+                    stage1_memory.get("stream_chunk_limit_bytes", -1) and
+                    stage1_memory.get("stream_chunk_bytes_at_completion") == 0 and
+                    max(stage1_memory.get("peak_buffered_bytes", -1),
+                        stage1_memory.get("peak_stream_chunk_bytes", -1)) <=
+                    stage1_memory.get("peak_transient_bytes", -1) <=
+                    stage1_memory.get("transient_limit_bytes", -1),
+                    "stage-1 runtime exceeded or retained its transient buffer", failures)
         contract_rows = artifact_contract()["shipped_wasm"]
         deferred_rows = [row for row in contract_rows if row["role"] == "deferred"]
         require(len(deferred_rows) == 1,
@@ -1346,6 +1382,62 @@ def check_soak(receipt: dict, failures: list[str]) -> None:
             (signing.get("identifier"), signing.get("team")) == expected_signing,
             "soak Chrome executable/package signing identity is invalid", failures)
     require(browser.get("fresh_profile") is True, "soak profile was not fresh", failures)
+    stage1_memory = receipt.get("stage1_memory", {})
+    memory_keys = {
+        "payload_bytes", "fetched_bytes", "buffer_limit_bytes", "largest_file_bytes",
+        "peak_buffered_bytes", "buffered_bytes_at_completion", "bounded", "sample_count",
+        "stream_chunk_limit_bytes", "peak_stream_chunk_bytes",
+        "stream_chunk_bytes_at_completion", "transient_limit_bytes",
+        "peak_transient_bytes", "peak_js_heap_bytes", "peak_process_rss_bytes",
+    }
+    require(isinstance(stage1_memory, dict) and set(stage1_memory) == memory_keys,
+            "soak Stage-1 memory summary keys are not exact", failures)
+    if isinstance(stage1_memory, dict):
+        require(stage1_memory.get("bounded") is True,
+                "soak Stage-1 memory summary is not bounded", failures)
+        require(stage1_memory.get("buffer_limit_bytes") == 16 * 1024 * 1024 and
+                stage1_memory.get("stream_chunk_limit_bytes") == 16 * 1024 * 1024 and
+                stage1_memory.get("transient_limit_bytes") == 32 * 1024 * 1024 and
+                stage1_memory.get("payload_bytes", 0) >
+                stage1_memory.get("buffer_limit_bytes", 0) and
+                stage1_memory.get("fetched_bytes") == stage1_memory.get("payload_bytes") and
+                0 < stage1_memory.get("largest_file_bytes", 0) <=
+                stage1_memory.get("peak_buffered_bytes", -1) <=
+                stage1_memory.get("buffer_limit_bytes", -1) and
+                stage1_memory.get("buffered_bytes_at_completion") == 0 and
+                0 <= stage1_memory.get("peak_stream_chunk_bytes", -1) <=
+                stage1_memory.get("stream_chunk_limit_bytes", -1) and
+                stage1_memory.get("stream_chunk_bytes_at_completion") == 0 and
+                max(stage1_memory.get("peak_buffered_bytes", -1),
+                    stage1_memory.get("peak_stream_chunk_bytes", -1)) <=
+                stage1_memory.get("peak_transient_bytes", -1) <=
+                stage1_memory.get("transient_limit_bytes", -1),
+                "soak Stage-1 loader exceeded or retained its transient buffer", failures)
+    stage1_samples = receipt.get("stage1_memory_samples", [])
+    require(isinstance(stage1_samples, list) and bool(stage1_samples) and
+            isinstance(stage1_memory, dict) and
+            stage1_memory.get("sample_count") == len(stage1_samples),
+            "soak Stage-1 memory samples are absent or miscounted", failures)
+    if isinstance(stage1_samples, list) and stage1_samples:
+        sample_keys = {"t_ms", "js_heap_bytes", "process_rss_bytes", "phase",
+                       "bytes_fetched", "bytes_installed", "buffered_bytes",
+                       "stream_chunk_bytes", "transient_bytes"}
+        require(all(isinstance(row, dict) and set(row) == sample_keys and
+                    type(row.get("t_ms")) is int and row["t_ms"] >= 0 and
+                    type(row.get("js_heap_bytes")) is int and row["js_heap_bytes"] > 0 and
+                    type(row.get("process_rss_bytes")) is int and row["process_rss_bytes"] > 0 and
+                    isinstance(row.get("phase"), str) and
+                    all(type(row.get(key)) is int and row[key] >= 0 for key in (
+                        "bytes_fetched", "bytes_installed", "buffered_bytes",
+                        "stream_chunk_bytes", "transient_bytes"))
+                    for row in stage1_samples),
+                "soak Stage-1 memory sample row is invalid", failures)
+        require(isinstance(stage1_memory, dict) and
+                stage1_memory.get("peak_js_heap_bytes") ==
+                max(row.get("js_heap_bytes", 0) for row in stage1_samples) and
+                stage1_memory.get("peak_process_rss_bytes") ==
+                max(row.get("process_rss_bytes", 0) for row in stage1_samples),
+                "soak Stage-1 memory peaks differ from samples", failures)
     require(receipt.get("duration_seconds", 0) >= 1800, "soak shorter than full 30-minute gate", failures)
     require(receipt.get("sample_count", 0) >= 60, "soak has fewer than 60 samples", failures)
     samples = receipt.get("samples", [])
@@ -1371,7 +1463,7 @@ def check_soak(receipt: dict, failures: list[str]) -> None:
                 "soak sampling cadence is discontinuous", failures)
     verdict = receipt.get("verdict", {})
     require(verdict.get("pass") is True, "soak verdict is not PASS", failures)
-    for key in ("boot_ok", "js_heap_ok", "process_rss_ok", "sample_integrity_ok",
+    for key in ("boot_ok", "js_heap_ok", "process_rss_ok", "stage1_memory_ok", "sample_integrity_ok",
                 "live_ok", "gpu_ok", "no_fatal", "external_ok"):
         require(verdict.get(key) is True, f"soak verdict missing/failed: {key}", failures)
     require(verdict.get("js_heap_growth_pct", 999) < 10, "JS heap growth is >=10%", failures)

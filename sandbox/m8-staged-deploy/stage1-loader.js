@@ -9,8 +9,10 @@
 // the monolith. The original file-packager glue still pre-creates the complete
 // DIRECTORY tree - post-boot mkdir is impossible under the 0555 /bw mount, recon
 // in notes/m8-staged-deploy.md. This script runs AFTER first pixels and streams
-// the rest into the SAME live WasmFS via FS.writeFile (creating or overwriting
-// files inside those existing dirs is verified). It never blocks boot: it
+// the rest into the SAME live WasmFS. Each completed file is buffered separately,
+// written under /tmp, and renamed into place only after the response is complete;
+// this bounds transient JS retention without publishing corrupt partial transfers.
+// It never blocks boot: it
 // self-schedules off first pixels.
 //
 // Contract preserved: this is an ADDITIVE bundle-only script injected after
@@ -23,10 +25,19 @@
   const BIN_PREFIX = "/bin/";
   const YIELD_EVERY = 24;              // files per tick, so the WM loop keeps breathing
   const MAX_ATTEMPTS = 3;              // initial transfer plus two bounded automatic retries
+  const MAX_BUFFERED_FILE_BYTES = 16 * 1024 * 1024;
+  const MAX_STREAM_CHUNK_BYTES = 16 * 1024 * 1024;
+  const MAX_TRANSIENT_BYTES = MAX_BUFFERED_FILE_BYTES + MAX_STREAM_CHUNK_BYTES;
+  const TEMP_PREFIX = "/tmp/.bw-stage1-";
   const state = {
     phase: "idle",                    // idle -> fetching -> writing -> done | error
     filesTotal: 0, filesDone: 0,
-    bytesTotal: 0, bytesDone: 0,
+    bytesTotal: 0, bytesFetched: 0, bytesDone: 0,
+    bufferLimitBytes: MAX_BUFFERED_FILE_BYTES,
+    largestFileBytes: 0, bufferedBytes: 0, peakBufferedBytes: 0,
+    streamChunkLimitBytes: MAX_STREAM_CHUNK_BYTES,
+    chunkBytes: 0, peakChunkBytes: 0,
+    transientLimitBytes: MAX_TRANSIENT_BYTES, peakTransientBytes: 0,
     startedAt: 0, fetchedAt: 0, doneAt: 0,
     attempt: 0, maxAttempts: MAX_ATTEMPTS, retryable: false,
     error: null, visible: false, visibleLabel: "", visiblePhases: [],
@@ -93,6 +104,7 @@
     }
     const expected = man.total_bytes;
     let cursor = 0;
+    let largestFileBytes = 0;
     for (let i = 0; i < man.files.length; i++) {
       const f = man.files[i];
       if (!f || !Number.isSafeInteger(f.start) || !Number.isSafeInteger(f.end) ||
@@ -103,43 +115,145 @@
         throw new Error("stage1 manifest span " + i + " starts at " + f.start +
                         " instead of " + cursor);
       }
+      const fileBytes = f.end - f.start;
+      if (fileBytes > MAX_BUFFERED_FILE_BYTES) {
+        throw new Error("stage1 manifest span " + i + " is " + fileBytes +
+                        " bytes; buffer limit is " + MAX_BUFFERED_FILE_BYTES);
+      }
+      largestFileBytes = Math.max(largestFileBytes, fileBytes);
       cursor = f.end;
     }
     if (cursor !== expected) {
       throw new Error("stage1 manifest spans end at " + cursor + " instead of " + expected);
     }
-    return expected;
+    return {expected, largestFileBytes};
   }
 
-  async function fetchStageData(expected) {
+  function updateTransientPeak() {
+    const transient = state.bufferedBytes + state.chunkBytes;
+    state.peakTransientBytes = Math.max(state.peakTransientBytes, transient);
+    if (transient > MAX_TRANSIENT_BYTES) {
+      throw new Error("stage1 transient bytes " + transient +
+                      " exceed limit " + MAX_TRANSIENT_BYTES);
+    }
+  }
+
+  function setBufferedBytes(bytes) {
+    if (bytes > MAX_BUFFERED_FILE_BYTES) {
+      throw new Error("stage1 buffered bytes " + bytes +
+                      " exceed limit " + MAX_BUFFERED_FILE_BYTES);
+    }
+    state.bufferedBytes = bytes;
+    state.peakBufferedBytes = Math.max(state.peakBufferedBytes, bytes);
+    updateTransientPeak();
+  }
+
+  function setChunkBytes(bytes) {
+    state.chunkBytes = bytes;
+    state.peakChunkBytes = Math.max(state.peakChunkBytes, bytes);
+    if (bytes > MAX_STREAM_CHUNK_BYTES) {
+      throw new Error("stage1 response chunk " + bytes +
+                      " exceeds limit " + MAX_STREAM_CHUNK_BYTES);
+    }
+    updateTransientPeak();
+  }
+
+  function temporaryName(generation, index) {
+    return TEMP_PREFIX + generation + "-" + index;
+  }
+
+  function cleanupTemporaryFiles(FS, temporaryFiles) {
+    let failure = null;
+    for (const filename of temporaryFiles) {
+      if (!filename) continue;
+      try { FS.unlink(filename); }
+      catch (e) { if (!failure) failure = e; }
+    }
+    temporaryFiles.length = 0;
+    if (failure) throw failure;
+  }
+
+  async function stageFile(FS, f, index, generation, bytes, temporaryFiles) {
+    const filename = temporaryName(generation, index);
+    FS.writeFile(filename, bytes);
+    temporaryFiles.push(filename);
+    if ((index + 1) % YIELD_EVERY === 0) await sleep(0);
+  }
+
+  async function fetchAndStage(FS, man, expected, generation, temporaryFiles) {
     const resp = await fetch(BIN_PREFIX + "stage1.data");
     if (!resp.ok) throw new Error("stage1.data HTTP " + resp.status);
     state.bytesTotal = expected;
+    state.bytesFetched = 0;
     state.bytesDone = 0;
     updateVisibleProgress("Downloading assets", 0, expected, false);
     if (!resp.body || !resp.body.getReader || !expected) {
+      if (expected > MAX_BUFFERED_FILE_BYTES) {
+        throw new Error("stage1.data streaming response required for " + expected +
+                        " bytes; fallback limit is " + MAX_BUFFERED_FILE_BYTES);
+      }
       const fallback = new Uint8Array(await resp.arrayBuffer());
       if (fallback.length !== expected) {
         throw new Error("stage1.data size " + fallback.length + " != " + expected);
       }
-      state.bytesDone = fallback.length;
+      setBufferedBytes(fallback.length);
+      for (let index = 0; index < man.files.length; index++) {
+        const f = man.files[index];
+        await stageFile(FS, f, index, generation,
+                        fallback.subarray(f.start, f.end), temporaryFiles);
+      }
+      setBufferedBytes(0);
+      state.bytesFetched = fallback.length;
       updateVisibleProgress("Downloading assets", fallback.length, expected, false);
-      return fallback;
+      return;
     }
-    const out = new Uint8Array(expected);
     const reader = resp.body.getReader();
     let offset = 0;
+    let fileIndex = 0;
+    let fileBuffer = null;
+    let fileOffset = 0;
     for (;;) {
       const {done, value} = await reader.read();
       if (done) break;
-      if (offset + value.length > out.length) throw new Error("stage1.data exceeds manifest size");
-      out.set(value, offset);
+      setChunkBytes(value.length);
+      if (offset + value.length > expected) throw new Error("stage1.data exceeds manifest size");
+      let chunkOffset = 0;
+      while (chunkOffset < value.length) {
+        if (fileIndex >= man.files.length) throw new Error("stage1.data exceeds manifest spans");
+        const f = man.files[fileIndex];
+        const fileBytes = f.end - f.start;
+        if (fileBuffer === null) {
+          fileBuffer = new Uint8Array(fileBytes);
+          fileOffset = 0;
+          setBufferedBytes(fileBytes);
+        }
+        const take = Math.min(fileBytes - fileOffset, value.length - chunkOffset);
+        fileBuffer.set(value.subarray(chunkOffset, chunkOffset + take), fileOffset);
+        fileOffset += take;
+        chunkOffset += take;
+        if (fileOffset === fileBytes) {
+          await stageFile(FS, f, fileIndex, generation, fileBuffer, temporaryFiles);
+          fileBuffer = null;
+          fileOffset = 0;
+          setBufferedBytes(0);
+          fileIndex += 1;
+        }
+      }
       offset += value.length;
-      state.bytesDone = offset;
+      state.bytesFetched = offset;
       updateVisibleProgress("Downloading assets", offset, expected, false);
+      setChunkBytes(0);
     }
     if (offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);
-    return out;
+    while (fileIndex < man.files.length &&
+           man.files[fileIndex].end === man.files[fileIndex].start) {
+      await stageFile(FS, man.files[fileIndex], fileIndex, generation,
+                      new Uint8Array(0), temporaryFiles);
+      fileIndex += 1;
+    }
+    if (fileIndex !== man.files.length || fileBuffer !== null) {
+      throw new Error("stage1.data did not complete every manifest span");
+    }
   }
 
   function beginAttempt(attempt) {
@@ -149,7 +263,16 @@
     state.filesTotal = 0;
     state.filesDone = 0;
     state.bytesTotal = 0;
+    state.bytesFetched = 0;
     state.bytesDone = 0;
+    state.largestFileBytes = 0;
+    state.bufferedBytes = 0;
+    state.chunkBytes = 0;
+    if (attempt === 1) {
+      state.peakBufferedBytes = 0;
+      state.peakChunkBytes = 0;
+      state.peakTransientBytes = 0;
+    }
     state.startedAt = performance.now();
     state.fetchedAt = 0;
     state.doneAt = 0;
@@ -158,37 +281,57 @@
     state.error = null;
   }
 
+  let stagingGeneration = 0;
   async function runAttempt(attempt) {
     beginAttempt(attempt);
     const mod = window.__bwModule;
     if (!mod || !mod.FS) throw new Error("no __bwModule.FS");
     const FS = mod.FS;
     const man = await (await fetch(BIN_PREFIX + "stage1-manifest.json")).json();
-    const expected = validateStageManifest(man);
-    let buf = await fetchStageData(expected);
-    state.fetchedAt = performance.now();
+    const contract = validateStageManifest(man);
+    const expected = contract.expected;
+    const temporaryFiles = [];
+    const generation = ++stagingGeneration;
     state.filesTotal = man.files.length;
     state.bytesTotal = expected;
-    log("fetched stage1.data " + buf.length + " B / " + state.filesTotal + " files in " +
+    state.largestFileBytes = contract.largestFileBytes;
+    try {
+      await fetchAndStage(FS, man, expected, generation, temporaryFiles);
+    } catch (e) {
+      setChunkBytes(0);
+      setBufferedBytes(0);
+      try { cleanupTemporaryFiles(FS, temporaryFiles); }
+      catch (cleanupError) {
+        throw new Error((e && e.message || e) + "; temporary cleanup: " +
+                        (cleanupError && cleanupError.message || cleanupError));
+      }
+      throw e;
+    }
+    state.fetchedAt = performance.now();
+    log("fetched stage1.data " + expected + " B / " + state.filesTotal + " files in " +
         (state.fetchedAt - state.startedAt).toFixed(0) + " ms; unpacking...");
     state.phase = "writing";
     state.bytesDone = 0;
     updateVisibleProgress("Installing assets", 0, state.bytesTotal, false);
-    let i = 0;
-    for (const f of man.files) {
+    for (let index = 0; index < man.files.length; index++) {
+      const f = man.files[index];
       try {
-        // subarray = view (no copy); writeFile copies the slice into the live FS.
-        FS.writeFile(f.filename, buf.subarray(f.start, f.end));
+        FS.rename(temporaryFiles[index], f.filename);
+        temporaryFiles[index] = null;
         state.bytesDone += (f.end - f.start);
       } catch (e) {
         // Do not abort the whole stream on one file; record and continue.
         if (!state.error) state.error = "write " + f.filename + ": " + (e && e.message || e);
       }
-      state.filesDone = ++i;
+      state.filesDone = index + 1;
       updateVisibleProgress("Installing assets", state.bytesDone, state.bytesTotal, false);
-      if (i % YIELD_EVERY === 0) await sleep(0); // let the WM worker + paint proceed
+      if ((index + 1) % YIELD_EVERY === 0) await sleep(0); // let the WM worker + paint proceed
     }
-    buf = null; // release the 37 MiB ArrayBuffer for GC
+    try { cleanupTemporaryFiles(FS, temporaryFiles); }
+    catch (cleanupError) {
+      if (!state.error) state.error = "temporary cleanup: " +
+        (cleanupError && cleanupError.message || cleanupError);
+    }
     state.doneAt = performance.now();
     state.phase = state.error ? "done-with-errors" : "done";
     updateVisibleProgress(state.error ? "Assets installed with errors" : "Assets ready",

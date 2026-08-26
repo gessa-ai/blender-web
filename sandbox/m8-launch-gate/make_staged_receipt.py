@@ -325,6 +325,7 @@ def main() -> int:
                 "interactive_viewport_under_8s",
                 "stage1_byte_exact",
                 "stage1_complete",
+                "stage1_memory_bounded",
                 "progress_phases_visible",
                 "service_worker_complete",
                 "service_worker_inventory_exact",
@@ -350,6 +351,7 @@ def main() -> int:
         "runtime_evidence": {
             "split_runtime": proof.get("split_runtime"),
             "transport": proof.get("transport"),
+            "stage1_memory": proof.get("stage1_memory"),
         },
         "runtime_proofs": {
             "staged": {
@@ -390,7 +392,8 @@ def main() -> int:
                   all(receipt["proof"].get(key) is True for key in (
                       "cross_origin_isolated", "shared_array_buffer", "stage0_boot", "stage0_first_pixels",
                       "first_pixels_present", "interactive_viewport_under_8s",
-                      "stage1_byte_exact", "stage1_complete", "progress_phases_visible", "service_worker_complete",
+                      "stage1_byte_exact", "stage1_complete", "stage1_memory_bounded",
+                      "progress_phases_visible", "service_worker_complete",
                       "service_worker_inventory_exact",
                       "trusted_semantic_interaction",
                       "deferred_after_trusted_interaction_exactly_once",

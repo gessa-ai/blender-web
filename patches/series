@@ -15,7 +15,7 @@
 #   MIGRATION BOUNDARY (2026-08-20): this is ordered audit history for numbered patches,
 #   not a clean-pin reconstruction manifest. `patches/canonical` names the single squashed,
 #   hash-pinned source patch. Its postimage includes work never split into numbered patches
-#   and is the exact integration-tree authority; see notes/migration-to-ornith-lab.md.
+#   and is the exact integration-tree authority; see the pinned migration runbook.
 #
 # CONTRACT (what the harness actually enforces vs what this file is for)
 #   The harness does NOT clean-pin replay. harness/run.sh:118-140 runs a per-patch

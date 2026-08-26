@@ -62,15 +62,17 @@ Git's compact status view). Do not reconstruct the current tree by applying an a
 of numbered historical patches.
 
 The shared checkout also contained tracked outer-repository changes owned by other lanes. They
-were not folded into this agent's commit. They are preserved byte-for-byte in
-`patches/OUTER_WORKTREE_REMAINDER.patch`, SHA-256
-`5c96c94fb14cd91e87e6ad3493301856894d05fdcc24656267140a16f0175708`. Apply it once after
-checking out the migration commit:
+were not folded into this agent's commit. They are preserved in the replayable,
+publication-scrubbed `patches/OUTER_WORKTREE_REMAINDER.patch`, SHA-256
+`563dfe303d9e401c73938d733e118d3f0e21dbeec5e4216a3b43154031b8e4b1`. Path-bearing historical
+preimages use Git binary deltas, and reconstructed text uses repository-relative roots. Apply it
+once after checking out the migration commit:
 
 ```bash
 (cd patches && sha256sum -c OUTER_WORKTREE_REMAINDER.sha256)
 git apply --check patches/OUTER_WORKTREE_REMAINDER.patch
 git apply patches/OUTER_WORKTREE_REMAINDER.patch
+.host-tools/bin/python3.13 sandbox/publication-readiness/verify_metadata_scrub.py
 ```
 
 This patch is the shared-worktree preservation mechanism, not an assertion that all contained

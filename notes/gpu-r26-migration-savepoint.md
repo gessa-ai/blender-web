@@ -20,8 +20,9 @@ integration tree.
 
 Other lanes' tracked outer-repository edits are preserved without taking ownership in
 `patches/OUTER_WORKTREE_REMAINDER.patch`, SHA-256
-`5c96c94fb14cd91e87e6ad3493301856894d05fdcc24656267140a16f0175708`. Apply that patch after
-checking out the migration commit, as described in the migration runbook.
+`563dfe303d9e401c73938d733e118d3f0e21dbeec5e4216a3b43154031b8e4b1`. This replayable revision
+removes private host metadata from the public carrier; apply it after checking out the
+migration commit, as described in the migration runbook.
 
 `lib/`, `build-dawn/`, `build-native-gpu/`, and every `build-wasm-*` tree are generated state.
 They are not source and are now ignored. Recreate them from the pins and recipes in

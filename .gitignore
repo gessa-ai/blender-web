@@ -83,9 +83,8 @@ build-wasm-*/
 /sandbox/m7-numpy-release/embed_old_mt.wasm
 /sandbox/gpu-r61/f12-eevee-acceptance/fixtures/principled_bsdf_default_upstream_setup_native_baked.blend1
 
-# Host-local dependency and browser installations.  The migration transfers
-# only Git; these trees are reconstructed from the pinned recipes documented in
-# notes/migration-to-ornith-lab.md.
+# Host-local dependency and browser installations.  Source-only transfers
+# reconstruct these trees from the repository's pinned dependency recipes.
 /lib/
 /.m4-node/
 /.m4-browsers/

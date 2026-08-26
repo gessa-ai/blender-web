@@ -2908,6 +2908,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   LAUNCH.md's 15 MB bar. The exact 48-function controller closure remains PASS. This does not
   authorize APPLY; accepted hash-bound Apple profiles remain mandatory. See
   `notes/m8-provisional-split-shape-20260826.md`.
+- [x] **P1-M8-STAGED-PACKER-RECONCILIATION [driver] (`cb459b9`):** the fail-closed manifest
+  parser and post-first-pixel partition behind the provisional measurement are now committed and
+  covered by the staged provenance and release-freeze consumers. Product probing found and fixed
+  two fidelity hazards before landing: Cycles is factory-enabled and must remain in Stage 0, and
+  the selected solid-light `.sl` presets cannot be zero-length placeholders. The exact CAPTURE
+  data now partitions to 2,554 keep files / 28,741,042 bytes, 887 deferred files / 136,614,483
+  bytes, and one dropped wheel / 1,787,723 bytes. Same-encoder q11 measures primary + rewritten
+  glue + Stage 0 at 18,120,796 bytes, still 3,120,796 over the 15 MB bar. A fallback-software
+  Stage-0/monolith A/B reaches the same 254 ticks/14 presents with no relevant console or page
+  errors, but both captures are uniformly dark and bind no pixel receipt. Accepted Apple profiles,
+  APPLY, and a hardware staged-pixel run remain mandatory. See
+  `notes/m8-staged-packer-reconciliation-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

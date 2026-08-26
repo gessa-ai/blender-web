@@ -28,6 +28,17 @@ not sufficient by itself; after accepted profiles arrive, the next launch-size t
 least another 2.92 MB from primary Wasm, stage-0 data, and/or glue without cutting launch-visible
 features.
 
+### Committed-packer correction
+
+The table above is the exact historical measurement from the then-uncommitted partition. Commit
+`cb459b9` subsequently reconciled that source and retained two newly proven boot-critical inputs:
+the factory-enabled Cycles add-on and the five selected solid-light `.sl` presets. A consistent
+Node 22 Brotli-q11 replay now measures the unchanged provisional primary at 12,418,419 bytes, the
+reconciled Stage 0 at 5,615,715 bytes, and its rewritten glue at 86,662 bytes: **18,120,796 bytes
+total, 3,120,796 over the 15 MB bar**. This supersedes “current” for planning while preserving the
+original encoder-specific result as historical evidence. See
+`notes/m8-staged-packer-reconciliation-20260826.md`.
+
 ## Validation and boundaries
 
 - The unmodified provisional union was rejected by Binaryen with `checksum in profile does not
@@ -41,8 +52,8 @@ features.
 - Brotli q11 measurements are in `ledger/buildlogs/20260826T091952-623524.log`,
   `20260826T091952-623533.log`, `20260826T091952-623552.log`,
   `20260826T092511-627924.log`, and `20260826T092601-628226.log`.
-- Current staged classification is 2,539 keep files / 28,518,942 bytes, 902 deferred files /
-  136,836,583 bytes, and one dropped file / 1,787,723 bytes
+- The staged classification at the time of this shape probe was 2,539 keep files / 28,518,942
+  bytes, 902 deferred files / 136,836,583 bytes, and one dropped file / 1,787,723 bytes
   (`ledger/buildlogs/20260826T092452-627777.log`).
 
 No build-tree file changed. No browser was launched, no software adapter produced a profile, and no

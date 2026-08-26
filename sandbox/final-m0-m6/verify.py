@@ -600,6 +600,7 @@ def validate_release_freeze(
         "sandbox/m8-staged-deploy/stage_provenance.py",
         "sandbox/m8-staged-deploy/prepare_split_inventory.py",
         "sandbox/m8-staged-deploy/public_shell_hardening.py",
+        "sandbox/m8-staged-deploy/public_shell_minify.mjs",
         "sandbox/m8-staged-deploy/stage1-loader.js",
         "sandbox/m8-staged-deploy/service-worker.js",
         "sandbox/m8-staged-deploy/service-worker-register.js",

@@ -27,6 +27,13 @@ ROOT = Path(__file__).resolve().parents[2]
 STAGE_PACK = ROOT / "sandbox/m8-staged-deploy/stage_pack.py"
 STAGE_PACK_CONTRACT = ROOT / "sandbox/m8-staged-deploy/test_stage_pack.py"
 BROTLI_CODEC = ROOT / "sandbox/m8-staged-deploy/brotli_q11.mjs"
+PUBLIC_MINIFIER = ROOT / "sandbox/m8-staged-deploy/public_shell_minify.mjs"
+PUBLIC_QUERY_CONTRACT = (
+    ROOT / "sandbox/m8-staged-deploy/verify_public_query_hardening.mjs"
+)
+TERSER_BUNDLE = (
+    ROOT / "tools/emsdk/upstream/emscripten/node_modules/terser/dist/bundle.min.js"
+)
 PINNED_NODE = Path(os.environ.get(
     "EMSDK_NODE", ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"))
 DERIVED_NAMES = (
@@ -130,6 +137,26 @@ def _compare_bytes(path: Path, expected: bytes, label: str, failures: list[str])
         failures.append(f"staged output is unreadable for {label}: {path}: {error}")
 
 
+def minify_bytes(source: bytes) -> bytes:
+    """Replay the pinned public-shell minifier without trusting bundle output."""
+    with tempfile.TemporaryDirectory(prefix="bw-public-minifier-") as temporary:
+        input_path = Path(temporary) / "input.js"
+        output_path = Path(temporary) / "output.js"
+        input_path.write_bytes(source)
+        try:
+            result = subprocess.run(
+                [str(PINNED_NODE), str(PUBLIC_MINIFIER),
+                 "--input", str(input_path), "--output", str(output_path)],
+                cwd=ROOT, capture_output=True, text=True)
+        except OSError as error:
+            raise ValueError(f"cannot execute deterministic public-shell minifier: {error}") \
+                from error
+        if result.returncode != 0 or not output_path.is_file():
+            detail = (result.stderr or result.stdout).strip()
+            raise ValueError(f"deterministic public-shell minification failed: {detail}")
+        return output_path.read_bytes()
+
+
 def render_controls(bundle: Path, worker_template: Path, register_template: Path,
                     rows: list[dict[str, object]], cache_files: list[str],
                     identity_files: list[str]) -> tuple[bytes, bytes, str]:
@@ -188,10 +215,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
     staged_root = source_root / "sandbox/m8-staged-deploy"
     shell = source_root / "platform_web/shell"
     copy_map = {
-        "diagnostics-bootstrap.js": shell / "diagnostics-bootstrap.js",
-        "file-bridge.js": shell / "file-bridge.js",
         "wgpu-preinit-worker.js": shell / "wgpu-preinit-worker.js",
-        "stage1-loader.js": staged_root / "stage1-loader.js",
         "scenes/stress-mixed.blend": source_root / "sandbox/corpus-prep/corpus/stress_mixed.blend",
         "scenes/stress-mixed.blend.license": staged_root / "share-scene.license",
         "legal/LICENSE.txt": source_root / "LICENSE",
@@ -219,14 +243,35 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         if (bundle / name).is_file():
             derived[name] = identity(bundle / name)
 
+    minified_copy_map = {
+        "diagnostics-bootstrap.js": shell / "diagnostics-bootstrap.js",
+        "file-bridge.js": shell / "file-bridge.js",
+        "stage1-loader.js": staged_root / "stage1-loader.js",
+    }
+    for name, source in minified_copy_map.items():
+        try:
+            expected = minify_bytes(source.read_bytes())
+        except (OSError, ValueError) as error:
+            failures.append(f"cannot derive minified public shell {name}: {error}")
+            continue
+        _compare_bytes(bundle / name, expected,
+                       f"deterministically minified {source.relative_to(source_root)}", failures)
+        if (bundle / name).is_file():
+            derived[name] = identity(bundle / name)
+
     boot = (shell / "boot-windowed.js").read_bytes()
     try:
         hardened_boot = harden_boot_source(boot)
     except ValueError as error:
         failures.append(f"boot-windowed public hardening failed: {error}")
     else:
-        _compare_bytes(bundle / "boot-windowed.js", hardened_boot,
-                       "deterministic boot-windowed hardening", failures)
+        try:
+            minified_boot = minify_bytes(hardened_boot)
+        except ValueError as error:
+            failures.append(f"cannot derive minified public boot-windowed.js: {error}")
+        else:
+            _compare_bytes(bundle / "boot-windowed.js", minified_boot,
+                           "deterministic boot-windowed hardening and minification", failures)
     index = (shell / "windowed.html").read_text(encoding="utf-8")
     boot_tag = '<script src="/boot-windowed.js"></script>'
     injected = boot_tag + "\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->\n" \
@@ -315,12 +360,36 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "quality": 11,
         "lgwin": 24,
     }
+    proof["public_shell_minifier"] = {
+        "path": str(PUBLIC_MINIFIER.relative_to(ROOT)),
+        **identity(PUBLIC_MINIFIER),
+        "node_version": "v22.16.0",
+        "terser_version": "5.39.0",
+        "terser_bundle": identity(TERSER_BUNDLE),
+        "compress_passes": 2,
+    }
     proof["derived"] = derived
     proof["full_stage"] = not failures
     return proof, failures
 
 
 def selfcheck() -> None:
+    minifier_contract = subprocess.run(
+        [str(PINNED_NODE), str(PUBLIC_MINIFIER), "--selfcheck"],
+        cwd=ROOT, capture_output=True, text=True
+    )
+    assert minifier_contract.returncode == 0 and \
+        "BW_PUBLIC_SHELL_MINIFIER_SELFCHECK_PASS node=v22.16.0 terser=5.39.0" in \
+        minifier_contract.stdout
+    with tempfile.TemporaryDirectory(prefix="bw-minified-stage-contract-") as temporary:
+        minified_stage = Path(temporary) / "stage1-loader.js"
+        minified_stage.write_bytes(minify_bytes(
+            (ROOT / "sandbox/m8-staged-deploy/stage1-loader.js").read_bytes()))
+        minified_contract = subprocess.run(
+            [str(PINNED_NODE), str(PUBLIC_QUERY_CONTRACT), str(minified_stage),
+             "--positive-only"], cwd=ROOT, capture_output=True, text=True)
+        assert minified_contract.returncode == 0 and \
+            "M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS" in minified_contract.stdout
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -383,14 +452,16 @@ def selfcheck() -> None:
         static_source = root / "diagnostics-bootstrap.js"
         static_bundle = root / "bundle" / "diagnostics-bootstrap.js"
         static_bundle.parent.mkdir()
-        static_source.write_bytes(b"trusted diagnostics")
-        static_bundle.write_bytes(static_source.read_bytes())
+        static_source.write_bytes(b"const trustedDiagnostics = () => 42;\n")
+        static_bundle.write_bytes(minify_bytes(static_source.read_bytes()))
         comparator_failures: list[str] = []
-        _compare_bytes(static_bundle, static_source.read_bytes(), "diagnostics source",
+        _compare_bytes(static_bundle, minify_bytes(static_source.read_bytes()),
+                       "minified diagnostics source",
                        comparator_failures)
         assert not comparator_failures
         static_bundle.write_bytes(b"no-op API returning [] with preserved marker strings")
-        _compare_bytes(static_bundle, static_source.read_bytes(), "diagnostics source",
+        _compare_bytes(static_bundle, minify_bytes(static_source.read_bytes()),
+                       "minified diagnostics source",
                        comparator_failures)
         assert comparator_failures
 
@@ -421,7 +492,8 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "packer=569/6/12 coherent=diagnostics+worker+register")
+          "minifier=5/6 minified_stage=7 packer=569/6/12 "
+          "coherent=diagnostics+worker+register")
 
 
 def main() -> int:

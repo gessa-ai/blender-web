@@ -30,6 +30,10 @@ ART = SELF / "artifacts"
 BUILD = ROOT / "build-wasm-windowed-opt/bin"
 BUNDLE = ROOT / "sandbox/m8-staged-deploy/bundle-staged"
 BROTLI_CODEC = ROOT / "sandbox/m8-staged-deploy/brotli_q11.mjs"
+PUBLIC_MINIFIER = ROOT / "sandbox/m8-staged-deploy/public_shell_minify.mjs"
+TERSER_BUNDLE = (
+    ROOT / "tools/emsdk/upstream/emscripten/node_modules/terser/dist/bundle.min.js"
+)
 PINNED_NODE = Path(os.environ.get(
     "EMSDK_NODE", ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"))
 REUSE_VERSION = "6.2.0"
@@ -784,7 +788,8 @@ def check_local_only(failures: list[str]) -> None:
                 "diagnostics bootstrap is not the first executable bundle script", failures)
     diagnostics = BUNDLE / "diagnostics-bootstrap.js"
     if diagnostics.is_file():
-        source = diagnostics.read_text(encoding="utf-8")
+        source = (ROOT / "platform_web/shell/diagnostics-bootstrap.js").read_text(
+            encoding="utf-8")
         require("installedBeforeProductScripts: true" in source
                 and 'window.addEventListener("error"' in source
                 and 'window.addEventListener("unhandledrejection"' in source,
@@ -863,6 +868,15 @@ def check_assembler_provenance(failures: list[str]) -> None:
         "quality": 11,
         "lgwin": 24,
     }, "stage provenance did not use deterministic Brotli q11/lgwin=24", failures)
+    require(proof.get("public_shell_minifier") == {
+        "path": "sandbox/m8-staged-deploy/public_shell_minify.mjs",
+        **identity(PUBLIC_MINIFIER),
+        "node_version": "v22.16.0",
+        "terser_version": "5.39.0",
+        "terser_bundle": identity(TERSER_BUNDLE),
+        "compress_passes": 2,
+    }, "stage provenance did not use the pinned deterministic public-shell minifier",
+            failures)
 
     expected_public = json.dumps(
         contract["public_split_manifest"], indent=2, sort_keys=True) + "\n"
@@ -1959,11 +1973,14 @@ def runtime_consumer_selfcheck() -> None:
         (ROOT / "sandbox/m8-staged-deploy/verify_public_query_hardening.mjs",
          "M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS"),
         (BROTLI_CODEC, "BW_BROTLI_Q11_SELFCHECK_PASS"),
+        (PUBLIC_MINIFIER, "BW_PUBLIC_SHELL_MINIFIER_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/stage_provenance.py",
          "M8_STAGE_PROVENANCE_SELFCHECK_PASS"),
     ):
         command = [str(node), str(script), *(
-            ["--selfcheck"] if script.name in {"browser_matrix.mjs", "brotli_q11.mjs"} else [])] \
+            ["--selfcheck"] if script.name in {
+                "browser_matrix.mjs", "brotli_q11.mjs", "public_shell_minify.mjs"
+            } else [])] \
             if script.suffix == ".mjs" else \
             [sys.executable, str(script), "--selfcheck"]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)

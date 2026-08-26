@@ -669,6 +669,18 @@
       "rationale": "The wasm compiler toolchain (emcc/em++ 6.0.5, bundled node 22.16.0). Build-time only; emitted code carries no emscripten license obligation on the shipped wasm beyond the permissive MIT/NCSA runtime bits.",
       "source": "oracle/TOOLCHAIN \u2014 emsdk release dbd755b5da399329c2576f6e3dfa7f419f5d8409; emcc 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271); GOAL floor >=4.0.10"
     },
+    "terser_public_bundle_minifier": {
+      "version": "5.39.0",
+      "build_time": true,
+      "host_tool": true,
+      "native_only": true,
+      "license": "BSD-2-Clause",
+      "gpl_compatible": true,
+      "integrity": "sha512-LBAhFyLho16harJoWMg/nZsQYgTrg5jXOn2nCYjRUcZZEdE3qa2zb8QEDRUGVZBW4rlazf2fxkg8tztybTaqWw==; dist/bundle.min.js sha256 ac4c20a115313612e52b93153165861ec710d2ec0329f27b968110d53df9c116",
+      "rationale": "Pinned build-time JavaScript parser/compressor for deterministic public-shell controls. It is invoked only while assembling the static public bundle and is never linked, preloaded, or shipped as a runtime library.",
+      "source": "Emscripten 6.0.5 package-lock.json node_modules/terser entry; sandbox/m8-staged-deploy/public_shell_minify.mjs",
+      "notes": "The assembler binds Node v22.16.0, the exact Terser package-lock integrity, and the executable dist bundle SHA-256; compression uses two passes, identifier mangling without property mangling, and preserves SPDX comments."
+    },
     "dawn": {
       "version": "chromium/7989 @ 36cf1fae0cd8a81a4fb4580751648b80b2e6255c",
       "build_time": true,

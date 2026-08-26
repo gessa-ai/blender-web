@@ -23,6 +23,8 @@ SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO="$(cd -- "${SELF_DIR}/../.." && pwd -P)"
 SHELL_DIR="${REPO}/platform_web/shell"
 BROTLI_CODEC="${SELF_DIR}/brotli_q11.mjs"
+PUBLIC_MINIFIER="${SELF_DIR}/public_shell_minify.mjs"
+TERSER_BUNDLE="${REPO}/tools/emsdk/upstream/emscripten/node_modules/terser/dist/bundle.min.js"
 PINNED_NODE="${EMSDK_NODE:-${REPO}/tools/emsdk/node/22.16.0_64bit/bin/node}"
 OUT="${SELF_DIR}/bundle-staged"
 BIN="${BLENDER_WEB_BIN:-${REPO}/build-wasm-windowed-opt/bin}"
@@ -67,6 +69,7 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     sandbox/m8-staged-deploy/stage_pack.py \
     sandbox/m8-staged-deploy/prepare_split_inventory.py \
     sandbox/m8-staged-deploy/public_shell_hardening.py \
+    sandbox/m8-staged-deploy/public_shell_minify.mjs \
     sandbox/m8-staged-deploy/service-worker.js \
     sandbox/m8-staged-deploy/service-worker-register.js; do
     [ -f "${REPO}/${f}" ] || die "self-check source missing: ${f}"
@@ -74,7 +77,9 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
   [ -x "${PINNED_NODE}" ] || die "pinned Node executable missing: ${PINNED_NODE}"
   "${PINNED_NODE}" "${BROTLI_CODEC}" --selfcheck >/dev/null || \
     die "deterministic Brotli q11/lgwin=24 self-check failed"
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=8 brotli=q11-lgwin24 apply_manifest_reads=0 writes=0"
+  "${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
+    die "deterministic public-shell minifier self-check failed"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=9 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
@@ -87,6 +92,10 @@ done
 [ -f "${BROTLI_CODEC}" ] || die "deterministic Brotli codec missing: ${BROTLI_CODEC}"
 "${PINNED_NODE}" "${BROTLI_CODEC}" --selfcheck >/dev/null || \
   die "deterministic Brotli q11/lgwin=24 self-check failed"
+[ -f "${PUBLIC_MINIFIER}" ] || die "deterministic public-shell minifier missing: ${PUBLIC_MINIFIER}"
+[ -f "${TERSER_BUNDLE}" ] || die "pinned Terser executable bundle missing: ${TERSER_BUNDLE}"
+"${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
+  die "deterministic public-shell minifier self-check failed"
 [ -f "${SELF_DIR}/_headers" ] || [ -f "${REPO}/sandbox/m8-deploy/_headers" ] || die "_headers template missing"
 [ -f "${SELF_DIR}/stage1-loader.js" ] || die "stage1-loader.js missing"
 [ -f "${SELF_DIR}/service-worker.js" ] || die "service-worker.js missing"
@@ -163,6 +172,13 @@ add='<script src="/boot-windowed.js"></script>\n  <!-- STAGED DEPLOY: stream the
 assert needle in t, "boot-windowed.js script tag not found in index.html"
 open(p,"w").write(t.replace(needle,add,1))
 PY
+# Public bundle JavaScript is derived from the reviewed source with one pinned,
+# deterministic compressor. This stays bundle-only: CAPTURE/APPLY Wasm bytes and
+# their profile generation are untouched.
+for f in diagnostics-bootstrap.js file-bridge.js boot-windowed.js stage1-loader.js; do
+  "${PINNED_NODE}" "${PUBLIC_MINIFIER}" \
+    --input "${OUT}/${f}" --output "${OUT}/${f}"
+done
 
 # --- _headers: copy template, add a .json rule for stage1-manifest.json -----------
 TEMPLATE="${SELF_DIR}/_headers"; [ -f "$TEMPLATE" ] || TEMPLATE="${REPO}/sandbox/m8-deploy/_headers"

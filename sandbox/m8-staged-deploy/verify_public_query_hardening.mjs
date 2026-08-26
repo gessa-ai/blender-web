@@ -14,6 +14,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 const BOOT = join(ROOT, 'platform_web/shell/boot-windowed.js');
 const STAGE1 = process.argv[2] ? resolve(process.argv[2]) : join(HERE, 'stage1-loader.js');
+const POSITIVE_ONLY = process.argv[3] === '--positive-only';
+if (process.argv.length > (POSITIVE_ONLY ? 4 : 3)) {
+  throw new Error('usage: verify_public_query_hardening.mjs [stage1-loader.js [--positive-only]]');
+}
 const MEASURE = join(HERE, 'measure_boot.mjs');
 const DEVELOPMENT_SEAM = 'const BW_ALLOW_QUERY_DEV_HOOKS = true;';
 const PUBLIC_SEAM = 'const BW_ALLOW_QUERY_DEV_HOOKS = false;';
@@ -292,6 +296,12 @@ async function assertStageContract(stageSource) {
 
 const stageSource = fs.readFileSync(STAGE1, 'utf8');
 await assertStageContract(stageSource);
+
+if (POSITIVE_ONLY) {
+  console.log('M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS positive=3 ' +
+    'python=off argv=off controls=off stage1_positive=7 progress=visible');
+  process.exit(0);
+}
 
 let stageNegative = 0;
 async function rejectStage(name, mutated) {

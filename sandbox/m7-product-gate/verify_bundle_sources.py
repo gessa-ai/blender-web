@@ -12,7 +12,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "sandbox/m8-staged-deploy"))
+from public_shell_hardening import harden_boot_source  # noqa: E402
 from stage_pack import parse_manifest  # noqa: E402
+from stage_provenance import minify_bytes  # noqa: E402
 
 GLTF_SOURCES = {
     "/bw/scripts/addons_core/io_scene_gltf2/io/com/library.py":
@@ -64,11 +66,15 @@ def main() -> int:
                 f"stale glTF source: {packed} bundle={len(actual)} source={len(expected)}"
             )
 
-    public_boot = (bundle / "boot-windowed.js").read_text()
-    if public_boot.count("const BW_ALLOW_QUERY_DEV_HOOKS = false;") != 1:
-        failures.append("public query dev-hook marker is not exactly once/false")
-    if "const BW_ALLOW_QUERY_DEV_HOOKS = true;" in public_boot:
-        failures.append("public bundle still enables query dev hooks")
+    public_boot = (bundle / "boot-windowed.js").read_bytes()
+    try:
+        expected_boot = minify_bytes(harden_boot_source(
+            (ROOT / "platform_web/shell/boot-windowed.js").read_bytes()))
+    except ValueError as error:
+        failures.append(f"cannot derive public boot source: {error}")
+    else:
+        if public_boot != expected_boot:
+            failures.append("public boot is not the exact hardened+minified source derivation")
 
     service_worker = (bundle / "service-worker.js").read_text()
     if "__BW_CACHE_VERSION__" in service_worker:

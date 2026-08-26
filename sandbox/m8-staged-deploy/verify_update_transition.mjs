@@ -19,6 +19,7 @@ const ROOT = resolve(SELF, "..", "..");
 const fixtureSource = readFileSync(fileURLToPath(import.meta.url), "utf8");
 const assembler = readFileSync(join(SELF, "make_staged_bundle.sh"), "utf8");
 const brotliCodec = readFileSync(join(SELF, "brotli_q11.mjs"), "utf8");
+const minifierSource = readFileSync(join(SELF, "public_shell_minify.mjs"), "utf8");
 const workerSource = readFileSync(join(SELF, "service-worker.js"), "utf8");
 const registerSource = readFileSync(join(SELF, "service-worker-register.js"), "utf8");
 const verifierSource = readFileSync(join(ROOT, "sandbox/m8-launch-gate/verify_m8.py"), "utf8");
@@ -40,6 +41,10 @@ function sourceContract() {
   assert.match(brotliCodec, /const PINNED_NODE_VERSION = "v22\.16\.0";/);
   assert.match(brotliCodec, /const QUALITY = 11;/);
   assert.match(brotliCodec, /const LGWIN = 24;/);
+  assert.match(minifierSource, /const PINNED_TERSER_VERSION = "5\.39\.0";/);
+  assert.match(minifierSource, /const COMPRESS_PASSES = 2;/);
+  assert.match(assembler, /"\$\{PINNED_NODE\}" "\$\{PUBLIC_MINIFIER\}"/);
+  assert.match(assembler, /TERSER_BUNDLE=.*terser\/dist\/bundle\.min\.js/);
   assert.match(verifierSource, /deterministic Brotli q11\/lgwin=24/);
   assert.match(assembler,
     /cache_first = \[url for url in precache if url != "\/service-worker-register\.js"\]/);

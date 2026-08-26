@@ -93,9 +93,6 @@ set(WITH_INPUT_NDOF         OFF CACHE BOOL "" FORCE)
 # resolve there (NOT the host python — the host interpreter for build-time codegen
 # scripts stays native and is set separately in platform_wasm.cmake).
 set(WITH_PYTHON             ON  CACHE BOOL "" FORCE)  # M2.3 — mandatory (Python UI + bpy)
-#   * WITH_CYCLES (CPU-only) is a launch-tier feature; OFF here to keep the
-#     OIIO/render dependency stack off the M2 configure/link path (revisit M6).
-#     When flipping it back ON later, restore the CPU-only Cycles device block below.
 # ---- Python build sub-options (cross build: no install, no numpy, no module) ---
 #   * WITH_PYTHON_INSTALL defaults ON (root CMakeLists.txt:553) and would try to
 #     COPY a *system* Python into the install dir — wrong for the wasm mono-module
@@ -119,12 +116,20 @@ set(WITH_PYTHON_INSTALL_ZSTANDARD OFF CACHE BOOL "" FORCE)
 set(WITH_TBB                 ON  CACHE BOOL "" FORCE)
 set(WITH_TBB_MALLOC_PROXY   OFF CACHE BOOL "" FORCE)   # emscripten uses -sMALLOC=mimalloc
 
-# ---- Cycles: OFF for M1, returns CPU-only in M2 ----------------------------
-set(WITH_CYCLES                      OFF CACHE BOOL "" FORCE)  # M1-only — returns (CPU-only) in M2
+# ---- Cycles: launch-tier CPU renderer only ---------------------------------
+# The WebAssembly Cycles-CPU path is measured on the M6 small-scene matrix.
+# Keep every GPU/JIT/host-ISA-only backend below disabled: WebGPU is the draw
+# backend, not a Cycles compute device, and the browser build has no OSL JIT,
+# Embree, path guiding, CUDA, HIP, Metal, oneAPI, or OptiX implementation.
+set(WITH_CYCLES                       ON CACHE BOOL "" FORCE)
 set(WITH_CYCLES_OSL                  OFF CACHE BOOL "" FORCE)  # no JIT in the sandbox
 set(WITH_CYCLES_EMBREE               OFF CACHE BOOL "" FORCE)  # x86/arm SIMD, no wasm
 set(WITH_CYCLES_PATH_GUIDING         OFF CACHE BOOL "" FORCE)  # OpenPGL, unported
 set(WITH_CYCLES_HYDRA_RENDER_DELEGATE OFF CACHE BOOL "" FORCE)
+set(WITH_CYCLES_STANDALONE           OFF CACHE BOOL "" FORCE)  # Blender integration only
+set(WITH_CYCLES_STANDALONE_GUI       OFF CACHE BOOL "" FORCE)
+set(WITH_CYCLES_PRECOMPUTE           OFF CACHE BOOL "" FORCE)  # no auxiliary host tool
+set(WITH_CYCLES_NATIVE_ONLY          OFF CACHE BOOL "" FORCE)  # portable scalar wasm kernel
 set(WITH_CYCLES_DEVICE_CUDA          OFF CACHE BOOL "" FORCE)
 set(WITH_CYCLES_DEVICE_HIP           OFF CACHE BOOL "" FORCE)
 set(WITH_CYCLES_DEVICE_HIPRT         OFF CACHE BOOL "" FORCE)
@@ -135,10 +140,15 @@ set(WITH_CYCLES_CUDA_BINARIES        OFF CACHE BOOL "" FORCE)
 set(WITH_CYCLES_HIP_BINARIES         OFF CACHE BOOL "" FORCE)
 set(WITH_CYCLES_ONEAPI_BINARIES      OFF CACHE BOOL "" FORCE)
 
-# ---- USD / Hydra / MaterialX (heavyweight, unported) -----------------------
-set(WITH_USD                OFF CACHE BOOL "" FORCE)
+# ---- USD core IO (no Hydra/Imaging/Python hooks) ---------------------------
+# OpenUSD 26.03's official Emscripten profile provides the scene-description
+# core used by UsdGeomMesh import/export. Hydra, USD Imaging adapters and pxr's
+# vendored Boost.Python layer are deliberately absent from this browser build.
+set(WITH_USD                 ON CACHE BOOL "" FORCE)
 set(WITH_HYDRA              OFF CACHE BOOL "" FORCE)
 set(WITH_MATERIALX          OFF CACHE BOOL "" FORCE)
+set(USD_HAS_IMAGING         OFF CACHE BOOL "" FORCE)
+set(USD_HAS_PYTHON_HOOKS    OFF CACHE BOOL "" FORCE)
 
 # ---- Volumes / simulation / heavy geometry (unported) ----------------------
 set(WITH_OPENVDB            OFF CACHE BOOL "" FORCE)
@@ -150,15 +160,16 @@ set(WITH_MOD_REMESH         OFF CACHE BOOL "" FORCE)
 set(WITH_UV_SLIM            OFF CACHE BOOL "" FORCE)
 set(WITH_QUADRIFLOW         OFF CACHE BOOL "" FORCE)
 set(WITH_MANIFOLD           OFF CACHE BOOL "" FORCE)
-set(WITH_OPENSUBDIV         ON  CACHE BOOL "" FORCE)  # CPU-only OSD in lib/wasm (scripts/deps/opensubdiv.sh); Subsurf/Multires + Cycles subdiv
+set(WITH_OPENSUBDIV         ON  CACHE BOOL "" FORCE)  # No native GPU API; CPU evaluators + API-independent GLSL patch source in lib/wasm
 # OpenSubdiv discovery. platform_wasm.cmake REPLACES platform_unix.cmake, so
 # platform_unix:488-493's `find_package(OpenSubdiv)` never runs; with the dep now
 # ON we seed, from this -C initial cache, the two variables that
 # build_files/cmake/platform/dependency_targets.cmake:178-179 consume directly to
 # wire bf::dependencies::optional::opensubdiv (used by BOTH intern/opensubdiv and
-# intern/cycles/subd). CPU-only harvest from scripts/deps/opensubdiv.sh at
-# lib/wasm; both osdCPU (real) and osdGPU (empty, see the script) are listed to
-# honor FindOpenSubdiv's two-component contract. This -C file lives in patches/, so
+# intern/cycles/subd). The no-native-GPU-API harvest from
+# scripts/deps/opensubdiv.sh contains osdCPU plus a real osdGPU archive holding
+# OpenSubdiv's API-independent GLSL patch-source data; both are listed to honor
+# FindOpenSubdiv's two-component contract. This -C file lives in patches/, so
 # lib/wasm is patches/../lib/wasm.
 get_filename_component(_bw_libwasm "${CMAKE_CURRENT_LIST_DIR}/../lib/wasm" ABSOLUTE)
 if(EXISTS "${_bw_libwasm}/lib/libosdCPU.a")

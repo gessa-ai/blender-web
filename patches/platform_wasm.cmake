@@ -200,6 +200,21 @@ option(WITH_BLENDER_WEB_BROWSER
   "blender-web: also emit the browser-linked `blender_browser` executable (M4.pre shell)"
   OFF)
 
+# Production no-JSPI module split. OFF preserves ordinary developer links.
+# CAPTURE links the exact SPLIT_MODULE original at a reserved GLOBAL_BASE, then
+# replaces stock per-instance instrumentation with shared-main-memory counters.
+# APPLY requires a profile bound to that exact original and fail-closed replaces
+# the instrumented wasm with its primary/secondary shipping pair.
+set(BLENDER_WEB_WASM_SPLIT_MODE "OFF" CACHE STRING
+  "blender-web wasm split mode: OFF, CAPTURE, or APPLY")
+set_property(CACHE BLENDER_WEB_WASM_SPLIT_MODE PROPERTY STRINGS OFF CAPTURE APPLY)
+set(BLENDER_WEB_WASM_SPLIT_PROFILE "" CACHE FILEPATH
+  "Binaryen profile.data used only by BLENDER_WEB_WASM_SPLIT_MODE=APPLY")
+set(BLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT "" CACHE FILEPATH
+  "Strict profile-union receipt binding APPLY profile sources and original")
+set(BLENDER_WEB_WASM_SPLIT_ORIG_SHA256 "" CACHE STRING
+  "Exact capture .wasm.orig SHA-256 required by split APPLY")
+
 # Port repo root (parent of the patches/ dir). Anchors the preload payload roots.
 if(NOT DEFINED BLENDER_WEB_REPO_ROOT)
   if(DEFINED BLENDER_WEB_PATCH_DIR)
@@ -289,6 +304,46 @@ function(blender_web_browser_binary src_target)
 -sPTHREAD_POOL_SIZE=8 -sWASMFS -sFORCE_FILESYSTEM=1 \
 -sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain")
 
+  string(TOUPPER "${BLENDER_WEB_WASM_SPLIT_MODE}" _bw_split_mode)
+  if(NOT _bw_split_mode MATCHES "^(OFF|CAPTURE|APPLY)$")
+    message(FATAL_ERROR
+      "BLENDER_WEB_WASM_SPLIT_MODE must be OFF, CAPTURE, or APPLY; got "
+      "`${BLENDER_WEB_WASM_SPLIT_MODE}`")
+  endif()
+  if(NOT _bw_split_mode STREQUAL "OFF")
+    string(APPEND _bw_browser_flags
+      " -sSPLIT_MODULE=1 -sGLOBAL_BASE=1048576")
+    if(_bw_split_mode STREQUAL "CAPTURE")
+      string(APPEND _bw_browser_flags
+        " --post-js ${BLENDER_WEB_REPO_ROOT}/platform_web/split/profile-export.js")
+    else()
+      if(NOT EXISTS "${BLENDER_WEB_WASM_SPLIT_PROFILE}")
+        message(FATAL_ERROR
+          "BLENDER_WEB_WASM_SPLIT_MODE=APPLY requires existing "
+          "BLENDER_WEB_WASM_SPLIT_PROFILE")
+      endif()
+      if(NOT EXISTS "${BLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT}")
+        message(FATAL_ERROR
+          "BLENDER_WEB_WASM_SPLIT_MODE=APPLY requires existing "
+          "BLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT")
+      endif()
+      string(LENGTH "${BLENDER_WEB_WASM_SPLIT_ORIG_SHA256}" _bw_split_hash_length)
+      if(NOT _bw_split_hash_length EQUAL 64 OR
+         BLENDER_WEB_WASM_SPLIT_ORIG_SHA256 MATCHES "[^0-9a-f]")
+        message(FATAL_ERROR
+          "BLENDER_WEB_WASM_SPLIT_MODE=APPLY requires a lowercase 64-hex "
+          "BLENDER_WEB_WASM_SPLIT_ORIG_SHA256")
+      endif()
+      # Shipping APPLY never uses Emscripten's synchronous per-realm shard
+      # loader. The page verifies/fetches/compiles once, then structured-clones
+      # the compiled module to every unique loaded pthread (minimum pool 8) and
+      # waits for exact worker-id instance ACKs.
+      # finalize-wasm-split.py binds the emitted shard's exact name/bytes/SHA.
+      string(APPEND _bw_browser_flags
+        " --post-js ${BLENDER_WEB_REPO_ROOT}/platform_web/split/single-flight.js")
+    endif()
+  endif()
+
   # BEGIN BLENDER-WEB NAME-SECTION STRIP (M8 size lane; reverse-appliable block)
   # The wasm `name` section is ~1 MB brotli of pure function-name debug metadata
   # (sandbox/m8-dce-ranking/RANKING.md item 1: ~23 MB raw -> ~1.1 MB brotli in the
@@ -323,7 +378,8 @@ function(blender_web_browser_binary src_target)
   set(_py_home   "${BLENDER_WEB_REPO_ROOT}/lib/wasm/lib/python3.13")
   set(_scripts   "${BLENDER_WEB_REPO_ROOT}/upstream/scripts")
   set(_datafiles "${BLENDER_WEB_REPO_ROOT}/upstream/release/datafiles")
-  foreach(_p "${_py_home}" "${_scripts}" "${_datafiles}")
+  set(_bw_preload_roots "${_py_home}" "${_scripts}" "${_datafiles}")
+  foreach(_p IN LISTS _bw_preload_roots)
     if(NOT EXISTS "${_p}")
       message(FATAL_ERROR "blender-web browser: preload root missing: ${_p}")
     endif()
@@ -332,6 +388,40 @@ function(blender_web_browser_binary src_target)
     " --preload-file ${_py_home}@/bw/python/lib/python3.13"
     " --preload-file ${_scripts}@/bw/scripts"
     " --preload-file ${_datafiles}@/bw/datafiles")
+
+  # OpenUSD's generated Emscripten targets normally embed each schema resource.
+  # The browser target already uses a preloaded WasmFS payload, and current
+  # Emscripten rejects mixing --embed-file with --preload-file. Package the exact
+  # same installed resource tree into that payload at OpenUSD's compiled /usd
+  # lookup root instead.
+  if(WITH_USD)
+    set(_usd_resources "${LIBDIR}/lib/usd")
+    if(NOT EXISTS "${_usd_resources}/plugInfo.json")
+      message(FATAL_ERROR
+        "blender-web browser: WITH_USD=ON but OpenUSD resources are missing: "
+        "${_usd_resources}")
+    endif()
+    string(APPEND _bw_browser_flags
+      " --preload-file ${_usd_resources}@/usd")
+    list(APPEND _bw_preload_roots "${_usd_resources}")
+  endif()
+
+  # Cycles is compiled into the executable, but its RenderEngine/UI registration
+  # remains a Python add-on. In an installed Blender, CMake installs this source
+  # tree at scripts/addons_core/cycles; the browser packages the source checkout
+  # directly, so reproduce that install mapping explicitly. Keep it conditional
+  # so Cycles-disabled diagnostic configurations retain their previous payload.
+  if(WITH_CYCLES)
+    set(_cycles_addon "${BLENDER_WEB_REPO_ROOT}/upstream/intern/cycles/blender/addon")
+    if(NOT EXISTS "${_cycles_addon}/__init__.py")
+      message(FATAL_ERROR
+        "blender-web browser: WITH_CYCLES=ON but the Cycles add-on source is missing: "
+        "${_cycles_addon}")
+    endif()
+    string(APPEND _bw_browser_flags
+      " --preload-file ${_cycles_addon}@/bw/scripts/addons_core/cycles")
+    list(APPEND _bw_preload_roots "${_cycles_addon}")
+  endif()
 
   # blender-web / D-10 (WITH_INTERNATIONAL): the compiled .mo catalogs + the `languages`
   # index live in a repo-owned tree (scripts/build-locale-datafiles.sh -> build-hosttools/
@@ -353,9 +443,12 @@ function(blender_web_browser_binary src_target)
   # ---- M4 windowed (WITH_WEBGPU_BACKEND) link additions ------------------------
   # The base flags above OVERWRITE LINK_FLAGS, so the WebGPU arm's PLATFORM_LINKFLAGS
   # (--use-port=emdawnwebgpu) are dropped for this target — re-add them here, plus:
-  #   * -sSTACK_SIZE=32MB (+ DEFAULT_PTHREAD_STACK_SIZE): the runtime shader chain
-  #     (glslang/Tint recursion) blows emscripten's 64 KB default; deps-shader-chain.md
-  #     finding 3. Later -s wins, so this overrides the 8 MB above.
+  #   * -sSTACK_SIZE=32MB: the runtime shader chain (glslang/Tint recursion) runs
+  #     on the PROXY_TO_PTHREAD WM main and blows Emscripten's small default;
+  #     deps-shader-chain.md finding 3. Ordinary pthreads use an independent 8 MB
+  #     default so the precreated/TBB worker set does not reserve 32 MB per worker.
+  #     Later -s wins, so STACK_SIZE overrides the 8 MB base flag above while
+  #     DEFAULT_PTHREAD_STACK_SIZE remains explicitly 8 MB.
   # NO -sJSPI (M4 T9 empirical finding, notes/m4-integration.md T9): -sJSPI was added
   # for GHOST_ContextWGPUWeb::initializeDrawingContext()'s WaitAny device await, but
   # (a) it is UNNEEDED — the device is acquired ASYNC on the PROXY_TO_PTHREAD WM worker
@@ -380,7 +473,7 @@ function(blender_web_browser_binary src_target)
   if(WITH_WEBGPU_BACKEND)
     string(APPEND _bw_browser_flags
       " --use-port=emdawnwebgpu"
-      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=33554432"
+      " -sSTACK_SIZE=33554432 -sDEFAULT_PTHREAD_STACK_SIZE=8388608"
       # M4.T12 first-window pixels: transfer the DOM `#canvas` to the proxied-main
       # (WM) worker as an OffscreenCanvas so emdawnwebgpu's CreateSurface ->
       # findCanvasEventTarget('#canvas') resolves THERE (the worker has no `document`;
@@ -401,6 +494,43 @@ function(blender_web_browser_binary src_target)
 
   set_target_properties(${_new} PROPERTIES LINK_FLAGS "${_bw_browser_flags}")
 
+  if(NOT _bw_split_mode STREQUAL "OFF")
+    set_property(TARGET ${_new} APPEND PROPERTY LINK_DEPENDS
+      "${BLENDER_WEB_REPO_ROOT}/scripts/finalize-wasm-split.py")
+    if(_bw_split_mode STREQUAL "CAPTURE")
+      set_property(TARGET ${_new} APPEND PROPERTY LINK_DEPENDS
+        "${BLENDER_WEB_REPO_ROOT}/platform_web/split/profile-export.js")
+    else()
+      set_property(TARGET ${_new} APPEND PROPERTY LINK_DEPENDS
+        "${BLENDER_WEB_WASM_SPLIT_PROFILE}"
+        "${BLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT}"
+        "${BLENDER_WEB_REPO_ROOT}/platform_web/split/single-flight.js")
+    endif()
+    string(TOLOWER "${_bw_split_mode}" _bw_split_mode_lower)
+    set(_bw_split_args
+      --mode "${_bw_split_mode_lower}"
+      --wasm "$<TARGET_FILE_DIR:${_new}>/$<TARGET_FILE_BASE_NAME:${_new}>.wasm"
+      --js "$<TARGET_FILE:${_new}>"
+      --wasm-split "${BLENDER_WEB_REPO_ROOT}/tools/emsdk/upstream/bin/wasm-split"
+      --ninja "${CMAKE_MAKE_PROGRAM}"
+      --build-dir "${CMAKE_BINARY_DIR}"
+      --target "${_new}"
+      --receipt "$<TARGET_FILE_DIR:${_new}>/$<TARGET_FILE_BASE_NAME:${_new}>.split-build.json")
+    if(_bw_split_mode STREQUAL "APPLY")
+      list(APPEND _bw_split_args
+        --profile "${BLENDER_WEB_WASM_SPLIT_PROFILE}"
+        --profile-receipt "${BLENDER_WEB_WASM_SPLIT_PROFILE_RECEIPT}"
+        --expected-orig-sha256 "${BLENDER_WEB_WASM_SPLIT_ORIG_SHA256}")
+    endif()
+    add_custom_command(TARGET ${_new} POST_BUILD
+      COMMAND "${PYTHON_EXECUTABLE}"
+        "${BLENDER_WEB_REPO_ROOT}/scripts/finalize-wasm-split.py"
+        ${_bw_split_args}
+      COMMENT
+        "blender-web: finalizing ${_bw_split_mode} shared-memory wasm split artifact"
+      VERBATIM)
+  endif()
+
   # ---- strip triplicate __pycache__ from the preload payload -------------------
   # BEGIN BLENDER-WEB PYCACHE PRUNE (M8 size lane; reverse-appliable block)
   # Emscripten --preload-file / file_packager has NO exclude globs, so without this
@@ -416,7 +546,7 @@ function(blender_web_browser_binary src_target)
   add_custom_command(TARGET ${_new} PRE_LINK
     COMMAND bash
       "${BLENDER_WEB_REPO_ROOT}/scripts/deps/prune-preload-pycache.sh"
-      "${_py_home}" "${_scripts}" "${_datafiles}"
+      ${_bw_preload_roots}
     COMMENT "blender-web: pruning __pycache__ from preload roots (py-only .data)"
     VERBATIM)
   # END BLENDER-WEB PYCACHE PRUNE
@@ -657,9 +787,10 @@ endif()
 # OWN bundled Find modules — those need *_INCLUDE_DIR/_LIBRARY (NOT *_ROOT for
 # minizip-ng: the ROOT path hits a get_target_property trap).
 #
-# Optional/gated deps (Python, Cycles/OSL/Embree, USD, OpenVDB, audio, ...) are
-# resolved by their own WITH_-guarded blocks in Blender's tree and are forced OFF
-# in patches/blender_web.cmake, so they need nothing here.
+# Optional/gated dependencies are resolved by their own WITH_-guarded blocks.
+# Cycles-CPU and Python are enabled, while Cycles' optional OSL/Embree/path-guiding
+# stacks and the other unported heavyweight subsystems remain forced OFF in
+# patches/blender_web.cmake, so no additional package discovery is needed here.
 if(WITH_LIBS_PRECOMPILED)
   # ---- CONFIG-package location hints ----------------------------------------
   set(fmt_DIR            "${LIBDIR}/lib/cmake/fmt")
@@ -721,6 +852,43 @@ if(WITH_LIBS_PRECOMPILED)
   find_package(PNG REQUIRED)                       # -> PNG_INCLUDE_DIRS/PNG_LIBRARIES
   find_package(TIFF REQUIRED)                      # OIIO find_dependency
   find_package(TBB REQUIRED)                       # -> TBB::tbb
+  if(WITH_USD)
+    # OpenUSD's Emscripten install puts pxrConfig.cmake at the prefix root.
+    # Bypass the toolchain's sysroot re-rooting and consume usdShaders rather
+    # than a bare archive: the imported target whole-archives usd_m and carries
+    # every required /usd plugInfo/schema --embed-file option.
+    set(PXR_FIND_TBB_IN_CONFIG ON)
+    set(pxr_DIR "${LIBDIR}")
+    find_package(pxr CONFIG REQUIRED NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+    if(NOT TARGET usdShaders)
+      message(FATAL_ERROR "blender-web: OpenUSD package exports no usdShaders target")
+    endif()
+    # OpenUSD's generated targets attach one --embed-file option per schema and
+    # plugInfo resource. blender_browser already uses --preload-file, and
+    # Emscripten 4 rejects mixing those modes. Remove only OpenUSD resource
+    # options here; blender_web_browser_binary packages the complete installed
+    # lib/usd tree at the identical /usd paths in the common preload payload.
+    get_property(_bw_imported_targets DIRECTORY PROPERTY IMPORTED_TARGETS)
+    foreach(_bw_imported_target IN LISTS _bw_imported_targets)
+      get_target_property(_bw_imported_link_options
+        ${_bw_imported_target} INTERFACE_LINK_OPTIONS)
+      if(_bw_imported_link_options MATCHES "--embed-file")
+        set_property(TARGET ${_bw_imported_target} PROPERTY INTERFACE_LINK_OPTIONS "")
+      endif()
+    endforeach()
+    unset(_bw_imported_link_options)
+    unset(_bw_imported_target)
+    unset(_bw_imported_targets)
+    # pxrConfig.cmake uses directory-wide add_definitions(-DPXR_STATIC), which
+    # would leak into every Blender translation unit and force a full rebuild.
+    # Scope the ABI definition to the imported consumer interface instead.
+    remove_definitions(-DPXR_STATIC)
+    set_property(TARGET usdShaders APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS PXR_STATIC)
+    set(USD_INCLUDE_DIRS "${PXR_INCLUDE_DIRS}")
+    set(USD_LIBRARIES usdShaders)
+    set(USD_LIBRARY_DIR "${LIBDIR}/lib")
+    set(USD_FOUND TRUE)
+  endif()
   find_package(OpenColorIO 2.0.0 REQUIRED)         # -> OpenColorIO::OpenColorIO
   find_package(OpenImageIO REQUIRED)               # -> OpenImageIO::OpenImageIO
   find_package(Eigen3 REQUIRED)                    # -> Eigen3::Eigen
@@ -750,7 +918,7 @@ if(WITH_LIBS_PRECOMPILED)
 
   if(FIRST_RUN)
     message(STATUS "blender-web: resolved wasm deps from ${LIBDIR} "
-                   "(OIIO/OCIO/OpenEXR/Imath/fmt/TBB/Eigen3/JPEG/PNG/TIFF/zlib/zstd/Freetype/Brotli)")
+                   "(OIIO/OCIO/OpenEXR/Imath/fmt/TBB/Eigen3/JPEG/PNG/TIFF/zlib/zstd/Freetype/Brotli/OpenUSD-core)")
   endif()
 else()
   # ---------------------------------------------------------------------------

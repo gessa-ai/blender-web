@@ -2871,8 +2871,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,143,448-byte `.wasm.orig` at
-  SHA-256 `76aa5d619fb3f1becb66828e96d4fba68dffb621af2d4d3ccd70fd77c10e0fff`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,142,906-byte `.wasm.orig` at
+  SHA-256 `edd94c4208c4c5229b197db20779336fb85293a79eb2ad7dc1fc3a8058e89336`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
@@ -2927,9 +2927,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   38-mutation contract, native/wasm32 matrix, CAPTURE product, and fallback boot are green. The
   named multi-window deferral remains truthful. See
   `notes/m4-single-canvas-second-window-20260826.md`.
-- [ ] **AUDIT-R12-M8-CALLBACK-REGISTRATION-SOAK [ghost-web, claimed_by: none]:** bound or budget
-  process-lifetime callback-registration metadata and soak repeated failed/replacement registration
-  before M8 leak closure.
+- [x] **AUDIT-R12-M8-CALLBACK-REGISTRATION-SOAK [ghost-web] COMPLETE:** the unbounded retained
+  record vector is replaced by a fixed 4,096-byte pool of never-recycled opaque tokens; all failed
+  and successful attempts consume the hard process budget and exhaustion fails closed. A real
+  worker soak holds stale delivery across 128 rolled-back prefixes plus 256 window replacements,
+  proves exact token accounting and listener balance, rejects the stale callback, and retains fresh
+  input. Native/wasm32 integration, adjacent browser paths, locked CAPTURE relink/no-work, split
+  producer checks, fallback product boot, REUSE, and regression preserve their strict boundaries.
+  See `notes/m8-callback-registration-soak-20260826.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE then trusted physical input session]:** on
   a supported headed browser/OS, exercise a browser-generated OS IME composition and a physical

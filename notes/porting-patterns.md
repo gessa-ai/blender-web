@@ -1732,3 +1732,16 @@ at a hard ceiling without hiding on timeout. Exercise the rejected timer, the re
 masked-marker counter fallback against the same product. See
 `platform_web/shell/boot-windowed.js` and
 `sandbox/m4-frame-coherence/`.
+
+## Class 118 — virtual filesystem rename atomicity stops at backend boundaries
+
+Signature: a staged loader writes complete files under a writable temporary mount and renames
+them into a read-only preloaded tree, assuming POSIX rename semantics span both paths. WasmFS
+routes those directories through different backends, so every cross-directory publication fails
+even though streaming, byte accounting, and temporary writes succeed. Validate publication in the
+real runtime, not a permissive mock. Temporarily add only owner write/search permission to each
+already-created destination parent, stage a sibling temporary file, rename within that directory,
+and restore every original mode on success, fetch failure, cleanup failure, and retry. Bind safe
+manifest paths, duplicate rejection, same-parent rename, mode restoration, and exact post-publish
+bytes with mutations. See `sandbox/m8-staged-deploy/stage1-loader.js` and
+`sandbox/m8-stage0-ui-font/probe_candidate.mjs`.

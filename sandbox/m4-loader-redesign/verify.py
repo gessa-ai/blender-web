@@ -17,9 +17,10 @@ SHELL = ROOT / "platform_web/shell/windowed.html"
 BOOT = ROOT / "platform_web/shell/boot-windowed.js"
 FONT = ROOT / "platform_web/shell/fonts/bw-interface-sans.woff2"
 FONT_NOTES = ROOT / "platform_web/shell/fonts/README.md"
+FONT_GENERATOR = ROOT / "scripts/subset-loader-font.py"
 OFL = ROOT / "LICENSES/OFL-1.1.txt"
 SOURCE_URL = "https://github.com/gessa-ai/blender-web"
-FONT_SHA256 = "266290448afbfd4c6ce386bbad0b305b478ca2612f665d1b26e5efc4d17e8190"
+FONT_SHA256 = "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f"
 DISCLAIMER = (
     "Not affiliated with, endorsed by, or sponsored by the Blender Foundation. "
     "Blender® is a registered trademark of the Blender Foundation."
@@ -129,6 +130,9 @@ def main() -> None:
     require(font_bytes[:4] == b"wOF2", "font asset is not WOFF2")
     require(hashlib.sha256(font_bytes).hexdigest() == FONT_SHA256,
             "font subset identity drifted")
+    require('options.layout_features = ["*"]' in
+            FONT_GENERATOR.read_text(encoding="utf-8"),
+            "font generator no longer preserves source shaping")
     require(FONT_NOTES.is_file() and "upstream/release/datafiles/fonts/Inter.woff2" in
             FONT_NOTES.read_text(encoding="utf-8"), "font derivation notes missing")
     require(OFL.is_file() and "SIL Open Font License 1.1" in

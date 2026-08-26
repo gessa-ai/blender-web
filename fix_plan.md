@@ -1103,10 +1103,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     parser. On the exact rebuilt CAPTURE product's software-adapter diagnostic, seed-disabled
     first presentation is 22,472 ms versus 5,207 ms bundled (101 hits, zero misses, zero page
     errors), a 17,265 ms reduction. This is not a hardware performance receipt. The 87,696 B
-    Brotli seed also moves the conservative complete-wire projection to ~15,056,447 B, about
-    56.4 kB over the 15 MB bar before the small Wasm delta; the next staging cut must recover
-    >=60 kB and the current APPLY product must be remeasured. Evidence:
-    `notes/m8-first-boot-shader-cache-seed-20260826.md`.
+    Brotli seed initially moved the conservative complete-wire projection to ~15,056,447 B.
+    The subsequent layout-preserving Stage-0 UI-font bootstrap recovers 314,343 net critical
+    bytes after its stronger publisher/control contracts, bringing the projection to ~14,742,104 B.
+    The current APPLY product must still be built and measured exactly. Evidence:
+    `notes/m8-first-boot-shader-cache-seed-20260826.md` and
+    `notes/m8-stage0-ui-font-bootstrap-20260826.md`.
   - P3 python (cattrs) follows separately.
 
 ### Migration save point — 2026-08-18 (ornith-lab, WSL2 Linux)
@@ -2926,8 +2928,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
   plus one single-line GPL source/trademark footer. The proof/marketing copy moved to `README.md`;
   `#bw-diag`, `?gate=`, and first-semantic-pixel dismissal are preserved. A reproducible renamed
-  Inter 4.001 subset ships locally at 9,500 bytes (SHA-256
-  `266290448afbfd4c6ce386bbad0b305b478ca2612f665d1b26e5efc4d17e8190`) with OFL metadata,
+  Inter 4.001 subset initially shipped locally at 9,500 bytes; the Stage-0 bootstrap pass later
+  expanded it to a layout-preserving 22,480 bytes (SHA-256
+  `47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f`) with OFL metadata,
   immutable MIME/cache policy, precache, monolithic/staged inventory, provenance, and exact-tree
   coverage. The release relink exposed one stale call to the removed `setIndeterminate()` helper;
   `824686b` replaces it with a truthful `setProgress(0)` reset and makes both loader and P0-G

@@ -2,7 +2,7 @@
   "_m2_8_audit": "M2.8 CLOSED (2026-08-05): deps.json completeness gate. Full harvested inventory reconciled 1:1 against the ledger \u2014 98 static archives on disk (31 lib/wasm/lib + 4 lib/wasm/shaderc/lib + 63 lib/wasm/tint/lib) plus the header-only harvests (eigen, robinmap) and the OIIO-bundled pugixml, every one mapping to a `wasm_built` entry carrying {license (SPDX id), gpl_compatible, rationale, source}. The shader-chain transitive closure that ships as its own archives but has no dedicated harvest script (shaderc's glslang; Tint's SPIRV-Tools, SPIRV-Headers, abseil, dawn_shared_utils) is now enumerated as structured `bundled` sub-entries under the shaderc/tint parents (version pin + SPDX license + gpl_compatible + runtime_linked), promoting the earlier prose to auditable records. Build-time-only / native-harness deps recorded under `toolchain` with build_time:true. FINDING (unchanged): every SHIPPED runtime dep is GPL-compatible under Blender's GPL-2.0-or-later \u2014 the Apache-2.0 deps (oneTBB, OpenImageIO, shaderc/glslang, Tint's SPIRV-Tools+abseil) and the one MPL-2.0 dep (Eigen) are GPL-compatible via the or-later\u2192GPLv3 path / MPL-2.0's GPL-compat clause (same posture as upstream Blender, which is GPL-2.0-or-later precisely to combine with them). NO GPL-incompatible runtime dep \u2014 no red flag. Versions/hashes cross-checked against upstream/build_files/build_environment/cmake/versions.cmake at the pin; shader-closure pins against notes/deps-shader-chain.md (Dawn chromium/7989).",
   "decided": {
     "loader_font": {
-      "name": "Inter loader subset",
+      "name": "Inter layout-preserving subset",
       "version": "4.001",
       "status": "ship",
       "license": "OFL-1.1",
@@ -10,8 +10,8 @@
       "source": "upstream/release/datafiles/fonts/Inter.woff2 @ fbe6228777e7",
       "source_sha256": "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47",
       "artifact": "platform_web/shell/fonts/bw-interface-sans.woff2",
-      "artifact_sha256": "266290448afbfd4c6ce386bbad0b305b478ca2612f665d1b26e5efc4d17e8190",
-      "rationale": "The release loader requires a fully local Inter face with no CSP-sensitive external fetch. A 9,500-byte static Latin-1 subset is sufficient for the loader and is renamed BW Interface Sans because subsetting creates an OFL Modified Version.",
+      "artifact_sha256": "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f",
+      "rationale": "The release loader and transient Stage-0 Blender UI require a fully local Inter face with no CSP-sensitive external fetch. The 22,480-byte static Latin-1 subset retains source shaping so the English first frame does not reflow before Stage 1 restores the complete font; it is renamed BW Interface Sans because subsetting creates an OFL Modified Version.",
       "runtime_linked": false,
       "runtime_asset": true
     }
@@ -691,7 +691,7 @@
       "native_only": true,
       "license": "MIT",
       "gpl_compatible": true,
-      "rationale": "Pinned build-time font instancer/subsetter for the 9,500-byte loading-shell WOFF2. It is never shipped or linked into the browser product.",
+      "rationale": "Pinned build-time font instancer/subsetter for the 22,480-byte layout-preserving loading-shell and Stage-0 UI WOFF2. It is never shipped or linked into the browser product.",
       "source": "PyPI fonttools 4.59.2; scripts/subset-loader-font.py"
     },
     "python_brotli_loader_subset": {

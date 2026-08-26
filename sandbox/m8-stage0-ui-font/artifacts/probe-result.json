@@ -1,0 +1,112 @@
+{
+  "contract": "stage0-ui-font-bootstrap-diagnostic-v1",
+  "diagnosticNonreceipt": true,
+  "baseline": {
+    "label": "baseline",
+    "initialFont": {
+      "bytes": 351132,
+      "sha256": "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47"
+    },
+    "restoredFont": null,
+    "fontRaster": null,
+    "stage1": null,
+    "initialPng": {
+      "bytes": 4255,
+      "sha256": "0cfd30fa80b5e76dea5d0231d958479c38ea63901b2d2083bfe8139913b3c3ff"
+    },
+    "restoredPng": null,
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ],
+    "pageErrors": []
+  },
+  "candidate": {
+    "label": "candidate",
+    "initialFont": {
+      "bytes": 22480,
+      "sha256": "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f"
+    },
+    "restoredFont": {
+      "bytes": 351132,
+      "sha256": "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47"
+    },
+    "fontRaster": {
+      "codepoints": 190,
+      "fullWidth": 1544.4365234375,
+      "subsetWidth": 1544.4365234375,
+      "changedChannels": 264,
+      "maxChannelDelta": 255,
+      "changedCodepoints": [
+        170,
+        179,
+        186
+      ],
+      "basicLatinFullWidth": 758.4814453125,
+      "basicLatinSubsetWidth": 758.4814453125,
+      "basicLatinChangedChannels": 0
+    },
+    "stage1": {
+      "phase": "done",
+      "filesTotal": 2964,
+      "filesDone": 2964,
+      "bytesTotal": 152713387,
+      "bytesFetched": 152713387,
+      "bytesDone": 152713387,
+      "bufferLimitBytes": 16777216,
+      "largestFileBytes": 11425316,
+      "bufferedBytes": 0,
+      "peakBufferedBytes": 11425316,
+      "streamChunkLimitBytes": 16777216,
+      "chunkBytes": 0,
+      "peakChunkBytes": 2097152,
+      "transientLimitBytes": 33554432,
+      "peakTransientBytes": 13522468,
+      "writableDirectoryCount": 335,
+      "bootstrapTotal": 1,
+      "bootstrapDone": 1,
+      "fontRefresh": "done",
+      "startedAt": 8333.359999999404,
+      "fetchedAt": 8808.605000004172,
+      "doneAt": 9695.034999996424,
+      "attempt": 1,
+      "maxAttempts": 3,
+      "retryable": false,
+      "error": null,
+      "visible": true,
+      "visibleLabel": "Assets ready · 145.6 / 145.6 MB",
+      "visiblePhases": [
+        "Downloading assets",
+        "Installing assets",
+        "Assets ready"
+      ]
+    },
+    "initialPng": {
+      "bytes": 4255,
+      "sha256": "0cfd30fa80b5e76dea5d0231d958479c38ea63901b2d2083bfe8139913b3c3ff"
+    },
+    "restoredPng": {
+      "bytes": 4429,
+      "sha256": "81764b9cf9b95cd0032c700f723d0fcb79cb15da95d6bd7709f78c81cb56de89"
+    },
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ],
+    "pageErrors": []
+  },
+  "initialDelta": {
+    "width": 1280,
+    "height": 720,
+    "changed": 0,
+    "ratio": 0,
+    "maxChannelDelta": 0,
+    "totalChannelDelta": 0
+  },
+  "restoredDelta": {
+    "width": 1280,
+    "height": 720,
+    "changed": 25,
+    "ratio": 0.00002712673611111111,
+    "maxChannelDelta": 231,
+    "totalChannelDelta": 14049
+  }
+}

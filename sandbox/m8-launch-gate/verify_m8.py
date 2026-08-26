@@ -1171,6 +1171,8 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
     require(proof.get("stage1_byte_exact") is True, "stage-1 byte-exact proof missing", failures)
     require(proof.get("stage1_complete") is True,
             "stage-1 did not install every deferred byte/file cleanly", failures)
+    require(proof.get("stage1_bootstrap_restored") is True,
+            "stage-1 did not restore and reload the exact full UI font", failures)
     require(proof.get("stage1_memory_bounded") is True,
             "stage-1 transient payload memory proof missing", failures)
     require(proof.get("progress_phases_visible") is True, "visible phase/MB progress proof missing", failures)

@@ -152,7 +152,7 @@ def main() -> None:
         "/bw/datafiles/studiolights/matcap/basic_bright.exr": "defer",
         "/bw/datafiles/studiolights/world/studio.exr": "defer",
         "/bw/datafiles/studiolights/matcap/basic.exr": "defer",
-        "/bw/datafiles/fonts/Inter.woff2": "keep",
+        "/bw/datafiles/fonts/Inter.woff2": "bootstrap",
         "/bw/datafiles/fonts/DejaVuSansMono.woff2": "keep",
         "/bw/datafiles/fonts/Noto Sans CJK Regular.woff2": "defer",
         "/bw/datafiles/colormanagement/config.ocio": "keep",
@@ -212,17 +212,26 @@ def main() -> None:
         if actual != expected:
             raise AssertionError(f"discovery placeholder {filename}: {actual} != {expected}")
 
+    full_font = (HERE.parents[1] / "upstream/release/datafiles/fonts/Inter.woff2").read_bytes()
+    bootstrap_font = MODULE.ui_font_bootstrap_payload(full_font)
+    font_start = 10
+    font_end = font_start + len(full_font)
+    template_end = font_end + 4
+    numpy_end = template_end + 4
+    forest_end = numpy_end + 4
     entries = [
         ("/bw/python/lib/python3.13/os.py", "0", "1e+0"),
         ("/bw/python/lib/python3.13/asyncio/tasks.py", "1e+0", "3"),
         ("/bw/python/lib/python3.13/__pycache__/x.pyc", "3", "6"),
         ("/usd/plugin.json", "6", "1e+1"),
-        ("/bw/datafiles/fonts/Inter.woff2", "10", "15"),
-        ("/bw/scripts/startup/bl_app_templates_system/VFX/startup.blend", "15", "19"),
-        ("/bw/python/lib/python3.13/site-packages/numpy/__init__.py", "19", "23"),
-        ("/bw/datafiles/studiolights/world/forest.exr", "23", "27"),
+        ("/bw/datafiles/fonts/Inter.woff2", str(font_start), str(font_end)),
+        ("/bw/scripts/startup/bl_app_templates_system/VFX/startup.blend",
+         str(font_end), str(template_end)),
+        ("/bw/python/lib/python3.13/site-packages/numpy/__init__.py",
+         str(template_end), str(numpy_end)),
+        ("/bw/datafiles/studiolights/world/forest.exr", str(numpy_end), str(forest_end)),
     ]
-    source_data = b"ABBCCCDDDDEEEEEFFFFGGGGHHHH"
+    source_data = b"ABBCCCDDDD" + full_font + b"FFFFGGGGHHHH"
     with tempfile.TemporaryDirectory(prefix="bw-stage-pack-contract-") as temp_text:
         temp = Path(temp_text)
         source = write_source(temp, manifest(entries, len(source_data)), source_data)
@@ -230,41 +239,54 @@ def main() -> None:
         result = run_packer(source, output)
         if result.returncode != 0:
             raise AssertionError(f"valid pack failed: {result.stderr or result.stdout}")
-        if (output / "blender_browser.data").read_bytes() != b"AEEEEE":
+        if (output / "blender_browser.data").read_bytes() != b"A" + bootstrap_font:
             raise AssertionError("stage-0 concatenation changed")
-        if (output / "stage1.data").read_bytes() != b"BBDDDDFFFFGGGGHHHH":
+        expected_stage1 = b"BBDDDD" + full_font + b"FFFFGGGGHHHH"
+        if (output / "stage1.data").read_bytes() != expected_stage1:
             raise AssertionError("stage-1 concatenation changed")
         _, _, packed_entries, packed_size = MODULE.parse_manifest(
             (output / "blender_browser.js").read_text(encoding="utf-8")
         )
         expected_entries = [
             (entries[0][0], 0, 1),
-            (entries[4][0], 1, 6),
+            (entries[4][0], 1, 1 + len(bootstrap_font)),
             (entries[7][0], 0, 0),
         ]
-        if packed_entries != expected_entries or packed_size != 6:
+        if packed_entries != expected_entries or packed_size != 1 + len(bootstrap_font):
             raise AssertionError(
                 f"rewritten preload manifest changed: {packed_entries!r}/{packed_size}"
             )
         stage1 = json.loads((output / "stage1-manifest.json").read_text(encoding="utf-8"))
         if stage1 != {
-            "total_bytes": 18,
+            "total_bytes": len(expected_stage1),
             "files": [
                 {"filename": entries[1][0], "start": 0, "end": 2},
                 {"filename": entries[3][0], "start": 2, "end": 6},
-                {"filename": entries[5][0], "start": 6, "end": 10},
-                {"filename": entries[6][0], "start": 10, "end": 14},
-                {"filename": entries[7][0], "start": 14, "end": 18},
+                {"filename": entries[4][0], "start": 6, "end": 6 + len(full_font)},
+                {"filename": entries[5][0], "start": 6 + len(full_font),
+                 "end": 10 + len(full_font)},
+                {"filename": entries[6][0], "start": 10 + len(full_font),
+                 "end": 14 + len(full_font)},
+                {"filename": entries[7][0], "start": 14 + len(full_font),
+                 "end": 18 + len(full_font)},
             ],
+            "bootstrap": [{
+                "filename": entries[4][0],
+                "stage0_bytes": len(bootstrap_font),
+                "stage0_sha256": MODULE.UI_FONT_BOOTSTRAP_SHA256,
+                "restored_bytes": len(full_font),
+                "restored_sha256": MODULE.UI_FONT_SOURCE_SHA256,
+                "action": "reload-interface-fonts",
+            }],
         }:
             raise AssertionError(f"stage-1 manifest changed: {stage1!r}")
         deferred_names = {row["filename"] for row in stage1["files"]}
         retained_deferred = deferred_names.intersection(
             filename for filename, _, _ in packed_entries
         )
-        if retained_deferred != {entries[7][0]}:
+        if retained_deferred != {entries[4][0], entries[7][0]}:
             raise AssertionError(
-                f"discovery-only Stage-0 filenames changed: {retained_deferred!r}"
+                f"bootstrap/discovery Stage-0 filenames changed: {retained_deferred!r}"
             )
 
         malformed = manifest(entries, len(source_data)).replace("start:0", "start:bogus", 1)
@@ -280,7 +302,9 @@ def main() -> None:
         )
         (invalid_source / "blender_browser.data").write_bytes(source_data)
         invalid = run_packer(invalid_source, temp / "invalid-out")
-        if invalid.returncode == 0 or "remote_package_size 26 != data bytes 27" not in (
+        if invalid.returncode == 0 or \
+                f"remote_package_size {len(source_data) - 1} != data bytes {len(source_data)}" \
+                not in (
             invalid.stderr + invalid.stdout
         ):
             raise AssertionError("end-to-end remote-size mutation did not fail closed")
@@ -300,6 +324,11 @@ def main() -> None:
         ):
             raise AssertionError("missing directory-creation contract did not fail closed")
 
+    expect_exit(
+        "UI font source identity",
+        lambda: MODULE.ui_font_bootstrap_payload(b"not Blender's Inter"),
+        "UI font source identity drifted",
+    )
     expect_exit(
         "unsafe precreated directory",
         lambda: MODULE.parse_precreated_directories(
@@ -348,7 +377,7 @@ def main() -> None:
     print(
         "BW_STAGE_PACK_CONTRACT_PASS "
         f"classifications={len(classifications)} discovery={len(discovery_cases)} "
-        "positive=7 negative=12"
+        "positive=9 negative=13"
     )
 
 

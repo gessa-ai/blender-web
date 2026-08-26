@@ -237,6 +237,7 @@ const receipt = {
   interactive_viewport_under_8s: false,
   stage1_byte_exact: false,
   stage1_complete: false,
+  stage1_bootstrap_restored: false,
   stage1_memory_bounded: false,
   stage1_memory: null,
   progress_phases_visible: false,
@@ -710,9 +711,30 @@ await page.evaluate(() => window.__bwStage1Load && window.__bwStage1Load());
 let st = null;
 for (let i = 0; i < 120; i++) { st = await page.evaluate(() => window.__bwStage1); if (st && (st.phase === 'done' || st.phase === 'done-with-errors' || st.phase === 'error')) break; await sleep(500); }
 log('stage1 state: ' + JSON.stringify(st));
+const bootstrapProof = await page.evaluate(async () => {
+  const manifest = await (await fetch('/bin/stage1-manifest.json')).json();
+  const row = Array.isArray(manifest.bootstrap) && manifest.bootstrap.length === 1 ?
+    manifest.bootstrap[0] : null;
+  if (!row) return {valid: false, error: 'exact singleton bootstrap row missing'};
+  const bytes = window.__bwModule.FS.readFile(row.filename);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const sha256 = Array.from(digest, (value) => value.toString(16).padStart(2, '0')).join('');
+  return {
+    valid: bytes.length === row.restored_bytes && sha256 === row.restored_sha256,
+    filename: row.filename,
+    bytes: bytes.length,
+    sha256,
+    expectedBytes: row.restored_bytes,
+    expectedSha256: row.restored_sha256,
+  };
+});
+receipt.stage1_bootstrap_restored = !!st && st.bootstrapTotal === 1 &&
+  st.bootstrapDone === 1 && st.fontRefresh === 'done' && bootstrapProof.valid === true;
+log('stage1 bootstrap restore: ' + JSON.stringify(bootstrapProof));
 receipt.stage1_complete = !!st && st.phase === 'done' && !st.error &&
   st.filesDone === st.filesTotal && st.filesTotal > 0 &&
-  st.bytesDone === st.bytesTotal && st.bytesTotal > 0;
+  st.bytesDone === st.bytesTotal && st.bytesTotal > 0 &&
+  receipt.stage1_bootstrap_restored;
 if (!receipt.stage1_complete) fail('stage-1 did not install every byte/file cleanly: ' + JSON.stringify(st));
 receipt.stage1_memory = st ? {
   payload_bytes: st.bytesTotal,

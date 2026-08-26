@@ -26,8 +26,9 @@ precedence = "override"
 SPDX-FileCopyrightText = "2013 Pixar"
 SPDX-License-Identifier = "LicenseRef-OpenSubdiv-TOST-1.0"
 
-# Static Regular subset of Blender's pinned Inter 4.001 datafile. The subset is
-# renamed to BW Interface Sans and remains under the font's OFL-1.1 terms.
+# Static Regular, layout-preserving subset of Blender's pinned Inter 4.001
+# datafile. The subset is renamed to BW Interface Sans and remains under the
+# font's OFL-1.1 terms.
 [[annotations]]
 path = "platform_web/shell/fonts/bw-interface-sans.woff2"
 precedence = "override"

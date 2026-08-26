@@ -36,11 +36,17 @@
 #           non-default colormanagement LUTs (keep config.ocio + the default AgX display
 #           path), build-time/compiled-in source assets and external StudioLight images.
 #           [--defer-datafiles]
+#   BOOTSTRAP - a launch-equivalent compact asset in stage-0 plus the exact
+#           Blender source asset in stage-1. The UI font is reloaded after
+#           restoration, so the compact first-frame copy never becomes the
+#           session's permanent font.
 #   KEEP  - everything else (-> stage-0).
 import argparse
 from decimal import Decimal, InvalidOperation
+import hashlib
 import json
 import os
+from pathlib import Path
 import posixpath
 import re
 import sys
@@ -52,6 +58,14 @@ RE_ENTRY = re.compile(
 RE_CREATE_PATH = re.compile(
     r'Module\["FS_createPath"\]\("([^"\\]*)","([^"\\]*)",true,true\)'
 )
+
+ROOT = Path(__file__).resolve().parents[2]
+UI_FONT_PATH = "/bw/datafiles/fonts/Inter.woff2"
+UI_FONT_BOOTSTRAP = ROOT / "platform_web/shell/fonts/bw-interface-sans.woff2"
+UI_FONT_SOURCE_BYTES = 351_132
+UI_FONT_SOURCE_SHA256 = "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47"
+UI_FONT_BOOTSTRAP_BYTES = 22_480
+UI_FONT_BOOTSTRAP_SHA256 = "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f"
 
 # --- oracle-validated partition sets (notes/m8-staged-loading.md sec 2-3) --------
 DEAD_STDLIB = (
@@ -649,8 +663,23 @@ def requires_discovery_placeholder(fn):
     return fn.startswith(STUDIOLIGHT_DISCOVERY_PREFIXES) and not fn.endswith("/license.txt")
 
 
+def ui_font_bootstrap_payload(source):
+    """Validate both font generations and return the compact Stage-0 bytes."""
+    if len(source) != UI_FONT_SOURCE_BYTES or hashlib.sha256(source).hexdigest() != \
+            UI_FONT_SOURCE_SHA256:
+        sys.exit("stage_pack: FATAL: Blender UI font source identity drifted")
+    try:
+        bootstrap = UI_FONT_BOOTSTRAP.read_bytes()
+    except OSError as error:
+        sys.exit(f"stage_pack: FATAL: UI font bootstrap is unreadable: {error}")
+    if len(bootstrap) != UI_FONT_BOOTSTRAP_BYTES or \
+            hashlib.sha256(bootstrap).hexdigest() != UI_FONT_BOOTSTRAP_SHA256:
+        sys.exit("stage_pack: FATAL: UI font bootstrap identity drifted")
+    return bootstrap
+
+
 def classify(fn, defer_datafiles):
-    """Return 'drop' | 'defer' | 'keep'."""
+    """Return 'drop' | 'defer' | 'bootstrap' | 'keep'."""
     # DROP: never needed at runtime.
     if "__pycache__" in fn or fn.endswith(".pyc"):
         return "drop"
@@ -712,6 +741,12 @@ def classify(fn, defer_datafiles):
     if fn.startswith(preset_prefix) and fn[len(preset_prefix):] not in STAGE0_PRESET_FILES:
         return "defer"
     if defer_datafiles:
+        # BOOTSTRAP: the static Inter instance retains the source shaping closure;
+        # its Basic Latin advances/raster are byte-identical for the English first
+        # frame. Stage 1 restores Blender's full font and explicitly reloads the UI
+        # font before reporting Assets ready.
+        if fn == UI_FONT_PATH:
+            return "bootstrap"
         icon_prefix = "/bw/datafiles/icons/"
         if fn.startswith(icon_prefix) and fn[len(icon_prefix):] in BOOT_COLD_TOOL_ICONS:
             return "defer"
@@ -887,7 +922,7 @@ def main():
     blob = open(data_path, "rb").read()
     validate_source_manifest(entries, remote_size, len(blob))
 
-    buckets = {"keep": [], "defer": [], "drop": []}
+    buckets = {"keep": [], "defer": [], "bootstrap": [], "drop": []}
     for fn, s, e in entries:
         buckets[classify(fn, args.defer_datafiles)].append((fn, s, e))
 
@@ -896,7 +931,11 @@ def main():
     # directory. Bind that source contract before removing non-discovery deferred
     # filenames from the critical preload manifest; fail closed if Emscripten changes it.
     precreated_directories = parse_precreated_directories(glue)
-    deferred_parents = {posixpath.dirname(fn) for fn, _, _ in buckets["defer"]}
+    deferred_parents = {
+        posixpath.dirname(fn)
+        for bucket in ("defer", "bootstrap")
+        for fn, _, _ in buckets[bucket]
+    }
     missing_parents = sorted(deferred_parents - precreated_directories)
     if missing_parents:
         sys.exit(
@@ -908,22 +947,35 @@ def main():
         return sum(e - s for _, s, e in buckets[b])
 
     print(f"entries={len(entries)}  data={len(blob):,} bytes")
-    for b in ("keep", "defer", "drop"):
+    for b in ("keep", "defer", "bootstrap", "drop"):
         n = len(buckets[b]); t = total(b)
         print(f"  {b:5s}: {n:5d} files  {t:12,d} bytes  ({t/1048576:7.2f} MiB)")
-    stage0_bytes = total("keep")
-    classified_bytes = sum(total(bucket) for bucket in ("keep", "defer", "drop"))
+    if len(buckets["bootstrap"]) > 1:
+        sys.exit("stage_pack: FATAL: multiple UI font bootstrap entries")
+    bootstrap_payload = b""
+    if buckets["bootstrap"]:
+        _, start, end = buckets["bootstrap"][0]
+        bootstrap_payload = ui_font_bootstrap_payload(blob[start:end])
+    stage0_bytes = total("keep") + len(bootstrap_payload)
+    stage1_bytes = total("defer") + total("bootstrap")
+    classified_bytes = sum(
+        total(bucket) for bucket in ("keep", "defer", "bootstrap", "drop")
+    )
     if classified_bytes != len(blob):
         sys.exit(
             f"stage_pack: FATAL: classified coverage {classified_bytes} != data bytes {len(blob)}"
         )
-    print(f"  => stage0.data {stage0_bytes/1048576:.2f} MiB   stage1.data {total('defer')/1048576:.2f} MiB")
+    print(f"  => stage0.data {stage0_bytes/1048576:.2f} MiB   "
+          f"stage1.data {stage1_bytes/1048576:.2f} MiB")
     print(f"  => preload directories {len(precreated_directories):,}; "
           f"deferred parents {len(deferred_parents):,}; missing 0")
 
     if args.dry_run:
         # show the largest DEFER contributors for a sanity check
-        big = sorted(buckets["defer"], key=lambda x: x[2] - x[1], reverse=True)[:12]
+        big = sorted(
+            buckets["defer"] + buckets["bootstrap"],
+            key=lambda x: x[2] - x[1], reverse=True,
+        )[:12]
         print("  top DEFER files:")
         for fn, s, e in big:
             print(f"    {(e-s):10,d}  {fn}")
@@ -936,12 +988,30 @@ def main():
     stage1 = bytearray()
     new_entries = []          # real Stage-0 files plus discovery-only placeholders
     stage1_manifest = []      # for stage1-loader.js
+    bootstrap_manifest = []   # compact Stage-0 assets restored/reloaded after Stage 1
     for fn, s, e in entries:
         b = classify(fn, args.defer_datafiles)
         if b == "keep":
             start = len(stage0)
             stage0 += blob[s:e]
             new_entries.append((fn, start, len(stage0)))
+        elif b == "bootstrap":
+            start = len(stage0)
+            stage0 += bootstrap_payload
+            new_entries.append((fn, start, len(stage0)))
+            restored_start = len(stage1)
+            stage1 += blob[s:e]
+            stage1_manifest.append(
+                {"filename": fn, "start": restored_start, "end": len(stage1)}
+            )
+            bootstrap_manifest.append({
+                "filename": fn,
+                "stage0_bytes": len(bootstrap_payload),
+                "stage0_sha256": UI_FONT_BOOTSTRAP_SHA256,
+                "restored_bytes": e - s,
+                "restored_sha256": UI_FONT_SOURCE_SHA256,
+                "action": "reload-interface-fonts",
+            })
         elif b == "defer":
             start = len(stage1)
             stage1 += blob[s:e]
@@ -973,7 +1043,11 @@ def main():
     with open(os.path.join(args.out, "stage1.data"), "wb") as f:
         f.write(stage1)
     with open(os.path.join(args.out, "stage1-manifest.json"), "w") as f:
-        json.dump({"total_bytes": len(stage1), "files": stage1_manifest}, f)
+        json.dump({
+            "total_bytes": len(stage1),
+            "files": stage1_manifest,
+            "bootstrap": bootstrap_manifest,
+        }, f)
 
     print(f"stage_pack: wrote stage-0 glue+data ({len(stage0):,} B), "
           f"stage1.data ({len(stage1):,} B, {len(stage1_manifest)} files), manifest")

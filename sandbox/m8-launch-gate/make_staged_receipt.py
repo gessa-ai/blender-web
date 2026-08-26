@@ -325,6 +325,7 @@ def main() -> int:
                 "interactive_viewport_under_8s",
                 "stage1_byte_exact",
                 "stage1_complete",
+                "stage1_bootstrap_restored",
                 "stage1_memory_bounded",
                 "progress_phases_visible",
                 "service_worker_complete",
@@ -392,7 +393,8 @@ def main() -> int:
                   all(receipt["proof"].get(key) is True for key in (
                       "cross_origin_isolated", "shared_array_buffer", "stage0_boot", "stage0_first_pixels",
                       "first_pixels_present", "interactive_viewport_under_8s",
-                      "stage1_byte_exact", "stage1_complete", "stage1_memory_bounded",
+                      "stage1_byte_exact", "stage1_complete", "stage1_bootstrap_restored",
+                      "stage1_memory_bounded",
                       "progress_phases_visible", "service_worker_complete",
                       "service_worker_inventory_exact",
                       "trusted_semantic_interaction",

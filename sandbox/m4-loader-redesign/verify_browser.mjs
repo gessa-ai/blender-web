@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: CC0-1.0
 
 import {createRequire} from "node:module";
+import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -12,6 +13,7 @@ const port = Number(process.argv[2] || 8197);
 const executablePath = process.argv[3] ||
   "/home/pc/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome";
 const screenshot = process.argv[4] || "/tmp/bw-loader-redesign.png";
+const fullInter = readFileSync(resolve(ROOT, "upstream/release/datafiles/fonts/Inter.woff2"));
 const base = `http://127.0.0.1:${port}`;
 const failures = [];
 const external = [];
@@ -35,6 +37,10 @@ try {
     if (["/diagnostics-bootstrap.js", "/bin/blender_browser.js",
          "/file-bridge.js", "/boot-windowed.js"].includes(pathname)) {
       await route.fulfill({status: 200, contentType: "text/javascript", body: ""});
+      return;
+    }
+    if (pathname === "/fonts/full-inter-control.woff2") {
+      await route.fulfill({status: 200, contentType: "font/woff2", body: fullInter});
       return;
     }
     await route.continue();
@@ -68,6 +74,38 @@ try {
       diagLeft: style("bw-diag").left,
     };
   });
+  const raster = await page.evaluate(async () => {
+    const full = new FontFace("BW Full Control",
+      "url('/fonts/full-inter-control.woff2')", {style: "normal", weight: "400"});
+    const subset = new FontFace("BW Subset Control",
+      "url('/fonts/bw-interface-sans.woff2')", {style: "normal", weight: "400"});
+    await Promise.all([full.load(), subset.load()]);
+    document.fonts.add(full);
+    document.fonts.add(subset);
+    const text = Array.from({length: 0x7f - 0x20}, (_, index) =>
+      String.fromCodePoint(index + 0x20)).join("");
+    const render = (family) => {
+      const canvas = new OffscreenCanvas(2048, 80);
+      const context = canvas.getContext("2d", {alpha: false});
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#fff";
+      context.textBaseline = "alphabetic";
+      context.fontKerning = "normal";
+      context.font = `400 14px "${family}"`;
+      const width = context.measureText(text).width;
+      context.fillText(text, 8, 40);
+      return {width, pixels: context.getImageData(0, 0, canvas.width, canvas.height).data};
+    };
+    const left = render("BW Full Control");
+    const right = render("BW Subset Control");
+    let changedChannels = 0;
+    for (let index = 0; index < left.pixels.length; index++) {
+      if (left.pixels[index] !== right.pixels[index]) changedChannels += 1;
+    }
+    return {codepoints: [...text].length, fullWidth: left.width,
+      subsetWidth: right.width, changedChannels};
+  });
   check(state.background === "rgb(23, 24, 27)", "loader background is not #17181b");
   check(state.spinner.width === 24 && state.spinner.height === 24,
     "spinner is not the 24px thin ring");
@@ -81,6 +119,9 @@ try {
     state.sourceHref === "https://github.com/gessa-ai/blender-web",
   "preferred-form source offer drifted");
   check(state.fontLoaded, "local loader font did not load");
+  check(raster.codepoints === 95 && raster.fullWidth === raster.subsetWidth &&
+    raster.changedChannels === 0,
+  `layout-preserving Basic Latin font raster drifted: ${JSON.stringify(raster)}`);
   check(state.retired.length === 0 && state.spinners === 1 && state.bars === 1,
     "loader contains retired or duplicate visible elements");
   check(state.diagLeft === "-99999px", "hidden diagnostics contract became visible");
@@ -94,4 +135,5 @@ if (failures.length) {
   console.error(`M4_LOADER_BROWSER_FAIL ${failures[0]}`);
   process.exit(1);
 }
-console.log(`M4_LOADER_BROWSER_PASS viewport=1280x720 spinner=1 progress=1 font=local screenshot=${screenshot}`);
+console.log(`M4_LOADER_BROWSER_PASS viewport=1280x720 spinner=1 progress=1 ` +
+  `font=local basic_latin_raster=exact screenshot=${screenshot}`);

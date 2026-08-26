@@ -424,7 +424,7 @@ def selfcheck() -> None:
                 else:
                     minified_wire += encoded.stat().st_size
     wire_tuple = (raw_wire, minified_wire, raw_wire - minified_wire)
-    assert wire_tuple == (24719, 12063, 12656), wire_tuple
+    assert wire_tuple == (26265, 13099, 13166), wire_tuple
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -454,7 +454,7 @@ def selfcheck() -> None:
         [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
     )
     assert packer_contract.returncode == 0 and \
-        "BW_STAGE_PACK_CONTRACT_PASS classifications=572 discovery=5 positive=7 negative=12" in \
+        "BW_STAGE_PACK_CONTRACT_PASS classifications=572 discovery=5 positive=9 negative=13" in \
         packer_contract.stdout
     with tempfile.TemporaryDirectory(prefix="bw-stage-provenance-selfcheck-") as temporary:
         root = Path(temporary)

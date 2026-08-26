@@ -136,6 +136,12 @@
       "            anim = getattr(active, 'animation_data', None) if active else None",
       "            action = getattr(anim, 'action', None) if anim else None",
       "            _bwfb_ack(tok, {'ok': True, 'op': op, 'mode': getattr(active, 'mode', 'NONE') if active else 'NONE', 'active': getattr(active, 'name', None), 'objectCount': len(bpy.data.objects), 'objects': sorted(o.name for o in bpy.data.objects), 'meshVertices': len(data.vertices) if data and hasattr(data, 'vertices') else None, 'modifiers': [m.type for m in active.modifiers] if active else [], 'materials': [m.name for m in data.materials if m] if data and hasattr(data, 'materials') else [], 'hasAction': bool(action), 'frameRange': list(action.frame_range) if action else None, 'renderEngine': bpy.context.scene.render.engine})",
+      "        elif op == 'reload_interface_fonts':",  // bounded Stage-1 bootstrap finalizer
+      "            font_path = '/bw/datafiles/fonts/Inter.woff2'",
+      "            font_bytes = os.path.getsize(font_path)",
+      "            view = bpy.context.preferences.view",
+      "            view.font_path_ui = view.font_path_ui",  // RNA update reloads UI/mono/fallback stack
+      "            _bwfb_ack(tok, {'ok': True, 'op': op, 'fontBytes': font_bytes})",
       "        elif op == 'mark':",  // add a named Empty (round-trip verifier + platform-drive primitive)
       "            name = str(spec.get('name', 'BW_MARKER'))",
       "            ob = bpy.data.objects.new(name, None); bpy.context.scene.collection.objects.link(ob)",
@@ -293,6 +299,20 @@
     writeCmd(mod, tok, { op: "inspect" });
     const ack = await waitAck(mod, tok);
     if (!ack.ok) throw new Error("inspect failed: " + (ack.error || "?"));
+    return ack;
+  }
+
+  // Finalize the one constrained Stage-0 bootstrap asset after Stage 1 restores
+  // Blender's exact Inter bytes. No expression, path, or caller data crosses the
+  // bridge; assigning the existing RNA value invokes Blender's stock font-update
+  // callback and reloads the complete UI/mono/fallback stack.
+  async function refreshInterfaceFonts() {
+    const mod = requireMod();
+    ensureDirs(mod);
+    const tok = newToken();
+    writeCmd(mod, tok, { op: "reload_interface_fonts" });
+    const ack = await waitAck(mod, tok);
+    if (!ack.ok) throw new Error("font refresh failed: " + (ack.error || "?"));
     return ack;
   }
 
@@ -545,6 +565,7 @@
     listStore,
     openStore,
     inspectScene,
+    refreshInterfaceFonts,
     openFromDisk,
     saveToDisk,
   };

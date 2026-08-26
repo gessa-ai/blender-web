@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Build the small, renamed WOFF2 used only by the browser loading shell."""
+"""Build the small, renamed WOFF2 used by the shell and Stage-0 UI bootstrap."""
 
 from __future__ import annotations
 
@@ -72,7 +72,11 @@ def build(source: Path, output: Path) -> None:
     options = subset.Options()
     options.flavor = "woff2"
     options.hinting = True
-    options.layout_features = []
+    # Retain the source layout closure. Besides making the browser loader's
+    # typography faithful, this asset is Blender's transient Stage-0 UI font;
+    # dropping GPOS/GSUB causes a visible kerning reflow when Stage 1 restores
+    # the complete Inter file.
+    options.layout_features = ["*"]
     options.name_IDs = ["*"]
     options.name_legacy = True
     options.name_languages = ["*"]

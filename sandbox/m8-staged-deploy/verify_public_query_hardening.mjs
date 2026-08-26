@@ -5,6 +5,7 @@
 // full M8 runtime still proves the same attacks in a real browser and product.
 
 import assert from 'node:assert/strict';
+import {createHash, webcrypto} from 'node:crypto';
 import * as fs from 'node:fs';
 import * as vm from 'node:vm';
 import {dirname, join, resolve} from 'node:path';
@@ -148,11 +149,15 @@ function makeStageEnvironment(stageSource, {
   search = '', devHooksAllowed = false, trustedManual = false, bodyGate = false,
   stream = true, httpFailure = false, dataFailures = [],
   chunks = [[1, 2, 3], [4, 5, 6]], total = 6, manifestFiles = null,
+  manifestBootstrap = undefined, bridge = null, initialFiles = {},
   allocationLimit = Number.POSITIVE_INFINITY, oversizedStreamChunkLength = null,
 } = {}) {
   const elements = new Map();
   const writes = [];
   const temporaryFiles = new Map();
+  const installedFiles = new Map(Object.entries(initialFiles).map(
+    ([filename, bytes]) => [filename, Array.from(bytes)]));
+  const directoryModes = new Map();
   const timers = [];
   let now = 0;
   let fetchCount = 0;
@@ -184,20 +189,46 @@ function makeStageEnvironment(stageSource, {
   const window = {
     __bwDevHooksAllowed: devHooksAllowed,
     __BW_STAGE1_MANUAL: trustedManual,
+    BWFileBridge: bridge,
     __bwModule: {
       FS: {
+        stat(filename) {
+          return {mode: directoryModes.get(filename) ?? 0o40555};
+        },
+        chmod(filename, mode) {
+          directoryModes.set(filename, mode);
+        },
         writeFile(filename, bytes) {
+          const slash = filename.lastIndexOf('/');
+          const parent = filename.slice(0, slash) || '/';
+          if (!((directoryModes.get(parent) ?? 0o40555) & 0o200)) {
+            throw new Error(`parent is not writable: ${parent}`);
+          }
           const row = {filename, bytes: Array.from(bytes)};
-          if (filename.startsWith('/tmp/.bw-stage1-')) temporaryFiles.set(filename, row.bytes);
-          else writes.push(row);
+          if (!filename.slice(slash + 1).includes('.bw-stage1-')) {
+            throw new Error(`non-transactional write: ${filename}`);
+          }
+          temporaryFiles.set(filename, row.bytes);
         },
         rename(source, filename) {
           if (!temporaryFiles.has(source)) throw new Error(`missing temporary file: ${source}`);
-          writes.push({filename, bytes: temporaryFiles.get(source)});
+          const sourceParent = source.slice(0, source.lastIndexOf('/')) || '/';
+          const finalParent = filename.slice(0, filename.lastIndexOf('/')) || '/';
+          if (sourceParent !== finalParent) throw new Error('cross-directory rename rejected');
+          if (!((directoryModes.get(finalParent) ?? 0o40555) & 0o200)) {
+            throw new Error(`parent is not writable: ${finalParent}`);
+          }
+          const bytes = temporaryFiles.get(source);
+          installedFiles.set(filename, bytes);
+          writes.push({filename, bytes});
           temporaryFiles.delete(source);
         },
         unlink(filename) {
           if (!temporaryFiles.delete(filename)) throw new Error(`missing temporary file: ${filename}`);
+        },
+        readFile(filename) {
+          if (!installedFiles.has(filename)) throw new Error(`missing installed file: ${filename}`);
+          return Uint8Array.from(installedFiles.get(filename));
         },
       },
     },
@@ -209,6 +240,7 @@ function makeStageEnvironment(stageSource, {
       {filename: '/bw/b', start: Math.min(3, total), end: total},
     ],
   };
+  if (manifestBootstrap !== undefined) manifest.bootstrap = manifestBootstrap;
   const fetch = async (url) => {
     fetchCount += 1;
     if (url.endsWith('stage1-manifest.json')) return {json: async () => manifest};
@@ -266,13 +298,14 @@ function makeStageEnvironment(stageSource, {
   const context = vm.createContext({
     window, document, location: {search}, URLSearchParams, Uint8Array: TrackedUint8Array,
     performance: {now: () => (now += 100)}, fetch, setTimeout,
-    clearTimeout() {}, console,
+    clearTimeout() {}, console, crypto: webcrypto,
   });
   vm.runInContext(stageSource, context, {filename: 'stage1-loader.contract.js'});
   return {window, elements, writes, timers,
     fetchCount: () => fetchCount, dataFetchCount: () => dataFetchCount,
     arrayBufferCount: () => arrayBufferCount, largestAllocation: () => largestAllocation,
-    temporaryFileCount: () => temporaryFiles.size};
+    temporaryFileCount: () => temporaryFiles.size,
+    directoryMode: (filename) => directoryModes.get(filename) ?? 0o40555};
 }
 
 async function assertStageContract(stageSource) {
@@ -288,6 +321,8 @@ async function assertStageContract(stageSource) {
   assert.equal(publicState.filesTotal, 2);
   assert.equal(publicState.bytesDone, 6);
   assert.equal(publicState.bytesTotal, 6);
+  assert.equal(publicState.writableDirectoryCount, 1);
+  assert.equal(publicAttack.directoryMode('/bw'), 0o40555);
   assert.deepEqual(Array.from(publicState.visiblePhases),
     ['Downloading assets', 'Installing assets', 'Assets ready']);
   assert.deepEqual(publicAttack.writes, [
@@ -334,6 +369,84 @@ async function assertStageContract(stageSource) {
     {filename: '/bw/c', bytes: [13, 14, 15, 16, 17, 18]},
   ]);
   assert.equal(bounded.temporaryFileCount(), 0);
+  assert.equal(bounded.directoryMode('/bw'), 0o40555);
+
+  let fontRefreshCount = 0;
+  const stage0Font = Uint8Array.from([66, 87]);
+  const stage0FontHash = createHash('sha256').update(stage0Font).digest('hex');
+  const restoredFont = Uint8Array.from([70, 79, 78, 84]);
+  const restoredFontHash = createHash('sha256').update(restoredFont).digest('hex');
+  const bootstrap = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [Array.from(restoredFont)],
+    total: restoredFont.length,
+    manifestFiles: [{filename: '/bw/font.woff2', start: 0, end: restoredFont.length}],
+    manifestBootstrap: [{
+      filename: '/bw/font.woff2',
+      stage0_bytes: 2,
+      stage0_sha256: stage0FontHash,
+      restored_bytes: restoredFont.length,
+      restored_sha256: restoredFontHash,
+      action: 'reload-interface-fonts',
+    }],
+    bridge: {
+      ready: async () => true,
+      refreshInterfaceFonts: async () => {
+        fontRefreshCount += 1;
+        return {ok: true, fontBytes: restoredFont.length};
+      },
+    },
+    initialFiles: {'/bw/font.woff2': stage0Font},
+  });
+  const bootstrapState = await bootstrap.window.__bwStage1Load();
+  assert.equal(bootstrapState.phase, 'done');
+  assert.equal(bootstrapState.bootstrapTotal, 1);
+  assert.equal(bootstrapState.bootstrapDone, 1);
+  assert.equal(bootstrapState.fontRefresh, 'done');
+  assert.equal(fontRefreshCount, 1);
+  assert.equal(bootstrap.directoryMode('/bw'), 0o40555);
+
+  const corruptBootstrap = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [Array.from(restoredFont)],
+    total: restoredFont.length,
+    manifestFiles: [{filename: '/bw/font.woff2', start: 0, end: restoredFont.length}],
+    manifestBootstrap: [{
+      filename: '/bw/font.woff2',
+      stage0_bytes: 2,
+      stage0_sha256: stage0FontHash,
+      restored_bytes: restoredFont.length,
+      restored_sha256: '0'.repeat(64),
+      action: 'reload-interface-fonts',
+    }],
+    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({ok: true})},
+    initialFiles: {'/bw/font.woff2': stage0Font},
+  });
+  const corruptBootstrapState = await corruptBootstrap.window.__bwStage1Load();
+  assert.equal(corruptBootstrapState.phase, 'done-with-errors');
+  assert.match(corruptBootstrapState.error, /restored bootstrap identity mismatch/);
+  assert.equal(corruptBootstrapState.fontRefresh, 'error');
+
+  const corruptStage0 = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [Array.from(restoredFont)],
+    total: restoredFont.length,
+    manifestFiles: [{filename: '/bw/font.woff2', start: 0, end: restoredFont.length}],
+    manifestBootstrap: [{
+      filename: '/bw/font.woff2',
+      stage0_bytes: stage0Font.length,
+      stage0_sha256: stage0FontHash,
+      restored_bytes: restoredFont.length,
+      restored_sha256: restoredFontHash,
+      action: 'reload-interface-fonts',
+    }],
+    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({ok: true})},
+    initialFiles: {'/bw/font.woff2': [0, 0]},
+  });
+  const corruptStage0State = await corruptStage0.window.__bwStage1Load();
+  assert.equal(corruptStage0State.phase, 'error');
+  assert.match(corruptStage0State.error, /Stage-0 bootstrap identity mismatch/);
+  assert.equal(corruptStage0.dataFetchCount(), 0);
 
   const oversizedFile = makeStageEnvironment(stageSource, {
     trustedManual: true,
@@ -517,7 +630,7 @@ await assertStageContract(stageSource);
 
 if (POSITIVE_ONLY) {
   console.log('M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS positive=3 ' +
-    'python=off argv=off controls=off stage1_positive=20 recovery=4 progress=visible memory=bounded');
+    'python=off argv=off controls=off stage1_positive=23 recovery=4 progress=visible memory=bounded');
   process.exit(0);
 }
 
@@ -585,9 +698,28 @@ await rejectStage('fallback_ceiling_removed', replaceOnce(stageSource,
 await rejectStage('whole_payload_reallocated', replaceOnce(stageSource,
   'fileBuffer = new Uint8Array(fileBytes);',
   'fileBuffer = new Uint8Array(expected);'));
-await rejectStage('transactional_staging_removed', replaceOnce(stageSource,
-  'const TEMP_PREFIX = "/tmp/.bw-stage1-";',
-  'const TEMP_PREFIX = "/bw/.bw-stage1-";'));
+await rejectStage('same_directory_staging_removed', replaceOnce(stageSource,
+  'return path.parent + "/." + path.basename + ".bw-stage1-" + generation + "-" + index;',
+  'return "/tmp/.bw-stage1-" + generation + "-" + index;'));
+await rejectStage('directory_write_enable_removed', replaceOnce(stageSource,
+  'FS.chmod(parent, mode | 0o300);',
+  'FS.chmod(parent, mode);'));
+await rejectStage('directory_mode_restore_removed', replaceOnce(stageSource,
+  '    try { restoreDirectoryModes(FS, originalModes); }\n' +
+  '    catch (modeError) {\n' +
+  '      if (!state.error) state.error = "permission restore: " +',
+  '    try { originalModes.clear(); }\n' +
+  '    catch (modeError) {\n' +
+  '      if (!state.error) state.error = "permission restore: " +'));
+await rejectStage('bootstrap_identity_check_removed', replaceOnce(stageSource,
+  'if (restored.length !== row.restored_bytes || digest !== row.restored_sha256) {',
+  'if (false && (restored.length !== row.restored_bytes || digest !== row.restored_sha256)) {'));
+await rejectStage('stage0_bootstrap_identity_check_removed', replaceOnce(stageSource,
+  'if (stage0.length !== row.stage0_bytes || digest !== row.stage0_sha256) {',
+  'if (false && (stage0.length !== row.stage0_bytes || digest !== row.stage0_sha256)) {'));
+await rejectStage('bootstrap_font_refresh_removed', replaceOnce(stageSource,
+  'const ack = await bridge.refreshInterfaceFonts();',
+  'const ack = {ok: true, fontBytes: row.restored_bytes};'));
 await rejectStage('stream_chunk_ceiling_removed', replaceOnce(stageSource,
   'if (bytes > MAX_STREAM_CHUNK_BYTES) {',
   'if (false && bytes > MAX_STREAM_CHUNK_BYTES) {'));
@@ -595,12 +727,12 @@ await rejectStage('transient_peak_accounting_removed', replaceOnce(stageSource,
   'state.peakTransientBytes = Math.max(state.peakTransientBytes, transient);',
   'state.peakTransientBytes += 0;'));
 
-assert.equal(stageNegative, 22);
+assert.equal(stageNegative, 27);
 const measureSource = fs.readFileSync(MEASURE, 'utf8');
 assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
   'cold and warm timing contexts must install the trusted Stage-1 manual control');
 assert.equal(count(measureSource, 'stage1=manual'), 0,
   'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off stage1_positive=20 stage1_negative=22 recovery=4 ' +
+  'python=off argv=off controls=off stage1_positive=23 stage1_negative=27 recovery=4 ' +
   'progress=visible memory=bounded stage1_query_controls=off trusted_measurement_contexts=2');

@@ -2800,6 +2800,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   native/wasm32 matrix, locked product relink/no-work, OFF preflight, fallback diagnostic, canonical
   replay, REUSE, M4 scope, and container regression preserve their strict existing boundaries. See
   `notes/m4-mouse-release-ownership-20260825.md`.
+- [x] **M4-WEB-MOUSE-DRAG-MOTION-OWNERSHIP [ghost-web] (`303847a`):** window-captured
+  mouse-move now continues a canvas-owned drag beyond the element while rejecting unrelated page
+  motion unless GHOST owns a tracked button or active Pointer Lock. One coherent DOM canvas
+  rectangle is cached at registration/resize, so viewport coordinates translate locally on the WM
+  worker without a per-motion main-thread proxy. The fail-first/final real-worker outcome, 22
+  focused and 32 lifecycle mutations, native/wasm32 parity, locked product relink/no-work, OFF
+  preflight, sustained fallback diagnostic, canonical replay, M4 scope, and container regression
+  preserve their strict existing boundaries. See
+  `notes/m4-mouse-drag-motion-ownership-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

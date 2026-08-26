@@ -506,7 +506,7 @@ async function boot() {
   finished = false;
   if (logEl) logEl.textContent = "";
   setState("loading", "loading module");
-  setIndeterminate("loading");
+  setProgress(0);
   append("[shell] instantiating blender_browser (WINDOWED: no --background)…", "sys");
   append("[shell] argv: blender " + ARGV.join(" "), "sys");
   append("[shell] canvas: " + CANVAS_SELECTOR + " " +

@@ -57,6 +57,12 @@ def validate(shader: str, info: str, patch: str, series: str, preview: str, diag
                    "push-map", "push-write", "--use-webgpu-adapter=swiftshader"):
         require(marker in diagnostic, f"diagnostic lost marker: {marker}")
     require("binds no receipt" in diagnostic, "fallback diagnostic lost its nonreceipt marker")
+    require(diagnostic.count(", undefined, {") == 2,
+            "Playwright waitForFunction options are not in the third argument")
+    require("diagnostic-failure.json" in diagnostic and "consoleTail: consoleLines.slice(-80)" in diagnostic,
+            "diagnostic failure evidence is not bounded and persistent")
+    require("boot failed before running" in diagnostic,
+            "diagnostic does not fail early on an explicit shell boot error")
 
 
 def mutation_selfcheck(values: list[str]) -> int:
@@ -69,6 +75,9 @@ def mutation_selfcheck(values: list[str]) -> int:
                               "PUSH_CONSTANT(float, alpha)\nSAMPLER(0, sampler2D, shadow_tx)")),
         (3, values[3].replace("0284-gpu-widget-shadow-defined-rgb.patch", "")),
         (5, values[5].replace("widget-bind-group", "widget-group")),
+        (5, values[5].replace(", undefined, {", ", {", 1)),
+        (5, values[5].replace("diagnostic-failure.json", "diagnostic.json")),
+        (5, values[5].replace("boot failed before running", "boot state")),
     ]
     for index, replacement in mutations:
         candidate = values.copy()

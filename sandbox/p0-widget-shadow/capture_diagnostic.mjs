@@ -263,12 +263,13 @@ const browser = await chromium.launch({
   ],
 });
 
+let page = null;
 try {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,
   });
-  const page = await context.newPage();
+  page = await context.newPage();
   page.on("worker", (worker) => {
     installWorkerProbe(worker).catch((error) => {
       consoleLines.push(`[P0G] worker-probe-error ${error.message}`);
@@ -281,11 +282,16 @@ try {
     waitUntil: "domcontentloaded",
     timeout: 180000,
   });
-  await page.waitForFunction(() => document.querySelector("#state")?.dataset.state === "running", {
+  await page.waitForFunction(() => ["running", "error"].includes(
+    document.querySelector("#state")?.dataset.state), undefined, {
     timeout: 180000,
     polling: 250,
   });
-  await page.waitForFunction(() => Number(window.__bwModule?._bw_wm_tick_count?.()) >= 2, {
+  const bootState = await page.evaluate(() => document.querySelector("#state")?.dataset.state);
+  if (bootState !== "running") {
+    throw new Error(`boot failed before running: ${bootState || "absent"}`);
+  }
+  await page.waitForFunction(() => Number(window.__bwModule?._bw_wm_tick_count?.()) >= 2, undefined, {
     timeout: 30000,
     polling: 250,
   });
@@ -315,6 +321,26 @@ try {
   writeFileSync(resolve(outDir, "diagnostic.json"), `${JSON.stringify(diagnostic, null, 2)}\n`);
   console.log(`P0G_DIAGNOSTIC_DONE p0g_lines=${diagnostic.p0gLines.length} ` +
     `page_errors=${pageErrors.length} ticks=${diagnostic.ticks} presents=${diagnostic.presents}`);
+}
+catch (error) {
+  const state = page ? await page.evaluate(() => ({
+    state: document.querySelector("#state")?.dataset.state || null,
+    detail: document.querySelector("#detail")?.textContent || null,
+    diag: document.querySelector("#bw-diag")?.textContent || null,
+  })).catch(() => null) : null;
+  const failure = {
+    error: { name: String(error?.name || "Error"), message: String(error?.message || error) },
+    state,
+    pageErrors,
+    consoleTail: consoleLines.slice(-80),
+  };
+  writeFileSync(resolve(outDir, "diagnostic-failure.json"), `${JSON.stringify(failure, null, 2)}\n`);
+  if (page) {
+    await page.screenshot({ path: resolve(outDir, "diagnostic-failure.png") }).catch(() => {});
+  }
+  console.error(`P0G_DIAGNOSTIC_FAIL state=${state?.state || "absent"} ` +
+    `page_errors=${pageErrors.length} console_lines=${consoleLines.length}`);
+  throw error;
 }
 finally {
   await browser.close();

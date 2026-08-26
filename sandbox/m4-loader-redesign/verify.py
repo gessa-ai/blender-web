@@ -108,8 +108,11 @@ def main() -> None:
                          "Desktop only for this preview", "repository link pending"):
         require(retired_copy not in shell, f"marketing copy remains in loader: {retired_copy}")
 
-    require("bw-indeterminate" not in shell and "bw-indeterminate" not in boot,
+    require("bw-indeterminate" not in shell and "bw-indeterminate" not in boot and
+            "setIndeterminate" not in boot,
             "progress bar still has an indeterminate sweep")
+    require('setState("loading", "loading module");\n  setProgress(0);' in boot,
+            "boot does not initialize the determinate loader before module startup")
     require('fillEl.style.width = pct + "%";' in boot and
             'pctEl.textContent = pct + "%";' in boot and
             'progressEl.setAttribute("aria-valuenow", String(pct));' in boot,

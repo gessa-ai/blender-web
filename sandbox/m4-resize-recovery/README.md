@@ -4,9 +4,12 @@
 # M4 window resize recovery contract
 
 `verify_source.py` binds persistent backbuffer adoption to an explicit refresh of both default
-framebuffer extent caches. `live_resize_repro.mjs` boots the real windowed product, shrinks its
-canvas from 1280x720 to 1100x640, restores it, and requires shell resize, WM event processing,
-uncapped tick/presentation progress, and zero WebGPU encoding or submission rejection.
+framebuffer extent caches. The integrated first-pixel contract also requires every applied browser
+extent to publish the existing bounded redraw-retry generation after surface reconfiguration and
+the WM size event. `live_resize_repro.mjs` boots the real windowed product, waits past the initial
+180-tick recovery episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires
+both new bounded redraw episodes, shell resize, WM event processing, uncapped tick/presentation
+progress, and zero WebGPU encoding or submission rejection.
 
 With a product server on port 8137:
 

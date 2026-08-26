@@ -1324,6 +1324,12 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
       pushEvent(std::make_unique<GHOST_Event>(
           getMilliSeconds(), GHOST_kEventWindowSize, window_));
 
+      /* A size event relayouts Blender's areas but does not itself guarantee that every
+       * retained region is redrawn. Re-arm the same bounded ordinary-WindowUpdate episode
+       * used for asynchronously settled WebGPU draws so the new extent paints at idle
+       * without waiting for unrelated user input. */
+      ghost_web::request_redraw_retry();
+
       /* Bounded diagnostic (worker printf reaches the tab console): confirms the live
        * resize path applied the shell-posted extent to the OffscreenCanvas backing store
        * this worker owns. Capped so a resize-drag cannot flood. */

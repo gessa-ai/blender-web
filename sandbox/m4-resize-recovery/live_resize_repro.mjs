@@ -86,9 +86,11 @@ try {
   await page.goto(`http://127.0.0.1:${port}/windowed.html?${query}`, {waitUntil: "domcontentloaded"});
   await page.waitForFunction(() => document.querySelector("#state")?.dataset.state === "running", null,
                              {timeout: 180000, polling: 250});
-  await page.waitForFunction(() => Number(window.__bwModule?._bw_wm_tick_count?.()) >= 4, null,
+  // Start the resize epochs after the boot recovery episode's 180-tick ceiling. This makes
+  // each post-resize burst attributable to the resize publication rather than leftover boot work.
+  await page.waitForFunction(() => Number(window.__bwModule?._bw_wm_tick_count?.()) >= 200, null,
                              {timeout: 30000, polling: 100});
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(1000);
   const initial = await sample(page);
   await page.setViewportSize({width: 1100, height: 640});
   await page.waitForTimeout(6000);
@@ -108,6 +110,11 @@ try {
   if (!(shrunk.presents > initial.presents && restored.presents > shrunk.presents)) {
     failures.push("uncapped presentation count did not advance across both resize epochs");
   }
+  const shrinkRedrawPresents = shrunk.presents - initial.presents;
+  const restoreRedrawPresents = restored.presents - shrunk.presents;
+  if (shrinkRedrawPresents < 8 || restoreRedrawPresents < 8) {
+    failures.push(`bounded redraw episodes absent: ${shrinkRedrawPresents}/${restoreRedrawPresents}`);
+  }
   if (counters.resizeApplied < 3) failures.push("shell backing resize was not observed");
   if (counters.wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
   for (const name of ["scissorRejected", "encodingRejected", "submissionRejected",
@@ -120,7 +127,8 @@ try {
   }
   console.log(`BW_M4_RESIZE_RECOVERY_PASS resize=${counters.resizeApplied} ` +
               `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
-              `presents=${initial.presents}/${shrunk.presents}/${restored.presents}`);
+              `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
+              `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents}`);
 }
 finally {
   await browser.close();

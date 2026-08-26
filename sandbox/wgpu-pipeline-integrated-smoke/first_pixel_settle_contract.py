@@ -111,6 +111,17 @@ def validate(
     if "GHOST_kEventWindowActivate" in process:
         raise ValueError("redraw recovery injects synthetic activation")
 
+    resize = method(process, "if (ghost_web::poll_pending_backing(nw, nh))")
+    resize_retry = "ghost_web::request_redraw_retry();"
+    require_once(resize, resize_retry, "browser resize recovery wiring")
+    resize_positions = (
+        resize.index("window_->reconfigureSurface();"),
+        resize.index("GHOST_kEventWindowSize"),
+        resize.index(resize_retry),
+    )
+    if resize_positions != tuple(sorted(resize_positions)):
+        raise ValueError("browser resize retry is not published after extent and WM size update")
+
     creation = method(system_source, CREATE_MARKER)
     generation = "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();"
     drop_generation = "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();"
@@ -211,6 +222,7 @@ def selfcheck(
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_recovery_tick(", "ghost_web::redraw_recovery_disabled("), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_drop_generation()", "ghost_web::redraw_drop_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "GHOST_kEventWindowUpdate", "GHOST_kEventWindowActivate"), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::request_redraw_retry();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);", ""), shader_source, pipeline_source),
@@ -261,7 +273,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=6 mutations=29 bounded=180 readiness=4 drops=1")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=6 mutations=30 bounded=180 readiness=4 drops=1 resize=rearmed")
     return 0
 
 

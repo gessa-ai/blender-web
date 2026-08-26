@@ -3012,6 +3012,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green. **Not resolved:** no public bundle can be assembled or browser-attacked until the current
   CAPTURE generation receives the two Apple profiles and is relinked to a hash-bound APPLY
   primary/deferred product. See `notes/m8-public-query-hardening-20260826.md`.
+- [x] **P1-M8-STAGE1-LOADER-SOURCE-RECONCILIATION [driver] (`ba0ceee`):** the public
+  assembler's Stage-1 loader is now a committed input with visible phase/MB progress, streamed
+  byte accounting, exact short/oversize rejection, and development-marker guards around query
+  gate/manual controls. The timing producer uses trusted pre-navigation state instead of the
+  disabled public query. The committed predecessor fails first; final seven-case/eight-mutation
+  execution, assembly/provenance/transport/CAPTURE consumers, release-freeze contracts, REUSE,
+  M8 scope, and container regression preserve their strict boundaries. CAPTURE remains unchanged
+  at `.wasm.orig` SHA-256 `c9dbae361ec1`; no APPLY/public receipt was manufactured. See
+  `notes/m8-stage1-loader-source-reconciliation-20260826.md`.
 - [x] **P1-RELEASE-SHIPPING-SOURCE-RECONCILIATION [driver] (`410e7ad` + `559b106` +
   `5426e76`):** the four named runtime sources that the optimized CAPTURE product was built from
   are now direct committed inputs: the ten-limit WebGPU device requests, persistent and

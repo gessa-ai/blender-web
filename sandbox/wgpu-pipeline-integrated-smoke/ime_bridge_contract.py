@@ -217,6 +217,10 @@ def validate_runtime(runtime: str) -> None:
         "_bw_shell_ime_cancel",
         "_bw_shell_ime_consumed_count",
         "_bw_shell_ime_recovered_count",
+        "rawKeyAdmitted",
+        "rawKeySuppressed",
+        "stopImmediatePropagation",
+        'event.key==="Process"',
     ):
         if token not in runtime:
             raise ValueError(f"baked runtime omits {token!r}")

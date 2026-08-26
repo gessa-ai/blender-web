@@ -97,7 +97,7 @@ def validate(header: str, source: str, live_test: str) -> None:
 
     registration = method(source, "bool GHOST_SystemWeb::registerCanvasCallbacks()")
     for token in (
-        "ghost_web::sequential_registration_transaction<14>(",
+        "ghost_web::sequential_registration_transaction<kWebCallbackCount>(",
         "emscripten_set_focus_callback(canvas, user_data, false, cb_canvas_focus)",
         "emscripten_set_blur_callback(canvas, user_data, false, cb_canvas_blur)",
         "emscripten_set_focus_callback(win, user_data, false, cb_window_focus)",
@@ -109,7 +109,7 @@ def validate(header: str, source: str, live_test: str) -> None:
     removal = method(source, "bool remove_html5_callback_prefix(const char *canvas,")
     compact = " ".join(removal.split()).replace("( ", "(")
     for token in (
-        "case 14:",
+        "case 16:",
         "remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_canvas_focus)",
         "remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_BLUR, cb_canvas_blur)",
         "remove_html5_callback(window, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_window_focus)",
@@ -121,7 +121,7 @@ def validate(header: str, source: str, live_test: str) -> None:
     require_once(unregistration, "browser_focus_active_ = false;", "focus retirement")
     require_once(
         unregistration,
-        "remove_html5_callback_prefix(canvas, win, callback_user_data_, 14)",
+        "remove_html5_callback_prefix(canvas, win, callback_user_data_, kWebCallbackCount)",
         "focus retirement",
     )
 
@@ -154,8 +154,8 @@ def selfcheck(header: str, source: str, live_test: str) -> None:
         (header, mutate_method(source, "bool cb_canvas_blur(",
                                "system->browserFocusIsOwned()", "false"), live_test),
         (header, replace_once(source,
-                              "ghost_web::sequential_registration_transaction<14>(",
-                              "ghost_web::sequential_registration_transaction<12>("), live_test),
+                              "ghost_web::sequential_registration_transaction<kWebCallbackCount>(",
+                              "ghost_web::sequential_registration_transaction<13>("), live_test),
         (header, replace_once(source,
                               "emscripten_set_focus_callback(win, user_data, false, cb_window_focus)",
                               "EMSCRIPTEN_RESULT_SUCCESS"), live_test),
@@ -165,8 +165,8 @@ def selfcheck(header: str, source: str, live_test: str) -> None:
         (header, replace_once(source,
                               "browser_focus_active_ = browserFocusIsOwned();", ""), live_test),
         (header, replace_once(source,
-                              "remove_html5_callback_prefix(canvas, win, callback_user_data_, 14)",
-                              "remove_html5_callback_prefix(canvas, win, callback_user_data_, 12)"),
+                              "remove_html5_callback_prefix(canvas, win, callback_user_data_, kWebCallbackCount)",
+                              "remove_html5_callback_prefix(canvas, win, callback_user_data_, 13)"),
          live_test),
         (header, source, replace_once(live_test,
                                       'window.dispatchEvent(new FocusEvent("blur"))', "")),
@@ -196,7 +196,7 @@ def main() -> int:
     selfcheck(header, source, live_test) if args.selfcheck else validate(header, source, live_test)
     print(
         "IME_FOCUS_OWNERSHIP_CONTRACT PASS domain=canvas,textarea "
-        "external=control,window transitions=deduplicated listeners=14 mutations=17"
+        "external=control,window transitions=deduplicated listeners=16 mutations=17"
     )
     return 0
 

@@ -2783,7 +2783,7 @@ bool ghost_window_publication_transaction_contract()
 
 bool ghost_callback_registration_transaction_contract()
 {
-  constexpr size_t listener_count = 14;
+  constexpr size_t listener_count = 16;
   size_t failure_rollbacks = 0;
   for (size_t failed_position = 0; failed_position < listener_count; failed_position++) {
     std::array<bool, listener_count> listeners = {};
@@ -2861,8 +2861,8 @@ bool ghost_callback_registration_transaction_contract()
     return false;
   }
 
-  std::puts("CONTRACT ghost_callback_registration_transaction PASS cases=17 "
-            "failed_positions=14 replacement=rollback-retry publication=atomic");
+  std::puts("CONTRACT ghost_callback_registration_transaction PASS cases=19 "
+            "failed_positions=16 replacement=rollback-retry publication=atomic");
   return true;
 }
 

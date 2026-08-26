@@ -70,6 +70,13 @@ std::atomic<uint64_t> g_active_callback_epoch{0};
 std::atomic<uint64_t> g_next_callback_epoch{1};
 std::vector<std::unique_ptr<CallbackRegistration>> g_callback_registrations;
 
+#ifdef WITH_INPUT_IME
+constexpr const char *kImeInputSelector = "#bw-ime-input";
+constexpr size_t kWebCallbackCount = 16;
+#else
+constexpr size_t kWebCallbackCount = 14;
+#endif
+
 GHOST_SystemWeb *callback_system(void *user_data)
 {
   CallbackRegistration *candidate = static_cast<CallbackRegistration *>(user_data);
@@ -283,10 +290,25 @@ bool remove_html5_callback_prefix(const char *canvas,
   switch (registered_count) {
     default:
       return false;
+#ifdef WITH_INPUT_IME
+    case 16:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
+      [[fallthrough]];
+    case 15:
+      removed &= remove_html5_callback(
+          kImeInputSelector, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
+      [[fallthrough]];
+    case 14:
+      removed &= remove_html5_callback(
+          kImeInputSelector, user_data, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
+      [[fallthrough]];
+#else
     case 14:
       removed &= remove_html5_callback(
           window, user_data, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
       [[fallthrough]];
+#endif
     case 13:
       removed &= remove_html5_callback(
           canvas, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
@@ -645,6 +667,8 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
       var lastKind = "none";
       var lastUtf8Bytes = 0;
       var activeCanvas = null;
+      var rawKeyAdmitted = 0;
+      var rawKeySuppressed = 0;
 
       var recordPublish = function (kind, utf8Bytes, ok) {
         sequence += 1;
@@ -709,6 +733,26 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         }
         return acceptedMessage;
       };
+
+      /* Emscripten's C keyboard payload omits KeyboardEvent.isComposing. This
+       * listener is intentionally installed before the Emscripten listeners on
+       * the same textarea, so stopImmediatePropagation can keep browser IME
+       * process keys out of the raw GHOST path without disturbing composition's
+       * default action. Ordinary keys continue to the exact textarea callbacks
+       * registered below. */
+      var admitRawKey = function (event) {
+        var ownsFocus = enabled && document.activeElement === input;
+        var compositionKey = composing || event.isComposing || event.key === "Process" ||
+                             event.keyCode === 229;
+        if (!ownsFocus || compositionKey) {
+          rawKeySuppressed += 1;
+          event.stopImmediatePropagation();
+          return;
+        }
+        rawKeyAdmitted += 1;
+      };
+      input.addEventListener("keydown", admitRawKey);
+      input.addEventListener("keyup", admitRawKey);
 
       input.addEventListener("compositionstart", function (event) {
         if (!enabled) {
@@ -816,6 +860,8 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
             lastKind: lastKind,
             lastUtf8Bytes: lastUtf8Bytes,
             focused: document.activeElement === input,
+            rawKeyAdmitted: rawKeyAdmitted,
+            rawKeySuppressed: rawKeySuppressed,
           };
         },
       });
@@ -1045,7 +1091,8 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
 
   size_t failed_position = 0;
   EMSCRIPTEN_RESULT failed_result = EMSCRIPTEN_RESULT_SUCCESS;
-  const bool registration_succeeded = ghost_web::sequential_registration_transaction<14>(
+  const bool registration_succeeded =
+      ghost_web::sequential_registration_transaction<kWebCallbackCount>(
       [&](const size_t position) {
         EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_INVALID_PARAM;
         switch (position) {
@@ -1094,15 +1141,29 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
                 EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockerror);
             break;
           case 11:
-            /* Keyboard ownership follows DOM focus. Register on the focusable
-             * canvas rather than window so controls outside Blender and the
-             * hidden IME textarea do not also feed raw key events into GHOST. */
+            /* Keyboard ownership follows Blender's DOM focus domain. Keep the
+             * canvas target exact so unrelated page controls remain excluded. */
             result = emscripten_set_keydown_callback(canvas, user_data, false, cb_key);
             break;
           case 12:
             result = emscripten_set_keyup_callback(canvas, user_data, false, cb_key);
             break;
+#ifdef WITH_INPUT_IME
           case 13:
+            /* The hidden textarea owns focus during every ordinary Blender text
+             * edit. Its earlier main-thread listener suppresses active-composition
+             * process keys; only non-composing keys reach these raw callbacks. */
+            result = emscripten_set_keydown_callback(
+                kImeInputSelector, user_data, false, cb_key);
+            break;
+          case 14:
+            result = emscripten_set_keyup_callback(
+                kImeInputSelector, user_data, false, cb_key);
+            break;
+          case 15:
+#else
+          case 13:
+#endif
             result = emscripten_set_resize_callback(win, user_data, false, cb_resize);
             break;
         }
@@ -1123,9 +1184,10 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
           }
         }, canvas);
         std::fprintf(stderr,
-                     "GHOST-web: HTML5 callback registration %zu/14 failed (result %d); "
+                     "GHOST-web: HTML5 callback registration %zu/%zu failed (result %d); "
                      "prefix rollback %s\n",
                      failed_position + 1,
+                     kWebCallbackCount,
                      int(failed_result),
                      removed ? "succeeded" : "failed");
       },
@@ -1164,7 +1226,8 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   CallbackRegistration *expected_registration = registration;
   g_callback_registration.compare_exchange_strong(
       expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
-  const bool removed = remove_html5_callback_prefix(canvas, win, callback_user_data_, 14);
+  const bool removed =
+      remove_html5_callback_prefix(canvas, win, callback_user_data_, kWebCallbackCount);
   callback_user_data_ = nullptr;
   callbacks_registered_ = false;
   if (!removed) {

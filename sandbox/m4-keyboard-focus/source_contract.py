@@ -56,6 +56,11 @@ def validate(system: str, live_test: str, lifecycle_test: str) -> None:
             f"emscripten_set_{event}_callback(canvas, user_data, false, cb_key)",
             "canvas keyboard registration",
         )
+        require_once(
+            registration,
+            f"emscripten_set_{event}_callback(kImeInputSelector, user_data, false, cb_key)",
+            "IME keyboard registration",
+        )
         if f"emscripten_set_{event}_callback(win, user_data, false, cb_key)" in registration:
             raise ValueError(f"{event} remains registered on the browser window")
 
@@ -64,6 +69,11 @@ def validate(system: str, live_test: str, lifecycle_test: str) -> None:
             removal,
             f"remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_{event}, cb_key)",
             "canvas keyboard removal",
+        )
+        require_once(
+            removal,
+            f"remove_html5_callback(kImeInputSelector, user_data, EMSCRIPTEN_EVENT_{event}, cb_key)",
+            "IME keyboard removal",
         )
         if (
             f"remove_html5_callback(window, user_data, EMSCRIPTEN_EVENT_{event}, cb_key)"
@@ -108,6 +118,24 @@ def selfcheck(system: str, live_test: str, lifecycle_test: str) -> None:
                 system,
                 "emscripten_set_keyup_callback(canvas,",
                 "emscripten_set_keyup_callback(win,",
+            ),
+            live_test,
+            lifecycle_test,
+        ),
+        (
+            replace_once(
+                system,
+                "emscripten_set_keydown_callback(\n                kImeInputSelector,",
+                "emscripten_set_keydown_callback(\n                win,",
+            ),
+            live_test,
+            lifecycle_test,
+        ),
+        (
+            replace_once(
+                system,
+                "emscripten_set_keyup_callback(\n                kImeInputSelector,",
+                "emscripten_set_keyup_callback(\n                win,",
             ),
             live_test,
             lifecycle_test,
@@ -193,8 +221,8 @@ def main() -> int:
     else:
         validate(*inputs)
     print(
-        "KEYBOARD_FOCUS_CONTRACT PASS target=canvas focused=deliver blurred=suppress "
-        "queued=registration-epoch mutations=8"
+        "KEYBOARD_FOCUS_CONTRACT PASS targets=canvas,ime focused=deliver blurred=suppress "
+        "queued=registration-epoch mutations=10"
     )
     return 0
 

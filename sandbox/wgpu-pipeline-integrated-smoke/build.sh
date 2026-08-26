@@ -56,6 +56,9 @@ FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
+IME_NONCOMPOSING_KEY_CONTRACT="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/source_contract.py"
+IME_NONCOMPOSING_KEY_TEST="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/ime_keyboard_test.mjs"
+IME_NONCOMPOSING_PRODUCT_TEST="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/product_text_state_test.mjs"
 MODIFIER_SIDE_CONTRACT="$ROOT/sandbox/m4-modifier-side-state/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_CONTRACT="$ROOT/sandbox/m4-mouse-release-ownership/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_TEST="$ROOT/sandbox/m4-mouse-release-ownership/mouse_release_test.mjs"
@@ -249,6 +252,10 @@ require_file "$WINDOW_TITLE_CONTRACT"
 require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
+require_file "$KEYBOARD_FOCUS_CONTRACT"
+require_file "$IME_NONCOMPOSING_KEY_CONTRACT"
+require_file "$IME_NONCOMPOSING_KEY_TEST"
+require_file "$IME_NONCOMPOSING_PRODUCT_TEST"
 require_file "$MOUSE_RELEASE_OWNERSHIP_CONTRACT"
 require_file "$MODIFIER_SIDE_CONTRACT"
 require_file "$MOUSE_RELEASE_OWNERSHIP_TEST"
@@ -1774,6 +1781,9 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/patches/0280-ghost-web-input-ime-option.patch" "$ROOT/patches/series" --selfcheck
 "$PYBIN" "$IME_FOCUS_OWNERSHIP_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" "$IME_FOCUS_OWNERSHIP_TEST" --selfcheck
+"$PYBIN" "$IME_NONCOMPOSING_KEY_CONTRACT" \
+  "$GHOST_SYSTEM_SOURCE" "$IME_NONCOMPOSING_KEY_TEST" \
+  "$IME_NONCOMPOSING_PRODUCT_TEST" --selfcheck
 "$PYBIN" "$FOCUS_TRANSITION_ORDER_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" "$FOCUS_TRANSITION_ORDER_TEST" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
@@ -2456,7 +2466,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 windows=3 accepted=2 invalid=destroyed publication=atomic' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT ghost_callback_registration_transaction PASS cases=17 failed_positions=14 replacement=rollback-retry publication=atomic' \
+       'CONTRACT ghost_callback_registration_transaction PASS cases=19 failed_positions=16 replacement=rollback-retry publication=atomic' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ghost_surface_publication_status PASS cases=13 accepted=2 canvas=required surface=required configuration=required backbuffer=required device_only=explicit' \

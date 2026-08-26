@@ -2879,6 +2879,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   produce the exact success plus terminal-error profiles; only their accepted union can authorize
   the hash-bound APPLY relink. Any intervening relink requires new profiles. See
   `notes/m4-split-capture-product-20260826.md`.
+- [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
+  capability seam is now committed, public assembly and independent provenance share one
+  fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and
+  keepalive query/global controls in the public variant. Focused execution rejects six mutations;
+  staged assembly/provenance/producer, M8 consumer, release-freeze, and compliance self-checks are
+  green. **Not resolved:** no public bundle can be assembled or browser-attacked until the current
+  CAPTURE generation receives the two Apple profiles and is relinked to a hash-bound APPLY
+  primary/deferred product. See `notes/m8-public-query-hardening-20260826.md`.
 - [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
   25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
   or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while

@@ -39,6 +39,7 @@ try {
       typeof module._ghost_harness_request_ime === "function" &&
       typeof module._ghost_harness_ime_result === "function" &&
       typeof module._ghost_harness_ime_capability === "function" &&
+      typeof module._ghost_harness_window_manager_state === "function" &&
       typeof module._bw_shell_ime_consumed_count === "function" &&
       typeof module._bw_shell_ime_recovered_count === "function" &&
       globalThis.__bwImeBridge?.schema === 1 &&
@@ -61,7 +62,9 @@ try {
     if (result !== 1) throw new Error(`IME action ${action} failed: ${result}`);
   };
 
+  await page.evaluate(() => { document.querySelector("#log").textContent = ""; });
   await requestIme(0);
+  await page.waitForTimeout(100);
   const begun = await page.evaluate(() => {
     const input = document.querySelector("#bw-ime-input");
     const canvas = document.querySelector("#blender-canvas");
@@ -74,11 +77,14 @@ try {
       offsetY: Math.round(inputBounds.top - canvasBounds.top),
       width: Math.round(inputBounds.width),
       height: Math.round(inputBounds.height),
+      manager: Number(globalThis.ghostModule._ghost_harness_window_manager_state()),
+      log: document.querySelector("#log").textContent,
     };
   });
   if (!begun.snapshot.enabled || !begun.snapshot.focused || begun.id !== "bw-ime-input" ||
       Math.abs(begun.offsetX - 37) > 1 || Math.abs(begun.offsetY - 53) > 1 ||
-      begun.width !== 18 || begun.height !== 22) {
+      begun.width !== 18 || begun.height !== 22 || begun.manager !== 1 ||
+      begun.log.includes("WindowDeactivate") || begun.log.includes("WindowActivate")) {
     throw new Error(`IME caret/focus contract failed: ${JSON.stringify(begun)}`);
   }
 
@@ -125,10 +131,68 @@ try {
   const ended = await page.evaluate(() => ({
     snapshot: globalThis.__bwImeBridge.snapshot(),
     active: document.activeElement?.id,
+    manager: Number(globalThis.ghostModule._ghost_harness_window_manager_state()),
+    log: document.querySelector("#log").textContent,
   }));
-  if (ended.snapshot.enabled || ended.snapshot.focused || ended.active !== "blender-canvas") {
+  if (ended.snapshot.enabled || ended.snapshot.focused || ended.active !== "blender-canvas" ||
+      ended.manager !== 1 || ended.log.includes("WindowDeactivate") ||
+      ended.log.includes("WindowActivate")) {
     throw new Error(`IME end/focus contract failed: ${JSON.stringify(ended)}`);
   }
+
+  // A page control is outside Blender's focus domain and must still deactivate
+  // the GHOST window exactly once; returning to the canvas reactivates it once.
+  await page.evaluate(() => {
+    document.querySelector("#log").textContent = "";
+    document.querySelector("#clear").focus();
+  });
+  await page.waitForFunction(() =>
+    Number(globalThis.ghostModule._ghost_harness_window_manager_state()) === 0 &&
+    document.querySelector("#log").textContent.includes("WindowDeactivate"));
+  await page.locator("#blender-canvas").focus();
+  await page.waitForFunction(() =>
+    Number(globalThis.ghostModule._ghost_harness_window_manager_state()) === 1 &&
+    document.querySelector("#log").textContent.includes("WindowActivate"));
+  const externalFocus = await page.evaluate(() => ({
+    active: document.activeElement?.id,
+    manager: Number(globalThis.ghostModule._ghost_harness_window_manager_state()),
+    transitions: document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.includes("WindowActivate") || line.includes("WindowDeactivate"))
+      .map((line) => line.trim()),
+  }));
+  if (externalFocus.active !== "blender-canvas" || externalFocus.manager !== 1 ||
+      JSON.stringify(externalFocus.transitions) !==
+        JSON.stringify(["GHOST WindowDeactivate", "GHOST WindowActivate"])) {
+    throw new Error(`external focus-domain contract failed: ${JSON.stringify(externalFocus)}`);
+  }
+
+  // Window-level listeners remain required while IME owns activeElement: a tab
+  // or browser-window loss has no second canvas blur to report.
+  await requestIme(0);
+  await page.evaluate(() => {
+    document.querySelector("#log").textContent = "";
+    window.dispatchEvent(new FocusEvent("blur"));
+  });
+  await page.waitForFunction(() =>
+    Number(globalThis.ghostModule._ghost_harness_window_manager_state()) === 0 &&
+    document.querySelector("#log").textContent.includes("WindowDeactivate"));
+  await page.evaluate(() => window.dispatchEvent(new FocusEvent("focus")));
+  await page.waitForFunction(() =>
+    Number(globalThis.ghostModule._ghost_harness_window_manager_state()) === 1 &&
+    document.querySelector("#log").textContent.includes("WindowActivate"));
+  const windowFocus = await page.evaluate(() => ({
+    active: document.activeElement?.id,
+    manager: Number(globalThis.ghostModule._ghost_harness_window_manager_state()),
+    transitions: document.querySelector("#log").textContent.split("\n")
+      .filter((line) => line.includes("WindowActivate") || line.includes("WindowDeactivate")),
+  }));
+  if (windowFocus.active !== "bw-ime-input" || windowFocus.manager !== 1 ||
+      windowFocus.transitions.length !== 2 ||
+      !windowFocus.transitions[0].includes("WindowDeactivate") ||
+      !windowFocus.transitions[1].includes("WindowActivate")) {
+    throw new Error(`window focus-domain contract failed: ${JSON.stringify(windowFocus)}`);
+  }
+  await requestIme(1);
 
   await page.evaluate(() => document.querySelector("#bw-ime-input").dispatchEvent(
     new CompositionEvent("compositionupdate", {data: "must-not-publish", bubbles: true})));
@@ -249,7 +313,8 @@ try {
 
   console.log(
     "GHOST_IME_BROWSER PASS events=start,update,commit,end utf8=3,10 " +
-    "worker=spsc terminal=reserved,recovered focus=caret,canvas " +
+    "worker=spsc terminal=reserved,recovered " +
+    "focus=domain-internal,external,window " +
     "disabled=rejected capability=on");
 }
 finally {

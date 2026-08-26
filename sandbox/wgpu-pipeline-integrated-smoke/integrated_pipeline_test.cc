@@ -2709,7 +2709,7 @@ bool ghost_window_publication_transaction_contract()
 
 bool ghost_callback_registration_transaction_contract()
 {
-  constexpr size_t listener_count = 12;
+  constexpr size_t listener_count = 14;
   size_t failure_rollbacks = 0;
   for (size_t failed_position = 0; failed_position < listener_count; failed_position++) {
     std::array<bool, listener_count> listeners = {};
@@ -2787,8 +2787,8 @@ bool ghost_callback_registration_transaction_contract()
     return false;
   }
 
-  std::puts("CONTRACT ghost_callback_registration_transaction PASS cases=15 "
-            "failed_positions=12 replacement=rollback-retry publication=atomic");
+  std::puts("CONTRACT ghost_callback_registration_transaction PASS cases=17 "
+            "failed_positions=14 replacement=rollback-retry publication=atomic");
   return true;
 }
 
@@ -4053,7 +4053,7 @@ int main()
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "ghost_window_cases=5 ghost_callback_registration_cases=15 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
+      "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "

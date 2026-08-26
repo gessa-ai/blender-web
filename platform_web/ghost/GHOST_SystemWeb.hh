@@ -128,6 +128,13 @@ class GHOST_SystemWeb : public GHOST_System {
   bool windowToCanvasCoordinates(
       int32_t client_x, int32_t client_y, int32_t &canvas_x, int32_t &canvas_y) const;
 
+  /** True while browser focus belongs to either the canvas or Blender's enabled
+   * hidden IME textarea. The two DOM elements form one logical GHOST window. */
+  bool browserFocusIsOwned() const;
+
+  /** Publish the logical browser-focus state once. Returns true only for a transition. */
+  bool transitionBrowserFocus(bool focused);
+
  private:
   bool registerCanvasCallbacks();
   void unregisterCanvasCallbacks();
@@ -158,5 +165,6 @@ class GHOST_SystemWeb : public GHOST_System {
   bool mod_shift_ = false;
   bool mod_alt_ = false;
   bool mod_meta_ = false;
+  bool browser_focus_active_ = false;
   GHOST_Buttons buttons_;
 };

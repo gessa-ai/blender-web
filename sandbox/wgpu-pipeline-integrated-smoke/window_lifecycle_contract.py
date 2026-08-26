@@ -67,7 +67,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     if "std::atomic<GHOST_SystemWeb *> g_callback_system" in source or \
             "static_cast<GHOST_SystemWeb *>(user_data)" in source:
         raise ValueError("callback admission still reuses the system pointer")
-    if source.count("callback_system(ud)") != 10 or source.count("if (system == nullptr)") != 7:
+    if source.count("callback_system(ud)") != 12 or source.count("if (system == nullptr)") != 6:
         raise ValueError("every HTML5 callback must validate its live system owner")
 
     for token in (
@@ -100,7 +100,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     for token in (
         "g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed)",
         "g_callback_registrations.push_back(std::move(registration));",
-        "ghost_web::sequential_registration_transaction<12>(",
+        "ghost_web::sequential_registration_transaction<14>(",
         "remove_html5_callback_prefix(canvas, win, user_data, registered_count)",
         "callback_user_data_ = user_data;",
         "g_active_callback_epoch.store(epoch, std::memory_order_release);",
@@ -109,7 +109,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     ):
         require_once(registration, token, "registration")
     require_once(registration, "callbacks_registered_ = true;", "registration")
-    transaction = registration.index("ghost_web::sequential_registration_transaction<12>(")
+    transaction = registration.index("ghost_web::sequential_registration_transaction<14>(")
     durable = registration.index("g_callback_registrations.push_back")
     publish_user_data = registration.index("callback_user_data_ = user_data;")
     publish_epoch = registration.index("g_active_callback_epoch.store(")
@@ -125,8 +125,6 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "emscripten_set_mouseup_callback",
         "emscripten_set_wheel_callback",
         "emscripten_set_contextmenu_callback",
-        "emscripten_set_focus_callback",
-        "emscripten_set_blur_callback",
         "emscripten_set_pointerlockchange_callback",
         "emscripten_set_pointerlockerror_callback",
         "emscripten_set_keydown_callback",
@@ -134,6 +132,9 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "emscripten_set_resize_callback",
     ):
         require_once(registration, setter, "registration result")
+    for setter in ("emscripten_set_focus_callback", "emscripten_set_blur_callback"):
+        if registration.count(setter) != 2:
+            raise ValueError(f"registration requires two logical-domain {setter} results")
 
     for token in (
         "bool ghost_callback_registration_transaction_contract()",
@@ -141,7 +142,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "rollback_prefix == failed_position",
         "active_owner == 0",
         "replacement_failure == 8",
-        "failed_positions=12 replacement=rollback-retry",
+        "failed_positions=14 replacement=rollback-retry",
     ):
         require_once(integrated_test, token, "registration transaction behavior")
     if integrated_test.count("sequential_registration_transaction<listener_count>(") != 2:
@@ -159,7 +160,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     require_once(unregistration, "callbacks_registered_ = false;", "unregistration")
     require_once(
         unregistration,
-        "remove_html5_callback_prefix(canvas, win, callback_user_data_, 12)",
+        "remove_html5_callback_prefix(canvas, win, callback_user_data_, 14)",
         "unregistration",
     )
     removal_helper = method(source, REMOVE_PREFIX_MARKER)
@@ -169,8 +170,10 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         ("window", "EMSCRIPTEN_EVENT_MOUSEUP", "cb_mousebtn"),
         ("canvas", "EMSCRIPTEN_EVENT_WHEEL", "cb_wheel"),
         ("canvas", "EMSCRIPTEN_EVENT_CONTEXTMENU", "cb_contextmenu"),
-        ("canvas", "EMSCRIPTEN_EVENT_FOCUS", "cb_focus"),
-        ("canvas", "EMSCRIPTEN_EVENT_BLUR", "cb_blur"),
+        ("canvas", "EMSCRIPTEN_EVENT_FOCUS", "cb_canvas_focus"),
+        ("canvas", "EMSCRIPTEN_EVENT_BLUR", "cb_canvas_blur"),
+        ("window", "EMSCRIPTEN_EVENT_FOCUS", "cb_window_focus"),
+        ("window", "EMSCRIPTEN_EVENT_BLUR", "cb_window_blur"),
         ("canvas", "EMSCRIPTEN_EVENT_KEYDOWN", "cb_key"),
         ("canvas", "EMSCRIPTEN_EVENT_KEYUP", "cb_key"),
         ("window", "EMSCRIPTEN_EVENT_RESIZE", "cb_resize"),
@@ -289,8 +292,8 @@ def selfcheck(header: str, source: str, live_test: str, integrated_test: str) ->
     normalized_mutations.append(mutations[-1])
     normalized_mutations.extend((
         (header, mutate_method(source, REGISTER_MARKER,
-                               "ghost_web::sequential_registration_transaction<12>(",
-                               "ghost_web::sequential_registration_transaction<11>("),
+                               "ghost_web::sequential_registration_transaction<14>(",
+                               "ghost_web::sequential_registration_transaction<13>("),
          live_test, integrated_test),
         (header, mutate_method(source, REGISTER_MARKER,
                                "callback_user_data_ = user_data;", ""),
@@ -336,7 +339,7 @@ def main() -> int:
     else:
         validate(header, source, live_test, integrated_test)
     print(
-        "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=12 "
+        "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=14 "
         "replacement=rebound ime=retired pointerlock=retired queued=registration-epoch "
         "replacements=2 manager=active-lifecycle registration=transactional mutations=33"
     )

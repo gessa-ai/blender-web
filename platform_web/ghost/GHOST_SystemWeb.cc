@@ -176,23 +176,51 @@ bool cb_resize(int /*t*/, const EmscriptenUiEvent *e, void *ud)
   ghost_web_bridge::on_resize(*system, *e);
   return true;
 }
-bool cb_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
+bool publish_browser_focus_transition(GHOST_SystemWeb *system, const bool focused)
 {
-  GHOST_SystemWeb *system = callback_system(ud);
-  if (system == nullptr) {
+  if (!system->transitionBrowserFocus(focused)) {
     return false;
   }
-  ghost_web_bridge::on_focus(*system, true);
+  ghost_web_bridge::on_focus(*system, focused);
   return true;
 }
-bool cb_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
+
+bool cb_canvas_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
+{
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr || !system->browserFocusIsOwned()) {
+    return false;
+  }
+  return publish_browser_focus_transition(system, true);
+}
+
+bool cb_canvas_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
+{
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr || system->browserFocusIsOwned()) {
+    return false;
+  }
+  return publish_browser_focus_transition(system, false);
+}
+
+bool cb_window_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
+{
+  GHOST_SystemWeb *system = callback_system(ud);
+  if (system == nullptr || !system->browserFocusIsOwned()) {
+    return false;
+  }
+  return publish_browser_focus_transition(system, true);
+}
+
+bool cb_window_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 {
   GHOST_SystemWeb *system = callback_system(ud);
   if (system == nullptr) {
     return false;
   }
-  ghost_web_bridge::on_focus(*system, false);
-  return true;
+  /* A browser-window blur leaves the complete canvas/IME focus domain even
+   * when the hidden textarea, rather than the canvas, owns activeElement. */
+  return publish_browser_focus_transition(system, false);
 }
 bool cb_contextmenu(int /*t*/, const EmscriptenMouseEvent * /*e*/, void *ud)
 {
@@ -254,35 +282,45 @@ bool remove_html5_callback_prefix(const char *canvas,
   switch (registered_count) {
     default:
       return false;
-    case 12:
+    case 14:
       removed &= remove_html5_callback(
           window, user_data, EMSCRIPTEN_EVENT_RESIZE, cb_resize);
       [[fallthrough]];
-    case 11:
+    case 13:
       removed &= remove_html5_callback(
           canvas, user_data, EMSCRIPTEN_EVENT_KEYUP, cb_key);
       [[fallthrough]];
-    case 10:
+    case 12:
       removed &= remove_html5_callback(
           canvas, user_data, EMSCRIPTEN_EVENT_KEYDOWN, cb_key);
       [[fallthrough]];
-    case 9:
+    case 11:
       removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
                                        user_data,
                                        EMSCRIPTEN_EVENT_POINTERLOCKERROR,
                                        cb_pointerlockerror);
       [[fallthrough]];
-    case 8:
+    case 10:
       removed &= remove_html5_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
                                        user_data,
                                        EMSCRIPTEN_EVENT_POINTERLOCKCHANGE,
                                        cb_pointerlockchange);
       [[fallthrough]];
+    case 9:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_BLUR, cb_window_blur);
+      [[fallthrough]];
+    case 8:
+      removed &= remove_html5_callback(
+          window, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_window_focus);
+      [[fallthrough]];
     case 7:
-      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_BLUR, cb_blur);
+      removed &= remove_html5_callback(
+          canvas, user_data, EMSCRIPTEN_EVENT_BLUR, cb_canvas_blur);
       [[fallthrough]];
     case 6:
-      removed &= remove_html5_callback(canvas, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_focus);
+      removed &= remove_html5_callback(
+          canvas, user_data, EMSCRIPTEN_EVENT_FOCUS, cb_canvas_focus);
       [[fallthrough]];
     case 5:
       removed &= remove_html5_callback(
@@ -863,7 +901,7 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
 
   size_t failed_position = 0;
   EMSCRIPTEN_RESULT failed_result = EMSCRIPTEN_RESULT_SUCCESS;
-  const bool registration_succeeded = ghost_web::sequential_registration_transaction<12>(
+  const bool registration_succeeded = ghost_web::sequential_registration_transaction<14>(
       [&](const size_t position) {
         EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_INVALID_PARAM;
         switch (position) {
@@ -889,29 +927,38 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
                 canvas, user_data, false, cb_contextmenu);
             break;
           case 5:
-            result = emscripten_set_focus_callback(canvas, user_data, false, cb_focus);
+            result = emscripten_set_focus_callback(canvas, user_data, false, cb_canvas_focus);
             break;
           case 6:
-            result = emscripten_set_blur_callback(canvas, user_data, false, cb_blur);
+            result = emscripten_set_blur_callback(canvas, user_data, false, cb_canvas_blur);
             break;
           case 7:
+            /* Canvas blur alone cannot observe a tab/browser-window loss while
+             * Blender's hidden IME textarea owns focus. Window focus listeners
+             * close that half of the logical focus domain. */
+            result = emscripten_set_focus_callback(win, user_data, false, cb_window_focus);
+            break;
+          case 8:
+            result = emscripten_set_blur_callback(win, user_data, false, cb_window_blur);
+            break;
+          case 9:
             result = emscripten_set_pointerlockchange_callback(
                 EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockchange);
             break;
-          case 8:
+          case 10:
             result = emscripten_set_pointerlockerror_callback(
                 EMSCRIPTEN_EVENT_TARGET_DOCUMENT, user_data, false, cb_pointerlockerror);
             break;
-          case 9:
+          case 11:
             /* Keyboard ownership follows DOM focus. Register on the focusable
              * canvas rather than window so controls outside Blender and the
              * hidden IME textarea do not also feed raw key events into GHOST. */
             result = emscripten_set_keydown_callback(canvas, user_data, false, cb_key);
             break;
-          case 10:
+          case 12:
             result = emscripten_set_keyup_callback(canvas, user_data, false, cb_key);
             break;
-          case 11:
+          case 13:
             result = emscripten_set_resize_callback(win, user_data, false, cb_resize);
             break;
         }
@@ -926,7 +973,7 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         const bool removed =
             remove_html5_callback_prefix(canvas, win, user_data, registered_count);
         std::fprintf(stderr,
-                     "GHOST-web: HTML5 callback registration %zu/12 failed (result %d); "
+                     "GHOST-web: HTML5 callback registration %zu/14 failed (result %d); "
                      "prefix rollback %s\n",
                      failed_position + 1,
                      int(failed_result),
@@ -937,12 +984,16 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         g_active_callback_epoch.store(epoch, std::memory_order_release);
         g_callback_registration.store(user_data, std::memory_order_release);
         callbacks_registered_ = true;
+        /* The shell may have focused the canvas before callback registration.
+         * Seed de-duplication from the live DOM without manufacturing an event. */
+        browser_focus_active_ = browserFocusIsOwned();
       });
   return registration_succeeded;
 }
 
 void GHOST_SystemWeb::unregisterCanvasCallbacks()
 {
+  browser_focus_active_ = false;
   if (!callbacks_registered_) {
     return;
   }
@@ -955,7 +1006,7 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   CallbackRegistration *expected_registration = registration;
   g_callback_registration.compare_exchange_strong(
       expected_registration, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
-  const bool removed = remove_html5_callback_prefix(canvas, win, callback_user_data_, 12);
+  const bool removed = remove_html5_callback_prefix(canvas, win, callback_user_data_, 14);
   callback_user_data_ = nullptr;
   callbacks_registered_ = false;
   if (!removed) {
@@ -1203,6 +1254,38 @@ bool GHOST_SystemWeb::windowToCanvasCoordinates(const int32_t client_x,
   canvas_y = client_y - canvas_client_top_;
   return canvas_client_width_ > 0 && canvas_client_height_ > 0 && canvas_x >= 0 &&
          canvas_y >= 0 && canvas_x < canvas_client_width_ && canvas_y < canvas_client_height_;
+}
+
+bool GHOST_SystemWeb::browserFocusIsOwned() const
+{
+  const char *selector = canvas_selector_.c_str();
+  return MAIN_THREAD_EM_ASM_INT(
+             {
+               if (typeof document === "undefined" || !document.hasFocus()) {
+                 return 0;
+               }
+               const active = document.activeElement;
+               const canvas = document.querySelector(UTF8ToString($0));
+               if (active === canvas) {
+                 return 1;
+               }
+               const bridge = globalThis.__bwImeBridge;
+               if (!bridge || typeof bridge.snapshot !== "function") {
+                 return 0;
+               }
+               const state = bridge.snapshot();
+               return state && state.enabled === true && state.focused === true ? 1 : 0;
+             },
+             selector) != 0;
+}
+
+bool GHOST_SystemWeb::transitionBrowserFocus(const bool focused)
+{
+  if (browser_focus_active_ == focused) {
+    return false;
+  }
+  browser_focus_active_ = focused;
+  return true;
 }
 
 GHOST_TSuccess GHOST_SystemWeb::setCursorPosition(int32_t /*x*/, int32_t /*y*/)

@@ -198,7 +198,7 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
     ):
         if remove_prefix.count(token) != 1:
             raise ValueError(f"callback retirement requires exactly one {token!r}")
-    if unregister.count("remove_html5_callback_prefix(canvas, win, callback_user_data_, 12)") != 1:
+    if unregister.count("remove_html5_callback_prefix(canvas, win, callback_user_data_, 14)") != 1:
         raise ValueError("callback retirement does not remove the complete listener set")
     if focus.count("win->releasePointerLock();") != 1:
         raise ValueError("blur does not cancel pending/active Pointer Lock")

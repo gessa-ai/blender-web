@@ -2887,6 +2887,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green. **Not resolved:** no public bundle can be assembled or browser-attacked until the current
   CAPTURE generation receives the two Apple profiles and is relinked to a hash-bound APPLY
   primary/deferred product. See `notes/m8-public-query-hardening-20260826.md`.
+- [x] **P1-M8-DEFERRAL-REGISTRY-COMPLETENESS [compliance] (`0e7f2ec`):** sixteen named
+  launch-visible feature rows now bind 33 forced-OFF build flags, covering IK, Bullet/physics,
+  Ocean, remesh/Quadriflow, exact boolean, SLIM UV, video, audio, FBX, Alembic, Grease Pencil
+  vector IO, OIDN, Freestyle, motion tracking, OpenXR, and JPEG2000/WebP/DPX. The six hardware
+  rows now say the evidence is unavailable only on this WSL2 host, name the driver-operated Apple
+  M4 Pro path, and reject the falsified Windows-reboot route. The focused contract passes 16/33/6
+  with 57 fail-closed mutations; its exact staged candidate, the updated S7 contract, REUSE, and
+  container-backed M0 regression are green. M8 and M1-M8 retain their existing strict receipt,
+  APPLY, browser, performance, and release boundaries. See
+  `notes/m8-deferral-registry-completeness-20260826.md`.
 - [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
   25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
   or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while

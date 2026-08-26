@@ -1587,3 +1587,17 @@ then translate `clientX/Y` locally on the WM worker. Exercise fail-first outside
 relative coordinates, outside release, unowned motion/release suppression, focus loss, Pointer
 Lock, and listener replacement/removal. See `platform_web/ghost/GHOST_SystemWeb.cc` and
 `sandbox/m4-mouse-release-ownership/`.
+
+## Class 108 — one logical window can span several DOM focus elements
+
+Signature: a canvas application focuses its own hidden textarea for IME composition, and the
+canvas blur listener mistakes that internal handoff for application deactivation. Model browser
+focus as a domain containing the canvas and the enabled, focused IME textarea; publish only state
+changes at the domain boundary. A canvas blur may be suppressed when the domain still owns focus,
+but browser-window blur must always deactivate because `activeElement` can remain the textarea
+after the tab or window loses focus. Register both element- and window-level listeners in the same
+rollback transaction and deduplicate overlapping delivery. Exercise canvas-to-textarea and
+textarea-to-canvas handoffs, an ordinary page control, browser-window loss/recovery while IME owns
+`activeElement`, and exact listener retirement. See `platform_web/ghost/GHOST_SystemWeb.cc`,
+`sandbox/m4-ime-focus-ownership/`, and
+`platform_web/ghost/harness/ime_composition_test.mjs`.

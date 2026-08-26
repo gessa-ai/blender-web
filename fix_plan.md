@@ -2816,6 +2816,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   optimized product, OFF preflight, fallback diagnostic, canonical replay, REUSE, M4 scope, and
   container regression preserve their strict existing boundaries. See
   `notes/m4-active-window-lifecycle-20260825.md`.
+- [x] **M4-WEB-IME-FOCUS-OWNERSHIP [ghost-web] (`27b75ca`):** the canvas and Blender's enabled
+  hidden IME textarea now form one logical GHOST focus domain, so begin/end composition handoffs
+  cannot publish false activation transitions or clear the active window. Ordinary page-control
+  focus and browser-window loss still deactivate exactly once. The fail-first/final real-worker
+  outcome, 17 focused and 33 lifecycle mutations, 14-listener native/wasm transaction matrix,
+  locked product relink/no-work, OFF preflight, sustained fallback diagnostic, canonical replay,
+  REUSE, M4 scope, and container regression preserve their strict existing boundaries. See
+  `notes/m4-ime-focus-ownership-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

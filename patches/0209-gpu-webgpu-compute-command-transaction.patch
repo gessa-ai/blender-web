@@ -1,0 +1,100 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -163,6 +163,33 @@ inline bool command_encode_submit_if_valid(const DeviceT &device,
+   return true;
+ }
+
++/** Encode one short-lived pass and submit it only after every fallible command handle succeeds.
++ * The pass body is not called after a failed encoder/pass, and a failed finished command buffer
++ * is never submitted. Templated so the complete transaction remains device-free testable. */
++template<typename DeviceT, typename QueueT, typename BeginPassFn, typename EncodeFn>
++inline bool command_pass_encode_submit_if_valid(const DeviceT &device,
++                                                const QueueT &queue,
++                                                BeginPassFn &&begin_pass,
++                                                EncodeFn &&encode)
++{
++  auto encoder = device.CreateCommandEncoder();
++  if (encoder == nullptr) {
++    return false;
++  }
++  auto pass = std::forward<BeginPassFn>(begin_pass)(encoder);
++  if (pass == nullptr) {
++    return false;
++  }
++  std::forward<EncodeFn>(encode)(pass);
++  pass.End();
++  auto command_buffer = encoder.Finish();
++  if (command_buffer == nullptr) {
++    return false;
++  }
++  queue.Submit(1, &command_buffer);
++  return true;
++}
++
+ /** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
+  * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
+  * a non-null handle is available. */
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -200,16 +200,20 @@ void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
+   wgpu::BindGroup bind_group;
+   const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
+
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+-  pass.SetPipeline(pipeline);
+-  if (have_bg) {
+-    pass.SetBindGroup(0, bind_group);
++  if (!webgpu::command_pass_encode_submit_if_valid(
++          device,
++          ctx->queue_get(),
++          [](auto &encoder) { return encoder.BeginComputePass(); },
++          [&](auto &pass) {
++            pass.SetPipeline(pipeline);
++            if (have_bg) {
++              pass.SetBindGroup(0, bind_group);
++            }
++            pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
++          }))
++  {
++    return;
+   }
+-  pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  ctx->queue_get().Submit(1, &cb);
+ }
+
+ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+@@ -243,16 +247,20 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+   wgpu::BindGroup bind_group;
+   const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
+
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+-  pass.SetPipeline(pipeline);
+-  if (have_bg) {
+-    pass.SetBindGroup(0, bind_group);
++  if (!webgpu::command_pass_encode_submit_if_valid(
++          device,
++          ctx->queue_get(),
++          [](auto &encoder) { return encoder.BeginComputePass(); },
++          [&](auto &pass) {
++            pass.SetPipeline(pipeline);
++            if (have_bg) {
++              pass.SetBindGroup(0, bind_group);
++            }
++            pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
++          }))
++  {
++    return;
+   }
+-  pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  ctx->queue_get().Submit(1, &cb);
+ }
+
+ /* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */

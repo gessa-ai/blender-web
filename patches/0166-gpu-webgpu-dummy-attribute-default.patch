@@ -1,0 +1,26 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -318,12 +318,19 @@ wgpu::Buffer WGPUContext::dummy_vertex_buffer()
+ {
+   if (dummy_vertex_buffer_ == nullptr) {
+     wgpu::BufferDescriptor bd = {};
+-    /* Every dummy slot has arrayStride zero, so all vertex and instance ranges read these
+-     * same 16 bytes. This covers the largest dummy format (Float32x4); WebGPU zero-initialises
+-     * buffer storage — exactly the constant an unbound attribute yields. */
++    /* Every dummy slot has arrayStride zero, so all vertex and instance ranges read the same
++     * 16 bytes. Match Blender's Vulkan backend and OpenGL's default generic attribute:
++     * missing xyz components are zero and w is one. The fourth value is also needed by the
++     * generated-coordinate (orco) path. */
+     bd.size = 16;
+     bd.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+     dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
++    if (dummy_vertex_buffer_ != nullptr) {
++      static constexpr float default_attribute[4] = {0.0f, 0.0f, 0.0f, 1.0f};
++      /* Queue writes are ordered before later draw submissions on this same queue. */
++      queue_.WriteBuffer(
++          dummy_vertex_buffer_, 0, default_attribute, sizeof(default_attribute));
++    }
+   }
+   return dummy_vertex_buffer_;
+ }

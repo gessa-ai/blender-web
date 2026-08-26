@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2021-2025 Blender Foundation
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from intern/opensubdiv/internal/evaluator/eval_output_gpu.h @ fbe6228777e7
+# Ported for the web from intern/opensubdiv/internal/evaluator/gpu_compute_evaluator.cc @ fbe6228777e7
+#
+# M6 (patch 0111): guard three VESTIGIAL desktop-GL includes in the OpenSubdiv GPU
+# evaluator so it compiles under Emscripten with a CPU-only OpenSubdiv (no GL, no
+# epoxy). WITH_OPENSUBDIV is now ON (Subsurf/Multires + Cycles subdiv; the sole delta
+# on 22/27 Cycles-CPU tests, notes/m6-cycles-suite.md), and the CPU-only lib/wasm
+# harvest (scripts/deps/opensubdiv.sh) ships neither opensubdiv/osd/gl*.h nor epoxy.
+# Blender 5.2 rewrote this evaluator onto its own gpu:: module (GPU_compute.hh):
+# GpuEvalOutput is templated purely on Blender gpu:: types (GPUVertexBuffer /
+# GPUPatchTable / GPUComputeEvaluator) and gpu_compute_evaluator.cc references NO GL
+# symbol, so the <opensubdiv/osd/glPatchTable.h>, <opensubdiv/osd/glVertexBuffer.h>
+# and <epoxy/gl.h> includes are dead leftovers from the pre-gpu-module (2021) GL path.
+# Guarded with #if !defined(__EMSCRIPTEN__): native builds keep all three (guard true)
+# and are byte-identical; only the wasm build skips them. The evaluator itself still
+# compiles as (headless-unused) code via the gpu module. No behaviour change.
+
+diff --git a/intern/opensubdiv/internal/evaluator/eval_output_gpu.h b/intern/opensubdiv/internal/evaluator/eval_output_gpu.h
+index 0637630527d..daf028917b2 100644
+--- a/intern/opensubdiv/internal/evaluator/eval_output_gpu.h
++++ b/intern/opensubdiv/internal/evaluator/eval_output_gpu.h
+@@ -11,8 +11,15 @@
+ #include "internal/evaluator/gpu_compute_evaluator.h"
+ #include "internal/evaluator/gpu_patch_table.hh"
+ 
+-#include <opensubdiv/osd/glPatchTable.h>
+-#include <opensubdiv/osd/glVertexBuffer.h>
++/* These desktop-GL OpenSubdiv headers are vestigial here: GpuEvalOutput's template
++ * arguments are all Blender gpu:: types (GPUVertexBuffer / GPUPatchTable /
++ * GPUComputeEvaluator) and no OpenSubdiv Osd::GL* type is referenced. The wasm port
++ * builds OpenSubdiv CPU-only (no GL), so these headers do not exist there; skip them
++ * under Emscripten. Native builds keep them (guard true) and are byte-identical. */
++#if !defined(__EMSCRIPTEN__)
++#  include <opensubdiv/osd/glPatchTable.h>
++#  include <opensubdiv/osd/glVertexBuffer.h>
++#endif
+ 
+ #include "gpu_vertex_buffer_wrapper.hh"
+ 
+diff --git a/intern/opensubdiv/internal/evaluator/gpu_compute_evaluator.cc b/intern/opensubdiv/internal/evaluator/gpu_compute_evaluator.cc
+index 57eb769ba66..578e7e7eaa9 100644
+--- a/intern/opensubdiv/internal/evaluator/gpu_compute_evaluator.cc
++++ b/intern/opensubdiv/internal/evaluator/gpu_compute_evaluator.cc
+@@ -2,7 +2,12 @@
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+-#include <epoxy/gl.h>
++/* Vestigial: this evaluator drives Blender's gpu:: module (GPU_compute.hh etc.), not
++ * raw GL, and references no GL symbol. epoxy is unavailable in the wasm build, so skip
++ * it under Emscripten; native is byte-identical (guard true). */
++#if !defined(__EMSCRIPTEN__)
++#  include <epoxy/gl.h>
++#endif
+ 
+ #include "gpu_compute_evaluator.h"
+ 

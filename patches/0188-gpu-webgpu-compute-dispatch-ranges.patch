@@ -1,0 +1,95 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -174,6 +174,17 @@ void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
+   if (ctx == nullptr) {
+     return;
+   }
++  webgpu::ComputeDispatchPlan dispatch;
++  if (!webgpu::compute_dispatch_plan(groups_x_len,
++                                     groups_y_len,
++                                     groups_z_len,
++                                     GPU_max_work_group_count(0),
++                                     GPU_max_work_group_count(1),
++                                     GPU_max_work_group_count(2),
++                                     dispatch))
++  {
++    return;
++  }
+   WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
+   /* A failed compile leaves a null module — cannot build a pipeline. */
+   if (shader == nullptr || shader->compute_module() == nullptr) {
+@@ -195,8 +206,7 @@ void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
+   if (have_bg) {
+     pass.SetBindGroup(0, bind_group);
+   }
+-  pass.DispatchWorkgroups(
+-      uint32_t(groups_x_len), uint32_t(groups_y_len), uint32_t(groups_z_len));
++  pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
+   pass.End();
+   wgpu::CommandBuffer cb = enc.Finish();
+   ctx->queue_get().Submit(1, &cb);
+@@ -220,6 +230,9 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+   if (!indirect_gpu.valid()) {
+     return;
+   }
++  if (!webgpu::compute_indirect_dispatch_range(0, indirect_gpu.size())) {
++    return;
++  }
+
+   wgpu::Device device = ctx->device_get();
+   wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -96,6 +96,50 @@ inline bool buffer_allocation_size(size_t requested_size,
+   return true;
+ }
+
++/** Validated unsigned workgroup counts for one direct WebGPU compute dispatch. */
++struct ComputeDispatchPlan {
++  uint32_t groups_x = 0;
++  uint32_t groups_y = 0;
++  uint32_t groups_z = 0;
++};
++
++/** Validate the signed backend parameters against the limits published to Blender's
++ * frontend before converting them to WebGPU's unsigned API. Zero counts remain valid
++ * no-op dimensions, matching Dawn. Failure leaves `result` unchanged. */
++inline bool compute_dispatch_plan(int groups_x,
++                                  int groups_y,
++                                  int groups_z,
++                                  int max_groups_x,
++                                  int max_groups_y,
++                                  int max_groups_z,
++                                  ComputeDispatchPlan &result)
++{
++  if (groups_x < 0 || groups_y < 0 || groups_z < 0 || max_groups_x <= 0 ||
++      max_groups_y <= 0 || max_groups_z <= 0 || groups_x > max_groups_x ||
++      groups_y > max_groups_y || groups_z > max_groups_z)
++  {
++    return false;
++  }
++
++  ComputeDispatchPlan candidate;
++  candidate.groups_x = uint32_t(groups_x);
++  candidate.groups_y = uint32_t(groups_y);
++  candidate.groups_z = uint32_t(groups_z);
++  result = candidate;
++  return true;
++}
++
++/** WebGPU's fixed DispatchWorkgroupsIndirect command is three uint32_t counts. */
++constexpr uint64_t kComputeIndirectCommandSize = 3u * sizeof(uint32_t);
++
++/** Validate the aligned indirect command span before beginning a compute pass. The
++ * subtraction form cannot overflow for adversarial uint64_t offsets. */
++inline bool compute_indirect_dispatch_range(uint64_t offset, uint64_t buffer_size)
++{
++  return (offset % kCopyAlignment) == 0 && offset <= buffer_size &&
++         kComputeIndirectCommandSize <= buffer_size - offset;
++}
++
+ /** Validate one texture allocation against the live device's dimension, array-layer, and
+  * mip-level limits. This mirrors Dawn's `ValidateTextureSize` decision before CreateTexture can
+  * return a non-null error texture. */

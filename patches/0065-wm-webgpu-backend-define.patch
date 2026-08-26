@@ -1,0 +1,19 @@
+diff --git a/source/blender/windowmanager/CMakeLists.txt b/source/blender/windowmanager/CMakeLists.txt
+index 5284b355d50..d60015090a2 100644
+--- a/source/blender/windowmanager/CMakeLists.txt
++++ b/source/blender/windowmanager/CMakeLists.txt
+@@ -163,6 +163,14 @@ if(WITH_VULKAN_BACKEND)
+   add_definitions(-DWITH_VULKAN_BACKEND)
+ endif()
+ 
++# blender-web (M4 T9): wm_window.cc's wm_ghost_drawing_context_type() has a
++# `case GPU_BACKEND_WEBGPU: #ifdef WITH_WEBGPU_BACKEND` arm (patch 0023); the define
++# was added in gpu/ + intern/ghost/ CMakeLists but not here, so the guard was false
++# and a WebGPU backend selection hit BLI_assert_unreachable() at window creation.
++if(WITH_WEBGPU_BACKEND)
++  add_definitions(-DWITH_WEBGPU_BACKEND)
++endif()
++
+ if(WITH_PYTHON)
+   list(APPEND INC
+     ../python

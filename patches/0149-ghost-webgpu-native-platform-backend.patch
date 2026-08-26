@@ -1,0 +1,43 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -26,8 +26,8 @@
+ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+ {
+-  /* Headless (no surface) native Dawn bring-up on Metal — identical shape to the
+-   * T1 probe (sandbox/dawn-probe/probe.cc), driven synchronously via WaitAny. */
++  /* Headless (no surface) native Dawn bring-up — identical shape to the T1
++   * probe (sandbox/dawn-probe/probe.cc), driven synchronously via WaitAny. */
+   wgpu::InstanceDescriptor instance_desc = {};
+   static constexpr auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
+   instance_desc.requiredFeatureCount = 1;
+   instance_desc.requiredFeatures = &kTimedWaitAny;
+@@ -39,3 +39,15 @@
+   wgpu::RequestAdapterOptions adapter_opts = {};
+-  adapter_opts.backendType = wgpu::BackendType::Metal;
++#if defined(__EMSCRIPTEN__)
++  /* The browser build compiles this native sibling but instantiates
++   * GHOST_ContextWGPUWeb instead. Do not select a native backend there. */
++  adapter_opts.backendType = wgpu::BackendType::Undefined;
++#elif defined(__APPLE__)
++  adapter_opts.backendType = wgpu::BackendType::Metal;
++#elif defined(_WIN32)
++  adapter_opts.backendType = wgpu::BackendType::D3D12;
++#elif defined(__linux__)
++  adapter_opts.backendType = wgpu::BackendType::Vulkan;
++#else
++#  error "GHOST_ContextWGPU has no native Dawn backend for this platform"
++#endif
+   adapter_opts.featureLevel = wgpu::FeatureLevel::Core;
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.hh b/intern/ghost/intern/GHOST_ContextWGPU.hh
+--- a/intern/ghost/intern/GHOST_ContextWGPU.hh
++++ b/intern/ghost/intern/GHOST_ContextWGPU.hh
+@@ -8,7 +8,7 @@
+ /** \file
+  * \ingroup GHOST
+  *
+- * Native (this-Mac) offscreen WebGPU drawing context backed by Dawn. Radically
++ * Native offscreen WebGPU drawing context backed by Dawn. Radically
+  * simpler than GHOST_ContextVK: WebGPU's implicit driver model means bring-up is
+  * just instance -> adapter -> device (no surface, headless). This is the M3
+  * vehicle that lets Blender's gpu-module gtests run against a real Dawn device.

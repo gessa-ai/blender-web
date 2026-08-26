@@ -1,0 +1,124 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -189,6 +189,15 @@
+                          uint32_t dst_x,
+                          uint32_t dst_y);
+ 
++  /* Create a group-0 BindGroup from `entries`, dropping any entry whose resource
++   * handle is null before handing it to Dawn. A null GPUBufferBinding throws an
++   * uncaught TypeError at the emdawnwebgpu JS marshaling boundary that halts the WM
++   * render loop (the M4 Tab -> edit-mode crash); an incomplete group only draws a
++   * recoverable Dawn validation warning. Never let a null resource reach
++   * CreateBindGroup. Shared by every draw/immediate/compute bind-group builder. */
++  wgpu::BindGroup create_bind_group_checked(const wgpu::BindGroupLayout &layout,
++                                            const std::vector<wgpu::BindGroupEntry> &entries);
++
+   /* Point back_left/front_left's colour attachment at the window surface's current
+    * texture (windowed web build only; no-op otherwise). Called from activate(),
+    * mirroring VKContext::sync_backbuffer (vk_context.cc:67). */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -407,6 +407,26 @@
+   wgpu::CommandBuffer cb = enc.Finish();
+   queue_.Submit(1, &cb);
+   return true;
++}
++
++wgpu::BindGroup WGPUContext::create_bind_group_checked(
++    const wgpu::BindGroupLayout &layout, const std::vector<wgpu::BindGroupEntry> &entries)
++{
++  std::vector<wgpu::BindGroupEntry> valid;
++  valid.reserve(entries.size());
++  for (const wgpu::BindGroupEntry &e : entries) {
++    /* An entry with no resource set is the null GPUBufferBinding that throws an
++     * uncaught TypeError in createBindGroup and halts the render loop — drop it. */
++    if (e.buffer == nullptr && e.textureView == nullptr && e.sampler == nullptr) {
++      continue;
++    }
++    valid.push_back(e);
++  }
++  wgpu::BindGroupDescriptor bgd = {};
++  bgd.layout = layout;
++  bgd.entryCount = uint32_t(valid.size());
++  bgd.entries = valid.data();
++  return device_.CreateBindGroup(&bgd);
+ }
+ 
+ /* --- Draw/dispatch bind-group resource assembly ---------------------------- */
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -156,11 +156,8 @@
+           pc.size = shader->push_constants_buffer().size();
+           entries.push_back(pc);
+         }
+-        wgpu::BindGroupDescriptor bgd = {};
+-        bgd.layout = pipeline.GetBindGroupLayout(0);
+-        bgd.entryCount = uint32_t(entries.size());
+-        bgd.entries = entries.data();
+-        mv_pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++        mv_pass.SetBindGroup(0,
++                             ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
+ 
+         if (elem != nullptr) {
+           WGPUIndexBuffer *wibo = unwrap(elem);
+@@ -216,11 +213,7 @@
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      wgpu::BindGroupDescriptor bgd = {};
+-      bgd.layout = pipeline.GetBindGroupLayout(0);
+-      bgd.entryCount = uint32_t(entries.size());
+-      bgd.entries = entries.data();
+-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
+     }
+   }
+ 
+@@ -336,11 +329,7 @@
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      wgpu::BindGroupDescriptor bgd = {};
+-      bgd.layout = pipeline.GetBindGroupLayout(0);
+-      bgd.entryCount = uint32_t(entries.size());
+-      bgd.entries = entries.data();
+-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -130,11 +130,7 @@
+     }
+     ctx->append_resource_bind_entries(shader, entries);
+     if (!entries.empty()) {
+-      wgpu::BindGroupDescriptor bgd = {};
+-      bgd.layout = pipeline.GetBindGroupLayout(0);
+-      bgd.entryCount = uint32_t(entries.size());
+-      bgd.entries = entries.data();
+-      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++      pass.SetBindGroup(0, ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries));
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -143,11 +143,7 @@
+     return false;
+   }
+ 
+-  wgpu::BindGroupDescriptor bgd = {};
+-  bgd.layout = pipeline.GetBindGroupLayout(0);
+-  bgd.entryCount = entries.size();
+-  bgd.entries = entries.data();
+-  r_bind_group = ctx->device_get().CreateBindGroup(&bgd);
++  r_bind_group = ctx->create_bind_group_checked(pipeline.GetBindGroupLayout(0), entries);
+   return true;
+ }
+ 

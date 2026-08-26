@@ -1,0 +1,407 @@
+diff --git a/source/blender/windowmanager/WM_api.hh b/source/blender/windowmanager/WM_api.hh
+--- a/source/blender/windowmanager/WM_api.hh
++++ b/source/blender/windowmanager/WM_api.hh
+@@ -296,6 +296,33 @@ bool WM_window_pixels_read_sample_from_offscreen(bContext *C,
+                                                  const int pos[2],
+                                                  float r_col[3]);
+ 
++struct WMWindowPixelsRead;
++
++enum class WMWindowPixelsReadStatus {
++  Invalid = 0,
++  Pending,
++  Ready,
++  Failed,
++};
++
++/**
++ * Draw the window into an owned offscreen and start a non-blocking RGBA8 readback.
++ *
++ * The returned object retains the offscreen until the backend request reaches a terminal state.
++ * Native backends may be immediately ready. Browser callers must poll across event-loop ticks.
++ */
++WMWindowPixelsRead *WM_window_pixels_read_async(bContext *C, wmWindow *win);
++WMWindowPixelsReadStatus WM_window_pixels_read_async_status(WMWindowPixelsRead *readback);
++/**
++ * Consume an exact ready result. On success the request is freed, `readback` becomes null, and the
++ * returned pixel array transfers to the caller. Pending and failed requests remain owned.
++ */
++uint8_t *WM_window_pixels_read_async_consume(WMWindowPixelsRead *&readback, int r_size[2]);
++/**
++ * Cancel or release an owned request. Backend work is retired before its offscreen texture.
++ */
++void WM_window_pixels_read_async_cancel(WMWindowPixelsRead *&readback);
++
+ /**
+  * Read from the screen.
+  *
+diff --git a/source/blender/windowmanager/intern/wm_draw.cc b/source/blender/windowmanager/intern/wm_draw.cc
+--- a/source/blender/windowmanager/intern/wm_draw.cc
++++ b/source/blender/windowmanager/intern/wm_draw.cc
+@@ -7,8 +7,11 @@
+  * Handle OpenGL buffers for windowing, also paint cursor.
+  */
+ 
++#include <algorithm>
+ #include <cstdlib>
+ #include <cstring>
++#include <limits>
++#include <vector>
+ 
+ #include "DNA_camera_types.h"
+ #include "DNA_color_types.h"
+@@ -42,5 +45,6 @@
+ #include "GPU_immediate.hh"
+ #include "GPU_matrix.hh"
++#include "GPU_readback.hh"
+ #include "GPU_state.hh"
+ #include "GPU_texture.hh"
+ #include "GPU_viewport.hh"
+@@ -1471,6 +1475,165 @@ uint8_t *WM_window_pixels_read_from_offscreen(bContext *C, wmWindow *win, int r_size[2])
+   return rect;
+ }
+ 
++struct WMWindowPixelsRead {
++  GPUOffScreen *offscreen = nullptr;
++  GPUReadback *readback = nullptr;
++  std::vector<uint8_t> native_bytes;
++  int2 size = {0, 0};
++  size_t expected_size = 0;
++};
++
++static bool wm_window_pixels_read_size(const int2 size, size_t &r_size)
++{
++  if (size.x <= 0 || size.y <= 0) {
++    return false;
++  }
++  const size_t width = size_t(size.x);
++  const size_t height = size_t(size.y);
++  if (height > std::numeric_limits<size_t>::max() / width) {
++    return false;
++  }
++  const size_t pixel_count = width * height;
++  if (pixel_count > std::numeric_limits<size_t>::max() / 4) {
++    return false;
++  }
++  r_size = pixel_count * 4;
++  return true;
++}
++
++static void wm_window_pixels_read_offscreen_release(WMWindowPixelsRead *readback)
++{
++  if (readback->offscreen != nullptr) {
++    GPU_offscreen_free(readback->offscreen);
++    readback->offscreen = nullptr;
++  }
++}
++
++static void wm_window_pixels_read_flip_rows(uint8_t *pixels, const int2 size)
++{
++  const size_t row_size = size_t(size.x) * 4;
++  for (int y = 0; y < size.y / 2; y++) {
++    uint8_t *row_a = pixels + size_t(y) * row_size;
++    uint8_t *row_b = pixels + size_t(size.y - 1 - y) * row_size;
++    std::swap_ranges(row_a, row_a + row_size, row_b);
++  }
++}
++
++WMWindowPixelsRead *WM_window_pixels_read_async(bContext *C, wmWindow *win)
++{
++  if (C == nullptr || win == nullptr) {
++    return nullptr;
++  }
++  const int2 win_size = WM_window_native_pixel_size(win);
++  size_t expected_size;
++  if (!wm_window_pixels_read_size(win_size, expected_size)) {
++    return nullptr;
++  }
++
++  const gpu::TextureFormat desired_format = get_hdr_framebuffer_format(
++      WM_window_get_active_scene(win));
++  GPUOffScreen *offscreen = GPU_offscreen_create(
++      win_size.x,
++      win_size.y,
++      false,
++      desired_format,
++      GPU_TEXTURE_USAGE_SHADER_READ | GPU_TEXTURE_USAGE_HOST_READ,
++      false,
++      nullptr);
++  if (offscreen == nullptr) {
++    return nullptr;
++  }
++
++  GPU_offscreen_bind(offscreen, false);
++  wm_draw_window_onscreen(C, win, -1);
++  GPU_offscreen_unbind(offscreen, false);
++
++  WMWindowPixelsRead *readback = MEM_new<WMWindowPixelsRead>(__func__);
++  readback->offscreen = offscreen;
++  readback->size = win_size;
++  readback->expected_size = expected_size;
++#ifdef __EMSCRIPTEN__
++  readback->readback = GPU_texture_read_async(
++      GPU_offscreen_color_texture(offscreen), GPU_DATA_UBYTE, 0);
++#else
++  readback->native_bytes.resize(expected_size);
++  GPU_offscreen_read_color(offscreen, GPU_DATA_UBYTE, readback->native_bytes.data());
++  wm_window_pixels_read_offscreen_release(readback);
++#endif
++  return readback;
++}
++
++WMWindowPixelsReadStatus WM_window_pixels_read_async_status(WMWindowPixelsRead *readback)
++{
++  if (readback == nullptr) {
++    return WMWindowPixelsReadStatus::Invalid;
++  }
++  if (!readback->native_bytes.empty()) {
++    return readback->native_bytes.size() == readback->expected_size ?
++               WMWindowPixelsReadStatus::Ready :
++               WMWindowPixelsReadStatus::Failed;
++  }
++
++  const eGPUReadbackStatus status = GPU_readback_status(readback->readback);
++  if (status == GPU_READBACK_PENDING) {
++    return WMWindowPixelsReadStatus::Pending;
++  }
++  if (status != GPU_READBACK_READY ||
++      GPU_readback_size(readback->readback) != readback->expected_size)
++  {
++    wm_window_pixels_read_offscreen_release(readback);
++    return WMWindowPixelsReadStatus::Failed;
++  }
++  wm_window_pixels_read_offscreen_release(readback);
++  return WMWindowPixelsReadStatus::Ready;
++}
++
++uint8_t *WM_window_pixels_read_async_consume(WMWindowPixelsRead *&readback, int r_size[2])
++{
++  if (r_size == nullptr ||
++      WM_window_pixels_read_async_status(readback) != WMWindowPixelsReadStatus::Ready)
++  {
++    return nullptr;
++  }
++
++  uint8_t *pixels = MEM_new_array_uninitialized<uint8_t>(readback->expected_size, __func__);
++  bool consumed = false;
++  if (readback->readback != nullptr) {
++    consumed = GPU_readback_consume(readback->readback, pixels, readback->expected_size);
++#ifdef __EMSCRIPTEN__
++    if (consumed) {
++      /* WGPUTexture::read_async returns physical top-origin rows. Match the existing
++       * framebuffer-read contract consumed by screenshots. */
++      wm_window_pixels_read_flip_rows(pixels, readback->size);
++    }
++#endif
++  }
++  else if (readback->native_bytes.size() == readback->expected_size) {
++    std::memcpy(pixels, readback->native_bytes.data(), readback->expected_size);
++    consumed = true;
++  }
++  if (!consumed) {
++    MEM_delete(pixels);
++    return nullptr;
++  }
++
++  r_size[0] = readback->size.x;
++  r_size[1] = readback->size.y;
++  WM_window_pixels_read_async_cancel(readback);
++  return pixels;
++}
++
++void WM_window_pixels_read_async_cancel(WMWindowPixelsRead *&readback)
++{
++  if (readback == nullptr) {
++    return;
++  }
++  GPU_readback_cancel(readback->readback);
++  wm_window_pixels_read_offscreen_release(readback);
++  MEM_delete(readback);
++  readback = nullptr;
++}
++
+ bool WM_window_pixels_read_sample_from_offscreen(bContext *C,
+                                                  wmWindow *win,
+                                                  const int pos[2],
+diff --git a/source/blender/editors/screen/screendump.cc b/source/blender/editors/screen/screendump.cc
+--- a/source/blender/editors/screen/screendump.cc
++++ b/source/blender/editors/screen/screendump.cc
+@@ -43,6 +43,10 @@ struct ScreenshotData {
+   rcti crop = {};
+   bool use_crop = false;
+ 
++  WMWindowPixelsRead *readback = nullptr;
++  wmTimer *readback_timer = nullptr;
++  wmWindow *readback_timer_window = nullptr;
++  int readback_tick_count = 0;
+   ImageFormatData im_format;
+ };
+ 
+@@ -50,53 +54,85 @@ struct ScreenshotData {
+ static int screenshot_data_create(bContext *C, wmOperator *op, ScrArea *area)
+ {
+-  int dumprect_size[2];
+-
+   wmWindow *win = CTX_wm_window(C);
+ 
+   /* do redraw so we don't show popups/menus */
+   WM_redraw_windows(C);
+ 
+-  uint8_t *dumprect = WM_window_pixels_read(C, win, dumprect_size);
+-
+-  if (dumprect) {
+-    ScreenshotData *scd = MEM_new<ScreenshotData>("screenshot");
+-
+-    scd->dumpsx = dumprect_size[0];
+-    scd->dumpsy = dumprect_size[1];
+-    scd->dumprect = dumprect;
+-    if (area) {
+-      scd->crop = area->totrct;
+-    }
+-
+-    BKE_image_format_init(&scd->im_format);
+-
+-    op->customdata = scd;
+-
+-    return true;
++  ScreenshotData *scd = MEM_new<ScreenshotData>("screenshot");
++  scd->readback = WM_window_pixels_read_async(C, win);
++  if (scd->readback == nullptr) {
++    MEM_delete(scd);
++    op->customdata = nullptr;
++    return false;
+   }
+-  op->customdata = nullptr;
+-  return false;
++  if (area) {
++    scd->crop = area->totrct;
++  }
++  BKE_image_format_init(&scd->im_format);
++  op->customdata = scd;
++  return true;
+ }
+ 
+-static void screenshot_data_free(wmOperator *op)
++static void screenshot_data_free(bContext *C, wmOperator *op)
+ {
+-  MEM_delete(static_cast<ScreenshotData *>(op->customdata));
++  ScreenshotData *scd = static_cast<ScreenshotData *>(op->customdata);
++  if (scd == nullptr) {
++    return;
++  }
++  if (scd->readback_timer != nullptr) {
++    WM_event_timer_remove(
++        CTX_wm_manager(C), scd->readback_timer_window, scd->readback_timer);
++    scd->readback_timer = nullptr;
++    scd->readback_timer_window = nullptr;
++  }
++  WM_window_pixels_read_async_cancel(scd->readback);
++  MEM_delete(scd);
+   op->customdata = nullptr;
+ }
+ 
+ static wmOperatorStatus screenshot_exec(bContext *C, wmOperator *op)
+ {
+   const bool use_crop = STREQ(op->idname, "SCREEN_OT_screenshot_area");
+   ScreenshotData *scd = static_cast<ScreenshotData *>(op->customdata);
+-  bool ok = false;
+ 
+   if (scd == nullptr) {
+     /* when running exec directly */
+-    screenshot_data_create(C, op, use_crop ? CTX_wm_area(C) : nullptr);
++    if (!screenshot_data_create(C, op, use_crop ? CTX_wm_area(C) : nullptr)) {
++      BKE_report(op->reports, RPT_ERROR, "Could not start screenshot capture");
++      return OPERATOR_CANCELLED;
++    }
+     scd = static_cast<ScreenshotData *>(op->customdata);
+   }
+ 
+-  if (scd) {
+-    if (scd->dumprect) {
++  const WMWindowPixelsReadStatus status = WM_window_pixels_read_async_status(scd->readback);
++  if (status == WMWindowPixelsReadStatus::Pending) {
++    if (scd->readback_timer == nullptr) {
++      scd->readback_timer_window = CTX_wm_window(C);
++      scd->readback_timer = WM_event_timer_add(
++          CTX_wm_manager(C), scd->readback_timer_window, TIMER, 0.01);
++      scd->readback_tick_count = 0;
++      WM_event_add_modal_handler(C, op);
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status != WMWindowPixelsReadStatus::Ready) {
++    BKE_report(op->reports, RPT_ERROR, "Screenshot capture failed");
++    screenshot_data_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  int dumprect_size[2];
++  uint8_t *dumprect = WM_window_pixels_read_async_consume(scd->readback, dumprect_size);
++  if (dumprect == nullptr) {
++    BKE_report(op->reports, RPT_ERROR, "Screenshot capture returned invalid pixels");
++    screenshot_data_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  scd->dumpsx = dumprect_size[0];
++  scd->dumpsy = dumprect_size[1];
++  scd->dumprect = dumprect;
++
++  bool ok = false;
++  if (scd->dumprect) {
+       ImBuf *ibuf;
+       char filepath[FILE_MAX];
+@@ -144,12 +159,32 @@ static wmOperatorStatus screenshot_exec(bContext *C, wmOperator *op)
+ 
+       IMB_freeImBuf(ibuf);
+-    }
+   }
+ 
+-  screenshot_data_free(op);
++  screenshot_data_free(C, op);
+ 
+   return ok ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
+ }
++
++static wmOperatorStatus screenshot_modal(bContext *C, wmOperator *op, const wmEvent *event)
++{
++  ScreenshotData *scd = static_cast<ScreenshotData *>(op->customdata);
++  if (scd == nullptr || event->type != TIMER || event->customdata != scd->readback_timer) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  constexpr int max_tick_count = 240;
++  const WMWindowPixelsReadStatus status = WM_window_pixels_read_async_status(scd->readback);
++  if (status == WMWindowPixelsReadStatus::Pending) {
++    scd->readback_tick_count++;
++    if (scd->readback_tick_count < max_tick_count) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    BKE_report(op->reports, RPT_ERROR, "Screenshot capture timed out");
++    screenshot_data_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  return screenshot_exec(C, op);
++}
+ 
+ static wmOperatorStatus screenshot_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+@@ -195,9 +236,9 @@ static bool screenshot_check(bContext * /*C*/, wmOperator *op)
+   return WM_operator_filesel_ensure_ext_imtype(op, &scd->im_format);
+ }
+ 
+-static void screenshot_cancel(bContext * /*C*/, wmOperator *op)
++static void screenshot_cancel(bContext *C, wmOperator *op)
+ {
+-  screenshot_data_free(op);
++  screenshot_data_free(C, op);
+ }
+ 
+ static bool screenshot_draw_check_prop(PointerRNA * /*ptr*/,
+@@ -243,6 +284,7 @@ static void screen_screenshot_impl(wmOperatorType *ot)
+ {
+   ot->invoke = screenshot_invoke;
+   ot->check = screenshot_check;
++  ot->modal = screenshot_modal;
+   ot->exec = screenshot_exec;
+   ot->cancel = screenshot_cancel;
+   ot->ui = screenshot_draw;

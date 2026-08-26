@@ -1,0 +1,40 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 151fcad..0ab8c8f 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -23,7 +23,16 @@
+  * intern/ghost/intern to this TU's include path. Production should instead route
+  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
+  * the gpu module never sees a GHOST-private header — noted in the T4 findings. */
+-#include "GHOST_ContextWGPU.hh"
++/* HARNESS/patch-0037: the browser GHOST context is GHOST_ContextWGPUWeb, a sibling
++ * of native GHOST_ContextWGPU with the same instance/adapter/device/queue accessors.
++ * Bind the concrete type per target. (Record: patches/0037-gpu-webgpu-context-web.patch.) */
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_ContextWGPUWeb.hh"
++using WGPUGhostContext = GHOST_ContextWGPUWeb;
++#else
++#  include "GHOST_ContextWGPU.hh"
++using WGPUGhostContext = GHOST_ContextWGPU;
++#endif
+ 
+ #include <algorithm>
+ #include <climits>
+@@ -42,12 +51,16 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+    * GHOST_kDrawingContextTypeWebGPU, so it is a GHOST_ContextWGPU. Borrow its
+    * already-initialized Dawn instance/adapter/device/queue (ownership stays with
+    * GHOST). */
+-  GHOST_ContextWGPU *wgpu_ghost = static_cast<GHOST_ContextWGPU *>(ghost_context);
++  WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context);
+   instance_ = wgpu_ghost->getInstance();
+   adapter_ = wgpu_ghost->getAdapter();
+   device_ = wgpu_ghost->getDevice();
+   queue_ = wgpu_ghost->getQueue();
++#ifdef __EMSCRIPTEN__
++  adapter_name_ = "emdawnwebgpu"; /* GHOST_ContextWGPUWeb has no getAdapterName() */
++#else
+   adapter_name_ = wgpu_ghost->getAdapterName();
++#endif
+ 
+   /* Publish the device/instance/queue backend-side so worker threads (async
+    * shader compilation) can reach them without the thread-local active context —

@@ -1,0 +1,131 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+@@ -75,18 +75,25 @@ struct FormatCaps {
+   bool multisample = false;  /* supports sampleCount > 1. */
+ };
+ 
+-/** Optional device features which promote sampled-only formats into legal render
+- * attachments. Defaults describe the WebGPU core-format baseline. */
+-struct RenderAttachmentFeatures {
++/** Enabled optional texture-format features. Creation and render-attachment
++ * predicates share this device-free value so their feature policy cannot drift. */
++struct TextureFormatFeatures {
++  bool texture_compression_bc = false;
+   bool unorm16_texture_formats = false;
+   bool texture_formats_tier1 = false;
+   bool depth32_float_stencil8 = false;
++  bool float32_filterable = false;
+   bool rg11b10_ufloat_renderable = false;
+ };
+ 
++/** True when a format gate can be created faithfully for the enabled feature set.
++ * SNORM16 remains creatable through its Uint emulation; Float32Filterable and
++ * RG11B10UfloatRenderable are capability-only gates and never block creation. */
++bool format_creation_supported(FeatureGate gate, const TextureFormatFeatures &features);
++
+ /** True when `format` is render-attachment capable for the enabled feature set. */
+ bool render_attachment_supported(wgpu::TextureFormat format,
+-                                 const RenderAttachmentFeatures &features);
++                                 const TextureFormatFeatures &features);
+ 
+ struct FormatInfo {
+   TextureFormat blender;
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+@@ -121,7 +121,26 @@ FormatCaps caps_of(F f)
+   return c;
+ }
+ 
+-bool render_attachment_supported(F f, const RenderAttachmentFeatures &features)
++bool format_creation_supported(FeatureGate gate, const TextureFormatFeatures &features)
++{
++  switch (gate) {
++    case FeatureGate::None:
++      return true;
++    case FeatureGate::TextureCompressionBC:
++      return features.texture_compression_bc;
++    case FeatureGate::Depth32FloatStencil8:
++      return features.depth32_float_stencil8;
++    case FeatureGate::Unorm16:
++      return features.unorm16_texture_formats || features.texture_formats_tier1;
++    case FeatureGate::Snorm16:
++    case FeatureGate::Float32Filterable:
++    case FeatureGate::RG11B10UfloatRenderable:
++      return true;
++  }
++  return false;
++}
++
++bool render_attachment_supported(F f, const TextureFormatFeatures &features)
+ {
+   switch (f) {
+     /* Either feature exposes the 16-bit normalized formats as render targets.
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -675,14 +675,28 @@ bool WGPUTexture::allocate()
+     return false;
+   }
+ 
++  TextureFormatFeatures format_features;
++  format_features.texture_compression_bc =
++      ctx->device_get().HasFeature(wgpu::FeatureName::TextureCompressionBC);
++  format_features.unorm16_texture_formats =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
++  format_features.texture_formats_tier1 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1);
++  format_features.depth32_float_stencil8 =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
++  format_features.float32_filterable =
++      ctx->device_get().HasFeature(wgpu::FeatureName::Float32Filterable);
++  format_features.rg11b10_ufloat_renderable =
++      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
++  if (!format_creation_supported(fi.gate, format_features)) {
++    return false;
++  }
++
+   const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
+-  /* Blender's compressed creation API supplies BC1/2/3 blocks for 2D textures. Fail allocation
+-   * when the adapter cannot consume BC so IMB's caller takes its existing uncompressed fallback,
+-   * rather than returning an error texture whose uploads are silently discarded. */
+-  if (compressed &&
+-      (!compressed_texture_type_supported(type_) ||
+-       !ctx->device_get().HasFeature(wgpu::FeatureName::TextureCompressionBC)))
+-  {
++  /* Blender's compressed creation API supplies BC1/2/3 blocks only for 2D textures.
++   * The feature predicate above rejects adapters that cannot consume BC, while this
++   * type gate keeps IMB's existing uncompressed fallback for unsupported dimensions. */
++  if (compressed && !compressed_texture_type_supported(type_)) {
+     return false;
+   }
+   /* Renderability combines the core table with the optional format features enabled on this
+@@ -694,16 +708,7 @@ bool WGPUTexture::allocate()
+    * Uint backing has no shader conversion for attachment writes.
+    * WebGPU forbids RenderAttachment on 1D textures (dimension=1D); a 1D array is
+    * created as 2D so it stays eligible. */
+-  RenderAttachmentFeatures render_features;
+-  render_features.unorm16_texture_formats =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::Unorm16TextureFormats);
+-  render_features.texture_formats_tier1 =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1);
+-  render_features.depth32_float_stencil8 =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::Depth32FloatStencil8);
+-  render_features.rg11b10_ufloat_renderable =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable);
+-  const bool format_renderable = render_attachment_supported(wgpu_format_, render_features);
++  const bool format_renderable = render_attachment_supported(wgpu_format_, format_features);
+   if (wgpu_format_ == wgpu::TextureFormat::RG11B10Ufloat &&
+       !format_renderable &&
+       (gpu_image_usage_flags_ & GPU_TEXTURE_USAGE_ATTACHMENT))
+@@ -717,8 +722,7 @@ bool WGPUTexture::allocate()
+   const bool renderable =
+       format_renderable && !snorm16_emulated_ && type_ != GPU_TEXTURE_1D;
+   const bool tier1_storage =
+-      ctx->device_get().HasFeature(wgpu::FeatureName::TextureFormatsTier1) &&
+-      is_tier1_storage_format(wgpu_format_);
++      format_features.texture_formats_tier1 && is_tier1_storage_format(wgpu_format_);
+   const bool storable = (fi.caps.storage || tier1_storage) && !snorm16_emulated_;
+ 
+   /* Base (mip-0) size. Layers/faces map to depthOrArrayLayers. A physical

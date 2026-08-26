@@ -1,0 +1,199 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 82f3331a036ea433ec1444365838653de27c1c14..8c39156dab60b373bc7829f3b74bed57aa8af537 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -324,6 +324,20 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     }
+   }
+
++  wgpu::Buffer index_buffer_candidate;
++  if (emulate_triangle_fan) {
++    index_buffer_candidate = fan_index_buffer.handle();
++  }
++  else if (wibo != nullptr) {
++    index_buffer_candidate = wibo->buffer().handle();
++  }
++  wgpu::Buffer index_buffer;
++  if (!webgpu::index_buffer_handle_resolve_if_required(
++          emulate_triangle_fan || elem != nullptr, std::move(index_buffer_candidate), index_buffer))
++  {
++    return;
++  }
++
+   /* Assemble the pipeline key from the shader, geometry, fixed-function state, and
+    * the bound framebuffer's target formats. */
+   webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());
+@@ -351,7 +365,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                                                                prim_type;
+   const wgpu::IndexFormat draw_index_format =
+       (emulate_triangle_fan && wibo != nullptr) ? wgpu::IndexFormat::Uint32 :
+-      (wibo != nullptr && wibo->buffer().valid()) ? wibo->index_format() :
++      (wibo != nullptr && index_buffer != nullptr) ? wibo->index_format() :
+                                                     wgpu::IndexFormat::Undefined;
+   info.strip_index_format = webgpu::to_wgpu_strip_index_format(info.prim_type,
+                                                                draw_index_format);
+@@ -497,7 +511,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         mv_pass.SetBindGroup(0, mv_bind_group);
+
+         if (emulate_triangle_fan) {
+-          mv_pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++          mv_pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+           mv_pass.DrawIndexed(fan_index_count,
+                               draw_parameters.instance_count,
+                               0,
+@@ -505,19 +519,15 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                               draw_parameters.instance_first);
+         }
+         else if (elem != nullptr) {
+-          if (wibo->buffer().valid()) {
+-            /* Subrange IBOs share their parent's GPU allocation. Bind the
+-             * subrange's byte window and retain its squeezed-u16 base vertex,
+-             * exactly as the single-pass path below does. */
+-            mv_pass.SetIndexBuffer(wibo->buffer().handle(),
+-                                   wibo->index_format(),
+-                                   index_binding.byte_offset);
+-            mv_pass.DrawIndexed(draw_parameters.vertex_count,
+-                                draw_parameters.instance_count,
+-                                draw_parameters.vertex_first,
+-                                index_binding.base_vertex,
+-                                draw_parameters.instance_first);
+-          }
++          /* Subrange IBOs share their parent's GPU allocation. Bind the
++           * subrange's byte window and retain its squeezed-u16 base vertex,
++           * exactly as the single-pass path below does. */
++          mv_pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
++          mv_pass.DrawIndexed(draw_parameters.vertex_count,
++                              draw_parameters.instance_count,
++                              draw_parameters.vertex_first,
++                              index_binding.base_vertex,
++                              draw_parameters.instance_first);
+         }
+         else {
+           mv_pass.Draw(draw_parameters.vertex_count,
+@@ -584,7 +594,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   }
+
+   if (emulate_triangle_fan) {
+-    pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++    pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+     pass.DrawIndexed(fan_index_count,
+                      draw_parameters.instance_count,
+                      0,
+@@ -592,22 +602,18 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                      draw_parameters.instance_first);
+   }
+   else if (elem != nullptr) {
+-    if (wibo->buffer().valid()) {
+-      /* Subrange IBOs share the source buffer; their window starts at
+-       * index_start_ (bind-time byte offset, mirroring Metal's
+-       * `(v_first + index_start_) * index_size`). Squeezed-u16 buffers carry
+-       * index_base_, applied as baseVertex. Without BOTH, a subrange draw reads
+-       * the wrong segment of the shared mesh IBO — garbage connectivity (the
+-       * r26/r27 crumpled-outline defect). */
+-      pass.SetIndexBuffer(wibo->buffer().handle(),
+-                          wibo->index_format(),
+-                          index_binding.byte_offset);
+-      pass.DrawIndexed(draw_parameters.vertex_count,
+-                       draw_parameters.instance_count,
+-                       draw_parameters.vertex_first,
+-                       index_binding.base_vertex,
+-                       draw_parameters.instance_first);
+-    }
++    /* Subrange IBOs share the source buffer; their window starts at
++     * index_start_ (bind-time byte offset, mirroring Metal's
++     * `(v_first + index_start_) * index_size`). Squeezed-u16 buffers carry
++     * index_base_, applied as baseVertex. Without BOTH, a subrange draw reads
++     * the wrong segment of the shared mesh IBO — garbage connectivity (the
++     * r26/r27 crumpled-outline defect). */
++    pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
++    pass.DrawIndexed(draw_parameters.vertex_count,
++                     draw_parameters.instance_count,
++                     draw_parameters.vertex_first,
++                     index_binding.base_vertex,
++                     draw_parameters.instance_first);
+   }
+   else {
+     pass.Draw(draw_parameters.vertex_count,
+@@ -690,7 +696,17 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     elem->upload_data();
+   }
+   WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
+-  const bool indexed = (wibo != nullptr && wibo->buffer().valid());
++  const bool indexed = elem != nullptr;
++  wgpu::Buffer index_buffer_candidate;
++  if (wibo != nullptr) {
++    index_buffer_candidate = wibo->buffer().handle();
++  }
++  wgpu::Buffer index_buffer;
++  if (!webgpu::index_buffer_handle_resolve_if_required(
++          indexed, std::move(index_buffer_candidate), index_buffer))
++  {
++    return;
++  }
+   const webgpu::IndexBindingPlan index_binding =
+       indexed ? webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Indirect) :
+                 webgpu::IndexBindingPlan{};
+@@ -768,9 +784,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       /* The GPU-generated DrawCommandIndexed already carries the absolute
+        * index_start_get() and index_base_get(). Bind the complete parent allocation
+        * so WebGPU does not apply the subrange start a second time. */
+-      render_pass.SetIndexBuffer(wibo->buffer().handle(),
+-                                 wibo->index_format(),
+-                                 index_binding.byte_offset);
++      render_pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
+     }
+   };
+
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index df9be323cf7c87b170eef4e57a9ad90056fccce7..e1c371f5e0cb7cc8ee12e46db783482cb0afa0c8 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -176,6 +176,21 @@ inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings
+   return true;
+ }
+
++/** Resolve the index-buffer handle before command encoding begins. A required missing handle
++ * invalidates the draw without changing the caller-owned result. A non-indexed draw publishes
++ * an empty handle even if a stale candidate was supplied. */
++template<typename HandleT>
++inline bool index_buffer_handle_resolve_if_required(const bool required,
++                                                    HandleT candidate,
++                                                    HandleT &result)
++{
++  if (!required) {
++    result = HandleT{};
++    return true;
++  }
++  return transient_handle_publish_if_valid(std::move(candidate), result);
++}
++
+ /** Encode and submit one short-lived command buffer without using a failed encoder or
+  * submitting a failed command-buffer handle. A boolean encoder callback can abort the whole
+  * transaction after earlier commands were recorded; a void callback retains the simple copy
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 6ea4969618e77286585f5b799f43b452a413792a..96a2a7af442235ebf7bc5f3a771dbd888c5ad4be 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -120,6 +120,13 @@ void WGPUImmediate::end()
+     }
+   }
+
++  wgpu::Buffer index_buffer;
++  if (!webgpu::index_buffer_handle_resolve_if_required(
++          prim_type == GPU_PRIM_TRI_FAN, fan_index_buffer.handle(), index_buffer))
++  {
++    return;
++  }
++
+   /* Upload the recorded vertices to a transient vertex buffer. */
+   const size_t data_size = vertex_buffer_size(&vertex_format, vertex_idx);
+   webgpu::Buffer vbo;
+@@ -244,7 +251,7 @@ void WGPUImmediate::end()
+   }
+
+   if (!fan_indices.empty()) {
+-    pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++    pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+     pass.DrawIndexed(uint32_t(fan_indices.size()), 1, 0, 0, 0);
+   }
+   else {

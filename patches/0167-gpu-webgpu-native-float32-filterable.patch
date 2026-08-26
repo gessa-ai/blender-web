@@ -1,0 +1,22 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -88,6 +88,8 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+    * lacks them):
+    *   - Unorm16TextureFormats: R/RG/RGBA 16-bit unorm (Blender's *16 formats).
+    *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable.
++   *   - Float32Filterable: enables linear filtering for R/RG/RGBA 32-bit float
++   *     textures, matching the backend's format-capability gate.
+    *   - Depth32FloatStencil8: Blender's D32F/S8 combined depth-stencil format.
+    *   - TextureFormatsTier1: extended write-only storage texture formats.
+    *   - TextureFormatsTier2: extended read-write storage texture formats.
+@@ -104,6 +106,9 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   if (adapter_.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable)) {
+     required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);
+   }
++  if (adapter_.HasFeature(wgpu::FeatureName::Float32Filterable)) {
++    required_features.push_back(wgpu::FeatureName::Float32Filterable);
++  }
+   if (adapter_.HasFeature(wgpu::FeatureName::Depth32FloatStencil8)) {
+     required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);
+   }

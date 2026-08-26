@@ -1,0 +1,19 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index ab78ab6bba83ddd233cf9df9b289a8719c7f8466..f2cb97f0add0dc4b13dc2287feb1a7c643987df8 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -256,7 +256,13 @@ bool Buffer::update_allocation(PendingUpdateContext context,
+   sd.size = size;
+   sd.usage = wgpu::BufferUsage::CopySrc;
+   sd.mappedAtCreation = true;
+-  wgpu::Buffer staging = context.device.CreateBuffer(&sd);
++  wgpu::Buffer staging = transient_resource_create_scoped(
++      context.instance,
++      context.device,
++      context.scheduler,
++      "staged buffer creation",
++      [&]() { return context.device.CreateBuffer(&sd); },
++      [](const bool /*valid*/) {});
+   if (staging == nullptr) {
+     return false;
+   }

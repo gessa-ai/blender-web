@@ -1,0 +1,496 @@
+diff --git a/source/blender/editors/include/ED_grease_pencil.hh b/source/blender/editors/include/ED_grease_pencil.hh
+index 1b225ec806b2a45b41857cb8d4927ff65b5646bf..f402870daff7263d5f10b851fa9f954e432aba6a 100644
+--- a/source/blender/editors/include/ED_grease_pencil.hh
++++ b/source/blender/editors/include/ED_grease_pencil.hh
+@@ -648,6 +648,7 @@ struct ExtensionData {
+  * The outlines of the filled pixel areas are returned as curves.
+  *
+  * \param layer: The layer containing the new stroke, used for reprojecting from images.
++ * \param placement: Operation-owned placement with any required viewport depth cache ready.
+  * \param boundary_layers: Layers that are purely for boundaries, regular strokes are not rendered.
+  * \param src_drawings: Drawings to include as boundary strokes.
+  * \param invert: Construct boundary around empty areas instead.
+@@ -660,6 +661,7 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+                                        const Brush &brush,
+                                        const Scene &scene,
+                                        const bke::greasepencil::Layer &layer,
++                                       const DrawingPlacement &placement,
+                                        const VArray<bool> &boundary_layers,
+                                        const Span<DrawingInfo> src_drawings,
+                                        bool invert,
+@@ -680,6 +682,7 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+  * Will return `nullopt` when unable to fill.
+  *
+  * \param layer: The layer containing the new stroke, used for projecting the geometry.
++ * \param placement: Operation-owned placement with any required viewport depth cache ready.
+  * \param boundary_layers: Layers that are purely for boundaries, regular strokes are skipped.
+  * \param src_drawings: Drawings to include as boundary strokes.
+  * \param invert: Construct boundary around empty areas instead.
+@@ -690,6 +693,7 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+ std::optional<bke::CurvesGeometry> delaunay_fill_strokes(const ViewContext &view_context,
+                                                          const Scene &scene,
+                                                          const bke::greasepencil::Layer &layer,
++                                                         const DrawingPlacement &placement,
+                                                          const VArray<bool> &boundary_layers,
+                                                          const Span<DrawingInfo> src_drawings,
+                                                          bool invert,
+diff --git a/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc b/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
+index c69d5378baec5c7901e7cba88aa2871d289ea462..a730af52bb9f7f42a48297c1f47b854a1b5c810d 100644
+--- a/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
++++ b/source/blender/editors/sculpt_paint/grease_pencil/draw_ops.cc
+@@ -811,6 +811,29 @@ struct GreasePencilFillOpData {
+   /* Overlay draw callback for helper lines, etc. */
+   void *overlay_cb_handle;
+ 
++  /* One fill click owns its viewport-depth request until the fill can run atomically. */
++  std::optional<ed::greasepencil::DrawingPlacement> depth_cache_placement;
++  std::optional<wmEvent> depth_cache_event;
++  wmTimer *depth_cache_timer = nullptr;
++  wmWindowManager *depth_cache_manager = nullptr;
++  wmWindow *depth_cache_window = nullptr;
++  bScreen *depth_cache_screen = nullptr;
++  ScrArea *depth_cache_area = nullptr;
++  ARegion *depth_cache_region = nullptr;
++  RegionView3D *depth_cache_region_view = nullptr;
++  View3D *depth_cache_view3d = nullptr;
++  Depsgraph *depth_cache_depsgraph = nullptr;
++  Scene *depth_cache_scene = nullptr;
++  ViewLayer *depth_cache_view_layer = nullptr;
++  Object *depth_cache_object = nullptr;
++  GreasePencil *depth_cache_grease_pencil = nullptr;
++  bke::greasepencil::Layer *depth_cache_layer = nullptr;
++  Paint *depth_cache_paint = nullptr;
++  Brush *depth_cache_brush = nullptr;
++  int depth_cache_frame = 0;
++  int depth_cache_tick_count = 0;
++  bool depth_cache_pending = false;
++
+   static GreasePencilFillOpData from_context(bContext &C,
+                                              bke::greasepencil::Layer &layer,
+                                              const int material_index,
+@@ -848,6 +871,129 @@ struct GreasePencilFillOpData {
+   }
+ };
+ 
++static void grease_pencil_fill_depth_cache_timer_remove(GreasePencilFillOpData &op_data)
++{
++  if (op_data.depth_cache_timer != nullptr) {
++    WM_event_timer_remove(
++        op_data.depth_cache_manager, op_data.depth_cache_window, op_data.depth_cache_timer);
++    op_data.depth_cache_timer = nullptr;
++  }
++  op_data.depth_cache_tick_count = 0;
++}
++
++static void grease_pencil_fill_depth_cache_clear(GreasePencilFillOpData &op_data)
++{
++  grease_pencil_fill_depth_cache_timer_remove(op_data);
++  if (op_data.depth_cache_placement.has_value()) {
++    op_data.depth_cache_placement->cancel_viewport_depths();
++  }
++  op_data.depth_cache_placement.reset();
++  op_data.depth_cache_event.reset();
++  op_data.depth_cache_pending = false;
++}
++
++static bool grease_pencil_fill_depth_cache_wait_begin(bContext &C,
++                                                       GreasePencilFillOpData &op_data,
++                                                       const wmEvent &event)
++{
++  op_data.depth_cache_manager = CTX_wm_manager(&C);
++  op_data.depth_cache_window = CTX_wm_window(&C);
++  op_data.depth_cache_screen = CTX_wm_screen(&C);
++  op_data.depth_cache_area = CTX_wm_area(&C);
++  op_data.depth_cache_region = CTX_wm_region(&C);
++  op_data.depth_cache_region_view = CTX_wm_region_view3d(&C);
++  op_data.depth_cache_view3d = CTX_wm_view3d(&C);
++  op_data.depth_cache_depsgraph = CTX_data_depsgraph_pointer(&C);
++  op_data.depth_cache_scene = CTX_data_scene(&C);
++  op_data.depth_cache_view_layer = CTX_data_view_layer(&C);
++  op_data.depth_cache_object = CTX_data_active_object(&C);
++  if (ELEM(nullptr,
++           op_data.depth_cache_manager,
++           op_data.depth_cache_window,
++           op_data.depth_cache_screen,
++           op_data.depth_cache_area,
++           op_data.depth_cache_region,
++           op_data.depth_cache_region_view,
++           op_data.depth_cache_view3d,
++           op_data.depth_cache_depsgraph,
++           op_data.depth_cache_scene,
++           op_data.depth_cache_view_layer,
++           op_data.depth_cache_object) ||
++      op_data.depth_cache_object->type != OB_GREASE_PENCIL)
++  {
++    return false;
++  }
++
++  op_data.depth_cache_grease_pencil = id_cast<GreasePencil *>(op_data.depth_cache_object->data);
++  if (op_data.depth_cache_grease_pencil == nullptr ||
++      !op_data.depth_cache_grease_pencil->has_active_layer())
++  {
++    return false;
++  }
++  op_data.depth_cache_layer = op_data.depth_cache_grease_pencil->get_active_layer();
++  op_data.depth_cache_frame = op_data.depth_cache_scene->r.cfra;
++  op_data.depth_cache_paint = BKE_paint_get_active_from_context(&C);
++  op_data.depth_cache_brush = op_data.depth_cache_paint != nullptr ?
++                                  BKE_paint_brush(op_data.depth_cache_paint) :
++                                  nullptr;
++  if (op_data.depth_cache_paint == nullptr || op_data.depth_cache_brush == nullptr)
++  {
++    return false;
++  }
++
++  wmEvent retained_event = event;
++  retained_event.next = nullptr;
++  retained_event.prev = nullptr;
++  retained_event.custom = 0;
++  retained_event.customdata = nullptr;
++  retained_event.customdata_free = false;
++  op_data.depth_cache_event = retained_event;
++  op_data.depth_cache_timer = WM_event_timer_add(
++      op_data.depth_cache_manager, op_data.depth_cache_window, TIMER, 0.01f);
++  if (op_data.depth_cache_timer == nullptr) {
++    op_data.depth_cache_event.reset();
++    return false;
++  }
++  op_data.depth_cache_tick_count = 0;
++  op_data.depth_cache_pending = true;
++  return true;
++}
++
++static bool grease_pencil_fill_depth_cache_context_matches(
++    bContext &C, const GreasePencilFillOpData &op_data)
++{
++  if (CTX_wm_manager(&C) != op_data.depth_cache_manager ||
++      CTX_wm_window(&C) != op_data.depth_cache_window ||
++      CTX_wm_screen(&C) != op_data.depth_cache_screen ||
++      CTX_wm_area(&C) != op_data.depth_cache_area ||
++      CTX_wm_region(&C) != op_data.depth_cache_region ||
++      CTX_wm_region_view3d(&C) != op_data.depth_cache_region_view ||
++      CTX_wm_view3d(&C) != op_data.depth_cache_view3d ||
++      CTX_data_depsgraph_pointer(&C) != op_data.depth_cache_depsgraph ||
++      CTX_data_scene(&C) != op_data.depth_cache_scene ||
++      CTX_data_view_layer(&C) != op_data.depth_cache_view_layer ||
++      CTX_data_active_object(&C) != op_data.depth_cache_object ||
++      op_data.depth_cache_scene->r.cfra != op_data.depth_cache_frame)
++  {
++    return false;
++  }
++
++  if (op_data.depth_cache_object->type != OB_GREASE_PENCIL) {
++    return false;
++  }
++  GreasePencil *grease_pencil = id_cast<GreasePencil *>(op_data.depth_cache_object->data);
++  if (grease_pencil != op_data.depth_cache_grease_pencil ||
++      !grease_pencil->has_active_layer() ||
++      grease_pencil->get_active_layer() != op_data.depth_cache_layer)
++  {
++    return false;
++  }
++  Paint *paint = BKE_paint_get_active_from_context(&C);
++  return paint == op_data.depth_cache_paint && paint != nullptr &&
++         BKE_paint_brush(paint) == op_data.depth_cache_brush &&
++         op_data.depth_cache_placement.has_value() && op_data.depth_cache_event.has_value();
++}
++
+ /* Find and cut extension lines at intersections with other lines and strokes. */
+ static void grease_pencil_fill_extension_cut(const bContext &C,
+                                              ed::greasepencil::ExtensionData &extension_data,
+@@ -1627,7 +1773,11 @@ static void set_fill_attributes(bke::CurvesGeometry &fill_curves,
+                                     fill_curves.points_range());
+ }
+ 
+-static bool grease_pencil_apply_fill(bContext &C, wmOperator &op, const wmEvent &event)
++static bool grease_pencil_apply_fill(
++    bContext &C,
++    wmOperator &op,
++    const wmEvent &event,
++    const ed::greasepencil::DrawingPlacement &fill_placement)
+ {
+   using bke::greasepencil::Layer;
+   using ed::greasepencil::DrawingInfo;
+@@ -1688,6 +1838,7 @@ static bool grease_pencil_apply_fill(bContext &C, wmOperator &op, const wmEvent
+                                                              brush,
+                                                              scene,
+                                                              layer,
++                                                             fill_placement,
+                                                              boundary_layers,
+                                                              info.sources,
+                                                              op_data.invert,
+@@ -1711,6 +1862,7 @@ static bool grease_pencil_apply_fill(bContext &C, wmOperator &op, const wmEvent
+       op_fill_curves = delaunay_fill_strokes(view_context,
+                                              scene,
+                                              layer,
++                                             fill_placement,
+                                              boundary_layers,
+                                              info.sources,
+                                              op_data.invert,
+@@ -1815,6 +1967,52 @@ static bool grease_pencil_apply_fill(bContext &C, wmOperator &op, const wmEvent
+   return true;
+ }
+ 
++static wmOperatorStatus grease_pencil_fill_apply_or_defer(bContext &C,
++                                                           wmOperator &op,
++                                                           const wmEvent &event)
++{
++  ARegion &region = *CTX_wm_region(&C);
++  if (!BLI_rcti_isect_pt_v(&region.winrct, event.xy)) {
++    return OPERATOR_CANCELLED;
++  }
++
++  auto &op_data = *static_cast<GreasePencilFillOpData *>(op.customdata);
++  const ViewContext view_context = ED_view3d_viewcontext_init(
++      &C, CTX_data_depsgraph_pointer(&C));
++  Scene &scene = *CTX_data_scene(&C);
++  View3D &view3d = *view_context.v3d;
++  Depsgraph &depsgraph = *view_context.depsgraph;
++  Object &object = *view_context.obact;
++  const Object &object_eval = *DEG_get_evaluated(&depsgraph, &object);
++  GreasePencil *grease_pencil = id_cast<GreasePencil *>(object.data);
++  if (grease_pencil == nullptr || !grease_pencil->has_active_layer()) {
++    return OPERATOR_CANCELLED;
++  }
++
++  op_data.depth_cache_placement.emplace(
++      scene, region, view3d, object_eval, grease_pencil->get_active_layer());
++  ed::greasepencil::DrawingPlacementDepthCacheState state =
++      ed::greasepencil::DrawingPlacementDepthCacheState::Ready;
++  if (op_data.depth_cache_placement->use_project_to_surface() ||
++      op_data.depth_cache_placement->use_project_to_stroke())
++  {
++    state = op_data.depth_cache_placement->cache_viewport_depths_async(
++        &depsgraph, &region, &view3d);
++  }
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Pending) {
++    if (!grease_pencil_fill_depth_cache_wait_begin(C, op_data, event)) {
++      BKE_report(op.reports, RPT_ERROR, "Unable to retain Grease Pencil fill depth");
++      grease_pencil_fill_depth_cache_clear(op_data);
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  const bool applied = grease_pencil_apply_fill(C, op, event, *op_data.depth_cache_placement);
++  op_data.depth_cache_placement.reset();
++  return applied ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++}
++
+ static bool grease_pencil_fill_init(bContext &C, wmOperator &op)
+ {
+   using bke::greasepencil::Layer;
+@@ -1865,17 +2063,30 @@ static bool grease_pencil_fill_init(bContext &C, wmOperator &op)
+ 
+ static void grease_pencil_fill_exit(bContext &C, wmOperator &op)
+ {
+-  const ARegion &region = *CTX_wm_region(&C);
+-  Object &ob = *CTX_data_active_object(&C);
+-  GreasePencil &grease_pencil = *id_cast<GreasePencil *>(ob.data);
+-
+-  WM_cursor_modal_restore(CTX_wm_window(&C));
++  ARegion *region = CTX_wm_region(&C);
++  wmWindow *window = CTX_wm_window(&C);
++  GreasePencil *grease_pencil = nullptr;
++  Object *object = CTX_data_active_object(&C);
++  if (object != nullptr && object->type == OB_GREASE_PENCIL) {
++    grease_pencil = id_cast<GreasePencil *>(object->data);
++  }
+ 
+   if (op.customdata) {
+     auto &op_data = *static_cast<GreasePencilFillOpData *>(op.customdata);
++    if (op_data.depth_cache_region != nullptr) {
++      region = op_data.depth_cache_region;
++    }
++    if (op_data.depth_cache_window != nullptr) {
++      window = op_data.depth_cache_window;
++    }
++    if (op_data.depth_cache_grease_pencil != nullptr) {
++      grease_pencil = op_data.depth_cache_grease_pencil;
++    }
+ 
+-    if (op_data.overlay_cb_handle) {
+-      ED_region_draw_cb_exit(region.runtime->type, op_data.overlay_cb_handle);
++    grease_pencil_fill_depth_cache_clear(op_data);
++
++    if (op_data.overlay_cb_handle && region != nullptr) {
++      ED_region_draw_cb_exit(region->runtime->type, op_data.overlay_cb_handle);
+       op_data.overlay_cb_handle = nullptr;
+     }
+ 
+@@ -1883,10 +2094,16 @@ static void grease_pencil_fill_exit(bContext &C, wmOperator &op)
+     op.customdata = nullptr;
+   }
+ 
++  if (window != nullptr) {
++    WM_cursor_modal_restore(window);
++  }
++
+   /* Clear status message area. */
+   ED_workspace_status_text(&C, nullptr);
+ 
+-  DEG_id_tag_update(&grease_pencil.id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
++  if (grease_pencil != nullptr) {
++    DEG_id_tag_update(&grease_pencil->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
++  }
+ 
+   WM_main_add_notifier(NC_GEOM | ND_DATA, nullptr);
+   WM_event_add_notifier(&C, NC_GPENCIL | ND_DATA | NA_EDITED, nullptr);
+@@ -1944,6 +2161,54 @@ enum class FillToolModalKey : int8_t {
+   Precision,
+ };
+ 
++static wmOperatorStatus grease_pencil_fill_depth_cache_poll(bContext &C,
++                                                             wmOperator &op,
++                                                             const wmEvent &event)
++{
++  auto &op_data = *static_cast<GreasePencilFillOpData *>(op.customdata);
++  if (!op_data.depth_cache_pending ||
++      !grease_pencil_fill_depth_cache_context_matches(C, op_data))
++  {
++    BKE_report(
++        op.reports, RPT_ERROR, "Viewport changed while waiting for Grease Pencil fill depth");
++    return OPERATOR_CANCELLED;
++  }
++
++  if (ELEM(event.type, EVT_ESCKEY, RIGHTMOUSE) ||
++      (event.type == EVT_MODAL_MAP && event.val == int(FillToolModalKey::Cancel)))
++  {
++    return OPERATOR_CANCELLED;
++  }
++  if (event.type != TIMER || event.customdata != op_data.depth_cache_timer) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++op_data.depth_cache_tick_count > max_tick_count) {
++    BKE_report(op.reports, RPT_ERROR, "Timed out waiting for Grease Pencil fill depth");
++    return OPERATOR_CANCELLED;
++  }
++
++  const ed::greasepencil::DrawingPlacementDepthCacheState state =
++      op_data.depth_cache_placement->poll_viewport_depths(op_data.depth_cache_region);
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ed::greasepencil::DrawingPlacementDepthCacheState::Failed) {
++    BKE_report(op.reports, RPT_ERROR, "Grease Pencil fill depth readback failed");
++    return OPERATOR_CANCELLED;
++  }
++
++  op_data.depth_cache_pending = false;
++  grease_pencil_fill_depth_cache_timer_remove(op_data);
++  const wmEvent retained_event = *op_data.depth_cache_event;
++  op_data.depth_cache_event.reset();
++  const bool applied = grease_pencil_apply_fill(
++      C, op, retained_event, *op_data.depth_cache_placement);
++  op_data.depth_cache_placement.reset();
++  return applied ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++}
++
+ static wmOperatorStatus grease_pencil_fill_event_modal_map(bContext *C,
+                                                            wmOperator *op,
+                                                            const wmEvent *event)
+@@ -1963,7 +2228,7 @@ static wmOperatorStatus grease_pencil_fill_event_modal_map(bContext *C,
+       }
+ 
+       op_data.fill_mouse_pos = float2(event->mval);
+-      return (grease_pencil_apply_fill(*C, *op, *event) ? OPERATOR_FINISHED : OPERATOR_CANCELLED);
++      return grease_pencil_fill_apply_or_defer(*C, *op, *event);
+     }
+ 
+     case int(FillToolModalKey::ExtensionModeToggle):
+@@ -2036,15 +2301,16 @@ static wmOperatorStatus grease_pencil_fill_event_modal_map(bContext *C,
+ 
+ static wmOperatorStatus grease_pencil_fill_modal(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+-  const RegionView3D &rv3d = *CTX_wm_region_view3d(C);
+-
+   auto &op_data = *static_cast<GreasePencilFillOpData *>(op->customdata);
+ 
+   wmOperatorStatus estate = OPERATOR_CANCELLED;
+-  if (!op_data.show_extension) {
++  if (op_data.depth_cache_pending) {
++    estate = grease_pencil_fill_depth_cache_poll(*C, *op, *event);
++  }
++  else if (!op_data.show_extension) {
+     /* Apply fill immediately if "Visual Aids" (aka. extension lines) is disabled. */
+     op_data.fill_mouse_pos = float2(event->mval);
+-    estate = (grease_pencil_apply_fill(*C, *op, *event) ? OPERATOR_FINISHED : OPERATOR_CANCELLED);
++    estate = grease_pencil_fill_apply_or_defer(*C, *op, *event);
+   }
+   else {
+     estate = OPERATOR_RUNNING_MODAL;
+@@ -2057,6 +2323,7 @@ static wmOperatorStatus grease_pencil_fill_modal(bContext *C, wmOperator *op, co
+           break;
+         }
+ 
++        const RegionView3D &rv3d = *CTX_wm_region_view3d(C);
+         const Object &ob = *CTX_data_active_object(C);
+         const float pixel_size = ED_view3d_pixel_size(&rv3d, ob.loc);
+         const float2 mouse_pos = float2(event->mval);
+diff --git a/source/blender/editors/sculpt_paint/grease_pencil/fill.cc b/source/blender/editors/sculpt_paint/grease_pencil/fill.cc
+index 03fe2915adabee4278a857768cc6e03c6ac5e066..be3a41f64ae14701af2d0d9e8a76b02f2bbf7180 100644
+--- a/source/blender/editors/sculpt_paint/grease_pencil/fill.cc
++++ b/source/blender/editors/sculpt_paint/grease_pencil/fill.cc
+@@ -1009,6 +1009,7 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+                                        const Brush &brush,
+                                        const Scene &scene,
+                                        const bke::greasepencil::Layer &layer,
++                                       const DrawingPlacement &placement,
+                                        const VArray<bool> &boundary_layers,
+                                        const Span<DrawingInfo> src_drawings,
+                                        const bool invert,
+@@ -1018,13 +1019,7 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+                                        const FillToolFitMethod fit_method,
+                                        const bool keep_images)
+ {
+-  ARegion &region = *view_context.region;
+-  View3D &view3d = *view_context.v3d;
+-  Depsgraph &depsgraph = *view_context.depsgraph;
+-  Object &object = *view_context.obact;
+-
+-  BLI_assert(object.type == OB_GREASE_PENCIL);
+-  const Object &object_eval = *DEG_get_evaluated(&depsgraph, &object);
++  BLI_assert(view_context.obact->type == OB_GREASE_PENCIL);
+ 
+   /* Zoom and offset based on bounds, to fit all strokes within the render. */
+   const bool uniform_zoom = true;
+@@ -1042,11 +1037,6 @@ bke::CurvesGeometry pixel_fill_strokes(const ViewContext &view_context,
+                                                                                margin,
+                                                                                pixel_scale);
+ 
+-  ed::greasepencil::DrawingPlacement placement(scene, region, view3d, object_eval, &layer);
+-  if (placement.use_project_to_surface() || placement.use_project_to_stroke()) {
+-    placement.cache_viewport_depths(&depsgraph, &region, &view3d);
+-  }
+-
+   Image *ima = render_strokes(view_context,
+                               brush,
+                               scene,
+@@ -1637,6 +1627,7 @@ std::optional<bke::CurvesGeometry> delaunay_fill_strokes(
+     const ViewContext &view_context,
+     const Scene &scene,
+     const bke::greasepencil::Layer &layer,
++    const DrawingPlacement &placement,
+     const VArray<bool> &boundary_layers,
+     const Span<DrawingInfo> src_drawings,
+     const bool invert,
+@@ -1646,17 +1637,8 @@ std::optional<bke::CurvesGeometry> delaunay_fill_strokes(
+     const GroupedSpan<float2> &fill_points)
+ {
+   ARegion &region = *view_context.region;
+-  View3D &view3d = *view_context.v3d;
+-  Depsgraph &depsgraph = *view_context.depsgraph;
+   Object &object = *view_context.obact;
+ 
+-  const Object &object_eval = *DEG_get_evaluated(&depsgraph, &object);
+-
+-  ed::greasepencil::DrawingPlacement placement(scene, region, view3d, object_eval, &layer);
+-  if (placement.use_project_to_surface() || placement.use_project_to_stroke()) {
+-    placement.cache_viewport_depths(&depsgraph, &region, &view3d);
+-  }
+-
+   const meshintersect::CDT_input<double> input = get_input_from_drawings(
+       src_drawings, object, boundary_layers, region, opacity_threshold);
+   meshintersect::CDT_result<double> result = delaunay_2d_calc(input, CDT_FULL);

@@ -1,0 +1,165 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -142,6 +142,19 @@ inline bool buffer_create_if_valid(DeviceT &device,
+   return true;
+ }
+ 
++/** Publish a short-lived WebGPU handle only after creation succeeds. Failure leaves the
++ * caller-owned result unchanged. Templated so transient resource failure remains device-free
++ * testable on native and Wasm. */
++template<typename HandleT>
++inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)
++{
++  if (candidate == nullptr) {
++    return false;
++  }
++  result = std::move(candidate);
++  return true;
++}
++
+ /** Encode and submit one short-lived command buffer without using a failed encoder or
+  * submitting a failed command-buffer handle. A boolean encoder callback can abort the whole
+  * transaction after earlier commands were recorded; a void callback retains the simple copy
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -133,7 +133,8 @@ static WGPUContext *active_context()
+ static bool build_compute_bind_group(WGPUContext *ctx,
+                                      WGPUShader *shader,
+                                      const wgpu::ComputePipeline &pipeline,
+-                                     wgpu::BindGroup &r_bind_group)
++                                     wgpu::BindGroup &r_bind_group,
++                                     bool &r_have_bind_group)
+ {
+   std::vector<wgpu::BindGroupEntry> entries;
+ 
+@@ -157,14 +158,20 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+    * N not present") now binds correctly. */
+   ctx->append_resource_bind_entries(shader, entries);
+ 
++  r_have_bind_group = false;
+   if (entries.empty()) {
+-    return false;
++    return true;
+   }
+ 
+   const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                         shader->explicit_bind_group_layout() :
+                                         pipeline.GetBindGroupLayout(0);
+-  r_bind_group = ctx->create_bind_group_checked(bgl, entries);
++  if (!webgpu::transient_handle_publish_if_valid(
++          ctx->create_bind_group_checked(bgl, entries), r_bind_group))
++  {
++    return false;
++  }
++  r_have_bind_group = true;
+   return true;
+ }
+ 
+@@ -198,7 +205,10 @@ void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int group
+   }
+ 
+   wgpu::BindGroup bind_group;
+-  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
++  bool have_bg = false;
++  if (!build_compute_bind_group(ctx, shader, pipeline, bind_group, have_bg)) {
++    return;
++  }
+ 
+   if (!webgpu::command_pass_encode_submit_if_valid(
+           device,
+@@ -245,7 +255,10 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+   }
+ 
+   wgpu::BindGroup bind_group;
+-  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
++  bool have_bg = false;
++  if (!build_compute_bind_group(ctx, shader, pipeline, bind_group, have_bg)) {
++    return;
++  }
+ 
+   if (!webgpu::command_pass_encode_submit_if_valid(
+           device,
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -479,7 +479,13 @@ void WGPUBatch::draw(int vertex_first,
+         const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+                                                  shader->explicit_bind_group_layout() :
+                                                  pipeline.GetBindGroupLayout(0);
+-        mv_pass.SetBindGroup(0, ctx->create_bind_group_checked(mv_bgl, entries));
++        wgpu::BindGroup mv_bind_group;
++        if (!webgpu::transient_handle_publish_if_valid(
++                ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
++        {
++          return;
++        }
++        mv_pass.SetBindGroup(0, mv_bind_group);
+ 
+         if (emulate_triangle_fan) {
+           mv_pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
+@@ -558,7 +564,13 @@ void WGPUBatch::draw(int vertex_first,
+       const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                             shader->explicit_bind_group_layout() :
+                                             pipeline.GetBindGroupLayout(0);
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
++      wgpu::BindGroup bind_group;
++      if (!webgpu::transient_handle_publish_if_valid(
++              ctx->create_bind_group_checked(bgl, entries), bind_group))
++      {
++        return;
++      }
++      pass.SetBindGroup(0, bind_group);
+     }
+   }
+ 
+@@ -845,7 +857,13 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+                                                  shader->explicit_bind_group_layout() :
+                                                  pipeline.GetBindGroupLayout(0);
+-        mv_pass.SetBindGroup(0, ctx->create_bind_group_checked(mv_bgl, entries));
++        wgpu::BindGroup mv_bind_group;
++        if (!webgpu::transient_handle_publish_if_valid(
++                ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
++        {
++          return;
++        }
++        mv_pass.SetBindGroup(0, mv_bind_group);
+ 
+         issue_indirect_draws(mv_pass);
+         mv_pass.End();
+@@ -890,7 +908,13 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                             shader->explicit_bind_group_layout() :
+                                             pipeline.GetBindGroupLayout(0);
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
++      wgpu::BindGroup bind_group;
++      if (!webgpu::transient_handle_publish_if_valid(
++              ctx->create_bind_group_checked(bgl, entries), bind_group))
++      {
++        return;
++      }
++      pass.SetBindGroup(0, bind_group);
+     }
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -228,8 +228,14 @@ void WGPUImmediate::end()
+       const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                             shader->explicit_bind_group_layout() :
+                                             pipeline.GetBindGroupLayout(0);
+-      pass.SetBindGroup(0, ctx->create_bind_group_checked(bgl, entries));
++      wgpu::BindGroup bind_group;
++      if (!webgpu::transient_handle_publish_if_valid(
++              ctx->create_bind_group_checked(bgl, entries), bind_group))
++      {
++        return;
++      }
++      pass.SetBindGroup(0, bind_group);
+     }
+   }
+ 
+   if (!fan_indices.empty()) {

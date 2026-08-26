@@ -1,0 +1,41 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -252,12 +252,20 @@
+   if (elem != nullptr) {
+     WGPUIndexBuffer *wibo = unwrap(elem);
+     if (wibo->buffer().valid()) {
+-      pass.SetIndexBuffer(wibo->buffer().handle(), wibo->index_format(), 0);
+-      /* TODO(lane-B): baseVertex from IndexBuf index_base_ once exposed. */
++      /* Subrange IBOs share the source buffer; their window starts at
++       * index_start_ (bind-time byte offset, mirroring Metal's
++       * `(v_first + index_start_) * index_size`). Squeezed-u16 buffers carry
++       * index_base_, applied as baseVertex. Without BOTH, a subrange draw reads
++       * the wrong segment of the shared mesh IBO — garbage connectivity (the
++       * r26/r27 crumpled-outline defect). */
++      const uint32_t index_size = elem->is_32bit() ? 4u : 2u;
++      pass.SetIndexBuffer(wibo->buffer().handle(),
++                          wibo->index_format(),
++                          uint64_t(elem->index_start_get()) * index_size);
+       pass.DrawIndexed(uint32_t(vertex_count),
+                        uint32_t(instance_count),
+                        uint32_t(vertex_first),
+-                       0,
++                       int32_t(elem->index_base_get()),
+                        uint32_t(instance_first));
+     }
+   }
+@@ -394,7 +402,12 @@
+   WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
+   const bool indexed = (wibo != nullptr && wibo->buffer().valid());
+   if (indexed) {
+-    pass.SetIndexBuffer(wibo->buffer().handle(), wibo->index_format(), 0);
++    /* Subrange window via bind-time byte offset (see draw() above); the
++     * GPU-generated DrawCommand args carry batch-local firstIndex/baseVertex. */
++    const uint32_t index_size = elem->is_32bit() ? 4u : 2u;
++    pass.SetIndexBuffer(wibo->buffer().handle(),
++                        wibo->index_format(),
++                        uint64_t(elem->index_start_get()) * index_size);
+   }
+ 
+   for (int i = 0; i < count; i++) {

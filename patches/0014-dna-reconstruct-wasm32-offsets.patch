@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/makesdna/intern/makesdna.cc and
+# source/blender/makesdna/intern/dna_genfile.cc @ fbe6228777e7
+#
+# M2.5b — fix the wasm32 .blend read: DNA_struct_reconstruct's TARGET member offsets.
+# Extends patch 0002 (which fixed the makesdna *tool*'s offset model). The runtime
+# reconstruction (dna_genfile.cc create_reconstruct_steps_for_struct) computed target
+# offsets with an INDEPENDENT unpadded running sum, which mis-places fields after an
+# 8-aligned member on wasm32 (Scene.master_collection read NULL -> layer_utils.cc:205
+# abort at factory-startup boot). See notes/m2-dna-reconstruct-diagnosis.md.
+#
+# Single source of truth (no second model, no recursive re-derivation, no read-side
+# hacks, no Scene special-case, no old/file-side change): the WASM makesdna emits its
+# already-verified wasm32-padded per-member offsets (the same values dna_verify.cc
+# certifies) as a runtime table (DNA_reconstruct_member_offsets_wasm32[] +
+# _start_wasm32[], indexed identically to the SDNA structs) appended to the generated
+# dna_verify.cc; dna_genfile.cc consumes it on the target side. All changes are under
+# #ifdef __EMSCRIPTEN__ / if(EMSCRIPTEN): the NATIVE makesdna never emits the table and
+# native dna_genfile never references it, so native (LP64, where unpadded==padded) is
+# byte-identical. A wasm-only BLI_assert guards table/SDNA member-count desync.
+#
+# Verified: table == compiled offsets for all 9831 members across all 993 structs
+# (0 divergence vs both the alignment model and dna_verify's offsetof asserts);
+# dna_verify green; boot reaches past scene load (master_collection non-NULL).
+diff --git a/source/blender/makesdna/intern/makesdna.cc b/source/blender/makesdna/intern/makesdna.cc
+--- a/source/blender/makesdna/intern/makesdna.cc
++++ b/source/blender/makesdna/intern/makesdna.cc
+@@ -883,6 +883,56 @@
+   }
+ }
+ 
++#ifdef __EMSCRIPTEN__
++/* blender-web: emit makesdna's verified wasm32-padded member offsets as a runtime
++ * table so DNA_struct_reconstruct's TARGET side (dna_genfile.cc) consumes the SINGLE
++ * verified model instead of re-accumulating unpadded offsets — which mis-place fields
++ * after 8-aligned members on wasm32 (e.g. Scene.master_collection reads NULL). See
++ * notes/m2-dna-reconstruct-diagnosis.md. This whole function is under __EMSCRIPTEN__
++ * and is only called by the wasm makesdna, so the NATIVE tool's generated output is
++ * byte-identical (it never emits this table, and dna_genfile never references it).
++ *
++ * Index scheme mirrors the SDNA STRC order written by write_sdna_blob(): struct 0 =
++ * the synthetic `raw_data` (0 members), struct i>=1 = parsed_structs[i-1]; members in
++ * declaration order. `_start[s]` is the index of struct s's first member in the flat
++ * offsets array; its length is num_structs+1 (final entry = total member count), so
++ * struct s owns members `[_start[s], _start[s+1])`. The per-member offset uses the
++ * exact padded computation write_sdna_verify() certifies. */
++static void write_sdna_member_offsets(FILE *file,
++                                      const TypeTable &table,
++                                      const Span<dna::ParsedStruct> parsed_structs)
++{
++  Vector<int> starts;
++  int running = 0;
++  fprintf(file,
++          "\n/* blender-web: wasm32 runtime member offsets (single source of truth for "
++          "DNA_struct_reconstruct). */\n");
++  fprintf(file, "extern const int DNA_reconstruct_member_offsets_wasm32[];\n");
++  fprintf(file, "const int DNA_reconstruct_member_offsets_wasm32[] = {\n");
++  starts.append(running); /* struct 0: synthetic raw_data, 0 members. */
++  for (const dna::ParsedStruct &parsed_struct : parsed_structs) {
++    starts.append(running);
++    int offset = 0;
++    for (const dna::ParsedMember &parsed_member : parsed_struct.members) {
++      const TypeInfo &member_type = table.lookup(parsed_member.type_name);
++      offset = dna_align_up(offset, member_align_native(member_type, parsed_member));
++      fprintf(file, "%d,", offset);
++      offset += member_size_native(member_type, parsed_member);
++      running++;
++    }
++    fprintf(file, "\n");
++  }
++  fprintf(file, "};\n");
++  starts.append(running); /* sentinel: total member count. */
++  fprintf(file, "extern const int DNA_reconstruct_member_offsets_start_wasm32[];\n");
++  fprintf(file, "const int DNA_reconstruct_member_offsets_start_wasm32[] = {\n");
++  for (const int start : starts) {
++    fprintf(file, "%d,", start);
++  }
++  fprintf(file, "\n};\n");
++}
++#endif /* __EMSCRIPTEN__ */
++
+ /** \} */
+ 
+ /* -------------------------------------------------------------------- */
+@@ -996,6 +1046,11 @@
+   write_sdna_type_offsets(file_offsets, parsed_structs);
+   write_sdna_struct_ids(file_ids, parsed_structs);
+   write_sdna_verify(file_verify, table, parsed_structs, base_directory);
++#ifdef __EMSCRIPTEN__
++  /* blender-web: append the wasm32 runtime member-offset table to dna_verify.cc (a
++   * compiled bf_dna TU). Wasm makesdna only; native output unchanged. */
++  write_sdna_member_offsets(file_verify, table, parsed_structs);
++#endif
+ 
+   DEBUG_PRINTF(0, "done.\n");
+ 
+diff --git a/source/blender/makesdna/intern/dna_genfile.cc b/source/blender/makesdna/intern/dna_genfile.cc
+index 218de4bbb71..dc4e970972a 100644
+--- a/source/blender/makesdna/intern/dna_genfile.cc
++++ b/source/blender/makesdna/intern/dna_genfile.cc
+@@ -35,6 +35,18 @@
+ #include "DNA_sdna_pointers.hh"
+ #include "DNA_sdna_types.h" /* for SDNA ;-) */
+ 
++#ifdef __EMSCRIPTEN__
++/* blender-web: makesdna-emitted wasm32-padded per-member offsets (defined at global
++ * scope in the generated dna_verify.cc). Declared here at global scope, exactly like
++ * DNAstr in DNA_genfile.h, so the reference inside `namespace blender` resolves to the
++ * global symbol. Single source of truth for DNA_struct_reconstruct's TARGET offsets on
++ * wasm32 (the unpadded running sum used natively mis-places fields after 8-aligned
++ * members on wasm32 — e.g. Scene.master_collection). See
++ * notes/m2-dna-reconstruct-diagnosis.md. */
++extern const int DNA_reconstruct_member_offsets_wasm32[];
++extern const int DNA_reconstruct_member_offsets_start_wasm32[];
++#endif
++
+ namespace blender {
+ 
+ /**
+@@ -1489,14 +1501,29 @@ static ReconstructStep *create_reconstruct_steps_for_struct(const SDNA *oldsdna,
+                                                             const SDNA *newsdna,
+                                                             const char *compare_flags,
+                                                             const SDNA_Struct *old_struct,
+-                                                            const SDNA_Struct *new_struct)
++                                                            const SDNA_Struct *new_struct
++#ifdef __EMSCRIPTEN__
++                                                            ,
++                                                            const int new_struct_index
++#endif
++)
+ {
+   ReconstructStep *steps = MEM_new_array_zeroed<ReconstructStep>(new_struct->members_num,
+                                                                  __func__);
+ 
++#ifdef __EMSCRIPTEN__
++  /* wasm32: take each target offset from makesdna's verified table instead of the
++   * unpadded running sum. Guard against table/SDNA desync (member count per struct). */
++  const int bw_offsets_start = DNA_reconstruct_member_offsets_start_wasm32[new_struct_index];
++  BLI_assert(DNA_reconstruct_member_offsets_start_wasm32[new_struct_index + 1] - bw_offsets_start ==
++             new_struct->members_num);
++#endif
+   int new_member_offset = 0;
+   for (int new_member_index = 0; new_member_index < new_struct->members_num; new_member_index++) {
+     const SDNA_StructMember *new_member = &new_struct->members[new_member_index];
++#ifdef __EMSCRIPTEN__
++    new_member_offset = DNA_reconstruct_member_offsets_wasm32[bw_offsets_start + new_member_index];
++#endif
+     init_reconstruct_step_for_member(oldsdna,
+                                      newsdna,
+                                      compare_flags,
+@@ -1504,7 +1531,9 @@ static ReconstructStep *create_reconstruct_steps_for_struct(const SDNA *oldsdna,
+                                      new_member,
+                                      new_member_offset,
+                                      &steps[new_member_index]);
++#ifndef __EMSCRIPTEN__
+     new_member_offset += get_member_size_in_bytes(newsdna, new_member);
++#endif
+   }
+ 
+   return steps;
+@@ -1578,7 +1607,16 @@ DNA_ReconstructInfo *DNA_reconstruct_info_create(const SDNA *oldsdna,
+     }
+     const SDNA_Struct *old_struct = oldsdna->structs[old_struct_index];
+     ReconstructStep *steps = create_reconstruct_steps_for_struct(
+-        oldsdna, newsdna, compare_flags, old_struct, new_struct);
++        oldsdna,
++        newsdna,
++        compare_flags,
++        old_struct,
++        new_struct
++#ifdef __EMSCRIPTEN__
++        ,
++        new_struct_index
++#endif
++    );
+ 
+     /* Comment the line below to skip the compression for debugging purposes. */
+     const int steps_len = compress_reconstruct_steps(steps, new_struct->members_num);

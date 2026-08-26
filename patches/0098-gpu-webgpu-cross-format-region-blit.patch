@@ -1,0 +1,190 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -175,6 +175,20 @@
+    * context lifetime so the handle outlives every BindGroup that references it). */
+   wgpu::Sampler get_sampler(const GPUSamplerState &state);
+ 
++  /* Blit one colour texture into another through a fullscreen textured-quad render
++   * pass. Used by WGPUFrameBuffer::blit_to when the source and destination formats
++   * are NOT copy-compatible (Dawn rejects CopyTextureToTexture across formats — the
++   * dominant M4 viewport blocker: region RGBA8Unorm strips copied to the BGRA8Unorm
++   * window surface). Reproduces the copy's texel mapping exactly (src texel (i,j) ->
++   * dst texel (dst_x + i, dst_y + j), no flip), so it is a drop-in replacement for
++   * the rejected copy. Returns false if the pipeline/views could not be built. */
++  bool blit_color_render(Texture *src,
++                         Texture *dst,
++                         uint32_t w,
++                         uint32_t h,
++                         uint32_t dst_x,
++                         uint32_t dst_y);
++
+   /* Point back_left/front_left's colour attachment at the window surface's current
+    * texture (windowed web build only; no-op otherwise). Called from activate(),
+    * mirroring VKContext::sync_backbuffer (vk_context.cc:67). */
+@@ -227,6 +241,14 @@
+   /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
+   std::unordered_map<uint32_t, wgpu::Sampler> sampler_cache_;
+ 
++  /* --- Cross-format colour blit (blit_color_render) ------------------------- */
++  /** Shared fullscreen-triangle blit shader module (built once, lazily). */
++  wgpu::ShaderModule blit_module_;
++  /** Nearest/clamp sampler for the blit (exact texel copy). */
++  wgpu::Sampler blit_sampler_;
++  /** Blit render pipeline cache keyed by destination wgpu::TextureFormat. */
++  std::unordered_map<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
++
+   /** The GHOST drawing context (retained for sync_backbuffer's surface access);
+    * mirrors VKContext::ghost_context_ (vk_context.cc:40). */
+   GHOST_IContext *ghost_context_ = nullptr;
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -293,7 +293,122 @@
+   sampler_cache_[key] = sampler;
+   return sampler;
+ }
++
++/* --- Cross-format colour blit (render-pass fallback for blit_to) ----------- */
++
++bool WGPUContext::blit_color_render(
++    Texture *src, Texture *dst, uint32_t w, uint32_t h, uint32_t dst_x, uint32_t dst_y)
++{
++  if (src == nullptr || dst == nullptr || w == 0 || h == 0) {
++    return false;
++  }
++  webgpu::WGPUTexture *wsrc = static_cast<webgpu::WGPUTexture *>(src);
++  webgpu::WGPUTexture *wdst = static_cast<webgpu::WGPUTexture *>(dst);
++  wgpu::TextureView src_view = wsrc->sampled_view();
++  if (src_view == nullptr || wdst->texture() == nullptr) {
++    return false;
++  }
++  const wgpu::TextureFormat dst_format = wdst->wgpu_format();
+ 
++  /* Lazy: the shared fullscreen-triangle blit module. The region offscreen textures
++   * this composites onto the window surface are stored bottom-up (the ADR-005 offscreen
++   * clip-flip convention), while the window backbuffer is presented upright (M4.T14a), so
++   * the blit samples with uv.y = y (NOT the straight-copy 1 - y): verified in-tab, the
++   * straight copy renders the topbar/N-panel/properties strips upside-down, this sign
++   * lands them upright to match the directly-drawn 3D viewport. */
++  if (blit_module_ == nullptr) {
++    static const char *kBlitWGSL =
++        "struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f, };\n"
++        "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VOut {\n"
++        "  var o : VOut;\n"
++        "  let x = f32((vid << 1u) & 2u);\n"
++        "  let y = f32(vid & 2u);\n"
++        "  o.pos = vec4f(x * 2.0 - 1.0, y * 2.0 - 1.0, 0.0, 1.0);\n"
++        "  o.uv = vec2f(x, y);\n"
++        "  return o;\n"
++        "}\n"
++        "@group(0) @binding(0) var src_tex : texture_2d<f32>;\n"
++        "@group(0) @binding(1) var src_smp : sampler;\n"
++        "@fragment fn fs_main(i : VOut) -> @location(0) vec4f {\n"
++        "  return textureSampleLevel(src_tex, src_smp, i.uv, 0.0);\n"
++        "}\n";
++    wgpu::ShaderSourceWGSL wgsl;
++    wgsl.code = kBlitWGSL;
++    wgpu::ShaderModuleDescriptor md;
++    md.nextInChain = &wgsl;
++    blit_module_ = device_.CreateShaderModule(&md);
++  }
++  if (blit_sampler_ == nullptr) {
++    wgpu::SamplerDescriptor sd = {};
++    sd.magFilter = wgpu::FilterMode::Nearest;
++    sd.minFilter = wgpu::FilterMode::Nearest;
++    sd.addressModeU = wgpu::AddressMode::ClampToEdge;
++    sd.addressModeV = wgpu::AddressMode::ClampToEdge;
++    blit_sampler_ = device_.CreateSampler(&sd);
++  }
++
++  /* Pipeline cached per destination format (auto layout — the module declares exactly
++   * one sampled texture + one sampler in group 0). */
++  const uint32_t fmt_key = uint32_t(dst_format);
++  wgpu::RenderPipeline pipeline;
++  auto found = blit_pipelines_.find(fmt_key);
++  if (found != blit_pipelines_.end()) {
++    pipeline = found->second;
++  }
++  else {
++    wgpu::ColorTargetState target = {};
++    target.format = dst_format;
++    target.writeMask = wgpu::ColorWriteMask::All;
++    wgpu::FragmentState fragment = {};
++    fragment.module = blit_module_;
++    fragment.entryPoint = "fs_main";
++    fragment.targetCount = 1;
++    fragment.targets = &target;
++    wgpu::RenderPipelineDescriptor pd = {};
++    pd.layout = nullptr;
++    pd.vertex.module = blit_module_;
++    pd.vertex.entryPoint = "vs_main";
++    pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
++    pd.fragment = &fragment;
++    pipeline = device_.CreateRenderPipeline(&pd);
++    blit_pipelines_[fmt_key] = pipeline;
++  }
++  if (pipeline == nullptr) {
++    return false;
++  }
++
++  wgpu::BindGroupEntry entries[2] = {};
++  entries[0].binding = 0;
++  entries[0].textureView = src_view;
++  entries[1].binding = 1;
++  entries[1].sampler = blit_sampler_;
++  wgpu::BindGroupDescriptor bgd = {};
++  bgd.layout = pipeline.GetBindGroupLayout(0);
++  bgd.entryCount = 2;
++  bgd.entries = entries;
++  wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);
++
++  wgpu::RenderPassColorAttachment ca = {};
++  ca.view = wdst->texture().CreateView();
++  ca.loadOp = wgpu::LoadOp::Load;
++  ca.storeOp = wgpu::StoreOp::Store;
++  wgpu::RenderPassDescriptor rp = {};
++  rp.colorAttachmentCount = 1;
++  rp.colorAttachments = &ca;
++
++  wgpu::CommandEncoder enc = device_.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
++  pass.SetPipeline(pipeline);
++  pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
++  pass.SetScissorRect(dst_x, dst_y, w, h);
++  pass.SetBindGroup(0, bind_group);
++  pass.Draw(3, 1, 0, 0);
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  queue_.Submit(1, &cb);
++  return true;
++}
++
+ /* --- Draw/dispatch bind-group resource assembly ---------------------------- */
+ 
+ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -306,6 +306,21 @@
+   const wgpu::TextureAspect aspect = depth ? wgpu::TextureAspect::DepthOnly :
+                                              wgpu::TextureAspect::All;
+ 
++  /* Colour blit across incompatible formats — the dominant M4 viewport blocker: the WM
++   * composites region offscreens (RGBA8Unorm) onto the window surface (BGRA8Unorm), and
++   * Dawn's CopyTextureToTexture requires identical formats, so every such copy is
++   * dropped and the viewport stays black. Fall back to a textured-quad render pass that
++   * reproduces the copy's texel mapping. Same-format colour blits and depth blits keep
++   * the raw copy below (the native/headless gpu gate blits matching formats, unaffected). */
++  if (!depth) {
++    const wgpu::TextureFormat sfmt = as_wgpu(stex)->wgpu_format();
++    const wgpu::TextureFormat dfmt = as_wgpu(dtex)->wgpu_format();
++    if (sfmt != dfmt) {
++      ctx->blit_color_render(stex, dtex, w, h, uint32_t(dst_offset_x), uint32_t(dst_offset_y));
++      return;
++    }
++  }
++
+   wgpu::TexelCopyTextureInfo s = {};
+   s.texture = as_wgpu(stex)->texture();
+   s.mipLevel = 0;

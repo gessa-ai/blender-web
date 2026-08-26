@@ -1,0 +1,65 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 02c84b3..21f0019 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -18,6 +18,7 @@
+ #include "gpu_capabilities_private.hh"
+ 
+ #include "wgpu_framebuffer.hh"
++#include "wgpu_immediate.hh"
+ #include "wgpu_state_manager.hh"
+ 
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+@@ -64,10 +65,16 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+   capabilities_init();
+ 
+   /* Per-context state manager (lane B's WGPUStateManager). The base Context dtor
+-   * owns its lifetime (Context::~Context deletes state_manager). Immediate mode
+-   * (imm) is created by lane B alongside the render pipeline. */
++   * owns its lifetime (Context::~Context deletes state_manager). */
+   state_manager = new WGPUStateManager();
+ 
++  /* Immediate-mode drawing context (lane B's WGPUImmediate). Every backend
++   * constructs `imm` in its ctor (mirrors vk_context.cc:43); without it the
++   * thread-local `imm` stays null and immBegin/immVertexFormat dereference a null
++   * pointer (immediate_* SEGV). Base Context::~Context deletes it (gpu_context.cc:101),
++   * but the dtor below deletes+nulls it early to mirror VKContext's lifecycle. */
++  imm = new WGPUImmediate();
++
+   /* Default offscreen frame-buffers (mirrors vk_context.cc:45-47). The bootstrap /
+    * GPU_offscreen path dereferences active_fb, so it must be non-null — without
+    * these the draw families crash in GPU_offscreen_create. Base Context owns them. */
+@@ -79,6 +86,10 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+ WGPUContext::~WGPUContext()
+ {
+   free_resources();
++  /* Mirror VKContext::~VKContext():59-60 — delete `imm` here and null it so the
++   * base Context dtor's `delete imm` (gpu_context.cc:101) is a safe no-op. */
++  delete imm;
++  imm = nullptr;
+   /* Drop the backend-side device/instance/queue refs so the statics do not
+    * outlive GHOST's teardown and release a dangling handle at process exit. */
+   s_device = nullptr;
+@@ -88,17 +99,19 @@ WGPUContext::~WGPUContext()
+ 
+ /* --- Activation --------------------------------------------------------- */
+ /* Mirror VKContext::activate/deactivate but without the render-graph (WebGPU's
+- * implicit model needs none) and without immActivate — the WGPUImmediate is a
+- * lane-B class not yet constructed by this context. Once it lands, immActivate/
+- * immDeactivate hook in here exactly as the Vulkan backend does. */
++ * implicit model needs none). immActivate/immDeactivate bind this context's `imm`
++ * as the thread-local immediate-mode target, exactly as the Vulkan backend does
++ * (vk_context.cc:141,147). */
+ void WGPUContext::activate()
+ {
+   BLI_assert(is_active_ == false);
+   is_active_ = true;
++  immActivate();
+ }
+ 
+ void WGPUContext::deactivate()
+ {
++  immDeactivate();
+   is_active_ = false;
+ }
+ 

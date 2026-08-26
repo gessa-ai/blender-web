@@ -1,0 +1,274 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index cdb6ba5a6b930790bf40130e0295d3e2d44fe7b5..3bb1d1a370ef40b08470fef399c466c5beaf98f7 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -230,6 +230,70 @@ inline bool texture_upload_layout(uint32_t width,
+   return true;
+ }
+
++/** Host/device byte geometry for one CopyTextureToBuffer readback. */
++struct TextureReadbackLayout {
++  size_t sample_count = 0;
++  size_t device_data_size = 0;
++  size_t staging_size = 0;
++  size_t host_data_size = 0;
++  uint32_t row_bytes = 0;
++  uint32_t bytes_per_row = 0;
++  size_t row_count = 0;
++};
++
++/** Resolve every readback byte count before allocating a host or WebGPU buffer.
++ *
++ * CopyTextureToBuffer rows are padded to WebGPU's 256-byte alignment. Both the tight and
++ * padded row pitches must fit the uint32_t layout fields, every host product must fit size_t
++ * (notably wasm32), and the staging allocation must fit the live device limit. Failure is
++ * atomic. */
++inline bool texture_readback_layout(uint32_t width,
++                                    uint32_t height,
++                                    uint32_t depth,
++                                    uint32_t device_texel_bytes,
++                                    size_t host_texel_bytes,
++                                    uint64_t max_staging_size,
++                                    TextureReadbackLayout &result)
++{
++  if (width == 0 || height == 0 || depth == 0 || device_texel_bytes == 0 ||
++      host_texel_bytes == 0 || max_staging_size == 0)
++  {
++    return false;
++  }
++
++  TextureReadbackLayout candidate;
++  size_t tight_row_size;
++  size_t padded_row_size;
++  if (!checked_size_mul(size_t(width), size_t(device_texel_bytes), tight_row_size) ||
++      tight_row_size > std::numeric_limits<uint32_t>::max() ||
++      !checked_size_add(tight_row_size, size_t(255), padded_row_size))
++  {
++    return false;
++  }
++  padded_row_size &= ~size_t(255);
++  if (padded_row_size > std::numeric_limits<uint32_t>::max()) {
++    return false;
++  }
++  candidate.row_bytes = uint32_t(tight_row_size);
++  candidate.bytes_per_row = uint32_t(padded_row_size);
++
++  if (!checked_size_mul(size_t(height), size_t(depth), candidate.row_count) ||
++      !checked_size_mul(size_t(width), candidate.row_count, candidate.sample_count) ||
++      !checked_size_mul(
++          candidate.sample_count, size_t(device_texel_bytes), candidate.device_data_size) ||
++      !checked_size_mul(
++          candidate.row_count, size_t(candidate.bytes_per_row), candidate.staging_size) ||
++      !checked_size_mul(
++          candidate.sample_count, host_texel_bytes, candidate.host_data_size) ||
++      candidate.staging_size > max_staging_size)
++  {
++    return false;
++  }
++
++  result = candidate;
++  return true;
++}
++
+ /** True when a non-empty texture copy box fits within an available physical subresource.
+  * Subtraction avoids overflow even for adversarial uint32_t origins/extents. */
+ inline bool texture_region_fits(const wgpu::Origin3D &origin,
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index d802c64df4ce1bc6e6a08af648f2cf029e72efda..92a3fd0981b9e4726f4ab627465c057ea2a145ec 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -2190,40 +2190,23 @@ GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
+     return gpu_readback_create_failed(GPU_READBACK_ERROR_SOURCE_UNAVAILABLE);
+   }
+
+-  if (resolved.width == 0 || resolved.height == 0 || resolved.depth == 0) {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+-  }
+-  size_t sample_count = resolved.width;
+-  if (resolved.height > std::numeric_limits<size_t>::max() / sample_count) {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+-  }
+-  sample_count *= resolved.height;
+-  if (resolved.depth > std::numeric_limits<size_t>::max() / sample_count) {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+-  }
+-  sample_count *= resolved.depth;
+   const uint32_t texel_bytes = (resolved.aspect == wgpu::TextureAspect::StencilOnly) ?
+                                    1u :
+                                    device_texel_bytes(format_, conv_, repr);
+-  if (texel_bytes == 0 || resolved.width > std::numeric_limits<uint32_t>::max() / texel_bytes)
+-  {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+-  }
+-  const uint32_t row_bytes = resolved.width * texel_bytes;
+-  if (row_bytes > std::numeric_limits<uint32_t>::max() - 255u ||
+-      sample_count > std::numeric_limits<size_t>::max() / texel_bytes)
+-  {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+-  }
+-  const uint32_t bytes_per_row = uint32_t(align_up(row_bytes, 256));
+-  const size_t raw_size = sample_count * texel_bytes;
+   const size_t host_texel_bytes = to_bytesize(format_, format);
+-  if (host_texel_bytes == 0 ||
+-      sample_count > std::numeric_limits<size_t>::max() / host_texel_bytes)
++  wgpu::Limits limits = {};
++  TextureReadbackLayout layout;
++  if (!ctx->device_get().GetLimits(&limits) ||
++      !texture_readback_layout(resolved.width,
++                               resolved.height,
++                               resolved.depth,
++                               texel_bytes,
++                               host_texel_bytes,
++                               limits.maxBufferSize,
++                               layout))
+   {
+     return gpu_readback_create_failed(GPU_READBACK_ERROR_INVALID_ARGUMENT);
+   }
+-  const size_t final_size = sample_count * host_texel_bytes;
+
+   const readback::TextureRegion region{resolved.mip_level,
+                                        resolved.origin_x,
+@@ -2236,7 +2219,7 @@ GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
+   const readback::SourceKey key{readback::SourceKind::Texture,
+                                 this,
+                                 uint64_t(region.mip_level),
+-                                uint64_t(raw_size),
++                                uint64_t(layout.device_data_size),
+                                 region.origin_x,
+                                 region.origin_y,
+                                 region.origin_z,
+@@ -2250,11 +2233,12 @@ GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
+                                                          key,
+                                                          region,
+                                                          texel_bytes,
+-                                                         bytes_per_row,
+-                                                         row_bytes,
++                                                         layout.bytes_per_row,
++                                                         layout.row_bytes,
+                                                          readback::RequestMode::Exact);
+   if (ticket == readback::kInvalidTicket) {
+-    return gpu_readback_create_failed(GPU_READBACK_ERROR_CAPACITY_EXCEEDED, final_size);
++    return gpu_readback_create_failed(GPU_READBACK_ERROR_CAPACITY_EXCEEDED,
++                                      layout.host_data_size);
+   }
+   return MEM_new<WGPUTextureReadback>(__func__,
+                                       ticket,
+@@ -2263,9 +2247,9 @@ GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
+                                       snorm16_emulated_,
+                                       resolved.aspect,
+                                       format,
+-                                      sample_count,
+-                                      raw_size,
+-                                      final_size);
++                                      layout.sample_count,
++                                      layout.device_data_size,
++                                      layout.host_data_size);
+ #endif
+ }
+
+@@ -2294,11 +2278,15 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+   const uint32_t texel_bytes = (resolved.aspect == wgpu::TextureAspect::StencilOnly) ?
+                                    1u :
+                                    device_texel_bytes(format_, conv_, repr);
+-
+-  /* CopyTextureToBuffer requires a 256-byte-aligned bytesPerRow; the padded rows
+-   * are stripped after mapping. */
+-  const uint32_t row_bytes = ex * texel_bytes;
+-  const uint32_t bytes_per_row = uint32_t(align_up(row_bytes, 256));
++  const size_t host_texel_bytes = to_bytesize(format_, format);
++  wgpu::Limits limits = {};
++  TextureReadbackLayout layout;
++  if (!ctx->device_get().GetLimits(&limits) ||
++      !texture_readback_layout(
++          ex, ey, ez, texel_bytes, host_texel_bytes, limits.maxBufferSize, layout))
++  {
++    return;
++  }
+
+ #ifdef __EMSCRIPTEN__
+   /* Windowed WM-worker profile (ADR-006/007): a synchronous map wait cannot resolve here,
+@@ -2312,8 +2300,7 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+    * which captured the caller stack by reference and could fire after read() returned, does
+    * not exist in the wasm binary, closing M5.readback-callback-lifetime (design section 4). */
+   {
+-    const size_t sample_count = size_t(ex) * ey * ez;
+-    std::vector<uint8_t> device_data(sample_count * texel_bytes);
++    std::vector<uint8_t> device_data(layout.device_data_size);
+     const readback::TextureRegion region{resolved.mip_level,
+                                          resolved.origin_x,
+                                          resolved.origin_y,
+@@ -2340,21 +2327,19 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+                            key,
+                            region,
+                            texel_bytes,
+-                           bytes_per_row,
+-                           row_bytes);
++                           layout.bytes_per_row,
++                           layout.row_bytes);
+     /* device_data is value-initialized, so a miss deterministically returns the documented
+      * conservative zero interim even when the caller did not pre-initialize `data`. */
+     convert_device_to_host(
+-        static_cast<uint8_t *>(data), device_data.data(), sample_count, format);
++        static_cast<uint8_t *>(data), device_data.data(), layout.sample_count, format);
+     return;
+   }
+ #else
+-  const size_t staging_size = size_t(bytes_per_row) * ey * ez;
+-
+   wgpu::Device device = ctx->device_get();
+
+   wgpu::BufferDescriptor bd = {};
+-  bd.size = staging_size;
++  bd.size = layout.staging_size;
+   bd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
+   wgpu::Buffer staging = device.CreateBuffer(&bd);
+   if (staging == nullptr) {
+@@ -2370,7 +2355,7 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+   wgpu::TexelCopyBufferInfo dst = {};
+   dst.buffer = staging;
+   dst.layout.offset = 0;
+-  dst.layout.bytesPerRow = bytes_per_row;
++  dst.layout.bytesPerRow = layout.bytes_per_row;
+   dst.layout.rowsPerImage = ey;
+
+   wgpu::Extent3D copy_size = {ex, ey, ez};
+@@ -2382,7 +2367,7 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+   bool ok = false;
+   wgpu::Future f = staging.MapAsync(wgpu::MapMode::Read,
+                                     0,
+-                                    staging_size,
++                                    layout.staging_size,
+                                     wgpu::CallbackMode::WaitAnyOnly,
+                                     [&](wgpu::MapAsyncStatus s, wgpu::StringView) {
+                                       ok = (s == wgpu::MapAsyncStatus::Success);
+@@ -2392,24 +2377,24 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+     return;
+   }
+   const uint8_t *mapped = static_cast<const uint8_t *>(
+-      staging.GetConstMappedRange(0, staging_size));
++      staging.GetConstMappedRange(0, layout.staging_size));
+   if (mapped == nullptr) {
+     staging.Unmap();
+     return;
+   }
+
+   /* Strip the 256-byte row padding into a tightly-packed device buffer. */
+-  const size_t sample_count = size_t(ex) * ey * ez;
+-  std::vector<uint8_t> device_data(sample_count * texel_bytes);
++  std::vector<uint8_t> device_data(layout.device_data_size);
+   for (uint32_t z = 0; z < ez; z++) {
+     for (uint32_t y = 0; y < ey; y++) {
+-      const uint8_t *s = mapped + (size_t(z) * ey + y) * bytes_per_row;
++      const uint8_t *s = mapped + (size_t(z) * ey + y) * layout.bytes_per_row;
+       uint8_t *d = device_data.data() + (size_t(z) * ey + y) * ex * texel_bytes;
+-      std::memcpy(d, s, row_bytes);
++      std::memcpy(d, s, layout.row_bytes);
+     }
+   }
+   staging.Unmap();
+
+-  convert_device_to_host(static_cast<uint8_t *>(data), device_data.data(), sample_count, format);
++  convert_device_to_host(
++      static_cast<uint8_t *>(data), device_data.data(), layout.sample_count, format);
+ #endif /* __EMSCRIPTEN__ */
+ }

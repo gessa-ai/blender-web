@@ -1,0 +1,15 @@
+diff --git a/source/blender/editors/interface/interface_icons.cc b/source/blender/editors/interface/interface_icons.cc
+index c5c3e23f8e7..33a5b3a710d 100644
+--- a/source/blender/editors/interface/interface_icons.cc
++++ b/source/blender/editors/interface/interface_icons.cc
+@@ -1123,7 +1123,9 @@ bool icon_get_theme_color(int icon_id, uchar color[4])
+ 
+ void icons_init()
+ {
+-#ifndef WITH_HEADLESS
++/* blender-web (M4 T1): the web windowed build runs WITH_HEADLESS OFF + WITH_GHOST_WEB
++ * ON; icons must initialise there too. Un-gate for the web build. */
++#if !defined(WITH_HEADLESS) || defined(WITH_GHOST_WEB)
+   init_internal_icons();
+   init_event_icons();
+ #endif

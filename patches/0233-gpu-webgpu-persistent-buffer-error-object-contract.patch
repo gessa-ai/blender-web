@@ -1,0 +1,639 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 8b8cd8e..0a78c5b 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -481,6 +481,9 @@ class ScopedHandleCache {
+  public:
+   HandleT lookup(const KeyT &key) const
+   {
++    if (!state_) {
++      return HandleT{};
++    }
+     std::lock_guard lock(state_->mutex);
+     const auto found = state_->handles.find(key);
+     return found == state_->handles.end() ? HandleT{} : found->second;
+@@ -488,12 +491,18 @@ class ScopedHandleCache {
+ 
+   bool pending(const KeyT &key) const
+   {
++    if (!state_) {
++      return false;
++    }
+     std::lock_guard lock(state_->mutex);
+     return state_->pending.find(key) != state_->pending.end();
+   }
+ 
+   size_t size() const
+   {
++    if (!state_) {
++      return 0;
++    }
+     std::lock_guard lock(state_->mutex);
+     return state_->handles.size();
+   }
+@@ -504,6 +513,9 @@ class ScopedHandleCache {
+                                CreateFn &&create,
+                                EndScopeFn &&end_scope)
+   {
++    if (!state_) {
++      state_ = std::make_shared<State>();
++    }
+     {
+       std::lock_guard lock(state_->mutex);
+       const auto found = state_->handles.find(key);
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 9bb5e86..6db2507 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -42,9 +42,9 @@ class Buffer {
+   Buffer(Buffer &&other) noexcept;
+   Buffer &operator=(Buffer &&other) noexcept;
+ 
+-  /** Create a buffer of `size` bytes. If `initial_data` is non-null it is written
+-   * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
+-   * multiple of 4 (WebGPU requirement). Returns false on failure. */
++  /** Create a short-lived buffer whose complete work is encoded before this C++ stack returns.
++   * This compatibility seam validates only immediate/null failure; persistent resources must use
++   * `create_scoped()`. The transient error-object residual is tracked separately by the R6 audit. */
+   bool create(const wgpu::Device &device,
+               BufferKind kind,
+               UsageType usage,
+@@ -53,6 +53,20 @@ class Buffer {
+               bool readable,
+               const char *label = nullptr);
+ 
++  /** Create a persistent buffer of `size` bytes. If `initial_data` is non-null it is written
++   * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
++   * multiple of 4 (WebGPU requirement). The buffer and its metadata remain
++   * unpublished until validation/OOM/internal scopes settle cleanly. Returns
++   * false while browser validation is pending or after failure. */
++  bool create_scoped(const wgpu::Instance &instance,
++                     const wgpu::Device &device,
++                     BufferKind kind,
++                     UsageType usage,
++                     size_t size,
++                     const void *initial_data,
++                     bool readable,
++                     const char *label = nullptr);
++
+   /** Partial update: writes `size` bytes at `offset`. Uses queue.writeBuffer for
+    * small writes, a staging buffer + copy for large ones. offset/size must be
+    * 4-aligned. Returns false on misuse. */
+@@ -73,29 +87,47 @@ class Buffer {
+                             size_t offset,
+                             size_t size) const;
+ 
+-  const wgpu::Buffer &handle() const
++  wgpu::Buffer handle() const
+   {
+-    return handle_;
++    return allocation_cache_.lookup(kAllocationKey).handle;
+   }
+   size_t size() const
+   {
+-    return size_;
++    return allocation_cache_.lookup(kAllocationKey).size;
+   }
+   BufferKind kind() const
+   {
+-    return kind_;
++    return allocation_cache_.lookup(kAllocationKey).kind;
+   }
+   bool valid() const
+   {
+-    return handle_ != nullptr;
++    return allocation_cache_.lookup(kAllocationKey) != nullptr;
++  }
++  bool creation_pending() const
++  {
++    return allocation_cache_.pending(kAllocationKey);
+   }
+ 
+  private:
+-  wgpu::Buffer handle_;
+-  size_t size_ = 0;      /* rounded (allocated) size */
+-  size_t requested_ = 0; /* size the caller asked for */
+-  BufferKind kind_ = BufferKind::Vertex;
+-  bool readable_ = false;
++  struct Allocation {
++    wgpu::Buffer handle;
++    size_t size = 0;      /* rounded (allocated) size */
++    size_t requested = 0; /* size the caller asked for */
++    BufferKind kind = BufferKind::Vertex;
++    bool readable = false;
++
++    bool operator==(std::nullptr_t) const
++    {
++      return handle == nullptr;
++    }
++    bool operator!=(std::nullptr_t) const
++    {
++      return handle != nullptr;
++    }
++  };
++
++  static constexpr uint8_t kAllocationKey = 0;
++  ScopedHandleCache<uint8_t, Allocation> allocation_cache_;
+ };
+ 
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 5084c84..8e1fbb1 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -29,29 +29,15 @@ Buffer::~Buffer()
+ }
+ 
+ Buffer::Buffer(Buffer &&other) noexcept
+-    : handle_(std::move(other.handle_)),
+-      size_(other.size_),
+-      requested_(other.requested_),
+-      kind_(other.kind_),
+-      readable_(other.readable_)
++    : allocation_cache_(std::move(other.allocation_cache_))
+ {
+-  other.size_ = 0;
+-  other.requested_ = 0;
+-  other.readable_ = false;
+ }
+ 
+ Buffer &Buffer::operator=(Buffer &&other) noexcept
+ {
+   if (this != &other) {
+     readback::forget_source(readback::SourceKind::Buffer, this);
+-    handle_ = std::move(other.handle_);
+-    size_ = other.size_;
+-    requested_ = other.requested_;
+-    kind_ = other.kind_;
+-    readable_ = other.readable_;
+-    other.size_ = 0;
+-    other.requested_ = 0;
+-    other.readable_ = false;
++    allocation_cache_ = std::move(other.allocation_cache_);
+   }
+   return *this;
+ }
+@@ -110,32 +96,89 @@ bool Buffer::create(const wgpu::Device &device,
+   {
+     return false;
+   }
+-  wgpu::BufferDescriptor bd = {};
+-  if (label != nullptr) {
+-    bd.label = label;
+-  }
+-  bd.size = allocated_size;
+-  bd.usage = usage_flags(kind, usage, readable);
+-  bd.mappedAtCreation = (initial_data != nullptr);
+-  wgpu::Buffer handle = device.CreateBuffer(&bd);
+-  if (handle == nullptr) {
++
++  const Allocation allocation = allocation_cache_.get_or_create_scoped(
++      kAllocationKey,
++      []() {},
++      [&]() {
++        wgpu::BufferDescriptor descriptor = {};
++        if (label != nullptr) {
++          descriptor.label = label;
++        }
++        descriptor.size = allocated_size;
++        descriptor.usage = usage_flags(kind, usage, readable);
++        descriptor.mappedAtCreation = (initial_data != nullptr);
++
++        Allocation candidate;
++        candidate.handle = device.CreateBuffer(&descriptor);
++        if (candidate.handle == nullptr) {
++          return Allocation{};
++        }
++        if (initial_data != nullptr) {
++          void *mapped = candidate.handle.GetMappedRange(0, allocated_size);
++          if (mapped == nullptr) {
++            return Allocation{};
++          }
++          std::memcpy(mapped, initial_data, size);
++          candidate.handle.Unmap();
++        }
++        candidate.size = allocated_size;
++        candidate.requested = size;
++        candidate.kind = kind;
++        candidate.readable = readable;
++        return candidate;
++      },
++      [](auto completion) { completion(true); });
++  return allocation != nullptr;
++}
++
++bool Buffer::create_scoped(const wgpu::Instance &instance,
++                           const wgpu::Device &device,
++                           BufferKind kind,
++                           UsageType usage,
++                           size_t size,
++                           const void *initial_data,
++                           bool readable,
++                           const char *label)
++{
++  wgpu::Limits limits = {};
++  size_t allocated_size;
++  if (instance == nullptr || device == nullptr || !device.GetLimits(&limits) ||
++      !buffer_allocation_size(size, limits.maxBufferSize, allocated_size))
++  {
+     return false;
+   }
+-  if (initial_data != nullptr) {
+-    void *p = handle.GetMappedRange(0, allocated_size);
+-    if (p == nullptr) {
+-      return false;
+-    }
+-    std::memcpy(p, initial_data, size);
+-    handle.Unmap();
+-  }
+-  readback::forget_source(readback::SourceKind::Buffer, this);
+-  requested_ = size;
+-  size_ = allocated_size;
+-  kind_ = kind;
+-  readable_ = readable;
+-  handle_ = std::move(handle);
+-  return true;
++
++  const Allocation allocation = allocation_cache_.get_or_create(
++      instance, device, kAllocationKey, label ? label : "buffer creation", [&]() {
++        wgpu::BufferDescriptor descriptor = {};
++        if (label != nullptr) {
++          descriptor.label = label;
++        }
++        descriptor.size = allocated_size;
++        descriptor.usage = usage_flags(kind, usage, readable);
++        descriptor.mappedAtCreation = (initial_data != nullptr);
++
++        Allocation candidate;
++        candidate.handle = device.CreateBuffer(&descriptor);
++        if (candidate.handle == nullptr) {
++          return Allocation{};
++        }
++        if (initial_data != nullptr) {
++          void *mapped = candidate.handle.GetMappedRange(0, allocated_size);
++          if (mapped == nullptr) {
++            return Allocation{};
++          }
++          std::memcpy(mapped, initial_data, size);
++          candidate.handle.Unmap();
++        }
++        candidate.size = allocated_size;
++        candidate.requested = size;
++        candidate.kind = kind;
++        candidate.readable = readable;
++        return candidate;
++      });
++  return allocation != nullptr;
+ }
+ 
+ bool Buffer::update_sub(const wgpu::Instance &instance,
+@@ -146,13 +189,14 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+                         const void *data,
+                         size_t size)
+ {
+-  if (handle_ == nullptr || data == nullptr) {
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  if (allocation == nullptr || data == nullptr) {
+     return false;
+   }
+   if ((offset % kCopyAlignment) != 0 || (size % kCopyAlignment) != 0) {
+     return false; /* WebGPU copies require 4-byte alignment */
+   }
+-  if (!range_fits(offset, size, size_)) {
++  if (!range_fits(offset, size, allocation.size)) {
+     return false;
+   }
+ 
+@@ -162,7 +206,7 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+                               device,
+                               queue,
+                               scheduler,
+-                              handle_,
++                              allocation.handle,
+                               offset,
+                               data,
+                               size,
+@@ -194,7 +238,8 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+                                scheduler,
+                                "staged buffer sub-update",
+                                [&](auto &encoder) {
+-                                 encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++                                 encoder.CopyBufferToBuffer(
++                                     staging, 0, allocation.handle, offset, size);
+                                },
+                                [accepted](const bool valid) {
+                                  accepted->store(valid, std::memory_order_release);
+@@ -215,12 +260,13 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                   size_t size) const
+ {
+   std::vector<uint8_t> out;
+-  if (handle_ == nullptr || !readable_ || size == 0) {
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  if (allocation == nullptr || !allocation.readable || size == 0) {
+     return out;
+   }
+   size_t copy;
+   if (!checked_align_up(size, kCopyAlignment, copy) ||
+-      !buffer_copy_range_valid(offset, 0, copy, size_, copy))
++      !buffer_copy_range_valid(offset, 0, copy, allocation.size, copy))
+   {
+     return out;
+   }
+@@ -238,7 +284,8 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+         readback::SourceKind::Buffer, this, uint64_t(offset), uint64_t(size)};
+     out.resize(size);
+     const bool hit = readback::take_settled(key, out.data(), size);
+-    readback::kick_buffer(instance, device, queue, scheduler, handle_, key, offset, copy, size);
++    readback::kick_buffer(
++        instance, device, queue, scheduler, allocation.handle, key, offset, copy, size);
+     if (!hit) {
+       out.clear();
+     }
+@@ -260,7 +307,8 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                scheduler,
+                                "synchronous buffer readback",
+                                [&](auto &encoder) {
+-                                 encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++                                 encoder.CopyBufferToBuffer(
++                                     allocation.handle, offset, staging, 0, copy);
+                                },
+                                [&](const bool valid) { submitted = valid; });
+   if (!submitted) {
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+index 11411e7..81c0d4c 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -35,12 +35,13 @@ void WGPUIndexBuffer::allocate()
+   if (ctx == nullptr) {
+     return;
+   }
+-  buffer_.create(ctx->device_get(),
+-                 webgpu::BufferKind::Index,
+-                 webgpu::UsageType::Static,
+-                 size_get(),
+-                 nullptr,
+-                 true);
++  buffer_.create_scoped(ctx->instance_get(),
++                        ctx->device_get(),
++                        webgpu::BufferKind::Index,
++                        webgpu::UsageType::Static,
++                        size_get(),
++                        nullptr,
++                        true);
+ }
+ 
+ void WGPUIndexBuffer::upload_data()
+@@ -50,6 +51,11 @@ void WGPUIndexBuffer::upload_data()
+     return;
+   }
+   if (buffer_.valid()) {
++    if (initial_upload_pending_) {
++      MEM_SAFE_DELETE_VOID(data_);
++      data_uploaded_ = true;
++      initial_upload_pending_ = false;
++    }
+     return; /* already uploaded (update_sub handles later edits). */
+   }
+ 
+@@ -66,12 +72,14 @@ void WGPUIndexBuffer::upload_data()
+ 
+   /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
+    * still copies exactly. readable=true so read() can stage it back. */
+-  if (!buffer_.create(ctx->device_get(),
+-                      webgpu::BufferKind::Index,
+-                      webgpu::UsageType::Static,
+-                      size_get(),
+-                      data_,
+-                      true))
++  initial_upload_pending_ = true;
++  if (!buffer_.create_scoped(ctx->instance_get(),
++                             ctx->device_get(),
++                             webgpu::BufferKind::Index,
++                             webgpu::UsageType::Static,
++                             size_get(),
++                             data_,
++                             true))
+   {
+     return;
+   }
+@@ -80,6 +88,7 @@ void WGPUIndexBuffer::upload_data()
+    * (and null it) so the base destructor does not double-free. */
+   MEM_SAFE_DELETE_VOID(data_);
+   data_uploaded_ = true;
++  initial_upload_pending_ = false;
+ }
+ 
+ const webgpu::Buffer &WGPUIndexBuffer::buffer() const
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+index 854a279..83c56ca 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -83,6 +83,8 @@ class WGPUIndexBuffer : public IndexBuf {
+   void allocate();
+ 
+   webgpu::Buffer buffer_;
++  /** Initial mapped upload has begun but its resource scopes have not yet committed. */
++  bool initial_upload_pending_ = false;
+   bool data_uploaded_ = false;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUIndexBuffer")
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index e9c8925..4b00b6f 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -254,46 +254,15 @@ void WGPUVertexBuffer::allocate()
+   if (ctx == nullptr) {
+     return;
+   }
+-  std::shared_ptr<AllocationReceipt> receipt;
+-  if (track_next_allocation_) {
+-    track_next_allocation_ = false;
+-    receipt = std::make_shared<AllocationReceipt>();
+-    receipt->pending_scopes.store(3);
+-    allocation_receipt_ = receipt;
+-    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::Internal);
+-    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::OutOfMemory);
+-    ctx->device_get().PushErrorScope(wgpu::ErrorFilter::Validation);
+-  }
+   /* Vertex | Storage | Copy* (readable=true so it can be the CopySrc of
+    * GPU_storagebuf_copy_sub_from_vertbuf and of read()). */
+-  buffer_.create(ctx->device_get(),
+-                 webgpu::BufferKind::Vertex,
+-                 to_wgpu_usage(usage_),
+-                 size_alloc_get(),
+-                 nullptr,
+-                 true);
+-  if (receipt) {
+-    auto settle_scope = [receipt](wgpu::PopErrorScopeStatus status,
+-                                  wgpu::ErrorType type,
+-                                  wgpu::StringView message) {
+-      if (status != wgpu::PopErrorScopeStatus::Success || type != wgpu::ErrorType::NoError) {
+-        receipt->failed.store(true);
+-        fprintf(stderr,
+-                "[WebGPU] tracked buffer allocation failed (status %d, type %d): %.*s\n",
+-                int(status),
+-                int(type),
+-                int(message.length == WGPU_STRLEN ?
+-                        (message.data ? std::char_traits<char>::length(message.data) : 0) :
+-                        message.length),
+-                message.data ? message.data : "");
+-        fflush(stderr);
+-      }
+-      receipt->pending_scopes.fetch_sub(1);
+-    };
+-    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
+-    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
+-    ctx->device_get().PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle_scope);
+-  }
++  buffer_.create_scoped(ctx->instance_get(),
++                        ctx->device_get(),
++                        webgpu::BufferKind::Vertex,
++                        to_wgpu_usage(usage_),
++                        size_alloc_get(),
++                        nullptr,
++                        true);
+ }
+ 
+ void WGPUVertexBuffer::enable_device_allocation_tracking()
+@@ -303,19 +272,12 @@ void WGPUVertexBuffer::enable_device_allocation_tracking()
+ 
+ bool WGPUVertexBuffer::is_device_allocation_pending() const
+ {
+-  return allocation_receipt_ && !allocation_receipt_->failed.load() &&
+-         allocation_receipt_->pending_scopes.load() > 0;
++  return track_next_allocation_ && buffer_.creation_pending();
+ }
+ 
+ bool WGPUVertexBuffer::is_device_valid() const
+ {
+-  if (!buffer_.valid()) {
+-    return false;
+-  }
+-  if (!allocation_receipt_) {
+-    return true;
+-  }
+-  return !allocation_receipt_->failed.load() && allocation_receipt_->pending_scopes.load() == 0;
++  return buffer_.valid();
+ }
+ 
+ void WGPUVertexBuffer::upload_data()
+@@ -542,13 +504,14 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+           buffer_texture_buffer_.size() < expanded.size() * sizeof(float))
+       {
+         buffer_texture_buffer_ = webgpu::Buffer();
+-        if (!buffer_texture_buffer_.create(ctx->device_get(),
+-                                           webgpu::BufferKind::Storage,
+-                                           webgpu::UsageType::Static,
+-                                           expanded.size() * sizeof(float),
+-                                           expanded.data(),
+-                                           false,
+-                                           "float texel-buffer expansion"))
++        if (!buffer_texture_buffer_.create_scoped(ctx->instance_get(),
++                                                  ctx->device_get(),
++                                                  webgpu::BufferKind::Storage,
++                                                  webgpu::UsageType::Static,
++                                                  expanded.size() * sizeof(float),
++                                                  expanded.data(),
++                                                  false,
++                                                  "float texel-buffer expansion"))
+         {
+           return;
+         }
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
+index f0b7ad0..ebc73ed 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.hh
+@@ -24,9 +24,6 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
+-#include <atomic>
+-#include <memory>
+-
+ namespace blender::gpu {
+ 
+ class WGPUVertexBuffer : public VertBuf {
+@@ -55,11 +52,6 @@ class WGPUVertexBuffer : public VertBuf {
+   void upload_data() override;
+ 
+  private:
+-  struct AllocationReceipt {
+-    std::atomic<int> pending_scopes{0};
+-    std::atomic<bool> failed{false};
+-  };
+-
+   void allocate();
+ 
+   webgpu::Buffer buffer_;
+@@ -70,7 +62,6 @@ class WGPUVertexBuffer : public VertBuf {
+   bool buffer_texture_buffer_dirty_ = true;
+   bool data_uploaded_ = false;
+   bool track_next_allocation_ = false;
+-  std::shared_ptr<AllocationReceipt> allocation_receipt_;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUVertexBuffer")
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+index c641b68..5cd4a24 100644
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -59,13 +59,14 @@ bool WGPUUniformBuffer::ensure()
+     return false;
+   }
+   const size_t alloc = std::max(size_in_bytes_, kUboMinBindingPad);
+-  return buffer_.create(ctx->device_get(),
+-                        webgpu::BufferKind::Uniform,
+-                        webgpu::UsageType::Dynamic,
+-                        alloc,
+-                        nullptr,
+-                        false,
+-                        label_.c_str());
++  return buffer_.create_scoped(ctx->instance_get(),
++                               ctx->device_get(),
++                               webgpu::BufferKind::Uniform,
++                               webgpu::UsageType::Dynamic,
++                               alloc,
++                               nullptr,
++                               false,
++                               label_.c_str());
+ }
+ 
+ bool WGPUUniformBuffer::ensure_updated()
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+index a9cf71b..9a9a2fd 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -130,7 +130,8 @@ bool WGPUStorageBuffer::ensure()
+                                       webgpu::UsageType::DeviceOnly :
+                                       webgpu::UsageType::Dynamic;
+   /* readable=true: storage buffers can be read back (GPU_storagebuf_read). */
+-  return buffer_.create(
++  return buffer_.create_scoped(
++      ctx->instance_get(),
+       ctx->device_get(),
+       webgpu::BufferKind::Storage,
+       usage,
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 0466a61..f3d0051 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2926,12 +2926,13 @@ void WGPUShader::push_constants_flush()
+   wgpu::Device device = ctx->device_get();
+   wgpu::Queue queue = ctx->queue_get();
+   if (!push_constants_buffer_.valid()) {
+-    if (!push_constants_buffer_.create(device,
+-                                       webgpu::BufferKind::Uniform,
+-                                       webgpu::UsageType::Dynamic,
+-                                       push_constants_size_,
+-                                       nullptr,
+-                                       false))
++    if (!push_constants_buffer_.create_scoped(ctx->instance_get(),
++                                              device,
++                                              webgpu::BufferKind::Uniform,
++                                              webgpu::UsageType::Dynamic,
++                                              push_constants_size_,
++                                              nullptr,
++                                              false))
+     {
+       return;
+     }

@@ -1,0 +1,248 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+@@ -24,8 +24,10 @@
+ 
+ #pragma once
+ 
++#include <cstddef>
+ #include <cstdint>
+ 
+ #include "webgpu/webgpu_cpp.h"
+ 
++#include "intern/gpu_texture_private.hh"
+ #include "GPU_texture.hh"  /* blender::gpu::TextureFormat */
+@@ -101,6 +102,6 @@ struct FormatInfo {
+   TextureFormat blender;
+   const char *name;               /* blender enum spelling */
+-  uint32_t src_bytes_per_pixel;   /* Blender's source bpp (GPU_format.hh size col) */
++  uint32_t src_bytes_per_pixel;   /* Source texel bytes, or bytes/block for compressed rows. */
+   uint8_t src_components;         /* 1..4 (GPU_format.hh comps col) */
+   wgpu::TextureFormat wgpu;       /* the actual texture format created on the device */
+   ConvClass conv;
+@@ -109,6 +110,32 @@ struct FormatInfo {
+   FormatCaps caps;
+ };
+ 
++/** Linear host layout for one block-compressed WriteTexture operation. Copy width/height are
++ * WebGPU's physical texel extent (rounded to complete 4x4 BC blocks); rows_per_image is in
++ * block rows, as required by TexelCopyBufferLayout. */
++struct CompressedUploadLayout {
++  uint32_t copy_width = 0;
++  uint32_t copy_height = 0;
++  uint32_t bytes_per_row = 0;
++  uint32_t rows_per_image = 0;
++  size_t data_size = 0;
++};
++
++/** Compute a bounded BC1/2/3 host layout without modifying `r_layout` on rejection.
++ * `unpack_row_length` is a source-row width in logical texels; zero selects `width`.
++ * Width/height are rounded to WebGPU's physical 4x4 block extent. */
++bool compressed_upload_layout(TextureFormat format,
++                              uint32_t width,
++                              uint32_t height,
++                              uint32_t layers,
++                              uint32_t unpack_row_length,
++                              CompressedUploadLayout &r_layout);
++
++/** BC texture formats are legal only on WebGPU 2D textures (including array/cube views).
++ * Sliced-3D compression is a distinct optional feature and is not part of Blender's pinned
++ * compressed-2D creation API. */
++bool compressed_texture_type_supported(GPUTextureType type);
++
+ /** Look up the full record for a Blender format. */
+ const FormatInfo &format_info(TextureFormat format);
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+@@ -10,6 +10,8 @@
+ 
+ #include "wgpu_texture_format.hh"
+ 
++#include <limits>
++
+ namespace blender::gpu::webgpu {
+ 
+ using F = wgpu::TextureFormat;
+@@ -183,6 +185,71 @@ wgpu::TextureFormat to_wgpu_format(TextureFormat format)
+   return format_info(format).wgpu;
+ }
+ 
++bool compressed_upload_layout(TextureFormat format,
++                              uint32_t width,
++                              uint32_t height,
++                              uint32_t layers,
++                              uint32_t unpack_row_length,
++                              CompressedUploadLayout &r_layout)
++{
++  const FormatInfo &info = format_info(format);
++  if (info.conv != ConvClass::Compressed || width == 0 || height == 0 || layers == 0 ||
++      (unpack_row_length != 0 && unpack_row_length < width))
++  {
++    return false;
++  }
++
++  constexpr uint64_t block_width = 4;
++  constexpr uint64_t block_height = 4;
++  const uint64_t copy_width = (uint64_t(width) + block_width - 1) & ~(block_width - 1);
++  const uint64_t copy_height = (uint64_t(height) + block_height - 1) & ~(block_height - 1);
++  const uint64_t source_width = unpack_row_length != 0 ? unpack_row_length : width;
++  const uint64_t source_physical_width = (source_width + block_width - 1) &
++                                         ~(block_width - 1);
++  const uint64_t bytes_per_row = (source_physical_width / block_width) *
++                                 info.src_bytes_per_pixel;
++  const uint64_t rows_per_image = copy_height / block_height;
++  if (copy_width > std::numeric_limits<uint32_t>::max() ||
++      copy_height > std::numeric_limits<uint32_t>::max() ||
++      bytes_per_row > std::numeric_limits<uint32_t>::max() ||
++      rows_per_image > std::numeric_limits<uint32_t>::max() ||
++      rows_per_image > std::numeric_limits<size_t>::max() / bytes_per_row)
++  {
++    return false;
++  }
++  const size_t bytes_per_image = size_t(bytes_per_row * rows_per_image);
++  if (layers > std::numeric_limits<size_t>::max() / bytes_per_image) {
++    return false;
++  }
++
++  CompressedUploadLayout result;
++  result.copy_width = uint32_t(copy_width);
++  result.copy_height = uint32_t(copy_height);
++  result.bytes_per_row = uint32_t(bytes_per_row);
++  result.rows_per_image = uint32_t(rows_per_image);
++  result.data_size = bytes_per_image * size_t(layers);
++  r_layout = result;
++  return true;
++}
++
++bool compressed_texture_type_supported(GPUTextureType type)
++{
++  switch (type) {
++    case GPU_TEXTURE_2D:
++    case GPU_TEXTURE_2D_ARRAY:
++    case GPU_TEXTURE_CUBE:
++    case GPU_TEXTURE_CUBE_ARRAY:
++      return true;
++    case GPU_TEXTURE_1D:
++    case GPU_TEXTURE_1D_ARRAY:
++    case GPU_TEXTURE_3D:
++    case GPU_TEXTURE_ARRAY:
++    case GPU_TEXTURE_BUFFER:
++      return false;
++  }
++  return false;
++}
++
+ wgpu::TextureFormat srgb_view_format_pair(wgpu::TextureFormat format)
+ {
+   switch (format) {
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -668,6 +668,15 @@ bool WGPUTexture::allocate()
+   }
+ 
+   const bool compressed = (format_flag_ & GPU_FORMAT_COMPRESSED) != 0;
++  /* Blender's compressed creation API supplies BC1/2/3 blocks for 2D textures. Fail allocation
++   * when the adapter cannot consume BC so IMB's caller takes its existing uncompressed fallback,
++   * rather than returning an error texture whose uploads are silently discarded. */
++  if (compressed &&
++      (!compressed_texture_type_supported(type_) ||
++       !ctx->device_get().HasFeature(wgpu::FeatureName::TextureCompressionBC)))
++  {
++    return false;
++  }
+   /* Renderability combines the core table with the optional format features enabled on this
+    * device. In particular Blender's Grease Pencil render path uses an R16Unorm mask attachment;
+    * omitting its enabled Unorm16/Tier1 capability silently stripped RenderAttachment from the
+@@ -1334,6 +1343,79 @@ void WGPUTexture::update_sub(int mip,
+   }
+   const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
+ 
++  if (repr == Repr::Compressed) {
++    /* The pinned frontend labels already-compressed BC blocks as GPU_DATA_FLOAT (there is no
++     * GPU_DATA_COMPRESSED enum). Preserve those bytes exactly; no numeric conversion applies. */
++    if (format != GPU_DATA_FLOAT || !compressed_texture_type_supported(type_) ||
++        offset[0] < 0 || offset[1] < 0 || offset[2] < 0 || extent[0] <= 0)
++    {
++      return;
++    }
++    const uint32_t ex = uint32_t(extent[0]);
++    const uint32_t ey = uint32_t(std::max(extent[1], 1));
++    const uint32_t ez = uint32_t(std::max(extent[2], 1));
++
++    ResolvedReadRegion target;
++    WGPUContext *ctx = active_context();
++    if (ctx == nullptr || !resolve_subresource(mip, -1, target)) {
++      return;
++    }
++
++    uint32_t layer_offset = 0;
++    uint32_t layer_count = 1;
++    if (ELEM(type_, GPU_TEXTURE_2D_ARRAY, GPU_TEXTURE_CUBE, GPU_TEXTURE_CUBE_ARRAY)) {
++      layer_offset = uint32_t(offset[2]);
++      layer_count = ez;
++    }
++    else if (offset[2] != 0 || ez != 1) {
++      return;
++    }
++
++    const uint32_t ox = uint32_t(offset[0]);
++    const uint32_t oy = uint32_t(offset[1]);
++    const uint64_t end_x = uint64_t(ox) + ex;
++    const uint64_t end_y = uint64_t(oy) + ey;
++    const uint64_t end_layer = uint64_t(layer_offset) + layer_count;
++    if ((ox % 4) != 0 || (oy % 4) != 0 || end_x > target.width || end_y > target.height ||
++        end_layer > subresources_.layer_count ||
++        ((ex % 4) != 0 && end_x != target.width) ||
++        ((ey % 4) != 0 && end_y != target.height))
++    {
++      return;
++    }
++
++    CompressedUploadLayout compressed_layout;
++    if (!compressed_upload_layout(
++            format_, ex, ey, layer_count, unpack_row_length, compressed_layout))
++    {
++      return;
++    }
++    const uint64_t physical_end_x = uint64_t(ox) + compressed_layout.copy_width;
++    const uint64_t physical_end_y = uint64_t(oy) + compressed_layout.copy_height;
++    const uint64_t physical_target_width = (uint64_t(target.width) + 3u) & ~uint64_t(3u);
++    const uint64_t physical_target_height = (uint64_t(target.height) + 3u) & ~uint64_t(3u);
++    if (physical_end_x > physical_target_width || physical_end_y > physical_target_height) {
++      return;
++    }
++
++    wgpu::TexelCopyTextureInfo dst = {};
++    dst.texture = target.texture;
++    dst.mipLevel = target.mip_level;
++    dst.origin = {ox, oy, target.origin_z + layer_offset};
++    dst.aspect = wgpu::TextureAspect::All;
++
++    wgpu::TexelCopyBufferLayout layout = {};
++    layout.offset = 0;
++    layout.bytesPerRow = compressed_layout.bytes_per_row;
++    layout.rowsPerImage = compressed_layout.rows_per_image;
++
++    wgpu::Extent3D write_size = {
++        compressed_layout.copy_width, compressed_layout.copy_height, layer_count};
++    ctx->queue_get().WriteTexture(
++        &dst, data, compressed_layout.data_size, &layout, &write_size);
++    return;
++  }
++
+   /* WebGPU forbids buffer→depth copies. Upload float depth through a tiny
+    * depth-only render pass backed by a read-only storage buffer. */
+   if (repr == Repr::Depth32F || repr == Repr::Depth32FS8) {
+@@ -1374,8 +1456,7 @@ void WGPUTexture::update_sub(int mip,
+     }
+     return;
+   }
+-  /* Compressed upload remains deferred. */
+-  if (repr == Repr::Compressed || repr == Repr::Unsupported) {
++  if (repr == Repr::Unsupported) {
+     return;
+   }
+ 

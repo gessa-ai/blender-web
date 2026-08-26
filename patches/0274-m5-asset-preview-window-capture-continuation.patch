@@ -1,0 +1,435 @@
+diff --git a/source/blender/editors/asset/intern/asset_ops.cc b/source/blender/editors/asset/intern/asset_ops.cc
+--- a/source/blender/editors/asset/intern/asset_ops.cc
++++ b/source/blender/editors/asset/intern/asset_ops.cc
+@@ -8,6 +8,7 @@
+ 
+ #include <algorithm>
+ #include <iostream>
++#include <optional>
+ 
+ #include <fmt/format.h>
+ 
+@@ -1151,18 +1152,34 @@
+ constexpr int DRAG_THRESHOLD = 4;
+ 
+ struct ScreenshotOperatorData {
+-  void *draw_handle;
+-  int2 drag_start, drag_end, last_cursor;
++  void *draw_handle = nullptr;
++  int2 drag_start = {};
++  int2 drag_end = {};
++  int2 last_cursor = {};
+   /* Screenshot points may not be set immediately to allow for clicking to create a screenshot with
+    * the previous size. */
+-  int2 p1, p2;
++  int2 p1 = {};
++  int2 p2 = {};
+ 
+-  bool is_mouse_down;
++  bool is_mouse_down = false;
+   /* Dragged far enough to create the screenshot are instead of registering as a click. */
+-  bool crossed_threshold;
++  bool crossed_threshold = false;
+   /* Move the whole screenshot area when moving the cursor instead of placing `drag_end`. */
+-  bool shift_area;
+-  bool force_square;
++  bool shift_area = false;
++  bool force_square = false;
++  bool interactive = false;
++  wmWindow *operator_window = nullptr;
++
++  WMWindowPixelsRead *readback = nullptr;
++  wmTimer *readback_timer = nullptr;
++  wmWindowManager *readback_manager = nullptr;
++  wmWindow *readback_window = nullptr;
++  bScreen *readback_screen = nullptr;
++  Main *readback_main = nullptr;
++  std::optional<ID_Type> readback_id_type;
++  std::optional<AssetWeakReference> readback_asset_reference;
++  rcti readback_crop = {};
++  int readback_tick_count = 0;
+ };
+ 
+ /* Sort points so p1 is lower left, and p2 is top right. */
+@@ -1264,11 +1281,18 @@
+  * Takes a screenshot of Blender for the given rect. The returned `ImBuf` has to be freed by the
+  * caller with `IMB_freeImBuf()`.
+  */
+-static ImBuf *take_screenshot_crop(bContext *C, const rcti &crop_rect)
+-{
+-  int dumprect_size[2];
+-  wmWindow *win = CTX_wm_window(C);
+-  uint8_t *dumprect = WM_window_pixels_read(C, win, dumprect_size);
++static void screenshot_preview_exit(bContext *C, wmOperator *op);
++
++static ImBuf *take_screenshot_crop(uint8_t *dumprect,
++                                   const int dumprect_size[2],
++                                   const rcti &crop_rect)
++{
++  if (dumprect == nullptr || dumprect_size[0] <= 0 || dumprect_size[1] <= 0) {
++    if (dumprect != nullptr) {
++      MEM_delete(dumprect);
++    }
++    return nullptr;
++  }
+ 
+   /* Clamp coordinates to window bounds. */
+   rcti safe_rect = crop_rect;
+@@ -1293,8 +1317,135 @@
+   return image_buffer;
+ }
+ 
++static bool screenshot_preview_readback_context_store(bContext *C,
++                                                      ScreenshotOperatorData *data)
++{
++  const asset_system::AssetRepresentation *asset_handle = CTX_wm_asset(C);
++  if (asset_handle == nullptr) {
++    return false;
++  }
++  data->readback_manager = CTX_wm_manager(C);
++  data->readback_window = CTX_wm_window(C);
++  data->readback_screen = CTX_wm_screen(C);
++  data->readback_main = CTX_data_main(C);
++  data->readback_id_type = asset_handle->get_id_type();
++  data->readback_asset_reference = asset_handle->make_weak_reference();
++  return data->readback_manager != nullptr && data->readback_window != nullptr &&
++         data->readback_screen != nullptr && data->readback_main != nullptr;
++}
++
++static bool screenshot_preview_readback_context_matches(const bContext *C,
++                                                        const ScreenshotOperatorData *data)
++{
++  if (CTX_wm_manager(C) != data->readback_manager || CTX_wm_window(C) != data->readback_window ||
++      CTX_wm_screen(C) != data->readback_screen || CTX_data_main(C) != data->readback_main ||
++      !data->readback_id_type || !data->readback_asset_reference)
++  {
++    return false;
++  }
++  const asset_system::AssetRepresentation *asset_handle = CTX_wm_asset(C);
++  return asset_handle != nullptr && asset_handle->get_id_type() == *data->readback_id_type &&
++         asset_handle->make_weak_reference() == *data->readback_asset_reference;
++}
++
++static wmOperatorStatus screenshot_preview_apply(bContext *C,
++                                                 wmOperator *op,
++                                                 ImBuf *image_buffer,
++                                                 const ScreenshotOperatorData *data)
++{
++  const asset_system::AssetRepresentation *asset_handle = CTX_wm_asset(C);
++  if (image_buffer == nullptr || asset_handle == nullptr ||
++      (data != nullptr && !screenshot_preview_readback_context_matches(C, data)))
++  {
++    if (image_buffer != nullptr) {
++      IMB_freeImBuf(image_buffer);
++    }
++    BKE_report(op->reports, RPT_ERROR, "Screenshot preview context changed");
++    return OPERATOR_CANCELLED;
++  }
++
++  const AssetWeakReference asset_reference = data != nullptr ?
++                                                 *data->readback_asset_reference :
++                                                 asset_handle->make_weak_reference();
++  const ID_Type id_type = data != nullptr ? *data->readback_id_type :
++                                           asset_handle->get_id_type();
++  Main *bmain = data != nullptr ? data->readback_main : CTX_data_main(C);
++  ID *id = bke::asset_edit_id_from_weak_reference(*bmain, id_type, asset_reference);
++  if (id == nullptr) {
++    IMB_freeImBuf(image_buffer);
++    BKE_report(op->reports, RPT_ERROR, "Screenshot preview asset is no longer available");
++    return OPERATOR_CANCELLED;
++  }
++
++  ED_preview_kill_jobs_for_id(CTX_wm_manager(C), id);
++
++  generate_previewimg_from_buffer(id, image_buffer);
++  IMB_freeImBuf(image_buffer);
++
++  if (bke::asset_edit_id_is_writable(*id)) {
++    const bool saved = bke::asset_edit_id_save(*bmain, *id, *op->reports);
++    if (!saved) {
++      BKE_report(op->reports, RPT_ERROR, "Saving failed");
++    }
++  }
++
++  asset::list::storage_tag_main_data_dirty();
++  asset::refresh_asset_library_from_asset(C, *asset_handle);
++
++  WM_main_add_notifier(NC_ASSET | ND_ASSET_LIST | NA_EDITED, nullptr);
++
++  return OPERATOR_FINISHED;
++}
++
++static wmOperatorStatus screenshot_preview_readback_poll(bContext *C,
++                                                        wmOperator *op,
++                                                        ScreenshotOperatorData *data)
++{
++  if (!screenshot_preview_readback_context_matches(C, data)) {
++    BKE_report(op->reports, RPT_ERROR, "Screenshot preview context changed during capture");
++    screenshot_preview_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const WMWindowPixelsReadStatus status = WM_window_pixels_read_async_status(data->readback);
++  if (status == WMWindowPixelsReadStatus::Pending) {
++    if (data->readback_timer == nullptr) {
++      data->readback_timer = WM_event_timer_add(
++          data->readback_manager, data->readback_window, TIMER, 0.01);
++      data->readback_tick_count = 0;
++      if (!data->interactive) {
++        WM_event_add_modal_handler(C, op);
++      }
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (status != WMWindowPixelsReadStatus::Ready) {
++    BKE_report(op->reports, RPT_ERROR, "Screenshot preview capture failed");
++    screenshot_preview_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  int dumprect_size[2];
++  uint8_t *dumprect = WM_window_pixels_read_async_consume(data->readback, dumprect_size);
++  ImBuf *image_buffer = take_screenshot_crop(dumprect, dumprect_size, data->readback_crop);
++  if (image_buffer == nullptr) {
++    BKE_report(op->reports, RPT_ERROR, "Invalid screenshot area selection");
++    screenshot_preview_exit(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const wmOperatorStatus result = screenshot_preview_apply(C, op, image_buffer, data);
++  screenshot_preview_exit(C, op);
++  return result;
++}
++
+ static wmOperatorStatus screenshot_preview_exec(bContext *C, wmOperator *op)
+ {
++  ScreenshotOperatorData *data = static_cast<ScreenshotOperatorData *>(op->customdata);
++  if (data != nullptr && data->readback != nullptr) {
++    return screenshot_preview_readback_poll(C, op, data);
++  }
++
+   int2 p1, p2;
+   wmWindow *win = CTX_wm_window(C);
+   RNA_int_get_array(op->ptr, "p1", p1);
+@@ -1317,6 +1468,9 @@
+   if (p2.x - p1.x < min_side || p2.y - p1.y < min_side) {
+     BKE_reportf(
+         op->reports, RPT_ERROR, "Screenshot cannot be smaller than %i pixels on a side", min_side);
++    if (data != nullptr) {
++      screenshot_preview_exit(C, op);
++    }
+     return OPERATOR_CANCELLED;
+   }
+ 
+@@ -1350,6 +1504,9 @@
+     if (!region) {
+       /* Unlikely to be hit, but just being cautious. */
+       BLI_assert_unreachable();
++      if (data != nullptr) {
++        screenshot_preview_exit(C, op);
++      }
+       return OPERATOR_CANCELLED;
+     }
+     char err_out[256] = "unknown";
+@@ -1368,6 +1525,13 @@
+                                                   nullptr,
+                                                   false,
+                                                   err_out);
++    if (image_buffer == nullptr) {
++      BKE_reportf(op->reports, RPT_ERROR, "Screenshot preview render failed: %s", err_out);
++      if (data != nullptr) {
++        screenshot_preview_exit(C, op);
++      }
++      return OPERATOR_CANCELLED;
++    }
+ 
+     /* Convert crop rect into the space relative to the area. */
+     const rcti crop_rect = {p1.x - area_p1->totrct.xmin,
+@@ -1379,41 +1543,31 @@
+              int2(BLI_rcti_size_x(&crop_rect) + 1, BLI_rcti_size_y(&crop_rect) + 1));
+   }
+   else {
+-    const rcti crop_rect = {p1.x, p2.x + 1, p1.y, p2.y + 1};
+-    image_buffer = take_screenshot_crop(C, crop_rect);
+-    if (!image_buffer) {
+-      BKE_report(op->reports, RPT_ERROR, "Invalid screenshot area selection");
++    if (data == nullptr) {
++      data = MEM_new<ScreenshotOperatorData>(__func__);
++      data->operator_window = win;
++      op->customdata = data;
++    }
++    data->readback_crop = {p1.x, p2.x + 1, p1.y, p2.y + 1};
++    if (!screenshot_preview_readback_context_store(C, data)) {
++      BKE_report(op->reports, RPT_ERROR, "Could not retain screenshot preview context");
++      screenshot_preview_exit(C, op);
+       return OPERATOR_CANCELLED;
+     }
+-  }
+-
+-  const asset_system::AssetRepresentation *asset_handle = CTX_wm_asset(C);
+-  BLI_assert_msg(asset_handle != nullptr, "This is ensured by poll");
+-  AssetWeakReference asset_reference = asset_handle->make_weak_reference();
+-
+-  Main *bmain = CTX_data_main(C);
+-  ID *id = bke::asset_edit_id_from_weak_reference(
+-      *bmain, asset_handle->get_id_type(), asset_reference);
+-  BLI_assert(id != nullptr);
+-
+-  ED_preview_kill_jobs_for_id(CTX_wm_manager(C), id);
+-
+-  generate_previewimg_from_buffer(id, image_buffer);
+-  IMB_freeImBuf(image_buffer);
+-
+-  if (bke::asset_edit_id_is_writable(*id)) {
+-    const bool saved = bke::asset_edit_id_save(*bmain, *id, *op->reports);
+-    if (!saved) {
+-      BKE_report(op->reports, RPT_ERROR, "Saving failed");
++    data->readback = WM_window_pixels_read_async(C, win);
++    if (data->readback == nullptr) {
++      BKE_report(op->reports, RPT_ERROR, "Could not start screenshot preview capture");
++      screenshot_preview_exit(C, op);
++      return OPERATOR_CANCELLED;
+     }
++    return screenshot_preview_readback_poll(C, op, data);
+   }
+ 
+-  asset::list::storage_tag_main_data_dirty();
+-  asset::refresh_asset_library_from_asset(C, *asset_handle);
+-
+-  WM_main_add_notifier(NC_ASSET | ND_ASSET_LIST | NA_EDITED, nullptr);
+-
+-  return OPERATOR_FINISHED;
++  const wmOperatorStatus result = screenshot_preview_apply(C, op, image_buffer, nullptr);
++  if (data != nullptr) {
++    screenshot_preview_exit(C, op);
++  }
++  return result;
+ }
+ 
+ static void screenshot_preview_draw(const wmWindow *window, void *operator_data)
+@@ -1459,11 +1613,24 @@
+ 
+ static void screenshot_preview_exit(bContext *C, wmOperator *op)
+ {
+-  wmWindow *win = CTX_wm_window(C);
+-  WM_cursor_modal_restore(win);
+   ScreenshotOperatorData *data = static_cast<ScreenshotOperatorData *>(op->customdata);
+-  WM_draw_cb_exit(win, data->draw_handle);
++  if (data == nullptr) {
++    return;
++  }
++  if (data->readback_timer != nullptr) {
++    WM_event_timer_remove(
++        data->readback_manager, data->readback_window, data->readback_timer);
++    data->readback_timer = nullptr;
++  }
++  WM_window_pixels_read_async_cancel(data->readback);
++  if (data->interactive) {
++    WM_cursor_modal_restore(data->operator_window);
++    if (data->draw_handle != nullptr) {
++      WM_draw_cb_exit(data->operator_window, data->draw_handle);
++    }
++  }
+   MEM_delete(data);
++  op->customdata = nullptr;
+   ED_workspace_status_text(C, nullptr);
+ }
+ 
+@@ -1476,9 +1643,42 @@
+ 
+ static wmOperatorStatus screenshot_preview_modal(bContext *C, wmOperator *op, const wmEvent *event)
+ {
++  ScreenshotOperatorData *data = static_cast<ScreenshotOperatorData *>(op->customdata);
++  if (data == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++
++  if (data->readback != nullptr) {
++    if (ELEM(event->type, RIGHTMOUSE, EVT_ESCKEY)) {
++      screenshot_preview_exit(C, op);
++      if (CTX_wm_screen(C) != nullptr) {
++        CTX_wm_screen(C)->do_draw = true;
++      }
++      return OPERATOR_CANCELLED;
++    }
++    if (event->type != TIMER || event->customdata != data->readback_timer) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++
++    constexpr int max_tick_count = 240;
++    if (!screenshot_preview_readback_context_matches(C, data)) {
++      return screenshot_preview_readback_poll(C, op, data);
++    }
++    const WMWindowPixelsReadStatus status = WM_window_pixels_read_async_status(data->readback);
++    if (status == WMWindowPixelsReadStatus::Pending) {
++      data->readback_tick_count++;
++      if (data->readback_tick_count < max_tick_count) {
++        return OPERATOR_RUNNING_MODAL;
++      }
++      BKE_report(op->reports, RPT_ERROR, "Screenshot preview capture timed out");
++      screenshot_preview_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    return screenshot_preview_exec(C, op);
++  }
++
+   ARegion *region = CTX_wm_region(C);
+   wmWindow *win = CTX_wm_window(C);
+-  ScreenshotOperatorData *data = static_cast<ScreenshotOperatorData *>(op->customdata);
+ 
+   const int2 screen_space_cursor = {
+       event->mval[0] + region->winrct.xmin,
+@@ -1496,9 +1696,7 @@
+           data->is_mouse_down = false;
+           data->drag_end = clamp_point_to_window(screen_space_cursor, win);
+           screenshot_area_transfer_to_rna(op, data);
+-          screenshot_preview_exec(C, op);
+-          screenshot_preview_exit(C, op);
+-          return OPERATOR_FINISHED;
++          return screenshot_preview_exec(C, op);
+       }
+       break;
+     }
+@@ -1506,9 +1704,7 @@
+     case EVT_PADENTER:
+     case EVT_RETKEY: {
+       screenshot_area_transfer_to_rna(op, data);
+-      screenshot_preview_exec(C, op);
+-      screenshot_preview_exit(C, op);
+-      return OPERATOR_FINISHED;
++      return screenshot_preview_exec(C, op);
+     }
+ 
+     case RIGHTMOUSE:
+@@ -1614,8 +1810,10 @@
+   wmWindow *win = CTX_wm_window(C);
+   WM_cursor_modal_set(win, WM_CURSOR_CROSS);
+ 
+-  op->customdata = MEM_new_zeroed<ScreenshotOperatorData>(__func__);
++  op->customdata = MEM_new<ScreenshotOperatorData>(__func__);
+   ScreenshotOperatorData *data = static_cast<ScreenshotOperatorData *>(op->customdata);
++  data->interactive = true;
++  data->operator_window = win;
+   data->draw_handle = WM_draw_cb_activate(win, screenshot_preview_draw, data);
+   data->is_mouse_down = false;
+   RNA_int_get_array(op->ptr, "p1", data->p1);
+@@ -1631,6 +1829,11 @@
+   return OPERATOR_RUNNING_MODAL;
+ }
+ 
++static void screenshot_preview_cancel(bContext *C, wmOperator *op)
++{
++  screenshot_preview_exit(C, op);
++}
++
+ static bool screenshot_preview_poll(bContext *C)
+ {
+   if (G.background) {
+@@ -1665,6 +1868,7 @@
+   ot->invoke = screenshot_preview_invoke;
+   ot->modal = screenshot_preview_modal;
+   ot->exec = screenshot_preview_exec;
++  ot->cancel = screenshot_preview_cancel;
+ 
+   RNA_def_int_array(ot->srna,
+                     "p1",

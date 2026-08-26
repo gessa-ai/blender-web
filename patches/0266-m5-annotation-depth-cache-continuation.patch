@@ -1,0 +1,706 @@
+# SPDX-FileCopyrightText: 2008-2018 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Ported for the web from source/blender/editors/gpencil_legacy/annotate_paint.cc @ fbe6228777e7
+#
+# M5: retain interactive annotation depth-cache events across browser ticks,
+# resume the exact post-stroke-begin action, and preserve recorded-stroke exec.
+diff --git a/source/blender/editors/gpencil_legacy/annotate_paint.cc b/source/blender/editors/gpencil_legacy/annotate_paint.cc
+index 2d612d5..d454f3e 100644
+--- a/source/blender/editors/gpencil_legacy/annotate_paint.cc
++++ b/source/blender/editors/gpencil_legacy/annotate_paint.cc
+@@ -1,7 +1,11 @@
+ /* SPDX-FileCopyrightText: 2008-2018 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
++/* Ported for the web from source/blender/editors/gpencil_legacy/annotate_paint.cc @
++ * fbe6228777e7. */
++
+ /** \file
+  * \ingroup edgpencil
+  */
+@@ -18,6 +22,7 @@
+ #include "BLI_math_geom.h"
+ #include "BLI_math_matrix.h"
+ #include "BLI_time.h"
++#include "BLI_vector.hh"
+ 
+ #include "BLT_translation.hh"
+ 
+@@ -110,6 +115,22 @@ struct tGPsdata {
+   View2D *v2d;
+   /** For operations that require occlusion testing. */
+   ViewDepths *depths;
++  /** Owned full-viewport readback used by interactive WebGPU annotation paths. */
++  ViewportDepthCacheSession *depth_cache_session = nullptr;
++  Vector<wmEvent> *depth_cache_events = nullptr;
++  wmWindowManager *depth_cache_manager = nullptr;
++  wmTimer *depth_cache_timer = nullptr;
++  bScreen *depth_cache_screen = nullptr;
++  RegionView3D *depth_cache_region_view = nullptr;
++  eV3DDepthOverrideMode depth_cache_mode = V3D_DEPTH_ALL;
++  int depth_cache_region_size[2] = {0, 0};
++  float depth_cache_viewinv[4][4] = {};
++  float depth_cache_winmat[4][4] = {};
++  int depth_cache_tick_count = 0;
++  bool depth_cache_pending = false;
++  bool depth_cache_valid = false;
++  bool depth_cache_interactive = false;
++  bool depth_cache_resume_apply_event = false;
+   /** for using the camera rect within the 3d view. */
+   const rctf *subrect;
+   rctf subrect_data;
+@@ -184,6 +205,13 @@ struct tGPsdata {
+   short keymodifier;
+ };
+ 
++static wmOperatorStatus annotation_draw_modal(bContext *C,
++                                               wmOperator *op,
++                                               const wmEvent *event);
++static wmOperatorStatus annotation_draw_modal_dispatch(bContext *C,
++                                                        wmOperator *op,
++                                                        const wmEvent *event);
++
+ /* ------ */
+ 
+ /* Macros for accessing sensitivity thresholds... */
+@@ -192,7 +220,7 @@ struct tGPsdata {
+ /* minimum length of new segment before new point can be added */
+ #define MIN_EUCLIDEAN_PX (U.gp_euclideandist)
+ 
+-static bool annotation_stroke_added_check(tGPsdata *p)
++static bool annotation_stroke_added_check(const tGPsdata *p)
+ {
+   return (p->gpf && p->gpf->strokes.last && p->flags & GP_PAINTFLAG_STROKEADDED);
+ }
+@@ -231,13 +259,230 @@ static bool annotation_draw_poll(bContext *C)
+ }
+ 
+ /* check if projecting strokes into 3d-geometry in the 3D-View */
+-static bool annotation_project_check(tGPsdata *p)
++static bool annotation_project_check(const tGPsdata *p)
+ {
+   bGPdata *gpd = p->gpd;
+   return ((gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) &&
+           (*p->align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE)));
+ }
+ 
++enum class AnnotationDepthCacheState {
++  Ready,
++  Pending,
++  Failed,
++};
++
++static eV3DDepthOverrideMode annotation_depth_cache_mode_get(const tGPsdata *p)
++{
++  if (p->paintmode == GP_PAINTMODE_ERASER) {
++    return V3D_DEPTH_NO_GPENCIL;
++  }
++
++  const ToolSettings *ts = p->scene->toolsettings;
++  if (ts->annotate_v3d_align & GP_PROJECT_DEPTH_VIEW) {
++    return (ts->annotate_v3d_align & GP_PROJECT_DEPTH_ONLY_SELECTED) ?
++               V3D_DEPTH_SELECTED_ONLY :
++               V3D_DEPTH_ALL;
++  }
++  return V3D_DEPTH_GPENCIL_ONLY;
++}
++
++static void annotation_depth_cache_discard(tGPsdata *p)
++{
++  if (p->depths != nullptr) {
++    ED_view3d_depths_free(p->depths);
++    p->depths = nullptr;
++  }
++  p->depth_cache_region_view = nullptr;
++  p->depth_cache_region_size[0] = 0;
++  p->depth_cache_region_size[1] = 0;
++  p->depth_cache_valid = false;
++}
++
++static bool annotation_depth_cache_matches(const tGPsdata *p,
++                                           const eV3DDepthOverrideMode mode)
++{
++  if (!p->depth_cache_valid || p->depths == nullptr || p->region == nullptr ||
++      p->region->regiondata == nullptr || p->depth_cache_mode != mode ||
++      p->region->regiondata != p->depth_cache_region_view ||
++      p->region->winx != p->depth_cache_region_size[0] ||
++      p->region->winy != p->depth_cache_region_size[1])
++  {
++    return false;
++  }
++
++  const RegionView3D *region_view = static_cast<const RegionView3D *>(p->region->regiondata);
++  return equals_m4m4(region_view->viewinv, p->depth_cache_viewinv) &&
++         equals_m4m4(region_view->winmat, p->depth_cache_winmat);
++}
++
++static void annotation_depth_timer_remove(tGPsdata *p)
++{
++  if (p->depth_cache_timer != nullptr) {
++    WM_event_timer_remove(p->depth_cache_manager, p->win, p->depth_cache_timer);
++    p->depth_cache_timer = nullptr;
++  }
++  p->depth_cache_tick_count = 0;
++}
++
++static void annotation_depth_wait_cancel(tGPsdata *p)
++{
++  annotation_depth_timer_remove(p);
++  MEM_SAFE_DELETE(p->depth_cache_events);
++  MEM_SAFE_DELETE(p->depth_cache_session);
++  p->depth_cache_pending = false;
++  p->depth_cache_resume_apply_event = false;
++  p->depth_cache_manager = nullptr;
++  p->depth_cache_screen = nullptr;
++}
++
++static bool annotation_depth_event_push(tGPsdata *p, const wmEvent *event)
++{
++  constexpr int max_queued_events = 256;
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr || p->depth_cache_events == nullptr ||
++      p->depth_cache_events->size() >= max_queued_events)
++  {
++    return false;
++  }
++
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  p->depth_cache_events->append(queued);
++  return true;
++}
++
++static bool annotation_depth_cache_take(tGPsdata *p)
++{
++  ViewDepths *depths = p->depth_cache_session->take(p->region);
++  if (depths == nullptr) {
++    return false;
++  }
++
++  annotation_depth_cache_discard(p);
++  p->depths = depths;
++  p->depth_cache_region_view = static_cast<RegionView3D *>(p->region->regiondata);
++  p->depth_cache_region_size[0] = p->region->winx;
++  p->depth_cache_region_size[1] = p->region->winy;
++  copy_m4_m4(p->depth_cache_viewinv, p->depth_cache_region_view->viewinv);
++  copy_m4_m4(p->depth_cache_winmat, p->depth_cache_region_view->winmat);
++  p->depth_cache_valid = true;
++  MEM_SAFE_DELETE(p->depth_cache_session);
++  return true;
++}
++
++static AnnotationDepthCacheState annotation_depth_cache_begin(
++    bContext *C, tGPsdata *p, const eV3DDepthOverrideMode mode)
++{
++  if (annotation_depth_cache_matches(p, mode)) {
++    return AnnotationDepthCacheState::Ready;
++  }
++  if (p->depth_cache_pending) {
++    return p->depth_cache_mode == mode ? AnnotationDepthCacheState::Pending :
++                                         AnnotationDepthCacheState::Failed;
++  }
++  if (!p->depth_cache_interactive || p->area == nullptr ||
++      p->area->spacetype != SPACE_VIEW3D || p->region == nullptr ||
++      p->region->regiondata == nullptr || CTX_wm_window(C) != p->win ||
++      CTX_wm_area(C) != p->area || CTX_wm_region(C) != p->region)
++  {
++    return AnnotationDepthCacheState::Failed;
++  }
++
++  wmWindowManager *manager = CTX_wm_manager(C);
++  bScreen *screen = CTX_wm_screen(C);
++  View3D *v3d = CTX_wm_view3d(C);
++  if (ELEM(nullptr, manager, screen, v3d) ||
++      v3d != static_cast<View3D *>(p->area->spacedata.first))
++  {
++    return AnnotationDepthCacheState::Failed;
++  }
++
++  view3d_region_operator_needs_gpu(p->region);
++  ED_view3d_depth_override_prepare(
++      p->depsgraph, p->region, v3d, nullptr, mode, false);
++
++  p->depth_cache_mode = mode;
++  p->depth_cache_valid = false;
++  p->depth_cache_session = MEM_new<ViewportDepthCacheSession>(__func__);
++  if (!p->depth_cache_session->init(p->region)) {
++    MEM_SAFE_DELETE(p->depth_cache_session);
++    return AnnotationDepthCacheState::Failed;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = p->depth_cache_session->state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Ready) {
++    return annotation_depth_cache_take(p) ? AnnotationDepthCacheState::Ready :
++                                            AnnotationDepthCacheState::Failed;
++  }
++  if (state != ViewportDepthCacheSession::ReadbackState::Pending) {
++    MEM_SAFE_DELETE(p->depth_cache_session);
++    return AnnotationDepthCacheState::Failed;
++  }
++
++  p->depth_cache_events = MEM_new<Vector<wmEvent>>(__func__);
++  p->depth_cache_manager = manager;
++  p->depth_cache_screen = screen;
++  p->depth_cache_timer = WM_event_timer_add(manager, p->win, TIMER, 0.01f);
++  if (p->depth_cache_timer == nullptr) {
++    annotation_depth_wait_cancel(p);
++    return AnnotationDepthCacheState::Failed;
++  }
++  p->depth_cache_pending = true;
++  p->depth_cache_tick_count = 0;
++  return AnnotationDepthCacheState::Pending;
++}
++
++static AnnotationDepthCacheState annotation_depth_cache_defer_event(
++    bContext *C,
++    tGPsdata *p,
++    const wmEvent *event,
++    const eV3DDepthOverrideMode mode)
++{
++  const AnnotationDepthCacheState state = annotation_depth_cache_begin(C, p, mode);
++  if (state == AnnotationDepthCacheState::Pending && !annotation_depth_event_push(p, event)) {
++    annotation_depth_wait_cancel(p);
++    return AnnotationDepthCacheState::Failed;
++  }
++  return state;
++}
++
++static bool annotation_depth_event_requires_cache(const tGPsdata *p, const wmEvent *event)
++{
++  if (!p->depth_cache_interactive || p->status != GP_STATUS_PAINTING || event == nullptr ||
++      p->area == nullptr || p->area->spacetype != SPACE_VIEW3D)
++  {
++    return false;
++  }
++
++  if (p->paintmode == GP_PAINTMODE_ERASER) {
++    return (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH) &&
++           (ISMOUSE_MOTION(event->type) || (p->flags & GP_PAINTFLAG_FIRSTRUN));
++  }
++  if (!annotation_project_check(p)) {
++    return false;
++  }
++
++  const bool terminal_key = event->val == KM_PRESS &&
++                            ELEM(event->type,
++                                 EVT_RETKEY,
++                                 EVT_PADENTER,
++                                 EVT_ESCKEY,
++                                 EVT_SPACEKEY,
++                                 EVT_EKEY);
++  const bool terminal_mouse = ISMOUSE_BUTTON(event->type) && event->type != MIDDLEMOUSE &&
++                              ELEM(event->val, KM_PRESS, KM_RELEASE);
++  const bool polyline_update = p->paintmode == GP_PAINTMODE_DRAW_POLY &&
++                               annotation_stroke_added_check(p) &&
++                               (ISMOUSE_MOTION(event->type) ||
++                                (p->flags & GP_PAINTFLAG_FIRSTRUN));
++  return terminal_key || terminal_mouse || polyline_update;
++}
++
+ /* ******************************************* */
+ /* Calculations/Conversions */
+ 
+@@ -305,6 +550,7 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
+                                             const float *depth)
+ {
+   bGPdata *gpd = p->gpd;
++  float cached_depth = DEPTH_INVALID;
+   if (depth && (*depth == DEPTH_INVALID)) {
+     depth = nullptr;
+   }
+@@ -312,7 +558,14 @@ static void annotation_stroke_convertcoords(tGPsdata *p,
+   /* in 3d-space - pt->x/y/z are 3 side-by-side floats */
+   if (gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) {
+     int2 mval_i = int2(mval);
+-    if (annotation_project_check(p) && ED_view3d_autodist_simple(p->region, mval_i, out, 0, depth))
++    if (depth == nullptr && p->depth_cache_interactive && annotation_project_check(p) &&
++        annotation_depth_cache_matches(p, annotation_depth_cache_mode_get(p)) &&
++        ED_view3d_depth_read_cached(p->depths, mval_i, 0, &cached_depth))
++    {
++      depth = &cached_depth;
++    }
++    if (annotation_project_check(p) && (depth != nullptr || !p->depth_cache_interactive) &&
++        ED_view3d_autodist_simple(p->region, mval_i, out, 0, depth))
+     {
+       /* projecting onto 3D-Geometry
+        * - nothing more needs to be done here, since view_autodist_simple() has already done it
+@@ -514,7 +767,6 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+ {
+   bGPdata *gpd = p->gpd;
+   tGPspoint *pt;
+-  ToolSettings *ts = p->scene->toolsettings;
+ 
+   /* check painting mode */
+   if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
+@@ -646,20 +898,16 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+        */
+       if (annotation_project_check(p)) {
+         View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
+-
+-        eV3DDepthOverrideMode mode = V3D_DEPTH_GPENCIL_ONLY;
+-
+-        if (ts->annotate_v3d_align & GP_PROJECT_DEPTH_VIEW) {
+-          if (ts->annotate_v3d_align & GP_PROJECT_DEPTH_ONLY_SELECTED) {
+-            mode = V3D_DEPTH_SELECTED_ONLY;
+-          }
+-          else {
+-            mode = V3D_DEPTH_ALL;
++        const eV3DDepthOverrideMode mode = annotation_depth_cache_mode_get(p);
++        if (p->depth_cache_interactive) {
++          if (!annotation_depth_cache_matches(p, mode)) {
++            return GP_STROKEADD_INVALID;
+           }
+         }
+-
+-        view3d_region_operator_needs_gpu(p->region);
+-        ED_view3d_depth_override(p->depsgraph, p->region, v3d, nullptr, mode, false, nullptr);
++        else {
++          view3d_region_operator_needs_gpu(p->region);
++          ED_view3d_depth_override(p->depsgraph, p->region, v3d, nullptr, mode, false, nullptr);
++        }
+       }
+ 
+       /* convert screen-coordinates to appropriate coordinates (and store them) */
+@@ -670,6 +918,9 @@ static short annotation_stroke_addpoint(tGPsdata *p,
+       pts->strength = pt->strength;
+       pts->time = pt->time;
+       gps->tot_triangles = 0;
++      if (p->depth_cache_interactive && annotation_project_check(p)) {
++        annotation_depth_cache_discard(p);
++      }
+     }
+ 
+     /* increment counters */
+@@ -1046,6 +1297,9 @@ static void annotation_stroke_newfrombuffer(tGPsdata *p)
+   /* add stroke to frame */
+   BLI_addtail(&p->gpf->strokes, gps);
+   annotation_stroke_added_enable(p);
++  if (p->depth_cache_interactive && annotation_project_check(p)) {
++    annotation_depth_cache_discard(p);
++  }
+ }
+ 
+ /* --- 'Eraser' for 'Paint' Tool ------ */
+@@ -1210,9 +1464,17 @@ static void annotation_stroke_doeraser(tGPsdata *p)
+   if (p->area->spacetype == SPACE_VIEW3D) {
+     if (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH) {
+       View3D *v3d = static_cast<View3D *>(p->area->spacedata.first);
+-      view3d_region_operator_needs_gpu(p->region);
+-      ED_view3d_depth_override(
+-          p->depsgraph, p->region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, &p->depths);
++      if (p->depth_cache_interactive) {
++        if (!annotation_depth_cache_matches(p, V3D_DEPTH_NO_GPENCIL)) {
++          p->status = GP_STATUS_ERROR;
++          return;
++        }
++      }
++      else {
++        view3d_region_operator_needs_gpu(p->region);
++        ED_view3d_depth_override(
++            p->depsgraph, p->region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, &p->depths);
++      }
+     }
+   }
+ 
+@@ -1495,9 +1757,8 @@ static void annotation_session_cleanup(tGPsdata *p)
+ 
+ static void annotation_session_free(tGPsdata *p)
+ {
+-  if (p->depths) {
+-    ED_view3d_depths_free(p->depths);
+-  }
++  annotation_depth_wait_cancel(p);
++  annotation_depth_cache_discard(p);
+   MEM_delete(p);
+ }
+ 
+@@ -1670,10 +1931,19 @@ static void annotation_paint_strokeend(tGPsdata *p)
+         mode = V3D_DEPTH_ALL;
+       }
+     }
+-    /* need to restore the original projection settings before packing up */
+-    view3d_region_operator_needs_gpu(p->region);
+-    ED_view3d_depth_override(
+-        p->depsgraph, p->region, v3d, nullptr, mode, false, is_eraser ? nullptr : &p->depths);
++    if (p->depth_cache_interactive) {
++      if (!is_eraser && !annotation_depth_cache_matches(p, mode)) {
++        p->status = GP_STATUS_ERROR;
++        annotation_session_validatebuffer(p);
++        return;
++      }
++    }
++    else {
++      /* Need to restore the original projection settings before packing up. */
++      view3d_region_operator_needs_gpu(p->region);
++      ED_view3d_depth_override(
++          p->depsgraph, p->region, v3d, nullptr, mode, false, is_eraser ? nullptr : &p->depths);
++    }
+   }
+ 
+   /* check if doing eraser or not */
+@@ -1845,7 +2115,7 @@ static bool annotation_is_tablet_eraser_active(const wmEvent *event)
+ 
+ /* ------------------------------- */
+ 
+-static void annotation_draw_exit(bContext *C, wmOperator *op)
++static void annotation_draw_exit_impl(bContext *C, wmOperator *op, const bool finish_stroke)
+ {
+   tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
+ 
+@@ -1869,8 +2139,13 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
+      */
+     U.gp_eraser = p->radius;
+ 
+-    /* cleanup */
+-    annotation_paint_cleanup(p);
++    /* Cleanup. A failed asynchronous readback discards the uncommitted buffer. */
++    if (finish_stroke) {
++      annotation_paint_cleanup(p);
++    }
++    else if (p->gpf != nullptr) {
++      p->gpf->flag &= ~GP_FRAME_PAINT;
++    }
+     annotation_session_cleanup(p);
+     annotation_session_free(p);
+     p = nullptr;
+@@ -1879,10 +2154,25 @@ static void annotation_draw_exit(bContext *C, wmOperator *op)
+   op->customdata = nullptr;
+ }
+ 
++static void annotation_draw_exit(bContext *C, wmOperator *op)
++{
++  annotation_draw_exit_impl(C, op, true);
++}
++
++static void annotation_draw_abort(bContext *C, wmOperator *op)
++{
++  annotation_draw_exit_impl(C, op, false);
++}
++
+ static void annotation_draw_cancel(bContext *C, wmOperator *op)
+ {
+-  /* this is just a wrapper around exit() */
+-  annotation_draw_exit(C, op);
++  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  if (p != nullptr && p->depth_cache_interactive) {
++    annotation_draw_abort(C, op);
++  }
++  else {
++    annotation_draw_exit(C, op);
++  }
+ }
+ 
+ /* ------------------------------- */
+@@ -2271,6 +2561,7 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
+     BKE_report(op->reports, RPT_ERROR, "Nothing to erase");
+     return OPERATOR_FINISHED;
+   }
++  p->depth_cache_interactive = true;
+ 
+   /* if eraser is on, draw radial aid */
+   if (p->paintmode == GP_PAINTMODE_ERASER) {
+@@ -2311,8 +2602,24 @@ static wmOperatorStatus annotation_draw_invoke(bContext *C, wmOperator *op, cons
+     /* hotkey invoked - start drawing */
+     p->status = GP_STATUS_PAINTING;
+ 
+-    /* handle the initial drawing - i.e. for just doing a simple dot */
+-    annotation_draw_apply_event(op, event, CTX_data_ensure_evaluated_depsgraph(C), 0.0f, 0.0f);
++    AnnotationDepthCacheState depth_state = AnnotationDepthCacheState::Ready;
++    if (annotation_depth_event_requires_cache(p, event)) {
++      depth_state = annotation_depth_cache_defer_event(
++          C, p, event, annotation_depth_cache_mode_get(p));
++    }
++    if (depth_state == AnnotationDepthCacheState::Failed) {
++      BKE_report(op->reports, RPT_ERROR, "Unable to start annotation depth-cache readback");
++      annotation_draw_abort(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    if (depth_state == AnnotationDepthCacheState::Pending) {
++      p->depth_cache_resume_apply_event = true;
++    }
++    if (depth_state == AnnotationDepthCacheState::Ready) {
++      /* Handle the initial drawing - i.e. for just doing a simple dot. */
++      annotation_draw_apply_event(
++          op, event, CTX_data_ensure_evaluated_depsgraph(C), 0.0f, 0.0f);
++    }
+     op->flag |= OP_IS_MODAL_CURSOR_REGION;
+   }
+   else {
+@@ -2414,7 +2721,9 @@ static void annotation_add_missing_events(bContext *C,
+ }
+ 
+ /* events handling during interactive drawing part of operator */
+-static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
++static wmOperatorStatus annotation_draw_modal_dispatch(bContext *C,
++                                                        wmOperator *op,
++                                                        const wmEvent *event)
+ {
+   tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
+   /* Default exit state - pass through to support MMB view navigation, etc. */
+@@ -2608,6 +2917,19 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
+         if (p->status == GP_STATUS_ERROR) {
+           estate = OPERATOR_CANCELLED;
+         }
++        else if (annotation_depth_event_requires_cache(p, event)) {
++          const AnnotationDepthCacheState depth_state = annotation_depth_cache_defer_event(
++              C, p, event, annotation_depth_cache_mode_get(p));
++          if (depth_state == AnnotationDepthCacheState::Pending) {
++            p->depth_cache_resume_apply_event = true;
++            return OPERATOR_RUNNING_MODAL;
++          }
++          if (depth_state == AnnotationDepthCacheState::Failed) {
++            BKE_report(op->reports, RPT_ERROR, "Annotation depth-cache readback failed to start");
++            annotation_draw_abort(C, op);
++            return OPERATOR_CANCELLED;
++          }
++        }
+       }
+       else if (p->status != GP_STATUS_ERROR) {
+         /* User clicked outside bounds of window while idling, so exit paintmode
+@@ -2722,6 +3044,139 @@ static wmOperatorStatus annotation_draw_modal(bContext *C, wmOperator *op, const
+   return estate;
+ }
+ 
++static bool annotation_depth_context_matches(const bContext *C, const tGPsdata *p)
++{
++  return CTX_wm_manager(C) == p->depth_cache_manager && CTX_wm_window(C) == p->win &&
++         CTX_wm_screen(C) == p->depth_cache_screen && CTX_wm_area(C) == p->area &&
++         CTX_wm_region(C) == p->region &&
++         CTX_wm_region_view3d(C) == static_cast<RegionView3D *>(p->region->regiondata) &&
++         CTX_wm_view3d(C) == static_cast<View3D *>(p->area->spacedata.first) &&
++         CTX_data_scene(C) == p->scene;
++}
++
++static wmOperatorStatus annotation_depth_fail(bContext *C,
++                                              wmOperator *op,
++                                              const char *message)
++{
++  BKE_report(op->reports, RPT_ERROR, message);
++  annotation_draw_abort(C, op);
++  return OPERATOR_CANCELLED;
++}
++
++static wmOperatorStatus annotation_depth_resume_apply_event(bContext *C,
++                                                             wmOperator *op,
++                                                             const wmEvent *event)
++{
++  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  annotation_draw_apply_event(
++      op, event, CTX_data_ensure_evaluated_depsgraph(C), 0.0f, 0.0f);
++  if (p->status == GP_STATUS_ERROR || !annotation_area_exists(C, p->area)) {
++    return annotation_depth_fail(C, op, "Annotation stroke failed after depth settlement");
++  }
++  annotation_draw_status_indicators(C, p);
++  annotation_draw_cursor_set(p);
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus annotation_depth_poll(bContext *C,
++                                               wmOperator *op,
++                                               const wmEvent *event)
++{
++  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  if (p == nullptr || !p->depth_cache_pending || !annotation_depth_context_matches(C, p)) {
++    return annotation_depth_fail(C, op, "Viewport changed while waiting for annotation depth");
++  }
++
++  if (event->type != TIMER || event->customdata != p->depth_cache_timer) {
++    if (event->type == TIMER) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (!annotation_depth_event_push(p, event)) {
++      return annotation_depth_fail(C, op, "Annotation depth event queue exceeded its safe bound");
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++p->depth_cache_tick_count > max_tick_count) {
++    return annotation_depth_fail(C, op, "Timed out waiting for annotation depth cache");
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = p->depth_cache_session->state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ViewportDepthCacheSession::ReadbackState::Failed ||
++      !annotation_depth_cache_take(p))
++  {
++    return annotation_depth_fail(C, op, "Annotation depth-cache readback failed");
++  }
++
++  annotation_depth_timer_remove(p);
++  p->depth_cache_pending = false;
++  p->depth_cache_manager = nullptr;
++  p->depth_cache_screen = nullptr;
++  Vector<wmEvent> *queued_events = p->depth_cache_events;
++  p->depth_cache_events = nullptr;
++  const bool resume_apply_event = p->depth_cache_resume_apply_event;
++  p->depth_cache_resume_apply_event = false;
++
++  for (int64_t index = 0; index < queued_events->size(); index++) {
++    const wmOperatorStatus result = (index == 0 && resume_apply_event) ?
++                                        annotation_depth_resume_apply_event(
++                                            C, op, &(*queued_events)[index]) :
++                                        annotation_draw_modal(C, op, &(*queued_events)[index]);
++    if (result & (OPERATOR_FINISHED | OPERATOR_CANCELLED)) {
++      MEM_delete(queued_events);
++      return result;
++    }
++
++    p = static_cast<tGPsdata *>(op->customdata);
++    if (p == nullptr) {
++      MEM_delete(queued_events);
++      return OPERATOR_CANCELLED;
++    }
++    if (p->depth_cache_pending) {
++      for (int64_t remaining = index + 1; remaining < queued_events->size(); remaining++) {
++        if (!annotation_depth_event_push(p, &(*queued_events)[remaining])) {
++          MEM_delete(queued_events);
++          return annotation_depth_fail(
++              C, op, "Annotation depth replay exceeded its safe event bound");
++        }
++      }
++      MEM_delete(queued_events);
++      return OPERATOR_RUNNING_MODAL;
++    }
++  }
++
++  MEM_delete(queued_events);
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus annotation_draw_modal(bContext *C,
++                                               wmOperator *op,
++                                               const wmEvent *event)
++{
++  tGPsdata *p = static_cast<tGPsdata *>(op->customdata);
++  if (p == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++  if (p->depth_cache_pending) {
++    return annotation_depth_poll(C, op, event);
++  }
++  if (annotation_depth_event_requires_cache(p, event)) {
++    const AnnotationDepthCacheState state = annotation_depth_cache_defer_event(
++        C, p, event, annotation_depth_cache_mode_get(p));
++    if (state == AnnotationDepthCacheState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state == AnnotationDepthCacheState::Failed) {
++      return annotation_depth_fail(C, op, "Unable to prepare annotation depth cache");
++    }
++  }
++  return annotation_draw_modal_dispatch(C, op, event);
++}
++
+ /* ------------------------------- */
+ 
+ static const EnumPropertyItem prop_gpencil_drawmodes[] = {

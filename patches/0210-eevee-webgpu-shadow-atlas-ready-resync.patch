@@ -1,0 +1,79 @@
+diff --git a/source/blender/draw/engines/eevee/eevee_engine.cc b/source/blender/draw/engines/eevee/eevee_engine.cc
+--- a/source/blender/draw/engines/eevee/eevee_engine.cc
++++ b/source/blender/draw/engines/eevee/eevee_engine.cc
+@@ -108,6 +108,12 @@ static RenderStepStatus eevee_render_step(RenderEngine *engine, Depsgraph *depsg
+             session->phase = EEVEEImageRenderPhase::Failed;
+             return RenderStepStatus::Failed;
+           }
++          /* `Instance::init()` may have synced while the asynchronous WebGPU buffer receipt was
++           * pending. Rebuild those passes once after READY so the atlas SSBO is actually bound
++           * before shadow samples can be submitted. */
++          if (session->instance->shadow_atlas_requires_sync()) {
++            session->instance->render_sync();
++          }
+           session->phase = EEVEEImageRenderPhase::RenderSamples;
+           break;
+         }
+diff --git a/source/blender/draw/engines/eevee/eevee_instance.cc b/source/blender/draw/engines/eevee/eevee_instance.cc
+--- a/source/blender/draw/engines/eevee/eevee_instance.cc
++++ b/source/blender/draw/engines/eevee/eevee_instance.cc
+@@ -516,6 +516,11 @@ ShadowAtlasStatus Instance::shadow_atlas_status()
+   return shadows.shadow_atlas_status();
+ }
+-
++
++bool Instance::shadow_atlas_requires_sync() const
++{
++  return shadows.shadow_atlas_requires_sync();
++}
++
+ bool Instance::needs_lightprobe_sphere_passes() const
+ {
+   return sphere_probes.update_probes_this_sample_;
+diff --git a/source/blender/draw/engines/eevee/eevee_instance.hh b/source/blender/draw/engines/eevee/eevee_instance.hh
+--- a/source/blender/draw/engines/eevee/eevee_instance.hh
++++ b/source/blender/draw/engines/eevee/eevee_instance.hh
+@@ -251,6 +251,8 @@ class Instance : public DrawEngine {
+   /** Poll readiness of resources that must settle before an image-render or light-bake sync. */
+   ShadowAtlasStatus shadow_atlas_status();
+-
++  /** True when the settled WebGPU shadow atlas still needs to be rebound by `render_sync`. */
++  bool shadow_atlas_requires_sync() const;
++
+   /**
+    * Return true when probe pipeline is used during this sample.
+    */
+diff --git a/source/blender/draw/engines/eevee/eevee_shadow.cc b/source/blender/draw/engines/eevee/eevee_shadow.cc
+--- a/source/blender/draw/engines/eevee/eevee_shadow.cc
++++ b/source/blender/draw/engines/eevee/eevee_shadow.cc
+@@ -744,7 +744,13 @@ ShadowAtlasStatus ShadowModule::shadow_atlas_status()
+   inst_.info_append_i18n("Error: Could not allocate WebGPU shadow atlas buffer.");
+   return ShadowAtlasStatus::Failed;
+ }
+-
++
++bool ShadowModule::shadow_atlas_requires_sync() const
++{
++  return use_webgpu_shadow_atlas_ && webgpu_shadow_atlas_ready_ &&
++         !webgpu_shadow_atlas_ready_for_sync_;
++}
++
+ void ShadowModule::begin_sync()
+ {
+   webgpu_shadow_atlas_ready_for_sync_ =
+diff --git a/source/blender/draw/engines/eevee/eevee_shadow.hh b/source/blender/draw/engines/eevee/eevee_shadow.hh
+--- a/source/blender/draw/engines/eevee/eevee_shadow.hh
++++ b/source/blender/draw/engines/eevee/eevee_shadow.hh
+@@ -359,7 +359,10 @@ class ShadowModule {
+    * Non-WebGPU backends are always ready. A transition to `Ready` only makes the atlas available
+    * to the next shadow sync; passes already synced without the atlas remain non-submittable.
+    */
+   ShadowAtlasStatus shadow_atlas_status();
+-
++
++  /** True when a settled WebGPU atlas has not yet been bound into a shadow pass sync. */
++  bool shadow_atlas_requires_sync() const;
++
+   void begin_sync();
+   /** Register a shadow caster or receiver. */
+   void sync_object(const ObjectHandle &ob_handle,

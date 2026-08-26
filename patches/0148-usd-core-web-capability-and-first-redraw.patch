@@ -1,0 +1,272 @@
+From: blender-web contributors
+Subject: USD: allow core-only web IO and redraw the first published screen
+
+OpenUSD's scene-description core supports real UsdGeomMesh import/export
+without Imaging or Boost.Python. Make those two capabilities explicit while
+preserving the native defaults, provide a no-Python hook implementation, and
+fall procedural shape prims back to transforms when Imaging is unavailable.
+
+On Emscripten, a surface can publish its clear before Blender's regions have
+received their first redraw tag. The web GHOST backend sends bounded ordinary
+WindowUpdate events until the second present; invalidate the screen for those
+events so the second publish contains the UI. Native event behavior is
+unchanged.
+
+diff --git a/source/blender/io/usd/CMakeLists.txt b/source/blender/io/usd/CMakeLists.txt
+index 782d830b976..e416c0d6085 100644
+--- a/source/blender/io/usd/CMakeLists.txt
++++ b/source/blender/io/usd/CMakeLists.txt
+@@ -17,7 +17,7 @@ endif()
+ # Pre-compiled Linux libraries are made with GCC, and USD uses some extensions
+ # which lead to an incompatible ABI for Clang. Using those extensions with
+ # Clang as well works around the issue.
+-if(UNIX AND NOT APPLE)
++if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+   if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+     if(DEFINED LIBDIR)
+       add_definitions(-DARCH_HAS_GNU_STL_EXTENSIONS)
+@@ -64,7 +64,6 @@ set(SRC
+   intern/usd_capi_import.cc
+   intern/usd_colorspace_utils.cc
+   intern/usd_hierarchy_iterator.cc
+-  intern/usd_hook.cc
+   intern/usd_instancing_utils.cc
+   intern/usd_light_convert.cc
+   intern/usd_mesh_utils.cc
+@@ -97,7 +96,6 @@ set(SRC
+   intern/usd_reader_pointinstancer.cc
+   intern/usd_reader_points.cc
+   intern/usd_reader_prim.cc
+-  intern/usd_reader_shape.cc
+   intern/usd_reader_skeleton.cc
+   intern/usd_reader_stage.cc
+   intern/usd_reader_utils.cc
+@@ -163,6 +161,28 @@ set(SRC
+   intern/usd_skel_root_utils.hh
+ )
+ 
++# OpenUSD can build its scene-description core without either Imaging or its
++# vendored Boost.Python bindings. Keep native builds unchanged by default, but
++# let constrained platforms select the faithful core IO capability explicitly.
++if(NOT DEFINED USD_HAS_IMAGING)
++  set(USD_HAS_IMAGING ON)
++endif()
++if(NOT DEFINED USD_HAS_PYTHON_HOOKS)
++  set(USD_HAS_PYTHON_HOOKS ON)
++endif()
++
++if(USD_HAS_IMAGING)
++  add_definitions(-DWITH_USD_IMAGING)
++  list(APPEND SRC intern/usd_reader_shape.cc)
++endif()
++
++if(USD_HAS_PYTHON_HOOKS)
++  add_definitions(-DWITH_USD_PYTHON_HOOKS)
++  list(APPEND SRC intern/usd_hook.cc)
++else()
++  list(APPEND SRC intern/usd_hook_stub.cc)
++endif()
++
+ if(WITH_HYDRA)
+   list(APPEND SRC
+     hydra/camera_delegate.cc
+diff --git a/source/blender/io/usd/intern/usd_hook_stub.cc b/source/blender/io/usd/intern/usd_hook_stub.cc
+new file mode 100644
+index 00000000000..a9daece1b96
+--- /dev/null
++++ b/source/blender/io/usd/intern/usd_hook_stub.cc
+@@ -0,0 +1,111 @@
++/* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/io/usd/intern/usd_hook.cc @ fbe6228777e7. */
++
++#include "usd_hook.hh"
++
++#include "usd_api_hook.hh"
++
++#include "BLI_utildefines.h"
++
++#include "BKE_report.hh"
++
++#include <algorithm>
++#include <list>
++#include <memory>
++
++namespace blender::io::usd {
++
++using USDHookList = std::list<std::unique_ptr<USDHook>>;
++
++static USDHookList &hook_list()
++{
++  static USDHookList hooks{};
++  return hooks;
++}
++
++void USD_register_hook(std::unique_ptr<USDHook> hook)
++{
++  if (USD_find_hook_name(hook->idname)) {
++    return;
++  }
++  hook_list().push_back(std::move(hook));
++}
++
++void USD_unregister_hook(const USDHook *hook)
++{
++  hook_list().remove_if(
++      [hook](const std::unique_ptr<USDHook> &item) { return item.get() == hook; });
++}
++
++USDHook *USD_find_hook_name(const char idname[])
++{
++  if (hook_list().empty() || idname == nullptr || idname[0] == '\0') {
++    return nullptr;
++  }
++  const auto hook_iter = std::find_if(
++      hook_list().begin(), hook_list().end(), [idname](const std::unique_ptr<USDHook> &item) {
++        return STREQ(item->idname, idname);
++      });
++  return hook_iter == hook_list().end() ? nullptr : hook_iter->get();
++}
++
++static void report_hooks_unavailable(ReportList *reports)
++{
++  if (!hook_list().empty()) {
++    BKE_report(reports,
++               RPT_ERROR,
++               "USD Python hooks are unavailable in this OpenUSD core-only build");
++  }
++}
++
++void register_hook_converters()
++{
++  /* OpenUSD was built without its Python bindings, so there are no pxr Python
++   * types for Blender's hook context converters to register. */
++}
++
++void call_export_hooks(Depsgraph * /*depsgraph*/,
++                       const USDHierarchyIterator * /*iter*/,
++                       ReportList *reports)
++{
++  report_hooks_unavailable(reports);
++}
++
++void call_material_export_hooks(pxr::UsdStageRefPtr /*stage*/,
++                                Material * /*material*/,
++                                const pxr::UsdShadeMaterial & /*usd_material*/,
++                                const USDExportParams & /*export_params*/,
++                                ReportList *reports)
++{
++  report_hooks_unavailable(reports);
++}
++
++void call_import_hooks(USDStageReader * /*archive*/, ReportList *reports)
++{
++  report_hooks_unavailable(reports);
++}
++
++bool have_material_import_hook(pxr::UsdStageRefPtr /*stage*/,
++                               const pxr::UsdShadeMaterial & /*usd_material*/,
++                               const USDImportParams & /*import_params*/,
++                               ReportList *reports)
++{
++  report_hooks_unavailable(reports);
++  return false;
++}
++
++bool call_material_import_hooks(pxr::UsdStageRefPtr /*stage*/,
++                                Material * /*material*/,
++                                const pxr::UsdShadeMaterial & /*usd_material*/,
++                                const USDImportParams & /*import_params*/,
++                                ReportList *reports)
++{
++  report_hooks_unavailable(reports);
++  return false;
++}
++
++}  // namespace blender::io::usd
+diff --git a/source/blender/io/usd/intern/usd_precomp.hh b/source/blender/io/usd/intern/usd_precomp.hh
+index b23945ede7f..1a1b4726991 100644
+--- a/source/blender/io/usd/intern/usd_precomp.hh
++++ b/source/blender/io/usd/intern/usd_precomp.hh
+@@ -9,5 +9,7 @@
+ #include <pxr/usd/usdGeom/xformable.h>
+ #include <pxr/usd/usdShade/material.h>
+ 
+-#include <pxr/imaging/hd/sceneDelegate.h>
+-#include <pxr/imaging/hd/tokens.h>
++#ifdef WITH_USD_IMAGING
++#  include <pxr/imaging/hd/sceneDelegate.h>
++#  include <pxr/imaging/hd/tokens.h>
++#endif
+diff --git a/source/blender/io/usd/intern/usd_reader_stage.cc b/source/blender/io/usd/intern/usd_reader_stage.cc
+index aa3e43363f4..d673da0c520 100644
+--- a/source/blender/io/usd/intern/usd_reader_stage.cc
++++ b/source/blender/io/usd/intern/usd_reader_stage.cc
+@@ -15,11 +15,14 @@
+ #include "usd_reader_pointinstancer.hh"
+ #include "usd_reader_points.hh"
+ #include "usd_reader_prim.hh"
+-#include "usd_reader_shape.hh"
+ #include "usd_reader_skeleton.hh"
+ #include "usd_reader_volume.hh"
+ #include "usd_reader_xform.hh"
+ 
++#ifdef WITH_USD_IMAGING
++#  include "usd_reader_shape.hh"
++#endif
++
+ #include <pxr/usd/usd/primRange.h>
+ #include <pxr/usd/usdGeom/camera.h>
+ #include <pxr/usd/usdGeom/capsule.h>
+@@ -239,7 +242,14 @@ USDPrimReader *USDStageReader::create_reader_if_allowed(const pxr::UsdPrim &prim
+     return new USDInstanceReader(prim, params_, settings_);
+   }
+   if (params_.import_shapes && is_primitive_prim(prim)) {
++#ifdef WITH_USD_IMAGING
+     return new USDShapeReader(prim, params_, settings_);
++#else
++    CLOG_WARN(&LOG,
++              "Importing procedural shape %s as a transform because USD Imaging is unavailable",
++              prim.GetPath().GetText());
++    return new USDXformReader(prim, params_, settings_);
++#endif
+   }
+   if (prim.IsA<pxr::UsdGeomPointInstancer>()) {
+     return new USDPointInstancerReader(prim, params_, settings_);
+@@ -289,7 +299,14 @@ USDPrimReader *USDStageReader::create_reader(const pxr::UsdPrim &prim)
+     return new USDInstanceReader(prim, params_, settings_);
+   }
+   if (is_primitive_prim(prim)) {
++#ifdef WITH_USD_IMAGING
+     return new USDShapeReader(prim, params_, settings_);
++#else
++    CLOG_WARN(&LOG,
++              "Importing procedural shape %s as a transform because USD Imaging is unavailable",
++              prim.GetPath().GetText());
++    return new USDXformReader(prim, params_, settings_);
++#endif
+   }
+   if (prim.IsA<pxr::UsdGeomCamera>()) {
+     return new USDCameraReader(prim, params_, settings_);
+diff --git a/source/blender/windowmanager/intern/wm_window.cc b/source/blender/windowmanager/intern/wm_window.cc
+index 4c0aa2cd5c6..b3d4f8317f0 100644
+--- a/source/blender/windowmanager/intern/wm_window.cc
++++ b/source/blender/windowmanager/intern/wm_window.cc
+@@ -1873,6 +1873,14 @@ static bool ghost_event_proc(const GHOST_IEvent *ghost_event, GHOST_TUserDataPtr
+       }
+ 
+       wm_window_make_drawable(wm, win);
++#ifdef __EMSCRIPTEN__
++      /* A web surface may publish its cleared frame before regions receive their
++       * first redraw tag. GHOST_SystemWeb sends bounded WindowUpdate events until
++       * the second present; invalidate the screen as well as window chrome so the
++       * next publish contains Blender UI. Native window-system semantics stay
++       * unchanged. */
++      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);
++#endif
+       WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);
+ 
+       break;

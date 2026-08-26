@@ -1,0 +1,533 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 2037685..68f06ba 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -656,11 +656,12 @@ class ScopedHandleCache {
+     return state_->handles.size();
+   }
+ 
+-  template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn>
++  template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn, typename SettledFn>
+   HandleT get_or_create_scoped(const KeyT &key,
+                                BeginScopeFn &&begin_scope,
+                                CreateFn &&create,
+-                               EndScopeFn &&end_scope)
++                               EndScopeFn &&end_scope,
++                               SettledFn &&settled)
+   {
+     if (!state_) {
+       state_ = std::make_shared<State>();
+@@ -681,30 +682,53 @@ class ScopedHandleCache {
+     const bool handle_valid = candidate != nullptr;
+     const std::shared_ptr<State> state = state_;
+     auto completed = std::make_shared<std::atomic<bool>>(false);
++    using SettledT = std::decay_t<SettledFn>;
++    auto settled_callback = std::make_shared<SettledT>(std::forward<SettledFn>(settled));
+     std::forward<EndScopeFn>(end_scope)(
+         [state,
+          key,
+          candidate = std::move(candidate),
+          handle_valid,
+-         completed](const bool scope_valid) mutable {
++         completed,
++         settled_callback](const bool scope_valid) mutable {
+           if (completed->exchange(true, std::memory_order_acq_rel)) {
+             return;
+           }
+-          std::lock_guard lock(state->mutex);
+-          state->pending.erase(key);
+-          if (handle_valid && scope_valid) {
+-            state->handles.emplace(key, std::move(candidate));
++          HandleT published;
++          {
++            std::lock_guard lock(state->mutex);
++            state->pending.erase(key);
++            if (handle_valid && scope_valid) {
++              const auto [found, inserted] = state->handles.emplace(key, std::move(candidate));
++              (void)inserted;
++              published = found->second;
++            }
+           }
++          (*settled_callback)(std::move(published));
+         });
+     return lookup(key);
+   }
+ 
+-  template<typename InstanceT, typename DeviceT, typename CreateFn>
++  template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn>
++  HandleT get_or_create_scoped(const KeyT &key,
++                               BeginScopeFn &&begin_scope,
++                               CreateFn &&create,
++                               EndScopeFn &&end_scope)
++  {
++    return get_or_create_scoped(key,
++                                std::forward<BeginScopeFn>(begin_scope),
++                                std::forward<CreateFn>(create),
++                                std::forward<EndScopeFn>(end_scope),
++                                [](HandleT) {});
++  }
++
++  template<typename InstanceT, typename DeviceT, typename CreateFn, typename SettledFn>
+   HandleT get_or_create(const InstanceT &instance,
+                         const DeviceT &device,
+                         const KeyT &key,
+                         const char *label,
+-                        CreateFn &&create)
++                        CreateFn &&create,
++                        SettledFn &&settled)
+   {
+     std::string operation_label = label ? label : "";
+     return get_or_create_scoped(
+@@ -715,7 +739,23 @@ class ScopedHandleCache {
+             auto completion) mutable {
+           webgpu_error_scopes_pop(
+               instance, device, std::move(operation_label), std::move(completion));
+-        });
++        },
++        std::forward<SettledFn>(settled));
++  }
++
++  template<typename InstanceT, typename DeviceT, typename CreateFn>
++  HandleT get_or_create(const InstanceT &instance,
++                        const DeviceT &device,
++                        const KeyT &key,
++                        const char *label,
++                        CreateFn &&create)
++  {
++    return get_or_create(instance,
++                         device,
++                         key,
++                         label,
++                         std::forward<CreateFn>(create),
++                         [](HandleT) {});
+   }
+ 
+  private:
+@@ -2068,6 +2108,112 @@ struct BufferUpdatePayload {
+   }
+ };
+ 
++/** Ordered owned writes that arrive while one persistent allocation is unresolved.
++ *
++ * Browser error-scope callbacks settle only after the frontend update call has returned, so the
++ * caller's bytes cannot remain borrowed. Rejection deliberately leaves the queue retryable; an
++ * accepted allocation drains each retained payload once in frontend order. `ContextT` carries the
++ * queue/device state needed by the backend replay without retaining its owning Buffer object. */
++template<typename ContextT> class PendingBufferPayloadQueue {
++ private:
++  struct Entry {
++    ContextT context;
++    size_t offset = 0;
++    std::vector<uint8_t> bytes;
++  };
++
++ public:
++  bool begin(const size_t allocation_size)
++  {
++    if (allocation_size == 0) {
++      return false;
++    }
++    std::lock_guard lock(mutex_);
++    if (!entries_.empty() && allocation_size_ != 0 && allocation_size_ != allocation_size) {
++      return false;
++    }
++    allocation_size_ = allocation_size;
++    retryable_ = true;
++    return true;
++  }
++
++  bool retain(ContextT context, const size_t offset, const void *data, const size_t size)
++  {
++    if (data == nullptr || (offset % kCopyAlignment) != 0 ||
++        (size % kCopyAlignment) != 0)
++    {
++      return false;
++    }
++    std::lock_guard lock(mutex_);
++    if (!retryable_ || !range_fits(offset, size, allocation_size_)) {
++      return false;
++    }
++    Entry entry{std::move(context), offset, {}};
++    const uint8_t *source = static_cast<const uint8_t *>(data);
++    entry.bytes.assign(source, source + size);
++    entries_.push_back(std::move(entry));
++    return true;
++  }
++
++  bool retryable() const
++  {
++    std::lock_guard lock(mutex_);
++    return retryable_;
++  }
++
++  size_t allocation_size() const
++  {
++    std::lock_guard lock(mutex_);
++    return allocation_size_;
++  }
++
++  size_t size() const
++  {
++    std::lock_guard lock(mutex_);
++    return entries_.size();
++  }
++
++  template<typename ReplayFn>
++  size_t replay(const size_t allocation_size, ReplayFn &&replay)
++  {
++    std::deque<Entry> entries;
++    {
++      std::lock_guard lock(mutex_);
++      if (!retryable_ || allocation_size_ != allocation_size) {
++        return 0;
++      }
++      retryable_ = false;
++      entries.swap(entries_);
++    }
++
++    size_t replayed = 0;
++    for (size_t index = 0; index < entries.size(); index++) {
++      Entry &entry = entries[index];
++      if (replay(entry.context, entry.offset, entry.bytes.data(), entry.bytes.size()))
++      {
++        replayed++;
++        continue;
++      }
++
++      /* Preserve the failed payload and every later payload ahead of any update retained by a
++       * concurrent frontend call while this replay was outside the lock. */
++      std::lock_guard lock(mutex_);
++      for (size_t pending = entries.size(); pending > index; pending--) {
++        entries_.push_front(std::move(entries[pending - 1]));
++      }
++      retryable_ = true;
++      break;
++    }
++    return replayed;
++  }
++
++ private:
++  mutable std::mutex mutex_;
++  std::deque<Entry> entries_;
++  size_t allocation_size_ = 0;
++  bool retryable_ = false;
++};
++
+ /** Copy one complete caller-owned payload into a mapped-at-creation buffer. Mapping can fail
+  * even when WebGPU returns a non-null error buffer; reject that state before touching memory or
+  * unmapping. Templated so the device-free contract can exercise the exact state transition. */
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 0999dad..dc2efff 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -111,6 +111,15 @@ class Buffer {
+            (transient_scope_status_ &&
+             transient_scope_status_->load(std::memory_order_acquire) == 0);
+   }
++  bool creation_pending_or_retryable() const
++  {
++    return creation_pending() || pending_updates_->retryable();
++  }
++  size_t update_capacity() const
++  {
++    const Allocation allocation = allocation_get();
++    return allocation != nullptr ? allocation.size : pending_updates_->allocation_size();
++  }
+ 
+  private:
+   struct Allocation {
+@@ -130,6 +139,19 @@ class Buffer {
+     }
+   };
+ 
++  struct PendingUpdateContext {
++    wgpu::Instance instance;
++    wgpu::Device device;
++    wgpu::Queue queue;
++    OrderedQueueScheduler scheduler;
++  };
++
++  static bool update_allocation(PendingUpdateContext context,
++                                const Allocation &allocation,
++                                size_t offset,
++                                const void *data,
++                                size_t size);
++
+   static constexpr uint8_t kAllocationKey = 0;
+   Allocation allocation_get() const
+   {
+@@ -146,6 +168,8 @@ class Buffer {
+   }
+ 
+   ScopedHandleCache<uint8_t, Allocation> allocation_cache_;
++  std::shared_ptr<PendingBufferPayloadQueue<PendingUpdateContext>> pending_updates_ =
++      std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
+   Allocation transient_allocation_;
+   std::shared_ptr<std::atomic<int8_t>> transient_scope_status_;
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 679b2f0..432e48a 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -30,9 +30,11 @@ Buffer::~Buffer()
+ 
+ Buffer::Buffer(Buffer &&other) noexcept
+     : allocation_cache_(std::move(other.allocation_cache_)),
++      pending_updates_(std::move(other.pending_updates_)),
+       transient_allocation_(std::move(other.transient_allocation_)),
+       transient_scope_status_(std::move(other.transient_scope_status_))
+ {
++  other.pending_updates_ = std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
+   other.transient_allocation_ = {};
+ }
+ 
+@@ -41,8 +43,10 @@ Buffer &Buffer::operator=(Buffer &&other) noexcept
+   if (this != &other) {
+     readback::forget_source(readback::SourceKind::Buffer, this);
+     allocation_cache_ = std::move(other.allocation_cache_);
++    pending_updates_ = std::move(other.pending_updates_);
+     transient_allocation_ = std::move(other.transient_allocation_);
+     transient_scope_status_ = std::move(other.transient_scope_status_);
++    other.pending_updates_ = std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
+     other.transient_allocation_ = {};
+   }
+   return *this;
+@@ -163,6 +167,9 @@ bool Buffer::create_scoped(const wgpu::Instance &instance,
+   {
+     return false;
+   }
++  if (!pending_updates_->begin(allocated_size)) {
++    return false;
++  }
+ 
+   const Allocation allocation = allocation_cache_.get_or_create(
+       instance, device, kAllocationKey, label ? label : "buffer creation", [&]() {
+@@ -192,19 +199,29 @@ bool Buffer::create_scoped(const wgpu::Instance &instance,
+         candidate.kind = kind;
+         candidate.readable = readable;
+         return candidate;
++      },
++      [pending_updates = pending_updates_](const Allocation accepted) {
++        if (accepted == nullptr) {
++          return;
++        }
++        pending_updates->replay(
++            accepted.size,
++            [accepted](const PendingUpdateContext &context,
++                       const size_t offset,
++                       const void *data,
++                       const size_t size) {
++              return Buffer::update_allocation(context, accepted, offset, data, size);
++            });
+       });
+   return allocation != nullptr;
+ }
+ 
+-bool Buffer::update_sub(const wgpu::Instance &instance,
+-                        const wgpu::Device &device,
+-                        const wgpu::Queue &queue,
+-                        OrderedQueueScheduler &scheduler,
+-                        size_t offset,
+-                        const void *data,
+-                        size_t size)
++bool Buffer::update_allocation(PendingUpdateContext context,
++                               const Allocation &allocation,
++                               const size_t offset,
++                               const void *data,
++                               const size_t size)
+ {
+-  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
+   if (allocation == nullptr || data == nullptr) {
+     return false;
+   }
+@@ -217,10 +234,10 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+ 
+   if (size <= kWriteBufferStagingThreshold) {
+     /* Direct path — analog of Blender's inline vkCmdUpdateBuffer (<=64 KiB). */
+-    queue_write_buffer_scoped(instance,
+-                              device,
+-                              queue,
+-                              scheduler,
++    queue_write_buffer_scoped(context.instance,
++                              context.device,
++                              context.queue,
++                              context.scheduler,
+                               allocation.handle,
+                               offset,
+                               data,
+@@ -236,7 +253,7 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+   sd.size = size;
+   sd.usage = wgpu::BufferUsage::CopySrc;
+   sd.mappedAtCreation = true;
+-  wgpu::Buffer staging = device.CreateBuffer(&sd);
++  wgpu::Buffer staging = context.device.CreateBuffer(&sd);
+   if (staging == nullptr) {
+     return false;
+   }
+@@ -247,10 +264,10 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+   std::memcpy(mapped, data, size);
+   staging.Unmap();
+   const auto accepted = std::make_shared<std::atomic<bool>>(true);
+-  command_encode_submit_scoped(instance,
+-                               device,
+-                               queue,
+-                               scheduler,
++  command_encode_submit_scoped(context.instance,
++                               context.device,
++                               context.queue,
++                               context.scheduler,
+                                "staged buffer sub-update",
+                                [&](auto &encoder) {
+                                  encoder.CopyBufferToBuffer(
+@@ -267,6 +284,28 @@ bool Buffer::update_sub(const wgpu::Instance &instance,
+   return true;
+ }
+ 
++bool Buffer::update_sub(const wgpu::Instance &instance,
++                        const wgpu::Device &device,
++                        const wgpu::Queue &queue,
++                        OrderedQueueScheduler &scheduler,
++                        size_t offset,
++                        const void *data,
++                        size_t size)
++{
++  if (data == nullptr || (offset % kCopyAlignment) != 0 ||
++      (size % kCopyAlignment) != 0)
++  {
++    return false;
++  }
++
++  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  PendingUpdateContext context{instance, device, queue, scheduler};
++  if (allocation == nullptr) {
++    return pending_updates_->retain(std::move(context), offset, data, size);
++  }
++  return update_allocation(context, allocation, offset, data, size);
++}
++
+ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                   const wgpu::Device &device,
+                                   const wgpu::Queue &queue,
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+index 9a9a2fd..647b882 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -154,13 +154,20 @@ WGPUStorageBuffer::~WGPUStorageBuffer()
+ 
+ void WGPUStorageBuffer::update(const void *data)
+ {
+-  if (data == nullptr || !ensure()) {
++  if (data == nullptr) {
+     return;
+   }
+   WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  const bool allocation_ready = ensure();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
++    return;
++  }
+   webgpu::BufferUpdatePayload payload;
+   if (!webgpu::buffer_update_payload(
+-          data, usage_size_in_bytes_, buffer_.size(), payload))
++          data, usage_size_in_bytes_, buffer_.update_capacity(), payload))
+   {
+     return;
+   }
+@@ -176,10 +183,14 @@ void WGPUStorageBuffer::update(const void *data)
+ 
+ void WGPUStorageBuffer::clear(uint32_t clear_value)
+ {
+-  if (!ensure()) {
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  const bool allocation_ready = ensure();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+-  WGPUContext *ctx = active_context();
+   /* WebGPU has no fill-with-value primitive; upload a host vector of the 32-bit
+    * pattern. size_in_bytes_ is a multiple of 4 for storage buffers. */
+   const size_t words = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment) / sizeof(uint32_t);
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+index 5cd4a24..b63c8c1 100644
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -71,30 +71,45 @@ bool WGPUUniformBuffer::ensure()
+ 
+ bool WGPUUniformBuffer::ensure_updated()
+ {
+-  if (!ensure()) {
+-    return false;
+-  }
+   if (data_ != nullptr) {
+     WGPUContext *ctx = active_context();
++    if (ctx == nullptr) {
++      return false;
++    }
++    const bool allocation_ready = ensure();
++    if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
++      return false;
++    }
+     const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+-    buffer_.update_sub(ctx->instance_get(),
+-                       ctx->device_get(),
+-                       ctx->queue_get(),
+-                       ctx->queue_scheduler_get(),
+-                       0,
+-                       data_,
+-                       n);
++    if (!buffer_.update_sub(ctx->instance_get(),
++                            ctx->device_get(),
++                            ctx->queue_get(),
++                            ctx->queue_scheduler_get(),
++                            0,
++                            data_,
++                            n))
++    {
++      return false;
++    }
+     MEM_SAFE_DELETE_VOID(data_);
++    return allocation_ready;
+   }
+-  return true;
++  return ensure();
+ }
+ 
+ void WGPUUniformBuffer::update(const void *data)
+ {
+-  if (data == nullptr || !ensure()) {
++  if (data == nullptr) {
+     return;
+   }
+   WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  const bool allocation_ready = ensure();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
++    return;
++  }
+   /* UBO payloads are std140-padded, so size is a multiple of 16; round to 4 for
+    * the WebGPU copy granularity to be safe. */
+   const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+@@ -109,10 +124,14 @@ void WGPUUniformBuffer::update(const void *data)
+ 
+ void WGPUUniformBuffer::clear_to_zero()
+ {
+-  if (!ensure()) {
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  const bool allocation_ready = ensure();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+-  WGPUContext *ctx = active_context();
+   const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+   std::vector<uint8_t> zeros(n, 0);
+   buffer_.update_sub(ctx->instance_get(),

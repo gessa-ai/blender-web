@@ -1,0 +1,54 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index dfdaec6..3241440 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -668,31 +668,35 @@ void WGPUContext::sync_backbuffer()
+     return;
+   }
+   WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context_);
+-  wgpu::Surface surface = wgpu_ghost->getSurface();
+-  if (surface == nullptr) {
+-    return;
+-  }
+-  wgpu::SurfaceTexture st = {};
+-  surface.GetCurrentTexture(&st);
+-  if (st.texture == nullptr) {
+-    return;
++  /* M4.T21 present seam: adopt the GHOST context's PERSISTENT offscreen back-buffer as
++   * back_left/front_left, NOT the surface's per-frame GetCurrentTexture(). The transient
++   * surface texture is destroyed by the browser on event-loop yield, so any draw/composite
++   * command buffer that outlives the rAF tick submitted a destroyed texture ("Destroyed
++   * texture … WebgpuSwapChainTexture used in a submit", 725x/boot). The offscreen has NO
++   * per-frame lifetime, so that whole family is eliminated by construction; GHOST blits it
++   * onto the real surface as the last op of each frame (presentBackbuffer in
++   * swapBufferRelease). */
++  wgpu::Texture backbuffer = wgpu_ghost->getBackbufferTexture();
++  if (backbuffer == nullptr) {
++    return; /* surface not configured yet (canvas unresolved / pre-first-configure) */
+   }
+-  const int w = int(st.texture.GetWidth());
+-  const int h = int(st.texture.GetHeight());
++  const int w = int(backbuffer.GetWidth());
++  const int h = int(backbuffer.GetHeight());
+   const wgpu::TextureFormat fmt = wgpu_ghost->getSurfaceFormat();
+ 
+   const bool first = (surface_texture_ == nullptr);
+   webgpu::WGPUTexture *back;
+   if (first) {
+-    back = new webgpu::WGPUTexture("back_left_surface");
++    back = new webgpu::WGPUTexture("back_left_backbuffer");
+     surface_texture_ = back;
+   }
+   else {
+     back = static_cast<webgpu::WGPUTexture *>(surface_texture_);
+   }
+-  /* Re-adopt the surface's per-frame current texture (WebGPU hands back a fresh
+-   * texture after each present); attach once, then just refresh the handle. */
+-  back->adopt_external(st.texture, fmt, w, h);
++  /* Re-adopt each activate: the offscreen handle only changes on resize (GHOST recreates
++   * it at the new extent), and re-adopting refreshes the wrapped texture + size in place
++   * while the attachment keeps pointing at this same WGPUTexture wrapper. */
++  back->adopt_external(backbuffer, fmt, w, h);
+ 
+   if (first) {
+     if (back_left != nullptr) {

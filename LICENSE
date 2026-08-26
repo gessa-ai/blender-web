@@ -1,0 +1,26 @@
+blender-web — licensing summary
+===============================
+
+The blender-web project, as an aggregate, is licensed under the
+GNU General Public License, version 3 or later (GPL-3.0-or-later).
+
+Individual files are licensed under the terms named in their own
+SPDX-License-Identifier header. Files derived from Blender carry
+GPL-2.0-or-later (or their true upstream license — for example Apache-2.0
+for Cycles-derived code); new web-port files follow the same terms.
+
+Full license texts live in the LICENSES/ directory:
+  - LICENSES/GPL-2.0-or-later.txt
+  - LICENSES/GPL-3.0-or-later.txt
+  - LICENSES/CC0-1.0.txt      (project data: ledger, notes, reports)
+
+Provenance for every derived module is recorded in PROVENANCE.md.
+Third-party runtime dependencies and their licenses are listed in
+THIRD-PARTY.md. Attribution and trademark notices are in NOTICE.
+
+The preferred form for making modifications is this source repository
+(GPLv3 section 6(d)); the application footer links "Source code (GPL)" to it.
+
+This project is source-derived from Blender (https://www.blender.org) and is
+not affiliated with, endorsed by, or sponsored by the Blender Foundation.
+Blender(R) is a registered trademark of the Blender Foundation.

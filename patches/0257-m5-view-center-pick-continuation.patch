@@ -1,0 +1,304 @@
+# SPDX-FileCopyrightText: 2023 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Ported for the web from source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc @ fbe6228777e7
+#
+# M5: retain the exact center-view depth sample and producing view state across
+# browser ticks, preserving native immediate and no-hit simple-pan behavior.
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
+index eb1e673d02f..9a65b03d733 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
+@@ -1,14 +1,19 @@
+ /* SPDX-FileCopyrightText: 2023 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
+  *
+  * SPDX-License-Identifier: GPL-2.0-or-later */
+ 
+ /** \file
+  * \ingroup spview3d
++ *
++ * Ported for the web from source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc @ fbe6228777e7.
+  */
+ 
++#include "BLI_listbase.h"
+ #include "BLI_math_vector.h"
+ 
+ #include "BKE_context.hh"
++#include "BKE_report.hh"
+ 
+ #include "WM_api.hh"
+ 
+@@ -22,42 +27,240 @@ namespace blender {
+ /** \name View Center Pick Operator
+  * \{ */
+ 
++struct ViewCenterPickDepthRead {
++  ViewCenterPickDepthRead *next = nullptr;
++  ViewCenterPickDepthRead *prev = nullptr;
++  ViewportDepthPickSession session;
++  View3D *view3d = nullptr;
++  RegionView3D *region_view = nullptr;
++  ARegion *region = nullptr;
++  wmTimer *timer = nullptr;
++  wmWindow *timer_window = nullptr;
++  int mval[2] = {0, 0};
++  int smooth_viewtx = 0;
++  float ofs[3] = {0.0f, 0.0f, 0.0f};
++  float viewquat[4] = {0.0f, 0.0f, 0.0f, 0.0f};
++  float dist = 0.0f;
++  float camdx = 0.0f;
++  float camdy = 0.0f;
++  float camzoom = 0.0f;
++  eRegionView3D_Persp persp = RV3D_ORTHO;
++  eRegionView3D_View view = RV3D_VIEW_USER;
++  eRegionView3D_ViewAxisRoll view_axis_roll = RV3D_VIEW_AXIS_ROLL_0;
++  int tick_count = 0;
++  bool listed = false;
++  bool superseded = false;
++};
++
++static ListBase viewcenter_pick_depth_reads = {nullptr, nullptr};
++
++static bool viewcenter_pick_depth_read_view_matches(const ViewCenterPickDepthRead *read)
++{
++  return read->region_view != nullptr &&
++         equals_v3v3(read->region_view->ofs, read->ofs) &&
++         equals_v4v4(read->region_view->viewquat, read->viewquat) &&
++         read->region_view->dist == read->dist && read->region_view->camdx == read->camdx &&
++         read->region_view->camdy == read->camdy &&
++         read->region_view->camzoom == read->camzoom &&
++         read->region_view->persp == read->persp && read->region_view->view == read->view &&
++         read->region_view->view_axis_roll == read->view_axis_roll &&
++         read->region_view->sms == nullptr && read->region_view->smooth_timer == nullptr;
++}
++
++static bool viewcenter_pick_depth_read_context_matches(bContext *C,
++                                                       const ViewCenterPickDepthRead *read)
++{
++  return CTX_wm_view3d(C) == read->view3d &&
++         CTX_wm_region_view3d(C) == read->region_view && CTX_wm_region(C) == read->region &&
++         CTX_wm_window(C) == read->timer_window && viewcenter_pick_depth_read_view_matches(read);
++}
++
++static void viewcenter_pick_depth_read_register(ViewCenterPickDepthRead *read)
++{
++  for (ViewCenterPickDepthRead *active = static_cast<ViewCenterPickDepthRead *>(
++           viewcenter_pick_depth_reads.first);
++       active != nullptr;
++       active = active->next)
++  {
++    if (active->timer_window == read->timer_window && active->region == read->region) {
++      active->superseded = true;
++    }
++  }
++  BLI_addtail(&viewcenter_pick_depth_reads, read);
++  read->listed = true;
++}
++
++static void viewcenter_pick_depth_read_free(bContext *C, wmOperator *op)
++{
++  ViewCenterPickDepthRead *read = static_cast<ViewCenterPickDepthRead *>(op->customdata);
++  if (read == nullptr) {
++    return;
++  }
++  if (read->listed) {
++    BLI_remlink(&viewcenter_pick_depth_reads, read);
++    read->listed = false;
++  }
++  if (read->timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), read->timer_window, read->timer);
++    read->timer = nullptr;
++  }
++  MEM_delete(read);
++  op->customdata = nullptr;
++}
++
++static void viewcenter_pick_smooth_apply(bContext *C,
++                                         wmOperator *op,
++                                         const ViewCenterPickDepthRead *read,
++                                         const float *depth_location)
++{
++  float ofs_new[3];
++  if (depth_location != nullptr) {
++    copy_v3_v3(ofs_new, depth_location);
++  }
++  else {
++    /* Preserve the stock simple-pan fallback when the exact sample contains no surface. */
++    negate_v3_v3(ofs_new, read->region_view->ofs);
++    ED_view3d_win_to_3d_int(read->view3d, read->region, ofs_new, read->mval, ofs_new);
++  }
++  negate_v3(ofs_new);
++
++  V3D_SmoothParams sview = {nullptr};
++  sview.ofs = ofs_new;
++  sview.undo_str = op->type->name;
++  ED_view3d_smooth_view(
++      C, read->view3d, read->region, read->smooth_viewtx, &sview);
++}
++
++static wmOperatorStatus viewcenter_pick_depth_read_apply(bContext *C, wmOperator *op)
++{
++  ViewCenterPickDepthRead *read = static_cast<ViewCenterPickDepthRead *>(op->customdata);
++  if (!viewcenter_pick_depth_read_context_matches(C, read)) {
++    BKE_report(op->reports, RPT_ERROR, "View changed while waiting for center depth readback");
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  float depth_location[3];
++  const bool has_depth = read->session.sample(read->region, depth_location);
++  if (!has_depth && read->session.state() == ViewportDepthPickSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting to center view");
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  viewcenter_pick_smooth_apply(C, op, read, has_depth ? depth_location : nullptr);
++  viewcenter_pick_depth_read_free(C, op);
++  return OPERATOR_FINISHED;
++}
++
++static wmOperatorStatus viewcenter_pick_modal(bContext *C,
++                                              wmOperator *op,
++                                              const wmEvent *event)
++{
++  ViewCenterPickDepthRead *read = static_cast<ViewCenterPickDepthRead *>(op->customdata);
++  if (read == nullptr) {
++    return OPERATOR_CANCELLED;
++  }
++  if (read->superseded) {
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (!viewcenter_pick_depth_read_context_matches(C, read)) {
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != read->timer) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++
++  /* Roughly 2.4 seconds at 10 ms. A lost callback must not move the view late. */
++  constexpr int max_tick_count = 240;
++  if (++read->tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for center depth readback");
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthPickSession::ReadbackState state = read->session.state();
++  if (state == ViewportDepthPickSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++  }
++  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Center depth readback failed");
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  return viewcenter_pick_depth_read_apply(C, op);
++}
++
++static void viewcenter_pick_cancel(bContext *C, wmOperator *op)
++{
++  viewcenter_pick_depth_read_free(C, op);
++}
++
+ static wmOperatorStatus viewcenter_pick_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+ {
+   View3D *v3d = CTX_wm_view3d(C);
+   RegionView3D *rv3d = CTX_wm_region_view3d(C);
+   ARegion *region = CTX_wm_region(C);
+ 
+-  if (rv3d) {
+-    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+-    float ofs_new[3];
+-    const int smooth_viewtx = WM_operator_smooth_viewtx_get(op);
+-
+-    ED_view3d_smooth_view_force_finish(C, v3d, region);
++  if (rv3d == nullptr) {
++    return OPERATOR_FINISHED;
++  }
+ 
+-    view3d_operator_needs_gpu(C);
++  ED_view3d_smooth_view_force_finish(C, v3d, region);
++  view3d_operator_needs_gpu(C);
+ 
+-    /* Ensure the depth buffer is updated for #ED_view3d_autodist. */
+-    ED_view3d_depth_override(depsgraph, region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, true, nullptr);
++  /* Ensure the depth buffer is updated before retaining its owned result. */
++  ED_view3d_depth_override(CTX_data_ensure_evaluated_depsgraph(C),
++                           region,
++                           v3d,
++                           nullptr,
++                           V3D_DEPTH_NO_GPENCIL,
++                           true,
++                           nullptr);
+ 
+-    if (ED_view3d_autodist(region, v3d, event->mval, ofs_new, nullptr)) {
+-      /* pass */
+-    }
+-    else {
+-      /* fall back to simple pan */
+-      negate_v3_v3(ofs_new, rv3d->ofs);
+-      ED_view3d_win_to_3d_int(v3d, region, ofs_new, event->mval, ofs_new);
+-    }
+-    negate_v3(ofs_new);
++  ViewCenterPickDepthRead *read = MEM_new<ViewCenterPickDepthRead>(__func__);
++  read->view3d = v3d;
++  read->region_view = rv3d;
++  read->region = region;
++  read->timer_window = CTX_wm_window(C);
++  copy_v2_v2_int(read->mval, event->mval);
++  read->smooth_viewtx = WM_operator_smooth_viewtx_get(op);
++  copy_v3_v3(read->ofs, rv3d->ofs);
++  copy_v4_v4(read->viewquat, rv3d->viewquat);
++  read->dist = rv3d->dist;
++  read->camdx = rv3d->camdx;
++  read->camdy = rv3d->camdy;
++  read->camzoom = rv3d->camzoom;
++  read->persp = rv3d->persp;
++  read->view = rv3d->view;
++  read->view_axis_roll = rv3d->view_axis_roll;
++  op->customdata = read;
+ 
+-    V3D_SmoothParams sview = {nullptr};
+-    sview.ofs = ofs_new;
+-    sview.undo_str = op->type->name;
++  if (!read->session.init(region, read->mval)) {
++    viewcenter_pick_smooth_apply(C, op, read, nullptr);
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_FINISHED;
++  }
+ 
+-    ED_view3d_smooth_view(C, v3d, region, smooth_viewtx, &sview);
++  viewcenter_pick_depth_read_register(read);
++  const ViewportDepthPickSession::ReadbackState state = read->session.state();
++  if (state == ViewportDepthPickSession::ReadbackState::Ready) {
++    return viewcenter_pick_depth_read_apply(C, op);
++  }
++  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
++    viewcenter_pick_depth_read_free(C, op);
++    return OPERATOR_CANCELLED;
+   }
+ 
+-  return OPERATOR_FINISHED;
++  read->timer = WM_event_timer_add(CTX_wm_manager(C), read->timer_window, TIMER, 0.01f);
++  WM_event_add_modal_handler(C, op);
++  return OPERATOR_RUNNING_MODAL;
+ }
+ 
+ void VIEW3D_OT_view_center_pick(wmOperatorType *ot)
+@@ -69,6 +272,8 @@ void VIEW3D_OT_view_center_pick(wmOperatorType *ot)
+ 
+   /* API callbacks. */
+   ot->invoke = viewcenter_pick_invoke;
++  ot->modal = viewcenter_pick_modal;
++  ot->cancel = viewcenter_pick_cancel;
+   ot->poll = view3d_location_poll;
+ 
+   /* flags */

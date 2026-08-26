@@ -1,0 +1,191 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index c8cbae055f875ac2f0932aede7c1a5e224944432..6a90baf54c1ce4e8d0acd8948c3c1f2367a59b39 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -393,6 +393,11 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   if (fb->is_multi_viewport()) {
+     wgpu::Device device = ctx->device_get();
+     const int layers = fb->attachment_layer_count();
++    const int2 framebuffer_size = fb->size_get();
++    wgpu::Limits limits = {};
++    if (!device.GetLimits(&limits)) {
++      return;
++    }
+-
++
+     /* Per-pass (layer, viewport) UBO: std140 { int; int; } padded to 16 bytes. Reused
+      * across passes — a queue WriteBuffer is ordered before the Submit that follows it,
+@@ -410,8 +415,17 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+       for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
+         int rect[4];
+         fb->get_viewport(vp, rect);
+-        if (rect[2] <= 0 || rect[3] <= 0) {
+-          continue; /* unused viewport slot */
++        webgpu::ViewportScissorPlan viewport;
++        if (!webgpu::viewport_scissor_plan(rect[0],
++                                            rect[1],
++                                            rect[2],
++                                            rect[3],
++                                            framebuffer_size.x,
++                                            framebuffer_size.y,
++                                            limits.maxTextureDimension2D,
++                                            viewport))
++        {
++          continue; /* unused, fully clipped, or device-invalid viewport slot */
+         }
+         const int32_t mv_vals[2] = {layer, vp};
+         ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
+@@ -423,10 +437,16 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         }
+         mv_pass.SetPipeline(pipeline);
+         ctx->apply_stencil_reference(mv_pass);
+-        mv_pass.SetViewport(
+-            float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
+-        mv_pass.SetScissorRect(
+-            uint32_t(rect[0]), uint32_t(rect[1]), uint32_t(rect[2]), uint32_t(rect[3]));
++        mv_pass.SetViewport(float(viewport.viewport_x),
++                            float(viewport.viewport_y),
++                            float(viewport.viewport_width),
++                            float(viewport.viewport_height),
++                            0.0f,
++                            1.0f);
++        mv_pass.SetScissorRect(viewport.scissor_x,
++                               viewport.scissor_y,
++                               viewport.scissor_width,
++                               viewport.scissor_height);
+         bind_vertex_buffers(mv_pass);
+-
++
+         std::vector<wgpu::BindGroupEntry> entries;
+@@ -732,6 +752,11 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+    * routing needed to rasterize the shadow pages. */
+   if (fb->is_multi_viewport()) {
+     const int layers = fb->attachment_layer_count();
++    const int2 framebuffer_size = fb->size_get();
++    wgpu::Limits limits = {};
++    if (!device.GetLimits(&limits)) {
++      return;
++    }
+-
++
+     wgpu::BufferDescriptor bd = {};
+     bd.size = 16;
+@@ -746,8 +771,17 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
+         int rect[4];
+         fb->get_viewport(vp, rect);
+-        if (rect[2] <= 0 || rect[3] <= 0) {
++        webgpu::ViewportScissorPlan viewport;
++        if (!webgpu::viewport_scissor_plan(rect[0],
++                                            rect[1],
++                                            rect[2],
++                                            rect[3],
++                                            framebuffer_size.x,
++                                            framebuffer_size.y,
++                                            limits.maxTextureDimension2D,
++                                            viewport))
++        {
+           continue;
+         }
+-
++
+         const int32_t mv_vals[2] = {layer, vp};
+@@ -760,10 +794,16 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         }
+         mv_pass.SetPipeline(pipeline);
+         ctx->apply_stencil_reference(mv_pass);
+-        mv_pass.SetViewport(
+-            float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
+-        mv_pass.SetScissorRect(
+-            uint32_t(rect[0]), uint32_t(rect[1]), uint32_t(rect[2]), uint32_t(rect[3]));
++        mv_pass.SetViewport(float(viewport.viewport_x),
++                            float(viewport.viewport_y),
++                            float(viewport.viewport_width),
++                            float(viewport.viewport_height),
++                            0.0f,
++                            1.0f);
++        mv_pass.SetScissorRect(viewport.scissor_x,
++                               viewport.scissor_y,
++                               viewport.scissor_width,
++                               viewport.scissor_height);
+         bind_geometry(mv_pass);
+-
++
+         std::vector<wgpu::BindGroupEntry> entries;
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 59dbba1ecd6995b8dd34df5561f75bf6af520f64..59f3c82ec83f31da444e09a81e9af18c9cbda74f 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -126,6 +126,71 @@ inline bool direct_draw_plan(int vertex_first,
+   return true;
+ }
+-
++
++/** One signed viewport plus its WebGPU-valid unsigned framebuffer intersection. */
++struct ViewportScissorPlan {
++  int viewport_x = 0;
++  int viewport_y = 0;
++  uint32_t viewport_width = 0;
++  uint32_t viewport_height = 0;
++  uint32_t scissor_x = 0;
++  uint32_t scissor_y = 0;
++  uint32_t scissor_width = 0;
++  uint32_t scissor_height = 0;
++};
++
++/** Preserve Blender's signed viewport transform while intersecting the scissor with the
++ * framebuffer. WebGPU permits a negative viewport origin but its scissor is unsigned and must
++ * be contained in the render area. Fully clipped or device-invalid rectangles are rejected
++ * before a render pass is allocated. Failure leaves `result` unchanged. */
++inline bool viewport_scissor_plan(int x,
++                                  int y,
++                                  int width,
++                                  int height,
++                                  int target_width,
++                                  int target_height,
++                                  uint32_t max_viewport_dimension,
++                                  ViewportScissorPlan &result)
++{
++  if (width <= 0 || height <= 0 || target_width <= 0 || target_height <= 0 ||
++      max_viewport_dimension == 0 || uint64_t(target_width) > max_viewport_dimension ||
++      uint64_t(target_height) > max_viewport_dimension ||
++      uint64_t(width) > max_viewport_dimension || uint64_t(height) > max_viewport_dimension)
++  {
++    return false;
++  }
++
++  const int64_t left = int64_t(x);
++  const int64_t top = int64_t(y);
++  const int64_t right = left + int64_t(width);
++  const int64_t bottom = top + int64_t(height);
++  const int64_t max_viewport_bound = int64_t(max_viewport_dimension) * 2;
++  if (left < -max_viewport_bound || top < -max_viewport_bound ||
++      right > max_viewport_bound - 1 || bottom > max_viewport_bound - 1)
++  {
++    return false;
++  }
++
++  const int64_t clipped_left = left > 0 ? left : 0;
++  const int64_t clipped_top = top > 0 ? top : 0;
++  const int64_t clipped_right = right < target_width ? right : target_width;
++  const int64_t clipped_bottom = bottom < target_height ? bottom : target_height;
++  if (clipped_left >= clipped_right || clipped_top >= clipped_bottom) {
++    return false;
++  }
++
++  ViewportScissorPlan candidate;
++  candidate.viewport_x = x;
++  candidate.viewport_y = y;
++  candidate.viewport_width = uint32_t(width);
++  candidate.viewport_height = uint32_t(height);
++  candidate.scissor_x = uint32_t(clipped_left);
++  candidate.scissor_y = uint32_t(clipped_top);
++  candidate.scissor_width = uint32_t(clipped_right - clipped_left);
++  candidate.scissor_height = uint32_t(clipped_bottom - clipped_top);
++  result = candidate;
++  return true;
++}
++
+ /** Validated unsigned workgroup counts for one direct WebGPU compute dispatch. */
+ struct ComputeDispatchPlan {
+   uint32_t groups_x = 0;

@@ -1,0 +1,14 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -190,7 +190,9 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+     return out;
+   }
+   size_t copy;
+-  if (!checked_align_up(size, kCopyAlignment, copy) || !range_fits(offset, copy, size_)) {
++  if (!checked_align_up(size, kCopyAlignment, copy) ||
++      !buffer_copy_range_valid(offset, 0, copy, size_, copy))
++  {
+     return out;
+   }
+ #ifdef __EMSCRIPTEN__

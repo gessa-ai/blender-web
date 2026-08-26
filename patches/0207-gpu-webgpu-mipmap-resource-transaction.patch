@@ -1,0 +1,53 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -2557,5 +2557,8 @@ void WGPUTexture::generate_mipmap()
+   module_desc.nextInChain = &source;
+   wgpu::Device device = ctx->device_get();
+   wgpu::ShaderModule module = device.CreateShaderModule(&module_desc);
++  if (module == nullptr) {
++    return;
++  }
+
+   wgpu::ColorTargetState target = {};
+@@ -2580,3 +2583,6 @@ void WGPUTexture::generate_mipmap()
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
+   const uint32_t layers = ELEM(type_,
+                                GPU_TEXTURE_1D_ARRAY,
+@@ -2590,6 +2596,6 @@ void WGPUTexture::generate_mipmap()
+       wgpu::TextureView src_view = sampled_attachment_view(int(mip - 1), int(layer));
+       wgpu::TextureView dst_view = attachment_view(int(mip), int(layer));
+       if (src_view == nullptr || dst_view == nullptr) {
+-        continue;
++        return;
+       }
+       wgpu::BindGroupEntry entry = {};
+@@ -2600,5 +2606,8 @@ void WGPUTexture::generate_mipmap()
+       bind_desc.entryCount = 1;
+       bind_desc.entries = &entry;
+       wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_desc);
++      if (bind_group == nullptr) {
++        return;
++      }
+
+       wgpu::RenderPassColorAttachment color = {};
+@@ -2609,4 +2618,7 @@ void WGPUTexture::generate_mipmap()
+       pass_desc.colorAttachmentCount = 1;
+       pass_desc.colorAttachments = &color;
+       wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&pass_desc);
++      if (pass == nullptr) {
++        return;
++      }
+       pass.SetPipeline(pipeline);
+@@ -2616,5 +2628,8 @@ void WGPUTexture::generate_mipmap()
+     }
+   }
+   wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
+   ctx->queue_get().Submit(1, &cb);
+ }

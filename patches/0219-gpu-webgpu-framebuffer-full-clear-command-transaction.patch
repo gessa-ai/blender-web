@@ -1,0 +1,41 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -740,10 +740,13 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+     if (color_atts.empty() && !has_depth) {
+       return;
+     }
+-    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-    wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+-    pass.End();
+-    wgpu::CommandBuffer cb = enc.Finish();
+-    ctx->queue_get().Submit(1, &cb);
++    if (!webgpu::command_pass_encode_submit_if_valid(
++            device,
++            ctx->queue_get(),
++            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
++            [](auto & /*pass*/) {}))
++    {
++      return;
++    }
+   }
+ }
+@@ -896,10 +899,13 @@ void WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double
+     wgpu::RenderPassDescriptor rp = {};
+     rp.colorAttachmentCount = 1;
+     rp.colorAttachments = &ca;
+-    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-    wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+-    pass.End();
+-    wgpu::CommandBuffer cb = enc.Finish();
+-    ctx->queue_get().Submit(1, &cb);
++    if (!webgpu::command_pass_encode_submit_if_valid(
++            device,
++            ctx->queue_get(),
++            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
++            [](auto & /*pass*/) {}))
++    {
++      return;
++    }
+   }
+ }

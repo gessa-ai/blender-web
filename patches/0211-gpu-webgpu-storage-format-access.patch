@@ -1,0 +1,66 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -48,15 +48,18 @@ namespace wgi = blender::gpu::webgpu;
+ static CLG_LogRef LOG = {"gpu.webgpu"};
+-
++
+ /* A storage texture's shader declaration, bind-group layout, and bound texture must name the same
+- * physical format. EEVEE promotes storage-backed RG11B10Ufloat and RG16Float to RGBA16Float, and
+- * its render-and-storage RG16Unorm GBuffer normal plane to RGBA32Float on this backend. Apply the
+- * same promotions to every WebGPU storage-image interface derived from the shared create-info. */
+-static TextureFormat storage_image_format(TextureFormat format)
++ * physical format. EEVEE promotes storage-backed RG11B10Ufloat to RGBA16Float, read-write
++ * RG16Float to RGBA16Float, and its render-and-storage RG16Unorm GBuffer normal plane to
++ * RGBA32Float on this backend. Write-only RG16Float textures retain their native physical format.
++ * Apply the same access-aware promotions to every interface derived from the create-info. */
++static TextureFormat storage_image_format(TextureFormat format, const Qualifier qualifiers)
+ {
+   if (format == TextureFormat::UFLOAT_11_11_10) {
+     return TextureFormat::SFLOAT_16_16_16_16;
+   }
+-  if (format == TextureFormat::SFLOAT_16_16) {
++  if (format == TextureFormat::SFLOAT_16_16 && bool(qualifiers & Qualifier::read) &&
++      bool(qualifiers & Qualifier::write))
++  {
+     return TextureFormat::SFLOAT_16_16_16_16;
+   }
+   if (format == TextureFormat::UNORM_16_16) {
+@@ -444,7 +447,7 @@ static void print_resource(std::ostream &os,
+-
++
+   os << "layout(binding = " << binding;
+   if (res.bind_type == ShaderCreateInfo::Resource::BindType::IMAGE) {
+-    os << ", " << to_string(storage_image_format(res.image.format));
++    os << ", " << to_string(storage_image_format(res.image.format, res.image.qualifiers));
+   }
+   else if (res.bind_type == ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER) {
+     os << ", std140";
+@@ -771,12 +774,10 @@ class WGPUShaderInterface : public ShaderInterface {
+     }
+-
++
+     set_image_formats_from_info(info);
+-    for (TextureWriteFormat &format : image_formats_) {
+-      if (format == TextureWriteFormat::UFLOAT_11_11_10) {
+-        format = TextureWriteFormat::SFLOAT_16_16_16_16;
+-      }
+-      else if (format == TextureWriteFormat::UNORM_16_16) {
+-        format = TextureWriteFormat::SFLOAT_32_32_32_32;
++    for (const Resource &res : all) {
++      if (res.bind_type == Resource::BindType::IMAGE) {
++        image_formats_[res.slot] = TextureWriteFormat(
++            storage_image_format(res.image.format, res.image.qualifiers));
+       }
+     }
+     sort_inputs();
+@@ -2350,7 +2349,8 @@ static wgi::ResourceDesc resource_to_desc(
+     case ShaderCreateInfo::Resource::BindType::IMAGE:
+       d.kind = wgi::ResourceKind::StorageImage;
+       map_image_type(res.image.type, d.texel, d.dim);
+-      d.image_format = wgi::to_wgpu_format(storage_image_format(res.image.format));
++      d.image_format = wgi::to_wgpu_format(
++          storage_image_format(res.image.format, res.image.qualifiers));
+       {
+         const bool r = bool(res.image.qualifiers & Qualifier::read);
+         const bool w = bool(res.image.qualifiers & Qualifier::write);

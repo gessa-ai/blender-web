@@ -1,0 +1,263 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -21,6 +21,7 @@
+ #include <cstdint>
+ #include <cstring>
+ #include <limits>
++#include <type_traits>
+ #include <utility>
+ #include <vector>
+ 
+@@ -142,8 +143,10 @@ inline bool buffer_create_if_valid(DeviceT &device,
+ }
+ 
+ /** Encode and submit one short-lived command buffer without using a failed encoder or
+- * submitting a failed command-buffer handle. Templated so transient creation failures remain
+- * device-free testable on native and Wasm. */
++ * submitting a failed command-buffer handle. A boolean encoder callback can abort the whole
++ * transaction after earlier commands were recorded; a void callback retains the simple copy
++ * contract. Templated so transient creation failures remain device-free testable on native and
++ * Wasm. */
+ template<typename DeviceT, typename QueueT, typename EncodeFn>
+ inline bool command_encode_submit_if_valid(const DeviceT &device,
+                                            const QueueT &queue,
+@@ -153,7 +156,15 @@ inline bool command_encode_submit_if_valid(const DeviceT &device,
+   if (encoder == nullptr) {
+     return false;
+   }
+-  std::forward<EncodeFn>(encode)(encoder);
++  using EncodeResult = decltype(std::forward<EncodeFn>(encode)(encoder));
++  if constexpr (std::is_same_v<EncodeResult, bool>) {
++    if (!std::forward<EncodeFn>(encode)(encoder)) {
++      return false;
++    }
++  }
++  else {
++    std::forward<EncodeFn>(encode)(encoder);
++  }
+   auto command_buffer = encoder.Finish();
+   if (command_buffer == nullptr) {
+     return false;
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1873,50 +1873,56 @@ void WGPUTexture::clear(const double4 data)
+      * Requires RenderAttachment usage (GPU_TEXTURE_USAGE_ATTACHMENT). Proven live
+      * in sandbox/wgpu-texture-formats/ (Depth32Float clear+readback). */
+     wgpu::Device device = ctx->device_get();
+-    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+     /* GPU_texture_clear is defined for relative mip zero only. For a view this is
+      * its absolute base mip; mip_range_set controls sampling and must not widen a
+      * direct clear. */
+     constexpr int mip = 0;
++    if (!webgpu::command_encode_submit_if_valid(
++            device, ctx->queue_get(), [&](auto &encoder) {
++              const uint32_t layers = ELEM(subresources_.backing_type,
++                                           GPU_TEXTURE_1D_ARRAY,
++                                           GPU_TEXTURE_2D_ARRAY,
++                                           GPU_TEXTURE_CUBE,
++                                           GPU_TEXTURE_CUBE_ARRAY) ?
++                                          subresources_.layer_count :
++                                          1u;
++              for (uint32_t layer = 0; layer < layers; layer++) {
++                wgpu::TextureView view = attachment_view(mip, int(layer));
++                if (view == nullptr) {
++                  return false;
++                }
++                wgpu::RenderPassDepthStencilAttachment dsa = {};
++                dsa.view = view;
++                /* Match public Texture::clear: root, DepthOnly, and StencilOnly wrappers of
++                 * a combined format all clear the backing depth plane over relative mip zero
++                 * and the wrapper's exact layer range. `use_stencil` selects sampler
++                 * interpretation; it does not change public direct-clear semantics.
++                 * Framebuffer clear APIs are the distinct path that may mutate stencil.
++                 * Never inspect data[1], which is not part of this direct contract. */
++                dsa.depthLoadOp = wgpu::LoadOp::Clear;
++                dsa.depthStoreOp = wgpu::StoreOp::Store;
++                dsa.depthClearValue = std::isfinite(float(data[0])) ? float(data[0]) : 1.0f;
++                if (subresources_.backing_format ==
++                        wgpu::TextureFormat::Depth32FloatStencil8 ||
++                    subresources_.backing_format == wgpu::TextureFormat::Depth24PlusStencil8)
++                {
++                  dsa.stencilLoadOp = wgpu::LoadOp::Load;
++                  dsa.stencilStoreOp = wgpu::StoreOp::Store;
++                  dsa.stencilClearValue = 0u;
++                }
++                wgpu::RenderPassDescriptor rp = {};
++                rp.depthStencilAttachment = &dsa;
++                wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
++                if (pass == nullptr) {
++                  return false;
++                }
++                pass.End();
++              }
++              return true;
++            }))
+     {
+-      const uint32_t layers = ELEM(subresources_.backing_type,
+-                                   GPU_TEXTURE_1D_ARRAY,
+-                                   GPU_TEXTURE_2D_ARRAY,
+-                                   GPU_TEXTURE_CUBE,
+-                                   GPU_TEXTURE_CUBE_ARRAY) ?
+-                                  subresources_.layer_count :
+-                                  1u;
+-      for (uint32_t layer = 0; layer < layers; layer++) {
+-        wgpu::TextureView view = attachment_view(mip, int(layer));
+-        if (view == nullptr) {
+-          continue;
+-        }
+-        wgpu::RenderPassDepthStencilAttachment dsa = {};
+-        dsa.view = view;
+-        /* Match public Texture::clear: root, DepthOnly, and StencilOnly wrappers of
+-         * a combined format all clear the backing depth plane over relative mip zero
+-         * and the wrapper's exact layer range. `use_stencil` selects sampler
+-         * interpretation; it does not change public direct-clear semantics.
+-         * Framebuffer clear APIs are the distinct path that may mutate stencil.
+-         * Never inspect data[1], which is not part of this direct contract. */
+-        dsa.depthLoadOp = wgpu::LoadOp::Clear;
+-        dsa.depthStoreOp = wgpu::StoreOp::Store;
+-        dsa.depthClearValue = std::isfinite(float(data[0])) ? float(data[0]) : 1.0f;
+-        if (subresources_.backing_format == wgpu::TextureFormat::Depth32FloatStencil8 ||
+-            subresources_.backing_format == wgpu::TextureFormat::Depth24PlusStencil8)
+-        {
+-          dsa.stencilLoadOp = wgpu::LoadOp::Load;
+-          dsa.stencilStoreOp = wgpu::StoreOp::Store;
+-          dsa.stencilClearValue = 0u;
+-        }
+-        wgpu::RenderPassDescriptor rp = {};
+-        rp.depthStencilAttachment = &dsa;
+-        wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+-        pass.End();
+-      }
++      return;
+     }
+-    wgpu::CommandBuffer cb = enc.Finish();
+-    ctx->queue_get().Submit(1, &cb);
+     return;
+   }
+ 
+@@ -1941,63 +1947,70 @@ void WGPUTexture::clear(const double4 data)
+       subresources_.backing_type != GPU_TEXTURE_1D && logical_components_finite;
+   if (can_render_clear) {
+     wgpu::Device device = ctx->device_get();
+-    wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+     /* Public direct clears affect relative mip zero only. */
+     constexpr int mip = 0;
++    if (!webgpu::command_encode_submit_if_valid(
++            device, ctx->queue_get(), [&](auto &encoder) {
++              ResolvedReadRegion mip_region;
++              if (!resolve_subresource(mip, -1, mip_region)) {
++                return false;
++              }
++              const uint32_t layers = subresources_.backing_type == GPU_TEXTURE_3D ?
++                                          mip_region.depth :
++                                      ELEM(subresources_.backing_type,
++                                           GPU_TEXTURE_1D_ARRAY,
++                                           GPU_TEXTURE_2D_ARRAY,
++                                           GPU_TEXTURE_CUBE,
++                                           GPU_TEXTURE_CUBE_ARRAY) ?
++                                          subresources_.layer_count :
++                                          1u;
++              for (uint32_t layer = 0; layer < layers; layer++) {
++                ResolvedReadRegion clear_region;
++                if (!resolve_subresource(mip, int(layer), clear_region) ||
++                    clear_region.depth != 1)
++                {
++                  return false;
++                }
++                wgpu::TextureViewDescriptor view_desc = {};
++                view_desc.format = subresources_.backing_format;
++                view_desc.dimension =
++                    (subresources_.texture.GetDimension() == wgpu::TextureDimension::e3D) ?
++                        wgpu::TextureViewDimension::e3D :
++                        wgpu::TextureViewDimension::e2D;
++                view_desc.baseMipLevel = clear_region.mip_level;
++                view_desc.mipLevelCount = 1;
++                if (view_desc.dimension != wgpu::TextureViewDimension::e3D) {
++                  view_desc.baseArrayLayer = clear_region.origin_z;
++                  view_desc.arrayLayerCount = 1;
++                }
++                view_desc.aspect = wgpu::TextureAspect::All;
++                wgpu::TextureView view = subresources_.texture.CreateView(&view_desc);
++                if (view == nullptr) {
++                  return false;
++                }
++                wgpu::RenderPassColorAttachment color = {};
++                color.view = view;
++                color.depthSlice = attachment_depth_slice(mip, int(layer));
++                color.loadOp = wgpu::LoadOp::Clear;
++                color.storeOp = wgpu::StoreOp::Store;
++                color.clearValue = {logical > 0 ? data[0] : 0.0,
++                                    logical > 1 ? data[1] : 0.0,
++                                    logical > 2 ? data[2] : 0.0,
++                                    logical > 3 ? data[3] : 1.0};
++                wgpu::RenderPassDescriptor rp = {};
++                rp.colorAttachmentCount = 1;
++                rp.colorAttachments = &color;
++                wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
++                if (pass == nullptr) {
++                  return false;
++                }
++                pass.End();
++              }
++              return true;
++            }))
+     {
+-      ResolvedReadRegion mip_region;
+-      if (!resolve_subresource(mip, -1, mip_region)) {
+-        return;
+-      }
+-      const uint32_t layers = subresources_.backing_type == GPU_TEXTURE_3D ?
+-                                  mip_region.depth :
+-                              ELEM(subresources_.backing_type,
+-                                   GPU_TEXTURE_1D_ARRAY,
+-                                   GPU_TEXTURE_2D_ARRAY,
+-                                   GPU_TEXTURE_CUBE,
+-                                   GPU_TEXTURE_CUBE_ARRAY) ?
+-                                  subresources_.layer_count :
+-                                  1u;
+-      for (uint32_t layer = 0; layer < layers; layer++) {
+-        ResolvedReadRegion clear_region;
+-        if (!resolve_subresource(mip, int(layer), clear_region) || clear_region.depth != 1) {
+-          continue;
+-        }
+-        wgpu::TextureViewDescriptor view_desc = {};
+-        view_desc.format = subresources_.backing_format;
+-        view_desc.dimension =
+-            (subresources_.texture.GetDimension() == wgpu::TextureDimension::e3D) ?
+-                wgpu::TextureViewDimension::e3D :
+-                wgpu::TextureViewDimension::e2D;
+-        view_desc.baseMipLevel = clear_region.mip_level;
+-        view_desc.mipLevelCount = 1;
+-        if (view_desc.dimension != wgpu::TextureViewDimension::e3D) {
+-          view_desc.baseArrayLayer = clear_region.origin_z;
+-          view_desc.arrayLayerCount = 1;
+-        }
+-        view_desc.aspect = wgpu::TextureAspect::All;
+-        wgpu::TextureView view = subresources_.texture.CreateView(&view_desc);
+-        if (view == nullptr) {
+-          continue;
+-        }
+-        wgpu::RenderPassColorAttachment color = {};
+-        color.view = view;
+-        color.depthSlice = attachment_depth_slice(mip, int(layer));
+-        color.loadOp = wgpu::LoadOp::Clear;
+-        color.storeOp = wgpu::StoreOp::Store;
+-        color.clearValue = {logical > 0 ? data[0] : 0.0,
+-                            logical > 1 ? data[1] : 0.0,
+-                            logical > 2 ? data[2] : 0.0,
+-                            logical > 3 ? data[3] : 1.0};
+-        wgpu::RenderPassDescriptor rp = {};
+-        rp.colorAttachmentCount = 1;
+-        rp.colorAttachments = &color;
+-        wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&rp);
+-        pass.End();
+-      }
++      return;
+     }
+-    wgpu::CommandBuffer cb = enc.Finish();
+-    ctx->queue_get().Submit(1, &cb);
+     return;
+   }
+ 

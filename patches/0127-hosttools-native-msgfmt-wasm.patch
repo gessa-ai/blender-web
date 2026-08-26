@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2011 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from build_files/cmake/macros.cmake (msgfmt_simple) and
+# source/blender/blentranslation/msgfmt/CMakeLists.txt @ fbe6228777e7.
+#
+# ADR-002 (notes/adr/ADR-002-host-tool-execution.md): run the text/byte-codegen host
+# tool msgfmt as a NATIVE host binary when cross-compiling to wasm, exactly as datatoc
+# and shader_tool already are (patch 0007). msgfmt compiles a textual .po catalog into a
+# binary GNU .mo; the .mo byte format is target-independent (UTF-8, fixed little-endian
+# magic 0x950412de), so the native tool's output is identical to any target build and
+# the tool never ships. Under Emscripten $<TARGET_FILE:msgfmt> is a .wasm/.js the
+# msgfmt_simple custom command cannot exec at build time (it prepends no node emulator,
+# unlike makesdna/makesrna in patch 0003), so WITH_INTERNATIONAL=ON would break the
+# cross build without this seam. macros.cmake's msgfmt_simple selects
+# ${BLENDER_WEB_HOST_TOOLS_DIR}/msgfmt (set by patches/platform_wasm.cmake) when
+# cross-compiling, else the in-tree $<TARGET_FILE:msgfmt> (native builds unchanged).
+# Pairs with the native msgfmt in build-hosttools/bin-native/ (scripts/build-hosttools.sh).
+diff --git a/build_files/cmake/macros.cmake b/build_files/cmake/macros.cmake
+--- a/build_files/cmake/macros.cmake
++++ b/build_files/cmake/macros.cmake
+@@ -1251,6 +1251,18 @@
+ 
+   get_filename_component(_file_to_path ${_file_to} PATH)
+ 
++  # blender-web / ADR-002: msgfmt runs as a NATIVE host binary when cross-compiling.
++  # Its .mo output is target-independent (UTF-8 GNU catalog, byte-format identical
++  # regardless of host word size), while $<TARGET_FILE:msgfmt> under Emscripten is a
++  # .wasm/.js that this build-time custom command cannot exec as a native tool.
++  # BLENDER_WEB_HOST_TOOLS_DIR is set by patches/platform_wasm.cmake for Emscripten;
++  # unset on native builds, which fall through to the in-tree target unchanged.
++  # See notes/adr/ADR-002-host-tool-execution.md.
++  if(BLENDER_WEB_HOST_TOOLS_DIR)
++    set(_bw_msgfmt "${BLENDER_WEB_HOST_TOOLS_DIR}/msgfmt")
++  else()
++    set(_bw_msgfmt "$<TARGET_FILE:msgfmt>")
++  endif()
+   add_custom_command(
+     OUTPUT  ${_file_to}
+ 
+@@ -1258,9 +1270,9 @@
+     make_directory ${_file_to_path}
+ 
+     COMMAND ${CMAKE_COMMAND} -E
+-    env ${PLATFORM_ENV_BUILD} "$<TARGET_FILE:msgfmt>" ${_file_from} ${_file_to}
++    env ${PLATFORM_ENV_BUILD} "${_bw_msgfmt}" ${_file_from} ${_file_to}
+ 
+-    DEPENDS msgfmt ${_file_from})
++    DEPENDS ${_bw_msgfmt} ${_file_from})
+ 
+   set_source_files_properties(${_file_to} PROPERTIES GENERATED TRUE)
+ endfunction()
+diff --git a/source/blender/blentranslation/msgfmt/CMakeLists.txt b/source/blender/blentranslation/msgfmt/CMakeLists.txt
+--- a/source/blender/blentranslation/msgfmt/CMakeLists.txt
++++ b/source/blender/blentranslation/msgfmt/CMakeLists.txt
+@@ -41,3 +41,12 @@
+     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/tests.exe.manifest  $<TARGET_FILE_DIR:msgfmt>/$<TARGET_FILE_NAME:msgfmt>.manifest
+   )
+ endif()
++
++# blender-web / ADR-002: msgfmt runs as a NATIVE host binary when cross-compiling
++# (macros.cmake's msgfmt_simple selects BLENDER_WEB_HOST_TOOLS_DIR/msgfmt), so this
++# wasm target is normally not built. If it ever is (e.g. building `all`), give it the
++# node-runnable link profile for consistency with the other host tools. No-op on
++# native toolchains. See notes/adr/ADR-002-host-tool-execution.md.
++if(COMMAND blender_web_host_tool)
++  blender_web_host_tool(msgfmt)
++endif()

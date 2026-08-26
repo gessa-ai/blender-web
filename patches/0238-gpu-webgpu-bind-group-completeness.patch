@@ -1,0 +1,343 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 0632dc7f2fdf8d93e347ad50e57eb9b5a50ab6fc..7974f69810531a0e2363f2ba42d98b4b1f74c873 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -159,6 +159,9 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+   ctx->append_resource_bind_entries(shader, entries);
+ 
+   r_have_bind_group = false;
++  if (!shader->bind_group_entries_complete(entries)) {
++    return false;
++  }
+   if (entries.empty()) {
+     return true;
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index fe8bc259bec46526a7bbc8df480e381d26cb64c7..d676b81c6aa4dcb49f7808c1fc9f19c46d458eaf 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -462,6 +462,31 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+       shader->push_constants_flush();
+     }
+ 
++    std::vector<wgpu::BindGroupEntry> entries;
++    wgpu::BindGroupEntry mv_entry = {};
++    mv_entry.binding = shader->multi_viewport_binding();
++    mv_entry.buffer = mv_buf;
++    mv_entry.offset = 0;
++    mv_entry.size = 16;
++    entries.push_back(mv_entry);
++    if (shader->push_constants_survive_compilation() &&
++        shader->push_constants_buffer().valid())
++    {
++      wgpu::BindGroupEntry pc = {};
++      pc.binding = shader->push_constants_binding();
++      pc.buffer = shader->push_constants_buffer().handle();
++      pc.offset = 0;
++      pc.size = shader->push_constants_buffer().size();
++      entries.push_back(pc);
++    }
++    /* A multi-viewport draw changes only the pass-state UBO; it still needs the shader's
++     * ordinary UBO/SSBO/texture/image resources. Validate the complete set before the first
++     * queue write, encoder, or render pass. */
++    ctx->append_resource_bind_entries(shader, entries);
++    if (!shader->bind_group_entries_complete(entries)) {
++      return;
++    }
++
+     for (int layer = 0; layer < layers; layer++) {
+       for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
+         int rect[4];
+@@ -515,26 +540,6 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                                      viewport.scissor_height);
+               bind_vertex_buffers(mv_pass);
+ 
+-              std::vector<wgpu::BindGroupEntry> entries;
+-              wgpu::BindGroupEntry mv_entry = {};
+-              mv_entry.binding = shader->multi_viewport_binding();
+-              mv_entry.buffer = mv_buf;
+-              mv_entry.offset = 0;
+-              mv_entry.size = 16;
+-              entries.push_back(mv_entry);
+-              if (shader->push_constants_survive_compilation() &&
+-                  shader->push_constants_buffer().valid())
+-              {
+-                wgpu::BindGroupEntry pc = {};
+-                pc.binding = shader->push_constants_binding();
+-                pc.buffer = shader->push_constants_buffer().handle();
+-                pc.offset = 0;
+-                pc.size = shader->push_constants_buffer().size();
+-                entries.push_back(pc);
+-              }
+-              /* A multi-viewport draw changes only the pass-state UBO; it still needs the
+-               * shader's ordinary UBO/SSBO/texture/image resources. */
+-              ctx->append_resource_bind_entries(shader, entries);
+               const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+                                                        shader->explicit_bind_group_layout() :
+                                                        pipeline.GetBindGroupLayout(0);
+@@ -579,6 +584,24 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     return;
+   }
+ 
++  std::vector<wgpu::BindGroupEntry> entries;
++  if (shader->push_constants_survive_compilation()) {
++    shader->push_constants_flush();
++    const webgpu::Buffer &pc = shader->push_constants_buffer();
++    if (pc.valid()) {
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = shader->push_constants_binding();
++      entry.buffer = pc.handle();
++      entry.offset = 0;
++      entry.size = pc.size();
++      entries.push_back(entry);
++    }
++  }
++  ctx->append_resource_bind_entries(shader, entries);
++  if (!shader->bind_group_entries_complete(entries)) {
++    return;
++  }
++
+   wgpu::Device device = ctx->device_get();
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+@@ -595,20 +618,6 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         ctx->apply_stencil_reference(pass);
+         bind_vertex_buffers(pass);
+ 
+-        std::vector<wgpu::BindGroupEntry> entries;
+-        if (shader->push_constants_survive_compilation()) {
+-          shader->push_constants_flush();
+-          const webgpu::Buffer &pc = shader->push_constants_buffer();
+-          if (pc.valid()) {
+-            wgpu::BindGroupEntry entry = {};
+-            entry.binding = shader->push_constants_binding();
+-            entry.buffer = pc.handle();
+-            entry.offset = 0;
+-            entry.size = pc.size();
+-            entries.push_back(entry);
+-          }
+-        }
+-        ctx->append_resource_bind_entries(shader, entries);
+         if (!entries.empty()) {
+           const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                                 shader->explicit_bind_group_layout() :
+@@ -849,6 +858,28 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       shader->push_constants_flush();
+     }
+ 
++    std::vector<wgpu::BindGroupEntry> entries;
++    wgpu::BindGroupEntry mv_entry = {};
++    mv_entry.binding = shader->multi_viewport_binding();
++    mv_entry.buffer = mv_buf;
++    mv_entry.offset = 0;
++    mv_entry.size = 16;
++    entries.push_back(mv_entry);
++    if (shader->push_constants_survive_compilation() &&
++        shader->push_constants_buffer().valid())
++    {
++      wgpu::BindGroupEntry pc = {};
++      pc.binding = shader->push_constants_binding();
++      pc.buffer = shader->push_constants_buffer().handle();
++      pc.offset = 0;
++      pc.size = shader->push_constants_buffer().size();
++      entries.push_back(pc);
++    }
++    ctx->append_resource_bind_entries(shader, entries);
++    if (!shader->bind_group_entries_complete(entries)) {
++      return;
++    }
++
+     for (int layer = 0; layer < layers; layer++) {
+       for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
+         int rect[4];
+@@ -903,24 +934,6 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+                                      viewport.scissor_height);
+               bind_geometry(mv_pass);
+ 
+-              std::vector<wgpu::BindGroupEntry> entries;
+-              wgpu::BindGroupEntry mv_entry = {};
+-              mv_entry.binding = shader->multi_viewport_binding();
+-              mv_entry.buffer = mv_buf;
+-              mv_entry.offset = 0;
+-              mv_entry.size = 16;
+-              entries.push_back(mv_entry);
+-              if (shader->push_constants_survive_compilation() &&
+-                  shader->push_constants_buffer().valid())
+-              {
+-                wgpu::BindGroupEntry pc = {};
+-                pc.binding = shader->push_constants_binding();
+-                pc.buffer = shader->push_constants_buffer().handle();
+-                pc.offset = 0;
+-                pc.size = shader->push_constants_buffer().size();
+-                entries.push_back(pc);
+-              }
+-              ctx->append_resource_bind_entries(shader, entries);
+               const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+                                                        shader->explicit_bind_group_layout() :
+                                                        pipeline.GetBindGroupLayout(0);
+@@ -941,6 +954,24 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     return;
+   }
+ 
++  std::vector<wgpu::BindGroupEntry> entries;
++  if (shader->push_constants_survive_compilation()) {
++    shader->push_constants_flush();
++    const webgpu::Buffer &pc = shader->push_constants_buffer();
++    if (pc.valid()) {
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = shader->push_constants_binding();
++      entry.buffer = pc.handle();
++      entry.offset = 0;
++      entry.size = pc.size();
++      entries.push_back(entry);
++    }
++  }
++  ctx->append_resource_bind_entries(shader, entries);
++  if (!shader->bind_group_entries_complete(entries)) {
++    return;
++  }
++
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -956,20 +987,6 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         ctx->apply_stencil_reference(pass);
+         bind_geometry(pass);
+ 
+-        std::vector<wgpu::BindGroupEntry> entries;
+-        if (shader->push_constants_survive_compilation()) {
+-          shader->push_constants_flush();
+-          const webgpu::Buffer &pc = shader->push_constants_buffer();
+-          if (pc.valid()) {
+-            wgpu::BindGroupEntry entry = {};
+-            entry.binding = shader->push_constants_binding();
+-            entry.buffer = pc.handle();
+-            entry.offset = 0;
+-            entry.size = pc.size();
+-            entries.push_back(entry);
+-          }
+-        }
+-        ctx->append_resource_bind_entries(shader, entries);
+         if (!entries.empty()) {
+           const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                                 shader->explicit_bind_group_layout() :
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index a0e5d11f4204580aada2013d4fa1d5784f269dba..815f0b3bf1299a719e9ad487a93f73e3ead71d35 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -192,6 +192,19 @@ inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result
+   return true;
+ }
+ 
++/** Compare the unique group-0 bindings assembled from live resources with the shader's exact
++ * sorted surviving WGSL binding set. An empty assembled set is valid only for a genuinely empty
++ * shader layout; missing, partial, and extra resource sets fail before command encoding begins. */
++inline bool bind_group_binding_ids_complete(const std::vector<uint32_t> &expected_bindings,
++                                            std::vector<uint32_t> assembled_bindings)
++{
++  std::sort(assembled_bindings.begin(), assembled_bindings.end());
++  assembled_bindings.erase(
++      std::unique(assembled_bindings.begin(), assembled_bindings.end()),
++      assembled_bindings.end());
++  return assembled_bindings == expected_bindings;
++}
++
+ /** Resolve every buffer required by a vertex plan before command encoding begins. A missing
+  * real or dummy buffer invalidates the whole draw; WebGPU requires every pipeline-declared
+  * vertex-buffer slot to be set. Failure leaves the caller-owned result unchanged. */
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 59d802918616f85bd6e0635f8312213377aa742b..da9869ede60fbe488dddefd374e4d50666a20347 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -207,6 +207,24 @@ void WGPUImmediate::end()
+     return;
+   }
+ 
++  std::vector<wgpu::BindGroupEntry> entries;
++  if (shader->push_constants_survive_compilation()) {
++    shader->push_constants_flush();
++    const webgpu::Buffer &pc = shader->push_constants_buffer();
++    if (pc.valid()) {
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = shader->push_constants_binding();
++      entry.buffer = pc.handle();
++      entry.offset = 0;
++      entry.size = pc.size();
++      entries.push_back(entry);
++    }
++  }
++  ctx->append_resource_bind_entries(shader, entries);
++  if (!shader->bind_group_entries_complete(entries)) {
++    return;
++  }
++
+   wgpu::Device device = ctx->device_get();
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+@@ -226,20 +244,6 @@ void WGPUImmediate::end()
+           pass.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
+         }
+ 
+-        std::vector<wgpu::BindGroupEntry> entries;
+-        if (shader->push_constants_survive_compilation()) {
+-          shader->push_constants_flush();
+-          const webgpu::Buffer &pc = shader->push_constants_buffer();
+-          if (pc.valid()) {
+-            wgpu::BindGroupEntry entry = {};
+-            entry.binding = shader->push_constants_binding();
+-            entry.buffer = pc.handle();
+-            entry.offset = 0;
+-            entry.size = pc.size();
+-            entries.push_back(entry);
+-          }
+-        }
+-        ctx->append_resource_bind_entries(shader, entries);
+         if (!entries.empty()) {
+           const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+                                                 shader->explicit_bind_group_layout() :
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index bebe325013382431476fde2e3998873ca246e67e..10f04dca55178632983a6e3a46fb51ba457240ce 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2633,6 +2633,27 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Instance &instanc
+ /** \name Explicit pipeline layout
+  * \{ */
+ 
++bool WGPUShader::bind_group_entries_complete(
++    const std::vector<wgpu::BindGroupEntry> &entries) const
++{
++  std::vector<uint32_t> assembled_bindings;
++  assembled_bindings.reserve(entries.size());
++  for (const wgpu::BindGroupEntry &entry : entries) {
++    if (entry.buffer != nullptr || entry.textureView != nullptr || entry.sampler != nullptr) {
++      assembled_bindings.push_back(entry.binding);
++    }
++  }
++  if (webgpu::bind_group_binding_ids_complete(surviving_bindings_,
++                                               std::move(assembled_bindings)))
++  {
++    return true;
++  }
++  CLOG_WARN(&LOG,
++            "WGPUShader '%s': assembled group-0 resources do not match surviving WGSL bindings",
++            name_get().c_str());
++  return false;
++}
++
+ bool WGPUShader::build_explicit_layout(const wgpu::Instance &instance,
+                                        const wgpu::Device &device,
+                                        const std::vector<uint32_t> &vertex_resource_bindings,
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+index a6cb323d29d64ee15861b5b28a9280dea66a36ff..71b0ef28fb4138f382beb615e45864c3d0c5bc3d 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -135,6 +135,9 @@ class WGPUShader : public Shader {
+   {
+     return std::binary_search(surviving_bindings_.begin(), surviving_bindings_.end(), binding);
+   }
++  /** Require the unique live-resource binding IDs to equal the exact bindings retained by final
++   * WGSL. This distinguishes a genuinely empty layout from an empty or partial resource set. */
++  bool bind_group_entries_complete(const std::vector<wgpu::BindGroupEntry> &entries) const;
+   /* ---- Explicit pipeline layout (M4.T17) ----------------------------------
+    * Dawn's auto layout infers a WGSL resource's binding type purely from the WGSL
+    * (e.g. `texture_2d<f32>` -> filterable Float), which is WRONG for the depth

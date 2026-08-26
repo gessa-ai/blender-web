@@ -1,0 +1,191 @@
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# M3: publish async-compiler instance/device/queue handles as one coherent,
+# owner-tracked tuple across overlapping WebGPU context lifetimes.
+# Ported for the web from source/blender/gpu/webgpu/ @ fbe6228777e7.
+
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 76c45d66a4a64ae6112b8af28db17310d98d0727..f63527367cc4443fba7ad4fe6de300e503daf4a5 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -243,6 +243,62 @@ inline bool index_buffer_handle_resolve_if_required(const bool required,
+   return transient_handle_publish_if_valid(std::move(candidate), result);
+ }
+ 
++/**
++ * Publish one coherent handle tuple for the most recently registered live owner.
++ *
++ * GPU contexts can overlap, while backend worker threads need an owner-independent
++ * snapshot. Re-publishing an owner moves it to the newest position, forgetting an
++ * older owner cannot clear a newer tuple, and forgetting the newest owner restores
++ * the previous live tuple. The snapshot copy is made under the same lock as owner
++ * changes so callers cannot combine handles from different contexts.
++ */
++template<typename OwnerT, typename HandleSetT> class LatestOwnerHandleRegistry {
++ private:
++  struct Entry {
++    const OwnerT *owner = nullptr;
++    HandleSetT handles = {};
++  };
++
++ public:
++  void publish(const OwnerT *owner, HandleSetT handles)
++  {
++    if (owner == nullptr) {
++      return;
++    }
++    std::lock_guard lock(mutex_);
++    entries_.erase(std::remove_if(entries_.begin(),
++                                  entries_.end(),
++                                  [owner](const Entry &entry) { return entry.owner == owner; }),
++                   entries_.end());
++    entries_.push_back({owner, std::move(handles)});
++  }
++
++  void forget(const OwnerT *owner)
++  {
++    std::lock_guard lock(mutex_);
++    entries_.erase(std::remove_if(entries_.begin(),
++                                  entries_.end(),
++                                  [owner](const Entry &entry) { return entry.owner == owner; }),
++                   entries_.end());
++  }
++
++  HandleSetT current() const
++  {
++    std::lock_guard lock(mutex_);
++    return entries_.empty() ? HandleSetT{} : entries_.back().handles;
++  }
++
++  size_t size() const
++  {
++    std::lock_guard lock(mutex_);
++    return entries_.size();
++  }
++
++ private:
++  mutable std::mutex mutex_;
++  std::vector<Entry> entries_;
++};
++
+ /**
+  * Serialize queue mutations whose validation completes asynchronously in the browser.
+  *
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index d75a3190daf788a0207fb744c0afbb5d33ac9033..325f14f103d4795df0008cdd62644e1e578d8821 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -69,9 +69,8 @@ namespace blender::gpu {
+ 
+ static CLG_LogRef LOG = {"gpu.webgpu"};
+ 
+-wgpu::Device WGPUContext::s_device = nullptr;
+-wgpu::Instance WGPUContext::s_instance = nullptr;
+-wgpu::Queue WGPUContext::s_queue = nullptr;
++webgpu::LatestOwnerHandleRegistry<WGPUContext, WGPUContext::BackendHandles>
++    WGPUContext::s_backend_handles;
+ 
+ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+ {
+@@ -95,13 +94,11 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+   adapter_name_ = wgpu_ghost->getAdapterName();
+ #endif
+ 
+-  /* Publish the device/instance/queue backend-side so worker threads (async
+-   * shader compilation) can reach them without the thread-local active context —
+-   * GPU_context_active_get() is null on the compile worker. There is a single
+-   * Dawn device (one GHOST_ContextWGPU), so a static is correct. */
+-  s_device = device_;
+-  s_instance = instance_;
+-  s_queue = queue_;
++  /* Publish one coherent backend-side tuple so async shader workers can reach
++   * this context without thread-local GPU state. Multiple Blender contexts can
++   * overlap; the registry preserves another live tuple across either teardown
++   * order instead of letting one destructor clear all backend handles. */
++  s_backend_handles.publish(this, {instance_, device_, queue_});
+ 
+   /* Fill the global capability table from the live device limits. Device-probed
+    * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
+@@ -141,11 +138,9 @@ WGPUContext::~WGPUContext()
+    * base Context dtor's `delete imm` (gpu_context.cc:101) is a safe no-op. */
+   delete imm;
+   imm = nullptr;
+-  /* Drop the backend-side device/instance/queue refs so the statics do not
+-   * outlive GHOST's teardown and release a dangling handle at process exit. */
+-  s_device = nullptr;
+-  s_instance = nullptr;
+-  s_queue = nullptr;
++  /* Retire only this context's tuple. If another context overlaps, the newest
++   * remaining owner becomes the coherent async-compiler snapshot. */
++  s_backend_handles.forget(this);
+ }
+ 
+ /* --- Activation --------------------------------------------------------- */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 119d16da11f4dc6c319d89aad4c7ace08c88dea1..e0306d6704fa4b6cd3fa1df39e4b35b8b2d17f20 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -302,20 +302,19 @@ class WGPUContext : public Context {
+    * false in the headless/native gpu build (no surface). */
+   bool is_window_backbuffer(const FrameBuffer *fb) const;
+ 
+-  /* Backend-wide device/instance/queue, reachable from any thread (there is a
+-   * single Dawn device). Used by the async shader-compile worker, which has no
+-   * thread-local active GPU context. */
+-  static wgpu::Device backend_device()
+-  {
+-    return s_device;
+-  }
+-  static wgpu::Instance backend_instance()
+-  {
+-    return s_instance;
+-  }
+-  static wgpu::Queue backend_queue()
++  struct BackendHandles {
++    wgpu::Instance instance;
++    wgpu::Device device;
++    wgpu::Queue queue;
++  };
++
++  /* Backend-wide coherent handle snapshot, reachable from async shader workers
++   * that have no thread-local active GPU context. The latest live context wins;
++   * destroying either an older or newer overlapping context preserves a valid
++   * tuple from another live owner. */
++  static BackendHandles backend_handles()
+   {
+-    return s_queue;
++    return s_backend_handles.current();
+   }
+ 
+  private:
+@@ -323,9 +322,7 @@ class WGPUContext : public Context {
+    * Device-probed, mirroring VKBackend::capabilities_init (vk_backend.cc:905). */
+   void capabilities_init();
+ 
+-  static wgpu::Device s_device;
+-  static wgpu::Instance s_instance;
+-  static wgpu::Queue s_queue;
++  static webgpu::LatestOwnerHandleRegistry<WGPUContext, BackendHandles> s_backend_handles;
+ 
+   wgpu::Instance instance_ = nullptr;
+   wgpu::Adapter adapter_ = nullptr;
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 6bc6fc8828484b750191b2168aa98f7381abf825..01474946124737cc616c9798ce9abac57d26a4f1 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2442,9 +2442,11 @@ bool WGPUShader::finalize(const shader::ShaderCreateInfo *info)
+     return false;
+   }
+   /* Shaders compile on the async worker thread, which has no thread-local active
+-   * GPU context — reach the device backend-side (one Dawn device). */
+-  wgpu::Device device = WGPUContext::backend_device();
+-  wgpu::Instance instance = WGPUContext::backend_instance();
++   * GPU context. Take one locked backend snapshot so the instance and device
++   * cannot come from different overlapping context generations. */
++  const WGPUContext::BackendHandles handles = WGPUContext::backend_handles();
++  wgpu::Device device = handles.device;
++  wgpu::Instance instance = handles.instance;
+   if (instance == nullptr || device == nullptr) {
+     return false;
+   }

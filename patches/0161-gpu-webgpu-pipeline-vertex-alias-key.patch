@@ -1,0 +1,18 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -196,10 +196,13 @@ static uint64_t pipeline_hash(const PipelineInfo &info)
+                         uint8_t(a.type.fetch_mode())};
+       hash_bytes(h, sig, sizeof(sig));
+       hash_bytes(h, &off, sizeof(off));
++      hash_bytes(h, &a.name_len, sizeof(a.name_len));
+       for (uint nidx = 0; nidx < a.name_len; nidx++) {
+         const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
++        const uint32_t name_length = nm != nullptr ? uint32_t(std::strlen(nm)) : UINT32_MAX;
++        hash_bytes(h, &name_length, sizeof(name_length));
+         if (nm != nullptr) {
+-          hash_bytes(h, nm, std::strlen(nm));
++          hash_bytes(h, nm, name_length);
+         }
+       }
+     }

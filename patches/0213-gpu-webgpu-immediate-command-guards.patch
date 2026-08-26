@@ -1,0 +1,21 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -178,6 +178,9 @@ void WGPUImmediate::end()
+   wgpu::Device device = ctx->device_get();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   if (pass == nullptr) {
+     return;
+   }
+@@ -239,4 +242,7 @@ void WGPUImmediate::end()
+   pass.End();
+   wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
+   ctx->queue_get().Submit(1, &cb);
+ }

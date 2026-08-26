@@ -1,0 +1,22 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -101,6 +101,8 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+    *     textures, matching the backend's format-capability gate.
+    *   - TextureComponentSwizzle: applies Blender's sampled-texture channel masks
+    *     directly in Dawn/Emdawnwebgpu texture views.
++   *   - TextureCompressionBC: enables Blender's BC1/2/3 compressed texture path.
++   *     Dawn exposes optional features to a device only when they are requested.
+    *   - Depth32FloatStencil8: Blender's D32F/S8 combined depth-stencil format.
+    *   - TextureFormatsTier1: extended write-only storage texture formats.
+    *   - TextureFormatsTier2: extended read-write storage texture formats.
+@@ -122,6 +124,9 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   if (adapter_.HasFeature(wgpu::FeatureName::TextureComponentSwizzle)) {
+     required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);
+   }
++  if (adapter_.HasFeature(wgpu::FeatureName::TextureCompressionBC)) {
++    required_features.push_back(wgpu::FeatureName::TextureCompressionBC);
++  }
+   if (adapter_.HasFeature(wgpu::FeatureName::Depth32FloatStencil8)) {
+     required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);
+   }

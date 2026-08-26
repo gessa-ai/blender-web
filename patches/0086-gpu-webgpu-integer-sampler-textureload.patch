@@ -1,0 +1,195 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 3d2a8c3..1e55873 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -35,6 +35,7 @@
+ #include <cctype>
+ #include <cstring>
+ #include <sstream>
++#include <unordered_map>
+ #include <vector>
+ 
+ namespace blender::gpu {
+@@ -1258,11 +1259,166 @@ static void rewrite_texel_buffers(std::string &src, const shader::ShaderCreateIn
+   src = std::move(out);
+ }
+ 
++/* WGSL forbids filtered sampling of an integer texture: `texture()`/`textureLod()` on a
++ * usampler / isampler lowers to textureSample(Level) on a texture_2d<u32> / <i32>, which
++ * Tint rejects ("no matching call to textureSample(...)"). GL forces integer textures to
++ * nearest sampling regardless of the sampler state, so the faithful equivalent is a
++ * texelFetch at the rounded texel: texture(s, uv) == texelFetch(s, ivecN(uv * size), 0).
++ * This rewrites those calls on the fully-preprocessed GLSL (where struct-member accesses
++ * like `srt.stencil_tx` and function-parameter samplers have both resolved to the bare
++ * resource / parameter name, and a compute-stage texture() has already lowered to an
++ * explicit-lod sample). Integer-sampler names + dimensionality are recovered from their
++ * `[iu]sampler{1,2,3}D name` declarations in the same source. Semantics: identical to GL
++ * (integer textures are nearest-fetched), modulo out-of-range wrap (texelFetch clamps to
++ * 0) — a faithful degradation for the object-id / stencil / volume-flag lookups. */
++static void rewrite_integer_sampler_sampling(std::string &src)
++{
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++
++  /* 1. name -> coordinate dimensionality, from the integer-sampler declarations. */
++  std::unordered_map<std::string, int> int_samplers;
++  {
++    static const struct {
++      const char *tok;
++      int dim;
++    } kinds[] = {
++        {"usampler1D", 1}, {"isampler1D", 1}, {"usampler2D", 2},
++        {"isampler2D", 2}, {"usampler3D", 3}, {"isampler3D", 3},
++    };
++    for (const auto &k : kinds) {
++      const std::string tok = k.tok;
++      size_t pos = 0;
++      while ((pos = src.find(tok, pos)) != std::string::npos) {
++        const size_t p = pos + tok.size();
++        const bool left_ok = (pos == 0) || !is_ident(src[pos - 1]);
++        /* Reject a longer type token (usampler2DArray / MS): the char after the type
++         * must be a delimiter, not another identifier char. */
++        if (left_ok && p < src.size() && !is_ident(src[p])) {
++          size_t q = p;
++          while (q < src.size() && std::isspace((unsigned char)src[q])) {
++            q++;
++          }
++          const size_t id0 = q;
++          while (q < src.size() && is_ident(src[q])) {
++            q++;
++          }
++          if (q > id0) {
++            int_samplers[src.substr(id0, q - id0)] = k.dim;
++          }
++        }
++        pos = p;
++      }
++    }
++  }
++  if (int_samplers.empty()) {
++    return;
++  }
++
++  /* 2. Rewrite texture(NAME, uv[, bias]) / textureLod(NAME, uv, lod) whose NAME is an
++   *    integer sampler into texelFetch(NAME, ivecN(uv * size), lod). */
++  auto rewrite_call = [&](const std::string &fn, bool has_lod) {
++    const size_t n = src.size();
++    std::string out;
++    out.reserve(n);
++    size_t i = 0;
++    while (i < n) {
++      const size_t hit = src.find(fn, i);
++      if (hit == std::string::npos) {
++        out.append(src, i, n - i);
++        break;
++      }
++      const bool word_ok = (hit == 0) || !is_ident(src[hit - 1]);
++      size_t p = hit + fn.size();
++      while (p < n && std::isspace((unsigned char)src[p])) {
++        p++;
++      }
++      if (!word_ok || p >= n || src[p] != '(') {
++        out.append(src, i, (hit + fn.size()) - i);
++        i = hit + fn.size();
++        continue;
++      }
++      const size_t open = p;
++      int depth = 1;
++      size_t q = open + 1;
++      size_t close = std::string::npos;
++      std::vector<size_t> commas;
++      while (q < n) {
++        const char c = src[q];
++        if (c == '(') {
++          depth++;
++        }
++        else if (c == ')') {
++          if (--depth == 0) {
++            close = q;
++            break;
++          }
++        }
++        else if (c == ',' && depth == 1) {
++          commas.push_back(q);
++        }
++        q++;
++      }
++      if (close == std::string::npos || commas.empty()) {
++        out.append(src, i, (open + 1) - i);
++        i = open + 1;
++        continue;
++      }
++      size_t a0 = open + 1;
++      while (a0 < commas[0] && std::isspace((unsigned char)src[a0])) {
++        a0++;
++      }
++      size_t a1 = commas[0];
++      while (a1 > a0 && std::isspace((unsigned char)src[a1 - 1])) {
++        a1--;
++      }
++      const std::string first = src.substr(a0, a1 - a0);
++      bool bare = !first.empty();
++      for (const char c : first) {
++        if (!is_ident(c)) {
++          bare = false;
++          break;
++        }
++      }
++      const auto it = bare ? int_samplers.find(first) : int_samplers.end();
++      if (it == int_samplers.end()) {
++        out.append(src, i, (open + 1) - i);
++        i = open + 1;
++        continue;
++      }
++      const int dim = it->second;
++      const size_t coord_end = (has_lod && commas.size() >= 2) ? commas[1] : close;
++      const std::string coord = src.substr(commas[0] + 1, coord_end - (commas[0] + 1));
++      std::string lod = "0";
++      if (has_lod && commas.size() >= 2) {
++        lod = "int(" + src.substr(commas[1] + 1, close - (commas[1] + 1)) + ")";
++      }
++      const std::string sz = "textureSize(" + first + ", " + lod + ")";
++      std::string texel;
++      if (dim == 1) {
++        texel = "int((" + coord + ") * float(" + sz + "))";
++      }
++      else if (dim == 2) {
++        texel = "ivec2((" + coord + ") * vec2(" + sz + "))";
++      }
++      else {
++        texel = "ivec3((" + coord + ") * vec3(" + sz + "))";
++      }
++      out.append(src, i, hit - i);
++      out += "texelFetch(" + first + ", " + texel + ", " + lod + ")";
++      i = close + 1;
++    }
++    src = std::move(out);
++  };
++  rewrite_call("textureLod", true);
++  rewrite_call("texture", false);
++}
++
+ void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                          MutableSpan<StringRefNull> sources)
+ {
+   vertex_glsl_ = preprocess(combine_with_patch(glsl_patch("#define GPU_VERTEX_SHADER\n"), sources));
+   rewrite_texel_buffers(vertex_glsl_, info);
++  rewrite_integer_sampler_sampling(vertex_glsl_);
+ }
+ void WGPUShader::geometry_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
+                                            MutableSpan<StringRefNull> /*sources*/)
+@@ -1274,6 +1430,7 @@ void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
+   fragment_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_FRAGMENT_SHADER\n"), sources));
+   rewrite_texel_buffers(fragment_glsl_, info);
++  rewrite_integer_sampler_sampling(fragment_glsl_);
+ }
+ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                           MutableSpan<StringRefNull> sources)
+@@ -1281,6 +1438,7 @@ void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+   compute_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_COMPUTE_SHADER\n"), sources));
+   rewrite_texel_buffers(compute_glsl_, info);
++  rewrite_integer_sampler_sampling(compute_glsl_);
+ }
+ 
+ /* Map a create-info sampler/image ImageType to the interface-map texel + dim. */

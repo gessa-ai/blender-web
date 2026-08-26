@@ -1,0 +1,258 @@
+diff --git a/source/blender/draw/DRW_select_buffer.hh b/source/blender/draw/DRW_select_buffer.hh
+index 00437ac..8c3c371 100644
+--- a/source/blender/draw/DRW_select_buffer.hh
++++ b/source/blender/draw/DRW_select_buffer.hh
+@@ -17,6 +17,8 @@
+ #include "BLI_set.hh"
+ #include "BLI_sys_types.h" /* for bool and uint */
+ 
++#include "GPU_readback.hh"
++
+ namespace blender {
+ 
+ struct ARegion;
+@@ -26,6 +28,7 @@ struct Object;
+ struct RegionView3D;
+ struct View3D;
+ struct rcti;
++struct DRWSelectBufferReadback;
+ 
+ /**
+  * Indices inside the selection frame-buffer associated with the elements of a mesh.
+@@ -76,6 +79,18 @@ uint DRW_select_buffer_context_offset_for_object_elem(Depsgraph *depsgraph,
+  */
+ uint *DRW_select_buffer_read(
+     Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect, uint *r_buf_len);
++/**
++ * Owned, non-blocking counterpart to #DRW_select_buffer_read. The request keeps
++ * the exact unclamped and viewport-clamped rectangles so consume preserves the
++ * synchronous buffer layout. A ready empty request consumes to null with length
++ * zero.
++ */
++DRWSelectBufferReadback *DRW_select_buffer_read_async(
++    Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect);
++eGPUReadbackStatus DRW_select_buffer_read_async_status(DRWSelectBufferReadback *readback);
++eGPUReadbackError DRW_select_buffer_read_async_error(DRWSelectBufferReadback *readback);
++uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *&readback, uint *r_buf_len);
++void DRW_select_buffer_read_async_cancel(DRWSelectBufferReadback *&readback);
+ /**
+  * \param rect: The rectangle to sample indices from (min/max inclusive).
+  * \returns a #BLI_bitmap the length of \a bitmap_len or NULL on failure.
+diff --git a/source/blender/draw/intern/draw_select_buffer.cc b/source/blender/draw/intern/draw_select_buffer.cc
+index a6bd2c1..98c4b40 100644
+--- a/source/blender/draw/intern/draw_select_buffer.cc
++++ b/source/blender/draw/intern/draw_select_buffer.cc
+@@ -9,6 +9,8 @@
+  */
+ 
+ #include <cfloat>
++#include <cstdint>
++#include <limits>
+ 
+ #include "BLI_math_matrix.hh"
+ #include "MEM_guardedalloc.h"
+@@ -25,6 +27,7 @@
+ #include "DNA_view3d_types.h"
+ 
+ #include "GPU_framebuffer.hh"
++#include "GPU_readback.hh"
+ #include "GPU_select.hh"
+ 
+ #include "DEG_depsgraph.hh"
+@@ -64,6 +67,196 @@ bool SELECTID_Context::is_dirty(Depsgraph *depsgraph, RegionView3D *rv3d)
+ /** \name Buffer of select ID's
+  * \{ */
+ 
++struct DRWSelectBufferReadback {
++  GPUReadback *gpu_readback = nullptr;
++  rcti rect = {};
++  rcti rect_clamp = {};
++  uint buffer_len = 0;
++  uint clamped_len = 0;
++  eGPUReadbackStatus status = GPU_READBACK_PENDING;
++  eGPUReadbackError error = GPU_READBACK_ERROR_NONE;
++};
++
++static bool drw_select_buffer_len(const rcti &rect, uint &r_len)
++{
++  const int64_t width = int64_t(rect.xmax) - int64_t(rect.xmin);
++  const int64_t height = int64_t(rect.ymax) - int64_t(rect.ymin);
++  if (width <= 0 || height <= 0) {
++    return false;
++  }
++  const uint64_t len = uint64_t(width) * uint64_t(height);
++  if (len > std::numeric_limits<uint>::max()) {
++    return false;
++  }
++  r_len = uint(len);
++  return true;
++}
++
++DRWSelectBufferReadback *DRW_select_buffer_read_async(
++    Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect)
++{
++  DRWSelectBufferReadback *readback = MEM_new<DRWSelectBufferReadback>(__func__);
++  if (depsgraph == nullptr || region == nullptr || v3d == nullptr || rect == nullptr) {
++    readback->status = GPU_READBACK_FAILED;
++    readback->error = GPU_READBACK_ERROR_INVALID_ARGUMENT;
++    return readback;
++  }
++
++  readback->rect = *rect;
++  uint buffer_len = 0;
++  if (!drw_select_buffer_len(readback->rect, buffer_len)) {
++    readback->status = GPU_READBACK_FAILED;
++    readback->error = GPU_READBACK_ERROR_INVALID_ARGUMENT;
++    return readback;
++  }
++
++  rcti viewport{};
++  viewport.xmax = region->winx;
++  viewport.ymax = region->winy;
++  readback->rect_clamp = readback->rect;
++  if (!BLI_rcti_isect(&viewport, &readback->rect_clamp, &readback->rect_clamp) ||
++      BLI_rcti_is_empty(&readback->rect_clamp))
++  {
++    readback->status = GPU_READBACK_READY;
++    return readback;
++  }
++
++  SELECTID_Context *select_ctx = DRW_select_engine_context_get();
++  RegionView3D *rv3d = static_cast<RegionView3D *>(region->regiondata);
++  if (select_ctx == nullptr || rv3d == nullptr) {
++    readback->status = GPU_READBACK_FAILED;
++    readback->error = GPU_READBACK_ERROR_SOURCE_UNAVAILABLE;
++    return readback;
++  }
++
++  DRW_gpu_context_enable();
++  if (select_ctx->is_dirty(depsgraph, rv3d)) {
++    DRW_draw_select_id(depsgraph, region, v3d);
++  }
++
++  if (select_ctx->max_index_drawn_len > 1) {
++    BLI_assert(region->winx == GPU_texture_width(DRW_engine_select_texture_get()) &&
++               region->winy == GPU_texture_height(DRW_engine_select_texture_get()));
++
++    readback->buffer_len = buffer_len;
++    if (!drw_select_buffer_len(readback->rect_clamp, readback->clamped_len)) {
++      readback->status = GPU_READBACK_FAILED;
++      readback->error = GPU_READBACK_ERROR_BACKEND_FAILURE;
++    }
++    else {
++      gpu::FrameBuffer *select_id_fb = DRW_engine_select_framebuffer_get();
++      GPU_framebuffer_bind(select_id_fb);
++      readback->gpu_readback = GPU_framebuffer_read_color_async(select_id_fb,
++                                                                readback->rect_clamp.xmin,
++                                                                readback->rect_clamp.ymin,
++                                                                BLI_rcti_size_x(
++                                                                    &readback->rect_clamp),
++                                                                BLI_rcti_size_y(
++                                                                    &readback->rect_clamp),
++                                                                1,
++                                                                0,
++                                                                GPU_DATA_UINT);
++      GPU_framebuffer_restore();
++      if (readback->gpu_readback == nullptr) {
++        readback->status = GPU_READBACK_FAILED;
++        readback->error = GPU_READBACK_ERROR_BACKEND_FAILURE;
++      }
++    }
++  }
++  else {
++    readback->status = GPU_READBACK_READY;
++  }
++  DRW_gpu_context_disable();
++  return readback;
++}
++
++eGPUReadbackStatus DRW_select_buffer_read_async_status(DRWSelectBufferReadback *readback)
++{
++  if (readback == nullptr) {
++    return GPU_READBACK_INVALID;
++  }
++  if (readback->status != GPU_READBACK_PENDING) {
++    return readback->status;
++  }
++
++  const eGPUReadbackStatus status = GPU_readback_status(readback->gpu_readback);
++  if (status == GPU_READBACK_PENDING) {
++    return status;
++  }
++  if (status != GPU_READBACK_READY) {
++    readback->error = GPU_readback_error(readback->gpu_readback);
++    if (readback->error == GPU_READBACK_ERROR_NONE) {
++      readback->error = GPU_READBACK_ERROR_BACKEND_FAILURE;
++    }
++    GPU_readback_cancel(readback->gpu_readback);
++    readback->status = GPU_READBACK_FAILED;
++    return readback->status;
++  }
++
++  const size_t expected_size = size_t(readback->clamped_len) * sizeof(uint);
++  if (GPU_readback_size(readback->gpu_readback) != expected_size) {
++    GPU_readback_cancel(readback->gpu_readback);
++    readback->error = GPU_READBACK_ERROR_BACKEND_FAILURE;
++    readback->status = GPU_READBACK_FAILED;
++    return readback->status;
++  }
++  readback->status = GPU_READBACK_READY;
++  return readback->status;
++}
++
++eGPUReadbackError DRW_select_buffer_read_async_error(DRWSelectBufferReadback *readback)
++{
++  if (readback == nullptr) {
++    return GPU_READBACK_ERROR_INVALID_ARGUMENT;
++  }
++  DRW_select_buffer_read_async_status(readback);
++  return readback->error;
++}
++
++uint *DRW_select_buffer_read_async_consume(DRWSelectBufferReadback *&readback, uint *r_buf_len)
++{
++  if (r_buf_len != nullptr) {
++    *r_buf_len = 0;
++  }
++  if (DRW_select_buffer_read_async_status(readback) != GPU_READBACK_READY) {
++    return nullptr;
++  }
++  if (readback->buffer_len == 0) {
++    MEM_delete(readback);
++    readback = nullptr;
++    return nullptr;
++  }
++
++  uint *buffer = MEM_new_array_uninitialized<uint>(readback->buffer_len, __func__);
++  const size_t buffer_size = size_t(readback->buffer_len) * sizeof(uint);
++  if (!GPU_readback_consume(readback->gpu_readback, buffer, buffer_size)) {
++    MEM_delete(buffer);
++    readback->error = GPU_READBACK_ERROR_BACKEND_FAILURE;
++    readback->status = GPU_READBACK_FAILED;
++    return nullptr;
++  }
++  if (!BLI_rcti_compare(&readback->rect, &readback->rect_clamp)) {
++    GPU_select_buffer_stride_realign(&readback->rect, &readback->rect_clamp, buffer);
++  }
++
++  if (r_buf_len != nullptr) {
++    *r_buf_len = readback->buffer_len;
++  }
++  MEM_delete(readback);
++  readback = nullptr;
++  return buffer;
++}
++
++void DRW_select_buffer_read_async_cancel(DRWSelectBufferReadback *&readback)
++{
++  if (readback == nullptr) {
++    return;
++  }
++  GPU_readback_cancel(readback->gpu_readback);
++  MEM_delete(readback);
++  readback = nullptr;
++}
++
+ uint *DRW_select_buffer_read(
+     Depsgraph *depsgraph, ARegion *region, View3D *v3d, const rcti *rect, uint *r_buf_len)
+ {

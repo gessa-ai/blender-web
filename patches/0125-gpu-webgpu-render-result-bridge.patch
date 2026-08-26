@@ -1,0 +1,101 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_diag_readback.hh b/source/blender/gpu/webgpu/wgpu_diag_readback.hh
+index 3605103..5048f24 100644
+--- a/source/blender/gpu/webgpu/wgpu_diag_readback.hh
++++ b/source/blender/gpu/webgpu/wgpu_diag_readback.hh
+@@ -61,6 +61,17 @@
+  * no-op unless BW_DIAG is set. */
+ void on_draw_submit(const char *shader_name, WGPUFrameBuffer *fb);
+ 
++/** M6 r35 render-result bridge. Called at the top of WGPUTexture::read() - the seam the
++ * (broken) synchronous GPU readback funnels through, for BOTH GPU_texture_read and the
++ * render-target GPU_framebuffer_read_color path (WGPUFrameBuffer::read internally calls
++ * tex->read). When BW_DIAG is set this KICKS the tick-pumped async readback of `tex`
++ * (diag_kick_readback, label "texread_<seq>") and returns; read() then proceeds and
++ * returns zeros as today (RenderResult/PNG stays black), while the TRUE device bytes
++ * surface on a later main-loop tick in /tmp/bw_readback_<seq>.bin (header carries w/h/
++ * fmt), which the M6 suite comparator consumes. Bounded (kMaxReadCaptures) and a cheap
++ * no-op unless BW_DIAG is set. See notes/m6-gpu-suite-real-scores.md. */
++void on_texture_read(WGPUTexture *tex);
++
+ }  // namespace webgpu::diag
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_diag_readback.cc b/source/blender/gpu/webgpu/wgpu_diag_readback.cc
+index a00b3ee..e682343 100644
+--- a/source/blender/gpu/webgpu/wgpu_diag_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_diag_readback.cc
+@@ -43,6 +43,13 @@
+ /* Remaining workbench-prepass submits to sample right after Submit (state (a)). */
+ int g_arm_prepass = 0;
+ 
++/* M6 r35: render-result bridge counters. Every WGPUTexture::read() under BW_DIAG kicks
++ * one tick-pumped readback so the render OP's final combined-pass read (which otherwise
++ * returns zeros -> black PNG) lands its true device bytes in /tmp/bw_readback_<seq>.bin.
++ * Bounded so a readback-heavy caller cannot spawn unbounded staging buffers. */
++int g_read_captures = 0;
++const int kMaxReadCaptures = 256;
++
+ /* Latched true once BW_DIAG is observed set; the whole module is a no-op until then. */
+ bool g_enabled = false;
+ 
+@@ -203,6 +210,33 @@
+   }
+ }
+ 
++void on_texture_read(WGPUTexture *tex)
++{
++  /* ensure_enabled() latches on the first frame BW_DIAG is observed; on_texture_read may
++   * run before poll_and_pump's first call, so it re-checks here too (cheap getenv until
++   * latched). A no-op with BW_DIAG unset, so production and the pixel goldens read back
++   * exactly as before. */
++  if (!ensure_enabled() || tex == nullptr) {
++    return;
++  }
++  if (g_read_captures >= kMaxReadCaptures) {
++    if (g_read_captures == kMaxReadCaptures) {
++      g_read_captures++; /* latch the cap message once */
++      stderr_line("BW_DIAG on_texture_read: capture cap reached, further reads not kicked\n");
++    }
++    return;
++  }
++  /* Kick BEFORE read()'s own copy+WaitAny runs: the CopyTextureToBuffer is queued while
++   * the source texture still holds the render result, so the staging buffer retains the
++   * true bytes even after the transient render texture is pooled/freed (Dawn keeps a
++   * texture alive until submitted commands complete). The completion rides a later tick
++   * via AllowSpontaneous (ADR-007), landing the bytes in /tmp/bw_readback_<seq>.bin. */
++  char label[32];
++  std::snprintf(label, sizeof(label), "texread_%d", g_read_captures);
++  g_read_captures++;
++  tex->diag_kick_readback(label);
++}
++
+ void poll_and_pump(WGPUContext *ctx)
+ {
+   if (!ensure_enabled() || ctx == nullptr) {
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 241a49a..02ecd2f 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -23,6 +23,7 @@
+ #include "wgpu_common.hh"
+ #include "wgpu_context.hh"
+ #include "wgpu_data_conversion.hh"
++#include "wgpu_diag_readback.hh"
+ 
+ #include "GPU_context.hh"
+ #include "gpu_context_private.hh"
+@@ -1202,6 +1203,14 @@
+   if (texture_ == nullptr || data == nullptr) {
+     return;
+   }
++  /* M6 r35 render-result bridge: this seam is where the synchronous GPU readback funnels
++   * (GPU_texture_read directly, and GPU_framebuffer_read_color via WGPUFrameBuffer::read
++   * which calls tex->read). The WaitAny below returns zeros in the windowed WM-worker
++   * profile (ADR-006/007), so the render OP's PNG is black. Kick a tick-pumped async
++   * capture of the true bytes here; they surface later in /tmp/bw_readback_<seq>.bin for
++   * the M6 comparator. Inert (immediate no-op) unless BW_DIAG is set - the WaitAny path
++   * below is unchanged, so native/headless and the pixel goldens are unaffected. */
++  diag::on_texture_read(this);
+   const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
+   if (repr == Repr::Compressed || repr == Repr::Unsupported) {
+     BLI_assert_msg(0, "WGPUTexture::read: compressed / unsupported format readback");

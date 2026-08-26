@@ -1,0 +1,396 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index afa337ca267d184ea96934448e3689345004a988..3d4ff268d131fefb61e0cfa6f26e42f7fe6a8f26 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -47,14 +47,18 @@ static webgpu::WGPUTexture *as_wgpu(Texture *tex)
+ 
+ /** A render-attachment view for one Blender attachment (its mip / layer / cube
+  * face). Default view for the common mip-0, whole-texture 2D case. */
+-static wgpu::TextureView attachment_view(const GPUAttachment &att, int force_layer = -1)
++static wgpu::TextureView attachment_view(
++    const GPUAttachment &att,
++    int force_layer = -1,
++    const webgpu::TextureViewValidationScope validation_scope =
++        webgpu::TextureViewValidationScope::Standalone)
+ {
+   webgpu::WGPUTexture *wt = as_wgpu(att.tex);
+   /* Render passes always bind one exact layer. A negative frontend layer denotes
+    * layered rendering; the WebGPU pass-per-layer emulation supplies force_layer,
+    * otherwise the first layer of this view's own subset is used. */
+   const int layer = (force_layer >= 0) ? force_layer : std::max(att.layer, 0);
+-  return wt->attachment_view(std::max(att.mip, 0), layer);
++  return wt->attachment_view(std::max(att.mip, 0), layer, validation_scope);
+ }
+ 
+ static uint32_t attachment_depth_slice(const GPUAttachment &att, int force_layer = -1)
+@@ -106,12 +110,8 @@ bool WGPUFrameBuffer::ensure_empty_render_attachment() const
+     return true;
+   }
+ 
+-  empty_render_attachment_view_ = nullptr;
+-  empty_render_attachment_ = nullptr;
+-  empty_render_attachment_size_ = int2(0);
+-
+   WGPUContext *ctx = active_context();
+-  if (ctx == nullptr) {
++  if (ctx == nullptr || ctx->instance_get() == nullptr || ctx->device_get() == nullptr) {
+     return false;
+   }
+ 
+@@ -123,11 +123,6 @@ bool WGPUFrameBuffer::ensure_empty_render_attachment() const
+   texture_desc.format = wgpu::TextureFormat::R8Unorm;
+   texture_desc.mipLevelCount = 1;
+   texture_desc.sampleCount = 1;
+-  empty_render_attachment_ = ctx->device_get().CreateTexture(&texture_desc);
+-  if (empty_render_attachment_ == nullptr) {
+-    return false;
+-  }
+-
+   wgpu::TextureViewDescriptor view_desc = {};
+   view_desc.label = "Blender empty framebuffer compatibility view";
+   view_desc.format = wgpu::TextureFormat::R8Unorm;
+@@ -137,12 +132,35 @@ bool WGPUFrameBuffer::ensure_empty_render_attachment() const
+   view_desc.baseArrayLayer = 0;
+   view_desc.arrayLayerCount = 1;
+   view_desc.aspect = wgpu::TextureAspect::All;
+-  empty_render_attachment_view_ = empty_render_attachment_.CreateView(&view_desc);
+-  if (empty_render_attachment_view_ == nullptr) {
+-    empty_render_attachment_ = nullptr;
++  const uint64_t cache_key = (uint64_t(uint32_t(width_)) << 32) | uint32_t(height_);
++  const EmptyRenderAttachment candidate = empty_render_attachment_cache_.get_or_create(
++      ctx->instance_get(),
++      ctx->device_get(),
++      cache_key,
++      "empty framebuffer compatibility attachment creation",
++      [&]() {
++        EmptyRenderAttachment result;
++        result.texture = ctx->device_get().CreateTexture(&texture_desc);
++        if (result.texture == nullptr) {
++          return EmptyRenderAttachment{};
++        }
++        result.view = result.texture.CreateView(&view_desc);
++        if (result.view == nullptr) {
++          return EmptyRenderAttachment{};
++        }
++        result.size = size;
++        return result;
++      });
++  if (candidate == nullptr) {
+     return false;
+   }
+-  empty_render_attachment_size_ = size;
++
++  empty_render_attachment_ = candidate.texture;
++  empty_render_attachment_view_ = candidate.view;
++  empty_render_attachment_size_ = candidate.size;
++  /* The accepted pair is now held directly. Retire this one-shot cache state so a future resize
++   * cannot accumulate one backing allocation per historical extent. */
++  empty_render_attachment_cache_ = {};
+   return true;
+ }
+ 
+@@ -1649,7 +1667,9 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+       }
+     }
+     wgpu::RenderPassColorAttachment ca = {};
+-    ca.view = attachment_view(att, attachment_force_layer);
++    ca.view = attachment_view(att,
++                              attachment_force_layer,
++                              webgpu::TextureViewValidationScope::EnclosingCommand);
+     if (ca.view == nullptr) {
+       return nullptr;
+     }
+@@ -1688,7 +1708,9 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+         return nullptr;
+       }
+     }
+-    dsa.view = attachment_view(att, attachment_force_layer);
++    dsa.view = attachment_view(att,
++                               attachment_force_layer,
++                               webgpu::TextureViewValidationScope::EnclosingCommand);
+     if (dsa.view == nullptr) {
+       return nullptr;
+     }
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+index e65a99bc1af0a9aa6f209fac964ba124850e288c..c1ec948ce232f2c43b52a313f61fb1b2e07eb0ff 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -22,6 +22,8 @@
+ 
+ #include "GPU_common_types.hh" /* GPULoadOp / GPUStoreOp */
+ 
++#include "wgpu_common.hh"
++
+ #include "webgpu/webgpu_cpp.h"
+ 
+ #include "MEM_guardedalloc.h"
+@@ -105,6 +107,21 @@ class WGPUFrameBuffer : public FrameBuffer {
+                                Span<GPUAttachmentState> color_attachment_states) override;
+ 
+  private:
++  struct EmptyRenderAttachment {
++    wgpu::Texture texture;
++    wgpu::TextureView view;
++    int2 size = int2(0);
++
++    bool operator==(std::nullptr_t) const
++    {
++      return texture == nullptr || view == nullptr;
++    }
++    bool operator!=(std::nullptr_t) const
++    {
++      return !(*this == nullptr);
++    }
++  };
++
+   /**
+    * WebGPU does not permit attachment-less render passes, while Blender uses
+    * default-sized framebuffers with no public attachments for fragment-shader
+@@ -115,6 +132,10 @@ class WGPUFrameBuffer : public FrameBuffer {
+   mutable wgpu::Texture empty_render_attachment_;
+   mutable wgpu::TextureView empty_render_attachment_view_;
+   mutable int2 empty_render_attachment_size_ = int2(0);
++  /** Pending replacement pair. The accepted fields above remain unchanged until both candidate
++   * handles pass one complete validation/OOM/internal scope set. */
++  mutable webgpu::ScopedHandleCache<uint64_t, EmptyRenderAttachment>
++      empty_render_attachment_cache_;
+ 
+   /** Per-attachment load/store op (explicit-loadstore binds); default = clear+store. */
+   /* A single-subresource CLEAR is consumed by begin_load_pass(). An all-layer array
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 79995813ccf4bfea723f23cb56d0bb64f3db08bf..cc07960d8fd22f8fa1d95760f2c171c5c12e91f2 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -784,7 +784,17 @@ bool WGPUTexture::allocate()
+     return false;
+   }
+ 
+-  texture_ = device.CreateTexture(&desc);
++  const auto creation_scope_status = std::make_shared<std::atomic<int8_t>>(0);
++  texture_ = transient_resource_create_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_scheduler_get(),
++      name_.empty() ? "texture creation" : name_.c_str(),
++      [&]() { return device.CreateTexture(&desc); },
++      [creation_scope_status](const bool valid) {
++        creation_scope_status->store(valid ? int8_t(1) : int8_t(-1),
++                                     std::memory_order_release);
++      });
+   if (texture_ == nullptr) {
+     return false;
+   }
+@@ -799,6 +809,7 @@ bool WGPUTexture::allocate()
+   subresources_.mip_count = uint32_t(std::max(mipmaps_, 1));
+   subresources_.base_layer = 0;
+   subresources_.layer_count = physical_layer_count(type_, h_, d_);
++  subresources_.creation_scope_status = std::move(creation_scope_status);
+   subresources_.physical_extent = physical_extent_at(
+       texture_, type_, 0, subresources_.layer_count);
+   return subresources_.valid();
+@@ -1631,7 +1642,37 @@ static wgpu::TextureFormat aspect_view_format(const WGPUTexture::SubresourceRang
+   return range.view_format;
+ }
+ 
+-wgpu::TextureView WGPUTexture::attachment_view(int mip, int layer) const
++wgpu::TextureView WGPUTexture::create_view_scoped(
++    const wgpu::TextureViewDescriptor &descriptor,
++    const char *label,
++    const TextureViewValidationScope validation_scope) const
++{
++  if (!subresources_.valid()) {
++    return nullptr;
++  }
++  const wgpu::Texture texture = subresources_.texture;
++  const auto create = [&]() { return texture.CreateView(&descriptor); };
++  if (validation_scope == TextureViewValidationScope::EnclosingCommand) {
++    /* `command_encode_submit_scoped()` pushed the complete error-scope set before entering its
++     * encoding body and will reject this non-null error object before queue submission. */
++    return create();
++  }
++
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr || ctx->instance_get() == nullptr || ctx->device_get() == nullptr) {
++    return nullptr;
++  }
++  return transient_resource_create_scoped(
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_scheduler_get(),
++      label,
++      create,
++      [](const bool /*valid*/) {});
++}
++
++wgpu::TextureView WGPUTexture::attachment_view(
++    int mip, int layer, const TextureViewValidationScope validation_scope) const
+ {
+   ResolvedReadRegion region;
+   if (!subresources_.valid() ||
+@@ -1657,7 +1698,7 @@ wgpu::TextureView WGPUTexture::attachment_view(int mip, int layer) const
+               subresources_.backing_format == wgpu::TextureFormat::Depth24PlusStencil8) ?
+                  wgpu::TextureAspect::All :
+                  subresources_.aspect;
+-  return subresources_.texture.CreateView(&d);
++  return create_view_scoped(d, "texture attachment view", validation_scope);
+ }
+ 
+ uint32_t WGPUTexture::attachment_depth_slice(int mip, int layer) const
+@@ -1677,7 +1718,8 @@ uint32_t WGPUTexture::attachment_layer_count(int mip) const
+   return resolve_subresource(mip, -1, region) ? region.depth : 0u;
+ }
+ 
+-wgpu::TextureView WGPUTexture::sampled_attachment_view(int mip, int layer) const
++wgpu::TextureView WGPUTexture::sampled_attachment_view(
++    int mip, int layer, const TextureViewValidationScope validation_scope) const
+ {
+   ResolvedReadRegion region;
+   if (!subresources_.valid() ||
+@@ -1704,7 +1746,7 @@ wgpu::TextureView WGPUTexture::sampled_attachment_view(int mip, int layer) const
+     d.arrayLayerCount = 1;
+   }
+   d.aspect = sampled_range.aspect;
+-  return subresources_.texture.CreateView(&d);
++  return create_view_scoped(d, "sampled texture attachment view", validation_scope);
+ }
+ 
+ wgpu::TextureView WGPUTexture::image_view()
+@@ -1744,7 +1786,7 @@ wgpu::TextureView WGPUTexture::image_view()
+   /* Native 2D and 2D-array/cube-array views now carry explicit, exact layer
+    * counts. Other dimensions retain their existing defaults. */
+   d.aspect = subresources_.aspect;
+-  return subresources_.texture.CreateView(&d);
++  return create_view_scoped(d, "storage texture view");
+ }
+ 
+ wgpu::TextureView WGPUTexture::sampled_view(wgpu::TextureViewDimension override_dim)
+@@ -1821,7 +1863,7 @@ wgpu::TextureView WGPUTexture::sampled_view(wgpu::TextureViewDimension override_
+     }
+     d.nextInChain = &swizzle_desc;
+   }
+-  return subresources_.texture.CreateView(&d);
++  return create_view_scoped(d, "sampled texture view");
+ }
+ 
+ void WGPUTexture::adopt_external(const wgpu::Texture &texture,
+@@ -1910,7 +1952,8 @@ void WGPUTexture::clear(const double4 data)
+                                           subresources_.layer_count :
+                                           1u;
+               for (uint32_t layer = 0; layer < layers; layer++) {
+-                wgpu::TextureView view = attachment_view(mip, int(layer));
++                wgpu::TextureView view = attachment_view(
++                    mip, int(layer), TextureViewValidationScope::EnclosingCommand);
+                 if (view == nullptr) {
+                   return false;
+                 }
+@@ -2010,7 +2053,10 @@ void WGPUTexture::clear(const double4 data)
+                   view_desc.arrayLayerCount = 1;
+                 }
+                 view_desc.aspect = wgpu::TextureAspect::All;
+-                wgpu::TextureView view = subresources_.texture.CreateView(&view_desc);
++                wgpu::TextureView view = create_view_scoped(
++                    view_desc,
++                    "renderable texture clear view",
++                    TextureViewValidationScope::EnclosingCommand);
+                 if (view == nullptr) {
+                   return false;
+                 }
+@@ -2664,8 +2710,10 @@ void WGPUTexture::generate_mipmap()
+       [&](auto &enc) {
+         for (uint32_t mip = 1; mip < subresources_.mip_count; mip++) {
+           for (uint32_t layer = 0; layer < layers; layer++) {
+-            wgpu::TextureView src_view = sampled_attachment_view(int(mip - 1), int(layer));
+-            wgpu::TextureView dst_view = attachment_view(int(mip), int(layer));
++            wgpu::TextureView src_view = sampled_attachment_view(
++                int(mip - 1), int(layer), TextureViewValidationScope::EnclosingCommand);
++            wgpu::TextureView dst_view = attachment_view(
++                int(mip), int(layer), TextureViewValidationScope::EnclosingCommand);
+             if (src_view == nullptr || dst_view == nullptr) {
+               return false;
+             }
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
+index 47469ee7be799c65832d74d3c83c2b898003808a..b8d15f1967254804448647ce1ef1fed9ee8c3287 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture.hh
+@@ -17,6 +17,9 @@
+ 
+ #pragma once
+ 
++#include <atomic>
++#include <memory>
++
+ #include "webgpu/webgpu_cpp.h"
+ 
+ #include "gpu_texture_private.hh"
+@@ -25,6 +28,11 @@
+ 
+ namespace blender::gpu::webgpu {
+ 
++/** A stand-alone view reserves its own queue-validation gate. A view created while
++ * `command_encode_submit_scoped()` is active is instead covered by that enclosing command scope,
++ * which already rejects the complete command before submission. */
++enum class TextureViewValidationScope : uint8_t { Standalone, EnclosingCommand };
++
+ class WGPUTexture : public Texture {
+  public:
+   /** One immutable, checked description of the backing allocation owned by this
+@@ -41,13 +49,20 @@ class WGPUTexture : public Texture {
+     uint32_t mip_count = 0;
+     uint32_t base_layer = 0;
+     uint32_t layer_count = 0;
++    /** Root texture creation may be pending while browser error scopes resolve. A provisional
++     * non-null handle is usable only for CPU encoding behind its reserved queue gate. Rejection
++     * invalidates this range and every copied Blender texture view without retaining a wrapper. */
++    std::shared_ptr<std::atomic<int8_t>> creation_scope_status;
+     /** Physical WebGPU extent at base_mip. For array textures the depth is
+      * layer_count; for 3D textures it is the mip-reduced spatial depth. */
+     wgpu::Extent3D physical_extent = {};
+ 
+     bool valid() const
+     {
+-      return texture != nullptr && backing_format != wgpu::TextureFormat::Undefined &&
++      const bool creation_valid = !creation_scope_status ||
++                                  creation_scope_status->load(std::memory_order_acquire) >= 0;
++      return creation_valid && texture != nullptr &&
++             backing_format != wgpu::TextureFormat::Undefined &&
+              view_format != wgpu::TextureFormat::Undefined && mip_count > 0 &&
+              layer_count > 0 && physical_extent.width > 0 && physical_extent.height > 0 &&
+              physical_extent.depthOrArrayLayers > 0;
+@@ -146,7 +161,10 @@ class WGPUTexture : public Texture {
+ 
+   /** Exact single-mip/single-layer render-attachment view. Mip and layer are
+    * relative to this wrapper's subset. */
+-  wgpu::TextureView attachment_view(int mip = 0, int layer = 0) const;
++  wgpu::TextureView attachment_view(
++      int mip = 0,
++      int layer = 0,
++      TextureViewValidationScope validation_scope = TextureViewValidationScope::Standalone) const;
+   uint32_t attachment_depth_slice(int mip, int layer) const;
+   uint32_t attachment_layer_count(int mip = 0) const;
+ 
+@@ -163,7 +181,10 @@ class WGPUTexture : public Texture {
+       wgpu::TextureViewDimension override_dim = wgpu::TextureViewDimension::Undefined);
+ 
+   /** Exact single-mip/single-layer sampled view used by framebuffer render blits. */
+-  wgpu::TextureView sampled_attachment_view(int mip, int layer) const;
++  wgpu::TextureView sampled_attachment_view(
++      int mip,
++      int layer,
++      TextureViewValidationScope validation_scope = TextureViewValidationScope::Standalone) const;
+ 
+   /** True for a buffer texture (GPU_texture_create_from_vertbuf): it has NO device
+    * texture (source_buffer_ set, texture_ null). WGSL has no texel-buffer type, so
+@@ -195,6 +216,13 @@ class WGPUTexture : public Texture {
+    * false on failure. Shared by the 1D/2D/3D/cube init_internal path. */
+   bool allocate();
+ 
++  /** Create one view either under its own ordered resource gate or inside an already-active
++   * command scope. No raw view factory is permitted outside this single seam. */
++  wgpu::TextureView create_view_scoped(
++      const wgpu::TextureViewDescriptor &descriptor,
++      const char *label,
++      TextureViewValidationScope validation_scope = TextureViewValidationScope::Standalone) const;
++
+   /** Convert `sample_count` tightly-packed host texels (`host_format` scalars, one
+    * per logical component) into this texture's device byte layout, and the reverse.
+    * WebGPU copies move raw bytes, so all pixel-format conversion is CPU-side here. */

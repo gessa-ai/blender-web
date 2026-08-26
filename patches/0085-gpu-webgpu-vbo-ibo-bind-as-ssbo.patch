@@ -1,0 +1,191 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index cdf805a..36005e0 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -149,6 +149,23 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+     entries.push_back(entry);
+   }
+ 
++  /* VBO / IBO bound as an SSBO (GPU_vertbuf_bind_as_ssbo / GPU_indexbuf_bind_as_ssbo).
++   * Same group-0 buffer entry as a StorageBuf, keyed by the dense WGSL @binding the
++   * frontend recorded — the buffer already carries the Storage usage bit
++   * (wgpu_buffer.cc). */
++  for (const auto &item : ctx->bound_buffer_ssbos()) {
++    const webgpu::Buffer *buf = item.second;
++    if (buf == nullptr || !buf->valid()) {
++      continue;
++    }
++    wgpu::BindGroupEntry entry = {};
++    entry.binding = uint32_t(item.first);
++    entry.buffer = buf->handle();
++    entry.offset = 0;
++    entry.size = buf->size();
++    entries.push_back(entry);
++  }
++
+   /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
+    * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
+    * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index f53757f..9815d25 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -28,6 +28,9 @@
+ namespace blender::gpu {
+ 
+ class WGPUStorageBuffer;
++namespace webgpu {
++class Buffer;
++}
+ 
+ class WGPUContext : public Context {
+  public:
+@@ -100,6 +103,33 @@ class WGPUContext : public Context {
+     return bound_storage_buffers_;
+   }
+ 
++  /* --- VBO / IBO bound as an SSBO ------------------------------------------
++   * A VertBuf or IndexBuf may be bound as a storage buffer (GPU_vertbuf_bind_as_ssbo
++   * / GPU_indexbuf_bind_as_ssbo — subdiv / compute readback paths). These are not
++   * WGPUStorageBuffer objects, so they need their own bind-space: the raw
++   * webgpu::Buffer they own is recorded here keyed by the WGSL @binding slot and
++   * added to the group-0 bind group alongside the StorageBufs. Keyed by slot, last
++   * bind wins; the owning VertBuf/IndexBuf unbinds itself on release. */
++  void buffer_ssbo_bind(int slot, const webgpu::Buffer *buffer)
++  {
++    bound_buffer_ssbos_[slot] = buffer;
++  }
++  void buffer_ssbo_unbind(const webgpu::Buffer *buffer)
++  {
++    for (auto it = bound_buffer_ssbos_.begin(); it != bound_buffer_ssbos_.end();) {
++      if (it->second == buffer) {
++        it = bound_buffer_ssbos_.erase(it);
++      }
++      else {
++        ++it;
++      }
++    }
++  }
++  const std::unordered_map<int, const webgpu::Buffer *> &bound_buffer_ssbos() const
++  {
++    return bound_buffer_ssbos_;
++  }
++
+   /* Backend-wide device/instance/queue, reachable from any thread (there is a
+    * single Dawn device). Used by the async shader-compile worker, which has no
+    * thread-local active GPU context. */
+@@ -134,6 +164,8 @@ class WGPUContext : public Context {
+   bool is_active_ = false;
+   /** Bound storage buffers keyed by WGSL @binding slot (see storage_buffer_bind). */
+   std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
++  /** VBO/IBO buffers bound as SSBOs keyed by WGSL @binding slot (see buffer_ssbo_bind). */
++  std::unordered_map<int, const webgpu::Buffer *> bound_buffer_ssbos_;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+index 8ce46c6..86cfd3f 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -98,9 +98,38 @@ void WGPUIndexBuffer::read(uint32_t *data) const
+   }
+ }
+ 
+-/* Binding a index buffer as an SSBO is a draw/compute-time concern resolved by
+- * the state manager (lane B); the object itself does nothing here. */
+-void WGPUIndexBuffer::bind_as_ssbo(uint /*binding*/) {}
++WGPUIndexBuffer::~WGPUIndexBuffer()
++{
++  /* Drop any SSBO binding this buffer holds so a freed IBO can never leave a
++   * dangling pointer for the next dispatch/draw (the buffer_ member is released by
++   * the base destructor after this). */
++  if (WGPUContext *ctx = active_context()) {
++    ctx->buffer_ssbo_unbind(&buffer_);
++  }
++}
++
++/* Bind this index buffer as a read/write storage buffer at the given WGSL @binding
++ * (GPU_indexbuf_bind_as_ssbo — a compute pass builds the index data, e.g. the
++ * compute_ibo test / subdiv). Index buffers are allocated Index|Storage
++ * (wgpu_buffer.cc); ensure the device buffer exists (a build-on-device IBO is created
++ * empty by upload_data) and record it in the context's SSBO bind-space for the
++ * bind-group builder. Subranges bind the parent's buffer. */
++void WGPUIndexBuffer::bind_as_ssbo(uint binding)
++{
++  if (is_subrange_) {
++    unwrap(src_)->bind_as_ssbo(binding);
++    return;
++  }
++  if (!buffer_.valid()) {
++    upload_data();
++  }
++  if (!buffer_.valid()) {
++    return;
++  }
++  if (WGPUContext *ctx = active_context()) {
++    ctx->buffer_ssbo_bind(int(binding), &buffer_);
++  }
++}
+ 
+ void WGPUIndexBuffer::update_sub(uint /*start*/, uint /*len*/, const void * /*data*/)
+ {
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+index 271222f..9df10fa 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -28,7 +28,7 @@ namespace blender::gpu {
+ 
+ class WGPUIndexBuffer : public IndexBuf {
+  public:
+-  ~WGPUIndexBuffer() override = default;
++  ~WGPUIndexBuffer() override;
+ 
+   void upload_data() override;
+   void bind_as_ssbo(uint binding) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index 0e02e7d..e66d57b 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -141,15 +141,38 @@ void WGPUVertexBuffer::resize_data()
+ 
+ void WGPUVertexBuffer::release_data()
+ {
++  /* Drop any binding this buffer holds in the active context's SSBO bind-space so a
++   * freed VBO can never leave a dangling pointer for the next dispatch/draw. */
++  if (WGPUContext *ctx = active_context()) {
++    ctx->buffer_ssbo_unbind(&buffer_);
++  }
+   /* Drop the GPU buffer (RAII releases the wgpu::Buffer handle). */
+   buffer_ = webgpu::Buffer();
+   MEM_SAFE_DELETE(data_);
+ }
+ 
+-/* Binding paths are deferred to the state manager / bind-group assembly (lane B,
+- * T7): a vertex buffer read as an SSBO or bound as a texel buffer is a draw-time
+- * concern the buffer object does not resolve on its own. */
+-void WGPUVertexBuffer::bind_as_ssbo(uint /*binding*/) {}
++/* Bind this vertex buffer as a read/write storage buffer at the given WGSL @binding
++ * (GPU_vertbuf_bind_as_ssbo — compute writes vertex data, e.g. the compute_vbo test /
++ * subdiv). Every VBO is allocated Vertex|Storage (wgpu_buffer.cc), so no reallocation
++ * is needed; the device buffer is ensured here (a DEVICE_ONLY VBO is never uploaded,
++ * so nothing else would create it before the dispatch reads/writes it) and recorded in
++ * the context's SSBO bind-space, which the compute/-draw bind-group builder consumes. */
++void WGPUVertexBuffer::bind_as_ssbo(uint binding)
++{
++  if (!buffer_.valid()) {
++    allocate();
++  }
++  if (!buffer_.valid()) {
++    return;
++  }
++  if (WGPUContext *ctx = active_context()) {
++    ctx->buffer_ssbo_bind(int(binding), &buffer_);
++  }
++}
++
++/* Texel-buffer (buffer-texture) binding is resolved at draw/dispatch bind-group
++ * assembly from the source VertBuf (WGPUTexture::init_internal(VertBuf*)); nothing to
++ * do on the VertBuf object itself. */
+ void WGPUVertexBuffer::bind_as_texture(uint /*binding*/) {}
+ 
+ void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)

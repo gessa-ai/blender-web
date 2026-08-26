@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/asset_system/intern/disk_file_hash_service.cc
+# @ fbe6228777e7
+#
+# Wave-2 P2 (kernel hub). WITH_PYTHON=OFF path bug: the `#else` branch of both
+# DiskFileHashService::get_hash() and ::file_matches() calls UNUSED_VARS(C, ...),
+# but neither method has a `C` (bContext) parameter — the Python branch passes
+# nullptr, not C. A stray copy-paste identifier, never compiled when WITH_PYTHON=ON
+# (so the native oracle is byte-identical — the WITH_PYTHON #else is the guard).
+# Drop `C` so the no-Python (M1) build compiles.
+diff --git a/source/blender/asset_system/intern/disk_file_hash_service.cc b/source/blender/asset_system/intern/disk_file_hash_service.cc
+index 3807c93936a..3b80a9bd194 100644
+--- a/source/blender/asset_system/intern/disk_file_hash_service.cc
++++ b/source/blender/asset_system/intern/disk_file_hash_service.cc
+@@ -100,7 +100,10 @@ _result = service.get_hash(Path(filepath), hash_algorithm)
+ 
+   return hash_value;
+ #else
+-  UNUSED_VARS(C, hash_algorithm);
++  /* blender-web: `C` is not a parameter of this method (WITH_PYTHON=OFF path only,
++   * never compiled when WITH_PYTHON=ON). Drop the stray identifier so the no-Python
++   * build compiles; `filepath` is used below. */
++  UNUSED_VARS(hash_algorithm);
+   const std::string filepath_str = filepath;
+   CLOG_ERROR(&LOG,
+              "Blender was built without Python support, cannot compute hash for file [%s]",
+@@ -171,7 +174,8 @@ _result = service.file_matches(Path(filepath), hash_algorithm, hexhash, size_in_
+ 
+   return is_match;
+ #else
+-  UNUSED_VARS(C, hash_algorithm, hexhash, size_in_bytes);
++  /* blender-web: `C` is not a parameter of this method (WITH_PYTHON=OFF path only). */
++  UNUSED_VARS(hash_algorithm, hexhash, size_in_bytes);
+   const std::string filepath_str = filepath;
+   CLOG_ERROR(&LOG,
+              "Blender was built without Python support, cannot check hash for file [%s]",

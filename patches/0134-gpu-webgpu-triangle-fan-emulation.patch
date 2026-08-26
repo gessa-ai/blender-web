@@ -1,0 +1,373 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 0e6e945..218b937 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -19,4 +19,6 @@
+ 
++#include <cstdint>
+ #include <vector>
+ 
++#include "wgpu_buffer.hh"
+ #include "wgpu_context.hh"
+@@ -52,2 +54,157 @@
+ 
++static wgpu::ComputePipeline triangle_fan_index_pipeline(const wgpu::Device &device)
++{
++  /* The application owns one WebGPU device. Match the render-pipeline pool's
++   * device-lifetime assumption and compile this small topology kernel once. */
++  static wgpu::ComputePipeline pipeline;
++  if (pipeline != nullptr) {
++    return pipeline;
++  }
++  static constexpr const char *source = R"(
++struct Params {
++  first : u32,
++  count : u32,
++  restart : u32,
++  max_count : u32,
++}
++@group(0) @binding(0) var<storage, read> source_indices : array<u32>;
++@group(0) @binding(1) var<storage, read_write> output_indices : array<u32>;
++@group(0) @binding(2) var<uniform> params : Params;
++
++fn load_index(position : u32) -> u32 {
++  if (params.restart == 0xffffu) {
++    let packed = source_indices[position >> 1u];
++    return select(packed & 0xffffu, packed >> 16u, (position & 1u) != 0u);
++  }
++  return source_indices[position];
++}
++
++@compute @workgroup_size(1)
++fn main() {
++  var output_count = 0u;
++  var fan_count = 0u;
++  var fan_first = 0u;
++  var fan_previous = 0u;
++  for (var i = 0u; i < params.count; i++) {
++    let index = load_index(params.first + i);
++    if (index == params.restart) {
++      fan_count = 0u;
++    }
++    else if (fan_count == 0u) {
++      fan_first = index;
++      fan_count = 1u;
++    }
++    else if (fan_count == 1u) {
++      fan_previous = index;
++      fan_count = 2u;
++    }
++    else {
++      output_indices[output_count] = fan_first;
++      output_indices[output_count + 1u] = fan_previous;
++      output_indices[output_count + 2u] = index;
++      output_indices[output_count + 3u] = 0xffffffffu;
++      output_count += 4u;
++      fan_previous = index;
++      fan_count += 1u;
++    }
++  }
++  /* Restart isolates each three-index strip. Unused capacity is restart-only,
++   * producing neither primitives nor vertex shader invocations. */
++  while (output_count < params.max_count) {
++    output_indices[output_count] = 0xffffffffu;
++    output_count += 1u;
++  }
++}
++)";
++  wgpu::ShaderSourceWGSL wgsl = {};
++  wgsl.code = source;
++  wgpu::ShaderModuleDescriptor shader_descriptor = {};
++  shader_descriptor.nextInChain = &wgsl;
++  wgpu::ShaderModule module = device.CreateShaderModule(&shader_descriptor);
++  wgpu::ComputePipelineDescriptor pipeline_descriptor = {};
++  pipeline_descriptor.compute.module = module;
++  pipeline_descriptor.compute.entryPoint = "main";
++  pipeline = device.CreateComputePipeline(&pipeline_descriptor);
++  return pipeline;
++}
++
++static bool expand_indexed_triangle_fan(WGPUContext &ctx,
++                                        WGPUIndexBuffer &source,
++                                        uint32_t first,
++                                        uint32_t count,
++                                        webgpu::Buffer &r_output,
++                                        uint32_t &r_output_count)
++{
++  if (!source.buffer().valid() || count < 3) {
++    return false;
++  }
++  const uint64_t max_output_count = uint64_t(count - 2) * 4;
++  const uint64_t source_first = uint64_t(source.index_start_get()) + first;
++  const uint64_t source_last = source_first + count - 1;
++  const uint64_t source_byte_end = (source_last + 1) * (source.is_32bit() ? 4 : 2);
++  if (max_output_count > UINT32_MAX ||
++      max_output_count > SIZE_MAX / sizeof(uint32_t) || source_last > UINT32_MAX ||
++      source_byte_end > source.buffer().size())
++  {
++    return false;
++  }
++  r_output_count = uint32_t(max_output_count);
++  if (!r_output.create(ctx.device_get(),
++                       webgpu::BufferKind::Index,
++                       webgpu::UsageType::DeviceOnly,
++                       size_t(max_output_count) * sizeof(uint32_t),
++                       nullptr,
++                       false))
++  {
++    return false;
++  }
++  const uint32_t params[4] = {uint32_t(source_first),
++                              count,
++                              source.is_32bit() ? 0xffffffffu : 0xffffu,
++                              r_output_count};
++  webgpu::Buffer params_buffer;
++  if (!params_buffer.create(ctx.device_get(),
++                            webgpu::BufferKind::Uniform,
++                            webgpu::UsageType::Static,
++                            sizeof(params),
++                            params,
++                            false))
++  {
++    return false;
++  }
++
++  const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx.device_get());
++  if (pipeline == nullptr) {
++    return false;
++  }
++  wgpu::BindGroupEntry entries[3] = {};
++  entries[0].binding = 0;
++  entries[0].buffer = source.buffer().handle();
++  entries[0].size = source.buffer().size();
++  entries[1].binding = 1;
++  entries[1].buffer = r_output.handle();
++  entries[1].size = size_t(r_output_count) * sizeof(uint32_t);
++  entries[2].binding = 2;
++  entries[2].buffer = params_buffer.handle();
++  entries[2].size = sizeof(params);
++  wgpu::BindGroupDescriptor group_descriptor = {};
++  group_descriptor.layout = pipeline.GetBindGroupLayout(0);
++  group_descriptor.entryCount = 3;
++  group_descriptor.entries = entries;
++  const wgpu::BindGroup group = ctx.device_get().CreateBindGroup(&group_descriptor);
++  if (group == nullptr) {
++    return false;
++  }
++
++  wgpu::CommandEncoder encoder = ctx.device_get().CreateCommandEncoder();
++  wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
++  pass.SetPipeline(pipeline);
++  pass.SetBindGroup(0, group);
++  pass.DispatchWorkgroups(1);
++  pass.End();
++  wgpu::CommandBuffer command_buffer = encoder.Finish();
++  ctx.queue_get().Submit(1, &command_buffer);
++  return true;
++}
++
+ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int instance_count)
+@@ -97,2 +254,59 @@
+ 
++  /* WebGPU has no triangle-fan topology. Direct batch draws preserve fan semantics
++   * with a transient UInt32 index buffer. Indexed fans become isolated three-index
++   * strips separated by restart markers; non-indexed fans become triangle lists.
++   * GPU expansion covers U16 packing, U32, restart-delimited fans,
++   * shared/device-built buffers, and subranges. */
++  WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
++  const bool emulate_triangle_fan = prim_type == GPU_PRIM_TRI_FAN;
++  std::vector<uint32_t> fan_indices;
++  webgpu::Buffer fan_index_buffer;
++  uint32_t fan_index_count = 0;
++  if (emulate_triangle_fan) {
++    if (vertex_first < 0 || vertex_count < 3) {
++      return;
++    }
++    if (wibo != nullptr) {
++      if (uint64_t(vertex_first) + uint64_t(vertex_count) > elem->index_len_get()) {
++        return;
++      }
++      if (!expand_indexed_triangle_fan(*ctx,
++                                       *wibo,
++                                       uint32_t(vertex_first),
++                                       uint32_t(vertex_count),
++                                       fan_index_buffer,
++                                       fan_index_count))
++      {
++        return;
++      }
++    }
++    else {
++      const uint64_t fan_count = uint64_t(vertex_count - 2) * 3;
++      const uint64_t vertex_last = uint64_t(vertex_first) + uint64_t(vertex_count) - 1;
++      if (fan_count > UINT32_MAX || fan_count > SIZE_MAX / sizeof(uint32_t) ||
++          vertex_last > UINT32_MAX ||
++          (wvbos[0] != nullptr && vertex_last >= uint64_t(wvbos[0]->vertex_len)))
++      {
++        return;
++      }
++      fan_indices.reserve(size_t(vertex_count - 2) * 3);
++      const uint32_t base = uint32_t(vertex_first);
++      for (uint32_t i = 1; i + 1 < uint32_t(vertex_count); i++) {
++        fan_indices.push_back(base);
++        fan_indices.push_back(base + i);
++        fan_indices.push_back(base + i + 1);
++      }
++      fan_index_count = uint32_t(fan_indices.size());
++      if (!fan_index_buffer.create(ctx->device_get(),
++                                   webgpu::BufferKind::Index,
++                                   webgpu::UsageType::Static,
++                                   fan_indices.size() * sizeof(uint32_t),
++                                   fan_indices.data(),
++                                   false))
++      {
++        return;
++      }
++    }
++  }
++
+   /* Assemble the pipeline key from the shader, geometry, fixed-function state, and
+@@ -111,3 +325,8 @@
+   fb->target_formats(info.color_formats, info.color_count, info.depth_format);
+-  info.prim_type = prim_type;
++  info.prim_type = (emulate_triangle_fan && wibo != nullptr) ? GPU_PRIM_TRI_STRIP :
++                   emulate_triangle_fan                      ? GPU_PRIM_TRIS :
++                                                               prim_type;
++  info.strip_index_format = (emulate_triangle_fan && wibo != nullptr) ?
++                                wgpu::IndexFormat::Uint32 :
++                                wgpu::IndexFormat::Undefined;
+   info.flip_y = !ctx->is_window_backbuffer(fb);
+@@ -206,4 +425,11 @@
+ 
+-        if (elem != nullptr) {
+-          WGPUIndexBuffer *wibo = unwrap(elem);
++        if (emulate_triangle_fan) {
++          mv_pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++          mv_pass.DrawIndexed(fan_index_count,
++                              uint32_t(instance_count),
++                              0,
++                              wibo != nullptr ? int32_t(elem->index_base_get()) : 0,
++                              uint32_t(instance_first));
++        }
++        else if (elem != nullptr) {
+           if (wibo->buffer().valid()) {
+@@ -266,4 +492,11 @@
+ 
+-  if (elem != nullptr) {
+-    WGPUIndexBuffer *wibo = unwrap(elem);
++  if (emulate_triangle_fan) {
++    pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++    pass.DrawIndexed(fan_index_count,
++                     uint32_t(instance_count),
++                     0,
++                     wibo != nullptr ? int32_t(elem->index_base_get()) : 0,
++                     uint32_t(instance_first));
++  }
++  else if (elem != nullptr) {
+     if (wibo->buffer().valid()) {
+@@ -316,2 +549,10 @@
+   }
++  if (prim_type == GPU_PRIM_TRI_FAN) {
++    /* The fan vertex/index count resides in GPU indirect arguments, so the CPU
++     * cannot build a faithful triangle-list expansion here. No production fan
++     * batch uses indirect drawing at the pinned tree; reject instead of silently
++     * selecting TriangleStrip. */
++    BLI_assert_msg(false, "WebGPU indirect triangle-fan draws are unsupported");
++    return;
++  }
+   WGPUContext *ctx = active_context();
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index f932762..af6c114 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -25,2 +25,3 @@
+ 
++#include <cstdint>
+ #include <vector>
+@@ -77,2 +78,34 @@
+ 
++  /* WebGPU has no triangle-fan topology. Build a transient triangle-list index
++   * buffer while preserving fan winding and the original vertex identities:
++   * (0, i, i + 1). Keeping the VBO unchanged also preserves gl_VertexID. */
++  GPUPrimType draw_prim_type = prim_type;
++  std::vector<uint32_t> fan_indices;
++  webgpu::Buffer fan_index_buffer;
++  if (prim_type == GPU_PRIM_TRI_FAN) {
++    if (vertex_idx < 3) {
++      return;
++    }
++    const uint64_t fan_count = uint64_t(vertex_idx - 2) * 3;
++    if (fan_count > UINT32_MAX || fan_count > SIZE_MAX / sizeof(uint32_t)) {
++      return;
++    }
++    draw_prim_type = GPU_PRIM_TRIS;
++    fan_indices.reserve(size_t(vertex_idx - 2) * 3);
++    for (uint i = 1; i + 1 < vertex_idx; i++) {
++      fan_indices.push_back(0);
++      fan_indices.push_back(i);
++      fan_indices.push_back(i + 1);
++    }
++    if (!fan_index_buffer.create(ctx->device_get(),
++                                 webgpu::BufferKind::Index,
++                                 webgpu::UsageType::Static,
++                                 fan_indices.size() * sizeof(uint32_t),
++                                 fan_indices.data(),
++                                 false))
++    {
++      return;
++    }
++  }
++
+   /* Upload the recorded vertices to a transient vertex buffer. */
+@@ -101,3 +134,3 @@
+   fb->target_formats(info.color_formats, info.color_count, info.depth_format);
+-  info.prim_type = prim_type;
++  info.prim_type = draw_prim_type;
+   info.flip_y = !ctx->is_window_backbuffer(fb);
+@@ -160,3 +193,9 @@
+ 
+-  pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
++  if (!fan_indices.empty()) {
++    pass.SetIndexBuffer(fan_index_buffer.handle(), wgpu::IndexFormat::Uint32, 0);
++    pass.DrawIndexed(uint32_t(fan_indices.size()), 1, 0, 0, 0);
++  }
++  else {
++    pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
++  }
+   pass.End();
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+index 86a785a..b07ee5d 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -24,2 +24,4 @@
+ 
++#include "BLI_assert.h"
++
+ #include <cstring>
+@@ -40,4 +42,8 @@
+     case GPU_PRIM_TRI_STRIP:
+-    case GPU_PRIM_TRI_FAN: /* WebGPU has no fan; emulated as strip upstream when needed. */
+       return wgpu::PrimitiveTopology::TriangleStrip;
++    case GPU_PRIM_TRI_FAN:
++      /* Immediate and direct batch paths must translate fans before pipeline lookup.
++       * Keep unhandled paths visible rather than silently misrendering as strips. */
++      BLI_assert_unreachable();
++      return wgpu::PrimitiveTopology::TriangleList;
+     case GPU_PRIM_TRIS:
+@@ -126,2 +132,3 @@
+   hash_bytes(h, &info.prim_type, sizeof(info.prim_type));
++  hash_bytes(h, &info.strip_index_format, sizeof(info.strip_index_format));
+   hash_bytes(h, &info.flip_y, sizeof(info.flip_y));
+@@ -235,2 +242,3 @@
+   primitive.topology = to_wgpu_topology(info.prim_type);
++  primitive.stripIndexFormat = info.strip_index_format;
+   /* ADR-005 decision 2 (winding compensation): lane A's vertex-shader clip-space
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+index 66940c7..c193960 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.hh
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+@@ -72,2 +72,4 @@
+   GPUPrimType prim_type = GPU_PRIM_TRIS;
++  /** Required only by indexed strip pipelines; fan emulation always emits UInt32. */
++  wgpu::IndexFormat strip_index_format = wgpu::IndexFormat::Undefined;
+   /* Apply the ADR-005 clip-space Y-flip + winding swap (true = offscreen, the default).

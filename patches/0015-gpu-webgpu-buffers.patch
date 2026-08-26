@@ -1,0 +1,360 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+new file mode 100644
+index 0000000..8c42137
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -0,0 +1,63 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_common.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Shared GPU<->WebGPU conversion helpers + constants (the WebGPU analog of
++ * vk_common). Owned by integration lane A; other backend files (buffers, and
++ * lane B's texture/pipeline modules) include this. Kept dependency-light: only
++ * Dawn's C++ header + libc. Proven standalone in sandbox/wgpu-buffers/ and
++ * documented in notes/gpu-t6-t10pre-findings.md.
++ */
++
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++
++#include "webgpu/webgpu_cpp.h"
++
++namespace blender::gpu::webgpu {
++
++/** Which GPU buffer role — selects the kind-specific `wgpu::BufferUsage` bit. */
++enum class BufferKind : uint8_t { Vertex, Index, Uniform, Storage };
++
++/** Mirror of Blender's `GPUUsageType` (GPU_vertex_buffer.hh:44). */
++enum class UsageType : uint8_t {
++  Stream,     /* GPU_USAGE_STREAM: frequently re-uploaded. */
++  Static,     /* GPU_USAGE_STATIC: uploaded once; host copy dropped. */
++  Dynamic,    /* GPU_USAGE_DYNAMIC: updated occasionally. */
++  DeviceOnly, /* GPU_USAGE_DEVICE_ONLY: no host->device transfer (compute target). */
++};
++
++/** WebGPU offset/size granularity: writeBuffer + CopyBufferToBuffer both require
++ * 4-byte alignment; uniform binding offsets need 256
++ * (minUniformBufferOffsetAlignment). */
++constexpr uint32_t kCopyAlignment = 4u;
++constexpr uint32_t kUniformOffsetAlignment = 256u;
++
++/** Above this many bytes, buffer sub-updates route through a dedicated staging
++ * buffer + CopyBufferToBuffer instead of `queue.writeBuffer`. Mirrors Blender's
++ * Vulkan inline `vkCmdUpdateBuffer` fast-path (asserts size <= 65536,
++ * vk_buffer.cc:146) — so 64 KiB is the faithful boundary, not arbitrary. */
++constexpr size_t kWriteBufferStagingThreshold = 65536u;
++
++/** WebGPU index format for Blender's 16-/32-bit index buffers
++ * (GPU_index_buffer.hh: GPU_INDEX_U16/U32). */
++inline wgpu::IndexFormat to_wgpu_index_format(bool is_32bit)
++{
++  return is_32bit ? wgpu::IndexFormat::Uint32 : wgpu::IndexFormat::Uint16;
++}
++
++/** Round up to the next multiple of `a` (a power of two). */
++inline size_t align_up(size_t v, size_t a)
++{
++  return (v + (a - 1)) & ~(a - 1);
++}
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+new file mode 100644
+index 0000000..464cfd9
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -0,0 +1,92 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_buffer.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * The common `GPUBuffer` wrapper the vertex/index/uniform/storage buffer classes
++ * share. Replaces the Vulkan backend's `vk_buffer` + VMA allocation + staging /
++ * streaming plumbing with WebGPU's implicit allocation:
++ *   - creation with initial data uses `mappedAtCreation` (no queue op, any size);
++ *   - runtime updates use `queue.writeBuffer` (<=64 KiB) or a staging buffer +
++ *     `CopyBufferToBuffer` (larger), chosen by kWriteBufferStagingThreshold;
++ *   - readback uses a MAP_READ staging buffer + `CopyBufferToBuffer` + `mapAsync`.
++ *
++ * Standalone-proven (5/5 live, byte-exact incl. the 20 MiB staging path) in
++ * sandbox/wgpu-buffers/; recon + rationale in notes/gpu-t6-t10pre-findings.md.
++ */
++
++#pragma once
++
++#include <vector>
++
++#include "wgpu_common.hh"
++
++namespace blender::gpu::webgpu {
++
++/** Compute the `wgpu::BufferUsage` for a (kind, usage) pair. `readable` adds
++ * CopySrc so the buffer can be read back to host (storage buffers, pixel packs). */
++wgpu::BufferUsage usage_flags(BufferKind kind, UsageType usage, bool readable);
++
++/** The common buffer wrapper. Non-owning of the device; owns its wgpu::Buffer. */
++class Buffer {
++ public:
++  Buffer() = default;
++
++  /** Create a buffer of `size` bytes. If `initial_data` is non-null it is written
++   * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
++   * multiple of 4 (WebGPU requirement). Returns false on failure. */
++  bool create(const wgpu::Device &device,
++              BufferKind kind,
++              UsageType usage,
++              size_t size,
++              const void *initial_data,
++              bool readable);
++
++  /** Partial update: writes `size` bytes at `offset`. Uses queue.writeBuffer for
++   * small writes, a staging buffer + copy for large ones. offset/size must be
++   * 4-aligned. Returns false on misuse. */
++  bool update_sub(const wgpu::Device &device,
++                  const wgpu::Queue &queue,
++                  size_t offset,
++                  const void *data,
++                  size_t size);
++
++  /** Read `size` bytes at `offset` back to host via a MAP_READ staging buffer.
++   * Requires the buffer was created `readable`. Blocks on the instance. */
++  std::vector<uint8_t> read(const wgpu::Instance &instance,
++                            const wgpu::Device &device,
++                            const wgpu::Queue &queue,
++                            size_t offset,
++                            size_t size);
++
++  const wgpu::Buffer &handle() const
++  {
++    return handle_;
++  }
++  size_t size() const
++  {
++    return size_;
++  }
++  BufferKind kind() const
++  {
++    return kind_;
++  }
++  bool valid() const
++  {
++    return handle_ != nullptr;
++  }
++
++ private:
++  wgpu::Buffer handle_;
++  size_t size_ = 0;      /* rounded (allocated) size */
++  size_t requested_ = 0; /* size the caller asked for */
++  BufferKind kind_ = BufferKind::Vertex;
++  bool readable_ = false;
++};
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+new file mode 100644
+index 0000000..7e51148
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -0,0 +1,170 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_buffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * WebGPU buffer wrapper. See wgpu_buffer.hh. Usage-flag mapping mirrors the
++ * Vulkan backend's per-kind VkBufferUsageFlags (recon cited in
++ * notes/gpu-t6-t10pre-findings.md): vertex/index buffers are also STORAGE-usable
++ * (GPU-compute writes them), storage buffers are also INDIRECT.
++ */
++
++#include "wgpu_buffer.hh"
++
++#include <cstring>
++
++namespace blender::gpu::webgpu {
++
++wgpu::BufferUsage usage_flags(BufferKind kind, UsageType usage, bool readable)
++{
++  wgpu::BufferUsage u = wgpu::BufferUsage::None;
++  switch (kind) {
++    case BufferKind::Vertex:
++      /* VERTEX | STORAGE (subdiv/compute writes) — vk_vertex_buffer.cc:207. */
++      u |= wgpu::BufferUsage::Vertex | wgpu::BufferUsage::Storage;
++      break;
++    case BufferKind::Index:
++      /* INDEX | STORAGE — vk_index_buffer.cc:113. */
++      u |= wgpu::BufferUsage::Index | wgpu::BufferUsage::Storage;
++      break;
++    case BufferKind::Uniform:
++      /* UNIFORM only (+STORAGE in vk, omitted — WebGPU forbids Uniform+Storage on
++       * one buffer). vk_uniform_buffer.cc:42. */
++      u |= wgpu::BufferUsage::Uniform;
++      break;
++    case BufferKind::Storage:
++      /* STORAGE | INDIRECT — vk_storage_buffer.cc:82. */
++      u |= wgpu::BufferUsage::Storage | wgpu::BufferUsage::Indirect;
++      break;
++  }
++  /* DEVICE_ONLY does no host->device transfer (GPU_USAGE_DEVICE_ONLY): no CopyDst. */
++  if (usage != UsageType::DeviceOnly) {
++    u |= wgpu::BufferUsage::CopyDst;
++  }
++  if (readable) {
++    u |= wgpu::BufferUsage::CopySrc;
++  }
++  return u;
++}
++
++bool Buffer::create(const wgpu::Device &device,
++                    BufferKind kind,
++                    UsageType usage,
++                    size_t size,
++                    const void *initial_data,
++                    bool readable)
++{
++  requested_ = size;
++  size_ = align_up(size == 0 ? kCopyAlignment : size, kCopyAlignment);
++  kind_ = kind;
++  readable_ = readable;
++
++  wgpu::BufferDescriptor bd = {};
++  bd.size = size_;
++  bd.usage = usage_flags(kind, usage, readable);
++  bd.mappedAtCreation = (initial_data != nullptr);
++  handle_ = device.CreateBuffer(&bd);
++  if (handle_ == nullptr) {
++    return false;
++  }
++  if (initial_data != nullptr) {
++    void *p = handle_.GetMappedRange(0, size_);
++    if (p == nullptr) {
++      return false;
++    }
++    std::memcpy(p, initial_data, requested_);
++    handle_.Unmap();
++  }
++  return true;
++}
++
++bool Buffer::update_sub(const wgpu::Device &device,
++                        const wgpu::Queue &queue,
++                        size_t offset,
++                        const void *data,
++                        size_t size)
++{
++  if (handle_ == nullptr || data == nullptr) {
++    return false;
++  }
++  if ((offset % kCopyAlignment) != 0 || (size % kCopyAlignment) != 0) {
++    return false; /* WebGPU copies require 4-byte alignment */
++  }
++  if (offset + size > size_) {
++    return false;
++  }
++
++  if (size <= kWriteBufferStagingThreshold) {
++    /* Direct path — analog of Blender's inline vkCmdUpdateBuffer (<=64 KiB). */
++    queue.WriteBuffer(handle_, offset, data, size);
++    return true;
++  }
++
++  /* Large path — dedicated staging buffer + CopyBufferToBuffer (the vk staging
++   * path for device-local buffers). */
++  wgpu::BufferDescriptor sd = {};
++  sd.size = size;
++  sd.usage = wgpu::BufferUsage::CopySrc;
++  sd.mappedAtCreation = true;
++  wgpu::Buffer staging = device.CreateBuffer(&sd);
++  if (staging == nullptr) {
++    return false;
++  }
++  std::memcpy(staging.GetMappedRange(0, size), data, size);
++  staging.Unmap();
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++  wgpu::CommandBuffer cb = enc.Finish();
++  queue.Submit(1, &cb);
++  return true;
++}
++
++std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
++                                  const wgpu::Device &device,
++                                  const wgpu::Queue &queue,
++                                  size_t offset,
++                                  size_t size)
++{
++  std::vector<uint8_t> out;
++  if (handle_ == nullptr || !readable_ || size == 0) {
++    return out;
++  }
++  const size_t copy = align_up(size, kCopyAlignment);
++  if (offset + copy > size_) {
++    return out;
++  }
++  wgpu::BufferDescriptor sd = {};
++  sd.size = copy;
++  sd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
++  wgpu::Buffer staging = device.CreateBuffer(&sd);
++  if (staging == nullptr) {
++    return out;
++  }
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++  wgpu::CommandBuffer cb = enc.Finish();
++  queue.Submit(1, &cb);
++
++  bool ok = false;
++  wgpu::Future f = staging.MapAsync(
++      wgpu::MapMode::Read, 0, copy, wgpu::CallbackMode::WaitAnyOnly,
++      [&](wgpu::MapAsyncStatus s, wgpu::StringView) {
++        ok = (s == wgpu::MapAsyncStatus::Success);
++      });
++  instance.WaitAny(f, UINT64_MAX);
++  if (ok) {
++    const uint8_t *p = static_cast<const uint8_t *>(staging.GetConstMappedRange(0, copy));
++    if (p != nullptr) {
++      out.assign(p, p + size);
++    }
++    staging.Unmap();
++  }
++  return out;
++}
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index 777045b..df1b2b8 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -476,9 +476,12 @@ endif()
+ if(WITH_WEBGPU_BACKEND)
+   list(APPEND SRC
+     webgpu/wgpu_backend.cc
++    webgpu/wgpu_buffer.cc
+     webgpu/wgpu_context.cc
+ 
+     webgpu/wgpu_backend.hh
++    webgpu/wgpu_buffer.hh
++    webgpu/wgpu_common.hh
+     webgpu/wgpu_context.hh
+     webgpu/wgpu_storage_buffer.hh
+   )

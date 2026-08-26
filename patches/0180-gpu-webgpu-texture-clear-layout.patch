@@ -1,0 +1,33 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 92a3fd0981b9e4726f4ab627465c057ea2a145ec..aecc0b9394e5fdb530244b817652225fd39021aa 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -2046,11 +2046,16 @@ void WGPUTexture::clear(const double4 data)
+     const uint32_t ex = region.width;
+     const uint32_t ey = region.height;
+     const uint32_t ez = region.depth;
+-    const size_t sample_count = size_t(ex) * ey * ez;
++    TextureUploadLayout clear_layout;
++    if (!texture_upload_layout(
++            ex, ey, ez, texel_bytes, texel_bytes, 0, clear_layout))
++    {
++      return;
++    }
+
+-    std::vector<uint8_t> buffer(sample_count * texel_bytes);
+-    for (size_t i = 0; i < sample_count; i++) {
++    std::vector<uint8_t> buffer(clear_layout.device_data_size);
++    for (size_t i = 0; i < clear_layout.sample_count; i++) {
+       std::memcpy(buffer.data() + i * texel_bytes, texel.data(), texel_bytes);
+     }
+
+     wgpu::TexelCopyTextureInfo dst = {};
+@@ -2061,7 +2066,7 @@ void WGPUTexture::clear(const double4 data)
+
+     wgpu::TexelCopyBufferLayout layout = {};
+     layout.offset = 0;
+-    layout.bytesPerRow = ex * texel_bytes;
++    layout.bytesPerRow = clear_layout.bytes_per_row;
+     layout.rowsPerImage = ey;
+
+     wgpu::Extent3D write_size = {ex, ey, ez};

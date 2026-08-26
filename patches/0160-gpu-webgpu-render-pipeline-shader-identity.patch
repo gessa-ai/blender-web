@@ -1,0 +1,141 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -314,7 +314,6 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+ 
+   /* Assemble the pipeline key from the shader, geometry, fixed-function state, and
+    * the bound framebuffer's target formats. */
+-  webgpu::PipelineInfo info;
+-  info.shader = shader;
++  webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());
+   if (const shader::SpecializationConstants *constants =
+           shader->bound_specialization_constants())
+@@ -631,7 +630,6 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       indexed ? webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Indirect) :
+                 webgpu::IndexBindingPlan{};
+ 
+-  webgpu::PipelineInfo info;
+-  info.shader = shader;
++  webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());
+   if (const shader::SpecializationConstants *constants =
+           shader->bound_specialization_constants())
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -149,7 +149,6 @@ void WGPUImmediate::end()
+   }
+ 
+   /* Select the pipeline for (shader, immediate vertex format, state, targets, prim). */
+-  webgpu::PipelineInfo info;
+-  info.shader = shader;
++  webgpu::PipelineInfo info(shader, shader->pipeline_cache_identity());
+   if (const shader::SpecializationConstants *constants =
+           shader->bound_specialization_constants())
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -136,11 +136,16 @@ static void hash_bytes(uint64_t &h, const void *data, size_t len)
+   }
+ }
+ 
++static void hash_shader_identity(uint64_t &h, const void *shader, const uint64_t identity)
++{
++  hash_bytes(h, &shader, sizeof(shader));
++  hash_bytes(h, &identity, sizeof(identity));
++}
++
+ static uint64_t pipeline_hash(const PipelineInfo &info)
+ {
+   uint64_t h = 1469598103934665603ull; /* FNV offset basis */
+-  const void *sh = info.shader;
+-  hash_bytes(h, &sh, sizeof(sh));
++  hash_shader_identity(h, info.shader, info.shader_cache_identity);
+   hash_bytes(h, &info.state.data, sizeof(info.state.data));
+   hash_bytes(h, info.mutable_state.data, sizeof(info.mutable_state.data));
+   hash_bytes(h, info.color_formats, sizeof(wgpu::TextureFormat) * info.color_count);
+@@ -530,6 +531,9 @@ VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
+ 
+ wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Device &device, const PipelineInfo &info)
+ {
++  BLI_assert(info.shader != nullptr);
++  BLI_assert(info.shader_cache_identity != 0);
++  BLI_assert(info.shader_cache_identity == info.shader->pipeline_cache_identity());
+   const uint64_t key = pipeline_hash(info);
+   auto it = cache_.find(key);
+   if (it != cache_.end()) {
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.hh
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+@@ -56,6 +56,14 @@ using VertexPlan = std::vector<VertexBinding>;
+ 
+ struct PipelineInfo {
++  PipelineInfo(WGPUShader *shader, const uint64_t cache_identity)
++      : shader(shader), shader_cache_identity(cache_identity)
++  {
++  }
++
+   WGPUShader *shader = nullptr;
++  /** A monotonic per-instance identity. The process-wide pools outlive shaders, so a raw
++   * allocator address alone cannot distinguish a replacement object at the same address. */
++  uint64_t shader_cache_identity = 0;
+   /* Every bound vertex buffer, indexed by its batch verts[] slot (entries may be null);
+    * a single interleaved format lives at [0]. Empty set => procedural (no vbo). */
+   const GPUVertFormat *vertex_formats[GPU_BATCH_VBO_MAX_LEN] = {};
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -29,6 +29,7 @@
+ #include "CLG_log.h"
+ 
+ #include <algorithm>
++#include <atomic>
+ #include <cctype>
+ #include <cstring>
+ #include <functional>
+@@ -803,7 +804,18 @@ class WGPUShaderInterface : public ShaderInterface {
+ /** \name WGPUShader
+  * \{ */
+ 
+-WGPUShader::WGPUShader(const char *name) : Shader(name) {}
++static uint64_t next_pipeline_cache_identity()
++{
++  static std::atomic<uint64_t> next_identity{1};
++  const uint64_t identity = next_identity.fetch_add(1, std::memory_order_relaxed);
++  BLI_assert(identity != 0);
++  return identity;
++}
++
++WGPUShader::WGPUShader(const char *name)
++    : Shader(name), pipeline_cache_identity_(next_pipeline_cache_identity())
++{
++}
+ 
+ WGPUShader::~WGPUShader() {}
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -51,5 +51,13 @@ class WGPUShader : public Shader {
+     return bound_constants_;
+   }
++  /** Stable identity for render-pipeline cache entries. The process-wide batch and immediate
++   * pools retain pipelines beyond this object's lifetime, while guardedalloc may reuse the raw
++   * `WGPUShader *` address for a later shader. */
++  uint64_t pipeline_cache_identity() const
++  {
++    return pipeline_cache_identity_;
++  }
++
+   /** Whether Tint retained specialization constant `constant_id` in a WGSL stage.
+    * Unused overrides are pruned independently per stage, and WebGPU rejects a
+    * ConstantEntry for an override absent from that stage's module. */
+@@ -221,6 +230,9 @@ class WGPUShader : public Shader {
+   std::string fragment_glsl_;
+   std::string compute_glsl_;
+ 
++  /* Unique for this object lifetime; never derived from the allocator address. */
++  uint64_t pipeline_cache_identity_ = 0;
++
+   /* Compiled WGSL modules (produced by finalize via the shaderc→Tint chain). */
+   wgpu::ShaderModule vertex_module_;
+   wgpu::ShaderModule fragment_module_;

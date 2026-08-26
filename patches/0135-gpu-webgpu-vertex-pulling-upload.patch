@@ -1,0 +1,69 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index 5a66b76..8d24b3d 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -252,20 +252,21 @@ void WGPUVertexBuffer::release_data()
+ /* Bind this vertex buffer as a read/write storage buffer at the given WGSL @binding
+  * (GPU_vertbuf_bind_as_ssbo — compute writes vertex data, e.g. the compute_vbo test /
+  * subdiv). Every VBO is allocated Vertex|Storage (wgpu_buffer.cc), so no reallocation
+- * is needed; the device buffer is ensured here (a DEVICE_ONLY VBO is never uploaded,
+- * so nothing else would create it before the dispatch reads/writes it) and recorded in
+- * the context's SSBO bind-space, which the compute/-draw bind-group builder consumes. */
++ * is needed. Upload before every bind so a first-use VBO and any later host-side DIRTY
++ * update are visible to the shader. `upload_data` still only allocates DEVICE_ONLY VBOs;
++ * it never invents host data for them. The buffer is then recorded in the context's SSBO
++ * bind-space, which the compute/-draw bind-group builder consumes. */
+ void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+ {
+-  if (!buffer_.valid()) {
+-    allocate();
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
+   }
++  upload_data();
+   if (!buffer_.valid()) {
+     return;
+-  }
+-  if (WGPUContext *ctx = active_context()) {
+-    ctx->buffer_ssbo_bind(int(binding), &buffer_);
+   }
++  ctx->buffer_ssbo_bind(int(binding), &buffer_);
+ }
+ 
+ /* Bind this vertex buffer as an emulated texel buffer (GPU_vertbuf_bind_as_texture — the
+@@ -274,7 +275,8 @@ void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+  * storage buffer, so the runtime bind is identical to bind_as_ssbo (patch 0085): ensure
+  * the device buffer exists and register it in the context's SSBO bind-space at the WGSL
+  * @binding the frontend recorded (GPU_shader_get_sampler_binding), which the compute/-draw
+- * bind-group builder consumes.
++ * bind-group builder consumes. As with bind_as_ssbo, upload before every bind so first-use
++ * and later DIRTY host bytes are visible to the shader.
+  *
+  * FORMAT GUARD (M3.F12 decision): the storage emulation reads a FloatBuffer texel as vec4
+  * (RGBA32F, 16-byte stride) and an Int/UintBuffer texel as a single 32-bit scalar (4-byte
+@@ -286,9 +288,11 @@ void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+  * clearly-unsupported strides so the mismatch is characterized, not silently garbage. */
+ void WGPUVertexBuffer::bind_as_texture(uint binding)
+ {
+-  if (!buffer_.valid()) {
+-    allocate();
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
+   }
++  upload_data();
+   if (!buffer_.valid()) {
+     return;
+   }
+@@ -299,9 +303,7 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+             "emulation (only RGBA32F/16B and R32*/4B accepted); reads will be incorrect.\n",
+             stride);
+   }
+-  if (WGPUContext *ctx = active_context()) {
+-    ctx->buffer_ssbo_bind(int(binding), &buffer_);
+-  }
++  ctx->buffer_ssbo_bind(int(binding), &buffer_);
+ }
+ 
+ void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)

@@ -1,0 +1,63 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -715,6 +715,59 @@
+ std::string WGPUShader::resources_declare(const shader::ShaderCreateInfo &info) const
+ {
+   std::stringstream ss;
++
++  /* Specialization constants (pass-through, mirrors vk_shader.cc:758-782). Declared
++   * as GLSL constant_id constants so shaderc emits a SPIR-V OpSpecConstant that
++   * Tint's reader lowers to a WGSL `override` (pipeline-overridable). The default
++   * value is baked here; the specialised value is applied at pipeline creation.
++   * Without these declarations every spec-constant reference is an "undeclared
++   * identifier" at the shaderc front end. */
++  {
++    int constant_id = 0;
++    for (const SpecializationConstant &sc : info.specialization_constants_) {
++      ss << "layout(constant_id = " << constant_id++ << ") const ";
++      switch (sc.type) {
++        case Type::int_t:
++          ss << "int " << sc.name << " = " << std::to_string(sc.value.i) << ";\n";
++          break;
++        case Type::uint_t:
++          ss << "uint " << sc.name << " = " << std::to_string(sc.value.u) << "u;\n";
++          break;
++        case Type::bool_t:
++          ss << "bool " << sc.name << " = " << (sc.value.u ? "true" : "false") << ";\n";
++          break;
++        case Type::float_t:
++          /* uintBitsToFloat is not allowed in a global const initializer, so specialise
++           * the uint bit pattern and alias the float via #define (exactly vk_shader.cc:772),
++           * preserving the exact bits even for NaN defaults. */
++          ss << "uint " << sc.name << "_uint = " << std::to_string(sc.value.u) << "u;\n";
++          ss << "#define " << sc.name << " uintBitsToFloat(" << sc.name << "_uint)\n";
++          break;
++        default:
++          break;
++      }
++    }
++  }
++
++  /* Compilation constants (pass-through, mirrors vk_shader.cc:784-801). Plain GLSL
++   * const — baked at compile time, never overridable (scalar int/uint/bool only). */
++  for (const CompilationConstant &sc : info.compilation_constants_) {
++    switch (sc.type) {
++      case Type::int_t:
++        ss << "const int " << sc.name << " = " << std::to_string(sc.value.i) << ";\n";
++        break;
++      case Type::uint_t:
++        ss << "const uint " << sc.name << " = " << std::to_string(sc.value.u) << "u;\n";
++        break;
++      case Type::bool_t:
++        ss << "const bool " << sc.name << " = " << (sc.value.u ? "true" : "false") << ";\n";
++        break;
++      default:
++        break;
++    }
++  }
++  ss << "\n";
++
+   blender::Map<uint32_t, uint32_t> bindings;
+   const uint32_t resource_count = build_dense_bindings(info, bindings);
+   /* Resource declarations are deferred into the per-create-info placeholder macros so

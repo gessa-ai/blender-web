@@ -1,0 +1,52 @@
+diff --git a/source/blender/windowmanager/intern/wm.cc b/source/blender/windowmanager/intern/wm.cc
+index a39a8dbc3f5..b89e2797103 100644
+--- a/source/blender/windowmanager/intern/wm.cc
++++ b/source/blender/windowmanager/intern/wm.cc
+@@ -21,6 +21,10 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
++#ifdef __EMSCRIPTEN__
++#  include <emscripten/emscripten.h>
++#endif
++
+ #include "BLI_ghash.h"
+ #include "BLI_listbase.h"
+ #include "BLI_string_utf8.h"
+@@ -602,6 +606,28 @@ void WM_main(bContext *C)
+    * This ensures we don't run operators before the depsgraph has been evaluated. */
+   wm_event_do_refresh_wm_and_depsgraph(C);
+ 
++#ifdef __EMSCRIPTEN__
++  /* blender-web (M4 T5): a blocking while(true) is fatal in the browser — it starves
++   * the event loop that delivers proxied HTML5 input and blocks every JSPI yield.
++   * Drive ONE WM iteration per emscripten_set_main_loop tick on the WM worker (the
++   * single top-level pump/suspend point per ADR-003; processEvents already returns
++   * without blocking). fps=0 = requestAnimationFrame; simulate_infinite_loop=1 keeps
++   * WM_main from returning. HTML5 callbacks are registered on this (WM) pthread so the
++   * proxied events drain at the tick (GHOST_SystemWeb::registerCanvasCallbacks). */
++  static bContext *s_wm_main_ctx = nullptr;
++  s_wm_main_ctx = C;
++  emscripten_set_main_loop(
++      []() {
++        bContext *c = s_wm_main_ctx;
++        wm_window_events_process(c);
++        wm_event_do_handlers(c);
++        wm_event_do_notifiers(c);
++        wm_draw_update(c);
++        PRF_frame_mark;
++      },
++      0,
++      1);
++#else
+   while (true) {
+ 
+     /* Get events from ghost, handle window events, add to window queues. */
+@@ -618,6 +644,7 @@ void WM_main(bContext *C)
+ 
+     PRF_frame_mark;
+   }
++#endif
+ }
+ 
+ }  // namespace blender

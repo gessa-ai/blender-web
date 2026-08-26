@@ -1,0 +1,282 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 8ddd8b1..c1aaf89 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -15,6 +15,7 @@
+ #include "wgpu_framebuffer.hh"
+ #include "wgpu_index_buffer.hh"
+ #include "wgpu_shader.hh"
++#include "wgpu_state_manager.hh"
+ #include "wgpu_storage_buffer.hh"
+ #include "wgpu_texture.hh"
+ #include "wgpu_uniform_buffer.hh"
+@@ -112,6 +113,27 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+     entries.push_back(entry);
+   }
+ 
++  /* Storage images bound via GPU_texture_image_bind (state_manager->image_bind).
++   * The dense WGSL @binding is the `unit` the frontend recorded; the storage view
++   * is a single-mip view matching the `texture_storage_*` binding Tint emitted. */
++  WGPUStateManager *sm = static_cast<WGPUStateManager *>(ctx->state_manager);
++  if (sm != nullptr) {
++    for (const auto &item : sm->bound_images()) {
++      webgpu::WGPUTexture *tex = static_cast<webgpu::WGPUTexture *>(item.second);
++      if (tex == nullptr) {
++        continue;
++      }
++      wgpu::TextureView view = tex->image_view();
++      if (view == nullptr) {
++        continue;
++      }
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = uint32_t(item.first);
++      entry.textureView = view;
++      entries.push_back(entry);
++    }
++  }
++
+   if (entries.empty()) {
+     return false;
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_state_manager.cc b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+index 9b5f8f3..6ec974c 100644
+--- a/source/blender/gpu/webgpu/wgpu_state_manager.cc
++++ b/source/blender/gpu/webgpu/wgpu_state_manager.cc
+@@ -15,6 +15,8 @@
+ 
+ #include "wgpu_state_manager.hh"
+ 
++#include <iterator>
++
+ namespace blender::gpu {
+ 
+ /* WebGPU has an implicit memory model: work submitted to the queue is ordered and
+@@ -33,19 +35,46 @@ void WGPUStateManager::issue_barrier(GPUBarrier /*barrier_bits*/) {}
+ void WGPUStateManager::apply_state() {}
+ void WGPUStateManager::force_state() {}
+ 
+-/* Texture / image bindings are resolved into a `wgpu::BindGroup` at draw-time
+- * pipeline assembly (wgpu_batch / wgpu_pipeline — the draw path, not yet landed),
+- * the same deferral lane A's buffer bind()/unbind() already use. No code path
+- * currently consumes a tracked binding, so recording it here would be dead state;
+- * these stay documented no-ops until the bind-group builder lands, at which point
+- * this class gains BindSpace tracking mirroring VKStateManager. A silent no-op is
+- * safe (nothing is corrupted); it is not an assert case because binding a texture
+- * with no active draw is a legitimate call ordering. */
+-void WGPUStateManager::texture_bind(Texture * /*tex*/, GPUSamplerState /*sampler*/, int /*unit*/) {}
+-void WGPUStateManager::texture_unbind(Texture * /*tex*/) {}
+-void WGPUStateManager::texture_unbind_all() {}
+-void WGPUStateManager::image_bind(Texture * /*tex*/, int /*unit*/) {}
+-void WGPUStateManager::image_unbind(Texture * /*tex*/) {}
+-void WGPUStateManager::image_unbind_all() {}
++/* Texture / image bindings are resolved into a `wgpu::BindGroup` at draw-time /
++ * dispatch-time bind-group assembly (wgpu_batch::draw / wgpu_backend::
++ * compute_dispatch). The frontend passes the dense WGSL @binding as `unit`
++ * (GPU_shader_get_sampler_binding → ShaderInput::binding, the same dense value the
++ * codegen + interface map assign), so recording `unit → resource` here is exactly
++ * what the bind-group builders look up. Mirrors VKStateManager's textures_/images_
++ * BindSpace. Binding with no active draw is legitimate call ordering — the entry is
++ * simply consumed at the next dispatch/draw. */
++void WGPUStateManager::texture_bind(Texture *tex, GPUSamplerState sampler, int unit)
++{
++  textures_[unit] = BoundTexture{tex, sampler};
++}
++
++void WGPUStateManager::texture_unbind(Texture *tex)
++{
++  for (auto it = textures_.begin(); it != textures_.end();) {
++    it = (it->second.texture == tex) ? textures_.erase(it) : std::next(it);
++  }
++}
++
++void WGPUStateManager::texture_unbind_all()
++{
++  textures_.clear();
++}
++
++void WGPUStateManager::image_bind(Texture *tex, int unit)
++{
++  images_[unit] = tex;
++}
++
++void WGPUStateManager::image_unbind(Texture *tex)
++{
++  for (auto it = images_.begin(); it != images_.end();) {
++    it = (it->second == tex) ? images_.erase(it) : std::next(it);
++  }
++}
++
++void WGPUStateManager::image_unbind_all()
++{
++  images_.clear();
++}
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_state_manager.hh b/source/blender/gpu/webgpu/wgpu_state_manager.hh
+index 588b8fa..970cab1 100644
+--- a/source/blender/gpu/webgpu/wgpu_state_manager.hh
++++ b/source/blender/gpu/webgpu/wgpu_state_manager.hh
+@@ -15,17 +15,28 @@
+  * honest no-ops: WebGPU's implicit memory model needs no barrier, pipeline state is
+  * baked into the render-pipeline descriptor at creation (not applied globally), and
+  * resource bindings are resolved into a `wgpu::BindGroup` at draw-time assembly
+- * (wgpu_batch / wgpu_pipeline — the draw path, not yet landed). Real BindSpace
+- * tracking (mirroring VKStateManager) arrives with that path. */
++ * (wgpu_batch / wgpu_pipeline). Real BindSpace tracking (mirroring VKStateManager)
++ * now lives here: texture/sampler + storage-image binds are recorded per WGSL
++ * @binding slot and read back by the compute-dispatch / draw bind-group builders. */
+ 
+ #pragma once
+ 
++#include <unordered_map>
++
+ #include "gpu_state_private.hh"
+ 
+ namespace blender::gpu {
+ 
+ class WGPUStateManager : public StateManager {
+  public:
++  /** One combined-sampler binding: the sampled texture plus its sampler state.
++   * The bind-group builder splits this into a texture entry at binding N and a
++   * sampler entry at SAMPLER_BASE + N (notes/gpu-binding-map-spec.md §4.1). */
++  struct BoundTexture {
++    Texture *texture = nullptr;
++    GPUSamplerState sampler = GPUSamplerState::default_sampler();
++  };
++
+   WGPUStateManager() = default;
+   ~WGPUStateManager() override = default;
+ 
+@@ -41,6 +52,26 @@ class WGPUStateManager : public StateManager {
+   void image_bind(Texture *tex, int unit) override;
+   void image_unbind(Texture *tex) override;
+   void image_unbind_all() override;
++
++  /* --- Bind-space accessors (consumed by wgpu_backend / wgpu_batch) ----------
++   * WebGPU has no global binding state — bindings live in a per-draw/-dispatch
++   * BindGroup — so the backend records which texture/image is bound to which
++   * dense WGSL @binding here and resolves them into the group-0 bind group at
++   * dispatch/draw time. Keyed by binding slot; last bind to a slot wins. */
++  const std::unordered_map<int, BoundTexture> &bound_textures() const
++  {
++    return textures_;
++  }
++  const std::unordered_map<int, Texture *> &bound_images() const
++  {
++    return images_;
++  }
++
++ private:
++  /** Combined samplers keyed by dense WGSL @binding N (texture half). */
++  std::unordered_map<int, BoundTexture> textures_;
++  /** Storage images keyed by dense WGSL @binding N. */
++  std::unordered_map<int, Texture *> images_;
+ };
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 74dc3eb..99cee6a 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -536,6 +536,30 @@ static wgpu::TextureDimension to_wgpu_dimension(GPUTextureType type)
+   return wgpu::TextureDimension::e2D;
+ }
+ 
++/** WGSL view dimension for a bind-group texture/image binding. Mirrors the
++ * create-info ImageType → WGSL mapping (wgpu_shader_interface_map infer_view_
++ * dimension): 1D arrays are stored as 2D layers, cubes stay cube for sampling. A
++ * storage-image binding forbids cube — the caller collapses those (no cube storage
++ * image exists at the pin). */
++static wgpu::TextureViewDimension to_wgpu_view_dimension(GPUTextureType type)
++{
++  switch (type) {
++    case GPU_TEXTURE_1D:
++      return wgpu::TextureViewDimension::e1D;
++    case GPU_TEXTURE_3D:
++      return wgpu::TextureViewDimension::e3D;
++    case GPU_TEXTURE_2D_ARRAY:
++    case GPU_TEXTURE_1D_ARRAY:
++      return wgpu::TextureViewDimension::e2DArray;
++    case GPU_TEXTURE_CUBE:
++      return wgpu::TextureViewDimension::Cube;
++    case GPU_TEXTURE_CUBE_ARRAY:
++      return wgpu::TextureViewDimension::CubeArray;
++    default:
++      return wgpu::TextureViewDimension::e2D;
++  }
++}
++
+ /** eGPUTextureUsage → wgpu::TextureUsage. CopyDst/CopySrc are always added so
+  * host upload (writeTexture / update_sub) and readback (read / copy_to) work; the
+  * gpu module never flags those explicitly. `renderable`/`storable` gate the
+@@ -944,6 +968,48 @@ void WGPUTexture::update_sub(int /*offset*/[3],
+   BLI_assert_msg(0, "WGPUTexture: pixel-buffer update_sub not implemented yet");
+ }
+ 
++wgpu::TextureView WGPUTexture::image_view()
++{
++  if (texture_ == nullptr) {
++    return nullptr;
++  }
++  /* A storage-image binding requires a SINGLE mip level and a non-cube view
++   * dimension (WebGPU forbids cube storage textures; none exist at the pin). */
++  wgpu::TextureViewDimension dim = to_wgpu_view_dimension(type_);
++  if (dim == wgpu::TextureViewDimension::Cube ||
++      dim == wgpu::TextureViewDimension::CubeArray)
++  {
++    dim = wgpu::TextureViewDimension::e2DArray;
++  }
++  wgpu::TextureViewDescriptor d = {};
++  d.format = wgpu_format_;
++  d.dimension = dim;
++  d.baseMipLevel = uint32_t(std::max(mip_offset_, 0));
++  d.mipLevelCount = 1;
++  d.baseArrayLayer = 0;
++  /* arrayLayerCount left at its UNDEFINED default → all remaining layers (1 for a
++   * plain 2D texture, the full array for an array texture). */
++  d.aspect = wgpu::TextureAspect::All;
++  return texture_.CreateView(&d);
++}
++
++wgpu::TextureView WGPUTexture::sampled_view()
++{
++  if (texture_ == nullptr) {
++    return nullptr;
++  }
++  /* Whole-texture sampled view (all mips + layers) at the native view dimension.
++   * Cube textures (stored as 2D + 6 layers) get an explicit Cube view so WGSL
++   * `texture_cube` sampling binds. */
++  wgpu::TextureViewDescriptor d = {};
++  d.format = wgpu_format_;
++  d.dimension = to_wgpu_view_dimension(type_);
++  d.baseMipLevel = 0;
++  d.baseArrayLayer = 0;
++  d.aspect = wgpu::TextureAspect::All;
++  return texture_.CreateView(&d);
++}
++
+ void WGPUTexture::clear(const double4 data)
+ {
+   if (texture_ == nullptr) {
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
+index 16d5108..3c325c3 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture.hh
+@@ -76,6 +76,17 @@ class WGPUTexture : public Texture {
+   wgpu::Texture &texture() { return texture_; }
+   wgpu::TextureFormat wgpu_format() const { return wgpu_format_; }
+ 
++  /** A view suitable for a WGSL storage-image binding (`texture_storage_*`): a
++   * single mip level with the texture's native format and view dimension. WebGPU
++   * rejects a multi-mip or cube view for a storage binding. Consumed by the
++   * compute-dispatch / draw bind-group builders (GPU_texture_image_bind path). */
++  wgpu::TextureView image_view();
++
++  /** A view suitable for a WGSL sampled-texture binding (`texture_*<f32>` etc.):
++   * the whole texture (all mips/layers) at its native view dimension. Consumed by
++   * the draw bind-group builder (GPU_texture_bind path). */
++  wgpu::TextureView sampled_view();
++
+  protected:
+   bool init_internal() override;
+   bool init_internal(VertBuf *vbo) override;

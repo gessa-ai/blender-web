@@ -1,0 +1,360 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index b33b557047fb04fc533303ef6a2e344a234320cc..cdb6ba5a6b930790bf40130e0295d3e2d44fe7b5 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -145,6 +145,104 @@ inline bool texture_allocation_supported(wgpu::TextureDimension dimension,
+   return mip_level_count <= max_mip_level_count;
+ }
+-
++
++/** Multiply two host byte counts without wrapping. Failure leaves `result` unchanged. */
++inline bool checked_size_mul(size_t a, size_t b, size_t &result)
++{
++  if (a != 0 && b > std::numeric_limits<size_t>::max() / a) {
++    return false;
++  }
++  result = a * b;
++  return true;
++}
++
++/** Add two host byte counts without wrapping. Failure leaves `result` unchanged. */
++inline bool checked_size_add(size_t a, size_t b, size_t &result)
++{
++  if (b > std::numeric_limits<size_t>::max() - a) {
++    return false;
++  }
++  result = a + b;
++  return true;
++}
++
++/** Host/device byte geometry for one uncompressed Queue::WriteTexture upload. */
++struct TextureUploadLayout {
++  size_t sample_count = 0;
++  size_t device_data_size = 0;
++  size_t source_row_stride = 0;
++  size_t source_data_size = 0;
++  uint32_t bytes_per_row = 0;
++  size_t row_count = 0;
++};
++
++/** Resolve every upload byte count before allocating or reading caller memory.
++ *
++ * `unpack_row_length` is measured in host texels. A non-zero value shorter than the copied
++ * width cannot describe the requested rows. `source_data_size` is the exact last-byte extent,
++ * excluding padding after the last row. WebGPU exposes bytesPerRow as uint32_t, while all host
++ * products must also fit size_t (notably wasm32). Failure is atomic. */
++inline bool texture_upload_layout(uint32_t width,
++                                  uint32_t height,
++                                  uint32_t depth,
++                                  uint32_t device_texel_bytes,
++                                  size_t host_texel_bytes,
++                                  uint32_t unpack_row_length,
++                                  TextureUploadLayout &result)
++{
++  if (width == 0 || height == 0 || depth == 0 || device_texel_bytes == 0 ||
++      host_texel_bytes == 0 || (unpack_row_length != 0 && unpack_row_length < width))
++  {
++    return false;
++  }
++
++  TextureUploadLayout candidate;
++  if (!checked_size_mul(size_t(height), size_t(depth), candidate.row_count) ||
++      !checked_size_mul(size_t(width), candidate.row_count, candidate.sample_count) ||
++      !checked_size_mul(
++          candidate.sample_count, size_t(device_texel_bytes), candidate.device_data_size))
++  {
++    return false;
++  }
++
++  size_t device_row_size;
++  if (!checked_size_mul(size_t(width), size_t(device_texel_bytes), device_row_size) ||
++      device_row_size > std::numeric_limits<uint32_t>::max())
++  {
++    return false;
++  }
++  candidate.bytes_per_row = uint32_t(device_row_size);
++
++  const size_t source_width = unpack_row_length != 0 ? size_t(unpack_row_length) : size_t(width);
++  size_t tight_source_row;
++  if (!checked_size_mul(source_width, host_texel_bytes, candidate.source_row_stride) ||
++      !checked_size_mul(size_t(width), host_texel_bytes, tight_source_row))
++  {
++    return false;
++  }
++  size_t last_row_offset;
++  if (!checked_size_mul(candidate.row_count - 1, candidate.source_row_stride, last_row_offset) ||
++      !checked_size_add(last_row_offset, tight_source_row, candidate.source_data_size))
++  {
++    return false;
++  }
++
++  result = candidate;
++  return true;
++}
++
++/** True when a non-empty texture copy box fits within an available physical subresource.
++ * Subtraction avoids overflow even for adversarial uint32_t origins/extents. */
++inline bool texture_region_fits(const wgpu::Origin3D &origin,
++                                const wgpu::Extent3D &extent,
++                                const wgpu::Extent3D &capacity)
++{
++  return extent.width != 0 && extent.height != 0 && extent.depthOrArrayLayers != 0 &&
++         origin.x <= capacity.width && extent.width <= capacity.width - origin.x &&
++         origin.y <= capacity.height && extent.height <= capacity.height - origin.y &&
++         origin.z <= capacity.depthOrArrayLayers &&
++         extent.depthOrArrayLayers <= capacity.depthOrArrayLayers - origin.z;
++}
++
+ /** True when the half-open byte range [offset, offset + size) is contained in
+  * an allocation of `capacity` bytes. The subtraction form cannot overflow. */
+ inline bool range_fits(size_t offset, size_t size, size_t capacity)
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index c43743180497f35951a2f4eb1caf603e47780727..d802c64df4ce1bc6e6a08af648f2cf029e72efda 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1435,39 +1435,82 @@ void WGPUTexture::update_sub(int mip,
+     return;
+   }
+-
++
++  /* Resolve the physical copy box and every host/device byte product before allocating or
++   * inspecting caller memory. The public API represents 1D-array layers on its Y axis, while
++   * WebGPU stores them as physical 2D-array layers. */
++  if (extent[0] <= 0 || offset[0] < 0 || offset[1] < 0 || offset[2] < 0) {
++    return;
++  }
++  const uint32_t ex = uint32_t(extent[0]);
++  const uint32_t ey = uint32_t(std::max(extent[1], 1));
++  const uint32_t ez = uint32_t(std::max(extent[2], 1));
++
++  WGPUContext *ctx = active_context();
++  ResolvedReadRegion target;
++  if (ctx == nullptr || !resolve_subresource(mip, -1, target)) {
++    return;
++  }
++
++  wgpu::Origin3D relative_origin = {
++      uint32_t(offset[0]), uint32_t(offset[1]), uint32_t(offset[2])};
++  wgpu::Extent3D write_size = {ex, ey, ez};
++  if (subresources_.backing_type == GPU_TEXTURE_1D_ARRAY) {
++    /* A logical 1D-array upload has width x layers x one samples. Do not silently consume an
++     * ignored Z extent as the former pre-allocation sample-count path did. */
++    if (offset[2] != 0 || ez != 1) {
++      return;
++    }
++    relative_origin.y = 0;
++    relative_origin.z = uint32_t(offset[1]);
++    write_size.height = 1;
++    write_size.depthOrArrayLayers = ey;
++  }
++  const wgpu::Extent3D target_size = {target.width, target.height, target.depth};
++  if (!texture_region_fits(relative_origin, write_size, target_size)) {
++    return;
++  }
++
++  const uint32_t upload_device_texel_bytes =
++      ELEM(repr, Repr::Depth32F, Repr::Depth32FS8) ?
++          uint32_t(sizeof(float)) :
++          device_texel_bytes(format_, conv_, repr);
++  const size_t host_texel_bytes =
++      ELEM(repr, Repr::Depth32F, Repr::Depth32FS8) ? sizeof(float) :
++                                                     to_bytesize(format_, format);
++  TextureUploadLayout layout;
++  if (!texture_upload_layout(
++          ex, ey, ez, upload_device_texel_bytes, host_texel_bytes, unpack_row_length, layout))
++  {
++    return;
++  }
++
++  const wgpu::Origin3D physical_origin = {target.origin_x + relative_origin.x,
++                                          target.origin_y + relative_origin.y,
++                                          target.origin_z + relative_origin.z};
++
+   /* WebGPU forbids buffer→depth copies. Upload float depth through a tiny
+    * depth-only render pass backed by a read-only storage buffer. */
+   if (repr == Repr::Depth32F || repr == Repr::Depth32FS8) {
+-    if (format != GPU_DATA_FLOAT || offset[0] < 0 || offset[1] < 0 || offset[2] < 0) {
+-      return;
+-    }
+-    const int ex = std::max(extent[0], 1);
+-    const int ey = std::max(extent[1], 1);
+-    const int ez = std::max(extent[2], 1);
+-    WGPUContext *ctx = active_context();
+-    ResolvedReadRegion target;
+-    if (ctx == nullptr || !resolve_subresource(mip, -1, target) ||
+-        uint32_t(offset[0] + ex) > target.width || uint32_t(offset[1] + ey) > target.height ||
+-        uint32_t(offset[2] + ez) > subresources_.layer_count)
+-    {
++    if (format != GPU_DATA_FLOAT) {
+       return;
+     }
+-    const float *source = static_cast<const float *>(data);
+-    const size_t source_row = unpack_row_length != 0u ? size_t(unpack_row_length) : size_t(ex);
+-    std::vector<float> packed(size_t(ex) * size_t(ey));
+-    for (int layer = 0; layer < ez; layer++) {
+-      for (int row = 0; row < ey; row++) {
+-        std::memcpy(packed.data() + size_t(row) * size_t(ex),
+-                    source + (size_t(layer) * size_t(ey) + size_t(row)) * source_row,
+-                    size_t(ex) * sizeof(float));
++    const uint8_t *source = static_cast<const uint8_t *>(data);
++    const size_t layer_samples = size_t(write_size.width) * write_size.height;
++    std::vector<float> packed(layer_samples);
++    for (uint32_t layer = 0; layer < write_size.depthOrArrayLayers; layer++) {
++      for (uint32_t row = 0; row < write_size.height; row++) {
++        const size_t source_row = size_t(layer) * write_size.height + row;
++        std::memcpy(packed.data() + size_t(row) * write_size.width,
++                    source + source_row * layout.source_row_stride,
++                    size_t(write_size.width) * sizeof(float));
+       }
+       if (!ctx->upload_depth_render(this,
+                                     mip,
+-                                    offset[2] + layer,
+-                                    uint32_t(offset[0]),
+-                                    uint32_t(offset[1]),
+-                                    uint32_t(ex),
+-                                    uint32_t(ey),
++                                    int(relative_origin.z + layer),
++                                    relative_origin.x,
++                                    relative_origin.y,
++                                    write_size.width,
++                                    write_size.height,
+                                     packed.data()))
+       {
+         return;
+@@ -1479,73 +1522,22 @@ void WGPUTexture::update_sub(int mip,
+     return;
+   }
+-
++
+-  const int ex = std::max(extent[0], 1);
+-  const int ey = std::max(extent[1], 1);
+-  const int ez = std::max(extent[2], 1);
+-  const size_t sample_count = size_t(ex) * ey * ez;
+-  const uint32_t texel_bytes = device_texel_bytes(format_, conv_, repr);
+-
+-  std::vector<uint8_t> device_data(sample_count * texel_bytes);
++  std::vector<uint8_t> device_data(layout.device_data_size);
+   const uint8_t *src = static_cast<const uint8_t *>(data);
+   /* Non-zero unpack_row_length that differs from the sub-region width means the
+    * source rows are strided (the caller uploads a window of a larger image): gather
+    * `ex` texels per row from the wider source stride. Matches vk_texture.cc. */
+-  if (unpack_row_length != 0u && int(unpack_row_length) != ex) {
+-    const size_t host_texel = to_bytesize(format_, format);
+-    const size_t src_row_stride = size_t(unpack_row_length) * host_texel;
+-    const size_t dst_row_bytes = size_t(ex) * texel_bytes;
+-    const int rows = ey * ez;
+-    for (int row = 0; row < rows; row++) {
+-      convert_host_to_device(device_data.data() + size_t(row) * dst_row_bytes,
+-                             src + size_t(row) * src_row_stride,
+-                             size_t(ex),
++  const size_t tight_source_row = size_t(ex) * host_texel_bytes;
++  if (layout.source_row_stride != tight_source_row) {
++    for (size_t row = 0; row < layout.row_count; row++) {
++      convert_host_to_device(device_data.data() + row * layout.bytes_per_row,
++                             src + row * layout.source_row_stride,
++                             ex,
+                              format);
+     }
+   }
+   else {
+-    convert_host_to_device(device_data.data(), src, sample_count, format);
+-  }
+-
+-  WGPUContext *ctx = active_context();
+-  if (ctx == nullptr) {
+-    return;
+-  }
+-
+-  ResolvedReadRegion target;
+-  if (!resolve_subresource(mip, -1, target) || offset[0] < 0 || offset[1] < 0 ||
+-      offset[2] < 0) {
+-    return;
+-  }
+-
+-  wgpu::Origin3D physical_origin = {uint32_t(offset[0]), uint32_t(offset[1]),
+-                                    uint32_t(offset[2])};
+-  wgpu::Extent3D write_size = {uint32_t(ex), uint32_t(ey), uint32_t(ez)};
+-  if (subresources_.backing_type == GPU_TEXTURE_1D_ARRAY) {
+-    physical_origin.y = 0;
+-    physical_origin.z = subresources_.base_layer + uint32_t(offset[1]);
+-    write_size.height = 1;
+-    write_size.depthOrArrayLayers = uint32_t(ey);
+-  }
+-  else if (ELEM(subresources_.backing_type,
+-                GPU_TEXTURE_2D_ARRAY,
+-                GPU_TEXTURE_CUBE,
+-                GPU_TEXTURE_CUBE_ARRAY))
+-  {
+-    physical_origin.z = subresources_.base_layer + uint32_t(offset[2]);
+-  }
+-
+-  const uint32_t relative_layer_offset = physical_origin.z - subresources_.base_layer;
+-  if (physical_origin.x > target.width || write_size.width > target.width - physical_origin.x ||
+-      physical_origin.y > target.height ||
+-      write_size.height > target.height - physical_origin.y ||
+-      (subresources_.backing_type != GPU_TEXTURE_3D &&
+-       (relative_layer_offset > subresources_.layer_count ||
+-        write_size.depthOrArrayLayers > subresources_.layer_count - relative_layer_offset)) ||
+-      (subresources_.backing_type == GPU_TEXTURE_3D &&
+-       (physical_origin.z > target.depth ||
+-        write_size.depthOrArrayLayers > target.depth - physical_origin.z)))
+-  {
+-    return;
++    convert_host_to_device(device_data.data(), src, layout.sample_count, format);
+   }
+-
++
+   wgpu::TexelCopyTextureInfo dst = {};
+@@ -1554,12 +1546,13 @@ void WGPUTexture::update_sub(int mip,
+   dst.origin = physical_origin;
+   dst.aspect = wgpu::TextureAspect::All;
+-
++
+-  wgpu::TexelCopyBufferLayout layout = {};
+-  layout.offset = 0;
+-  layout.bytesPerRow = uint32_t(ex) * texel_bytes; /* writeTexture needs no 256 align. */
+-  layout.rowsPerImage = write_size.height;
++  wgpu::TexelCopyBufferLayout copy_layout = {};
++  copy_layout.offset = 0;
++  copy_layout.bytesPerRow = layout.bytes_per_row; /* writeTexture needs no 256 align. */
++  copy_layout.rowsPerImage = write_size.height;
+-
++
+-  ctx->queue_get().WriteTexture(&dst, device_data.data(), device_data.size(), &layout, &write_size);
++  ctx->queue_get().WriteTexture(
++      &dst, device_data.data(), device_data.size(), &copy_layout, &write_size);
+ }
+-
++
+ void WGPUTexture::update_sub(int offset[3],
+@@ -1572,11 +1565,24 @@ void WGPUTexture::update_sub(int offset[3],
+     return;
+   }
+-
++
+-  const int ex = std::max(extent[0], 1);
+-  const int ey = std::max(extent[1], 1);
+-  const int ez = std::max(extent[2], 1);
+-  const size_t required_size = size_t(ex) * ey * ez * to_bytesize(format_, format);
+-  const void *data = unwrap_webgpu(pixbuf)->data_for_upload(required_size);
++  if (extent[0] <= 0) {
++    return;
++  }
++  const uint32_t ex = uint32_t(extent[0]);
++  const uint32_t ey = uint32_t(std::max(extent[1], 1));
++  const uint32_t ez = uint32_t(std::max(extent[2], 1));
++  const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
++  const uint32_t device_bytes = ELEM(repr, Repr::Depth32F, Repr::Depth32FS8) ?
++                                    uint32_t(sizeof(float)) :
++                                    device_texel_bytes(format_, conv_, repr);
++  const size_t host_bytes = ELEM(repr, Repr::Depth32F, Repr::Depth32FS8) ?
++                                sizeof(float) :
++                                to_bytesize(format_, format);
++  TextureUploadLayout layout;
++  if (!texture_upload_layout(ex, ey, ez, device_bytes, host_bytes, 0, layout)) {
++    return;
++  }
++  const void *data = unwrap_webgpu(pixbuf)->data_for_upload(layout.source_data_size);
+   if (data == nullptr) {
+     return;
+   }

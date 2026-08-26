@@ -1,0 +1,634 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -482,6 +482,8 @@
+     webgpu/wgpu_storage_buffer.cc
+     webgpu/wgpu_uniform_buffer.cc
+     webgpu/wgpu_vertex_buffer.cc
++    webgpu/wgpu_texture_format.cc
++    webgpu/wgpu_data_conversion.cc
+     webgpu/wgpu_state_table.cc
+ 
+     webgpu/wgpu_backend.hh
+@@ -492,6 +494,9 @@
+     webgpu/wgpu_storage_buffer.hh
+     webgpu/wgpu_uniform_buffer.hh
+     webgpu/wgpu_vertex_buffer.hh
++    webgpu/wgpu_texture_format.hh
++    webgpu/wgpu_texture_format_list.h
++    webgpu/wgpu_data_conversion.hh
+     webgpu/wgpu_state_table.hh
+   )
+   list(APPEND INC
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+new file mode 100644
+index 00000000000..ad5a7411f85
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+@@ -0,0 +1,105 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/GPU_format.hh @ fbe6228777e7 */
++
++/** \file
++ * WebGPU texture-format table — the WebGPU analog of vk_common's to_vk_format.
++ *
++ * Maps Blender's `gpu::TextureFormat` (every value at the pin) to
++ * `wgpu::TextureFormat`, plus capability flags {renderable, filterable, storage,
++ * blendable, multisample}, a conversion class, and a device feature gate.
++ *
++ * SOURCE OF TRUTH (read-only recon): `upstream/source/blender/gpu/GPU_format.hh`
++ * — an X-macro table carrying, per format, {C-type, byte-size, channel-count,
++ * blender enum, VkFormat, MTLPixelFormat, MTLVertexFormat, GL enum, shader enum}.
++ * The enum set is `GPU_TEXTURE_FORMAT_EXPAND` in `GPU_texture.hh:45-124`. The
++ * Vulkan backend's equivalent mapping (the model) is
++ * `vulkan/vk_common.cc::to_vk_format` (a big switch over `TextureFormat::…`).
++ *
++ * KEY STRUCTURE (see notes/gpu-t9pre-findings.md):
++ *   - WebGPU, like Metal, has NO 3-channel texture formats. The 13 three-channel
++ *     Blender formats are PROMOTED to their 4-channel sibling with an RGB→RGBA
++ *     data conversion on upload (GPU_format.hh already aliases them to RGBA in the
++ *     MTLPixelFormat column, e.g. UNORM_8_8_8 → RGBA8Unorm). See
++ *     wgpu_data_conversion.{hh,cc}.
++ *   - All other formats map directly. 3 gates: BC/DXT compression
++ *     (texture-compression-bc), Depth32FloatStencil8 (its own feature), and the
++ *     non-core 16-bit UNORM/SNORM formats (adapter-dependent). Every Blender
++ *     format has SOME WebGPU target — none is unmappable, only feature-gated. */
++
++#pragma once
++
++#include <cstdint>
++
++#include "webgpu/webgpu_cpp.h"
++
++#include "GPU_texture.hh"  /* blender::gpu::TextureFormat */
++
++namespace blender::gpu::webgpu {
++
++/** Key on the REAL enum (GPU_texture.hh:40). The X-macro list
++ * (wgpu_texture_format_list.h) uses the same member names, so the table below
++ * generates directly against gpu::TextureFormat. */
++using TextureFormat = ::blender::gpu::TextureFormat;
++
++/** How the pixel bytes must be transformed before upload / after readback. */
++enum class ConvClass : uint8_t {
++  Direct,        /* memcpy; src layout == wgpu layout (incl. 32-bit packed). */
++  PromoteRGBA,   /* 3-channel → 4-channel sibling; add opaque alpha (RGB→RGBA). */
++  Depth,         /* depth/stencil aspect; restricted copy semantics. */
++  Compressed,    /* block-compressed (BC); block-aligned copy. */
++};
++
++/** Optional device feature a format needs to be creatable/usable. */
++enum class FeatureGate : uint8_t {
++  None,
++  TextureCompressionBC,   /* BC1/2/3 (DXT). */
++  Depth32FloatStencil8,   /* SFLOAT_32_DEPTH_UINT_8. */
++  Unorm16,                /* non-core R/RG/RGBA 16-bit UNORM (feature Unorm16TextureFormats). */
++  Snorm16,                /* 16-bit SNORM: NO WebGPU/Dawn support at the pin — must emulate. */
++  Float32Filterable,      /* filtering of 32-bit float formats (cap only, not creatability). */
++  RG11B10UfloatRenderable,/* render-target use of RG11B10Ufloat (cap only). */
++};
++
++/** WebGPU capability bits for a format (spec-derived; the harness validates the
++ * creation-observable ones: renderable/storage/multisample + round-trip). */
++struct FormatCaps {
++  bool renderable = false;   /* usable as a color/depth RENDER_ATTACHMENT. */
++  bool filterable = false;   /* a Filtering sampler may sample it. */
++  bool storage = false;      /* usable as a STORAGE_BINDING (write-only baseline). */
++  bool blendable = false;    /* supports fixed-function blending as a color target. */
++  bool multisample = false;  /* supports sampleCount > 1. */
++};
++
++struct FormatInfo {
++  TextureFormat blender;
++  const char *name;               /* blender enum spelling */
++  uint32_t src_bytes_per_pixel;   /* Blender's source bpp (GPU_format.hh size col) */
++  uint8_t src_components;         /* 1..4 (GPU_format.hh comps col) */
++  wgpu::TextureFormat wgpu;       /* the actual texture format created on the device */
++  ConvClass conv;
++  FeatureGate gate;
++  FormatCaps caps;
++};
++
++/** Look up the full record for a Blender format. */
++const FormatInfo &format_info(TextureFormat format);
++
++/** The WebGPU texture format the backend creates for a Blender format (promotion
++ * applied — a 3-channel format returns its 4-channel target). */
++wgpu::TextureFormat to_wgpu_format(TextureFormat format);
++
++/** Iterate the whole table (for the harness / reflection). */
++const FormatInfo *format_table(size_t &count);
++
++/** Spec capability classification from a wgpu::TextureFormat (used to fill
++ * FormatInfo::caps; exposed for the harness cross-check). */
++FormatCaps caps_of(wgpu::TextureFormat wgpu);
++
++const char *to_string(ConvClass c);
++const char *to_string(FeatureGate g);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format_list.h b/source/blender/gpu/webgpu/wgpu_texture_format_list.h
+new file mode 100644
+index 00000000000..048e6ba7120
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_texture_format_list.h
+@@ -0,0 +1,102 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++/** \file
++ * The Blender `gpu::TextureFormat` → WebGPU mapping table, as an X-macro so it
++ * generates both the enum and the lookup table from one source. Every row of
++ * `GPU_TEXTURE_FORMAT_EXPAND` (upstream/source/blender/gpu/GPU_texture.hh:45-124)
++ * is present. Data (byte-size, channel-count) is from GPU_format.hh @ the pin.
++ *
++ *   WGPU_FMT(blender_name, src_bytes_per_pixel, src_components, wgpu_format,
++ *            ConvClass, FeatureGate)
++ *
++ * 3-channel rows map to their 4-channel WebGPU sibling with ConvClass::PromoteRGBA
++ * (WebGPU has no 3-channel formats — same as Metal, which aliases them likewise).
++ * Intentionally NOT a header guard: included multiple times with different
++ * WGPU_FMT definitions. */
++
++/* clang-format off */
++/*        blender_name            bytes  comps  wgpu_format                              conv                    gate */
++
++/* --- SNORM ------------------------------------------------------------------ */
++WGPU_FMT(SNORM_8,                 1,     1,     wgpu::TextureFormat::R8Snorm,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SNORM_8_8,               2,     2,     wgpu::TextureFormat::RG8Snorm,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SNORM_8_8_8,             3,     3,     wgpu::TextureFormat::RGBA8Snorm,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SNORM_8_8_8_8,           4,     4,     wgpu::TextureFormat::RGBA8Snorm,         ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SNORM_16,                2,     1,     wgpu::TextureFormat::R16Snorm,           ConvClass::Direct,      FeatureGate::Snorm16)
++WGPU_FMT(SNORM_16_16,             4,     2,     wgpu::TextureFormat::RG16Snorm,          ConvClass::Direct,      FeatureGate::Snorm16)
++WGPU_FMT(SNORM_16_16_16,          6,     3,     wgpu::TextureFormat::RGBA16Snorm,        ConvClass::PromoteRGBA, FeatureGate::Snorm16)
++WGPU_FMT(SNORM_16_16_16_16,       8,     4,     wgpu::TextureFormat::RGBA16Snorm,        ConvClass::Direct,      FeatureGate::Snorm16)
++
++/* --- UNORM ------------------------------------------------------------------ */
++WGPU_FMT(UNORM_8,                 1,     1,     wgpu::TextureFormat::R8Unorm,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UNORM_8_8,               2,     2,     wgpu::TextureFormat::RG8Unorm,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UNORM_8_8_8,             3,     3,     wgpu::TextureFormat::RGBA8Unorm,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(UNORM_8_8_8_8,           4,     4,     wgpu::TextureFormat::RGBA8Unorm,         ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UNORM_16,                2,     1,     wgpu::TextureFormat::R16Unorm,           ConvClass::Direct,      FeatureGate::Unorm16)
++WGPU_FMT(UNORM_16_16,             4,     2,     wgpu::TextureFormat::RG16Unorm,          ConvClass::Direct,      FeatureGate::Unorm16)
++WGPU_FMT(UNORM_16_16_16,          6,     3,     wgpu::TextureFormat::RGBA16Unorm,        ConvClass::PromoteRGBA, FeatureGate::Unorm16)
++WGPU_FMT(UNORM_16_16_16_16,       8,     4,     wgpu::TextureFormat::RGBA16Unorm,        ConvClass::Direct,      FeatureGate::Unorm16)
++
++/* --- SINT ------------------------------------------------------------------- */
++WGPU_FMT(SINT_8,                  1,     1,     wgpu::TextureFormat::R8Sint,             ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_8_8,                2,     2,     wgpu::TextureFormat::RG8Sint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_8_8_8,              3,     3,     wgpu::TextureFormat::RGBA8Sint,          ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SINT_8_8_8_8,            4,     4,     wgpu::TextureFormat::RGBA8Sint,          ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_16,                 2,     1,     wgpu::TextureFormat::R16Sint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_16_16,              4,     2,     wgpu::TextureFormat::RG16Sint,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_16_16_16,          6,     3,     wgpu::TextureFormat::RGBA16Sint,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SINT_16_16_16_16,        8,     4,     wgpu::TextureFormat::RGBA16Sint,         ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_32,                 4,     1,     wgpu::TextureFormat::R32Sint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_32_32,              8,     2,     wgpu::TextureFormat::RG32Sint,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SINT_32_32_32,          12,     3,     wgpu::TextureFormat::RGBA32Sint,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SINT_32_32_32_32,       16,     4,     wgpu::TextureFormat::RGBA32Sint,         ConvClass::Direct,      FeatureGate::None)
++
++/* --- UINT ------------------------------------------------------------------- */
++WGPU_FMT(UINT_8,                  1,     1,     wgpu::TextureFormat::R8Uint,             ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_8_8,                2,     2,     wgpu::TextureFormat::RG8Uint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_8_8_8,              3,     3,     wgpu::TextureFormat::RGBA8Uint,          ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(UINT_8_8_8_8,            4,     4,     wgpu::TextureFormat::RGBA8Uint,          ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_16,                 2,     1,     wgpu::TextureFormat::R16Uint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_16_16,              4,     2,     wgpu::TextureFormat::RG16Uint,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_16_16_16,          6,     3,     wgpu::TextureFormat::RGBA16Uint,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(UINT_16_16_16_16,        8,     4,     wgpu::TextureFormat::RGBA16Uint,         ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_32,                 4,     1,     wgpu::TextureFormat::R32Uint,            ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_32_32,              8,     2,     wgpu::TextureFormat::RG32Uint,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_32_32_32,          12,     3,     wgpu::TextureFormat::RGBA32Uint,         ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(UINT_32_32_32_32,       16,     4,     wgpu::TextureFormat::RGBA32Uint,         ConvClass::Direct,      FeatureGate::None)
++
++/* --- SFLOAT ----------------------------------------------------------------- */
++WGPU_FMT(SFLOAT_16,               2,     1,     wgpu::TextureFormat::R16Float,           ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SFLOAT_16_16,            4,     2,     wgpu::TextureFormat::RG16Float,          ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SFLOAT_16_16_16,        6,     3,     wgpu::TextureFormat::RGBA16Float,        ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SFLOAT_16_16_16_16,      8,     4,     wgpu::TextureFormat::RGBA16Float,        ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(SFLOAT_32,               4,     1,     wgpu::TextureFormat::R32Float,           ConvClass::Direct,      FeatureGate::Float32Filterable)
++WGPU_FMT(SFLOAT_32_32,            8,     2,     wgpu::TextureFormat::RG32Float,          ConvClass::Direct,      FeatureGate::Float32Filterable)
++WGPU_FMT(SFLOAT_32_32_32,        12,     3,     wgpu::TextureFormat::RGBA32Float,        ConvClass::PromoteRGBA, FeatureGate::Float32Filterable)
++WGPU_FMT(SFLOAT_32_32_32_32,     16,     4,     wgpu::TextureFormat::RGBA32Float,        ConvClass::Direct,      FeatureGate::Float32Filterable)
++
++/* --- Packed ----------------------------------------------------------------- */
++WGPU_FMT(UNORM_10_10_10_2,        4,     4,     wgpu::TextureFormat::RGB10A2Unorm,       ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UINT_10_10_10_2,         4,     4,     wgpu::TextureFormat::RGB10A2Uint,        ConvClass::Direct,      FeatureGate::None)
++WGPU_FMT(UFLOAT_11_11_10,         4,     3,     wgpu::TextureFormat::RG11B10Ufloat,      ConvClass::Direct,      FeatureGate::RG11B10UfloatRenderable)
++WGPU_FMT(UFLOAT_9_9_9_EXP_5,      4,     3,     wgpu::TextureFormat::RGB9E5Ufloat,       ConvClass::Direct,      FeatureGate::None)
++
++/* --- Depth / stencil -------------------------------------------------------- */
++WGPU_FMT(UNORM_16_DEPTH,          2,     1,     wgpu::TextureFormat::Depth16Unorm,       ConvClass::Depth,       FeatureGate::None)
++WGPU_FMT(SFLOAT_32_DEPTH,         4,     1,     wgpu::TextureFormat::Depth32Float,       ConvClass::Depth,       FeatureGate::None)
++WGPU_FMT(SFLOAT_32_DEPTH_UINT_8,  8,     1,     wgpu::TextureFormat::Depth32FloatStencil8, ConvClass::Depth,     FeatureGate::Depth32FloatStencil8)
++
++/* --- sRGB ------------------------------------------------------------------- */
++WGPU_FMT(SRGBA_8_8_8,             3,     3,     wgpu::TextureFormat::RGBA8UnormSrgb,     ConvClass::PromoteRGBA, FeatureGate::None)
++WGPU_FMT(SRGBA_8_8_8_8,           4,     4,     wgpu::TextureFormat::RGBA8UnormSrgb,     ConvClass::Direct,      FeatureGate::None)
++
++/* --- Compressed (S3TC / DXT → BC) ------------------------------------------- */
++WGPU_FMT(SNORM_DXT1,              8,     4,     wgpu::TextureFormat::BC1RGBAUnorm,       ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++WGPU_FMT(SNORM_DXT3,             16,     4,     wgpu::TextureFormat::BC2RGBAUnorm,       ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++WGPU_FMT(SNORM_DXT5,             16,     4,     wgpu::TextureFormat::BC3RGBAUnorm,       ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++WGPU_FMT(SRGB_DXT1,               8,     4,     wgpu::TextureFormat::BC1RGBAUnormSrgb,   ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++WGPU_FMT(SRGB_DXT3,              16,     4,     wgpu::TextureFormat::BC2RGBAUnormSrgb,   ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++WGPU_FMT(SRGB_DXT5,              16,     4,     wgpu::TextureFormat::BC3RGBAUnormSrgb,   ConvClass::Compressed,  FeatureGate::TextureCompressionBC)
++/* clang-format on */
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+new file mode 100644
+index 00000000000..50a207c4be8
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+@@ -0,0 +1,195 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/GPU_format.hh @ fbe6228777e7 */
++
++/** \file
++ * Blender→WebGPU texture-format table + spec capability classification.
++ * See wgpu_texture_format.hh. Data provenance: GPU_format.hh @ the pin. */
++
++#include "wgpu_texture_format.hh"
++
++namespace blender::gpu::webgpu {
++
++using F = wgpu::TextureFormat;
++
++/* ---- Spec capability predicates (WebGPU core §"Texture Format Capabilities") -
++ * The live harness DISCOVERS renderable/storage/multisample via CreateTexture and
++ * cross-checks these; filterable/blendable are pipeline-level and stay spec-only. */
++
++static bool is_color_renderable(F f)
++{
++  switch (f) {
++    case F::R8Unorm: case F::RG8Unorm: case F::RGBA8Unorm: case F::RGBA8UnormSrgb:
++    case F::R8Uint: case F::RG8Uint: case F::RGBA8Uint:
++    case F::R8Sint: case F::RG8Sint: case F::RGBA8Sint:
++    case F::R16Uint: case F::RG16Uint: case F::RGBA16Uint:
++    case F::R16Sint: case F::RG16Sint: case F::RGBA16Sint:
++    case F::R16Float: case F::RG16Float: case F::RGBA16Float:
++    case F::R32Uint: case F::RG32Uint: case F::RGBA32Uint:
++    case F::R32Sint: case F::RG32Sint: case F::RGBA32Sint:
++    case F::R32Float: case F::RG32Float: case F::RGBA32Float:
++    case F::RGB10A2Unorm: case F::RGB10A2Uint:
++    case F::RG11B10Ufloat: /* only with RG11B10UfloatRenderable */
++      return true;
++    default:
++      return false;
++  }
++}
++
++static bool is_depth(F f)
++{
++  return f == F::Depth16Unorm || f == F::Depth32Float || f == F::Depth32FloatStencil8 ||
++         f == F::Depth24Plus || f == F::Depth24PlusStencil8;
++}
++
++static bool is_uint_or_sint(F f)
++{
++  switch (f) {
++    case F::R8Uint: case F::RG8Uint: case F::RGBA8Uint:
++    case F::R16Uint: case F::RG16Uint: case F::RGBA16Uint:
++    case F::R32Uint: case F::RG32Uint: case F::RGBA32Uint:
++    case F::R8Sint: case F::RG8Sint: case F::RGBA8Sint:
++    case F::R16Sint: case F::RG16Sint: case F::RGBA16Sint:
++    case F::R32Sint: case F::RG32Sint: case F::RGBA32Sint:
++    case F::RGB10A2Uint:
++      return true;
++    default:
++      return false;
++  }
++}
++
++static bool is_storage(F f)
++{
++  switch (f) {
++    case F::RGBA8Unorm: case F::RGBA8Snorm: case F::RGBA8Uint: case F::RGBA8Sint:
++    case F::RGBA16Uint: case F::RGBA16Sint: case F::RGBA16Float:
++    case F::R32Uint: case F::R32Sint: case F::R32Float:
++    case F::RG32Uint: case F::RG32Sint: case F::RG32Float:
++    case F::RGBA32Uint: case F::RGBA32Sint: case F::RGBA32Float:
++      return true;
++    default:
++      return false;
++  }
++}
++
++static bool is_filterable(F f)
++{
++  if (is_uint_or_sint(f) || is_depth(f)) {
++    return false;
++  }
++  /* 32-bit float only filterable with the Float32Filterable feature. */
++  if (f == F::R32Float || f == F::RG32Float || f == F::RGBA32Float) {
++    return false; /* baseline; caps_of upgrades if the feature is present */
++  }
++  return true; /* unorm/snorm/srgb/16-float/packed-float/rgb9e5/BC */
++}
++
++static bool is_blendable(F f)
++{
++  switch (f) {
++    case F::R8Unorm: case F::RG8Unorm: case F::RGBA8Unorm: case F::RGBA8UnormSrgb:
++    case F::R16Float: case F::RG16Float: case F::RGBA16Float:
++    case F::RGB10A2Unorm: case F::RG11B10Ufloat:
++      return true;
++    default:
++      return false;
++  }
++}
++
++static bool is_multisample(F f)
++{
++  /* Renderable non-integer color + depth support sampleCount>1. */
++  if (is_depth(f)) {
++    return true;
++  }
++  return is_color_renderable(f) && !is_uint_or_sint(f);
++}
++
++FormatCaps caps_of(F f)
++{
++  FormatCaps c;
++  c.renderable = is_color_renderable(f) || is_depth(f);
++  c.filterable = is_filterable(f);
++  c.storage = is_storage(f);
++  c.blendable = is_blendable(f);
++  c.multisample = is_multisample(f);
++  return c;
++}
++
++/* ---- The table ------------------------------------------------------------- */
++
++static const FormatInfo g_table[] = {
++#define WGPU_FMT(name, bytes, comps, wgpu_fmt, conv, gate) \
++  {TextureFormat::name, #name, bytes, comps, wgpu_fmt, conv, gate, {}},
++#include "wgpu_texture_format_list.h"
++#undef WGPU_FMT
++};
++static constexpr size_t g_table_count = sizeof(g_table) / sizeof(g_table[0]);
++
++/* Fill caps once (can't do it in the aggregate initializer above). */
++static const FormatInfo *build_table()
++{
++  static FormatInfo table[g_table_count];
++  for (size_t i = 0; i < g_table_count; i++) {
++    table[i] = g_table[i];
++    table[i].caps = caps_of(table[i].wgpu);
++  }
++  return table;
++}
++
++const FormatInfo *format_table(size_t &count)
++{
++  static const FormatInfo *t = build_table();
++  count = g_table_count;
++  return t;
++}
++
++const FormatInfo &format_info(TextureFormat format)
++{
++  size_t count = 0;
++  const FormatInfo *t = format_table(count);
++  for (size_t i = 0; i < count; i++) {
++    if (t[i].blender == format) {
++      return t[i];
++    }
++  }
++  static const FormatInfo invalid = {
++      TextureFormat::Invalid, "Invalid", 0, 0, wgpu::TextureFormat::Undefined,
++      ConvClass::Direct, FeatureGate::None, {}};
++  return invalid;
++}
++
++wgpu::TextureFormat to_wgpu_format(TextureFormat format)
++{
++  return format_info(format).wgpu;
++}
++
++const char *to_string(ConvClass c)
++{
++  switch (c) {
++    case ConvClass::Direct: return "Direct";
++    case ConvClass::PromoteRGBA: return "PromoteRGBA";
++    case ConvClass::Depth: return "Depth";
++    case ConvClass::Compressed: return "Compressed";
++  }
++  return "?";
++}
++
++const char *to_string(FeatureGate g)
++{
++  switch (g) {
++    case FeatureGate::None: return "None";
++    case FeatureGate::TextureCompressionBC: return "TextureCompressionBC";
++    case FeatureGate::Depth32FloatStencil8: return "Depth32FloatStencil8";
++    case FeatureGate::Unorm16: return "Unorm16TextureFormats";
++    case FeatureGate::Snorm16: return "Snorm16(UNSUPPORTED-no WebGPU format)";
++    case FeatureGate::Float32Filterable: return "Float32Filterable";
++    case FeatureGate::RG11B10UfloatRenderable: return "RG11B10UfloatRenderable";
++  }
++  return "?";
++}
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.hh b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+new file mode 100644
+index 00000000000..d4aa20f6e4e
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+@@ -0,0 +1,67 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_data_conversion.hh @ fbe6228777e7 */
++
++/** \file
++ * M3.T9.pre — WebGPU pixel data conversion (standalone, drop-in for
++ * `source/blender/gpu/webgpu/wgpu_data_conversion.cc`).
++ *
++ * WebGPU (like Metal) has no 3-channel texture formats, so the 13 three-channel
++ * Blender formats (ConvClass::PromoteRGBA in the format table) must be widened to
++ * 4 channels on UPLOAD, with an opaque alpha appended per element. This is the
++ * dominant real conversion the table demands (the rest are Direct memcpy). Depth
++ * and compressed formats have their own copy semantics handled by the harness.
++ *
++ * The transform is Blender-source (tightly-packed RGB rows) → WebGPU-source
++ * (tightly-packed RGBA rows). Copy-layout row alignment (WebGPU's 256-byte
++ * bytesPerRow for CopyBufferToTexture) is a separate concern applied at copy time,
++ * not here (queue.writeTexture has no such requirement). */
++
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++#include <vector>
++
++#include "wgpu_texture_format.hh"
++
++namespace blender::gpu::webgpu {
++
++/** Scalar element type — selects the opaque-alpha value for promotion. */
++enum class ScalarType : uint8_t { Unorm, Snorm, Uint, Sint, Float };
++
++/** How to promote one PromoteRGBA format. `needed` is false for non-promoted
++ * formats (they upload verbatim). */
++struct PromotionPlan {
++  bool needed = false;
++  uint32_t comp_bytes = 0; /* bytes per channel (1/2/4) */
++  ScalarType type = ScalarType::Unorm;
++};
++
++/** The plan for a Blender format (PromoteRGBA formats only need promotion). */
++PromotionPlan promotion_plan(TextureFormat format);
++
++/** Bytes of the promoted (RGBA) buffer for a width×height image. */
++size_t promoted_byte_size(uint32_t width, uint32_t height, uint32_t comp_bytes);
++
++/** Widen tightly-packed RGB rows to tightly-packed RGBA rows, appending the
++ * type's opaque alpha per pixel. `src` is width*height*3*comp_bytes bytes; `dst`
++ * must be promoted_byte_size(). Returns false on a size mismatch. */
++bool promote_rgb_to_rgba(const uint8_t *src, size_t src_size,
++                         uint8_t *dst, size_t dst_size,
++                         uint32_t width, uint32_t height,
++                         const PromotionPlan &plan);
++
++/** Convenience: allocate + promote a source RGB buffer for `format`. */
++std::vector<uint8_t> promote_for_upload(TextureFormat format,
++                                        const std::vector<uint8_t> &rgb_src,
++                                        uint32_t width, uint32_t height);
++
++/** The opaque-alpha byte pattern for a (type, comp_bytes), little-endian.
++ * Exposed for tests. Writes `comp_bytes` bytes to `out`. */
++void opaque_alpha_bytes(ScalarType type, uint32_t comp_bytes, uint8_t *out);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.cc b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+new file mode 100644
+index 00000000000..f21c6a699e9
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+@@ -0,0 +1,113 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_data_conversion.cc @ fbe6228777e7 */
++
++/** \file
++ * Implements the RGB→RGBA promotion for the 13 three-channel Blender formats.
++ * See wgpu_data_conversion.hh. */
++
++#include "wgpu_data_conversion.hh"
++
++#include <cstring>
++
++namespace blender::gpu::webgpu {
++
++PromotionPlan promotion_plan(TextureFormat format)
++{
++  /* Only the ConvClass::PromoteRGBA formats need widening; {comp_bytes, type}
++   * per the format's element type. */
++  switch (format) {
++    case TextureFormat::UNORM_8_8_8:   return {true, 1, ScalarType::Unorm};
++    case TextureFormat::UNORM_16_16_16:return {true, 2, ScalarType::Unorm};
++    case TextureFormat::SNORM_8_8_8:   return {true, 1, ScalarType::Snorm};
++    case TextureFormat::SNORM_16_16_16:return {true, 2, ScalarType::Snorm};
++    case TextureFormat::UINT_8_8_8:    return {true, 1, ScalarType::Uint};
++    case TextureFormat::UINT_16_16_16: return {true, 2, ScalarType::Uint};
++    case TextureFormat::UINT_32_32_32: return {true, 4, ScalarType::Uint};
++    case TextureFormat::SINT_8_8_8:    return {true, 1, ScalarType::Sint};
++    case TextureFormat::SINT_16_16_16: return {true, 2, ScalarType::Sint};
++    case TextureFormat::SINT_32_32_32: return {true, 4, ScalarType::Sint};
++    case TextureFormat::SFLOAT_16_16_16: return {true, 2, ScalarType::Float};
++    case TextureFormat::SFLOAT_32_32_32: return {true, 4, ScalarType::Float};
++    case TextureFormat::SRGBA_8_8_8:   return {true, 1, ScalarType::Unorm};
++    default:                           return {false, 0, ScalarType::Unorm};
++  }
++}
++
++void opaque_alpha_bytes(ScalarType type, uint32_t comp_bytes, uint8_t *out)
++{
++  std::memset(out, 0, comp_bytes);
++  switch (type) {
++    case ScalarType::Unorm:
++      /* max value: 0xFF / 0xFFFF / 0xFFFFFFFF */
++      std::memset(out, 0xFF, comp_bytes);
++      break;
++    case ScalarType::Snorm:
++      /* max positive: 0x7F / 0x7FFF (little-endian: high byte holds 0x7F) */
++      std::memset(out, 0xFF, comp_bytes);
++      out[comp_bytes - 1] = 0x7F;
++      break;
++    case ScalarType::Uint:
++    case ScalarType::Sint:
++      out[0] = 0x01; /* integer 1, little-endian */
++      break;
++    case ScalarType::Float:
++      if (comp_bytes == 2) {           /* half 1.0 = 0x3C00 */
++        out[0] = 0x00; out[1] = 0x3C;
++      }
++      else if (comp_bytes == 4) {      /* float 1.0 = 0x3F800000 */
++        out[0] = 0x00; out[1] = 0x00; out[2] = 0x80; out[3] = 0x3F;
++      }
++      break;
++  }
++}
++
++size_t promoted_byte_size(uint32_t width, uint32_t height, uint32_t comp_bytes)
++{
++  return size_t(width) * height * 4u * comp_bytes;
++}
++
++bool promote_rgb_to_rgba(const uint8_t *src, size_t src_size,
++                         uint8_t *dst, size_t dst_size,
++                         uint32_t width, uint32_t height,
++                         const PromotionPlan &plan)
++{
++  if (!plan.needed || plan.comp_bytes == 0) {
++    return false;
++  }
++  const uint32_t cb = plan.comp_bytes;
++  const size_t need_src = size_t(width) * height * 3u * cb;
++  const size_t need_dst = promoted_byte_size(width, height, cb);
++  if (src_size < need_src || dst_size < need_dst) {
++    return false;
++  }
++  uint8_t alpha[4];
++  opaque_alpha_bytes(plan.type, cb, alpha);
++
++  const size_t pixels = size_t(width) * height;
++  for (size_t p = 0; p < pixels; p++) {
++    const uint8_t *s = src + p * 3u * cb;
++    uint8_t *d = dst + p * 4u * cb;
++    std::memcpy(d, s, 3u * cb);       /* R,G,B verbatim */
++    std::memcpy(d + 3u * cb, alpha, cb); /* opaque A */
++  }
++  return true;
++}
++
++std::vector<uint8_t> promote_for_upload(TextureFormat format,
++                                        const std::vector<uint8_t> &rgb_src,
++                                        uint32_t width, uint32_t height)
++{
++  const PromotionPlan plan = promotion_plan(format);
++  if (!plan.needed) {
++    return rgb_src; /* Direct formats upload verbatim */
++  }
++  std::vector<uint8_t> out(promoted_byte_size(width, height, plan.comp_bytes));
++  promote_rgb_to_rgba(rgb_src.data(), rgb_src.size(), out.data(), out.size(), width, height, plan);
++  return out;
++}
++
++}  // namespace blender::gpu::webgpu

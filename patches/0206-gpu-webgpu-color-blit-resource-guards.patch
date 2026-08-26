@@ -1,0 +1,59 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -128,6 +128,20 @@ inline bool direct_draw_plan(int vertex_first,
+ 
++/** Create a WebGPU buffer without publishing a failed handle. Templated so resource-allocation
++ * transactions remain device-free testable on native and Wasm. */
++template<typename DeviceT, typename BufferT>
++inline bool buffer_create_if_valid(DeviceT &device,
++                                   const wgpu::BufferDescriptor &descriptor,
++                                   BufferT &result)
++{
++  BufferT candidate = device.CreateBuffer(&descriptor);
++  if (candidate == nullptr) {
++    return false;
++  }
++  result = std::move(candidate);
++  return true;
++}
++
+ /** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
+  * multi-viewport emulation paths. WebGPU creation is fallible; publish the candidate only after
+- * a non-null handle is available. Templated so the exact transaction remains device-free
+- * testable on native and Wasm. */
++ * a non-null handle is available. */
+ template<typename DeviceT, typename BufferT>
+@@ -139,8 +153,3 @@ inline bool multi_viewport_uniform_buffer_create(DeviceT &device, BufferT &resul
+ 
+-  BufferT candidate = device.CreateBuffer(&descriptor);
+-  if (candidate == nullptr) {
+-    return false;
+-  }
+-  result = std::move(candidate);
+-  return true;
++  return buffer_create_if_valid(device, descriptor, result);
+ }
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -452,2 +452,5 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+   }
++  if (selected_module == nullptr) {
++    return false;
++  }
+   /* Pipeline cached per destination format (auto layout: one sampled texture and
+@@ -487,3 +490,6 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+   bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+-  wgpu::Buffer blit_uniform = device_.CreateBuffer(&bd);
++  wgpu::Buffer blit_uniform;
++  if (!webgpu::buffer_create_if_valid(device_, bd, blit_uniform)) {
++    return false;
++  }
+   const uint32_t blit_data[4] = {w, h, uint32_t(src_layer), flip_source_y ? 1u : 0u};
+@@ -499,2 +505,5 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+   wgpu::BindGroup bind_group = device_.CreateBindGroup(&bgd);
++  if (bind_group == nullptr) {
++    return false;
++  }
+ 

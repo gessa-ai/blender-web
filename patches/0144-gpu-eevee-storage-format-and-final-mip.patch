@@ -1,0 +1,747 @@
+diff --git a/source/blender/draw/CMakeLists.txt b/source/blender/draw/CMakeLists.txt
+index 305edd0..54d93d7 100644
+--- a/source/blender/draw/CMakeLists.txt
++++ b/source/blender/draw/CMakeLists.txt
+@@ -214,6 +214,7 @@ set(SRC
+   engines/eevee/eevee_sampling.hh
+   engines/eevee/eevee_shader.hh
+   engines/eevee/eevee_shadow.hh
++  engines/eevee/eevee_storage_format.hh
+   engines/eevee/eevee_subsurface.hh
+   engines/eevee/eevee_sync.hh
+   engines/eevee/eevee_velocity.hh
+diff --git a/source/blender/draw/engines/eevee/eevee_depth_of_field.cc b/source/blender/draw/engines/eevee/eevee_depth_of_field.cc
+index 3286dbf..2d700ce 100644
+--- a/source/blender/draw/engines/eevee/eevee_depth_of_field.cc
++++ b/source/blender/draw/engines/eevee/eevee_depth_of_field.cc
+@@ -31,6 +31,7 @@
+ #include "eevee_instance.hh"
+ #include "eevee_sampling.hh"
+ #include "eevee_shader.hh"
++#include "eevee_storage_format.hh"
+ #include "eevee_velocity_shared.hh"
+ 
+ #include "eevee_depth_of_field.hh"
+@@ -645,14 +646,16 @@ void DepthOfField::render(View &view,
+       GPU_debug_group_begin("Tile Prepare");
+ 
+       /* WARNING: If format changes, make sure dof_tile_* GLSL constants are properly encoded. */
++      const gpu::TextureFormat tile_format = eevee_storage_format(
++          gpu::TextureFormat::UFLOAT_11_11_10);
+       tiles_fg_tx_.previous().acquire_2d(
+-          tile_res, gpu::TextureFormat::UFLOAT_11_11_10, usage_readwrite);
++          tile_res, tile_format, usage_readwrite);
+       tiles_bg_tx_.previous().acquire_2d(
+-          tile_res, gpu::TextureFormat::UFLOAT_11_11_10, usage_readwrite);
++          tile_res, tile_format, usage_readwrite);
+       tiles_fg_tx_.current().acquire_2d(
+-          tile_res, gpu::TextureFormat::UFLOAT_11_11_10, usage_readwrite);
++          tile_res, tile_format, usage_readwrite);
+       tiles_bg_tx_.current().acquire_2d(
+-          tile_res, gpu::TextureFormat::UFLOAT_11_11_10, usage_readwrite);
++          tile_res, tile_format, usage_readwrite);
+ 
+       drw.submit(tiles_flatten_ps_, view);
+ 
+diff --git a/source/blender/draw/engines/eevee/eevee_pipeline.hh b/source/blender/draw/engines/eevee/eevee_pipeline.hh
+index 6047ef5..3d2dfda 100644
+--- a/source/blender/draw/engines/eevee/eevee_pipeline.hh
++++ b/source/blender/draw/engines/eevee/eevee_pipeline.hh
+@@ -20,6 +20,7 @@
+ #include "eevee_lut.hh"
+ #include "eevee_material.hh"
+ #include "eevee_raytrace.hh"
++#include "eevee_storage_format.hh"
+ #include "eevee_subsurface.hh"
+ #include "eevee_uniform_shared.hh"
+ 
+@@ -413,7 +414,7 @@ class DeferredLayer : DeferredLayerBase {
+   DeferredLayer(Instance &inst) : DeferredLayerBase(inst), inst_(inst)
+   {
+     float4 data(0.0f);
+-    dummy_black.ensure_2d(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT,
++    dummy_black.ensure_2d(eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT),
+                           int2(1),
+                           GPU_TEXTURE_USAGE_SHADER_READ | GPU_TEXTURE_USAGE_SHADER_WRITE,
+                           data);
+diff --git a/source/blender/draw/engines/eevee/eevee_raytrace.cc b/source/blender/draw/engines/eevee/eevee_raytrace.cc
+index e51bc66..257caa2 100644
+--- a/source/blender/draw/engines/eevee/eevee_raytrace.cc
++++ b/source/blender/draw/engines/eevee/eevee_raytrace.cc
+@@ -13,6 +13,7 @@
+ #include "eevee_instance.hh"
+ 
+ #include "eevee_raytrace.hh"
++#include "eevee_storage_format.hh"
+ 
+ namespace blender::eevee {
+ 
+@@ -78,7 +79,10 @@ void RayTraceModule::init()
+ 
+   float4 data(0.0f);
+   radiance_dummy_black_tx_.ensure_2d(
+-      gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, int2(1), GPU_TEXTURE_USAGE_SHADER_READ, data);
++      eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT),
++      int2(1),
++      GPU_TEXTURE_USAGE_SHADER_READ,
++      data);
+ }
+ 
+ void RayTraceModule::sync()
+@@ -580,7 +584,11 @@ RayTraceResult RayTraceModule::render(RayTraceBuffer &rt_buffer,
+       GPU_debug_group_begin("Fast GI");
+ 
+       downsampled_in_radiance_tx_.ensure_2d(
+-          gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, tracing_res_fast_gi, usage_rw, nullptr, 4);
++          eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT),
++          tracing_res_fast_gi,
++          usage_rw,
++          nullptr,
++          4);
+       downsampled_in_normal_tx_.ensure_2d(
+           gpu::TextureFormat::UNORM_10_10_10_2, tracing_res_fast_gi, usage_rw, nullptr, 4);
+ 
+@@ -642,7 +650,8 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+   if (!active_layer) {
+     /* Early out. Release persistent buffers. Still acquire one dummy resource for validation. */
+     denoise_buf->denoised_spatial_tx.acquire_2d(int2(1),
+-                                                gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT);
++                                                eevee_storage_format(
++                                                    gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT));
+     denoise_buf->radiance_history_tx.release();
+     denoise_buf->variance_history_tx.release();
+     denoise_buf->tilemask_history_tx.free();
+@@ -694,7 +703,8 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+     /* Tracing rays. */
+     ray_data_tx_.acquire_2d(tracing_res, gpu::TextureFormat::SFLOAT_16_16_16_16);
+     ray_time_tx_.acquire_2d(tracing_res, gpu::TextureFormat::RAYTRACE_RAYTIME_FORMAT);
+-    ray_radiance_tx_.acquire_2d(tracing_res, gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT);
++    ray_radiance_tx_.acquire_2d(
++        tracing_res, eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT));
+ 
+     inst_.manager->submit(generate_ps_, render_view);
+     if (tracing_method_ == RAYTRACE_EEVEE_METHOD_SCREEN) {
+@@ -713,7 +723,8 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+   /* Spatial denoise pass is required to resolve at least one ray per pixel. */
+   {
+     denoise_buf->denoised_spatial_tx.acquire_2d(extent,
+-                                                gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT);
++                                                eevee_storage_format(
++                                                    gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT));
+     hit_variance_tx_.acquire_2d(use_temporal_denoise ? extent : int2(1),
+                                 gpu::TextureFormat::RAYTRACE_VARIANCE_FORMAT);
+     hit_depth_tx_.acquire_2d(use_temporal_denoise ? extent : int2(1),
+@@ -731,7 +742,7 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+ 
+   if (use_temporal_denoise) {
+     denoise_buf->denoised_temporal_tx.acquire_2d(
+-        extent, gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, usage_rw);
++        extent, eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT), usage_rw);
+ 
+     int2 variance_size = use_bilateral_denoise ? extent : int2(1);
+     gpu::TextureFormat variance_format = gpu::TextureFormat::RAYTRACE_VARIANCE_FORMAT;
+@@ -745,7 +756,7 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+                                                      usage_rw);
+ 
+     if (denoise_buf->radiance_history_tx.acquire_2d(
+-            extent, gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, usage_rw) ||
++            extent, eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT), usage_rw) ||
+         denoise_buf->valid_history == false)
+     {
+       /* If viewport resolution changes, do not try to use history. */
+@@ -779,7 +790,7 @@ RayTraceResultTexture RayTraceModule::trace(int closure_index,
+ 
+   if (use_bilateral_denoise) {
+     denoise_buf->denoised_bilateral_tx.acquire_2d(
+-        extent, gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, usage_rw);
++        extent, eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT), usage_rw);
+     denoised_bilateral_tx_ = denoise_buf->denoised_bilateral_tx;
+ 
+     inst_.manager->submit(denoise_bilateral_ps_, render_view);
+@@ -815,7 +826,7 @@ RayTraceResult RayTraceModule::alloc_only(RayTraceBuffer &rt_buffer)
+   for (int i = 0; i < 3; i++) {
+     RayTraceBuffer::DenoiseBuffer *denoise_buf = &rt_buffer.closures[i];
+     denoise_buf->denoised_bilateral_tx.acquire_2d(
+-        extent, gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, usage_rw);
++        extent, eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT), usage_rw);
+     result.closures[i] = {denoise_buf->denoised_bilateral_tx};
+   }
+   return result;
+@@ -829,7 +840,7 @@ RayTraceResult RayTraceModule::alloc_dummy(RayTraceBuffer &rt_buffer)
+   for (int i = 0; i < 3; i++) {
+     RayTraceBuffer::DenoiseBuffer *denoise_buf = &rt_buffer.closures[i];
+     denoise_buf->denoised_bilateral_tx.acquire_2d(
+-        int2(1), gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT, usage_rw);
++        int2(1), eevee_storage_format(gpu::TextureFormat::RAYTRACE_RADIANCE_FORMAT), usage_rw);
+     result.closures[i] = {denoise_buf->denoised_bilateral_tx};
+   }
+   return result;
+diff --git a/source/blender/draw/engines/eevee/eevee_storage_format.hh b/source/blender/draw/engines/eevee/eevee_storage_format.hh
+new file mode 100644
+index 0000000..2403ec9
+--- /dev/null
++++ b/source/blender/draw/engines/eevee/eevee_storage_format.hh
+@@ -0,0 +1,30 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later */
++
++#pragma once
++
++#include "GPU_context.hh"
++#include "GPU_texture.hh"
++
++namespace blender::eevee {
++
++/**
++ * Return the physical format used for an EEVEE storage image.
++ *
++ * WebGPU does not support read-write storage access for RG11B10Ufloat. The WebGPU shader backend
++ * therefore promotes RG11B10Ufloat storage declarations to RGBA16Float. Promote the matching
++ * allocations here so the texture and shader layout retain exact format identity. Other backends
++ * keep EEVEE's native packed format.
++ */
++inline gpu::TextureFormat eevee_storage_format(gpu::TextureFormat format)
++{
++  if (GPU_backend_get_type() == GPU_BACKEND_WEBGPU &&
++      format == gpu::TextureFormat::UFLOAT_11_11_10)
++  {
++    return gpu::TextureFormat::SFLOAT_16_16_16_16;
++  }
++  return format;
++}
++
++}  // namespace blender::eevee
+diff --git a/source/blender/draw/engines/eevee/eevee_subsurface.cc b/source/blender/draw/engines/eevee/eevee_subsurface.cc
+index 8a38213..3eb2598 100644
+--- a/source/blender/draw/engines/eevee/eevee_subsurface.cc
++++ b/source/blender/draw/engines/eevee/eevee_subsurface.cc
+@@ -9,6 +9,7 @@
+ #include <algorithm>
+ 
+ #include "eevee_instance.hh"
++#include "eevee_storage_format.hh"
+ #include "eevee_subsurface.hh"
+ 
+ namespace blender::eevee {
+@@ -107,7 +108,8 @@ void SubsurfaceModule::render(gpu::Texture *direct_diffuse_light_tx,
+   object_id_tx_.acquire_2d(render_extent, gpu::TextureFormat::SUBSURFACE_OBJECT_ID_FORMAT, usage);
+   radiance_tx_.acquire_2d_array(render_extent,
+                                 use_split_radiance_ ? 2 : 1,
+-                                gpu::TextureFormat::SUBSURFACE_RADIANCE_FORMAT,
++                                eevee_storage_format(
++                                    gpu::TextureFormat::SUBSURFACE_RADIANCE_FORMAT),
+                                 usage);
+ 
+   convolve_dispatch_buf_.clear_to_zero();
+diff --git a/source/blender/draw/engines/eevee/eevee_volume.cc b/source/blender/draw/engines/eevee/eevee_volume.cc
+index 04d59ae..ee8d05b 100644
+--- a/source/blender/draw/engines/eevee/eevee_volume.cc
++++ b/source/blender/draw/engines/eevee/eevee_volume.cc
+@@ -16,6 +16,7 @@
+ 
+ #include "eevee_instance.hh"
+ #include "eevee_pipeline.hh"
++#include "eevee_storage_format.hh"
+ 
+ #include "eevee_volume.hh"
+ 
+@@ -206,10 +207,12 @@ void VolumeModule::end_sync()
+ 
+   eGPUTextureUsage usage = GPU_TEXTURE_USAGE_SHADER_READ | GPU_TEXTURE_USAGE_SHADER_WRITE |
+                            GPU_TEXTURE_USAGE_ATTACHMENT;
++  const gpu::TextureFormat radiance_format = eevee_storage_format(
++      gpu::TextureFormat::UFLOAT_11_11_10);
+ 
+-  prop_scattering_tx_.ensure_3d(gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  prop_extinction_tx_.ensure_3d(gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  prop_emission_tx_.ensure_3d(gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
++  prop_scattering_tx_.ensure_3d(radiance_format, data_.tex_size, usage);
++  prop_extinction_tx_.ensure_3d(radiance_format, data_.tex_size, usage);
++  prop_emission_tx_.ensure_3d(radiance_format, data_.tex_size, usage);
+   /* We need 2 separate images to prevent bugs in Nvidia drivers (See #122454). */
+   prop_phase_tx_.ensure_3d(gpu::TextureFormat::SFLOAT_16, data_.tex_size, usage);
+   prop_phase_weight_tx_.ensure_3d(gpu::TextureFormat::SFLOAT_16, data_.tex_size, usage);
+@@ -245,21 +248,17 @@ void VolumeModule::end_sync()
+   occupancy_fb_.ensure(GPU_ATTACHMENT_TEXTURE(front_depth_tx_));
+ 
+   bool created = false;
+-  created |= scatter_tx_.current().ensure_3d(
+-      gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  created |= extinction_tx_.current().ensure_3d(
+-      gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  created |= scatter_tx_.previous().ensure_3d(
+-      gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  created |= extinction_tx_.previous().ensure_3d(
+-      gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
++  created |= scatter_tx_.current().ensure_3d(radiance_format, data_.tex_size, usage);
++  created |= extinction_tx_.current().ensure_3d(radiance_format, data_.tex_size, usage);
++  created |= scatter_tx_.previous().ensure_3d(radiance_format, data_.tex_size, usage);
++  created |= extinction_tx_.previous().ensure_3d(radiance_format, data_.tex_size, usage);
+ 
+   if (created) {
+     valid_history_ = false;
+   }
+ 
+-  integrated_scatter_tx_.ensure_3d(gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
+-  integrated_transmit_tx_.ensure_3d(gpu::TextureFormat::UFLOAT_11_11_10, data_.tex_size, usage);
++  integrated_scatter_tx_.ensure_3d(radiance_format, data_.tex_size, usage);
++  integrated_transmit_tx_.ensure_3d(radiance_format, data_.tex_size, usage);
+ 
+   /* Update references for bindings. */
+   result.scattering_tx_ = integrated_scatter_tx_;
+diff --git a/source/blender/gpu/GPU_shader_builtin.hh b/source/blender/gpu/GPU_shader_builtin.hh
+index 43793d3..92a0ccd 100644
+--- a/source/blender/gpu/GPU_shader_builtin.hh
++++ b/source/blender/gpu/GPU_shader_builtin.hh
+@@ -112,6 +112,20 @@ enum GPUBuiltinShader {
+   GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_LAYERED,
+   GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8,
+   GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL_LAYERED,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL,
++  GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL_LAYERED,
+ 
+   /**
+    * ----------------------- Shaders exposed through pyGPU module -----------------------
+diff --git a/source/blender/gpu/intern/gpu_shader_builtin.cc b/source/blender/gpu/intern/gpu_shader_builtin.cc
+index ddd4928..45fd249 100644
+--- a/source/blender/gpu/intern/gpu_shader_builtin.cc
++++ b/source/blender/gpu/intern/gpu_shader_builtin.cc
+@@ -155,6 +155,34 @@ static const char *builtin_shader_create_info_name(GPUBuiltinShader shader)
+       return "gpu_shader_2D_update_mipmaps_srgba_8_8_8_8";
+     case GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_LAYERED:
+       return "gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_unorm_8_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_unorm_8_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_unorm_8_8_8_8_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_unorm_8_8_8_8_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_sfloat_16_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_sfloat_16_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_sfloat_32_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_sfloat_32_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32_one_level_layered";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL:
++      return "gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_one_level";
++    case GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL_LAYERED:
++      return "gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_one_level_layered";
+     default:
+       BLI_assert_unreachable();
+       return "";
+diff --git a/source/blender/gpu/intern/gpu_texture_mipmap.cc b/source/blender/gpu/intern/gpu_texture_mipmap.cc
+index 9488d88..998be77 100644
+--- a/source/blender/gpu/intern/gpu_texture_mipmap.cc
++++ b/source/blender/gpu/intern/gpu_texture_mipmap.cc
+@@ -27,26 +27,40 @@ namespace blender {
+ 
+ namespace gpu {
+ 
+-static Shader *get_update_mipmap_shader(TextureFormat texture_format, bool is_layered)
++static Shader *get_update_mipmap_shader(TextureFormat texture_format,
++                                        bool is_layered,
++                                        bool is_one_level)
+ {
+   if (is_layered) {
+     switch (texture_format) {
+       case TextureFormat::UNORM_8:
+-        return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_LAYERED);
++        return GPU_shader_get_builtin_shader(
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_LAYERED);
+       case TextureFormat::UNORM_8_8_8_8:
+-        return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_LAYERED);
++        return GPU_shader_get_builtin_shader(
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_LAYERED);
+       case TextureFormat::SFLOAT_16:
+-        return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_LAYERED);
++        return GPU_shader_get_builtin_shader(
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_LAYERED);
+       case TextureFormat::SFLOAT_16_16_16_16:
+         return GPU_shader_get_builtin_shader(
+-            GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_LAYERED);
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_LAYERED);
+       case TextureFormat::SFLOAT_32:
+-        return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_LAYERED);
++        return GPU_shader_get_builtin_shader(
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_LAYERED);
+       case TextureFormat::SFLOAT_32_32_32_32:
+         return GPU_shader_get_builtin_shader(
+-            GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_LAYERED);
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_LAYERED);
+       case TextureFormat::SRGBA_8_8_8_8:
+-        return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_LAYERED);
++        return GPU_shader_get_builtin_shader(
++            is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL_LAYERED :
++                           GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_LAYERED);
+       default:
+         break;
+     }
+@@ -55,26 +69,41 @@ static Shader *get_update_mipmap_shader(TextureFormat texture_format, bool is_la
+ 
+   switch (texture_format) {
+     case TextureFormat::UNORM_8:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8);
++      return GPU_shader_get_builtin_shader(is_one_level ?
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_ONE_LEVEL :
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8);
+     case TextureFormat::UNORM_8_8_8_8:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8);
++      return GPU_shader_get_builtin_shader(
++          is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8_ONE_LEVEL :
++                         GPU_SHADER_2D_UPDATE_MIPMAPS_UNORM_8_8_8_8);
+     case TextureFormat::SFLOAT_16:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16);
++      return GPU_shader_get_builtin_shader(is_one_level ?
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_ONE_LEVEL :
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16);
+     case TextureFormat::SFLOAT_16_16_16_16:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16);
++      return GPU_shader_get_builtin_shader(
++          is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16_ONE_LEVEL :
++                         GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_16_16_16_16);
+     case TextureFormat::SFLOAT_32:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32);
++      return GPU_shader_get_builtin_shader(is_one_level ?
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_ONE_LEVEL :
++                                               GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32);
+     case TextureFormat::SFLOAT_32_32_32_32:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32);
++      return GPU_shader_get_builtin_shader(
++          is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32_ONE_LEVEL :
++                         GPU_SHADER_2D_UPDATE_MIPMAPS_SFLOAT_32_32_32_32);
+     case TextureFormat::SRGBA_8_8_8_8:
+-      return GPU_shader_get_builtin_shader(GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8);
++      return GPU_shader_get_builtin_shader(
++          is_one_level ? GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8_ONE_LEVEL :
++                         GPU_SHADER_2D_UPDATE_MIPMAPS_SRGBA_8_8_8_8);
+     default:
+       break;
+   }
+   return nullptr;
+ }
+ 
+-static void update_mipmaps(Texture &texture, Shader &shader, int layer)
++static void update_mipmaps(
++    Texture &texture, Shader &paired_shader, Shader &one_level_shader, int layer)
+ {
+   const int num_mipmaps = texture.mip_count();
+   const TextureFormat view_format = texture.format_get();
+@@ -87,12 +116,16 @@ static void update_mipmaps(Texture &texture, Shader &shader, int layer)
+   constexpr int max_levels_per_dispatch = 2;
+ 
+   for (int mip_start = 0; mip_start < num_mipmaps - 1; mip_start += max_levels_per_dispatch) {
++    int num_levels = min_ii(views.size() - mip_start - 1, max_levels_per_dispatch);
++    Shader &shader = num_levels == 1 ? one_level_shader : paired_shader;
++
+     GPU_memory_barrier(GPU_BARRIER_SHADER_IMAGE_ACCESS);
++    GPU_shader_bind(&shader);
+     GPU_texture_image_bind(views[mip_start], 0);
+-    for (int mip_offset = 1; mip_offset <= max_levels_per_dispatch; mip_offset++) {
+-      GPU_texture_image_bind(views[min_ii(mip_start + mip_offset, views.size() - 1)], mip_offset);
++    GPU_texture_image_bind(views[mip_start + 1], 1);
++    if (num_levels == max_levels_per_dispatch) {
++      GPU_texture_image_bind(views[mip_start + 2], 2);
+     }
+-    int num_levels = min_ii(views.size() - mip_start - 1, max_levels_per_dispatch);
+     GPU_shader_uniform_1i(&shader, "num_levels", num_levels);
+ 
+     int3 mip_size(1, 1, 1);
+@@ -123,7 +156,7 @@ static void update_mipmaps(Texture &texture, Shader &shader, int layer)
+   GPU_memory_barrier(GPU_BARRIER_TEXTURE_FETCH | GPU_BARRIER_SHADER_IMAGE_ACCESS);
+ }
+ 
+-static void update_mipmaps(Texture &texture, Shader &shader)
++static void update_mipmaps(Texture &texture, Shader &paired_shader, Shader &one_level_shader)
+ {
+   Context &context = *Context::get();
+   Shader *prev_shader = context.shader;
+@@ -160,9 +193,8 @@ static void update_mipmaps(Texture &texture, Shader &shader)
+     texture.copy_to(texture_ptr, IndexRange(1));
+   }
+ 
+-  GPU_shader_bind(&shader);
+   for (int layer : IndexRange(layer_count)) {
+-    update_mipmaps(*texture_ptr, shader, layer);
++    update_mipmaps(*texture_ptr, paired_shader, one_level_shader, layer);
+   }
+ 
+   if (is_srgb) {
+@@ -214,10 +246,11 @@ void GPU_texture_update_mipmap_chain(Texture *tex)
+   if (use_compute_shaders) {
+     const TextureFormat texture_format = tex->format_get();
+     const bool is_layered = tex->type_get() & GPU_TEXTURE_ARRAY;
+-    Shader *shader = get_update_mipmap_shader(texture_format, is_layered);
+-    if (shader) {
++    Shader *paired_shader = get_update_mipmap_shader(texture_format, is_layered, false);
++    Shader *one_level_shader = get_update_mipmap_shader(texture_format, is_layered, true);
++    if (paired_shader && one_level_shader) {
+       GPU_debug_group_begin("Update Mipmaps");
+-      update_mipmaps(*tex, *shader);
++      update_mipmaps(*tex, *paired_shader, *one_level_shader);
+       GPU_debug_group_end();
+       return;
+     }
+diff --git a/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh b/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
+index 742aa0e..b6d7ec2 100644
+--- a/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
++++ b/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
+@@ -164,13 +164,14 @@ template<enum TextureWriteFormat format, typename SharedStorage, typename InnerT
+ struct Resources {
+   [[compilation_constant]] const bool is_srgb_texture;
+   [[compilation_constant]] const bool is_layered;
++  [[compilation_constant]] const bool is_one_level;
+   [[push_constant]] const int num_levels;
+   [[image(0, read, format), condition(!is_layered)]] image2D mip_in;
+   [[image(1, write, format), condition(!is_layered)]] image2D mip_out1;
+-  [[image(2, write, format), condition(!is_layered)]] image2D mip_out2;
++  [[image(2, write, format), condition(!is_layered && !is_one_level)]] image2D mip_out2;
+   [[image(0, read, format), condition(is_layered)]] image2DArray mip_array_in;
+   [[image(1, write, format), condition(is_layered)]] image2DArray mip_array_out1;
+-  [[image(2, write, format), condition(is_layered)]] image2DArray mip_array_out2;
++  [[image(2, write, format), condition(is_layered && !is_one_level)]] image2DArray mip_array_out2;
+   [[resource_table]] srt_t<SharedStorage> shared_storage;
+ 
+   /** Store sample result into an output mip image. */
+@@ -187,16 +188,20 @@ struct Resources {
+       if (dst_level == 1) {
+         imageStore(mip_out1, dst_coord, color_out);
+       }
+-      else if (dst_level == 2) {
+-        imageStore(mip_out2, dst_coord, color_out);
++      else {
++        if (is_one_level == false) [[static_branch]] {
++          imageStore(mip_out2, dst_coord, color_out);
++        }
+       }
+     }
+     if (is_layered) [[static_branch]] {
+       if (dst_level == 1) {
+         imageStore(mip_array_out1, int3(dst_coord, 0), color_out);
+       }
+-      else if (dst_level == 2) {
+-        imageStore(mip_array_out2, int3(dst_coord, 0), color_out);
++      else {
++        if (is_one_level == false) [[static_branch]] {
++          imageStore(mip_array_out2, int3(dst_coord, 0), color_out);
++        }
+       }
+     }
+   }
+@@ -601,7 +606,7 @@ void update_mipmaps([[global_invocation_id]] const uint3 global_id,
+                     [[local_invocation_id]] const uint3 local_index,
+                     [[resource_table]] Resources<format, SharedStorage, InnerType> &srt)
+ {
+-  if (srt.num_levels == 1u) {
++  if (srt.is_one_level) [[static_branch]] {
+     int2 kernel_size = kernel_size_from_input_size(srt.level_size(INPUT_LEVEL));
+     int2 dst_image_size = srt.level_size(INPUT_LEVEL + 1);
+     int2 dst_coord = int2(int(global_id.x) % dst_image_size.x,
+@@ -780,56 +785,113 @@ template void update_mipmaps<SFLOAT_32_32_32_32, Shared<float4>, float4>(
+ PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8(
+     builtin::mipmaps::update_mipmaps<UNORM_8, builtin::mipmaps::SharedUnorm, float>,
+     builtin::mipmaps::Resources<UNORM_8, builtin::mipmaps::SharedUnorm, float>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_layered(
+     builtin::mipmaps::update_mipmaps<UNORM_8, builtin::mipmaps::SharedUnorm, float>,
+     builtin::mipmaps::Resources<UNORM_8, builtin::mipmaps::SharedUnorm, float>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_8_8_8(
+     builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
+     builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_8_8_8_layered(
+     builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
+     builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16(
+     builtin::mipmaps::update_mipmaps<SFLOAT_16, builtin::mipmaps::Shared<float>, float>,
+     builtin::mipmaps::Resources<SFLOAT_16, builtin::mipmaps::Shared<float>, float>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_layered(
+     builtin::mipmaps::update_mipmaps<SFLOAT_16, builtin::mipmaps::Shared<float>, float>,
+     builtin::mipmaps::Resources<SFLOAT_16, builtin::mipmaps::Shared<float>, float>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16(
+     builtin::mipmaps::update_mipmaps<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>,
+     builtin::mipmaps::Resources<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16_layered(
+     builtin::mipmaps::update_mipmaps<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>,
+     builtin::mipmaps::Resources<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32(
+     builtin::mipmaps::update_mipmaps<SFLOAT_32, builtin::mipmaps::Shared<float>, float>,
+     builtin::mipmaps::Resources<SFLOAT_32, builtin::mipmaps::Shared<float>, float>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_layered(
+     builtin::mipmaps::update_mipmaps<SFLOAT_32, builtin::mipmaps::Shared<float>, float>,
+     builtin::mipmaps::Resources<SFLOAT_32, builtin::mipmaps::Shared<float>, float>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32(
+     builtin::mipmaps::update_mipmaps<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>,
+     builtin::mipmaps::Resources<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>{
+-        .is_srgb_texture = false, .is_layered = false});
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32_layered(
+     builtin::mipmaps::update_mipmaps<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>,
+     builtin::mipmaps::Resources<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>{
+-        .is_srgb_texture = false, .is_layered = true});
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_srgba_8_8_8_8(
+     builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
+     builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
+-        .is_srgb_texture = true, .is_layered = false});
++        .is_srgb_texture = true, .is_layered = false, .is_one_level = false});
+ PipelineCompute gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_layered(
+     builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
+     builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
+-        .is_srgb_texture = true, .is_layered = true});
++        .is_srgb_texture = true, .is_layered = true, .is_one_level = false});
++
++PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_one_level(
++    builtin::mipmaps::update_mipmaps<UNORM_8, builtin::mipmaps::SharedUnorm, float>,
++    builtin::mipmaps::Resources<UNORM_8, builtin::mipmaps::SharedUnorm, float>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_one_level_layered(
++    builtin::mipmaps::update_mipmaps<UNORM_8, builtin::mipmaps::SharedUnorm, float>,
++    builtin::mipmaps::Resources<UNORM_8, builtin::mipmaps::SharedUnorm, float>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_8_8_8_one_level(
++    builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
++    builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_unorm_8_8_8_8_one_level_layered(
++    builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
++    builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_one_level(
++    builtin::mipmaps::update_mipmaps<SFLOAT_16, builtin::mipmaps::Shared<float>, float>,
++    builtin::mipmaps::Resources<SFLOAT_16, builtin::mipmaps::Shared<float>, float>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_one_level_layered(
++    builtin::mipmaps::update_mipmaps<SFLOAT_16, builtin::mipmaps::Shared<float>, float>,
++    builtin::mipmaps::Resources<SFLOAT_16, builtin::mipmaps::Shared<float>, float>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16_one_level(
++    builtin::mipmaps::update_mipmaps<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>,
++    builtin::mipmaps::Resources<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_16_16_16_16_one_level_layered(
++    builtin::mipmaps::update_mipmaps<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>,
++    builtin::mipmaps::Resources<SFLOAT_16_16_16_16, builtin::mipmaps::Shared<float4>, float4>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_one_level(
++    builtin::mipmaps::update_mipmaps<SFLOAT_32, builtin::mipmaps::Shared<float>, float>,
++    builtin::mipmaps::Resources<SFLOAT_32, builtin::mipmaps::Shared<float>, float>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_one_level_layered(
++    builtin::mipmaps::update_mipmaps<SFLOAT_32, builtin::mipmaps::Shared<float>, float>,
++    builtin::mipmaps::Resources<SFLOAT_32, builtin::mipmaps::Shared<float>, float>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32_one_level(
++    builtin::mipmaps::update_mipmaps<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>,
++    builtin::mipmaps::Resources<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>{
++        .is_srgb_texture = false, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_sfloat_32_32_32_32_one_level_layered(
++    builtin::mipmaps::update_mipmaps<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>,
++    builtin::mipmaps::Resources<SFLOAT_32_32_32_32, builtin::mipmaps::Shared<float4>, float4>{
++        .is_srgb_texture = false, .is_layered = true, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_one_level(
++    builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
++    builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
++        .is_srgb_texture = true, .is_layered = false, .is_one_level = true});
++PipelineCompute gpu_shader_2D_update_mipmaps_srgba_8_8_8_8_one_level_layered(
++    builtin::mipmaps::update_mipmaps<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>,
++    builtin::mipmaps::Resources<UNORM_8_8_8_8, builtin::mipmaps::SharedSRGB, float4>{
++        .is_srgb_texture = true, .is_layered = true, .is_one_level = true});
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 8280aeb..b9ce1b6 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -45,6 +45,15 @@ namespace wgi = blender::gpu::webgpu;
+ 
+ static CLG_LogRef LOG = {"gpu.webgpu"};
+ 
++/* WebGPU has no RG11B10Ufloat read-write storage format, and a storage texture's shader
++ * declaration, bind-group layout, and bound texture must name the same format. EEVEE promotes all
++ * of its storage-backed RG11B10Ufloat allocations to RGBA16Float on this backend; apply the same
++ * promotion to every WebGPU storage-image interface derived from the shared create-info. */
++static TextureFormat storage_image_format(TextureFormat format)
++{
++  return format == TextureFormat::UFLOAT_11_11_10 ? TextureFormat::SFLOAT_16_16_16_16 : format;
++}
++
+ 
+ /* -------------------------------------------------------------------------- */
+ /** \name GLSL type / format helpers (ported from vk_shader.cc)
+@@ -414,7 +423,7 @@ static void print_resource(std::ostream &os,
+ 
+   os << "layout(binding = " << binding;
+   if (res.bind_type == ShaderCreateInfo::Resource::BindType::IMAGE) {
+-    os << ", " << to_string(res.image.format);
++    os << ", " << to_string(storage_image_format(res.image.format));
+   }
+   else if (res.bind_type == ShaderCreateInfo::Resource::BindType::UNIFORM_BUFFER) {
+     os << ", std140";
+@@ -738,6 +747,11 @@ class WGPUShaderInterface : public ShaderInterface {
+     }
+ 
+     set_image_formats_from_info(info);
++    for (TextureWriteFormat &format : image_formats_) {
++      if (format == TextureWriteFormat::UFLOAT_11_11_10) {
++        format = TextureWriteFormat::SFLOAT_16_16_16_16;
++      }
++    }
+     sort_inputs();
+ 
+     /* Populate the builtin-uniform lookup tables. The base ShaderInterface ctor only
+@@ -2095,7 +2109,7 @@ static wgi::ResourceDesc resource_to_desc(const ShaderCreateInfo::Resource &res,
+     case ShaderCreateInfo::Resource::BindType::IMAGE:
+       d.kind = wgi::ResourceKind::StorageImage;
+       map_image_type(res.image.type, d.texel, d.dim);
+-      d.image_format = wgi::to_wgpu_format(res.image.format);
++      d.image_format = wgi::to_wgpu_format(storage_image_format(res.image.format));
+       {
+         const bool r = bool(res.image.qualifiers & Qualifier::read);
+         const bool w = bool(res.image.qualifiers & Qualifier::write);

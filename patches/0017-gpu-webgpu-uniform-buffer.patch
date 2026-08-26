@@ -1,0 +1,184 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh b/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh
+new file mode 100644
+index 0000000..0535248
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.hh
+@@ -0,0 +1,52 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_uniform_buffer.hh @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * `UniformBuf` on the WebGPU backend: a `webgpu::Buffer` (Uniform kind) created
++ * lazily on first update. Binding is deferred to bind-group / pipeline assembly
++ * (T7 / lane B), so bind/unbind are no-ops here; create + update + clear are
++ * live through the proven buffer wrapper (sandbox/wgpu-buffers/).
++ */
++
++#pragma once
++
++#include "gpu_uniform_buffer_private.hh"
++
++#include "wgpu_buffer.hh"
++
++#include "MEM_guardedalloc.h"
++
++namespace blender::gpu {
++
++class WGPUUniformBuffer : public UniformBuf {
++ public:
++  WGPUUniformBuffer(size_t size, const char *name) : UniformBuf(size, name) {}
++  ~WGPUUniformBuffer() override = default;
++
++  void update(const void *data) override;
++  void clear_to_zero() override;
++  void bind(int slot) override;
++  void bind_as_ssbo(int slot) override;
++  void unbind() override;
++
++  const webgpu::Buffer &buffer() const
++  {
++    return buffer_;
++  }
++
++ private:
++  /** Create the underlying buffer on first use. Returns false if no context. */
++  bool ensure();
++
++  webgpu::Buffer buffer_;
++
++  MEM_CXX_CLASS_ALLOC_FUNCS("WGPUUniformBuffer")
++};
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+new file mode 100644
+index 0000000..1ea0b78
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -0,0 +1,75 @@
++/* SPDX-FileCopyrightText: 2024 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/vulkan/vk_uniform_buffer.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ */
++
++#include "wgpu_uniform_buffer.hh"
++
++#include "GPU_context.hh"
++#include "gpu_context_private.hh"
++
++#include "wgpu_context.hh"
++
++#include <vector>
++
++namespace blender::gpu {
++
++/** The active WebGPU context (owns the live Dawn device/queue). */
++static WGPUContext *active_context()
++{
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++bool WGPUUniformBuffer::ensure()
++{
++  if (buffer_.valid()) {
++    return true;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return false;
++  }
++  return buffer_.create(ctx->device_get(),
++                        webgpu::BufferKind::Uniform,
++                        webgpu::UsageType::Dynamic,
++                        size_in_bytes_,
++                        nullptr,
++                        false);
++}
++
++void WGPUUniformBuffer::update(const void *data)
++{
++  if (data == nullptr || !ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  /* UBO payloads are std140-padded, so size is a multiple of 16; round to 4 for
++   * the WebGPU copy granularity to be safe. */
++  const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
++  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data, n);
++}
++
++void WGPUUniformBuffer::clear_to_zero()
++{
++  if (!ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
++  std::vector<uint8_t> zeros(n, 0);
++  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, zeros.data(), n);
++}
++
++/* Binding is resolved at bind-group / pipeline assembly (wgpu_bind_group, T7),
++ * where the (group,binding) comes from the shader interface map. */
++void WGPUUniformBuffer::bind(int /*slot*/) {}
++void WGPUUniformBuffer::bind_as_ssbo(int /*slot*/) {}
++void WGPUUniformBuffer::unbind() {}
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index a9d365b..2b87587 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -478,6 +478,7 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_backend.cc
+     webgpu/wgpu_buffer.cc
+     webgpu/wgpu_context.cc
++    webgpu/wgpu_uniform_buffer.cc
+     webgpu/wgpu_texture_format.cc
+     webgpu/wgpu_data_conversion.cc
+ 
+@@ -486,6 +487,7 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_common.hh
+     webgpu/wgpu_context.hh
+     webgpu/wgpu_storage_buffer.hh
++    webgpu/wgpu_uniform_buffer.hh
+     webgpu/wgpu_texture_format.hh
+     webgpu/wgpu_texture_format_list.h
+     webgpu/wgpu_data_conversion.hh
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 4dccb55..50f81d1 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -12,6 +12,7 @@
+ #include "wgpu_backend.hh"
+ #include "wgpu_context.hh"
+ #include "wgpu_storage_buffer.hh"
++#include "wgpu_uniform_buffer.hh"
+ 
+ #include "gpu_texture_pool_private.hh"
+ 
+@@ -89,10 +90,9 @@ TexturePool *WGPUBackend::texturepool_alloc()
+    * lazily on acquire, which the M3.T4 bootstrap never reaches. */
+   return new TexturePoolImpl();
+ }
+-UniformBuf *WGPUBackend::uniformbuf_alloc(size_t /*size*/, const char * /*name*/)
++UniformBuf *WGPUBackend::uniformbuf_alloc(size_t size, const char *name)
+ {
+-  BLI_assert_unreachable();
+-  return nullptr;
++  return new WGPUUniformBuffer(size, name);
+ }
+ StorageBuf *WGPUBackend::storagebuf_alloc(size_t size, GPUUsageType usage, const char *name)
+ {

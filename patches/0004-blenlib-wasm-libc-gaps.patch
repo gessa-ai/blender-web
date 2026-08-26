@@ -1,0 +1,48 @@
+diff --git a/source/blender/blenlib/intern/expr_pylike_eval.cc b/source/blender/blenlib/intern/expr_pylike_eval.cc
+index 7919ff10a1b..698ad831c0f 100644
+--- a/source/blender/blenlib/intern/expr_pylike_eval.cc
++++ b/source/blender/blenlib/intern/expr_pylike_eval.cc
+@@ -48,6 +48,22 @@ namespace blender {
+ #  pragma fenv_access(on)
+ #endif
+ 
++#ifdef __EMSCRIPTEN__
++/* wasm has no floating-point exception status register, so Emscripten's
++ * <fenv.h> defines FE_ALL_EXCEPT as 0 and omits FE_DIVBYZERO / FE_INVALID
++ * entirely; fetestexcept() always returns 0. Define the missing flags to 0 so
++ * this compiles: the post-eval FP-exception check becomes a documented no-op on
++ * wasm (div-by-zero / NaN in expr_pylike expressions is not flagged here — see
++ * notes/m1-blenlib.md). Ported for the web from
++ * source/blender/blenlib/intern/expr_pylike_eval.cc @ fbe6228777e7. */
++#  ifndef FE_DIVBYZERO
++#    define FE_DIVBYZERO 0
++#  endif
++#  ifndef FE_INVALID
++#    define FE_INVALID 0
++#  endif
++#endif
++
+ /* -------------------------------------------------------------------- */
+ /** \name Internal Types
+  * \{ */
+diff --git a/source/blender/blenlib/intern/storage.cc b/source/blender/blenlib/intern/storage.cc
+index 13c4e1bb273..da539fe53ae 100644
+--- a/source/blender/blenlib/intern/storage.cc
++++ b/source/blender/blenlib/intern/storage.cc
+@@ -31,6 +31,16 @@
+ #  include <sys/vfs.h>
+ #endif
+ 
++#if defined(__EMSCRIPTEN__)
++/* wasm/Emscripten provides POSIX statvfs() but not the BSD `struct statfs`
++ * (no <sys/vfs.h>, and it is neither __linux__ nor a BSD/Apple target), so the
++ * default `struct statfs` branch below is an incomplete type. Route to statvfs,
++ * which Emscripten's libc implements. Ported for the web from
++ * source/blender/blenlib/intern/storage.cc @ fbe6228777e7. */
++#  include <sys/statvfs.h>
++#  define USE_STATFS_STATVFS
++#endif
++
+ #include <cstring>
+ #include <fcntl.h>
+ 

@@ -1,0 +1,251 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index bf98e87..3d2a8c3 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -32,8 +32,10 @@
+ #include "CLG_log.h"
+ 
+ #include <algorithm>
++#include <cctype>
+ #include <cstring>
+ #include <sstream>
++#include <vector>
+ 
+ namespace blender::gpu {
+ 
+@@ -358,6 +360,42 @@ static uint32_t dense_binding_of(const blender::Map<uint32_t, uint32_t> &map,
+   return map.lookup((uint32_t(res.bind_type) << 24) | uint32_t(res.slot));
+ }
+ 
++/* A texel/buffer sampler — samplerBuffer / isamplerBuffer / usamplerBuffer, the GLSL
++ * type of a Vulkan/GL *buffer texture* (`ImageType::{Float,Int,Uint}Buffer`). WGSL has
++ * no texel-buffer type and Tint's SPIR-V reader hard-rejects the SampledBuffer
++ * capability, so the WebGPU backend emulates it as a read-only std430 storage buffer
++ * (option (a), notes/gpu-sampledbuffer-design.md): the resource is declared as a
++ * `readonly buffer` and every `texelFetch(buf, i)` is rewritten to an indexed load
++ * (rewrite_texel_buffers). This SMALL core handles the geometry position / indirection
++ * buffers (curves / point cloud); the customdata-attribute helpers that take a
++ * samplerBuffer *by function parameter* are the MEDIUM tail and stay blocked. */
++static bool is_buffer_sampler(const ShaderCreateInfo::Resource &res)
++{
++  return res.bind_type == ShaderCreateInfo::Resource::BindType::SAMPLER &&
++         (res.sampler.type == ImageType::FloatBuffer ||
++          res.sampler.type == ImageType::IntBuffer ||
++          res.sampler.type == ImageType::UintBuffer);
++}
++
++/* Element type of the storage buffer that emulates a texel buffer, chosen for the
++ * LAUNCH texel format of the source VertBuf (which needs zero component conversion on
++ * fetch): RGBA32F -> vec4, R32I -> int, R32UI -> uint. `texelFetch` on a texel buffer
++ * always yields a gvec4 (format-expanded); the position buffers are RGBA32F so `buf[i]`
++ * IS that gvec4, while the R32I/R32UI single-component buffers are wrapped back into a
++ * gvec4 by rewrite_texel_buffers so `.r`/`.x` swizzles keep working. Non-launch formats
++ * are rejected at bind time (WGPUTexture::init_internal(VertBuf*)). */
++static const char *buffer_sampler_element_type(ImageType type)
++{
++  switch (type) {
++    case ImageType::IntBuffer:
++      return "int";
++    case ImageType::UintBuffer:
++      return "uint";
++    default:
++      return "vec4"; /* FloatBuffer (RGBA32F). */
++  }
++}
++
+ /* Dense set-0 binding (the combined-sampler split + reserved sampler range are
+  * applied later by the interface map / Tint, not in the GLSL). */
+ static void print_resource(std::ostream &os,
+@@ -365,6 +403,14 @@ static void print_resource(std::ostream &os,
+                            const ShaderCreateInfo::Resource &res,
+                            const ShaderCreateInfo &info)
+ {
++  /* Texel buffer -> read-only std430 storage buffer (see is_buffer_sampler). */
++  if (is_buffer_sampler(res)) {
++    os << "layout(binding = " << binding << ", std430) readonly buffer _" << res.sampler.name
++       << " { " << buffer_sampler_element_type(res.sampler.type) << " " << res.sampler.name
++       << "[]; };";
++    return;
++  }
++
+   os << "layout(binding = " << binding;
+   if (res.bind_type == ShaderCreateInfo::Resource::BindType::IMAGE) {
+     os << ", " << to_string(res.image.format);
+@@ -1090,26 +1136,151 @@ std::string WGPUShader::preprocess(const std::string &combined) const
+   return Shader::run_preprocessor(combined, false);
+ }
+ 
+-void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++/* Rewrite `texelFetch(buf, i)` on an emulated texel buffer (is_buffer_sampler) into an
++ * indexed storage-buffer load, matching the `readonly buffer` print_resource declared.
++ * texelFetch on a buffer sampler takes exactly two args (sampler, int index) and yields
++ * a gvec4; a regular 2/3-arg texelFetch on a 2D texture is untouched because its first
++ * argument is not one of the create-info buffer-sampler names. Runs on the fully
++ * preprocessed GLSL (after run_preprocessor lowers the BSL `sampler_get` / reference
++ * variables to the global buffer name), so the first argument is always the bare
++ * resource identifier. R32I/R32UI buffers are wrapped back into a gvec4 so the source's
++ * `.r`/`.x` swizzles still resolve (RGBA32F is already a gvec4). */
++static void rewrite_texel_buffers(std::string &src, const shader::ShaderCreateInfo &info)
++{
++  struct BufInfo {
++    std::string name;
++    ImageType type;
++  };
++  std::vector<BufInfo> bufs;
++  auto collect = [&](const auto &list) {
++    for (const ShaderCreateInfo::Resource &res : list) {
++      if (is_buffer_sampler(res)) {
++        bufs.push_back({std::string(res.sampler.name), res.sampler.type});
++      }
++    }
++  };
++  collect(info.pass_resources_);
++  collect(info.batch_resources_);
++  collect(info.geometry_resources_);
++  if (bufs.empty()) {
++    return;
++  }
++
++  auto is_ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
++  static const std::string kFn = "texelFetch";
++  const size_t n = src.size();
++  std::string out;
++  out.reserve(n);
++  size_t i = 0;
++  while (i < n) {
++    const size_t hit = src.find(kFn, i);
++    if (hit == std::string::npos) {
++      out.append(src, i, n - i);
++      break;
++    }
++    /* Whole-word `texelFetch` immediately followed by `(` (skip texelFetchOffset etc.). */
++    const bool word_ok = (hit == 0) || !is_ident(src[hit - 1]);
++    size_t p = hit + kFn.size();
++    while (p < n && std::isspace((unsigned char)src[p])) {
++      p++;
++    }
++    if (!word_ok || p >= n || src[p] != '(') {
++      out.append(src, i, (hit + kFn.size()) - i);
++      i = hit + kFn.size();
++      continue;
++    }
++    const size_t open = p;
++    size_t a = open + 1;
++    while (a < n && std::isspace((unsigned char)src[a])) {
++      a++;
++    }
++    const size_t id_start = a;
++    while (a < n && is_ident(src[a])) {
++      a++;
++    }
++    const std::string first_arg = src.substr(id_start, a - id_start);
++    while (a < n && std::isspace((unsigned char)src[a])) {
++      a++;
++    }
++    const BufInfo *match = nullptr;
++    if (a < n && src[a] == ',') {
++      for (const BufInfo &b : bufs) {
++        if (b.name == first_arg) {
++          match = &b;
++          break;
++        }
++      }
++    }
++    if (match == nullptr) {
++      out.append(src, i, (open + 1) - i);
++      i = open + 1;
++      continue;
++    }
++    /* Capture the index expression: everything after the comma up to the paren that
++     * matches `open` (buffer texelFetch has exactly one index argument). */
++    const size_t idx_start = a + 1;
++    int depth = 1;
++    size_t q = open + 1;
++    size_t close = std::string::npos;
++    while (q < n) {
++      const char c = src[q];
++      if (c == '(') {
++        depth++;
++      }
++      else if (c == ')') {
++        if (--depth == 0) {
++          close = q;
++          break;
++        }
++      }
++      q++;
++    }
++    if (close == std::string::npos) {
++      out.append(src, i, (open + 1) - i);
++      i = open + 1;
++      continue;
++    }
++    const std::string idx = src.substr(idx_start, close - idx_start);
++    out.append(src, i, hit - i);
++    switch (match->type) {
++      case ImageType::IntBuffer:
++        out += "ivec4(" + match->name + "[" + idx + "], 0, 0, 0)";
++        break;
++      case ImageType::UintBuffer:
++        out += "uvec4(" + match->name + "[" + idx + "], 0u, 0u, 0u)";
++        break;
++      default:
++        out += match->name + "[" + idx + "]";
++        break;
++    }
++    i = close + 1;
++  }
++  src = std::move(out);
++}
++
++void WGPUShader::vertex_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                          MutableSpan<StringRefNull> sources)
+ {
+   vertex_glsl_ = preprocess(combine_with_patch(glsl_patch("#define GPU_VERTEX_SHADER\n"), sources));
++  rewrite_texel_buffers(vertex_glsl_, info);
+ }
+ void WGPUShader::geometry_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
+                                            MutableSpan<StringRefNull> /*sources*/)
+ {
+ }
+-void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++void WGPUShader::fragment_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                            MutableSpan<StringRefNull> sources)
+ {
+   fragment_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_FRAGMENT_SHADER\n"), sources));
++  rewrite_texel_buffers(fragment_glsl_, info);
+ }
+-void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo & /*info*/,
++void WGPUShader::compute_shader_from_glsl(const shader::ShaderCreateInfo &info,
+                                           MutableSpan<StringRefNull> sources)
+ {
+   compute_glsl_ = preprocess(
+       combine_with_patch(glsl_patch("#define GPU_COMPUTE_SHADER\n"), sources));
++  rewrite_texel_buffers(compute_glsl_, info);
+ }
+ 
+ /* Map a create-info sampler/image ImageType to the interface-map texel + dim. */
+@@ -1226,9 +1397,19 @@ static wgi::ResourceDesc resource_to_desc(const ShaderCreateInfo::Resource &res,
+       d.storage_readonly = (bool(res.storagebuf.qualifiers & Qualifier::write) == false);
+       break;
+     case ShaderCreateInfo::Resource::BindType::SAMPLER:
+-      d.kind = wgi::ResourceKind::Sampler;
+-      map_image_type(res.sampler.type, d.texel, d.dim);
+-      d.filtering = true;
++      if (is_buffer_sampler(res)) {
++        /* Texel buffer emulated as a read-only storage buffer (option (a)): the
++         * interface map emits a single ReadOnlyStorage bind-group entry at binding N
++         * (no combined-sampler split, no sampler_mappings), matching the `readonly
++         * buffer` the codegen declared. */
++        d.kind = wgi::ResourceKind::StorageBuffer;
++        d.storage_readonly = true;
++      }
++      else {
++        d.kind = wgi::ResourceKind::Sampler;
++        map_image_type(res.sampler.type, d.texel, d.dim);
++        d.filtering = true;
++      }
+       break;
+     case ShaderCreateInfo::Resource::BindType::IMAGE:
+       d.kind = wgi::ResourceKind::StorageImage;

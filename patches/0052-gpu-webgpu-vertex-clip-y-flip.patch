@@ -1,0 +1,17 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 98e9120..f4310e4 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -779,6 +779,12 @@ std::string WGPUShader::vertex_interface_declare(const shader::ShaderCreateInfo
+   ss << "void main() {\n";
+   ss << "  main_function_();\n";
+   ss << "  gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;\n";
++  /* Y-orientation flip (ADR-005 decision 1). Blender's gpu frontend and its oracles
++   * assume GL-style bottom-left-origin framebuffers; WebGPU rasterises top-left-origin
++   * with no negative-viewport-height escape hatch, so negate clip-space Y here, once,
++   * for every vertex stage the backend compiles. Winding compensation (front-face swap)
++   * and render-target readback row-flip are lane B's paired halves. */
++  ss << "  gl_Position.y = -gl_Position.y;\n";
+   ss << "}\n";
+   ss << "#define main main_function_\n";
+   return ss.str();

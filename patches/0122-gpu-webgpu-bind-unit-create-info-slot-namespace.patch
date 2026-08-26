@@ -1,0 +1,156 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -656,12 +656,19 @@
+       }
+       in++;
+     }
+-    /* Uniform blocks. */
++    /* Uniform blocks.
++     * NAMESPACE (r44r2): a resource's frontend-visible unit is its CREATE-INFO SLOT, exactly
++     * as the Vulkan backend exposes it (vk interface location == create-info slot). Name binds
++     * (GPU_shader_get_*_binding) and fixed create-info-slot binds (DRW WB_MATCAP_SLOT-style)
++     * therefore share ONE namespace, so they can never collide in the context-wide bind maps.
++     * The DENSE group-0 binding the WGSL/BGL actually uses is derived at emit time by
++     * remap_*_binding (create-info slot -> dense via dense_bindings_). The enabled_*_mask_ bit
++     * still tracks the dense binding (inert; no backend consumer). */
+     for (const Resource &res : all) {
+       if (res.bind_type == Resource::BindType::UNIFORM_BUFFER) {
+         const uint32_t b = dense_binding_of(bindings, res);
+         copy_input_name(in, res.uniformbuf.name, name_buffer_, name_offset);
+-        in->location = in->binding = int32_t(b);
++        in->location = in->binding = int32_t(res.slot);
+         enabled_ubo_mask_ |= (1 << b);
+         in++;
+       }
+@@ -676,7 +683,7 @@
+       if (res.bind_type == Resource::BindType::SAMPLER) {
+         const uint32_t b = dense_binding_of(bindings, res);
+         copy_input_name(in, res.sampler.name, name_buffer_, name_offset);
+-        in->location = in->binding = int32_t(b);
++        in->location = in->binding = int32_t(res.slot); /* create-info slot namespace */
+         enabled_tex_mask_ |= (uint64_t(1) << b);
+         in++;
+       }
+@@ -685,7 +692,7 @@
+       if (res.bind_type == Resource::BindType::IMAGE) {
+         const uint32_t b = dense_binding_of(bindings, res);
+         copy_input_name(in, res.image.name, name_buffer_, name_offset);
+-        in->location = in->binding = int32_t(b);
++        in->location = in->binding = int32_t(res.slot); /* create-info slot namespace */
+         enabled_ima_mask_ |= (1 << b);
+         in++;
+       }
+@@ -703,7 +710,7 @@
+       if (res.bind_type == Resource::BindType::STORAGE_BUFFER) {
+         const uint32_t b = dense_binding_of(bindings, res);
+         copy_input_name(in, res.storagebuf.name, name_buffer_, name_offset);
+-        in->location = in->binding = int32_t(b);
++        in->location = in->binding = int32_t(res.slot); /* create-info slot namespace */
+         enabled_ssbo_mask_ |= (1 << b);
+         in++;
+       }
+@@ -2423,16 +2430,15 @@
+                             (info.push_constants_.is_empty() ? 0u : 1u);
+ }
+ 
+-/* Frontend slot -> this shader's dense group-0 binding. Two frontend bind
+- * flavors reach these: (a) fixed create-info slots (DRW-style) that need the
+- * dense_bindings_ translation, and (b) name-resolved binds where the frontend
+- * already queried the interface and passes the DENSE binding itself — those
+- * miss the map and take the identity fallback. Identity alone let STALE
+- * context-wide binds collide with mapped resources on one @binding (the
+- * r18-r26 silent blank-viewport root cause), so the bind-group builder now
+- * assembles MAPPED slots first and identity-fallback slots only into bindings
+- * nothing mapped has claimed (slot_is_mapped_* below + the two-pass loops in
+- * append_resource_bind_entries). */
++/* Frontend create-info slot -> this shader's dense group-0 binding. Since r44r2 BOTH bind
++ * flavors reach these in the SAME namespace: (a) fixed create-info slots (DRW-style) and
++ * (b) name-resolved binds (build_interface now returns the create-info slot, matching the
++ * Vulkan backend). A slot this shader declares is found in dense_bindings_ and translated to
++ * its dense binding (MAPPED); a slot it does not declare (a stale context-wide bind) misses
++ * the map and takes the identity fallback. The bind-group builder assembles MAPPED slots
++ * first and identity-fallback slots only into bindings nothing mapped has claimed
++ * (slot_is_mapped below + the two-pass loops in append_resource_bind_entries), so a stale
++ * bind can never displace a real resource (the r18-r26 blank-viewport root cause). */
+ int WGPUShader::remap_ssbo_binding(int slot) const
+ {
+   const uint32_t key = (uint32_t(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER)
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -546,12 +546,13 @@
+   const uint32_t pc_binding = has_pc ? shader->push_constants_binding() : 0xffffffffu;
+   auto is_pc = [&](uint32_t b) { return has_pc && b == pc_binding; };
+ 
+-  /* Two-pass assembly: pass 0 appends binds from MAPPED create-info slots (flavor
+-   * (a)); pass 1 appends identity-fallback binds (flavor (b), name-resolved /
+-   * already-dense) only into bindings pass 0 did not claim. Stale context binds are
+-   * fallback-flavored by construction, so a mapped resource can never be displaced
+-   * by one (the r18-r26 bind-collision class), while legitimate name-resolved binds
+-   * (e.g. the overlay grid's view UBO) keep working. */
++  /* Two-pass assembly: pass 0 appends binds whose frontend unit is a create-info slot this
++   * shader DECLARES (MAPPED -> a real resource); pass 1 appends identity-fallback binds (a
++   * stale context-wide bind at a slot this shader does not declare) only into bindings pass 0
++   * did not claim. Under the unified create-info slot namespace (r44r2) every legitimate bind
++   * -- name-resolved gbuffer textures AND fixed-slot binds like the workbench matcap -- is
++   * mapped, so a stale bind can never displace a real resource (the r18-r26 collision class),
++   * and the matcap/cavity F12 resolve collisions (6-vs-10 / 9-vs-13) are gone. */
+   std::set<uint32_t> claimed;
+   for (int pass = 0; pass < 2; pass++) {
+   /* Bound uniform buffers (distinct from the push-constant emulation UBO, which the
+@@ -624,11 +625,20 @@
+   /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
+    * (both recorded in the buffer-SSBO bind-space). */
+   for (const auto &item : bound_buffer_ssbos_) {
+-    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
++    /* A buffer-SSBO bind is EITHER a real VBO/IBO-as-SSBO (STORAGE_BUFFER create-info slot,
++     * bind_as_ssbo) or an emulated texel buffer (SAMPLER create-info slot, bind_as_texture:
++     * a samplerBuffer rewritten to a readonly storage buffer). Under the unified create-info
++     * slot namespace both key on their create-info slot, so remap through whichever namespace
++     * declares the slot -- SSBO first (the common case), else the SAMPLER (texel-buffer) map --
++     * so the emulated texel buffer still lands on its real dense storage binding. */
++    const bool mapped_ssbo = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
++    const bool mapped_samp = !mapped_ssbo && shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::SAMPLER, item.first);
++    const bool mapped = mapped_ssbo || mapped_samp;
+     if (mapped != (pass == 0)) {
+       continue; /* wrong pass for this bind flavor */
+     }
+-    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
++    const uint32_t b = uint32_t(mapped_samp ? shader->remap_sampler_binding(item.first)
++                                            : shader->remap_ssbo_binding(item.first));
+     if (pass == 1 && claimed.count(b)) {
+       continue; /* a mapped bind already claimed this binding */
+     }
+@@ -692,21 +702,16 @@
+       continue; /* wrong pass for this bind flavor */
+     }
+     const uint32_t n = uint32_t(shader->remap_sampler_binding(item.first));
+-    /* build_interface assigns every sampler its DENSE binding as the frontend location
+-     * (build_interface: in->location = dense_binding), so the frontend binds a shader's
+-     * samplers at their dense binding, NOT their create-info slot. A create-info->dense
+-     * remap (item.first != n) is therefore NEVER this shader's current bind for that
+-     * binding -- it is a STALE texture left in the context-wide bind-space by an earlier
+-     * draw whose dense binding happened to equal this shader's create-info slot. When a
+-     * live texture is also bound at frontend slot n (the identity / name-resolved bind
+-     * that IS the current one -- e.g. the workbench resolve's gbuffer depth/normal/
+-     * material at dense 0/1/2 vs stale textures at create-info slots 3/4/5), the stale
+-     * mapped bind must not displace it. Skip it and let the identity bind win. */
+-    if (pass == 0 && uint32_t(item.first) != n && is_texture_binding(n) &&
+-        sm->bound_textures().find(int(n)) != sm->bound_textures().end())
+-    {
+-      continue;
+-    }
++    /* NAMESPACE (r44r2): every texture bind (name-resolved OR fixed create-info slot) keys on
++     * its CREATE-INFO SLOT (build_interface: in->location = res.slot), so a shader's legitimate
++     * binds are all MAPPED (pass 0) and claim their dense bindings first, while a STALE
++     * context-wide bind sits at a create-info slot this shader does not declare (identity,
++     * pass 1) and can only fill a binding pass 0 left unclaimed. The old dense-namespace
++     * stale-skip (a stale MAPPED bind on a shared dense index displacing an identity legit
++     * bind -- the matcap resolve's material routed onto matcap's b3, giving 6-vs-10) is gone:
++     * with the unified slot namespace no legit bind is identity and the claim set already
++     * protects the mapped resource, so matcap (slot 2 -> b3) and material (slot 5 -> b2) both
++     * emit. */
+     if (pass == 1 && claimed.count(n)) {
+       continue; /* a mapped bind already claimed this binding */
+     }

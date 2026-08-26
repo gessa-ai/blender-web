@@ -1,0 +1,26 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 151fcad..02c84b3 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -17,6 +17,7 @@
+ 
+ #include "gpu_capabilities_private.hh"
+ 
++#include "wgpu_framebuffer.hh"
+ #include "wgpu_state_manager.hh"
+ 
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+@@ -66,6 +67,13 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+    * owns its lifetime (Context::~Context deletes state_manager). Immediate mode
+    * (imm) is created by lane B alongside the render pipeline. */
+   state_manager = new WGPUStateManager();
++
++  /* Default offscreen frame-buffers (mirrors vk_context.cc:45-47). The bootstrap /
++   * GPU_offscreen path dereferences active_fb, so it must be non-null — without
++   * these the draw families crash in GPU_offscreen_create. Base Context owns them. */
++  back_left = new WGPUFrameBuffer("back_left");
++  front_left = new WGPUFrameBuffer("front_left");
++  active_fb = back_left;
+ }
+ 
+ WGPUContext::~WGPUContext()

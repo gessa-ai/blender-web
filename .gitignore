@@ -1,0 +1,122 @@
+upstream/
+tools/
+# sandbox build artifacts (regenerable from the .c sources kept in sandbox/)
+sandbox/*.js
+sandbox/*.mjs
+sandbox/*.wasm
+sandbox/*.o
+sandbox/*.html
+sandbox/*.data
+oracle/blender-*
+ledger/buildlogs/
+ledger/loop.err
+.claude/heartbeat
+build-wasm/
+build-hosttools/
+
+# build-deps worker artifacts (not committed)
+build-deps/
+lib/wasm/
+build-python-probe/
+build-dawn/
+# M3.T3 native gpu-test harness: precompiled macOS libs (Blender's own lib
+# submodule, cloned out-of-tree to keep upstream/ untouched) + native build tree
+lib/macos_arm64/
+build-native-gpu/
+sandbox/memory64-probe/fmt-12.1.0/
+__pycache__/
+*.pyc
+sandbox/**/*.tar.gz
+build-wasm-*/
+/build-native-m1-parity/
+
+# Browser/install state is reproducible local tooling, never project source or
+# licensable evidence.  Keep these at the tracked root so REUSE ignores them even
+# before a nested sandbox directory has been added to git.
+/invaltest-saltbump/
+/sandbox/m8-launch-gate/.browsers
+/sandbox/m8-launch-gate/.downloads/
+/sandbox/m8-launch-gate/.soak-profile/
+/sandbox/public-source-preview/
+/.m8-browsers/
+/.m8-soak-profile/
+/.m7-numpy-artifacts/
+/.m7-stale-generated/
+/sandbox/m8-wasm-split/runtime-evidence/*/chromium-profile/
+/sandbox/m8-wasm-split/single-flight-harness/evidence/*/chromium-profile/
+
+# Final technical-closeout evidence is produced only after the source freeze.
+# Existing tracked historical receipts remain tracked; new immutable run-label
+# directories are volatile evidence and must not enter the frozen source
+# manifest. The aggregate verifier hash-binds and post-rechecks their bytes.
+/sandbox/final-m0-m3/evidence/
+/sandbox/final-m0-m6/evidence/
+/sandbox/m4-d9-gate/evidence/final-*
+/sandbox/m5-click-pick/evidence/*/
+/sandbox/m5-canvas-smoke/evidence/*/
+/sandbox/m5-latency/evidence/*/
+/sandbox/gpu-r61/workbench-preview/runs/*/
+/sandbox/gpu-r61/eevee-matrix-preview/runs/*/
+/sandbox/gpu-r61/cycles-windowed/evidence/final-*
+/sandbox/m6-prep/cycles-runs/*/
+/sandbox/m6-cycles-edge-attribution/runs/
+/sandbox/m7-product-gate/fallback-evidence/
+/sandbox/m7-product-gate/verify_files.json
+/sandbox/m7-product-gate/bundle-identity.json
+/sandbox/m8-launch-gate/artifacts/
+/sandbox/m7-usd-prep/browser-roundtrip/*/
+/sandbox/m7-usd-prep/native-capability/*/
+
+# Untracked compiler/linker products from diagnostic probes.  Their bytes combine
+# several upstream licenses and must not be falsely blanket-licensed as CC0.
+/sandbox/gpu-r52/probe/probe_indexed_fan_compute
+/sandbox/gpu-r52/probe/probe_sparse_targets
+/sandbox/gpu-r52/probe/probe_stencil_view
+/sandbox/gpu-r52/probe/probe_storage_view_subset
+/sandbox/gpu-r52/probe/probe_triangle_fan_expand
+/sandbox/gpu-r60/probe_rg11_depth_routes
+/sandbox/gpu-r60/probe_rg11_depth_routes.o
+/sandbox/gpu-r60/probe_rg11_depth_routes.o.d
+/sandbox/m7-numpy-release/embed_new_st.js
+/sandbox/m7-numpy-release/embed_new_st.wasm
+/sandbox/m7-numpy-release/embed_old_mt.js
+/sandbox/m7-numpy-release/embed_old_mt.wasm
+/sandbox/gpu-r61/f12-eevee-acceptance/fixtures/principled_bsdf_default_upstream_setup_native_baked.blend1
+
+# Host-local dependency and browser installations.  The migration transfers
+# only Git; these trees are reconstructed from the pinned recipes documented in
+# notes/migration-to-ornith-lab.md.
+/lib/
+/.m4-node/
+/.m4-browsers/
+
+# Untracked diagnostic output.  Keep programs, fixtures, manifests and the
+# selected immutable milestone receipts in Git; discard rebuildable bulk output.
+/platform_web/shell/evidence/
+/sandbox/corpus-prep/dumps-wasm/
+/sandbox/corpus-prep/versioning/dumps-wasm/
+/sandbox/gpu-r44-r2/caps/
+/sandbox/gpu-r46/caps/
+/sandbox/gpu-r52/caps/
+/sandbox/gpu-r52/splash/*.png
+/sandbox/gpu-r57-readback-hardening/caps/
+/sandbox/gpu-r60/browser/
+/sandbox/gpu-eevee-phase-a/caps/
+/sandbox/gpu-m4-cursor-upload/*.png
+/sandbox/gpu-r61/f12-eevee-acceptance/evidence/
+/sandbox/gpu-r61/f12-proxy-probe/evidence/
+/sandbox/gpu-r61/lb-async-probe/evidence/
+/sandbox/gpu-r61/cycles-windowed/evidence/
+/sandbox/gpu-r61/workbench-preview/reconciled/
+/sandbox/m8-wasm-split/image-policy-probe-build/
+/sandbox/m8-wasm-split/image-policy-probe/evidence/
+/sandbox/m8-wasm-split/profile-evidence/
+/sandbox/m8-wasm-split/runtime-evidence/
+/sandbox/m8-wasm-split/single-flight-harness/evidence/
+/sandbox/m8-wasm-split/pthread-stack-policy/evidence/
+/sandbox/m8-wasm-split/image-policy-probe/native-evidence/
+/sandbox/m8-wasm-split/pthread-lifecycle/evidence/
+/sandbox/m8-wasm-split/pthread-view-growth/evidence/
+/sandbox/m8-wasm-split/single-flight-harness/*.wasm
+/sandbox/**/*.log
+.ci-cache/

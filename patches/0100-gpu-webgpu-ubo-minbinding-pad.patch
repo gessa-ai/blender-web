@@ -1,0 +1,44 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -16,6 +16,7 @@
+ 
+ #include "wgpu_context.hh"
+ 
++#include <algorithm>
+ #include <vector>
+ 
+ namespace blender::gpu {
+@@ -26,6 +27,19 @@
+   return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+ }
+ 
++/* Blender declares fixed-size *array* UBOs whose shader interface size is the full array
++ * but binds a buffer holding only the used prefix — canonically the draw-manager view UBO
++ * `ViewMatrices view_buf[64]` (draw_view_infos.hh:83), a 16 KiB container (draw_defines.hh:42,
++ * DRW_VIEW_MAX 64) of which the single-view viewport binds one entry. GL/Vulkan allow binding
++ * a buffer smaller than the declared block; WebGPU's auto-layout derives minBindingSize from
++ * the WGSL struct and REJECTS the short bind ("Binding size (352) ... smaller than the minimum
++ * binding size (16384)"), dropping every vertex draw that uses the view UBO — the whole 3D
++ * viewport. Blender caps UBOs at the 16 KiB GL guarantee, so padding every UBO allocation up to
++ * that ceiling makes the bound size always satisfy the declared minBindingSize, at a bounded
++ * cost (a handful of UBOs, <2 MiB total). The extra tail is zero-initialised by WebGPU and never
++ * indexed (single-view reads view_buf[0]); update()/clear write only the real payload below. */
++static constexpr size_t kUboMinBindingPad = 16384;
++
+ bool WGPUUniformBuffer::ensure()
+ {
+   if (buffer_.valid()) {
+@@ -35,10 +49,11 @@
+   if (ctx == nullptr) {
+     return false;
+   }
++  const size_t alloc = std::max(size_in_bytes_, kUboMinBindingPad);
+   return buffer_.create(ctx->device_get(),
+                         webgpu::BufferKind::Uniform,
+                         webgpu::UsageType::Dynamic,
+-                        size_in_bytes_,
++                        alloc,
+                         nullptr,
+                         false);
+ }

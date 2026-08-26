@@ -1,0 +1,366 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -833,6 +833,20 @@
+     }
+     ss << "};\n";
+   }
++
++  /* Multi-viewport / layered emulation pass state (M3.F7): the (layer, viewport) this
++   * render pass targets. The fragment wrapper (fragment_interface_declare) discards
++   * primitives whose vertex-carried gpu_Layer / gpu_ViewportIndex != these. Placed at the
++   * dense binding after the push-constant fallback UBO; the backend writes it per pass
++   * (wgpu_batch.cc, binding = multi_viewport_binding()). Only emitted for VIEWPORT_INDEX
++   * shaders (the multi-viewport path), so no other shader gains a binding. */
++  if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
++    const uint32_t mv_binding = resource_count + (info.push_constants_.is_empty() ? 0u : 1u);
++    ss << "layout(binding = " << mv_binding << ", std140) uniform _wgpu_mv {\n";
++    ss << "  int wgpu_mv_layer;\n";
++    ss << "  int wgpu_mv_viewport;\n";
++    ss << "};\n";
++  }
+   ss << "\n";
+   return ss.str();
+ }
+@@ -859,11 +873,21 @@
+    * shader → GPU_shader_bind SEGV. Mirrors the builtin gate in vk_shader.cc:881-898
+    * (the non-geometry branch), minus the gl_Layer/gl_ViewportIndex aliasing WebGPU
+    * lacks. */
+-  if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
+-    ss << "int gpu_Layer = 0;\n";
+-  }
+   if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
+-    ss << "int gpu_ViewportIndex = 0;\n";
++    /* Multi-viewport / layered emulation (M3.F7). WebGPU has no viewport array and no
++     * vertex-stage gl_Layer / gl_ViewportIndex output, so the backend renders one pass
++     * per (layer, viewport) with a single-layer attachment view + per-viewport scissor
++     * (wgpu_batch.cc / wgpu_framebuffer.cc) and DISCARDS in the fragment every primitive
++     * whose routing target != the pass. To reach the fragment, the vertex-computed
++     * gpu_Layer / gpu_ViewportIndex are carried as flat integer varyings (constant across
++     * a primitive). The user main writes them as ordinary `out` ints. */
++    ss << "layout(location = " << location++ << ") flat out int gpu_Layer;\n";
++    ss << "layout(location = " << location++ << ") flat out int gpu_ViewportIndex;\n";
++  }
++  else if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
++    /* Pure layered rendering without a viewport array: no faithful single-pass route in
++     * WebGPU either (deferred), so keep the write-only throwaway (renders to layer 0). */
++    ss << "int gpu_Layer = 0;\n";
+   }
+   ss << "\n";
+ 
+@@ -913,12 +937,14 @@
+    * that READ them COMPILE. WebGPU exposes no gl_Layer / gl_ViewportIndex in the
+    * fragment stage, so these read 0 (single-layer / single-viewport). Faithful
+    * per-primitive routing is deferred (M3.F7). Mirrors vk_shader.cc:976-981. */
+-  if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
+-    ss << "int gpu_Layer = 0;\n";
+-  }
+   if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
+-    ss << "int gpu_ViewportIndex = 0;\n";
++    /* Match the vertex stage's flat-out varyings (M3.F7 multi-viewport emulation). */
++    ss << "layout(location = " << location++ << ") flat in int gpu_Layer;\n";
++    ss << "layout(location = " << location++ << ") flat in int gpu_ViewportIndex;\n";
+   }
++  else if (flag_is_set(info.builtins_, BuiltinBits::LAYER)) {
++    ss << "int gpu_Layer = 0;\n";
++  }
+ 
+   /* gl_PointCoord (fragment builtin). Tint's SPIR-V reader hard-rejects the PointCoord
+    * built-in ("unhandled SPIR-V BuiltIn: PointCoord") because WebGPU has no point
+@@ -973,6 +999,20 @@
+    * the attachment binding WebGPU cannot yet wire here. */
+   for (const ShaderCreateInfo::SubpassIn &input : info.subpass_inputs_) {
+     ss << to_string(input.type) << " " << input.name << " = " << to_string(input.type) << "(0);\n";
++  }
++
++  if (flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX)) {
++    /* Per-pass discard: keep only the primitives routed to THIS pass's (layer, viewport),
++     * supplied by the backend in the _wgpu_mv UBO (resources_declare). The user main is
++     * renamed so the wrapper runs the discard test before it (M3.F7). */
++    ss << "void main_function_();\n";
++    ss << "void main() {\n";
++    ss << "  if (gpu_Layer != wgpu_mv_layer || gpu_ViewportIndex != wgpu_mv_viewport) {\n";
++    ss << "    discard;\n";
++    ss << "  }\n";
++    ss << "  main_function_();\n";
++    ss << "}\n";
++    ss << "#define main main_function_\n";
+   }
+ 
+   ss << "\n";
+@@ -1389,6 +1429,12 @@
+    * resources_declare / the ResourceDesc list). */
+   blender::Map<uint32_t, uint32_t> bindings;
+   push_constants_binding_ = build_dense_bindings(info, bindings);
++
++  /* Multi-viewport emulation pass-state UBO (M3.F7): binding just after the push-constant
++   * fallback, matching the resources_declare formula. */
++  has_multi_viewport_ = flag_is_set(info.builtins_, BuiltinBits::VIEWPORT_INDEX);
++  multi_viewport_binding_ = push_constants_binding_ +
++                            (info.push_constants_.is_empty() ? 0u : 1u);
+ }
+ 
+ void WGPUShader::push_constant_set(int location, int comp_len, int array_size, const void *data)
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -118,6 +118,20 @@
+    * Call before a draw that binds the push-constant UBO. */
+   void push_constants_flush();
+ 
++  /* ---- Multi-viewport / layered emulation surface (M3.F7) ------------------
++   * A VIEWPORT_INDEX shader carries gpu_Layer / gpu_ViewportIndex to the fragment as
++   * flat varyings and discards primitives whose routing target != the pass's
++   * (layer, viewport), which the backend supplies in a small std140 UBO at
++   * multi_viewport_binding(). wgpu_batch.cc drives one pass per (layer, viewport). */
++  bool has_multi_viewport() const
++  {
++    return has_multi_viewport_;
++  }
++  uint32_t multi_viewport_binding() const
++  {
++    return multi_viewport_binding_;
++  }
++
+  private:
+   /* Run the BSL preprocessor on a combined stage source (unless skip_preprocessor). */
+   std::string preprocess(const std::string &combined) const;
+@@ -169,6 +183,11 @@
+   uint32_t push_constants_binding_ = 0;
+   bool push_constants_dirty_ = false;
+ 
++  /* Multi-viewport emulation (M3.F7): whether this shader declares VIEWPORT_INDEX and the
++   * binding of its per-pass (layer, viewport) UBO. Set in build_interface(). */
++  bool has_multi_viewport_ = false;
++  uint32_t multi_viewport_binding_ = 0;
++
+   /** Write `comp_len * array_size` scalars into the push-constant shadow at the
+    * offset for `location`. Shared by uniform_float / uniform_int. */
+   void push_constant_set(int location, int comp_len, int array_size, const void *data);
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -38,7 +38,7 @@
+ 
+ /** A render-attachment view for one Blender attachment (its mip / layer / cube
+  * face). Default view for the common mip-0, whole-texture 2D case. */
+-static wgpu::TextureView attachment_view(const GPUAttachment &att)
++static wgpu::TextureView attachment_view(const GPUAttachment &att, int force_layer = -1)
+ {
+   webgpu::WGPUTexture *wt = as_wgpu(att.tex);
+   /* A render-pass attachment view must resolve to a SINGLE array layer: Dawn rejects
+@@ -51,14 +51,15 @@
+   const uint32_t layer_count = (wt->texture() != nullptr) ?
+                                    wt->texture().GetDepthOrArrayLayers() :
+                                    1u;
+-  if (att.mip <= 0 && att.layer < 0 && layer_count <= 1) {
++  if (force_layer < 0 && att.mip <= 0 && att.layer < 0 && layer_count <= 1) {
+     return wt->texture().CreateView();
+   }
+   wgpu::TextureViewDescriptor vd = {};
+   vd.dimension = wgpu::TextureViewDimension::e2D;
+   vd.baseMipLevel = uint32_t(std::max(att.mip, 0));
+   vd.mipLevelCount = 1;
+-  vd.baseArrayLayer = uint32_t(std::max(att.layer, 0));
++  vd.baseArrayLayer = (force_layer >= 0) ? uint32_t(force_layer) :
++                                           uint32_t(std::max(att.layer, 0));
+   vd.arrayLayerCount = 1;
+   return wt->texture().CreateView(&vd);
+ }
+@@ -319,6 +320,22 @@
+   enc.CopyTextureToTexture(&s, &d, &size);
+   wgpu::CommandBuffer cb = enc.Finish();
+   ctx->queue_get().Submit(1, &cb);
++}
++
++int WGPUFrameBuffer::attachment_layer_count() const
++{
++  /* Array-layer count of the first bound colour attachment (the emulation renders one
++   * pass per layer). A plain 2D target reports 1. */
++  for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
++    Texture *tex = color_tex(slot);
++    if (tex != nullptr) {
++      webgpu::WGPUTexture *wt = as_wgpu(tex);
++      if (wt->texture() != nullptr) {
++        return int(wt->texture().GetDepthOrArrayLayers());
++      }
++    }
++  }
++  return 1;
+ }
+ 
+ void WGPUFrameBuffer::target_formats(wgpu::TextureFormat colors[8],
+@@ -336,7 +353,8 @@
+   depth = (dtex != nullptr) ? as_wgpu(dtex)->wgpu_format() : wgpu::TextureFormat::Undefined;
+ }
+ 
+-wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder &encoder) const
++wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEncoder &encoder,
++                                                        int force_layer) const
+ {
+   /* NOTE: the local attachment vectors + views only need to outlive BeginRenderPass
+    * (it captures ref-counted handles). */
+@@ -347,7 +365,7 @@
+       continue;
+     }
+     wgpu::RenderPassColorAttachment ca = {};
+-    ca.view = attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot]);
++    ca.view = attachment_view(attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot], force_layer);
+     ca.loadOp = wgpu::LoadOp::Load;
+     ca.storeOp = wgpu::StoreOp::Store;
+     color_atts.push_back(ca);
+@@ -357,7 +375,7 @@
+   wgpu::RenderPassDepthStencilAttachment dsa = {};
+   const bool has_depth = dtex != nullptr;
+   if (has_depth) {
+-    dsa.view = attachment_view(depth_attachment());
++    dsa.view = attachment_view(depth_attachment(), force_layer);
+     dsa.depthLoadOp = wgpu::LoadOp::Load;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
+     if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -66,9 +66,29 @@
+                       int &color_count,
+                       wgpu::TextureFormat &depth) const;
+   /** Open a render pass over the bound attachments with loadOp=Load / storeOp=Store
+-   * (preserve existing contents; a draw appends). Caller owns the encoder. */
+-  wgpu::RenderPassEncoder begin_load_pass(const wgpu::CommandEncoder &encoder) const;
++   * (preserve existing contents; a draw appends). Caller owns the encoder. When
++   * `force_layer >= 0` every attachment view is pinned to that single array layer
++   * (the M3.F7 multi-viewport / layered emulation renders one pass per layer). */
++  wgpu::RenderPassEncoder begin_load_pass(const wgpu::CommandEncoder &encoder,
++                                          int force_layer = -1) const;
+ 
++  /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */
++  /** Whether GPU_framebuffer_multi_viewports_set() is active on this framebuffer. */
++  bool is_multi_viewport() const
++  {
++    return multi_viewport_;
++  }
++  /** Array-layer count of the colour attachment (1 for a plain 2D target). The
++   * emulation issues one render pass per layer. */
++  int attachment_layer_count() const;
++  /** Copy viewport rect `i` (x, y, w, h) out of the base FrameBuffer state. */
++  void get_viewport(int i, int r_rect[4]) const
++  {
++    for (int k = 0; k < 4; k++) {
++      r_rect[k] = viewport_[i][k];
++    }
++  }
++
+  protected:
+   void subpass_transition_impl(const GPUAttachmentState depth_attachment_state,
+                                Span<GPUAttachmentState> color_attachment_states) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -17,6 +17,8 @@
+ 
+ #include "wgpu_batch.hh"
+ 
++#include <vector>
++
+ #include "wgpu_context.hh"
+ #include "wgpu_framebuffer.hh"
+ #include "wgpu_index_buffer.hh"
+@@ -91,6 +93,98 @@
+     return;
+   }
+ 
++  /* Multi-viewport / layered emulation (M3.F7). WebGPU has no viewport array and no
++   * vertex-stage gl_Layer / gl_ViewportIndex routing, so render one pass per (array
++   * layer, viewport rect): a single-layer attachment view selects the layer, a
++   * per-viewport SetViewport + SetScissorRect selects the rect, and the shader discards
++   * every primitive whose vertex-carried gpu_Layer / gpu_ViewportIndex != this pass's
++   * (layer, viewport) — supplied in the _wgpu_mv UBO. Each 1x1 viewport therefore
++   * receives exactly the primitive routed to it, matching the GL/Vulkan reference. This
++   * path only runs when GPU_framebuffer_multi_viewports_set() is active (the gpu suite's
++   * framebuffer_multi_viewport test); every other draw takes the single-pass path below. */
++  if (fb->is_multi_viewport()) {
++    wgpu::Device device = ctx->device_get();
++    const int layers = fb->attachment_layer_count();
++
++    /* Per-pass (layer, viewport) UBO: std140 { int; int; } padded to 16 bytes. Reused
++     * across passes — a queue WriteBuffer is ordered before the Submit that follows it,
++     * so each pass reads its own value before the next overwrite. */
++    wgpu::BufferDescriptor bd = {};
++    bd.size = 16;
++    bd.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
++    wgpu::Buffer mv_buf = device.CreateBuffer(&bd);
++
++    if (shader->has_push_constants()) {
++      shader->push_constants_flush();
++    }
++
++    for (int layer = 0; layer < layers; layer++) {
++      for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
++        int rect[4];
++        fb->get_viewport(vp, rect);
++        if (rect[2] <= 0 || rect[3] <= 0) {
++          continue; /* unused viewport slot */
++        }
++        const int32_t mv_vals[2] = {layer, vp};
++        ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
++
++        wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
++        wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
++        mv_pass.SetPipeline(pipeline);
++        mv_pass.SetViewport(
++            float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
++        mv_pass.SetScissorRect(
++            uint32_t(rect[0]), uint32_t(rect[1]), uint32_t(rect[2]), uint32_t(rect[3]));
++        if (wvbo != nullptr && wvbo->buffer().valid()) {
++          mv_pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
++        }
++
++        std::vector<wgpu::BindGroupEntry> entries;
++        wgpu::BindGroupEntry mv_entry = {};
++        mv_entry.binding = shader->multi_viewport_binding();
++        mv_entry.buffer = mv_buf;
++        mv_entry.offset = 0;
++        mv_entry.size = 16;
++        entries.push_back(mv_entry);
++        if (shader->has_push_constants() && shader->push_constants_buffer().valid()) {
++          wgpu::BindGroupEntry pc = {};
++          pc.binding = shader->push_constants_binding();
++          pc.buffer = shader->push_constants_buffer().handle();
++          pc.offset = 0;
++          pc.size = shader->push_constants_buffer().size();
++          entries.push_back(pc);
++        }
++        wgpu::BindGroupDescriptor bgd = {};
++        bgd.layout = pipeline.GetBindGroupLayout(0);
++        bgd.entryCount = uint32_t(entries.size());
++        bgd.entries = entries.data();
++        mv_pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++
++        if (elem != nullptr) {
++          WGPUIndexBuffer *wibo = unwrap(elem);
++          if (wibo->buffer().valid()) {
++            mv_pass.SetIndexBuffer(wibo->buffer().handle(), wibo->index_format(), 0);
++            mv_pass.DrawIndexed(uint32_t(vertex_count),
++                                uint32_t(instance_count),
++                                uint32_t(vertex_first),
++                                0,
++                                uint32_t(instance_first));
++          }
++        }
++        else {
++          mv_pass.Draw(uint32_t(vertex_count),
++                       uint32_t(instance_count),
++                       uint32_t(vertex_first),
++                       uint32_t(instance_first));
++        }
++        mv_pass.End();
++        wgpu::CommandBuffer mv_cb = mv_enc.Finish();
++        ctx->queue_get().Submit(1, &mv_cb);
++      }
++    }
++    return;
++  }
++
+   wgpu::Device device = ctx->device_get();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);

@@ -1,0 +1,406 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index d60a387..3665471 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -516,6 +516,10 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                                           [](bool) {});
+ 
+         const auto load_action = fb->load_action_transaction();
++        std::function<void(bool)> load_action_completion;
++        if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++          return;
++        }
+         webgpu::command_encode_submit_scoped(
+             ctx->instance_get(),
+             device,
+@@ -580,7 +584,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+               mv_pass.End();
+               return true;
+             },
+-            [load_action](const bool valid) { load_action->complete(valid); });
++            [load_action_completion](const bool valid) { load_action_completion(valid); });
+       }
+     }
+     return;
+@@ -606,6 +610,10 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+ 
+   wgpu::Device device = ctx->device_get();
+   const auto load_action = fb->load_action_transaction();
++  std::function<void(bool)> load_action_completion;
++  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++    return;
++  }
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -659,7 +667,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         pass.End();
+         return true;
+       },
+-      [load_action](const bool valid) { load_action->complete(valid); });
++      [load_action_completion](const bool valid) { load_action_completion(valid); });
+ }
+ 
+ void WGPUBatch::draw_indirect(StorageBuf *indirect_buf, intptr_t offset)
+@@ -913,6 +921,10 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+                                           [](bool) {});
+ 
+         const auto load_action = fb->load_action_transaction();
++        std::function<void(bool)> load_action_completion;
++        if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++          return;
++        }
+         webgpu::command_encode_submit_scoped(
+             ctx->instance_get(),
+             device,
+@@ -953,7 +965,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+               mv_pass.End();
+               return true;
+             },
+-            [load_action](const bool valid) { load_action->complete(valid); });
++            [load_action_completion](const bool valid) { load_action_completion(valid); });
+       }
+     }
+     return;
+@@ -978,6 +990,10 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   }
+ 
+   const auto load_action = fb->load_action_transaction();
++  std::function<void(bool)> load_action_completion;
++  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++    return;
++  }
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -1009,7 +1025,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         pass.End();
+         return true;
+       },
+-      [load_action](const bool valid) { load_action->complete(valid); });
++      [load_action_completion](const bool valid) { load_action_completion(valid); });
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 68f06ba..a816261 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -1840,6 +1840,75 @@ class FramebufferLoadActionTransaction {
+   bool completed_ = false;
+ };
+ 
++/** Join materialized clear commands and their dependent draw into one logical load-action
++ * completion. Each issued callback is idempotent because a synchronous helper rejection can be
++ * reported both by its return value and by release of the retained asynchronous callback. */
++class FramebufferLoadActionCompletionGroup {
++ private:
++  struct State {
++    State(std::shared_ptr<FramebufferLoadActionTransaction> transaction,
++          const uint32_t pending)
++        : transaction(std::move(transaction)), pending(pending)
++    {
++    }
++
++    ~State()
++    {
++      if (transaction) {
++        transaction->complete(false);
++      }
++    }
++
++    void complete(const bool operation_valid)
++    {
++      std::shared_ptr<FramebufferLoadActionTransaction> completed_transaction;
++      bool completed_valid = false;
++      {
++        std::lock_guard lock(mutex);
++        if (pending == 0) {
++          return;
++        }
++        valid = valid && operation_valid;
++        pending--;
++        if (pending != 0) {
++          return;
++        }
++        completed_valid = valid;
++        completed_transaction = std::move(transaction);
++      }
++      if (completed_transaction) {
++        completed_transaction->complete(completed_valid);
++      }
++    }
++
++    std::mutex mutex;
++    std::shared_ptr<FramebufferLoadActionTransaction> transaction;
++    uint32_t pending;
++    bool valid = true;
++  };
++
++ public:
++  FramebufferLoadActionCompletionGroup(
++      std::shared_ptr<FramebufferLoadActionTransaction> transaction,
++      const uint32_t operation_count)
++      : state_(std::make_shared<State>(std::move(transaction), operation_count))
++  {
++  }
++
++  std::function<void(bool)> completion() const
++  {
++    auto completed = std::make_shared<std::atomic<bool>>(false);
++    return [state = state_, completed = std::move(completed)](const bool valid) {
++      if (!completed->exchange(true, std::memory_order_acq_rel)) {
++        state->complete(valid);
++      }
++    };
++  }
++
++ private:
++  std::shared_ptr<State> state_;
++};
++
+ class FramebufferLoadActionTracker {
+  public:
+   void record(const uint32_t attachment, const bool clear)
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index 35b7c07..60ee4d6 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -1073,8 +1073,20 @@ void WGPUFrameBuffer::attachment_set_loadstore_op(GPUAttachmentType type, GPULoa
+   }
+ }
+ 
+-bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
++bool WGPUFrameBuffer::load_action_transaction_prepare(
++    const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> &load_action,
++    std::function<void(bool)> &draw_completion)
+ {
++  draw_completion = {};
++  if (!load_action) {
++    return false;
++  }
++  webgpu::FramebufferViewportPlan draw_viewport;
++  if (!load_pass_viewport_plan(draw_viewport)) {
++    load_action->complete(false);
++    return false;
++  }
++
+   uint32_t materialize_mask = 0;
+   for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
+     const GPUAttachment &attachment = attachments_[index];
+@@ -1085,6 +1097,7 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+         attachment.layer,
+         as_wgpu(attachment.tex)->attachment_layer_count(std::max(attachment.mip, 0)));
+     if (scope == webgpu::FramebufferLoadClearScope::Invalid) {
++      load_action->complete(false);
+       return false;
+     }
+     if (scope == webgpu::FramebufferLoadClearScope::MaterializeAllLayers) {
+@@ -1092,13 +1105,22 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+     }
+   }
+ 
++  uint32_t staged_mask = 0;
++  uint32_t staged_count = 0;
+   for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
+     if ((materialize_mask & (1u << index)) == 0) {
+       continue;
+     }
+-    const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> load_action =
+-        load_action_transaction();
+-    if (!load_action->stage(uint32_t(index))) {
++    if (load_action->stage(uint32_t(index))) {
++      staged_mask |= 1u << index;
++      staged_count++;
++    }
++  }
++
++  webgpu::FramebufferLoadActionCompletionGroup completions(load_action, staged_count + 1);
++  draw_completion = completions.completion();
++  for (int index = 0; index < GPU_FB_MAX_ATTACHMENT; index++) {
++    if ((staged_mask & (1u << index)) == 0) {
+       continue;
+     }
+     const GPULoadStore &load_store = load_store_[index];
+@@ -1111,18 +1133,56 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+        * stencil value; retain that established backend behavior here. */
+       clear_value[1] = 0.0;
+     }
++    std::function<void(bool)> clear_completion = completions.completion();
+     if (!clear_attachment_full(
+             static_cast<GPUAttachmentType>(index),
+             clear_value,
+-            [load_action](const bool valid) { load_action->complete(valid); }))
++            clear_completion))
+     {
+-      load_action->complete(false);
++      clear_completion(false);
++      draw_completion(false);
++      draw_completion = {};
+       return false;
+     }
+   }
+   return true;
+ }
+ 
++bool WGPUFrameBuffer::load_pass_viewport_plan(
++    webgpu::FramebufferViewportPlan &draw_viewport) const
++{
++  if (multi_viewport_) {
++    return true;
++  }
++  int viewport[4];
++  viewport_get(viewport);
++  int scissor[4];
++  const int *active_scissor = nullptr;
++  if (scissor_test_get()) {
++    scissor_get(scissor);
++    active_scissor = scissor;
++  }
++  WGPUContext *wctx = active_context();
++  wgpu::Limits limits = {};
++  if (wctx == nullptr || !wctx->device_get().GetLimits(&limits)) {
++    return false;
++  }
++  if (wctx->is_window_backbuffer(this)) {
++    return webgpu::window_viewport_scissor_plan(viewport,
++                                                active_scissor,
++                                                width_,
++                                                height_,
++                                                limits.maxTextureDimension2D,
++                                                draw_viewport);
++  }
++  return webgpu::offscreen_viewport_scissor_plan(viewport,
++                                                 active_scissor,
++                                                 width_,
++                                                 height_,
++                                                 limits.maxTextureDimension2D,
++                                                 draw_viewport);
++}
++
+ void WGPUFrameBuffer::read(GPUFrameBufferBits planes,
+                            eGPUDataFormat format,
+                            const int area[4],
+@@ -1591,47 +1651,9 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(
+   if (!load_action) {
+     return nullptr;
+   }
+-  WGPUContext *wctx = active_context();
+-  const bool is_backbuffer = (wctx != nullptr && wctx->is_window_backbuffer(this));
+   const bool apply_ordinary_viewport = !multi_viewport_;
+   webgpu::FramebufferViewportPlan draw_viewport;
+-  if (apply_ordinary_viewport) {
+-    int viewport[4];
+-    viewport_get(viewport);
+-    int scissor[4];
+-    const int *active_scissor = nullptr;
+-    if (scissor_test_get()) {
+-      scissor_get(scissor);
+-      active_scissor = scissor;
+-    }
+-    wgpu::Limits limits = {};
+-    if (wctx == nullptr || !wctx->device_get().GetLimits(&limits)) {
+-      return nullptr;
+-    }
+-    if (is_backbuffer) {
+-      if (!webgpu::window_viewport_scissor_plan(viewport,
+-                                                 active_scissor,
+-                                                 width_,
+-                                                 height_,
+-                                                 limits.maxTextureDimension2D,
+-                                                 draw_viewport))
+-      {
+-        return nullptr;
+-      }
+-    }
+-    else {
+-      if (!webgpu::offscreen_viewport_scissor_plan(viewport,
+-                                                    active_scissor,
+-                                                    width_,
+-                                                    height_,
+-                                                    limits.maxTextureDimension2D,
+-                                                    draw_viewport))
+-      {
+-        return nullptr;
+-      }
+-    }
+-  }
+-  if (!materialize_layered_loadstore_clears()) {
++  if (!load_pass_viewport_plan(draw_viewport)) {
+     return nullptr;
+   }
+   /* NOTE: the local attachment vectors + views only need to outlive BeginRenderPass
+@@ -1681,8 +1703,8 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(
+     ca.depthSlice = attachment_depth_slice(att, attachment_force_layer);
+     /* Honor the frontend's recorded load-action (GPU_framebuffer_bind_loadstore ->
+      * attachment_set_loadstore_op). Single-subresource actions are staged by the first pass and
+-     * committed only after submission; all-layer array clears were materialized above so every
+-     * selected layer is initialized before any draw. */
++     * committed only after submission; all-layer array clears were reserved before the outer draw
++     * command so every selected layer is initialized first. */
+     const int attachment_index = GPU_FB_COLOR_ATTACHMENT0 + slot;
+     const GPULoadStore &ls = load_store_[attachment_index];
+     if (load_action->stage(uint32_t(attachment_index))) {
+@@ -1778,7 +1800,8 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(
+    * WebGPU's top-left render coordinates. Offscreen shader/readback Y flips preserve content
+    * orientation and row order, but do not relocate a partial rectangle. Multi-viewport emulation
+    * owns its per-pass rectangles in WGPUBatch and therefore skips this single-viewport state.
+-   * Every ordinary rectangle was validated above before layered clears or pass allocation. */
++   * The same ordinary rectangle was validated before layered-clear reservation and is rebuilt
++   * synchronously here before pass allocation. */
+   if (apply_ordinary_viewport) {
+     pass.SetViewport(float(draw_viewport.viewport.viewport_x),
+                      float(draw_viewport.viewport.viewport_y),
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+index b228207..7ad05d8 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -84,6 +84,11 @@ class WGPUFrameBuffer : public FrameBuffer {
+   {
+     return load_action_tracker_.transaction();
+   }
++  /** Validate the load pass and reserve every required all-layer clear before callers reserve the
++   * dependent draw. The returned callback joins clear and draw validation into one transaction. */
++  bool load_action_transaction_prepare(
++      const std::shared_ptr<webgpu::FramebufferLoadActionTransaction> &load_action,
++      std::function<void(bool)> &draw_completion);
+   /** Open a render pass over the bound attachments with recorded load operations and
+    * storeOp=Store. Caller owns the encoder and must complete `load_action` with the checked
+    * command submission result. When
+@@ -155,10 +160,8 @@ class WGPUFrameBuffer : public FrameBuffer {
+ 
+   /** Recompute width_/height_ from the first bound attachment. */
+   void update_size();
+-  /** Materialize pending explicit clears whose all-layer scope cannot fit in one
+-   * WebGPU render pass. Returns false before clearing when any selected subresource
+-   * is invalid. */
+-  bool materialize_layered_loadstore_clears();
++  /** Validate and resolve the ordinary viewport/scissor before any layered clear is scheduled. */
++  bool load_pass_viewport_plan(webgpu::FramebufferViewportPlan &draw_viewport) const;
+ 
+   /** True when the active render-pass layout has no public color/depth target. */
+   bool needs_empty_render_attachment() const;
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 238c17a..bd0570c 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -227,6 +227,10 @@ void WGPUImmediate::end()
+ 
+   wgpu::Device device = ctx->device_get();
+   const auto load_action = fb->load_action_transaction();
++  std::function<void(bool)> load_action_completion;
++  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++    return;
++  }
+   webgpu::command_encode_submit_scoped(
+       ctx->instance_get(),
+       device,
+@@ -268,7 +272,7 @@ void WGPUImmediate::end()
+         pass.End();
+         return true;
+       },
+-      [load_action](const bool valid) { load_action->complete(valid); });
++      [load_action_completion](const bool valid) { load_action_completion(valid); });
+ }
+ 
+ }  // namespace blender::gpu

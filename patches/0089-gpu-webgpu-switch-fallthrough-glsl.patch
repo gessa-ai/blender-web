@@ -1,0 +1,185 @@
+diff --git a/source/blender/draw/engines/eevee/shaders/eevee_light_culling.bsl.hh b/source/blender/draw/engines/eevee/shaders/eevee_light_culling.bsl.hh
+index dca2e0568f8..67e8cad9de6 100644
+--- a/source/blender/draw/engines/eevee/shaders/eevee_light_culling.bsl.hh
++++ b/source/blender/draw/engines/eevee/shaders/eevee_light_culling.bsl.hh
+@@ -69,6 +69,35 @@ void cull_main([[resource_table]] Cull &srt,
+   }
+ 
+   Sphere sphere;
++#ifdef GPU_WEBGPU
++  /* WGSL/Tint's SPIR-V reader rejects OpSwitch fallthrough; the spot -> hemispheric
++   * unconditional fall-through is re-expressed as an if-chain. Behaviour-identical to
++   * the #else path (spot types run the pyramid test then also set the bounding sphere). */
++  if (light.type == LIGHT_SPOT_SPHERE || light.type == LIGHT_SPOT_DISK) {
++    LightSpotData spot = light.spot();
++    /* Only for < ~170 degree Cone due to plane extraction precision. */
++    if (spot.spot_tan < 10.0f) {
++      float3 x_axis = light.x_axis();
++      float3 y_axis = light.y_axis();
++      float3 z_axis = light.z_axis();
++      Pyramid pyramid = shape_pyramid_non_oblique(
++          light.position(),
++          light.position() - z_axis * spot.local.influence_radius_max,
++          x_axis * spot.local.influence_radius_max * spot.spot_tan / spot.spot_size_inv.x,
++          y_axis * spot.local.influence_radius_max * spot.spot_tan / spot.spot_size_inv.y);
++      if (!intersect_view(pyramid)) {
++        return;
++      }
++    }
++  }
++  if (light.type == LIGHT_SPOT_SPHERE || light.type == LIGHT_SPOT_DISK ||
++      light.type == LIGHT_RECT || light.type == LIGHT_ELLIPSE ||
++      light.type == LIGHT_OMNI_SPHERE || light.type == LIGHT_OMNI_DISK)
++  {
++    sphere.center = light.position();
++    sphere.radius = light.local().local.influence_radius_max;
++  }
++#else
+   switch (light.type) {
+     case LIGHT_SPOT_SPHERE:
+     case LIGHT_SPOT_DISK: {
+@@ -99,6 +128,7 @@ void cull_main([[resource_table]] Cull &srt,
+     default:
+       break;
+   }
++#endif
+ 
+   /* TODO(fclem): HiZ culling? Could be quite beneficial given the nature of the 2.5D culling. */
+ 
+@@ -416,6 +446,36 @@ void tile_main([[resource_table]] const draw::View &views,
+     Sphere sphere = shape_sphere(vP, radius);
+     bool intersect_tile = tile.intersect(view, sphere);
+ 
++#ifdef GPU_WEBGPU
++    /* WGSL/Tint's SPIR-V reader rejects OpSwitch fallthrough; the conditional spot ->
++     * hemispheric fall-through (taken only when spot_tan >= 10) is re-expressed as an
++     * if-chain gated by `do_hemispheric`. Behaviour-identical to the #else path. */
++    bool do_hemispheric = (light.type == LIGHT_RECT || light.type == LIGHT_ELLIPSE);
++    if (light.type == LIGHT_SPOT_SPHERE || light.type == LIGHT_SPOT_DISK) {
++      LightSpotData spot = light.spot();
++      /* Only for < ~170 degree Cone due to plane extraction precision. */
++      if (spot.spot_tan < 10.0f) {
++        Pyramid pyramid = shape_pyramid_non_oblique(
++            vP,
++            vP - v_back * radius,
++            v_right * radius * spot.spot_tan / spot.spot_size_inv.x,
++            v_up * radius * spot.spot_tan / spot.spot_size_inv.y);
++        intersect_tile = intersect_tile && tile.intersect(pyramid);
++      }
++      else {
++        /* Fall-through to the hemispheric case. */
++        do_hemispheric = true;
++      }
++    }
++    if (do_hemispheric) {
++      float3 v000 = vP - v_right * radius - v_up * radius;
++      float3 v100 = v000 + v_right * (radius * 2.0f);
++      float3 v010 = v000 + v_up * (radius * 2.0f);
++      float3 v001 = v000 - v_back * radius;
++      Box bbox = shape_box(v000, v100, v010, v001);
++      intersect_tile = intersect_tile && tile.intersect(bbox);
++    }
++#else
+     switch (light.type) {
+       case LIGHT_SPOT_SPHERE:
+       case LIGHT_SPOT_DISK: {
+@@ -446,6 +506,7 @@ void tile_main([[resource_table]] const draw::View &views,
+       default:
+         break;
+     }
++#endif
+ 
+     if (intersect_tile) {
+       word |= 1u << (l_idx % 32u);
+diff --git a/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh b/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
+index ec6f664a51a..742aa0e0b8f 100644
+--- a/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
++++ b/source/blender/gpu/shaders/gpu_shader_2D_update_mipmaps.bsl.hh
+@@ -284,6 +284,79 @@ struct Resources {
+     InnerType v0, v1, v2, h0, h1, h2, out_pixel;
+ 
+     /* Reduce vertically up to 3 times (depending on kernel horizontal size) */
++#ifdef GPU_WEBGPU
++    /* WGSL/Tint's SPIR-V reader rejects OpSwitch fallthrough. The two cumulative
++     * fallthrough cascades (outer over kernel_size.x, inner v-loads over kernel_size.y)
++     * are re-expressed as equivalent if-chains; kernel_size components are in [1, 3] so
++     * `>=` reproduces the fallthrough exactly. The break-only h-selection switches are
++     * kept (Tint accepts non-fallthrough switches). Behaviour-identical to the #else. */
++    if (kernel_size.x >= 3) {
++      if (kernel_size.y >= 3) {
++        v2 = load_sample(src_coord + int2(2, 2), load_from_shared);
++      }
++      if (kernel_size.y >= 2) {
++        v1 = load_sample(src_coord + int2(2, 1), load_from_shared);
++      }
++      if (kernel_size.y >= 1) {
++        v0 = load_sample(src_coord + int2(2, 0), load_from_shared);
++      }
++      switch (kernel_size.y) {
++        case 3:
++          h2 = pyramid_reduce_3(w0, v0, w1, v1, w2, v2);
++          break;
++        case 2:
++          h2 = pyramid_reduce_2(v0, v1);
++          break;
++        case 1:
++          h2 = v0;
++          break;
++      }
++    }
++    if (kernel_size.x >= 2) {
++      if (kernel_size.y >= 3) {
++        v2 = load_sample(src_coord + int2(1, 2), load_from_shared);
++      }
++      if (kernel_size.y >= 2) {
++        v1 = load_sample(src_coord + int2(1, 1), load_from_shared);
++      }
++      if (kernel_size.y >= 1) {
++        v0 = load_sample(src_coord + int2(1, 0), load_from_shared);
++      }
++      switch (kernel_size.y) {
++        case 3:
++          h1 = pyramid_reduce_3(w0, v0, w1, v1, w2, v2);
++          break;
++        case 2:
++          h1 = pyramid_reduce_2(v0, v1);
++          break;
++        case 1:
++          h1 = v0;
++          break;
++      }
++    }
++    if (kernel_size.x >= 1) {
++      if (kernel_size.y >= 3) {
++        v2 = load_sample(src_coord + int2(0, 2), load_from_shared);
++      }
++      if (kernel_size.y >= 2) {
++        v1 = load_sample(src_coord + int2(0, 1), load_from_shared);
++      }
++      if (kernel_size.y >= 1) {
++        v0 = load_sample(src_coord + int2(0, 0), load_from_shared);
++      }
++      switch (kernel_size.y) {
++        case 3:
++          h0 = pyramid_reduce_3(w0, v0, w1, v1, w2, v2);
++          break;
++        case 2:
++          h0 = pyramid_reduce_2(v0, v1);
++          break;
++        case 1:
++          h0 = v0;
++          break;
++      }
++    }
++#else
+     switch (kernel_size.x) {
+       case 3:
+         switch (kernel_size.y) {
+@@ -357,6 +430,7 @@ struct Resources {
+             break;
+         }
+     }
++#endif
+ 
+     /* Reduce up to 3 samples horizontally. */
+     switch (kernel_size.x) {

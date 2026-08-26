@@ -1,0 +1,86 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -85,6 +85,8 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+    * lacks them):
+    *   - Unorm16TextureFormats: R/RG/RGBA 16-bit unorm (Blender's *16 formats).
+    *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable.
++   *   - TextureFormatsTier1: extended write-only storage texture formats.
++   *   - TextureFormatsTier2: extended read-write storage texture formats.
+    *   - ClipDistances: gl_ClipDistance user clip planes. Paired with the WGSL
+    *     writer's clip_distances allowed-feature (wgpu_shader_compiler.cc) so the
+    *     `enable clip_distances;` Tint emits is valid on this device.
+@@ -97,6 +99,12 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   if (adapter_.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable)) {
+     required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);
+   }
++  if (adapter_.HasFeature(wgpu::FeatureName::TextureFormatsTier1)) {
++    required_features.push_back(wgpu::FeatureName::TextureFormatsTier1);
++  }
++  if (adapter_.HasFeature(wgpu::FeatureName::TextureFormatsTier2)) {
++    required_features.push_back(wgpu::FeatureName::TextureFormatsTier2);
++  }
+   if (adapter_.HasFeature(wgpu::FeatureName::ClipDistances)) {
+     required_features.push_back(wgpu::FeatureName::ClipDistances);
+   }
+@@ -105,6 +113,17 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   }
+   device_desc.requiredFeatureCount = required_features.size();
+   device_desc.requiredFeatures = required_features.data();
++
++  /* Request the adapter-supported ceilings needed by EEVEE. Fields left at
++   * kLimitU32Undefined preserve WebGPU's defaults for every other limit. */
++  wgpu::Limits supported_limits = {};
++  adapter_.GetLimits(&supported_limits);
++  wgpu::Limits required_limits = {};
++  required_limits.maxStorageTexturesPerShaderStage =
++      supported_limits.maxStorageTexturesPerShaderStage;
++  required_limits.maxStorageBuffersPerShaderStage =
++      supported_limits.maxStorageBuffersPerShaderStage;
++  device_desc.requiredLimits = &required_limits;
+   instance_.WaitAny(
+       adapter_.RequestDevice(
+           &device_desc,
+diff --git a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader_interface_map.cc
+@@ -236,9 +236,20 @@ InterfaceMap build_interface_map(const std::vector<ResourceDesc> &resources,
+         map.entries.push_back(make_buffer_entry(r.binding, svis, btype));
+         break;
+       }
+-      case ResourceKind::StorageImage:
+-        map.entries.push_back(make_storage_image_entry(r.binding, vis, r));
++      case ResourceKind::StorageImage: {
++        /* Blender assigns one shader-wide Vertex|Fragment mask to every graphics
++         * resource, even when only fragment code uses it. WebGPU forbids writable
++         * storage textures in the vertex stage, so remove that over-declared stage
++         * while retaining the fragment and compute stages that may write. */
++        wgpu::ShaderStage svis = vis;
++        if (r.image_access == wgpu::StorageTextureAccess::WriteOnly ||
++            r.image_access == wgpu::StorageTextureAccess::ReadWrite)
++        {
++          svis = vis & (wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute);
++        }
++        map.entries.push_back(make_storage_image_entry(r.binding, svis, r));
+         break;
++      }
+       case ResourceKind::Sampler: {
+         /* Per array element: one combined sampler at binding N+i splits into a
+          * texture half (kept at N+i) and a sampler half (reserved BASE+N+i).
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2361,6 +2361,13 @@ void WGPUShader::build_explicit_layout(const wgpu::Device &device,
+       if (e.buffer.type == wgpu::BufferBindingType::Storage) {
+         e.visibility = e.visibility & (wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute);
+       }
++      /* Blender's shader-wide declaration can likewise survive in vertex WGSL
++       * when only fragment code uses a writable storage texture. */
++      if (e.storageTexture.access == wgpu::StorageTextureAccess::WriteOnly ||
++          e.storageTexture.access == wgpu::StorageTextureAccess::ReadWrite)
++      {
++        e.visibility = e.visibility & (wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Compute);
++      }
+       entries.push_back(e);
+       continue;
+     }

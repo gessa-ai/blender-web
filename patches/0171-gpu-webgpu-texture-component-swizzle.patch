@@ -1,0 +1,110 @@
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -99,5 +99,7 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+    *   - Float32Filterable: enables linear filtering for R/RG/RGBA 32-bit float
+    *     textures, matching the backend's format-capability gate.
++   *   - TextureComponentSwizzle: applies Blender's sampled-texture channel masks
++   *     directly in Dawn/Emdawnwebgpu texture views.
+    *   - Depth32FloatStencil8: Blender's D32F/S8 combined depth-stencil format.
+    *   - TextureFormatsTier1: extended write-only storage texture formats.
+    *   - TextureFormatsTier2: extended read-write storage texture formats.
+@@ -117,6 +119,9 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   if (adapter_.HasFeature(wgpu::FeatureName::Float32Filterable)) {
+     required_features.push_back(wgpu::FeatureName::Float32Filterable);
+   }
++  if (adapter_.HasFeature(wgpu::FeatureName::TextureComponentSwizzle)) {
++    required_features.push_back(wgpu::FeatureName::TextureComponentSwizzle);
++  }
+   if (adapter_.HasFeature(wgpu::FeatureName::Depth32FloatStencil8)) {
+     required_features.push_back(wgpu::FeatureName::Depth32FloatStencil8);
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.hh b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.hh
+@@ -134,6 +134,10 @@ bool compressed_upload_layout(TextureFormat format,
+  * compressed-2D creation API. */
+ bool compressed_texture_type_supported(GPUTextureType type);
+ 
++/** Translate Blender's documented `rgba` / `xyzw` / `01` sampled-texture mask alphabet.
++ * Undefined is the fail-closed sentinel for every other byte. */
++wgpu::ComponentSwizzle to_wgpu_component_swizzle(char component);
++
+ /** Look up the full record for a Blender format. */
+ const FormatInfo &format_info(TextureFormat format);
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_texture_format.cc b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture_format.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture_format.cc
+@@ -183,6 +183,29 @@ wgpu::TextureFormat to_wgpu_format(TextureFormat format)
+   return format_info(format).wgpu;
+ }
+ 
++wgpu::ComponentSwizzle to_wgpu_component_swizzle(const char component)
++{
++  switch (component) {
++    case 'r':
++    case 'x':
++      return wgpu::ComponentSwizzle::R;
++    case 'g':
++    case 'y':
++      return wgpu::ComponentSwizzle::G;
++    case 'b':
++    case 'z':
++      return wgpu::ComponentSwizzle::B;
++    case 'a':
++    case 'w':
++      return wgpu::ComponentSwizzle::A;
++    case '0':
++      return wgpu::ComponentSwizzle::Zero;
++    case '1':
++      return wgpu::ComponentSwizzle::One;
++  }
++  return wgpu::ComponentSwizzle::Undefined;
++}
++
+ bool compressed_upload_layout(TextureFormat format,
+                               uint32_t width,
+                               uint32_t height,
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1748,6 +1748,38 @@ wgpu::TextureView WGPUTexture::sampled_view(wgpu::TextureViewDimension override_d
+     d.arrayLayerCount = subresources_.layer_count;
+   }
+   d.aspect = sampled_range.aspect;
++
++  /* WebGPU's stable TextureComponentSwizzle feature is the direct equivalent of
++   * Vulkan's VkComponentMapping used by GPU_texture_swizzle_set. Apply it only to
++   * sampled views: storage images, attachments, copies, and readback address the
++   * backing channels and deliberately retain identity mapping. */
++  wgpu::TextureComponentSwizzleDescriptor swizzle_desc = {};
++  swizzle_desc.swizzle.r = to_wgpu_component_swizzle(swizzle_[0]);
++  swizzle_desc.swizzle.g = to_wgpu_component_swizzle(swizzle_[1]);
++  swizzle_desc.swizzle.b = to_wgpu_component_swizzle(swizzle_[2]);
++  swizzle_desc.swizzle.a = to_wgpu_component_swizzle(swizzle_[3]);
++  if (swizzle_desc.swizzle.r == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.g == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.b == wgpu::ComponentSwizzle::Undefined ||
++      swizzle_desc.swizzle.a == wgpu::ComponentSwizzle::Undefined)
++  {
++    return nullptr;
++  }
++  const bool identity = swizzle_desc.swizzle.r == wgpu::ComponentSwizzle::R &&
++                        swizzle_desc.swizzle.g == wgpu::ComponentSwizzle::G &&
++                        swizzle_desc.swizzle.b == wgpu::ComponentSwizzle::B &&
++                        swizzle_desc.swizzle.a == wgpu::ComponentSwizzle::A;
++  if (!identity) {
++    WGPUContext *ctx = active_context();
++    if (ctx == nullptr ||
++        !ctx->device_get().HasFeature(wgpu::FeatureName::TextureComponentSwizzle))
++    {
++      /* A null bind is visible and fail-closed; silently sampling identity channels
++       * would corrupt image alpha, paint masks, volume fields, and EEVEE vectors. */
++      return nullptr;
++    }
++    d.nextInChain = &swizzle_desc;
++  }
+   return subresources_.texture.CreateView(&d);
+ }
+ 

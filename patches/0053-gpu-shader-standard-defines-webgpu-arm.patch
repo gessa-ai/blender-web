@@ -1,0 +1,14 @@
+diff --git a/source/blender/gpu/intern/gpu_shader.cc b/source/blender/gpu/intern/gpu_shader.cc
+index 3189b897166..b99580a5624 100644
+--- a/source/blender/gpu/intern/gpu_shader.cc
++++ b/source/blender/gpu/intern/gpu_shader.cc
+@@ -176,6 +176,9 @@ static void standard_defines(Vector<StringRefNull> &sources)
+     case GPU_BACKEND_VULKAN:
+       sources.append("#define GPU_VULKAN\n");
+       break;
++    case GPU_BACKEND_WEBGPU:
++      sources.append("#define GPU_WEBGPU\n");
++      break;
+     default:
+       BLI_assert_msg(false, "Invalid GPU Backend Type");
+       break;

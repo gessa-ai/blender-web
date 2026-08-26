@@ -1,0 +1,361 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 717ac6d..8ddd8b1 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -21,7 +21,9 @@
+ #include "wgpu_vertex_buffer.hh"
+ 
+ #include "GPU_capabilities.hh"
++#include "GPU_context.hh"
+ #include "GPU_worker.hh"
++#include "gpu_context_private.hh"
+ #include "gpu_shader_private.hh"
+ #include "gpu_texture_pool_private.hh"
+ 
+@@ -29,6 +31,8 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
++#include <vector>
++
+ namespace blender::gpu {
+ 
+ void WGPUBackend::init_resources()
+@@ -58,15 +62,143 @@ Context *WGPUBackend::context_alloc(GHOST_IWindow *ghost_window, GHOST_IContext
+   return new WGPUContext(ghost_window, ghost_context);
+ }
+ 
+-/* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */
+-void WGPUBackend::compute_dispatch(int /*x*/, int /*y*/, int /*z*/)
++/* --- Compute dispatch ----------------------------------------------------- */
++
++/** The active WebGPU context (holds the live Dawn device/queue + the SSBO
++ * bind-space). Same resolution the draw path uses (wgpu_batch.cc). */
++static WGPUContext *active_context()
+ {
+-  BLI_assert_unreachable();
++  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+ }
+-void WGPUBackend::compute_dispatch_indirect(StorageBuf * /*indirect_buf*/)
++
++/** Assemble group-0 for a compute pass from the bound shader's resources: the
++ * emulated push-constant UBO (WebGPU has no push constants) plus every StorageBuf
++ * bound via GPU_storagebuf_bind (tracked in the context's bind-space). The bind
++ * group's layout comes from the pipeline's auto layout so it matches the WGSL. */
++static bool build_compute_bind_group(WGPUContext *ctx,
++                                     WGPUShader *shader,
++                                     const wgpu::ComputePipeline &pipeline,
++                                     wgpu::BindGroup &r_bind_group)
+ {
+-  BLI_assert_unreachable();
++  std::vector<wgpu::BindGroupEntry> entries;
++
++  if (shader->has_push_constants()) {
++    shader->push_constants_flush();
++    const webgpu::Buffer &pc = shader->push_constants_buffer();
++    if (pc.valid()) {
++      wgpu::BindGroupEntry entry = {};
++      entry.binding = shader->push_constants_binding();
++      entry.buffer = pc.handle();
++      entry.offset = 0;
++      entry.size = pc.size();
++      entries.push_back(entry);
++    }
++  }
++
++  for (const auto &item : ctx->bound_storage_buffers()) {
++    WGPUStorageBuffer *ssbo = item.second;
++    if (ssbo == nullptr) {
++      continue;
++    }
++    const webgpu::Buffer &buf = ssbo->buffer();
++    if (!buf.valid()) {
++      continue;
++    }
++    wgpu::BindGroupEntry entry = {};
++    entry.binding = uint32_t(item.first);
++    entry.buffer = buf.handle();
++    entry.offset = 0;
++    entry.size = buf.size();
++    entries.push_back(entry);
++  }
++
++  if (entries.empty()) {
++    return false;
++  }
++
++  wgpu::BindGroupDescriptor bgd = {};
++  bgd.layout = pipeline.GetBindGroupLayout(0);
++  bgd.entryCount = entries.size();
++  bgd.entries = entries.data();
++  r_bind_group = ctx->device_get().CreateBindGroup(&bgd);
++  return true;
++}
++
++void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int groups_z_len)
++{
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
++  /* A failed compile leaves a null module — cannot build a pipeline. */
++  if (shader == nullptr || shader->compute_module() == nullptr) {
++    return;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
++  if (pipeline == nullptr) {
++    return;
++  }
++
++  wgpu::BindGroup bind_group;
++  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
++
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
++  pass.SetPipeline(pipeline);
++  if (have_bg) {
++    pass.SetBindGroup(0, bind_group);
++  }
++  pass.DispatchWorkgroups(
++      uint32_t(groups_x_len), uint32_t(groups_y_len), uint32_t(groups_z_len));
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++}
++
++void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
++{
++  BLI_assert(indirect_buf != nullptr);
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  WGPUShader *shader = static_cast<WGPUShader *>(ctx->shader);
++  if (shader == nullptr || shader->compute_module() == nullptr) {
++    return;
++  }
++  /* The indirect buffer is a StorageBuf carrying the [x,y,z] group counts; its
++   * webgpu::Buffer is created with the Indirect usage bit (wgpu_storage_buffer). */
++  WGPUStorageBuffer *indirect = static_cast<WGPUStorageBuffer *>(indirect_buf);
++  const webgpu::Buffer &indirect_gpu = indirect->buffer();
++  if (!indirect_gpu.valid()) {
++    return;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  wgpu::ComputePipeline pipeline = shader->compute_pipeline(device);
++  if (pipeline == nullptr) {
++    return;
++  }
++
++  wgpu::BindGroup bind_group;
++  const bool have_bg = build_compute_bind_group(ctx, shader, pipeline, bind_group);
++
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  wgpu::ComputePassEncoder pass = enc.BeginComputePass();
++  pass.SetPipeline(pipeline);
++  if (have_bg) {
++    pass.SetBindGroup(0, bind_group);
++  }
++  pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
+ }
++
++/* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */
+ Batch *WGPUBackend::batch_alloc()
+ {
+   /* Bootstrap-minimal batch: base Batch owns vbo/ibo storage; the draw path is
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 73fdeb2..f53757f 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -20,12 +20,15 @@
+ #include "gpu_context_private.hh"
+ 
+ #include <string>
++#include <unordered_map>
+ #include <webgpu/webgpu_cpp.h>
+ 
+ #include "MEM_guardedalloc.h"
+ 
+ namespace blender::gpu {
+ 
++class WGPUStorageBuffer;
++
+ class WGPUContext : public Context {
+  public:
+   WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context);
+@@ -70,6 +73,33 @@ class WGPUContext : public Context {
+     return adapter_name_.c_str();
+   }
+ 
++  /* --- Bound storage-buffer tracking ---------------------------------------
++   * WebGPU has no global binding state (bindings live in a per-draw/-dispatch
++   * BindGroup), so the backend tracks which StorageBuf is bound to which WGSL
++   * @binding slot here. Recorded by WGPUStorageBuffer::bind()/unbind(); consumed
++   * by WGPUBackend::compute_dispatch to assemble the group-0 bind group. Mirrors
++   * VKStateManager's storage-buffer bind-space. Keyed by binding slot; last bind
++   * to a slot wins (matches the frontend rebinding a slot per dispatch). */
++  void storage_buffer_bind(int slot, WGPUStorageBuffer *ssbo)
++  {
++    bound_storage_buffers_[slot] = ssbo;
++  }
++  void storage_buffer_unbind(WGPUStorageBuffer *ssbo)
++  {
++    for (auto it = bound_storage_buffers_.begin(); it != bound_storage_buffers_.end();) {
++      if (it->second == ssbo) {
++        it = bound_storage_buffers_.erase(it);
++      }
++      else {
++        ++it;
++      }
++    }
++  }
++  const std::unordered_map<int, WGPUStorageBuffer *> &bound_storage_buffers() const
++  {
++    return bound_storage_buffers_;
++  }
++
+   /* Backend-wide device/instance/queue, reachable from any thread (there is a
+    * single Dawn device). Used by the async shader-compile worker, which has no
+    * thread-local active GPU context. */
+@@ -102,6 +132,8 @@ class WGPUContext : public Context {
+   std::string adapter_name_;
+   /** Set between activate() and deactivate(); guards double-activation. */
+   bool is_active_ = false;
++  /** Bound storage buffers keyed by WGSL @binding slot (see storage_buffer_bind). */
++  std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
+ 
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUContext")
+ };
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index c11710b..ab6ea59 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -1168,6 +1168,24 @@ void WGPUShader::warm_cache(int /*limit*/) {}
+ void WGPUShader::bind(const shader::SpecializationConstants * /*constants_state*/) {}
+ void WGPUShader::unbind() {}
+ 
++wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Device &device)
++{
++  if (compute_pipeline_ != nullptr) {
++    return compute_pipeline_;
++  }
++  if (compute_module_ == nullptr) {
++    return nullptr;
++  }
++  wgpu::ComputePipelineDescriptor desc = {};
++  desc.layout = nullptr; /* auto layout — inferred from the compute WGSL (Tint output). */
++  desc.compute.module = compute_module_;
++  /* Tint names the compute entry point "main" (from the GLSL main); the standalone
++   * T7.pre proof created its compute pipeline with the same explicit entry point. */
++  desc.compute.entryPoint = "main";
++  compute_pipeline_ = device.CreateComputePipeline(&desc);
++  return compute_pipeline_;
++}
++
+ /* -------------------------------------------------------------------------- */
+ /** \name Push-constant UBO plumbing
+  * \{ */
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+index 6fef4e7..1360339 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -82,6 +82,14 @@ class WGPUShader : public Shader {
+   {
+     return compute_module_;
+   }
++  /** The compute pipeline for this shader, built lazily from the compute module on
++   * first dispatch and cached for the shader's lifetime. WebGPU compute uses an auto
++   * layout inferred from the WGSL, so the bind group the backend assembles via
++   * GetBindGroupLayout(0) matches the Tint output. Caching HERE (not in a global
++   * pointer-keyed pool) is deliberate: a freed-then-reallocated WGPUShader address
++   * could otherwise return another shader's stale pipeline. Null if no compute stage
++   * or the compile failed. */
++  wgpu::ComputePipeline compute_pipeline(const wgpu::Device &device);
+   const webgpu::InterfaceMap &interface_map() const
+   {
+     return interface_map_;
+@@ -126,6 +134,10 @@ class WGPUShader : public Shader {
+   wgpu::ShaderModule fragment_module_;
+   wgpu::ShaderModule compute_module_;
+ 
++  /* Compute pipeline built lazily from compute_module_ and cached for this shader's
++   * lifetime (see compute_pipeline()). */
++  wgpu::ComputePipeline compute_pipeline_;
++
+   /* Binding reflection: sampler_mappings + the group-0 bind-group layout. */
+   webgpu::InterfaceMap interface_map_;
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+index 3c9fd26..8462bae 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -46,6 +46,17 @@ bool WGPUStorageBuffer::ensure()
+       ctx->device_get(), webgpu::BufferKind::Storage, usage, size_in_bytes_, nullptr, true);
+ }
+ 
++WGPUStorageBuffer::~WGPUStorageBuffer()
++{
++  /* Drop any binding this buffer holds in the active context's bind-space, so a
++   * freed SSBO can never leave a dangling pointer (or a stale binding) for the next
++   * shader's compute_dispatch to pick up. */
++  WGPUContext *ctx = active_context();
++  if (ctx != nullptr) {
++    ctx->storage_buffer_unbind(this);
++  }
++}
++
+ void WGPUStorageBuffer::update(const void *data)
+ {
+   if (data == nullptr || !ensure()) {
+@@ -106,9 +117,28 @@ void WGPUStorageBuffer::read(void *data)
+   }
+ }
+ 
+-/* Binding is resolved at bind-group / pipeline assembly (wgpu_bind_group, T7). */
+-void WGPUStorageBuffer::bind(int /*slot*/) {}
+-void WGPUStorageBuffer::unbind() {}
++/* Record the binding in the active context's storage-buffer bind-space; the actual
++ * wgpu::BindGroup is assembled at dispatch/draw time (WGPUBackend::compute_dispatch
++ * today; the draw path when it binds SSBOs). ensure() the device buffer here so it
++ * exists (valid handle) by the time the bind group is built — the compute tests
++ * create the SSBO DEVICE_ONLY with no initial upload, so nothing else would. */
++void WGPUStorageBuffer::bind(int slot)
++{
++  if (!ensure()) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx != nullptr) {
++    ctx->storage_buffer_bind(slot, this);
++  }
++}
++void WGPUStorageBuffer::unbind()
++{
++  WGPUContext *ctx = active_context();
++  if (ctx != nullptr) {
++    ctx->storage_buffer_unbind(this);
++  }
++}
+ 
+ /* read() is synchronous (blocks on the instance), so the async flush is a no-op;
+  * the Indirect usage bit is set at creation, so no explicit sync is needed. */
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.hh b/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
+index 825623a..a3b2415 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.hh
+@@ -37,7 +37,7 @@ class WGPUStorageBuffer : public StorageBuf {
+       : StorageBuf(size, name), usage_(usage)
+   {
+   }
+-  ~WGPUStorageBuffer() override = default;
++  ~WGPUStorageBuffer() override;
+ 
+   void update(const void *data) override;
+   void bind(int slot) override;

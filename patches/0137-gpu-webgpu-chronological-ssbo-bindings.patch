@@ -1,0 +1,297 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 2b37ad3..1d17196 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -19,6 +19,7 @@
+ 
+ #include "gpu_context_private.hh"
+ 
++#include <cstdint>
+ #include <string>
+ #include <unordered_map>
+ #include <vector>
+@@ -42,6 +43,23 @@
+ 
+ class WGPUContext : public Context {
+  public:
++  enum class BufferSSBOBindKind : uint8_t {
++    Storage,
++    Sampler,
++  };
++
++  struct BoundStorageBuffer {
++    WGPUStorageBuffer *buffer = nullptr;
++    uint64_t serial = 0;
++  };
++
++  struct BoundBufferSSBO {
++    int slot = 0;
++    const webgpu::Buffer *buffer = nullptr;
++    BufferSSBOBindKind kind = BufferSSBOBindKind::Storage;
++    uint64_t serial = 0;
++  };
++
+   WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context);
+   ~WGPUContext() override;
+ 
+@@ -90,15 +108,19 @@
+    * @binding slot here. Recorded by WGPUStorageBuffer::bind()/unbind(); consumed
+    * by WGPUBackend::compute_dispatch to assemble the group-0 bind group. Mirrors
+    * VKStateManager's storage-buffer bind-space. Keyed by binding slot; last bind
+-   * to a slot wins (matches the frontend rebinding a slot per dispatch). */
++   * to a slot wins (matches the frontend rebinding a slot per dispatch). The serial
++   * shares one chronology with VBO/IBO storage and buffer-texture binds below. */
+   void storage_buffer_bind(int slot, WGPUStorageBuffer *ssbo)
+   {
+-    bound_storage_buffers_[slot] = ssbo;
++    const uint64_t buffer_key = (uint64_t(BufferSSBOBindKind::Storage) << 32) |
++                                uint32_t(slot);
++    bound_buffer_ssbos_.erase(buffer_key);
++    bound_storage_buffers_[slot] = {ssbo, ++storage_bind_serial_};
+   }
+   void storage_buffer_unbind(WGPUStorageBuffer *ssbo)
+   {
+     for (auto it = bound_storage_buffers_.begin(); it != bound_storage_buffers_.end();) {
+-      if (it->second == ssbo) {
++      if (it->second.buffer == ssbo) {
+         it = bound_storage_buffers_.erase(it);
+       }
+       else {
+@@ -106,7 +128,7 @@
+       }
+     }
+   }
+-  const std::unordered_map<int, WGPUStorageBuffer *> &bound_storage_buffers() const
++  const std::unordered_map<int, BoundStorageBuffer> &bound_storage_buffers() const
+   {
+     return bound_storage_buffers_;
+   }
+@@ -115,17 +137,24 @@
+    * A VertBuf or IndexBuf may be bound as a storage buffer (GPU_vertbuf_bind_as_ssbo
+    * / GPU_indexbuf_bind_as_ssbo — subdiv / compute readback paths). These are not
+    * WGPUStorageBuffer objects, so they need their own bind-space: the raw
+-   * webgpu::Buffer they own is recorded here keyed by the WGSL @binding slot and
+-   * added to the group-0 bind group alongside the StorageBufs. Keyed by slot, last
+-   * bind wins; the owning VertBuf/IndexBuf unbinds itself on release. */
+-  void buffer_ssbo_bind(int slot, const webgpu::Buffer *buffer)
++   * webgpu::Buffer they own is recorded here keyed by the typed frontend slot and
++   * added to the group-0 bind group alongside the StorageBufs. Storage and Sampler
++   * slots are distinct namespaces until shader remapping; the shared serial lets the
++   * newest valid bind win if they converge on one dense storage binding. */
++  void buffer_ssbo_bind(int slot,
++                        const webgpu::Buffer *buffer,
++                        BufferSSBOBindKind kind)
+   {
+-    bound_buffer_ssbos_[slot] = buffer;
++    const uint64_t key = (uint64_t(kind) << 32) | uint32_t(slot);
++    if (kind == BufferSSBOBindKind::Storage) {
++      bound_storage_buffers_.erase(slot);
++    }
++    bound_buffer_ssbos_[key] = {slot, buffer, kind, ++storage_bind_serial_};
+   }
+   void buffer_ssbo_unbind(const webgpu::Buffer *buffer)
+   {
+     for (auto it = bound_buffer_ssbos_.begin(); it != bound_buffer_ssbos_.end();) {
+-      if (it->second == buffer) {
++      if (it->second.buffer == buffer) {
+         it = bound_buffer_ssbos_.erase(it);
+       }
+       else {
+@@ -133,7 +162,7 @@
+       }
+     }
+   }
+-  const std::unordered_map<int, const webgpu::Buffer *> &bound_buffer_ssbos() const
++  const std::unordered_map<uint64_t, BoundBufferSSBO> &bound_buffer_ssbos() const
+   {
+     return bound_buffer_ssbos_;
+   }
+@@ -258,10 +287,12 @@
+   std::string adapter_name_;
+   /** Set between activate() and deactivate(); guards double-activation. */
+   bool is_active_ = false;
+-  /** Bound storage buffers keyed by WGSL @binding slot (see storage_buffer_bind). */
+-  std::unordered_map<int, WGPUStorageBuffer *> bound_storage_buffers_;
+-  /** VBO/IBO buffers bound as SSBOs keyed by WGSL @binding slot (see buffer_ssbo_bind). */
+-  std::unordered_map<int, const webgpu::Buffer *> bound_buffer_ssbos_;
++  /** One monotonically increasing chronology for every storage-like frontend bind. */
++  uint64_t storage_bind_serial_ = 0;
++  /** Bound storage buffers keyed by frontend STORAGE_BUFFER slot. */
++  std::unordered_map<int, BoundStorageBuffer> bound_storage_buffers_;
++  /** VBO/IBO buffers keyed by typed (STORAGE_BUFFER or SAMPLER) frontend slot. */
++  std::unordered_map<uint64_t, BoundBufferSSBO> bound_buffer_ssbos_;
+   /** Separately-bound uniform buffers keyed by WGSL @binding slot. */
+   std::unordered_map<int, WGPUUniformBuffer *> bound_uniform_buffers_;
+   /** wgpu::Sampler cache keyed by GPUSamplerState::as_uint(). */
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index db6652c..dea9a0d 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -11,6 +11,7 @@
+ 
+ #include "wgpu_context.hh"
+ 
++#include <map>
+ #include <set>
+ 
+ #include "BLI_assert.h"
+@@ -592,69 +593,68 @@
+     entries.push_back(e);
+   }
+ 
+-  /* Storage buffers (GPU_storagebuf_bind). */
+-  for (const auto &item : bound_storage_buffers_) {
+-    const bool mapped = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
++  /* StorageBufs, VBO/IBO-as-SSBOs, and samplerBuffer-emulation VBOs share one
++   * chronological storage-binding namespace. First collect every valid candidate in
++   * this mapped/fallback pass, remapping buffer records through their tagged frontend
++   * namespace. If multiple candidates converge on one dense storage binding, retain
++   * only the most recently bound one. This mirrors native last-bind-wins semantics
++   * without giving geometry buffers unconditional priority over StorageBufs. */
++  struct StorageCandidate {
++    const webgpu::Buffer *buffer;
++    uint64_t serial;
++  };
++  std::map<uint32_t, StorageCandidate> storage_candidates;
++  auto consider_storage_candidate = [&](int slot,
++                                        shader::ShaderCreateInfo::Resource::BindType type,
++                                        uint64_t serial,
++                                        const webgpu::Buffer *buffer) {
++    const bool mapped = shader->slot_is_mapped(type, slot);
+     if (mapped != (pass == 0)) {
+-      continue; /* wrong pass for this bind flavor */
++      return; /* wrong pass for this bind flavor */
+     }
+-    const uint32_t b = uint32_t(shader->remap_ssbo_binding(item.first));
+-    if (pass == 1 && claimed.count(b)) {
+-      continue; /* a mapped bind already claimed this binding */
+-    }
+-    if (is_pc(b) || !is_storage_binding(b)) {
+-      continue;
++    const uint32_t b = uint32_t(
++        type == shader::ShaderCreateInfo::Resource::BindType::SAMPLER ?
++            shader->remap_sampler_binding(slot) :
++            shader->remap_ssbo_binding(slot));
++    if ((pass == 1 && claimed.count(b)) || is_pc(b) || !is_storage_binding(b) ||
++        buffer == nullptr || !buffer->valid())
++    {
++      return;
+     }
+-    WGPUStorageBuffer *ssbo = item.second;
+-    if (ssbo == nullptr) {
+-      continue;
++    auto winner = storage_candidates.find(b);
++    if (winner == storage_candidates.end() || serial > winner->second.serial) {
++      storage_candidates.insert_or_assign(b, StorageCandidate{buffer, serial});
+     }
+-    const webgpu::Buffer &buf = ssbo->buffer();
+-    if (!buf.valid()) {
+-      continue;
+-    }
+-    claimed.insert(b); /* claim only when emitting a matching-kind entry (see UBO loop) */
+-    wgpu::BindGroupEntry e = {};
+-    e.binding = b;
+-    e.buffer = buf.handle();
+-    e.offset = 0;
+-    e.size = buf.size();
+-    entries.push_back(e);
++  };
++
++  for (const auto &item : bound_storage_buffers_) {
++    const BoundStorageBuffer &record = item.second;
++    const webgpu::Buffer *buffer = record.buffer != nullptr ? &record.buffer->buffer() : nullptr;
++    consider_storage_candidate(
++        item.first,
++        shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER,
++        record.serial,
++        buffer);
+   }
+ 
+-  /* VBO / IBO bound as an SSBO, and buffer textures bound via bind_as_texture
+-   * (both recorded in the buffer-SSBO bind-space). */
+   for (const auto &item : bound_buffer_ssbos_) {
+-    /* A buffer-SSBO bind is EITHER a real VBO/IBO-as-SSBO (STORAGE_BUFFER create-info slot,
+-     * bind_as_ssbo) or an emulated texel buffer (SAMPLER create-info slot, bind_as_texture:
+-     * a samplerBuffer rewritten to a readonly storage buffer). Under the unified create-info
+-     * slot namespace both key on their create-info slot, so remap through whichever namespace
+-     * declares the slot -- SSBO first (the common case), else the SAMPLER (texel-buffer) map --
+-     * so the emulated texel buffer still lands on its real dense storage binding. */
+-    const bool mapped_ssbo = shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER, item.first);
+-    const bool mapped_samp = !mapped_ssbo && shader->slot_is_mapped(shader::ShaderCreateInfo::Resource::BindType::SAMPLER, item.first);
+-    const bool mapped = mapped_ssbo || mapped_samp;
+-    if (mapped != (pass == 0)) {
+-      continue; /* wrong pass for this bind flavor */
+-    }
+-    const uint32_t b = uint32_t(mapped_samp ? shader->remap_sampler_binding(item.first)
+-                                            : shader->remap_ssbo_binding(item.first));
+-    if (pass == 1 && claimed.count(b)) {
+-      continue; /* a mapped bind already claimed this binding */
+-    }
+-    if (is_pc(b) || !is_storage_binding(b)) {
+-      continue;
+-    }
+-    const webgpu::Buffer *buf = item.second;
+-    if (buf == nullptr || !buf->valid()) {
+-      continue;
+-    }
+-    claimed.insert(b); /* claim only when emitting a matching-kind entry (see UBO loop) */
++    const BoundBufferSSBO &record = item.second;
++    const shader::ShaderCreateInfo::Resource::BindType type =
++        record.kind == BufferSSBOBindKind::Sampler ?
++            shader::ShaderCreateInfo::Resource::BindType::SAMPLER :
++            shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER;
++    consider_storage_candidate(record.slot, type, record.serial, record.buffer);
++  }
++
++  for (const auto &item : storage_candidates) {
++    const uint32_t b = item.first;
++    const webgpu::Buffer &buffer = *item.second.buffer;
++    claimed.insert(b);
+     wgpu::BindGroupEntry e = {};
+     e.binding = b;
+-    e.buffer = buf->handle();
++    e.buffer = buffer.handle();
+     e.offset = 0;
+-    e.size = buf->size();
++    e.size = buffer.size();
+     entries.push_back(e);
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index 8d24b3d..0e5727e 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -266,7 +266,8 @@
+   if (!buffer_.valid()) {
+     return;
+   }
+-  ctx->buffer_ssbo_bind(int(binding), &buffer_);
++  ctx->buffer_ssbo_bind(
++      int(binding), &buffer_, WGPUContext::BufferSSBOBindKind::Storage);
+ }
+ 
+ /* Bind this vertex buffer as an emulated texel buffer (GPU_vertbuf_bind_as_texture — the
+@@ -303,7 +304,8 @@
+             "emulation (only RGBA32F/16B and R32*/4B accepted); reads will be incorrect.\n",
+             stride);
+   }
+-  ctx->buffer_ssbo_bind(int(binding), &buffer_);
++  ctx->buffer_ssbo_bind(
++      int(binding), &buffer_, WGPUContext::BufferSSBOBindKind::Sampler);
+ }
+ 
+ void WGPUVertexBuffer::wrap_handle(uint64_t /*handle*/)
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+index 86cfd3f..d2c2d54 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -127,7 +127,8 @@
+     return;
+   }
+   if (WGPUContext *ctx = active_context()) {
+-    ctx->buffer_ssbo_bind(int(binding), &buffer_);
++    ctx->buffer_ssbo_bind(
++        int(binding), &buffer_, WGPUContext::BufferSSBOBindKind::Storage);
+   }
+ }
+ 

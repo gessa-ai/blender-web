@@ -1,0 +1,125 @@
+diff --git a/source/blender/makesdna/intern/makesdna.cc b/source/blender/makesdna/intern/makesdna.cc
+--- a/source/blender/makesdna/intern/makesdna.cc
++++ b/source/blender/makesdna/intern/makesdna.cc
+@@ -227,8 +227,65 @@
+     return sizeof(void *) * array_num;
+   }
+   return member_type.size_native * array_num;
++}
++
++#ifdef __EMSCRIPTEN__
++/* -------------------------------------------------------------------------
++ * blender-web: wasm32 struct-layout correction.
++ *
++ * makesdna's `size_native` model computes each member's offset as a running SUM
++ * of member sizes and does NOT insert alignment padding of its own; it relies on
++ * the DNA structs being hand-padded so the sum already lands every member on its
++ * natural boundary for the *native* ABI. That hand-padding is tuned for the two
++ * ABIs Blender historically targeted: LP64 (pointers 8, int64_t/double 8) and
++ * ILP32/i386-style (pointers 4, and -- crucially -- int64_t/double aligned to 4).
++ * makesdna encodes exactly this: when `sizeof(void*) == 4` it treats an 8-byte
++ * scalar as only needing 4-byte alignment, and it only enforces 8-byte struct
++ * alignment when `sizeof(void*) == 8` (see the struct-alignment check below).
++ *
++ * wasm32 is a THIRD ABI that model never anticipated: pointers are 4 bytes (like
++ * i386) but int64_t / double / any struct containing them keep 8-byte alignment
++ * (like LP64). Because the makesdna tool is itself cross-compiled to wasm32 here,
++ * `sizeof(void*)` is 4 inside it, so it lays members out i386-style -- omitting
++ * the very padding Clang's real wasm32 layout inserts. Concrete failure:
++ * `offsetof(Scene, customdata_mask)` -> makesdna 5012, emcc 5016 (a 4-byte pad
++ * before the 8-aligned CustomData_MeshMasks that makesdna skipped), tripping the
++ * offsetof() static_assert in dna_verify.cc.
++ *
++ * Fix: on the wasm build only, round the running offset UP to each member's real
++ * wasm32 alignment before adding its size -- exactly what the C++ compiler does.
++ * `align_32` already encodes the wasm32 alignment model member-for-member
++ * (pointers 4, int64_t/double 8, structs = recursive max of their members), so it
++ * is the correct per-member alignment to round to.
++ *
++ * This entire path is compiled ONLY into the wasm makesdna. The native host tool
++ * that generates the shipping DNA is built without __EMSCRIPTEN__, so native
++ * `.blend` layout is byte-for-byte identical to upstream (the guard cannot alter
++ * it). Ported for the web from source/blender/makesdna/intern/makesdna.cc.
++ */
++static int member_align_native(const TypeInfo &member_type,
++                               const dna::ParsedMember &parsed_member)
++{
++  const char *cp = parsed_member.member_name.c_str();
++  /* Pointer or function pointer: wasm32 pointer alignment is 4. */
++  if (cp[0] == '*' || cp[1] == '*') {
++    return 4;
++  }
++  /* `align_32` models pointers-as-4 with natural (size-based) scalar alignment,
++   * i.e. exactly wasm32. Fold in any per-member C++ `alignas` override. */
++  return std::max<int>(member_type.align_32, parsed_member.alignment);
+ }
+ 
++/** Round `offset` up to a multiple of `align` (a power of two >= 1). */
++static int dna_align_up(const int offset, const int align)
++{
++  if (align > 1 && (offset % align) != 0) {
++    return offset + (align - (offset % align));
++  }
++  return offset;
++}
++#endif /* __EMSCRIPTEN__ */
++
+ static bool check_member_alignment(const TypeInfo &struct_info,
+                                    const TypeInfo &member_type,
+                                    const int len,
+@@ -351,6 +408,10 @@
+               dna_error = true;
+             }
+ 
++#ifdef __EMSCRIPTEN__
++            /* wasm32: align the pointer to 4 before placing it (see note above). */
++            size_native = dna_align_up(size_native, 4);
++#endif
+             size_native += member_size_native(member_type, parsed_member);
+             size_32 += 4 * array_num;
+             size_64 += 8 * array_num;
+@@ -410,6 +471,13 @@
+               dna_error = true;
+             }
+ 
++#ifdef __EMSCRIPTEN__
++            /* wasm32: align this scalar/struct member to its natural boundary
++             * before placing it (int64_t/double and structs containing them are
++             * 8-aligned even though pointers are 4). See note above. */
++            size_native = dna_align_up(size_native,
++                                       member_align_native(member_type, parsed_member));
++#endif
+             size_native += member_size_native(member_type, parsed_member);
+             size_32 += array_num * member_type.size_32;
+             size_64 += array_num * member_type.size_64;
+@@ -424,7 +492,17 @@
+             size_64 = 0;
+             break;
+           }
++        }
++
++#ifdef __EMSCRIPTEN__
++        /* wasm32: pad the struct tail up to its own alignment, mirroring how the
++         * C++ compiler rounds sizeof() up to the struct's alignment. Keeps
++         * `size_native` (the sizeof() assert value, and the size used when this
++         * struct is nested in another) consistent with Clang's wasm32 layout. */
++        if (size_native != 0) {
++          size_native = dna_align_up(size_native, max_align_32);
+         }
++#endif
+ 
+         if (size_native == 0) {
+           unknown++;
+@@ -782,6 +860,12 @@
+     for (const dna::ParsedMember &parsed_member : parsed_struct.members) {
+       const TypeInfo &member_type = table.lookup(parsed_member.type_name);
+       const StringRef alias_id = DNA_member_id_string_ref(parsed_member.alias_member_name);
++#ifdef __EMSCRIPTEN__
++      /* wasm32: advance to this member's aligned offset, matching the padding the
++       * compiler inserts (and the size_native model above). Without this the
++       * emitted offsetof() assert would use the unpadded running sum and fail. */
++      offset = dna_align_up(offset, member_align_native(member_type, parsed_member));
++#endif
+       fprintf(file,
+               "BLI_STATIC_ASSERT(offsetof(struct %s, %.*s) == %d, \"DNA member offset "
+               "verify\");\n",

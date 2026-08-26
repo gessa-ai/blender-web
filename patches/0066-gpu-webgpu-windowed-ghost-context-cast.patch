@@ -1,0 +1,56 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index c4d2595..fb7a7f0 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -25,7 +25,30 @@
+  * intern/ghost/intern to this TU's include path. Production should instead route
+  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
+  * the gpu module never sees a GHOST-private header — noted in the T4 findings. */
+-#include "GHOST_ContextWGPU.hh"
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++/* Windowed browser build: GHOST_WindowWeb::newDrawingContext /
++ * GHOST_SystemWeb::createOffscreenContext hand back a GHOST_ContextWGPUWeb (the
++ * emdawnwebgpu twin), NOT the native GHOST_ContextWGPU. The two classes have
++ * DIFFERENT member layouts — the web class stores canvas_selector_/width_/height_
++ * BEFORE its instance_/adapter_/device_/queue_ handles — so casting the web object
++ * to the native type and calling getInstance() reads the std::string SSO bytes as
++ * the instance pointer. That garbage handle is misaligned, and its first
++ * wgpuInstanceAddRef traps with "operation does not support unaligned accesses"
++ * (wasm32 i64 atomic RMW on RefCounted::mRefCount needs 8-byte alignment). Select
++ * the correct GHOST context type here — the same seam the in-tab render harness
++ * (sandbox/gpu-render-harness/wgpu_context_web.cc) already uses, which is exactly
++ * why that main-thread profile never hit the trap. The guard is !WITH_HEADLESS
++ * (NOT WITH_GHOST_WEB — that add_definitions is scoped to intern/ghost only and
++ * never reaches bf_gpu): the windowed browser target is the sole non-headless
++ * Emscripten WebGPU build and has platform_web/ghost on bf_gpu's include path,
++ * whereas the M3 offscreen/conformance build (build-wasm-gpu, WITH_HEADLESS) and
++ * any native build keep the native branch below unchanged. */
++#  include "GHOST_ContextWGPUWeb.hh"
++using WGPUGhostContext = GHOST_ContextWGPUWeb;
++#else
++#  include "GHOST_ContextWGPU.hh"
++using WGPUGhostContext = GHOST_ContextWGPU;
++#endif
+ 
+ #include <algorithm>
+ #include <climits>
+@@ -44,12 +67,18 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+    * GHOST_kDrawingContextTypeWebGPU, so it is a GHOST_ContextWGPU. Borrow its
+    * already-initialized Dawn instance/adapter/device/queue (ownership stays with
+    * GHOST). */
+-  GHOST_ContextWGPU *wgpu_ghost = static_cast<GHOST_ContextWGPU *>(ghost_context);
++  WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context);
+   instance_ = wgpu_ghost->getInstance();
+   adapter_ = wgpu_ghost->getAdapter();
+   device_ = wgpu_ghost->getDevice();
+   queue_ = wgpu_ghost->getQueue();
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* GHOST_ContextWGPUWeb has no getAdapterName() (the browser exposes no adapter
++   * name string); mirror the harness override's fixed label. */
++  adapter_name_ = "emdawnwebgpu";
++#else
+   adapter_name_ = wgpu_ghost->getAdapterName();
++#endif
+ 
+   /* Publish the device/instance/queue backend-side so worker threads (async
+    * shader compilation) can reach them without the thread-local active context —

@@ -1,0 +1,49 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1072,7 +1072,9 @@
+     dsa.view = view;
+     dsa.depthLoadOp = wgpu::LoadOp::Clear;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
+-    dsa.depthClearValue = float(data[0]);
++    /* Dawn rejects a non-finite depthClearValue at beginRenderPass; clamp to a finite
++     * far value (1.0) so a NaN/Inf clear value cannot abort the render pass. */
++    dsa.depthClearValue = std::isfinite(float(data[0])) ? float(data[0]) : 1.0f;
+     if (format_ == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
+       dsa.stencilLoadOp = wgpu::LoadOp::Clear;
+       dsa.stencilStoreOp = wgpu::StoreOp::Store;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -21,6 +21,7 @@
+ #include "BLI_math_vector_types.hh"
+ 
+ #include <algorithm>
++#include <cmath>
+ #include <cstring>
+ #include <vector>
+ 
+@@ -147,7 +148,10 @@
+     dsa.view = attachment_view(depth_attachment());
+     dsa.depthLoadOp = (buffers & GPU_DEPTH_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
+-    dsa.depthClearValue = clear_depth;
++    /* WebGPU/Dawn rejects a non-finite depthClearValue at beginRenderPass even when
++     * loadOp=Load (the property is always read). Blender hands NaN/Inf here on some
++     * window-composite clears, so clamp to a finite far value (1.0). */
++    dsa.depthClearValue = std::isfinite(clear_depth) ? clear_depth : 1.0f;
+     if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
+       dsa.stencilLoadOp = (buffers & GPU_STENCIL_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+       dsa.stencilStoreOp = wgpu::StoreOp::Store;
+@@ -378,6 +382,11 @@
+     dsa.view = attachment_view(depth_attachment(), force_layer);
+     dsa.depthLoadOp = wgpu::LoadOp::Load;
+     dsa.depthStoreOp = wgpu::StoreOp::Store;
++    /* Even with loadOp=Load the value is required to be finite: emdawnwebgpu's JS
++     * binding reads depthClearValue when marshalling the descriptor and rejects the
++     * default WGPU_DEPTH_CLEAR_VALUE_UNDEFINED (NaN) — a browser-only trap native Dawn
++     * doesn't hit (it ignores the value on Load). Set a finite far value. */
++    dsa.depthClearValue = 1.0f;
+     if (dtex->format_get() == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
+       dsa.stencilLoadOp = wgpu::LoadOp::Load;
+       dsa.stencilStoreOp = wgpu::StoreOp::Store;

@@ -1,0 +1,177 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index b5bd0f62c99559d293e50898d865d91862bbeb34..f22e8a90d1561e3759134c03925f8baa6a0c683f 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -295,58 +295,78 @@ void WGPUVertexBuffer::upload_data()
+     return;
+   }
+ 
++  if (upload_transaction_.started()) {
++    if (!upload_transaction_.accepted()) {
++      return;
++    }
++    upload_transaction_.reset();
++    data_uploaded_ = true;
++    flag |= GPU_VERTBUF_DATA_UPLOADED;
++    /* The queued payload consumed its dirty bit when it was retained. A set bit now belongs to
++     * a newer CPU mutation, so preserve its host data and schedule it below. */
++    if ((flag & GPU_VERTBUF_DATA_DIRTY) == 0) {
++      if ((usage_ & 0x3) == GPU_USAGE_STATIC) {
++        MEM_SAFE_DELETE(data_);
++      }
++      return;
++    }
++  }
++
+   if (flag & GPU_VERTBUF_DATA_DIRTY) {
+     buffer_texture_buffer_dirty_ = true;
+-    if (upload_transaction_.started()) {
+-      if (!upload_transaction_.accepted()) {
++    const size_t used = size_used_get();
++    if (data_ != nullptr && used > 0) {
++      WGPUContext *ctx = active_context();
++      if (ctx == nullptr) {
+         return;
+       }
+-    }
+-    else {
+-      const size_t used = size_used_get();
+-      if (data_ != nullptr && used > 0) {
+-        WGPUContext *ctx = active_context();
+-        if (ctx == nullptr) {
+-          return;
+-        }
+-        /* Signed packed normals (GPU_COMP_I10) have no native WebGPU vertex format; transcode
+-         * them to Snorm8x4 in a scratch copy so `data_` (which DYNAMIC/STREAM buffers keep and
+-         * re-upload) is never mutated. See transcode_i10_attrs. */
+-        const void *upload_data = data_;
+-        std::vector<uint8_t> scratch;
+-        if (format_has_norm_i10(format)) {
+-          scratch.assign(data_, data_ + used);
+-          transcode_i10_attrs(scratch.data(), used, format, vertex_len);
+-          upload_data = scratch.data();
+-        }
++      /* Signed packed normals (GPU_COMP_I10) have no native WebGPU vertex format; transcode
++       * them to Snorm8x4 in a scratch copy so `data_` (which DYNAMIC/STREAM buffers keep and
++       * re-upload) is never mutated. See transcode_i10_attrs. */
++      const void *upload_data = data_;
++      std::vector<uint8_t> scratch;
++      if (format_has_norm_i10(format)) {
++        scratch.assign(data_, data_ + used);
++        transcode_i10_attrs(scratch.data(), used, format, vertex_len);
++        upload_data = scratch.data();
++      }
+ 
+-        /* GPUVertFormat::pack() does not guarantee that the final logical byte count is
+-         * four-aligned. Preserve exactly those caller-owned bytes and zero-fill only the
+-         * transfer tail; do not discard the host copy or dirty state until the implementation
+-         * scopes accept the exact retained transfer. */
+-        webgpu::BufferUpdatePayload payload;
+-        if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload) ||
+-            !buffer_.update_sub(ctx->instance_get(),
+-                                ctx->device_get(),
+-                                ctx->queue_get(),
+-                                ctx->queue_scheduler_get(),
+-                                0,
+-                                payload.data(upload_data),
+-                                payload.transfer_size,
+-                                upload_transaction_) ||
+-            !upload_transaction_.accepted())
+-        {
+-          return;
++      /* GPUVertFormat::pack() does not guarantee that the final logical byte count is
++       * four-aligned. Preserve exactly those caller-owned bytes and zero-fill only the
++       * transfer tail. Once the queue retains that exact snapshot, consume only its dirty bit;
++       * any later frontend mutation raises a distinct bit that acceptance must not clear. */
++      webgpu::BufferUpdatePayload payload;
++      if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload)) {
++        return;
++      }
++      flag &= ~GPU_VERTBUF_DATA_DIRTY;
++      if (!buffer_.update_sub(ctx->instance_get(),
++                              ctx->device_get(),
++                              ctx->queue_get(),
++                              ctx->queue_scheduler_get(),
++                              0,
++                              payload.data(upload_data),
++                              payload.transfer_size,
++                              upload_transaction_))
++      {
++        if (!upload_transaction_.started()) {
++          flag |= GPU_VERTBUF_DATA_DIRTY;
+         }
++        return;
++      }
++      if (!upload_transaction_.accepted()) {
++        return;
+       }
++      upload_transaction_.reset();
+     }
+-    upload_transaction_.reset();
+-    if ((usage_ & 0x3) == GPU_USAGE_STATIC) {
+-      MEM_SAFE_DELETE(data_);
++    else {
++      flag &= ~GPU_VERTBUF_DATA_DIRTY;
+     }
+     data_uploaded_ = true;
+-    flag &= ~GPU_VERTBUF_DATA_DIRTY;
+     flag |= GPU_VERTBUF_DATA_UPLOADED;
++    if ((flag & GPU_VERTBUF_DATA_DIRTY) == 0 && (usage_ & 0x3) == GPU_USAGE_STATIC) {
++      MEM_SAFE_DELETE(data_);
++    }
+   }
+ }
+ 
+@@ -492,7 +512,6 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+       return;
+     }
+     buffer_texture_upload_transaction_.reset();
+-    buffer_texture_buffer_dirty_ = false;
+   }
+   if (format.attr_len == 1 && format.attrs[0].type.comp_type() == GPU_COMP_F32 &&
+       format.attrs[0].type.comp_len() < 4)
+@@ -536,21 +555,31 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+         {
+           return;
+         }
++        buffer_texture_buffer_dirty_ = false;
+       }
+-      else if (!buffer_texture_buffer_.update_sub(ctx->instance_get(),
+-                                                   ctx->device_get(),
+-                                                   ctx->queue_get(),
+-                                                   ctx->queue_scheduler_get(),
+-                                                   0,
+-                                                   expanded.data(),
+-                                                   expanded.size() * sizeof(float),
+-                                                   buffer_texture_upload_transaction_) ||
+-               !buffer_texture_upload_transaction_.accepted())
+-      {
+-        return;
++      else {
++        /* Consume only the expansion represented by this retained payload. A primary-buffer
++         * upload that completes while it is pending raises this bit again for the next bind. */
++        buffer_texture_buffer_dirty_ = false;
++        if (!buffer_texture_buffer_.update_sub(ctx->instance_get(),
++                                                ctx->device_get(),
++                                                ctx->queue_get(),
++                                                ctx->queue_scheduler_get(),
++                                                0,
++                                                expanded.data(),
++                                                expanded.size() * sizeof(float),
++                                                buffer_texture_upload_transaction_))
++        {
++          if (!buffer_texture_upload_transaction_.started()) {
++            buffer_texture_buffer_dirty_ = true;
++          }
++          return;
++        }
++        if (!buffer_texture_upload_transaction_.accepted()) {
++          return;
++        }
++        buffer_texture_upload_transaction_.reset();
+       }
+-      buffer_texture_upload_transaction_.reset();
+-      buffer_texture_buffer_dirty_ = false;
+     }
+     binding_buffer = &buffer_texture_buffer_;
+   }

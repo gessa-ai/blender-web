@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/makesdna/intern/CMakeLists.txt and
+# source/blender/makesrna/intern/CMakeLists.txt @ fbe6228777e7
+#
+# Run Blender's build-time host codegen tools (makesdna/makesrna) under node when
+# cross-compiling to wasm: prepend CMAKE_CROSSCOMPILING_EMULATOR to their
+# add_custom_command invocations, and give each tool the node-runnable link
+# profile via blender_web_host_tool() (platform_wasm.cmake). See notes/m1-hosttools.md.
+diff --git a/source/blender/makesdna/intern/CMakeLists.txt b/source/blender/makesdna/intern/CMakeLists.txt
+index 24a06391c68..aa4d934a0c4 100644
+--- a/source/blender/makesdna/intern/CMakeLists.txt
++++ b/source/blender/makesdna/intern/CMakeLists.txt
+@@ -96,6 +96,13 @@ blender_target_include_dirs_sys(makesdna ${INC_SYS})
+ target_link_libraries(makesdna ${LIB})
+ target_link_libraries(makesdna PRIVATE bf::dependencies::pthreads)
+ 
++# blender-web: makesdna is a build-time host tool executed under node, not a
++# browser module — give it the node-runnable link profile (defined in
++# platform_wasm.cmake). No-op on non-Emscripten toolchains.
++if(COMMAND blender_web_host_tool)
++  blender_web_host_tool(makesdna)
++endif()
++
+ # Output dna.cc
+ add_custom_command(
+   OUTPUT
+@@ -106,6 +113,8 @@ add_custom_command(
+     ${CMAKE_CURRENT_BINARY_DIR}/dna_verify.cc
+   COMMAND
+     ${CMAKE_COMMAND} -E env ${PLATFORM_ENV_BUILD}
++    # blender-web: run the wasm host tool through node (empty on native builds).
++    ${CMAKE_CROSSCOMPILING_EMULATOR}
+     "$<TARGET_FILE:makesdna>"
+     ${CMAKE_CURRENT_BINARY_DIR}/dna.cc
+     ${CMAKE_CURRENT_BINARY_DIR}/dna_type_offsets.h
+diff --git a/source/blender/makesrna/intern/CMakeLists.txt b/source/blender/makesrna/intern/CMakeLists.txt
+index da7857df8f4..c0a235af15f 100644
+--- a/source/blender/makesrna/intern/CMakeLists.txt
++++ b/source/blender/makesrna/intern/CMakeLists.txt
+@@ -416,6 +416,13 @@ target_link_libraries(makesrna PRIVATE bf::dependencies::optional::tbb)
+ target_link_libraries(makesrna PRIVATE bf::dependencies::pthreads)
+ target_link_libraries(makesrna PRIVATE bf::dependencies::fmt)
+ 
++# blender-web: makesrna is a build-time host tool executed under node, not a
++# browser module — give it the node-runnable link profile (defined in
++# platform_wasm.cmake). No-op on non-Emscripten toolchains.
++if(COMMAND blender_web_host_tool)
++  blender_web_host_tool(makesrna)
++endif()
++
+ # Output `rna_*_gen.cc`.
+ # NOTE: (Linux only): with crashes try add this after COMMAND:
+ # `valgrind --leak-check=full --track-origins=yes`
+@@ -423,6 +430,8 @@ add_custom_command(
+   OUTPUT ${GENSRC}
+   COMMAND
+     ${CMAKE_COMMAND} -E env ${PLATFORM_ENV_BUILD}
++    # blender-web: run the wasm host tool through node (empty on native builds).
++    ${CMAKE_CROSSCOMPILING_EMULATOR}
+     "$<TARGET_FILE:makesrna>" ${CMAKE_SOURCE_DIR}/source/blender/makesdna/ ${CMAKE_CURRENT_BINARY_DIR}/ ${CMAKE_CURRENT_BINARY_DIR}/../
+   DEPENDS makesrna
+ )

@@ -1,0 +1,2843 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index fa24de0fbcbe14a38de34332ba820f76680984af..a7e2fdda825aa80a736ed43462bb240da70966a2 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -210,20 +210,21 @@ void WGPUBackend::compute_dispatch(int groups_x_len, int groups_y_len, int group
+     return;
+   }
+ 
+-  if (!webgpu::command_pass_encode_submit_if_valid(
+-          device,
+-          ctx->queue_get(),
+-          [](auto &encoder) { return encoder.BeginComputePass(); },
+-          [&](auto &pass) {
+-            pass.SetPipeline(pipeline);
+-            if (have_bg) {
+-              pass.SetBindGroup(0, bind_group);
+-            }
+-            pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
+-          }))
+-  {
+-    return;
+-  }
++  webgpu::command_pass_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "direct compute dispatch",
++      [](auto &encoder) { return encoder.BeginComputePass(); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        if (have_bg) {
++          pass.SetBindGroup(0, bind_group);
++        }
++        pass.DispatchWorkgroups(dispatch.groups_x, dispatch.groups_y, dispatch.groups_z);
++      },
++      [](bool) {});
+ }
+ 
+ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+@@ -260,20 +261,21 @@ void WGPUBackend::compute_dispatch_indirect(StorageBuf *indirect_buf)
+     return;
+   }
+ 
+-  if (!webgpu::command_pass_encode_submit_if_valid(
+-          device,
+-          ctx->queue_get(),
+-          [](auto &encoder) { return encoder.BeginComputePass(); },
+-          [&](auto &pass) {
+-            pass.SetPipeline(pipeline);
+-            if (have_bg) {
+-              pass.SetBindGroup(0, bind_group);
+-            }
+-            pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
+-          }))
+-  {
+-    return;
+-  }
++  webgpu::command_pass_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "indirect compute dispatch",
++      [](auto &encoder) { return encoder.BeginComputePass(); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        if (have_bg) {
++          pass.SetBindGroup(0, bind_group);
++        }
++        pass.DispatchWorkgroupsIndirect(indirect_gpu.handle(), 0);
++      },
++      [](bool) {});
+ }
+ 
+ /* --- Placeholders: not reached by the M3.T4 bootstrap. -------------------- */
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 8c39156dab60b373bc7829f3b74bed57aa8af537..1afa777019035930b81a5577d8961409618d6c4c 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -198,15 +198,20 @@ static bool expand_indexed_triangle_fan(WGPUContext &ctx,
+     return false;
+   }
+ 
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      ctx.instance_get(),
+       ctx.device_get(),
+       ctx.queue_get(),
++      ctx.queue_scheduler_get(),
++      "indexed triangle-fan expansion",
+       [](auto &encoder) { return encoder.BeginComputePass(); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+         pass.SetBindGroup(0, group);
+         pass.DispatchWorkgroups(1);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int instance_count)
+@@ -454,180 +459,175 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+           continue; /* unused, fully clipped, or device-invalid viewport slot */
+         }
+         const int32_t mv_vals[2] = {layer, vp};
+-        ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
++        webgpu::queue_write_buffer_scoped(ctx->instance_get(),
++                                          device,
++                                          ctx->queue_get(),
++                                          ctx->queue_scheduler_get(),
++                                          mv_buf,
++                                          0,
++                                          mv_vals,
++                                          sizeof(mv_vals),
++                                          "direct multi-viewport uniform upload",
++                                          [](bool) {});
++
++        webgpu::command_encode_submit_scoped(
++            ctx->instance_get(),
++            device,
++            ctx->queue_get(),
++            ctx->queue_scheduler_get(),
++            "direct multi-viewport draw",
++            [&](auto &mv_enc) {
++              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
++              if (mv_pass == nullptr) {
++                return false;
++              }
++              mv_pass.SetPipeline(pipeline);
++              ctx->apply_stencil_reference(mv_pass);
++              mv_pass.SetViewport(float(viewport.viewport_x),
++                                  float(viewport.viewport_y),
++                                  float(viewport.viewport_width),
++                                  float(viewport.viewport_height),
++                                  0.0f,
++                                  1.0f);
++              mv_pass.SetScissorRect(viewport.scissor_x,
++                                     viewport.scissor_y,
++                                     viewport.scissor_width,
++                                     viewport.scissor_height);
++              bind_vertex_buffers(mv_pass);
++
++              std::vector<wgpu::BindGroupEntry> entries;
++              wgpu::BindGroupEntry mv_entry = {};
++              mv_entry.binding = shader->multi_viewport_binding();
++              mv_entry.buffer = mv_buf;
++              mv_entry.offset = 0;
++              mv_entry.size = 16;
++              entries.push_back(mv_entry);
++              if (shader->push_constants_survive_compilation() &&
++                  shader->push_constants_buffer().valid())
++              {
++                wgpu::BindGroupEntry pc = {};
++                pc.binding = shader->push_constants_binding();
++                pc.buffer = shader->push_constants_buffer().handle();
++                pc.offset = 0;
++                pc.size = shader->push_constants_buffer().size();
++                entries.push_back(pc);
++              }
++              /* A multi-viewport draw changes only the pass-state UBO; it still needs the
++               * shader's ordinary UBO/SSBO/texture/image resources. */
++              ctx->append_resource_bind_entries(shader, entries);
++              const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
++                                                       shader->explicit_bind_group_layout() :
++                                                       pipeline.GetBindGroupLayout(0);
++              wgpu::BindGroup mv_bind_group;
++              if (!webgpu::transient_handle_publish_if_valid(
++                      ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
++              {
++                return false;
++              }
++              mv_pass.SetBindGroup(0, mv_bind_group);
++
++              if (emulate_triangle_fan) {
++                mv_pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
++                mv_pass.DrawIndexed(fan_index_count,
++                                    draw_parameters.instance_count,
++                                    0,
++                                    wibo != nullptr ? index_binding.base_vertex : 0,
++                                    draw_parameters.instance_first);
++              }
++              else if (elem != nullptr) {
++                mv_pass.SetIndexBuffer(index_buffer,
++                                       wibo->index_format(),
++                                       index_binding.byte_offset);
++                mv_pass.DrawIndexed(draw_parameters.vertex_count,
++                                    draw_parameters.instance_count,
++                                    draw_parameters.vertex_first,
++                                    index_binding.base_vertex,
++                                    draw_parameters.instance_first);
++              }
++              else {
++                mv_pass.Draw(draw_parameters.vertex_count,
++                             draw_parameters.instance_count,
++                             draw_parameters.vertex_first,
++                             draw_parameters.instance_first);
++              }
++              mv_pass.End();
++              return true;
++            },
++            [](bool) {});
++      }
++    }
++    return;
++  }
+ 
+-        wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
+-        if (mv_enc == nullptr) {
+-          return;
+-        }
+-        wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
+-        if (mv_pass == nullptr) {
+-          return;
++  wgpu::Device device = ctx->device_get();
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "direct batch draw",
++      [&](auto &enc) {
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        if (pass == nullptr) {
++          return false;
+         }
+-        mv_pass.SetPipeline(pipeline);
+-        ctx->apply_stencil_reference(mv_pass);
+-        mv_pass.SetViewport(float(viewport.viewport_x),
+-                            float(viewport.viewport_y),
+-                            float(viewport.viewport_width),
+-                            float(viewport.viewport_height),
+-                            0.0f,
+-                            1.0f);
+-        mv_pass.SetScissorRect(viewport.scissor_x,
+-                               viewport.scissor_y,
+-                               viewport.scissor_width,
+-                               viewport.scissor_height);
+-        bind_vertex_buffers(mv_pass);
++        pass.SetPipeline(pipeline);
++        ctx->apply_stencil_reference(pass);
++        bind_vertex_buffers(pass);
+ 
+         std::vector<wgpu::BindGroupEntry> entries;
+-        wgpu::BindGroupEntry mv_entry = {};
+-        mv_entry.binding = shader->multi_viewport_binding();
+-        mv_entry.buffer = mv_buf;
+-        mv_entry.offset = 0;
+-        mv_entry.size = 16;
+-        entries.push_back(mv_entry);
+-        if (shader->push_constants_survive_compilation() &&
+-            shader->push_constants_buffer().valid())
+-        {
+-          wgpu::BindGroupEntry pc = {};
+-          pc.binding = shader->push_constants_binding();
+-          pc.buffer = shader->push_constants_buffer().handle();
+-          pc.offset = 0;
+-          pc.size = shader->push_constants_buffer().size();
+-          entries.push_back(pc);
++        if (shader->push_constants_survive_compilation()) {
++          shader->push_constants_flush();
++          const webgpu::Buffer &pc = shader->push_constants_buffer();
++          if (pc.valid()) {
++            wgpu::BindGroupEntry entry = {};
++            entry.binding = shader->push_constants_binding();
++            entry.buffer = pc.handle();
++            entry.offset = 0;
++            entry.size = pc.size();
++            entries.push_back(entry);
++          }
+         }
+-        /* A multi-viewport draw changes only the pass-state UBO; it still needs the
+-         * shader's ordinary UBO/SSBO/texture/image resources. Keep this bind-group
+-         * assembly in parity with the single-pass path below. */
+         ctx->append_resource_bind_entries(shader, entries);
+-        const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+-                                                 shader->explicit_bind_group_layout() :
+-                                                 pipeline.GetBindGroupLayout(0);
+-        wgpu::BindGroup mv_bind_group;
+-        if (!webgpu::transient_handle_publish_if_valid(
+-                ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
+-        {
+-          return;
++        if (!entries.empty()) {
++          const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                                shader->explicit_bind_group_layout() :
++                                                pipeline.GetBindGroupLayout(0);
++          wgpu::BindGroup bind_group;
++          if (!webgpu::transient_handle_publish_if_valid(
++                  ctx->create_bind_group_checked(bgl, entries), bind_group))
++          {
++            return false;
++          }
++          pass.SetBindGroup(0, bind_group);
+         }
+-        mv_pass.SetBindGroup(0, mv_bind_group);
+ 
+         if (emulate_triangle_fan) {
+-          mv_pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+-          mv_pass.DrawIndexed(fan_index_count,
+-                              draw_parameters.instance_count,
+-                              0,
+-                              wibo != nullptr ? index_binding.base_vertex : 0,
+-                              draw_parameters.instance_first);
++          pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
++          pass.DrawIndexed(fan_index_count,
++                           draw_parameters.instance_count,
++                           0,
++                           wibo != nullptr ? index_binding.base_vertex : 0,
++                           draw_parameters.instance_first);
+         }
+         else if (elem != nullptr) {
+-          /* Subrange IBOs share their parent's GPU allocation. Bind the
+-           * subrange's byte window and retain its squeezed-u16 base vertex,
+-           * exactly as the single-pass path below does. */
+-          mv_pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
+-          mv_pass.DrawIndexed(draw_parameters.vertex_count,
+-                              draw_parameters.instance_count,
+-                              draw_parameters.vertex_first,
+-                              index_binding.base_vertex,
+-                              draw_parameters.instance_first);
++          pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
++          pass.DrawIndexed(draw_parameters.vertex_count,
++                           draw_parameters.instance_count,
++                           draw_parameters.vertex_first,
++                           index_binding.base_vertex,
++                           draw_parameters.instance_first);
+         }
+         else {
+-          mv_pass.Draw(draw_parameters.vertex_count,
+-                       draw_parameters.instance_count,
+-                       draw_parameters.vertex_first,
+-                       draw_parameters.instance_first);
++          pass.Draw(draw_parameters.vertex_count,
++                    draw_parameters.instance_count,
++                    draw_parameters.vertex_first,
++                    draw_parameters.instance_first);
+         }
+-        mv_pass.End();
+-        wgpu::CommandBuffer mv_cb = mv_enc.Finish();
+-        if (mv_cb == nullptr) {
+-          return;
+-        }
+-        ctx->queue_get().Submit(1, &mv_cb);
+-      }
+-    }
+-    return;
+-  }
+-
+-  wgpu::Device device = ctx->device_get();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  if (enc == nullptr) {
+-    return;
+-  }
+-  wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+-  if (pass == nullptr) {
+-    return;
+-  }
+-  pass.SetPipeline(pipeline);
+-  ctx->apply_stencil_reference(pass);
+-
+-  /* Vertex buffers (every slot the plan defines). */
+-  bind_vertex_buffers(pass);
+-
+-  /* Bind group 0: the push-constant UBO (lane A's shadow+flush+getter) plus every
+-   * declared resource — sampled textures + samplers, storage buffers, storage
+-   * images, bound UBOs — assembled by the context's shared builder. */
+-  {
+-    std::vector<wgpu::BindGroupEntry> entries;
+-    if (shader->push_constants_survive_compilation()) {
+-      shader->push_constants_flush();
+-      const webgpu::Buffer &pc = shader->push_constants_buffer();
+-      if (pc.valid()) {
+-        wgpu::BindGroupEntry entry = {};
+-        entry.binding = shader->push_constants_binding();
+-        entry.buffer = pc.handle();
+-        entry.offset = 0;
+-        entry.size = pc.size();
+-        entries.push_back(entry);
+-      }
+-    }
+-    ctx->append_resource_bind_entries(shader, entries);
+-    if (!entries.empty()) {
+-      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+-                                            shader->explicit_bind_group_layout() :
+-                                            pipeline.GetBindGroupLayout(0);
+-      wgpu::BindGroup bind_group;
+-      if (!webgpu::transient_handle_publish_if_valid(
+-              ctx->create_bind_group_checked(bgl, entries), bind_group))
+-      {
+-        return;
+-      }
+-      pass.SetBindGroup(0, bind_group);
+-    }
+-  }
+-
+-  if (emulate_triangle_fan) {
+-    pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+-    pass.DrawIndexed(fan_index_count,
+-                     draw_parameters.instance_count,
+-                     0,
+-                     wibo != nullptr ? index_binding.base_vertex : 0,
+-                     draw_parameters.instance_first);
+-  }
+-  else if (elem != nullptr) {
+-    /* Subrange IBOs share the source buffer; their window starts at
+-     * index_start_ (bind-time byte offset, mirroring Metal's
+-     * `(v_first + index_start_) * index_size`). Squeezed-u16 buffers carry
+-     * index_base_, applied as baseVertex. Without BOTH, a subrange draw reads
+-     * the wrong segment of the shared mesh IBO — garbage connectivity (the
+-     * r26/r27 crumpled-outline defect). */
+-    pass.SetIndexBuffer(index_buffer, wibo->index_format(), index_binding.byte_offset);
+-    pass.DrawIndexed(draw_parameters.vertex_count,
+-                     draw_parameters.instance_count,
+-                     draw_parameters.vertex_first,
+-                     index_binding.base_vertex,
+-                     draw_parameters.instance_first);
+-  }
+-  else {
+-    pass.Draw(draw_parameters.vertex_count,
+-              draw_parameters.instance_count,
+-              draw_parameters.vertex_first,
+-              draw_parameters.instance_first);
+-  }
+-
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  if (cb == nullptr) {
+-    return;
+-  }
+-  ctx->queue_get().Submit(1, &cb);
++        pass.End();
++        return true;
++      },
++      [](bool) {});
+ }
+ 
+ void WGPUBatch::draw_indirect(StorageBuf *indirect_buf, intptr_t offset)
+@@ -844,120 +844,126 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         }
+ 
+         const int32_t mv_vals[2] = {layer, vp};
+-        ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
++        webgpu::queue_write_buffer_scoped(ctx->instance_get(),
++                                          device,
++                                          ctx->queue_get(),
++                                          ctx->queue_scheduler_get(),
++                                          mv_buf,
++                                          0,
++                                          mv_vals,
++                                          sizeof(mv_vals),
++                                          "indirect multi-viewport uniform upload",
++                                          [](bool) {});
++
++        webgpu::command_encode_submit_scoped(
++            ctx->instance_get(),
++            device,
++            ctx->queue_get(),
++            ctx->queue_scheduler_get(),
++            "indirect multi-viewport draw",
++            [&](auto &mv_enc) {
++              wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
++              if (mv_pass == nullptr) {
++                return false;
++              }
++              mv_pass.SetPipeline(pipeline);
++              ctx->apply_stencil_reference(mv_pass);
++              mv_pass.SetViewport(float(viewport.viewport_x),
++                                  float(viewport.viewport_y),
++                                  float(viewport.viewport_width),
++                                  float(viewport.viewport_height),
++                                  0.0f,
++                                  1.0f);
++              mv_pass.SetScissorRect(viewport.scissor_x,
++                                     viewport.scissor_y,
++                                     viewport.scissor_width,
++                                     viewport.scissor_height);
++              bind_geometry(mv_pass);
++
++              std::vector<wgpu::BindGroupEntry> entries;
++              wgpu::BindGroupEntry mv_entry = {};
++              mv_entry.binding = shader->multi_viewport_binding();
++              mv_entry.buffer = mv_buf;
++              mv_entry.offset = 0;
++              mv_entry.size = 16;
++              entries.push_back(mv_entry);
++              if (shader->push_constants_survive_compilation() &&
++                  shader->push_constants_buffer().valid())
++              {
++                wgpu::BindGroupEntry pc = {};
++                pc.binding = shader->push_constants_binding();
++                pc.buffer = shader->push_constants_buffer().handle();
++                pc.offset = 0;
++                pc.size = shader->push_constants_buffer().size();
++                entries.push_back(pc);
++              }
++              ctx->append_resource_bind_entries(shader, entries);
++              const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
++                                                       shader->explicit_bind_group_layout() :
++                                                       pipeline.GetBindGroupLayout(0);
++              wgpu::BindGroup mv_bind_group;
++              if (!webgpu::transient_handle_publish_if_valid(
++                      ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
++              {
++                return false;
++              }
++              mv_pass.SetBindGroup(0, mv_bind_group);
++              issue_indirect_draws(mv_pass);
++              mv_pass.End();
++              return true;
++            },
++            [](bool) {});
++      }
++    }
++    return;
++  }
+ 
+-        wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
+-        if (mv_enc == nullptr) {
+-          return;
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "indirect batch draw",
++      [&](auto &enc) {
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        if (pass == nullptr) {
++          return false;
+         }
+-        wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
+-        if (mv_pass == nullptr) {
+-          return;
+-        }
+-        mv_pass.SetPipeline(pipeline);
+-        ctx->apply_stencil_reference(mv_pass);
+-        mv_pass.SetViewport(float(viewport.viewport_x),
+-                            float(viewport.viewport_y),
+-                            float(viewport.viewport_width),
+-                            float(viewport.viewport_height),
+-                            0.0f,
+-                            1.0f);
+-        mv_pass.SetScissorRect(viewport.scissor_x,
+-                               viewport.scissor_y,
+-                               viewport.scissor_width,
+-                               viewport.scissor_height);
+-        bind_geometry(mv_pass);
++        pass.SetPipeline(pipeline);
++        ctx->apply_stencil_reference(pass);
++        bind_geometry(pass);
+ 
+         std::vector<wgpu::BindGroupEntry> entries;
+-        wgpu::BindGroupEntry mv_entry = {};
+-        mv_entry.binding = shader->multi_viewport_binding();
+-        mv_entry.buffer = mv_buf;
+-        mv_entry.offset = 0;
+-        mv_entry.size = 16;
+-        entries.push_back(mv_entry);
+-        if (shader->push_constants_survive_compilation() &&
+-            shader->push_constants_buffer().valid())
+-        {
+-          wgpu::BindGroupEntry pc = {};
+-          pc.binding = shader->push_constants_binding();
+-          pc.buffer = shader->push_constants_buffer().handle();
+-          pc.offset = 0;
+-          pc.size = shader->push_constants_buffer().size();
+-          entries.push_back(pc);
++        if (shader->push_constants_survive_compilation()) {
++          shader->push_constants_flush();
++          const webgpu::Buffer &pc = shader->push_constants_buffer();
++          if (pc.valid()) {
++            wgpu::BindGroupEntry entry = {};
++            entry.binding = shader->push_constants_binding();
++            entry.buffer = pc.handle();
++            entry.offset = 0;
++            entry.size = pc.size();
++            entries.push_back(entry);
++          }
+         }
+         ctx->append_resource_bind_entries(shader, entries);
+-        const wgpu::BindGroupLayout mv_bgl = shader->has_explicit_layout() ?
+-                                                 shader->explicit_bind_group_layout() :
+-                                                 pipeline.GetBindGroupLayout(0);
+-        wgpu::BindGroup mv_bind_group;
+-        if (!webgpu::transient_handle_publish_if_valid(
+-                ctx->create_bind_group_checked(mv_bgl, entries), mv_bind_group))
+-        {
+-          return;
++        if (!entries.empty()) {
++          const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                                shader->explicit_bind_group_layout() :
++                                                pipeline.GetBindGroupLayout(0);
++          wgpu::BindGroup bind_group;
++          if (!webgpu::transient_handle_publish_if_valid(
++                  ctx->create_bind_group_checked(bgl, entries), bind_group))
++          {
++            return false;
++          }
++          pass.SetBindGroup(0, bind_group);
+         }
+-        mv_pass.SetBindGroup(0, mv_bind_group);
+-
+-        issue_indirect_draws(mv_pass);
+-        mv_pass.End();
+-        wgpu::CommandBuffer mv_cb = mv_enc.Finish();
+-        if (mv_cb == nullptr) {
+-          return;
+-        }
+-        ctx->queue_get().Submit(1, &mv_cb);
+-      }
+-    }
+-    return;
+-  }
+-
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  if (enc == nullptr) {
+-    return;
+-  }
+-  wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+-  if (pass == nullptr) {
+-    return;
+-  }
+-  pass.SetPipeline(pipeline);
+-  ctx->apply_stencil_reference(pass);
+-  bind_geometry(pass);
+-
+-  {
+-    std::vector<wgpu::BindGroupEntry> entries;
+-    if (shader->push_constants_survive_compilation()) {
+-      shader->push_constants_flush();
+-      const webgpu::Buffer &pc = shader->push_constants_buffer();
+-      if (pc.valid()) {
+-        wgpu::BindGroupEntry entry = {};
+-        entry.binding = shader->push_constants_binding();
+-        entry.buffer = pc.handle();
+-        entry.offset = 0;
+-        entry.size = pc.size();
+-        entries.push_back(entry);
+-      }
+-    }
+-    ctx->append_resource_bind_entries(shader, entries);
+-    if (!entries.empty()) {
+-      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+-                                            shader->explicit_bind_group_layout() :
+-                                            pipeline.GetBindGroupLayout(0);
+-      wgpu::BindGroup bind_group;
+-      if (!webgpu::transient_handle_publish_if_valid(
+-              ctx->create_bind_group_checked(bgl, entries), bind_group))
+-      {
+-        return;
+-      }
+-      pass.SetBindGroup(0, bind_group);
+-    }
+-  }
+-
+-  issue_indirect_draws(pass);
+-
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  if (cb == nullptr) {
+-    return;
+-  }
+-  ctx->queue_get().Submit(1, &cb);
++        issue_indirect_draws(pass);
++        pass.End();
++        return true;
++      },
++      [](bool) {});
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 851cb368be66040d12065e697a316aa58ec8499a..5084c84500c934efc84b54972bbcda0c199e95cb 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -138,8 +138,10 @@ bool Buffer::create(const wgpu::Device &device,
+   return true;
+ }
+ 
+-bool Buffer::update_sub(const wgpu::Device &device,
++bool Buffer::update_sub(const wgpu::Instance &instance,
++                        const wgpu::Device &device,
+                         const wgpu::Queue &queue,
++                        OrderedQueueScheduler &scheduler,
+                         size_t offset,
+                         const void *data,
+                         size_t size)
+@@ -156,7 +158,16 @@ bool Buffer::update_sub(const wgpu::Device &device,
+ 
+   if (size <= kWriteBufferStagingThreshold) {
+     /* Direct path — analog of Blender's inline vkCmdUpdateBuffer (<=64 KiB). */
+-    queue.WriteBuffer(handle_, offset, data, size);
++    queue_write_buffer_scoped(instance,
++                              device,
++                              queue,
++                              scheduler,
++                              handle_,
++                              offset,
++                              data,
++                              size,
++                              "buffer sub-update",
++                              [](bool) {});
+     return true;
+   }
+ 
+@@ -176,18 +187,30 @@ bool Buffer::update_sub(const wgpu::Device &device,
+   }
+   std::memcpy(mapped, data, size);
+   staging.Unmap();
+-  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+-        encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
+-      }))
+-  {
++  const auto accepted = std::make_shared<std::atomic<bool>>(true);
++  command_encode_submit_scoped(instance,
++                               device,
++                               queue,
++                               scheduler,
++                               "staged buffer sub-update",
++                               [&](auto &encoder) {
++                                 encoder.CopyBufferToBuffer(staging, 0, handle_, offset, size);
++                               },
++                               [accepted](const bool valid) {
++                                 accepted->store(valid, std::memory_order_release);
++                               });
++#ifndef __EMSCRIPTEN__
++  if (!accepted->load(std::memory_order_acquire)) {
+     return false;
+   }
++#endif
+   return true;
+ }
+ 
+ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                   const wgpu::Device &device,
+                                   const wgpu::Queue &queue,
++                                  OrderedQueueScheduler &scheduler,
+                                   size_t offset,
+                                   size_t size) const
+ {
+@@ -215,7 +238,7 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+         readback::SourceKind::Buffer, this, uint64_t(offset), uint64_t(size)};
+     out.resize(size);
+     const bool hit = readback::take_settled(key, out.data(), size);
+-    readback::kick_buffer(device, queue, handle_, key, offset, copy, size);
++    readback::kick_buffer(instance, device, queue, scheduler, handle_, key, offset, copy, size);
+     if (!hit) {
+       out.clear();
+     }
+@@ -230,10 +253,17 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+   if (staging == nullptr) {
+     return out;
+   }
+-  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+-        encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
+-      }))
+-  {
++  bool submitted = false;
++  command_encode_submit_scoped(instance,
++                               device,
++                               queue,
++                               scheduler,
++                               "synchronous buffer readback",
++                               [&](auto &encoder) {
++                                 encoder.CopyBufferToBuffer(handle_, offset, staging, 0, copy);
++                               },
++                               [&](const bool valid) { submitted = valid; });
++  if (!submitted) {
+     return out;
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 181befff16d7ae164163d957231928057982140a..9bb5e8605897bf3e15d719c4a03fd8659fe40ab5 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -56,8 +56,10 @@ class Buffer {
+   /** Partial update: writes `size` bytes at `offset`. Uses queue.writeBuffer for
+    * small writes, a staging buffer + copy for large ones. offset/size must be
+    * 4-aligned. Returns false on misuse. */
+-  bool update_sub(const wgpu::Device &device,
++  bool update_sub(const wgpu::Instance &instance,
++                  const wgpu::Device &device,
+                   const wgpu::Queue &queue,
++                  OrderedQueueScheduler &scheduler,
+                   size_t offset,
+                   const void *data,
+                   size_t size);
+@@ -67,6 +69,7 @@ class Buffer {
+   std::vector<uint8_t> read(const wgpu::Instance &instance,
+                             const wgpu::Device &device,
+                             const wgpu::Queue &queue,
++                            OrderedQueueScheduler &scheduler,
+                             size_t offset,
+                             size_t size) const;
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index faf275d5108a16f2b5849b4a6ff1eef013650fc3..ba3ecf033e31e2afc310ca0ac919f278e06cf1d7 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -17,11 +17,21 @@
+ 
+ #pragma once
+ 
++#include <algorithm>
++#include <atomic>
++#include <climits>
+ #include <cstddef>
+ #include <cstdint>
++#include <cstdio>
+ #include <cstring>
++#include <deque>
++#include <functional>
+ #include <limits>
++#include <memory>
++#include <mutex>
++#include <string>
+ #include <type_traits>
++#include <unordered_set>
+ #include <utility>
+ #include <vector>
+ 
+@@ -191,62 +201,464 @@ inline bool index_buffer_handle_resolve_if_required(const bool required,
+   return transient_handle_publish_if_valid(std::move(candidate), result);
+ }
+ 
+-/** Encode and submit one short-lived command buffer without using a failed encoder or
+- * submitting a failed command-buffer handle. A boolean encoder callback can abort the whole
+- * transaction after earlier commands were recorded; a void callback retains the simple copy
+- * contract. Templated so transient creation failures remain device-free testable on native and
+- * Wasm. */
+-template<typename DeviceT, typename QueueT, typename EncodeFn>
+-inline bool command_encode_submit_if_valid(const DeviceT &device,
+-                                           const QueueT &queue,
+-                                           EncodeFn &&encode)
+-{
+-  auto encoder = device.CreateCommandEncoder();
+-  if (encoder == nullptr) {
+-    return false;
++/**
++ * Serialize queue mutations whose validation completes asynchronously in the browser.
++ *
++ * A WebGPU error object is non-null, and `PopErrorScope` resolves only after the C++ stack has
++ * returned to the browser event loop. Delaying a command-buffer submission without also ordering
++ * later `WriteBuffer` / `WriteTexture` calls changes Blender's queue chronology. A reserved entry
++ * therefore blocks every later entry until its scoped result is known. Failure poisons only the
++ * current frame epoch; later work from that epoch is canceled, while the next `begin_epoch()` can
++ * retry from Blender's unchanged CPU state.
++ */
++class OrderedQueueScheduler {
++ private:
++  using DoneFn = std::function<void(bool)>;
++  using OperationFn = std::function<void(DoneFn)>;
++  using CancelFn = std::function<void()>;
++
++  struct Entry {
++    uint64_t epoch = 0;
++    bool ready = false;
++    OperationFn operation;
++    CancelFn cancel;
++  };
++
++  struct State {
++    std::mutex mutex;
++    std::deque<std::shared_ptr<Entry>> entries;
++    std::unordered_set<uint64_t> failed_epochs;
++    uint64_t current_epoch = 1;
++    bool active = false;
++  };
++
++  static void start_ready(const std::shared_ptr<State> &state)
++  {
++    std::shared_ptr<Entry> entry;
++    bool canceled = false;
++    {
++      std::lock_guard lock(state->mutex);
++      if (state->active || state->entries.empty() || !state->entries.front()->ready) {
++        return;
++      }
++      entry = std::move(state->entries.front());
++      state->entries.pop_front();
++      state->active = true;
++      canceled = state->failed_epochs.find(entry->epoch) != state->failed_epochs.end();
++    }
++
++    if (canceled) {
++      if (entry->cancel) {
++        entry->cancel();
++      }
++      finish(state, entry->epoch, false);
++      return;
++    }
++
++    auto completed = std::make_shared<std::atomic<bool>>(false);
++    entry->operation([state, epoch = entry->epoch, completed](const bool valid) {
++      if (!completed->exchange(true, std::memory_order_acq_rel)) {
++        finish(state, epoch, valid);
++      }
++    });
+   }
+-  using EncodeResult = decltype(std::forward<EncodeFn>(encode)(encoder));
+-  if constexpr (std::is_same_v<EncodeResult, bool>) {
+-    if (!std::forward<EncodeFn>(encode)(encoder)) {
+-      return false;
++
++  static void finish(const std::shared_ptr<State> &state,
++                     const uint64_t epoch,
++                     const bool valid)
++  {
++    {
++      std::lock_guard lock(state->mutex);
++      if (!valid) {
++        state->failed_epochs.insert(epoch);
++      }
++      state->active = false;
+     }
++    start_ready(state);
+   }
+-  else {
+-    std::forward<EncodeFn>(encode)(encoder);
++
++ public:
++  class Ticket {
++   public:
++    Ticket() = default;
++
++    void resolve(OperationFn operation, CancelFn cancel = {}) const
++    {
++      const std::shared_ptr<State> state = state_;
++      const std::shared_ptr<Entry> entry = entry_;
++      if (!state || !entry) {
++        return;
++      }
++      {
++        std::lock_guard lock(state->mutex);
++        if (entry->ready) {
++          return;
++        }
++        entry->operation = std::move(operation);
++        entry->cancel = std::move(cancel);
++        entry->ready = true;
++      }
++      start_ready(state);
++    }
++
++   private:
++    friend class OrderedQueueScheduler;
++    Ticket(std::shared_ptr<State> state, std::shared_ptr<Entry> entry)
++        : state_(std::move(state)), entry_(std::move(entry))
++    {
++    }
++
++    std::shared_ptr<State> state_;
++    std::shared_ptr<Entry> entry_;
++  };
++
++  Ticket reserve()
++  {
++    auto entry = std::make_shared<Entry>();
++    {
++      std::lock_guard lock(state_->mutex);
++      entry->epoch = state_->current_epoch;
++      state_->entries.push_back(entry);
++    }
++    return Ticket(state_, std::move(entry));
+   }
+-  auto command_buffer = encoder.Finish();
+-  if (command_buffer == nullptr) {
+-    return false;
++
++  void enqueue(OperationFn operation, CancelFn cancel = {})
++  {
++    reserve().resolve(std::move(operation), std::move(cancel));
+   }
+-  queue.Submit(1, &command_buffer);
+-  return true;
++
++  void begin_epoch()
++  {
++    std::lock_guard lock(state_->mutex);
++    state_->current_epoch++;
++    if (state_->current_epoch == 0) {
++      state_->current_epoch = 1;
++      state_->failed_epochs.clear();
++    }
++  }
++
++  size_t pending_count() const
++  {
++    std::lock_guard lock(state_->mutex);
++    return state_->entries.size() + size_t(state_->active);
++  }
++
++ private:
++  std::shared_ptr<State> state_ = std::make_shared<State>();
++};
++
++/** Push the three implementation-error classes which can turn a non-null WebGPU handle into an
++ * error object. Validation is innermost because descriptor/command rejection is the common path. */
++template<typename DeviceT> inline void webgpu_error_scopes_push(const DeviceT &device)
++{
++  device.PushErrorScope(wgpu::ErrorFilter::Internal);
++  device.PushErrorScope(wgpu::ErrorFilter::OutOfMemory);
++  device.PushErrorScope(wgpu::ErrorFilter::Validation);
+ }
+ 
+-/** Encode one short-lived pass and submit it only after every fallible command handle succeeds.
+- * The pass body is not called after a failed encoder/pass, and a failed finished command buffer
+- * is never submitted. Templated so the complete transaction remains device-free testable. */
+-template<typename DeviceT, typename QueueT, typename BeginPassFn, typename EncodeFn>
+-inline bool command_pass_encode_submit_if_valid(const DeviceT &device,
+-                                                const QueueT &queue,
+-                                                BeginPassFn &&begin_pass,
+-                                                EncodeFn &&encode)
++/** Pop one complete validation/OOM/internal scope set. Native Dawn can wait synchronously; the
++ * browser must resolve spontaneously after returning to its worker event loop. */
++template<typename InstanceT, typename DeviceT, typename CompleteFn>
++inline void webgpu_error_scopes_pop(const InstanceT &instance,
++                                    const DeviceT &device,
++                                    std::string label,
++                                    CompleteFn &&complete)
+ {
+-  auto encoder = device.CreateCommandEncoder();
+-  if (encoder == nullptr) {
+-    return false;
+-  }
+-  auto pass = std::forward<BeginPassFn>(begin_pass)(encoder);
+-  if (pass == nullptr) {
+-    return false;
++  using CompleteT = std::decay_t<CompleteFn>;
++  struct ScopeResult {
++    std::atomic<int> pending{3};
++    std::atomic<bool> valid{true};
++    std::atomic<bool> completed{false};
++    std::string label;
++    std::shared_ptr<CompleteT> complete;
++  };
++
++  auto result = std::make_shared<ScopeResult>();
++  result->label = std::move(label);
++  result->complete = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
++  auto complete_once = [result](const bool valid) {
++    if (!result->completed.exchange(true, std::memory_order_acq_rel)) {
++      (*result->complete)(valid);
++    }
++  };
++  auto settle = [result, complete_once](wgpu::PopErrorScopeStatus status,
++                                        wgpu::ErrorType type,
++                                        wgpu::StringView message) {
++    if (status != wgpu::PopErrorScopeStatus::Success || type != wgpu::ErrorType::NoError) {
++      result->valid.store(false, std::memory_order_release);
++      if (!result->label.empty()) {
++        const size_t message_length =
++            message.data == nullptr ?
++                0 :
++                (message.length == WGPU_STRLEN ? std::char_traits<char>::length(message.data) :
++                                                 message.length);
++        std::fprintf(stderr,
++                     "[WebGPU] %s rejected (status %d, type %d): %.*s\n",
++                     result->label.c_str(),
++                     int(status),
++                     int(type),
++                     int(std::min<size_t>(message_length, size_t(INT_MAX))),
++                     message.data ? message.data : "");
++      }
++    }
++    if (result->pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
++      complete_once(result->valid.load(std::memory_order_acquire));
++    }
++  };
++
++#ifdef __EMSCRIPTEN__
++  (void)instance;
++  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
++  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
++  device.PopErrorScope(wgpu::CallbackMode::AllowSpontaneous, settle);
++#else
++  const auto first = device.PopErrorScope(wgpu::CallbackMode::WaitAnyOnly, settle);
++  const auto second = device.PopErrorScope(wgpu::CallbackMode::WaitAnyOnly, settle);
++  const auto third = device.PopErrorScope(wgpu::CallbackMode::WaitAnyOnly, settle);
++  /* Wait every future even when an earlier wait fails. Leaving one outstanding would let a
++   * callback outlive the state whose completion result controls the queue scheduler. */
++  const wgpu::WaitStatus first_status = instance.WaitAny(first, UINT64_MAX);
++  const wgpu::WaitStatus second_status = instance.WaitAny(second, UINT64_MAX);
++  const wgpu::WaitStatus third_status = instance.WaitAny(third, UINT64_MAX);
++  if (first_status != wgpu::WaitStatus::Success ||
++      second_status != wgpu::WaitStatus::Success ||
++      third_status != wgpu::WaitStatus::Success)
++  {
++    result->valid.store(false, std::memory_order_release);
++    complete_once(false);
+   }
+-  std::forward<EncodeFn>(encode)(pass);
+-  pass.End();
+-  auto command_buffer = encoder.Finish();
+-  if (command_buffer == nullptr) {
+-    return false;
++#endif
++}
++
++/** Encode and submit one short-lived command buffer only after its validation scopes complete.
++ * The ordered scheduler keeps later queue writes behind this pending submission. */
++template<typename InstanceT,
++         typename DeviceT,
++         typename QueueT,
++         typename EncodeFn,
++         typename CompleteFn>
++inline void command_encode_submit_scoped(const InstanceT &instance,
++                                         const DeviceT &device,
++                                         const QueueT &queue,
++                                         OrderedQueueScheduler &scheduler,
++                                         const char *label,
++                                         EncodeFn &&encode,
++                                         CompleteFn &&complete)
++{
++  using CompleteT = std::decay_t<CompleteFn>;
++  const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
++  const std::string operation_label = label ? label : "";
++  const std::string encode_label = operation_label.empty() ? "" : operation_label + " encoding";
++  OrderedQueueScheduler::Ticket ticket = scheduler.reserve();
++
++  webgpu_error_scopes_push(device);
++  auto encoder = device.CreateCommandEncoder();
++  using CommandBufferT = decltype(encoder.Finish());
++  CommandBufferT command_buffer;
++  bool handles_valid = encoder != nullptr;
++  if (handles_valid) {
++    using EncodeResult = decltype(std::forward<EncodeFn>(encode)(encoder));
++    if constexpr (std::is_same_v<EncodeResult, bool>) {
++      handles_valid = std::forward<EncodeFn>(encode)(encoder);
++    }
++    else {
++      std::forward<EncodeFn>(encode)(encoder);
++    }
+   }
+-  queue.Submit(1, &command_buffer);
+-  return true;
++  if (handles_valid) {
++    command_buffer = encoder.Finish();
++    handles_valid = command_buffer != nullptr;
++  }
++
++  webgpu_error_scopes_pop(
++      instance,
++      device,
++      encode_label,
++      [ticket,
++       instance,
++       device,
++       queue,
++       command_buffer = std::move(command_buffer),
++       handles_valid,
++       operation_label,
++       completion](const bool encode_valid) mutable {
++        ticket.resolve(
++            [instance,
++             device,
++             queue,
++             command_buffer = std::move(command_buffer),
++             valid = handles_valid && encode_valid,
++             operation_label,
++             completion](std::function<void(bool)> done) mutable {
++              if (!valid || queue == nullptr) {
++                (*completion)(false);
++                done(false);
++                return;
++              }
++              webgpu_error_scopes_push(device);
++              queue.Submit(1, &command_buffer);
++              webgpu_error_scopes_pop(
++                  instance,
++                  device,
++                  operation_label.empty() ? "" : operation_label + " submission",
++                  [completion, done = std::move(done)](const bool submit_valid) mutable {
++                    (*completion)(submit_valid);
++                    done(submit_valid);
++                  });
++            },
++            [completion]() { (*completion)(false); });
++      });
++}
++
++/** Encode a short-lived pass inside the same scoped, ordered command transaction. */
++template<typename InstanceT,
++         typename DeviceT,
++         typename QueueT,
++         typename BeginPassFn,
++         typename EncodeFn,
++         typename CompleteFn>
++inline void command_pass_encode_submit_scoped(const InstanceT &instance,
++                                              const DeviceT &device,
++                                              const QueueT &queue,
++                                              OrderedQueueScheduler &scheduler,
++                                              const char *label,
++                                              BeginPassFn &&begin_pass,
++                                              EncodeFn &&encode,
++                                              CompleteFn &&complete)
++{
++  command_encode_submit_scoped(
++      instance,
++      device,
++      queue,
++      scheduler,
++      label,
++      [begin_pass = std::forward<BeginPassFn>(begin_pass),
++       encode = std::forward<EncodeFn>(encode)](auto &encoder) mutable {
++        auto pass = begin_pass(encoder);
++        if (pass == nullptr) {
++          return false;
++        }
++        using EncodeResult = decltype(encode(pass));
++        bool body_valid = true;
++        if constexpr (std::is_same_v<EncodeResult, bool>) {
++          body_valid = encode(pass);
++        }
++        else {
++          encode(pass);
++        }
++        pass.End();
++        return body_valid;
++      },
++      std::forward<CompleteFn>(complete));
++}
++
++/** Preserve queue chronology for a direct buffer write while its error scopes settle. */
++template<typename InstanceT,
++         typename DeviceT,
++         typename QueueT,
++         typename BufferT,
++         typename CompleteFn>
++inline void queue_write_buffer_scoped(const InstanceT &instance,
++                                      const DeviceT &device,
++                                      const QueueT &queue,
++                                      OrderedQueueScheduler &scheduler,
++                                      BufferT buffer,
++                                      const uint64_t offset,
++                                      const void *data,
++                                      const size_t size,
++                                      const char *label,
++                                      CompleteFn &&complete)
++{
++  std::vector<uint8_t> bytes(size);
++  if (size != 0 && data != nullptr) {
++    std::memcpy(bytes.data(), data, size);
++  }
++  using CompleteT = std::decay_t<CompleteFn>;
++  const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
++  const std::string operation_label = label ? label : "buffer write";
++  scheduler.enqueue(
++      [instance,
++       device,
++       queue,
++       buffer = std::move(buffer),
++       offset,
++       bytes = std::move(bytes),
++       operation_label,
++       completion](std::function<void(bool)> done) mutable {
++        if (queue == nullptr || buffer == nullptr || bytes.empty()) {
++          (*completion)(false);
++          done(false);
++          return;
++        }
++        webgpu_error_scopes_push(device);
++        queue.WriteBuffer(buffer, offset, bytes.data(), bytes.size());
++        webgpu_error_scopes_pop(
++            instance,
++            device,
++            operation_label,
++            [completion, done = std::move(done)](const bool valid) mutable {
++              (*completion)(valid);
++              done(valid);
++            });
++      },
++      [completion]() { (*completion)(false); });
++}
++
++/** Preserve queue chronology for a direct texture write while its error scopes settle. */
++template<typename InstanceT,
++         typename DeviceT,
++         typename QueueT,
++         typename DestinationT,
++         typename LayoutT,
++         typename ExtentT,
++         typename CompleteFn>
++inline void queue_write_texture_scoped(const InstanceT &instance,
++                                       const DeviceT &device,
++                                       const QueueT &queue,
++                                       OrderedQueueScheduler &scheduler,
++                                       DestinationT destination,
++                                       const void *data,
++                                       const size_t size,
++                                       LayoutT layout,
++                                       ExtentT extent,
++                                       const char *label,
++                                       CompleteFn &&complete)
++{
++  std::vector<uint8_t> bytes(size);
++  if (size != 0 && data != nullptr) {
++    std::memcpy(bytes.data(), data, size);
++  }
++  using CompleteT = std::decay_t<CompleteFn>;
++  const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
++  const std::string operation_label = label ? label : "texture write";
++  scheduler.enqueue(
++      [instance,
++       device,
++       queue,
++       destination = std::move(destination),
++       layout = std::move(layout),
++       extent = std::move(extent),
++       bytes = std::move(bytes),
++       operation_label,
++       completion](std::function<void(bool)> done) mutable {
++        if (queue == nullptr || destination.texture == nullptr || bytes.empty()) {
++          (*completion)(false);
++          done(false);
++          return;
++        }
++        webgpu_error_scopes_push(device);
++        queue.WriteTexture(&destination, bytes.data(), bytes.size(), &layout, &extent);
++        webgpu_error_scopes_pop(
++            instance,
++            device,
++            operation_label,
++            [completion, done = std::move(done)](const bool valid) mutable {
++              (*completion)(valid);
++              done(valid);
++            });
++      },
++      [completion]() { (*completion)(false); });
+ }
+ 
+ /** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 34094d97e237bfb8e15293b71bae9db9ff84e85b..dee51bbcc9a7102a54bf3a8f86328b59dd66280e 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -329,9 +329,16 @@ wgpu::Buffer WGPUContext::dummy_vertex_buffer()
+     dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
+     if (dummy_vertex_buffer_ != nullptr) {
+       static constexpr float default_attribute[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+-      /* Queue writes are ordered before later draw submissions on this same queue. */
+-      queue_.WriteBuffer(
+-          dummy_vertex_buffer_, 0, default_attribute, sizeof(default_attribute));
++      webgpu::queue_write_buffer_scoped(instance_,
++                                        device_,
++                                        queue_,
++                                        queue_scheduler_,
++                                        dummy_vertex_buffer_,
++                                        0,
++                                        default_attribute,
++                                        sizeof(default_attribute),
++                                        "dummy vertex initialization",
++                                        [](bool) {});
+     }
+   }
+   return dummy_vertex_buffer_;
+@@ -493,7 +500,16 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+     return false;
+   }
+   const uint32_t blit_data[4] = {w, h, uint32_t(src_layer), flip_source_y ? 1u : 0u};
+-  queue_.WriteBuffer(blit_uniform, 0, blit_data, sizeof(blit_data));
++  webgpu::queue_write_buffer_scoped(instance_,
++                                    device_,
++                                    queue_,
++                                    queue_scheduler_,
++                                    blit_uniform,
++                                    0,
++                                    blit_data,
++                                    sizeof(blit_data),
++                                    "color blit uniform upload",
++                                    [](bool) {});
+   entries[1].binding = 1;
+   entries[1].buffer = blit_uniform;
+   entries[1].offset = 0;
+@@ -516,9 +532,12 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+   rp.colorAttachmentCount = 1;
+   rp.colorAttachments = &ca;
+ 
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      instance_,
+       device_,
+       queue_,
++      queue_scheduler_,
++      "color blit",
+       [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+@@ -526,7 +545,9 @@ bool WGPUContext::blit_color_render(webgpu::WGPUTexture *src,
+         pass.SetScissorRect(dst_x, dst_y, w, h);
+         pass.SetBindGroup(0, bind_group);
+         pass.Draw(3, 1, 0, 0);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+@@ -661,9 +682,12 @@ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+   }
+   wgpu::RenderPassDescriptor pass_desc = {};
+   pass_desc.depthStencilAttachment = &attachment;
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      instance_,
+       device_,
+       queue_,
++      queue_scheduler_,
++      "depth blit",
+       [&](auto &encoder) { return encoder.BeginRenderPass(&pass_desc); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+@@ -671,7 +695,9 @@ bool WGPUContext::blit_depth_render(webgpu::WGPUTexture *src,
+         pass.SetViewport(0.0f, 0.0f, float(w), float(h), 0.0f, 1.0f);
+         pass.SetScissorRect(0, 0, w, h);
+         pass.Draw(3, 1, 0, 0);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+@@ -817,9 +843,12 @@ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+   }
+   wgpu::RenderPassDescriptor pass_desc = {};
+   pass_desc.depthStencilAttachment = &attachment;
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      instance_,
+       device_,
+       queue_,
++      queue_scheduler_,
++      "depth upload",
+       [&](auto &encoder) { return encoder.BeginRenderPass(&pass_desc); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+@@ -827,7 +856,9 @@ bool WGPUContext::upload_depth_render(webgpu::WGPUTexture *dst,
+         pass.SetViewport(float(dst_x), float(dst_y), float(w), float(h), 0.0f, 1.0f);
+         pass.SetScissorRect(dst_x, dst_y, w, h);
+         pass.Draw(3, 1, 0, 0);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ wgpu::BindGroup WGPUContext::create_bind_group_checked(
+@@ -1258,7 +1289,10 @@ bool WGPUContext::is_window_backbuffer(const FrameBuffer *fb) const
+ }
+ 
+ /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
+-void WGPUContext::begin_frame() {}
++void WGPUContext::begin_frame()
++{
++  queue_scheduler_.begin_epoch();
++}
+ void WGPUContext::end_frame() {}
+ void WGPUContext::flush() {}
+ void WGPUContext::finish() {}
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 8489789dbed88989bd1a7694985d8f1db4fb8ada..168f433e31208794a5abeaddc5e44d60f38fe50d 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -18,6 +18,7 @@
+ #pragma once
+ 
+ #include "gpu_context_private.hh"
++#include "wgpu_common.hh"
+ 
+ #include <cstdint>
+ #include <string>
+@@ -98,6 +99,10 @@ class WGPUContext : public Context {
+   {
+     return queue_;
+   }
++  webgpu::OrderedQueueScheduler &queue_scheduler_get()
++  {
++    return queue_scheduler_;
++  }
+   const char *adapter_name() const
+   {
+     return adapter_name_.c_str();
+@@ -313,6 +318,8 @@ class WGPUContext : public Context {
+   wgpu::Adapter adapter_ = nullptr;
+   wgpu::Device device_ = nullptr;
+   wgpu::Queue queue_ = nullptr;
++  /** Serializes async validation with queue writes/submissions without changing their order. */
++  webgpu::OrderedQueueScheduler queue_scheduler_;
+   std::string adapter_name_;
+   /** Set between activate() and deactivate(); guards double-activation. */
+   bool is_active_ = false;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index 9fb0e689debb5600e4023e6c5977ac99c64f4cd2..afa337ca267d184ea96934448e3689345004a988 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -24,9 +24,12 @@
+ #include "BLI_math_vector_types.hh"
+ 
+ #include <algorithm>
++#include <atomic>
+ #include <cmath>
+ #include <cstring>
++#include <functional>
+ #include <limits>
++#include <memory>
+ #include <vector>
+ 
+ 
+@@ -75,6 +78,7 @@ WGPUFrameBuffer::WGPUFrameBuffer(const char *name) : FrameBuffer(name)
+ 
+ WGPUFrameBuffer::~WGPUFrameBuffer()
+ {
++  callback_lifetime_->store(false, std::memory_order_release);
+   empty_render_attachment_view_ = nullptr;
+   empty_render_attachment_ = nullptr;
+ }
+@@ -339,16 +343,21 @@ bool WGPUFrameBuffer::submit_scissored_color_clear(
+   wgpu::RenderPassDescriptor pass_descriptor = {};
+   pass_descriptor.colorAttachmentCount = 1;
+   pass_descriptor.colorAttachments = &color;
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      ctx->instance_get(),
+       device,
+       ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "scissored color clear",
+       [&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+         pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
+         pass.SetBindGroup(0, bind_group);
+         pass.Draw(3, 1, 0, 0);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+@@ -484,9 +493,12 @@ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+   }
+   wgpu::RenderPassDescriptor pass_descriptor = {};
+   pass_descriptor.depthStencilAttachment = &depth_stencil;
+-  return webgpu::command_pass_encode_submit_if_valid(
++  webgpu::command_pass_encode_submit_scoped(
++      ctx->instance_get(),
+       device,
+       ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "scissored depth-stencil clear",
+       [&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); },
+       [&](auto &pass) {
+         pass.SetPipeline(pipeline);
+@@ -496,7 +508,9 @@ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+           pass.SetStencilReference(clear_stencil_value);
+         }
+         pass.Draw(3, 1, 0, 0);
+-      });
++      },
++      [](bool) {});
++  return true;
+ }
+ 
+ bool WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,
+@@ -591,11 +605,18 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+                                    Span<double4> colors,
+                                    float clear_depth,
+                                    uint clear_stencil,
+-                                   bool force_full_attachment)
++                                   bool force_full_attachment,
++                                   std::function<void(bool)> completion)
+ {
++  const auto reject = [&completion]() {
++    if (completion) {
++      completion(false);
++    }
++    return false;
++  };
+   WGPUContext *ctx = active_context();
+   if (ctx == nullptr) {
+-    return false;
++    return reject();
+   }
+ 
+   uint8_t clear_aspects = 0;
+@@ -611,7 +632,7 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+   webgpu::FramebufferClearPlan clear_plan;
+   if (force_full_attachment) {
+     if (width_ <= 0 || height_ <= 0 || clear_aspects == 0) {
+-      return false;
++      return reject();
+     }
+     clear_plan.method = webgpu::FramebufferClearMethod::FullAttachmentLoadOp;
+     clear_plan.aspects = clear_aspects;
+@@ -632,11 +653,16 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+                                         clear_plan) ||
+         clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
+     {
+-      return false;
++      return reject();
+     }
+   }
+   if (clear_plan.method == webgpu::FramebufferClearMethod::ScissoredDraw) {
+-    return submit_scissored_clear(buffers, colors, clear_depth, clear_stencil, clear_plan);
++    const bool accepted = submit_scissored_clear(
++        buffers, colors, clear_depth, clear_stencil, clear_plan);
++    if (completion) {
++      completion(accepted);
++    }
++    return accepted;
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+@@ -653,7 +679,15 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+     }
+   }
+ 
++  struct ClearPass {
++    std::vector<wgpu::RenderPassColorAttachment> colors;
++    wgpu::RenderPassDepthStencilAttachment depth_stencil = {};
++    bool has_depth = false;
++  };
++  std::vector<ClearPass> clear_passes;
++  clear_passes.reserve(pass_count);
+   for (uint32_t pass_layer = 0; pass_layer < pass_count; pass_layer++) {
++    ClearPass clear_pass;
+     std::vector<wgpu::RenderPassColorAttachment> color_atts;
+     for (int slot = 0; slot < GPU_FB_MAX_COLOR_ATTACHMENT; slot++) {
+       Texture *tex = color_tex(slot);
+@@ -668,7 +702,7 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+           webgpu::framebuffer_clear_pass_layer(
+               att.layer, layer_count, pass_layer, force_layer);
+       if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
+-        return false;
++        return reject();
+       }
+       if (clear_status == webgpu::FramebufferClearPassStatus::Inactive) {
+         continue;
+@@ -676,7 +710,7 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+       wgpu::RenderPassColorAttachment ca = {};
+       ca.view = attachment_view(att, force_layer);
+       if (ca.view == nullptr) {
+-        return false;
++        return reject();
+       }
+       ca.depthSlice = attachment_depth_slice(att, force_layer);
+       ca.loadOp = (buffers & GPU_COLOR_BIT) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
+@@ -704,7 +738,7 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+           webgpu::framebuffer_clear_pass_layer(
+               att.layer, layer_count, pass_layer, force_layer);
+       if (clear_status == webgpu::FramebufferClearPassStatus::Invalid) {
+-        return false;
++        return reject();
+       }
+       if (clear_status == webgpu::FramebufferClearPassStatus::Active) {
+         has_depth = true;
+@@ -714,7 +748,7 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+         const bool permits_stencil = selected_aspect != wgpu::TextureAspect::DepthOnly;
+         dsa.view = attachment_view(att, force_layer);
+         if (dsa.view == nullptr) {
+-          return false;
++          return reject();
+         }
+         dsa.depthLoadOp = (permits_depth && (buffers & GPU_DEPTH_BIT)) ?
+                               wgpu::LoadOp::Clear :
+@@ -731,23 +765,62 @@ bool WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+       }
+     }
+ 
+-    wgpu::RenderPassDescriptor rp = {};
+-    rp.colorAttachmentCount = color_atts.size();
+-    rp.colorAttachments = color_atts.empty() ? nullptr : color_atts.data();
+-    rp.depthStencilAttachment = has_depth ? &dsa : nullptr;
+     /* WebGPU rejects attachment-less render passes. Blender can transiently bind an
+      * empty framebuffer while rebuilding EEVEE pass state; clearing it is a no-op. */
+     if (color_atts.empty() && !has_depth) {
+-      return false;
+-    }
+-    if (!webgpu::command_pass_encode_submit_if_valid(
+-            device,
+-            ctx->queue_get(),
+-            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
+-            [](auto & /*pass*/) {}))
+-    {
+-      return false;
++      return reject();
+     }
++    clear_pass.colors = std::move(color_atts);
++    clear_pass.depth_stencil = dsa;
++    clear_pass.has_depth = has_depth;
++    clear_passes.push_back(std::move(clear_pass));
++  }
++
++  struct CompletionState {
++    std::atomic<uint32_t> pending{0};
++    std::atomic<bool> valid{true};
++    std::atomic<bool> completed{false};
++    std::function<void(bool)> complete;
++  };
++  std::shared_ptr<CompletionState> completion_state;
++  if (completion) {
++    completion_state = std::make_shared<CompletionState>();
++    completion_state->pending.store(uint32_t(clear_passes.size()), std::memory_order_release);
++    completion_state->complete = std::move(completion);
++  }
++
++  for (ClearPass &clear_pass : clear_passes) {
++    wgpu::RenderPassDescriptor rp = {};
++    rp.colorAttachmentCount = clear_pass.colors.size();
++    rp.colorAttachments = clear_pass.colors.empty() ? nullptr : clear_pass.colors.data();
++    rp.depthStencilAttachment = clear_pass.has_depth ? &clear_pass.depth_stencil : nullptr;
++    webgpu::command_pass_encode_submit_scoped(ctx->instance_get(),
++                                              device,
++                                              ctx->queue_get(),
++                                              ctx->queue_scheduler_get(),
++                                              "framebuffer full clear",
++                                              [&](auto &encoder) {
++                                                return encoder.BeginRenderPass(&rp);
++                                              },
++                                              [](auto & /*pass*/) {},
++                                              [completion_state](const bool valid) {
++                                                if (!completion_state) {
++                                                  return;
++                                                }
++                                                if (!valid) {
++                                                  completion_state->valid.store(
++                                                      false, std::memory_order_release);
++                                                }
++                                                if (completion_state->pending.fetch_sub(
++                                                        1, std::memory_order_acq_rel) == 1 &&
++                                                    !completion_state->completed.exchange(
++                                                        true, std::memory_order_acq_rel))
++                                                {
++                                                  completion_state->complete(
++                                                      completion_state->valid.load(
++                                                          std::memory_order_acquire));
++                                                }
++                                              });
+   }
+   return true;
+ }
+@@ -848,8 +921,16 @@ void WGPUFrameBuffer::clear_attachment(GPUAttachmentType type, const double4 cle
+   }
+ }
+ 
+-bool WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double4 clear_value)
++bool WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type,
++                                            const double4 clear_value,
++                                            std::function<void(bool)> completion)
+ {
++  const auto reject = [&completion]() {
++    if (completion) {
++      completion(false);
++    }
++    return false;
++  };
+   /* Clear a single attachment via a scoped render pass touching only it. */
+   if (type == GPU_FB_DEPTH_ATTACHMENT || type == GPU_FB_DEPTH_STENCIL_ATTACHMENT) {
+     GPUFrameBufferBits bits = GPUFrameBufferBits(0);
+@@ -866,9 +947,14 @@ bool WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double
+     }
+     if (bits != GPUFrameBufferBits(0)) {
+       return submit_clear(
+-          bits, Span<double4>(), float(clear_value[0]), uint(clear_value[1]), true);
++          bits,
++          Span<double4>(),
++          float(clear_value[0]),
++          uint(clear_value[1]),
++          true,
++          std::move(completion));
+     }
+-    return false;
++    return reject();
+   }
+   /* Colour: reuse submit_clear, but only the requested slot should clear. Simplest
+    * correct approach — clear just that slot by binding it alone is not possible
+@@ -879,36 +965,74 @@ bool WGPUFrameBuffer::clear_attachment_full(GPUAttachmentType type, const double
+   WGPUContext *ctx = active_context();
+   Texture *tex = color_tex(slot);
+   if (ctx == nullptr || tex == nullptr) {
+-    return false;
++    return reject();
+   }
+   wgpu::Device device = ctx->device_get();
+   const GPUAttachment &att = attachments_[GPU_FB_COLOR_ATTACHMENT0 + slot];
+   const int layers = (att.layer < 0) ?
+                          int(as_wgpu(att.tex)->attachment_layer_count(std::max(att.mip, 0))) :
+                          1;
++  std::vector<wgpu::RenderPassColorAttachment> clear_layers;
++  clear_layers.reserve(layers);
+   for (int layer = 0; layer < layers; layer++) {
+     const int force_layer = (att.layer < 0) ? layer : -1;
+     wgpu::RenderPassColorAttachment ca = {};
+     ca.view = attachment_view(att, force_layer);
+     if (ca.view == nullptr) {
+-      return false;
++      return reject();
+     }
+     ca.depthSlice = attachment_depth_slice(att, force_layer);
+     ca.loadOp = wgpu::LoadOp::Clear;
+     ca.storeOp = wgpu::StoreOp::Store;
+     ca.clearValue = {clear_value[0], clear_value[1], clear_value[2], clear_value[3]};
+ 
++    clear_layers.push_back(std::move(ca));
++  }
++
++  struct CompletionState {
++    std::atomic<uint32_t> pending{0};
++    std::atomic<bool> valid{true};
++    std::atomic<bool> completed{false};
++    std::function<void(bool)> complete;
++  };
++  std::shared_ptr<CompletionState> completion_state;
++  if (completion) {
++    completion_state = std::make_shared<CompletionState>();
++    completion_state->pending.store(uint32_t(clear_layers.size()), std::memory_order_release);
++    completion_state->complete = std::move(completion);
++  }
++
++  for (wgpu::RenderPassColorAttachment &ca : clear_layers) {
+     wgpu::RenderPassDescriptor rp = {};
+     rp.colorAttachmentCount = 1;
+     rp.colorAttachments = &ca;
+-    if (!webgpu::command_pass_encode_submit_if_valid(
+-            device,
+-            ctx->queue_get(),
+-            [&](auto &encoder) { return encoder.BeginRenderPass(&rp); },
+-            [](auto & /*pass*/) {}))
+-    {
+-      return false;
+-    }
++    webgpu::command_pass_encode_submit_scoped(ctx->instance_get(),
++                                              device,
++                                              ctx->queue_get(),
++                                              ctx->queue_scheduler_get(),
++                                              "framebuffer attachment clear",
++                                              [&](auto &encoder) {
++                                                return encoder.BeginRenderPass(&rp);
++                                              },
++                                              [](auto & /*pass*/) {},
++                                              [completion_state](const bool valid) {
++                                                if (!completion_state) {
++                                                  return;
++                                                }
++                                                if (!valid) {
++                                                  completion_state->valid.store(
++                                                      false, std::memory_order_release);
++                                                }
++                                                if (completion_state->pending.fetch_sub(
++                                                        1, std::memory_order_acq_rel) == 1 &&
++                                                    !completion_state->completed.exchange(
++                                                        true, std::memory_order_acq_rel))
++                                                {
++                                                  completion_state->complete(
++                                                      completion_state->valid.load(
++                                                          std::memory_order_acquire));
++                                                }
++                                              });
+   }
+   return true;
+ }
+@@ -943,6 +1067,11 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+     if ((materialize_mask & (1u << index)) == 0) {
+       continue;
+     }
++    const uint32_t pending_bit = 1u << index;
++    if ((layered_load_clear_pending_mask_.load(std::memory_order_acquire) & pending_bit) != 0)
++    {
++      continue;
++    }
+     const GPULoadStore &load_store = load_store_[index];
+     double4 clear_value(load_store.clear_value[0],
+                         load_store.clear_value[1],
+@@ -953,14 +1082,23 @@ bool WGPUFrameBuffer::materialize_layered_loadstore_clears()
+        * stencil value; retain that established backend behavior here. */
+       clear_value[1] = 0.0;
+     }
+-    if (!webgpu::framebuffer_load_action_commit_if_valid(
+-            [&]() {
+-              return clear_attachment_full(
+-                  static_cast<GPUAttachmentType>(index), clear_value);
+-            },
+-            GPU_LOADACTION_LOAD,
+-            load_store_[index].load_action))
++    layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);
++    const std::shared_ptr<std::atomic<bool>> lifetime = callback_lifetime_;
++    if (!clear_attachment_full(
++            static_cast<GPUAttachmentType>(index),
++            clear_value,
++            [this, lifetime, index, pending_bit](const bool valid) {
++              if (!lifetime->load(std::memory_order_acquire)) {
++                return;
++              }
++              layered_load_clear_pending_mask_.fetch_and(~pending_bit,
++                                                         std::memory_order_acq_rel);
++              if (valid && load_store_[index].load_action == GPU_LOADACTION_CLEAR) {
++                load_store_[index].load_action = GPU_LOADACTION_LOAD;
++              }
++            }))
+     {
++      layered_load_clear_pending_mask_.fetch_and(~pending_bit, std::memory_order_acq_rel);
+       return false;
+     }
+   }
+@@ -1259,14 +1397,17 @@ void WGPUFrameBuffer::blit_to(GPUFrameBufferBits planes,
+     bridge_dst.aspect = aspect;
+ 
+     wgpu::Extent3D bridge_size = {w, h, 1};
+-    if (!webgpu::command_encode_submit_if_valid(
+-            device, ctx->queue_get(), [&](auto &encoder) {
+-              encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
+-              encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
+-            }))
+-    {
+-      return;
+-    }
++    webgpu::command_encode_submit_scoped(
++        ctx->instance_get(),
++        device,
++        ctx->queue_get(),
++        ctx->queue_scheduler_get(),
++        "framebuffer stencil bridge",
++        [&](auto &encoder) {
++          encoder.CopyTextureToBuffer(&bridge_src, &bridge_buffer_dst, &bridge_size);
++          encoder.CopyBufferToTexture(&bridge_buffer_src, &bridge_dst, &bridge_size);
++        },
++        [](bool) {});
+     return;
+   }
+   /* Colour blits across incompatible formats or dimensions cannot use
+@@ -1335,13 +1476,15 @@ void WGPUFrameBuffer::blit_to(GPUFrameBufferBits planes,
+ 
+   wgpu::Extent3D size = {w, h, 1};
+   wgpu::Device device = ctx->device_get();
+-  if (!webgpu::command_encode_submit_if_valid(
+-          device, ctx->queue_get(), [&](auto &encoder) {
+-            encoder.CopyTextureToTexture(&s, &d, &size);
+-          }))
+-  {
+-    return;
+-  }
++  webgpu::command_encode_submit_scoped(ctx->instance_get(),
++                                       device,
++                                       ctx->queue_get(),
++                                       ctx->queue_scheduler_get(),
++                                       "framebuffer texture copy",
++                                       [&](auto &encoder) {
++                                         encoder.CopyTextureToTexture(&s, &d, &size);
++                                       },
++                                       [](bool) {});
+ }
+ 
+ int WGPUFrameBuffer::attachment_layer_count() const
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+index 6f75489e57621c75bf0b72612da1ecc42216dfa9..e65a99bc1af0a9aa6f209fac964ba124850e288c 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -26,6 +26,9 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
++#include <atomic>
++#include <functional>
++#include <memory>
+ #include <unordered_map>
+ 
+ namespace blender::gpu {
+@@ -136,11 +139,14 @@ class WGPUFrameBuffer : public FrameBuffer {
+                     Span<double4> colors,
+                     float clear_depth,
+                     uint clear_stencil,
+-                    bool force_full_attachment = false);
++                    bool force_full_attachment = false,
++                    std::function<void(bool)> completion = {});
+   /** Internal full-attachment clear used to materialize a WebGPU load action. It deliberately
+    * ignores dynamic scissor state because attachment load operations are whole-subresource.
+    * Returns true only after every selected layer's clear reached the queue. */
+-  bool clear_attachment_full(GPUAttachmentType type, const double4 clear_value);
++  bool clear_attachment_full(GPUAttachmentType type,
++                             const double4 clear_value,
++                             std::function<void(bool)> completion = {});
+ 
+   /** Emulate a proper-subrectangle clear with a fullscreen draw clipped to `plan`. Full
+    * attachment clears never enter this path and retain loadOp=Clear. */
+@@ -168,6 +174,11 @@ class WGPUFrameBuffer : public FrameBuffer {
+   std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_color_clear_pipelines_;
+   std::unordered_map<uint64_t, wgpu::RenderPipeline> scissored_depth_clear_pipelines_;
+ 
++  /** Pending asynchronous all-layer load clears and callback lifetime. */
++  std::atomic<uint32_t> layered_load_clear_pending_mask_{0};
++  std::shared_ptr<std::atomic<bool>> callback_lifetime_ =
++      std::make_shared<std::atomic<bool>>(true);
++
+   MEM_CXX_CLASS_ALLOC_FUNCS("WGPUFrameBuffer")
+ };
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 96a2a7af442235ebf7bc5f3a771dbd888c5ad4be..7954af8190e1b14b1d36ca011e0fe55f3a42bb10 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -199,70 +199,62 @@ void WGPUImmediate::end()
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  if (enc == nullptr) {
+-    return;
+-  }
+-  wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+-  if (pass == nullptr) {
+-    return;
+-  }
+-  pass.SetPipeline(pipeline);
+-  ctx->apply_stencil_reference(pass);
+-  {
+-    /* Immediate is a single interleaved buffer; the plan is one slot (all attributes) plus
+-     * any dummy for a shader input the format omits. Bind each to its slot. */
+-    for (uint32_t s = 0; s < vplan.size(); s++) {
+-      const webgpu::VertexBinding &b = vplan[s];
+-      pass.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
+-    }
+-  }
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "immediate draw",
++      [&](auto &enc) {
++        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++        if (pass == nullptr) {
++          return false;
++        }
++        pass.SetPipeline(pipeline);
++        ctx->apply_stencil_reference(pass);
++        for (uint32_t s = 0; s < vplan.size(); s++) {
++          const webgpu::VertexBinding &b = vplan[s];
++          pass.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
++        }
+ 
+-  /* Bind group 0: the push-constant UBO (uniform colour + matrices) plus any
+-   * declared resources (e.g. an immBindTexture'd image + sampler) via the shared
+-   * builder. */
+-  {
+-    std::vector<wgpu::BindGroupEntry> entries;
+-    if (shader->push_constants_survive_compilation()) {
+-      shader->push_constants_flush();
+-      const webgpu::Buffer &pc = shader->push_constants_buffer();
+-      if (pc.valid()) {
+-        wgpu::BindGroupEntry entry = {};
+-        entry.binding = shader->push_constants_binding();
+-        entry.buffer = pc.handle();
+-        entry.offset = 0;
+-        entry.size = pc.size();
+-        entries.push_back(entry);
+-      }
+-    }
+-    ctx->append_resource_bind_entries(shader, entries);
+-    if (!entries.empty()) {
+-      const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
+-                                            shader->explicit_bind_group_layout() :
+-                                            pipeline.GetBindGroupLayout(0);
+-      wgpu::BindGroup bind_group;
+-      if (!webgpu::transient_handle_publish_if_valid(
+-              ctx->create_bind_group_checked(bgl, entries), bind_group))
+-      {
+-        return;
+-      }
+-      pass.SetBindGroup(0, bind_group);
+-    }
+-  }
++        std::vector<wgpu::BindGroupEntry> entries;
++        if (shader->push_constants_survive_compilation()) {
++          shader->push_constants_flush();
++          const webgpu::Buffer &pc = shader->push_constants_buffer();
++          if (pc.valid()) {
++            wgpu::BindGroupEntry entry = {};
++            entry.binding = shader->push_constants_binding();
++            entry.buffer = pc.handle();
++            entry.offset = 0;
++            entry.size = pc.size();
++            entries.push_back(entry);
++          }
++        }
++        ctx->append_resource_bind_entries(shader, entries);
++        if (!entries.empty()) {
++          const wgpu::BindGroupLayout bgl = shader->has_explicit_layout() ?
++                                                shader->explicit_bind_group_layout() :
++                                                pipeline.GetBindGroupLayout(0);
++          wgpu::BindGroup bind_group;
++          if (!webgpu::transient_handle_publish_if_valid(
++                  ctx->create_bind_group_checked(bgl, entries), bind_group))
++          {
++            return false;
++          }
++          pass.SetBindGroup(0, bind_group);
++        }
+ 
+-  if (!fan_indices.empty()) {
+-    pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
+-    pass.DrawIndexed(uint32_t(fan_indices.size()), 1, 0, 0, 0);
+-  }
+-  else {
+-    pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
+-  }
+-  pass.End();
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  if (cb == nullptr) {
+-    return;
+-  }
+-  ctx->queue_get().Submit(1, &cb);
++        if (!fan_indices.empty()) {
++          pass.SetIndexBuffer(index_buffer, wgpu::IndexFormat::Uint32, 0);
++          pass.DrawIndexed(uint32_t(fan_indices.size()), 1, 0, 0, 0);
++        }
++        else {
++          pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
++        }
++        pass.End();
++        return true;
++      },
++      [](bool) {});
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+index 8ae8e4d788862f56fb427906a936ddd8223b49c8..11411e7c9c30d9d7b268d5b5fd8150be55d04519 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -95,7 +95,12 @@ void WGPUIndexBuffer::read(uint32_t *data) const
+   }
+   WGPUContext *ctx = active_context();
+   std::vector<uint8_t> bytes = buf.read(
+-      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_get());
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      0,
++      size_get());
+   if (!bytes.empty()) {
+     std::memcpy(data, bytes.data(), bytes.size());
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+index 1cbc48aafa706919b40d62c8dd8c77da538fca79..d4e217545b9c44f652f850f5a4b1c949d955d47f 100644
+--- a/source/blender/gpu/webgpu/wgpu_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -601,8 +601,10 @@ void fail_reserved_pending(const std::shared_ptr<Pending> &pending, TicketError
+ 
+ }  // namespace
+ 
+-Ticket kick_texture(const wgpu::Device &device,
++Ticket kick_texture(const wgpu::Instance &instance,
++                    const wgpu::Device &device,
+                     const wgpu::Queue &queue,
++                    OrderedQueueScheduler &scheduler,
+                     const wgpu::Texture &texture,
+                     SourceKey key,
+                     const TextureRegion &region,
+@@ -723,27 +725,34 @@ Ticket kick_texture(const wgpu::Device &device,
+   destination.layout.rowsPerImage = region.height;
+ 
+   const wgpu::Extent3D extent = {region.width, region.height, region.depth};
+-  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+-        encoder.CopyTextureToBuffer(&source, &destination, &extent);
+-      }))
+-  {
+-    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
+-    release_backend_handles(*pending);
+-    return pending->ticket;
+-  }
+-
+-  staging.MapAsync(wgpu::MapMode::Read,
+-                   0,
+-                   staging_size,
+-                   wgpu::CallbackMode::AllowSpontaneous,
+-                   [pending](wgpu::MapAsyncStatus status, wgpu::StringView) {
+-                     complete_pending(pending, status);
+-                   });
++  webgpu::command_encode_submit_scoped(
++      instance,
++      device,
++      queue,
++      scheduler,
++      "texture readback copy",
++      [&](auto &encoder) { encoder.CopyTextureToBuffer(&source, &destination, &extent); },
++      [pending, staging, staging_size](const bool valid) mutable {
++        if (!valid) {
++          fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++          release_backend_handles(*pending);
++          return;
++        }
++        staging.MapAsync(wgpu::MapMode::Read,
++                         0,
++                         staging_size,
++                         wgpu::CallbackMode::AllowSpontaneous,
++                         [pending](wgpu::MapAsyncStatus status, wgpu::StringView) {
++                           complete_pending(pending, status);
++                         });
++      });
+   return pending->ticket;
+ }
+ 
+-Ticket kick_buffer(const wgpu::Device &device,
++Ticket kick_buffer(const wgpu::Instance &instance,
++                   const wgpu::Device &device,
+                    const wgpu::Queue &queue,
++                   OrderedQueueScheduler &scheduler,
+                    const wgpu::Buffer &handle,
+                    SourceKey key,
+                    uint64_t offset,
+@@ -804,22 +813,27 @@ Ticket kick_buffer(const wgpu::Device &device,
+   }
+   pending->staging = staging;
+ 
+-  if (!webgpu::command_encode_submit_if_valid(device, queue, [&](auto &encoder) {
+-        encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy);
+-      }))
+-  {
+-    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
+-    release_backend_handles(*pending);
+-    return pending->ticket;
+-  }
+-
+-  staging.MapAsync(wgpu::MapMode::Read,
+-                   0,
+-                   copy,
+-                   wgpu::CallbackMode::AllowSpontaneous,
+-                   [pending](wgpu::MapAsyncStatus status, wgpu::StringView) {
+-                     complete_pending(pending, status);
+-                   });
++  webgpu::command_encode_submit_scoped(
++      instance,
++      device,
++      queue,
++      scheduler,
++      "buffer readback copy",
++      [&](auto &encoder) { encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy); },
++      [pending, staging, copy](const bool valid) mutable {
++        if (!valid) {
++          fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++          release_backend_handles(*pending);
++          return;
++        }
++        staging.MapAsync(wgpu::MapMode::Read,
++                         0,
++                         copy,
++                         wgpu::CallbackMode::AllowSpontaneous,
++                         [pending](wgpu::MapAsyncStatus status, wgpu::StringView) {
++                           complete_pending(pending, status);
++                         });
++      });
+   return pending->ticket;
+ }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
+index 7904fdf6b26fb095f4773b0db97b311378a78b23..972573105d2165c30962d278d53473a601a9b4ca 100644
+--- a/source/blender/gpu/webgpu/wgpu_readback.hh
++++ b/source/blender/gpu/webgpu/wgpu_readback.hh
+@@ -57,6 +57,7 @@
+ #include "webgpu/webgpu_cpp.h"
+ 
+ namespace blender::gpu::webgpu {
++class OrderedQueueScheduler;
+ class WGPUTexture;
+ }
+ 
+@@ -151,8 +152,10 @@ struct TextureRegion {
+  * identical in-flight key. Exact mode always creates a new ticket and copy, with a terminal
+  * Failed ticket for argument/allocation/command/capacity errors whenever the registry can
+  * represent it. */
+-Ticket kick_texture(const wgpu::Device &device,
++Ticket kick_texture(const wgpu::Instance &instance,
++                    const wgpu::Device &device,
+                     const wgpu::Queue &queue,
++                    OrderedQueueScheduler &scheduler,
+                     const wgpu::Texture &tex,
+                     SourceKey key,
+                     const TextureRegion &region,
+@@ -166,8 +169,10 @@ Ticket kick_texture(const wgpu::Device &device,
+  * map resolves. The underlying buffer handle is pinned in the record so its raw address
+  * cannot be reused before its callback completes. Cache mode reuses an identical
+  * in-flight key; exact mode always creates a new ticket and copy. */
+-Ticket kick_buffer(const wgpu::Device &device,
++Ticket kick_buffer(const wgpu::Instance &instance,
++                   const wgpu::Device &device,
+                    const wgpu::Queue &queue,
++                   OrderedQueueScheduler &scheduler,
+                    const wgpu::Buffer &handle,
+                    SourceKey key,
+                    uint64_t offset,
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 6dfd7c71d9521e9d198365c05e831984ff1782e6..0466a618a1ff6972cc91e5238697705327ece5ed 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2919,11 +2919,12 @@ void WGPUShader::push_constants_flush()
+   if (push_constants_size_ == 0) {
+     return;
+   }
+-  wgpu::Device device = WGPUContext::backend_device();
+-  wgpu::Queue queue = WGPUContext::backend_queue();
+-  if (device == nullptr) {
++  WGPUContext *ctx = static_cast<WGPUContext *>(Context::get());
++  if (ctx == nullptr) {
+     return;
+   }
++  wgpu::Device device = ctx->device_get();
++  wgpu::Queue queue = ctx->queue_get();
+   if (!push_constants_buffer_.valid()) {
+     if (!push_constants_buffer_.create(device,
+                                        webgpu::BufferKind::Uniform,
+@@ -2938,7 +2939,13 @@ void WGPUShader::push_constants_flush()
+   }
+   if (push_constants_dirty_) {
+     push_constants_buffer_.update_sub(
+-        device, queue, 0, push_constants_data_.data(), push_constants_size_);
++        ctx->instance_get(),
++        device,
++        queue,
++        ctx->queue_scheduler_get(),
++        0,
++        push_constants_data_.data(),
++        push_constants_size_);
+     push_constants_dirty_ = false;
+   }
+ }
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+index bd795240d7f631c2e96ffebcdd0badfe904bc8cd..a9cf71b0f72b173d8d031a8327197f55ffb8825c 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -164,7 +164,13 @@ void WGPUStorageBuffer::update(const void *data)
+     return;
+   }
+   buffer_.update_sub(
+-      ctx->device_get(), ctx->queue_get(), 0, payload.data(data), payload.transfer_size);
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      0,
++      payload.data(data),
++      payload.transfer_size);
+ }
+ 
+ void WGPUStorageBuffer::clear(uint32_t clear_value)
+@@ -178,7 +184,13 @@ void WGPUStorageBuffer::clear(uint32_t clear_value)
+   const size_t words = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment) / sizeof(uint32_t);
+   std::vector<uint32_t> pattern(words, clear_value);
+   buffer_.update_sub(
+-      ctx->device_get(), ctx->queue_get(), 0, pattern.data(), words * sizeof(uint32_t));
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      0,
++      pattern.data(),
++      words * sizeof(uint32_t));
+ }
+ 
+ void WGPUStorageBuffer::copy_sub(VertBuf *src, uint dst_offset, uint src_offset, uint copy_size)
+@@ -209,13 +221,17 @@ void WGPUStorageBuffer::copy_sub(VertBuf *src, uint dst_offset, uint src_offset,
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+-  if (!webgpu::command_encode_submit_if_valid(device, ctx->queue_get(), [&](auto &encoder) {
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "vertex-to-storage copy",
++      [&](auto &encoder) {
+         encoder.CopyBufferToBuffer(
+             src_buffer.handle(), src_offset, buffer_.handle(), dst_offset, copy_size);
+-      }))
+-  {
+-    return;
+-  }
++      },
++      [](bool) {});
+ }
+ 
+ void WGPUStorageBuffer::read(void *data)
+@@ -225,7 +241,12 @@ void WGPUStorageBuffer::read(void *data)
+   }
+   WGPUContext *ctx = active_context();
+   std::vector<uint8_t> bytes = buffer_.read(
+-      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_in_bytes_);
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      0,
++      size_in_bytes_);
+   if (bytes.size() == size_in_bytes_) {
+     std::memcpy(data, bytes.data(), size_in_bytes_);
+   }
+@@ -249,8 +270,10 @@ GPUReadback *WGPUStorageBuffer::read_async()
+                                         this,
+                                         0,
+                                         uint64_t(size_in_bytes_)};
+-  const webgpu::readback::Ticket ticket = webgpu::readback::kick_buffer(ctx->device_get(),
++  const webgpu::readback::Ticket ticket = webgpu::readback::kick_buffer(ctx->instance_get(),
++                                                                       ctx->device_get(),
+                                                                        ctx->queue_get(),
++                                                                       ctx->queue_scheduler_get(),
+                                                                        buffer_.handle(),
+                                                                        key,
+                                                                        0,
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 280de5954f151f1c80eb64d5a7763739da8c849c..79995813ccf4bfea723f23cb56d0bb64f3db08bf 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -1430,8 +1430,17 @@ void WGPUTexture::update_sub(int mip,
+ 
+     wgpu::Extent3D write_size = {
+         compressed_layout.copy_width, compressed_layout.copy_height, layer_count};
+-    ctx->queue_get().WriteTexture(
+-        &dst, data, compressed_layout.data_size, &layout, &write_size);
++    webgpu::queue_write_texture_scoped(ctx->instance_get(),
++                                       ctx->device_get(),
++                                       ctx->queue_get(),
++                                       ctx->queue_scheduler_get(),
++                                       dst,
++                                       data,
++                                       compressed_layout.data_size,
++                                       layout,
++                                       write_size,
++                                       "compressed texture upload",
++                                       [](bool) {});
+     return;
+   }
+ 
+@@ -1551,8 +1560,17 @@ void WGPUTexture::update_sub(int mip,
+   copy_layout.bytesPerRow = layout.bytes_per_row; /* writeTexture needs no 256 align. */
+   copy_layout.rowsPerImage = write_size.height;
+ 
+-  ctx->queue_get().WriteTexture(
+-      &dst, device_data.data(), device_data.size(), &copy_layout, &write_size);
++  webgpu::queue_write_texture_scoped(ctx->instance_get(),
++                                     ctx->device_get(),
++                                     ctx->queue_get(),
++                                     ctx->queue_scheduler_get(),
++                                     dst,
++                                     device_data.data(),
++                                     device_data.size(),
++                                     copy_layout,
++                                     write_size,
++                                     "texture upload",
++                                     [](bool) {});
+ }
+ 
+ void WGPUTexture::update_sub(int offset[3],
+@@ -1877,8 +1895,13 @@ void WGPUTexture::clear(const double4 data)
+      * its absolute base mip; mip_range_set controls sampling and must not widen a
+      * direct clear. */
+     constexpr int mip = 0;
+-    if (!webgpu::command_encode_submit_if_valid(
+-            device, ctx->queue_get(), [&](auto &encoder) {
++    webgpu::command_encode_submit_scoped(
++        ctx->instance_get(),
++        device,
++        ctx->queue_get(),
++        ctx->queue_scheduler_get(),
++        "depth texture clear",
++        [&](auto &encoder) {
+               const uint32_t layers = ELEM(subresources_.backing_type,
+                                            GPU_TEXTURE_1D_ARRAY,
+                                            GPU_TEXTURE_2D_ARRAY,
+@@ -1918,11 +1941,9 @@ void WGPUTexture::clear(const double4 data)
+                 }
+                 pass.End();
+               }
+-              return true;
+-            }))
+-    {
+-      return;
+-    }
++          return true;
++        },
++        [](bool) {});
+     return;
+   }
+ 
+@@ -1949,8 +1970,13 @@ void WGPUTexture::clear(const double4 data)
+     wgpu::Device device = ctx->device_get();
+     /* Public direct clears affect relative mip zero only. */
+     constexpr int mip = 0;
+-    if (!webgpu::command_encode_submit_if_valid(
+-            device, ctx->queue_get(), [&](auto &encoder) {
++    webgpu::command_encode_submit_scoped(
++        ctx->instance_get(),
++        device,
++        ctx->queue_get(),
++        ctx->queue_scheduler_get(),
++        "renderable texture clear",
++        [&](auto &encoder) {
+               ResolvedReadRegion mip_region;
+               if (!resolve_subresource(mip, -1, mip_region)) {
+                 return false;
+@@ -2006,11 +2032,9 @@ void WGPUTexture::clear(const double4 data)
+                 }
+                 pass.End();
+               }
+-              return true;
+-            }))
+-    {
+-      return;
+-    }
++          return true;
++        },
++        [](bool) {});
+     return;
+   }
+ 
+@@ -2090,7 +2114,17 @@ void WGPUTexture::clear(const double4 data)
+     layout.rowsPerImage = ey;
+ 
+     wgpu::Extent3D write_size = {ex, ey, ez};
+-    ctx->queue_get().WriteTexture(&dst, buffer.data(), buffer.size(), &layout, &write_size);
++    webgpu::queue_write_texture_scoped(ctx->instance_get(),
++                                       ctx->device_get(),
++                                       ctx->queue_get(),
++                                       ctx->queue_scheduler_get(),
++                                       dst,
++                                       buffer.data(),
++                                       buffer.size(),
++                                       layout,
++                                       write_size,
++                                       "raw texture clear",
++                                       [](bool) {});
+   }
+ }
+ 
+@@ -2259,8 +2293,10 @@ GPUReadback *WGPUTexture::read_async(const int mip, const eGPUDataFormat format)
+                                 region.height,
+                                 region.depth,
+                                 uint8_t(region.aspect)};
+-  const readback::Ticket ticket = readback::kick_texture(ctx->device_get(),
++  const readback::Ticket ticket = readback::kick_texture(ctx->instance_get(),
++                                                         ctx->device_get(),
+                                                          ctx->queue_get(),
++                                                         ctx->queue_scheduler_get(),
+                                                          resolved.texture,
+                                                          key,
+                                                          region,
+@@ -2358,8 +2394,10 @@ void WGPUTexture::read_sub(int mip, int layer, eGPUDataFormat format, void *data
+                                   region.depth,
+                                   uint8_t(region.aspect)};
+     readback::take_settled(key, device_data.data(), device_data.size());
+-    readback::kick_texture(ctx->device_get(),
++    readback::kick_texture(ctx->instance_get(),
++                           ctx->device_get(),
+                            ctx->queue_get(),
++                           ctx->queue_scheduler_get(),
+                            resolved.texture,
+                            key,
+                            region,
+@@ -2396,11 +2434,17 @@ void WGPUTexture::read_sub(int mip, int layer, eGPUDataFormat format, void *data
+   dst.layout.rowsPerImage = ey;
+ 
+   wgpu::Extent3D copy_size = {ex, ey, ez};
+-  if (!webgpu::command_encode_submit_if_valid(
+-          device, ctx->queue_get(), [&](auto &encoder) {
+-            encoder.CopyTextureToBuffer(&src, &dst, &copy_size);
+-          }))
+-  {
++  bool submitted = false;
++  webgpu::command_encode_submit_scoped(ctx->instance_get(),
++                                       device,
++                                       ctx->queue_get(),
++                                       ctx->queue_scheduler_get(),
++                                       "synchronous texture readback",
++                                       [&](auto &encoder) {
++                                         encoder.CopyTextureToBuffer(&src, &dst, &copy_size);
++                                       },
++                                       [&](const bool valid) { submitted = valid; });
++  if (!submitted) {
+     return;
+   }
+ 
+@@ -2470,8 +2514,13 @@ void WGPUTexture::copy_to(Texture *tex, IndexRange mip_levels)
+   }
+ 
+   wgpu::Device device = ctx->device_get();
+-  if (!webgpu::command_encode_submit_if_valid(
+-          device, ctx->queue_get(), [&](auto &encoder) {
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "texture copy",
++      [&](auto &encoder) {
+             for (const int64_t mip : mip_levels) {
+               ResolvedReadRegion src_region;
+               ResolvedReadRegion dst_region;
+@@ -2506,10 +2555,8 @@ void WGPUTexture::copy_to(Texture *tex, IndexRange mip_levels)
+                   src_region.width, src_region.height, src_region.depth};
+               encoder.CopyTextureToTexture(&s, &d, &size);
+             }
+-          }))
+-  {
+-    return;
+-  }
++      },
++      [](bool) {});
+ }
+ 
+ void WGPUTexture::generate_mipmap()
+@@ -2601,10 +2648,6 @@ void WGPUTexture::generate_mipmap()
+     return;
+   }
+ 
+-  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+-  if (enc == nullptr) {
+-    return;
+-  }
+   const uint32_t layers = ELEM(type_,
+                                GPU_TEXTURE_1D_ARRAY,
+                                GPU_TEXTURE_2D_ARRAY,
+@@ -2612,47 +2655,52 @@ void WGPUTexture::generate_mipmap()
+                                GPU_TEXTURE_CUBE_ARRAY) ?
+                               subresources_.layer_count :
+                               1u;
+-  for (uint32_t mip = 1; mip < subresources_.mip_count; mip++) {
+-    for (uint32_t layer = 0; layer < layers; layer++) {
+-      wgpu::TextureView src_view = sampled_attachment_view(int(mip - 1), int(layer));
+-      wgpu::TextureView dst_view = attachment_view(int(mip), int(layer));
+-      if (src_view == nullptr || dst_view == nullptr) {
+-        return;
+-      }
+-      wgpu::BindGroupEntry entry = {};
+-      entry.binding = 0;
+-      entry.textureView = src_view;
+-      wgpu::BindGroupDescriptor bind_desc = {};
+-      bind_desc.layout = pipeline.GetBindGroupLayout(0);
+-      bind_desc.entryCount = 1;
+-      bind_desc.entries = &entry;
+-      wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_desc);
+-      if (bind_group == nullptr) {
+-        return;
+-      }
++  webgpu::command_encode_submit_scoped(
++      ctx->instance_get(),
++      device,
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      "texture mipmap generation",
++      [&](auto &enc) {
++        for (uint32_t mip = 1; mip < subresources_.mip_count; mip++) {
++          for (uint32_t layer = 0; layer < layers; layer++) {
++            wgpu::TextureView src_view = sampled_attachment_view(int(mip - 1), int(layer));
++            wgpu::TextureView dst_view = attachment_view(int(mip), int(layer));
++            if (src_view == nullptr || dst_view == nullptr) {
++              return false;
++            }
++            wgpu::BindGroupEntry entry = {};
++            entry.binding = 0;
++            entry.textureView = src_view;
++            wgpu::BindGroupDescriptor bind_desc = {};
++            bind_desc.layout = pipeline.GetBindGroupLayout(0);
++            bind_desc.entryCount = 1;
++            bind_desc.entries = &entry;
++            wgpu::BindGroup bind_group = device.CreateBindGroup(&bind_desc);
++            if (bind_group == nullptr) {
++              return false;
++            }
+ 
+-      wgpu::RenderPassColorAttachment color = {};
+-      color.view = dst_view;
+-      color.loadOp = wgpu::LoadOp::Clear;
+-      color.storeOp = wgpu::StoreOp::Store;
+-      wgpu::RenderPassDescriptor pass_desc = {};
+-      pass_desc.colorAttachmentCount = 1;
+-      pass_desc.colorAttachments = &color;
+-      wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&pass_desc);
+-      if (pass == nullptr) {
+-        return;
+-      }
+-      pass.SetPipeline(pipeline);
+-      pass.SetBindGroup(0, bind_group);
+-      pass.Draw(3, 1, 0, 0);
+-      pass.End();
+-    }
+-  }
+-  wgpu::CommandBuffer cb = enc.Finish();
+-  if (cb == nullptr) {
+-    return;
+-  }
+-  ctx->queue_get().Submit(1, &cb);
++            wgpu::RenderPassColorAttachment color = {};
++            color.view = dst_view;
++            color.loadOp = wgpu::LoadOp::Clear;
++            color.storeOp = wgpu::StoreOp::Store;
++            wgpu::RenderPassDescriptor pass_desc = {};
++            pass_desc.colorAttachmentCount = 1;
++            pass_desc.colorAttachments = &color;
++            wgpu::RenderPassEncoder pass = enc.BeginRenderPass(&pass_desc);
++            if (pass == nullptr) {
++              return false;
++            }
++            pass.SetPipeline(pipeline);
++            pass.SetBindGroup(0, bind_group);
++            pass.Draw(3, 1, 0, 0);
++            pass.End();
++          }
++        }
++        return true;
++      },
++      [](bool) {});
+ }
+ 
+ void WGPUTexture::swizzle_set(const char swizzle_mask[4])
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+index eeda9b909a2a7145bb96c8ea31774021154ff68e..c641b6853090aef2dc2ce0003c5301634a62ed85 100644
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -76,7 +76,13 @@ bool WGPUUniformBuffer::ensure_updated()
+   if (data_ != nullptr) {
+     WGPUContext *ctx = active_context();
+     const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+-    buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data_, n);
++    buffer_.update_sub(ctx->instance_get(),
++                       ctx->device_get(),
++                       ctx->queue_get(),
++                       ctx->queue_scheduler_get(),
++                       0,
++                       data_,
++                       n);
+     MEM_SAFE_DELETE_VOID(data_);
+   }
+   return true;
+@@ -91,7 +97,13 @@ void WGPUUniformBuffer::update(const void *data)
+   /* UBO payloads are std140-padded, so size is a multiple of 16; round to 4 for
+    * the WebGPU copy granularity to be safe. */
+   const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+-  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, data, n);
++  buffer_.update_sub(ctx->instance_get(),
++                     ctx->device_get(),
++                     ctx->queue_get(),
++                     ctx->queue_scheduler_get(),
++                     0,
++                     data,
++                     n);
+ }
+ 
+ void WGPUUniformBuffer::clear_to_zero()
+@@ -102,7 +114,13 @@ void WGPUUniformBuffer::clear_to_zero()
+   WGPUContext *ctx = active_context();
+   const size_t n = webgpu::align_up(size_in_bytes_, webgpu::kCopyAlignment);
+   std::vector<uint8_t> zeros(n, 0);
+-  buffer_.update_sub(ctx->device_get(), ctx->queue_get(), 0, zeros.data(), n);
++  buffer_.update_sub(ctx->instance_get(),
++                     ctx->device_get(),
++                     ctx->queue_get(),
++                     ctx->queue_scheduler_get(),
++                     0,
++                     zeros.data(),
++                     n);
+ }
+ 
+ /* Record the binding in the active context's uniform-buffer bind-space; the actual
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index 3ca9db529a655d3db4d5c4b54f657a01ca7166df..e9c8925f49113d6eb7409b97ee6ded31b3ec2d87 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -356,8 +356,10 @@ void WGPUVertexBuffer::upload_data()
+        * transfer tail; do not discard the host copy or dirty state if the upload fails. */
+       webgpu::BufferUpdatePayload payload;
+       if (!webgpu::buffer_update_payload(upload_data, used, buffer_.size(), payload) ||
+-          !buffer_.update_sub(ctx->device_get(),
++          !buffer_.update_sub(ctx->instance_get(),
++                              ctx->device_get(),
+                               ctx->queue_get(),
++                              ctx->queue_scheduler_get(),
+                               0,
+                               payload.data(upload_data),
+                               payload.transfer_size))
+@@ -391,10 +393,22 @@ void WGPUVertexBuffer::update_sub(uint start, uint len, const void *data)
+       return;
+     }
+     buffer_.update_sub(
+-        ctx->device_get(), ctx->queue_get(), start, scratch.data(), scratch.size());
++        ctx->instance_get(),
++        ctx->device_get(),
++        ctx->queue_get(),
++        ctx->queue_scheduler_get(),
++        start,
++        scratch.data(),
++        scratch.size());
+   }
+   else {
+-    buffer_.update_sub(ctx->device_get(), ctx->queue_get(), start, data, len);
++    buffer_.update_sub(ctx->instance_get(),
++                       ctx->device_get(),
++                       ctx->queue_get(),
++                       ctx->queue_scheduler_get(),
++                       start,
++                       data,
++                       len);
+   }
+   buffer_texture_buffer_dirty_ = true;
+ }
+@@ -406,7 +420,12 @@ void WGPUVertexBuffer::read(void *data) const
+   }
+   WGPUContext *ctx = active_context();
+   std::vector<uint8_t> bytes = buffer_.read(
+-      ctx->instance_get(), ctx->device_get(), ctx->queue_get(), 0, size_used_get());
++      ctx->instance_get(),
++      ctx->device_get(),
++      ctx->queue_get(),
++      ctx->queue_scheduler_get(),
++      0,
++      size_used_get());
+   if (!bytes.empty()) {
+     std::memcpy(data, bytes.data(), bytes.size());
+   }
+@@ -499,6 +518,7 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+       const std::vector<uint8_t> source = buffer_.read(ctx->instance_get(),
+                                                        ctx->device_get(),
+                                                        ctx->queue_get(),
++                                                       ctx->queue_scheduler_get(),
+                                                        0,
+                                                        size_used_get());
+       if (source.empty()) {
+@@ -533,8 +553,10 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+           return;
+         }
+       }
+-      else if (!buffer_texture_buffer_.update_sub(ctx->device_get(),
++      else if (!buffer_texture_buffer_.update_sub(ctx->instance_get(),
++                                                   ctx->device_get(),
+                                                    ctx->queue_get(),
++                                                   ctx->queue_scheduler_get(),
+                                                    0,
+                                                    expanded.data(),
+                                                    expanded.size() * sizeof(float)))

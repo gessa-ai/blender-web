@@ -1,0 +1,369 @@
+# SPDX-FileCopyrightText: 2001-2002 NaN Holding BV. All rights reserved.
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# M5: retain Look at Surface's exact invoke event and a bounded modal FIFO until
+# its owned full-viewport depth cache settles before selected-object capture.
+# Ported for the web from source/blender/editors/object/object_transform.cc @ fbe6228777e7.
+
+diff --git a/source/blender/editors/object/object_transform.cc b/source/blender/editors/object/object_transform.cc
+index 7b292f43984c32e771fad22a9b4328011dd310b6..9616ba51a4cd6c8a05e382ec88eaf2e3e96bc643 100644
+--- a/source/blender/editors/object/object_transform.cc
++++ b/source/blender/editors/object/object_transform.cc
+@@ -1976,7 +1976,19 @@ struct XFormAxisItem {
+ 
+ struct XFormAxisData {
+   ViewContext vc;
+-  ViewDepths *depths;
++  ViewDepths *depths = nullptr;
++  ViewportDepthCacheSession depth_cache_session;
++  Vector<wmEvent> depth_cache_events;
++  wmEvent depth_cache_start_event{};
++  wmTimer *depth_cache_timer = nullptr;
++  wmWindowManager *depth_cache_manager = nullptr;
++  wmWindow *depth_cache_window = nullptr;
++  bScreen *depth_cache_screen = nullptr;
++  ScrArea *depth_cache_area = nullptr;
++  int depth_cache_tick_count = 0;
++  bool depth_cache_start_event_valid = false;
++  bool depth_cache_pending = false;
++  bool initialized = false;
+   struct {
+     float depth;
+     float normal[3];
+@@ -2034,9 +2046,27 @@ static bool object_is_target_compat(const Object *ob)
+   return false;
+ }
+ 
++static void object_transform_axis_target_depth_timer_remove(XFormAxisData *xfd)
++{
++  if (xfd->depth_cache_timer != nullptr) {
++    WM_event_timer_remove(
++        xfd->depth_cache_manager, xfd->depth_cache_window, xfd->depth_cache_timer);
++    xfd->depth_cache_timer = nullptr;
++  }
++  xfd->depth_cache_tick_count = 0;
++}
++
+ static void object_transform_axis_target_free_data(wmOperator *op)
+ {
+   XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
++  if (xfd == nullptr) {
++    return;
++  }
++
++  object_transform_axis_target_depth_timer_remove(xfd);
++  xfd->depth_cache_events.clear();
++  xfd->depth_cache_start_event_valid = false;
++  xfd->depth_cache_pending = false;
+ 
+ #ifdef USE_RENDER_OVERRIDE
+   if (xfd->depths) {
+@@ -2136,54 +2166,109 @@ void object_transform_axis_target_modal_keymap(wmKeyConfig *keyconf)
+ static void object_transform_axis_target_cancel(bContext *C, wmOperator *op)
+ {
+   XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
+-  for (XFormAxisItem &item : xfd->object_data) {
+-    BKE_object_tfm_restore(item.ob, item.obtfm);
+-    DEG_id_tag_update(&item.ob->id, ID_RECALC_TRANSFORM);
+-    WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, item.ob);
++  if (xfd->initialized) {
++    for (XFormAxisItem &item : xfd->object_data) {
++      BKE_object_tfm_restore(item.ob, item.obtfm);
++      DEG_id_tag_update(&item.ob->id, ID_RECALC_TRANSFORM);
++      WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, item.ob);
++    }
+   }
+ 
+   ED_workspace_status_text(C, nullptr);
+   object_transform_axis_target_free_data(op);
+ }
+ 
+-static wmOperatorStatus object_transform_axis_target_invoke(bContext *C,
+-                                                            wmOperator *op,
+-                                                            const wmEvent *event)
++static bool object_transform_axis_target_depth_context_matches(const bContext *C,
++                                                               const XFormAxisData *xfd)
+ {
+-  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+-  ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
++  if (CTX_wm_manager(C) != xfd->depth_cache_manager ||
++      CTX_wm_window(C) != xfd->depth_cache_window ||
++      CTX_wm_screen(C) != xfd->depth_cache_screen ||
++      CTX_wm_area(C) != xfd->depth_cache_area || CTX_wm_region(C) != xfd->vc.region ||
++      CTX_wm_region_view3d(C) != xfd->vc.rv3d || CTX_wm_view3d(C) != xfd->vc.v3d ||
++      CTX_data_depsgraph_pointer(C) != xfd->vc.depsgraph ||
++      CTX_data_scene(C) != xfd->vc.scene ||
++      CTX_data_view_layer(C) != xfd->vc.view_layer ||
++      CTX_data_active_object(C) != xfd->vc.obact)
++  {
++    return false;
++  }
++  return xfd->vc.obact != nullptr && object_is_target_compat(xfd->vc.obact);
++}
+ 
+-  if (vc.obact == nullptr || !object_is_target_compat(vc.obact)) {
+-    /* Falls back to texture space transform. */
+-    return OPERATOR_PASS_THROUGH;
++static bool object_transform_axis_target_depth_event_push(XFormAxisData *xfd,
++                                                          const wmEvent *event)
++{
++  constexpr int max_queued_events = 256;
++  if (event == nullptr || event->type == TIMER || event->custom != 0 ||
++      event->customdata != nullptr || xfd->depth_cache_events.size() >= max_queued_events)
++  {
++    return false;
+   }
+ 
+-#ifdef USE_RENDER_OVERRIDE
+-  eView3D_Flag2 flag2_prev = vc.v3d->flag2;
+-  vc.v3d->flag2 |= V3D_HIDE_OVERLAYS;
+-#endif
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata = nullptr;
++  queued.customdata_free = false;
++  xfd->depth_cache_events.append(queued);
++  return true;
++}
+ 
+-  ViewDepths *depths = nullptr;
+-  ED_view3d_depth_override(
+-      vc.depsgraph, vc.region, vc.v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false, &depths);
++static bool object_transform_axis_target_depth_wait_begin(bContext *C,
++                                                          XFormAxisData *xfd,
++                                                          const wmEvent *event)
++{
++  xfd->depth_cache_manager = CTX_wm_manager(C);
++  xfd->depth_cache_window = CTX_wm_window(C);
++  xfd->depth_cache_screen = CTX_wm_screen(C);
++  xfd->depth_cache_area = CTX_wm_area(C);
++  if (event == nullptr ||
++      ELEM(nullptr,
++           xfd->depth_cache_manager,
++           xfd->depth_cache_window,
++           xfd->depth_cache_screen,
++           xfd->depth_cache_area,
++           xfd->vc.region,
++           xfd->vc.rv3d,
++           xfd->vc.v3d,
++           xfd->vc.depsgraph,
++           xfd->vc.scene,
++           xfd->vc.view_layer,
++           xfd->vc.obact))
++  {
++    return false;
++  }
+ 
+-#ifdef USE_RENDER_OVERRIDE
+-  vc.v3d->flag2 = flag2_prev;
+-#endif
++  xfd->depth_cache_start_event = *event;
++  xfd->depth_cache_start_event.next = nullptr;
++  xfd->depth_cache_start_event.prev = nullptr;
++  xfd->depth_cache_start_event.custom = 0;
++  xfd->depth_cache_start_event.customdata = nullptr;
++  xfd->depth_cache_start_event.customdata_free = false;
++  xfd->depth_cache_start_event_valid = true;
++  xfd->depth_cache_events.clear();
+ 
+-  if (depths == nullptr) {
+-    BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
+-    return OPERATOR_CANCELLED;
++  xfd->depth_cache_timer = WM_event_timer_add(
++      xfd->depth_cache_manager, xfd->depth_cache_window, TIMER, 0.01f);
++  if (xfd->depth_cache_timer == nullptr) {
++    xfd->depth_cache_start_event_valid = false;
++    return false;
+   }
++  xfd->depth_cache_tick_count = 0;
++  xfd->depth_cache_pending = true;
++  return true;
++}
+ 
+-  ED_region_tag_redraw(vc.region);
+-
+-  XFormAxisData *xfd = MEM_new<XFormAxisData>(__func__);
+-  op->customdata = xfd;
++static void object_transform_axis_target_initialize_ready(bContext *C,
++                                                          wmOperator *op,
++                                                          const wmEvent *event)
++{
++  XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
++  ED_region_tag_redraw(xfd->vc.region);
+ 
+   /* Don't change this at runtime. */
+-  xfd->vc = vc;
+-  xfd->depths = depths;
+   xfd->vc.mval[0] = event->mval[0];
+   xfd->vc.mval[1] = event->mval[1];
+ 
+@@ -2214,15 +2299,72 @@ static wmOperatorStatus object_transform_axis_target_invoke(bContext *C,
+     BKE_object_to_mat3(item.ob, full_mat3);
+     item.is_z_flip = dot_v3v3(item.rot_mat[2], full_mat3[2]) < 0.0f;
+   }
++  xfd->initialized = true;
++}
++
++static wmOperatorStatus object_transform_axis_target_invoke(bContext *C,
++                                                            wmOperator *op,
++                                                            const wmEvent *event)
++{
++  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
++  ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
++
++  if (vc.obact == nullptr || !object_is_target_compat(vc.obact)) {
++    /* Falls back to texture space transform. */
++    return OPERATOR_PASS_THROUGH;
++  }
++
++  XFormAxisData *xfd = MEM_new<XFormAxisData>(__func__);
++  op->customdata = xfd;
++  xfd->vc = vc;
++
++#ifdef USE_RENDER_OVERRIDE
++  eView3D_Flag2 flag2_prev = vc.v3d->flag2;
++  vc.v3d->flag2 |= V3D_HIDE_OVERLAYS;
++#endif
++
++  ED_view3d_depth_override_prepare(
++      vc.depsgraph, vc.region, vc.v3d, nullptr, V3D_DEPTH_NO_GPENCIL, false);
++
++#ifdef USE_RENDER_OVERRIDE
++  vc.v3d->flag2 = flag2_prev;
++#endif
++
++  if (!xfd->depth_cache_session.init(vc.region)) {
++    BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
++    object_transform_axis_target_free_data(op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState depth_state =
++      xfd->depth_cache_session.state();
++  if (depth_state == ViewportDepthCacheSession::ReadbackState::Ready) {
++    xfd->depths = xfd->depth_cache_session.take(vc.region);
++    if (xfd->depths == nullptr) {
++      BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
++      object_transform_axis_target_free_data(op);
++      return OPERATOR_CANCELLED;
++    }
++    object_transform_axis_target_initialize_ready(C, op, event);
++  }
++  else {
++    if (depth_state != ViewportDepthCacheSession::ReadbackState::Pending ||
++        !object_transform_axis_target_depth_wait_begin(C, xfd, event))
++    {
++      BKE_report(op->reports, RPT_ERROR, "Unable to retain axis-target depth request");
++      object_transform_axis_target_free_data(op);
++      return OPERATOR_CANCELLED;
++    }
++  }
+ 
+   WM_event_add_modal_handler(C, op);
+ 
+   return OPERATOR_RUNNING_MODAL;
+ }
+ 
+-static wmOperatorStatus object_transform_axis_target_modal(bContext *C,
+-                                                           wmOperator *op,
+-                                                           const wmEvent *event)
++static wmOperatorStatus object_transform_axis_target_modal_dispatch(bContext *C,
++                                                                    wmOperator *op,
++                                                                    const wmEvent *event)
+ {
+   XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
+   ARegion *region = xfd->vc.region;
+@@ -2454,6 +2596,90 @@ static wmOperatorStatus object_transform_axis_target_modal(bContext *C,
+   return status;
+ }
+ 
++static wmOperatorStatus object_transform_axis_target_depth_poll(bContext *C,
++                                                                wmOperator *op,
++                                                                const wmEvent *event)
++{
++  XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
++  if (!xfd->depth_cache_pending || !xfd->depth_cache_start_event_valid ||
++      !object_transform_axis_target_depth_context_matches(C, xfd))
++  {
++    BKE_report(op->reports, RPT_ERROR, "Viewport changed while waiting for axis-target depth");
++    object_transform_axis_target_cancel(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  if (event->type == EVT_ESCKEY || event->type == RIGHTMOUSE ||
++      (event->type == EVT_MODAL_MAP && event->val == AXIS_TARGET_MODAL_CANCEL))
++  {
++    object_transform_axis_target_cancel(C, op);
++    return OPERATOR_CANCELLED;
++  }
++  if (event->type != TIMER || event->customdata != xfd->depth_cache_timer) {
++    if (event->type == TIMER) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (!object_transform_axis_target_depth_event_push(xfd, event)) {
++      BKE_report(
++          op->reports, RPT_ERROR, "Axis-target depth event queue exceeded its safe bound");
++      object_transform_axis_target_cancel(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
++
++  constexpr int max_tick_count = 240;
++  if (++xfd->depth_cache_tick_count > max_tick_count) {
++    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for axis-target depth");
++    object_transform_axis_target_cancel(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const ViewportDepthCacheSession::ReadbackState state = xfd->depth_cache_session.state();
++  if (state == ViewportDepthCacheSession::ReadbackState::Pending) {
++    return OPERATOR_RUNNING_MODAL;
++  }
++  if (state == ViewportDepthCacheSession::ReadbackState::Failed) {
++    BKE_report(op->reports, RPT_ERROR, "Axis-target depth readback failed");
++    object_transform_axis_target_cancel(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  xfd->depths = xfd->depth_cache_session.take(xfd->vc.region);
++  if (xfd->depths == nullptr) {
++    BKE_report(op->reports, RPT_ERROR, "Axis-target depth readback could not be consumed");
++    object_transform_axis_target_cancel(C, op);
++    return OPERATOR_CANCELLED;
++  }
++
++  const wmEvent start_event = xfd->depth_cache_start_event;
++  Vector<wmEvent> queued_events = std::move(xfd->depth_cache_events);
++  xfd->depth_cache_start_event_valid = false;
++  xfd->depth_cache_pending = false;
++  object_transform_axis_target_depth_timer_remove(xfd);
++  object_transform_axis_target_initialize_ready(C, op, &start_event);
++
++  for (wmEvent &queued_event : queued_events) {
++    const wmOperatorStatus result = object_transform_axis_target_modal_dispatch(
++        C, op, &queued_event);
++    if (result != OPERATOR_RUNNING_MODAL) {
++      return result;
++    }
++  }
++  return OPERATOR_RUNNING_MODAL;
++}
++
++static wmOperatorStatus object_transform_axis_target_modal(bContext *C,
++                                                           wmOperator *op,
++                                                           const wmEvent *event)
++{
++  XFormAxisData *xfd = static_cast<XFormAxisData *>(op->customdata);
++  if (xfd->depth_cache_pending) {
++    return object_transform_axis_target_depth_poll(C, op, event);
++  }
++  return object_transform_axis_target_modal_dispatch(C, op, event);
++}
++
+ void OBJECT_OT_transform_axis_target(wmOperatorType *ot)
+ {
+   /* identifiers */

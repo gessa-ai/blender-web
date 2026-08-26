@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2006 Blender Authors
+# SPDX-FileCopyrightText: 2026 blender-web contributors
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Ported for the web from source/blender/blenkernel/BKE_idtype.hh and
+# source/blender/blenkernel/intern/image.cc @ fbe6228777e7
+#
+# wasm32 ILP32: IDCacheKey::identifier is `size_t` (32-bit on wasm32) but the
+# ID cache-key scheme assumes a 64-bit range — image.cc's *_foreach_cache() uses
+# `size_t(1) << 32` as a collision-avoidance base ABOVE the full 32-bit strhash
+# range. On wasm32 that shift overflows (not a constant expression) AND a 32-bit
+# field would truncate the base to 0, aliasing real struct offsets. Widen the field
+# and the constant to a fixed 64-bit type under __EMSCRIPTEN__ (LP64 unchanged;
+# IDCacheKey is a pure runtime struct, not DNA-serialized; the GHash hash narrows to
+# uint for bucketing while the comparator uses full width, so a wider key is correct).
+diff --git a/source/blender/blenkernel/BKE_idtype.hh b/source/blender/blenkernel/BKE_idtype.hh
+index 0f134a4c1e5..6dceec15f64 100644
+--- a/source/blender/blenkernel/BKE_idtype.hh
++++ b/source/blender/blenkernel/BKE_idtype.hh
+@@ -79,7 +79,18 @@ struct IDCacheKey {
+    * Value uniquely identifying the cache within its ID.
+    * Typically the offset of its member in the data-block struct, but can be anything.
+    */
++#ifdef __EMSCRIPTEN__
++  /* blender-web (wasm32 ILP32): `size_t` is 32-bit here, but the cache-key scheme
++   * assumes a 64-bit range — `*_foreach_cache()` implementations (e.g. image.cc) use
++   * `size_t(1) << 32` as a collision-avoidance base ABOVE the full 32-bit strhash
++   * range. A 32-bit field would truncate that base to 0 and alias real struct
++   * offsets. Use a fixed 64-bit type so wasm32 matches LP64 semantics. The GHash
++   * hash (idtype.cc) already narrows to `uint` for bucketing while the comparator
++   * uses the full width, so a wider identifier is correct. Not DNA-serialized. */
++  uint64_t identifier;
++#else
+   size_t identifier;
++#endif
+ };
+ 
+ uint BKE_idtype_cache_key_hash(const void *key_v);
+diff --git a/source/blender/blenkernel/intern/image.cc b/source/blender/blenkernel/intern/image.cc
+index f7636903c93..c7c58d76430 100644
+--- a/source/blender/blenkernel/intern/image.cc
++++ b/source/blender/blenkernel/intern/image.cc
+@@ -239,7 +239,14 @@ static void image_foreach_cache(ID *id,
+   }
+ 
+   /* Ensure we don't collide with the identifiers used above. */
++#ifdef __EMSCRIPTEN__
++  /* blender-web (wasm32 ILP32): `size_t` is 32-bit, so `size_t(1) << 32` overflows
++   * (not a constant expression). IDCacheKey::identifier is a fixed 64-bit type on
++   * wasm (BKE_idtype.hh), so use a 64-bit base to preserve the LP64 semantics. */
++  constexpr uint64_t runtime_base_id = uint64_t(1) << 32u;
++#else
+   constexpr size_t runtime_base_id = size_t(1) << 32u;
++#endif
+ 
+   key.identifier = runtime_base_id + offsetof(bke::ImageRuntime, cache);
+   function_callback(id, &key, reinterpret_cast<void **>(&image->runtime->cache), 0, user_data);

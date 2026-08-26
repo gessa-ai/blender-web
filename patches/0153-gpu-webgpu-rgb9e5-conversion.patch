@@ -1,0 +1,175 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.hh b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+--- a/source/blender/gpu/webgpu/wgpu_data_conversion.hh
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.hh
+@@ -64,4 +64,12 @@ std::vector<uint8_t> promote_for_upload(TextureFormat format,
+  * Exposed for tests. Writes `comp_bytes` bytes to `out`. */
+ void opaque_alpha_bytes(ScalarType type, uint32_t comp_bytes, uint8_t *out);
+ 
++/** Pack three float channels into WebGPU's 32-bit RGB9E5 shared-exponent layout.
++ * Negative and NaN channels become zero; positive infinity clamps to the largest
++ * finite representable value. */
++uint32_t pack_rgb9e5_ufloat(float red, float green, float blue);
++
++/** Decode WebGPU's 32-bit RGB9E5 shared-exponent layout into three floats. */
++void unpack_rgb9e5_ufloat(uint32_t packed, float r_rgb[3]);
++
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_data_conversion.cc b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+--- a/source/blender/gpu/webgpu/wgpu_data_conversion.cc
++++ b/source/blender/gpu/webgpu/wgpu_data_conversion.cc
+@@ -11,6 +11,8 @@
+ 
+ #include "wgpu_data_conversion.hh"
+ 
++#include <algorithm>
++#include <cmath>
+ #include <cstring>
+ 
+ namespace blender::gpu::webgpu {
+@@ -110,4 +112,57 @@ std::vector<uint8_t> promote_for_upload(TextureFormat format,
+   return out;
+ }
+ 
++uint32_t pack_rgb9e5_ufloat(float red, float green, float blue)
++{
++  constexpr int mantissa_bits = 9;
++  constexpr int exponent_bias = 15;
++  constexpr int exponent_max = 31;
++  constexpr uint32_t mantissa_mask = (1u << mantissa_bits) - 1u;
++  constexpr float shared_max = float(mantissa_mask) * 128.0f;
++
++  const auto clamp_channel = [=](const float value) {
++    if (std::isnan(value) || value <= 0.0f) {
++      return 0.0f;
++    }
++    return std::min(value, shared_max);
++  };
++  red = clamp_channel(red);
++  green = clamp_channel(green);
++  blue = clamp_channel(blue);
++
++  const float max_channel = std::max(red, std::max(green, blue));
++  if (max_channel == 0.0f) {
++    return 0;
++  }
++
++  int binary_exponent = 0;
++  std::frexp(max_channel, &binary_exponent);
++  int shared_exponent = std::max(-exponent_bias, binary_exponent) + exponent_bias;
++  float scale = std::ldexp(1.0f, shared_exponent - exponent_bias - mantissa_bits);
++  const uint32_t max_mantissa = uint32_t(std::floor(max_channel / scale + 0.5f));
++  if (max_mantissa == (1u << mantissa_bits) && shared_exponent < exponent_max) {
++    shared_exponent++;
++    scale *= 2.0f;
++  }
++
++  const auto encode_mantissa = [=](const float value) {
++    return std::min(uint32_t(std::floor(value / scale + 0.5f)), mantissa_mask);
++  };
++  const uint32_t red_mantissa = encode_mantissa(red);
++  const uint32_t green_mantissa = encode_mantissa(green);
++  const uint32_t blue_mantissa = encode_mantissa(blue);
++  return red_mantissa | (green_mantissa << 9u) | (blue_mantissa << 18u) |
++         (uint32_t(shared_exponent) << 27u);
++}
++
++void unpack_rgb9e5_ufloat(const uint32_t packed, float r_rgb[3])
++{
++  constexpr uint32_t mantissa_mask = (1u << 9u) - 1u;
++  const int exponent = int((packed >> 27u) & 0x1fu);
++  const float scale = std::ldexp(1.0f, exponent - 24);
++  r_rgb[0] = float(packed & mantissa_mask) * scale;
++  r_rgb[1] = float((packed >> 9u) & mantissa_mask) * scale;
++  r_rgb[2] = float((packed >> 18u) & mantissa_mask) * scale;
++}
++
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -85,6 +85,7 @@ enum class Repr : uint8_t {
+   F16,
+   F32,
+   PackedR11G11B10, /* whole 32-bit texel; 3 logical comps */
++  PackedRGB9E5,     /* whole 32-bit texel; 3 logical comps + shared exponent */
+   Packed32,        /* whole 32-bit texel copied verbatim (RGB10A2 UNORM/UINT) */
+   Depth16,         /* unorm16 depth */
+   Depth32F,        /* float32 depth */
+@@ -209,6 +210,8 @@ static Repr repr_of(TextureFormat f)
+     /* Packed / special. */
+     case TextureFormat::UFLOAT_11_11_10:
+       return Repr::PackedR11G11B10;
++    case TextureFormat::UFLOAT_9_9_9_EXP_5:
++      return Repr::PackedRGB9E5;
+     /* RGB10A2 (UNORM/UINT): WebGPU RGB10A2Unorm/Uint have the same packed bit
+      * layout as GPU_DATA_2_10_10_10_REV (R low 10 bits … A high 2) — verbatim copy. */
+     case TextureFormat::UNORM_10_10_10_2:
+@@ -228,8 +231,6 @@ static Repr repr_of(TextureFormat f)
+     case TextureFormat::SNORM_DXT5:
+       return Repr::Compressed;
+     default:
+-      /* UFLOAT_9_9_9_EXP_5 (RGB9E5): shared-exponent pack not implemented (its gate
+-       * test is disabled); no CPU upload/read path. */
+       return Repr::Unsupported;
+   }
+ }
+@@ -1005,7 +1006,7 @@ static int device_channels(TextureFormat format, ConvClass conv)
+ /** Device bytes per (uncompressed) texel. */
+ static uint32_t device_texel_bytes(TextureFormat format, ConvClass conv, Repr repr)
+ {
+-  if (repr == Repr::PackedR11G11B10 || repr == Repr::Packed32) {
++  if (ELEM(repr, Repr::PackedR11G11B10, Repr::PackedRGB9E5, Repr::Packed32)) {
+     return 4;
+   }
+   return uint32_t(device_channels(format, conv)) * repr_comp_bytes(repr);
+@@ -1051,6 +1052,17 @@ void WGPUTexture::convert_host_to_device(uint8_t *dst,
+     return;
+   }
+ 
++  if (repr == Repr::PackedRGB9E5) {
++    for (size_t p = 0; p < sample_count; p++) {
++      const uint8_t *s = src + p * hstride;
++      const uint32_t packed = pack_rgb9e5_ufloat(host_read_float(s, host_format),
++                                                 host_read_float(s + hbytes, host_format),
++                                                 host_read_float(s + 2 * hbytes, host_format));
++      std::memcpy(dst + p * 4, &packed, 4);
++    }
++    return;
++  }
++
+   /* RGB10A2 packed: GPU_DATA_2_10_10_10_REV matches the device layout verbatim. */
+   if (repr == Repr::Packed32) {
+     for (size_t p = 0; p < sample_count; p++) {
+@@ -1145,6 +1157,20 @@ static void convert_device_to_host_snapshot(const TextureFormat texture_format,
+     return;
+   }
+ 
++  if (repr == Repr::PackedRGB9E5) {
++    for (size_t p = 0; p < sample_count; p++) {
++      uint32_t packed = 0;
++      std::memcpy(&packed, src + p * 4, 4);
++      float rgb[3];
++      unpack_rgb9e5_ufloat(packed, rgb);
++      uint8_t *d = dst + p * hstride;
++      host_write_float(d, host_format, rgb[0]);
++      host_write_float(d + hbytes, host_format, rgb[1]);
++      host_write_float(d + 2 * hbytes, host_format, rgb[2]);
++    }
++    return;
++  }
++
+   /* RGB10A2 packed: verbatim to GPU_DATA_2_10_10_10_REV. */
+   if (repr == Repr::Packed32) {
+     for (size_t p = 0; p < sample_count; p++) {
+@@ -1901,6 +1927,11 @@ void WGPUTexture::clear(const double4 data)
+         finite_or_zero(data[0]), finite_or_zero(data[1]), finite_or_zero(data[2]));
+     std::memcpy(texel.data(), &packed, 4);
+   }
++  else if (repr == Repr::PackedRGB9E5) {
++    const uint32_t packed =
++        pack_rgb9e5_ufloat(float(data[0]), float(data[1]), float(data[2]));
++    std::memcpy(texel.data(), &packed, 4);
++  }
+   else {
+     const uint32_t dbytes = repr_comp_bytes(repr);
+     for (int c = 0; c < channels; c++) {

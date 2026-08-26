@@ -1,0 +1,59 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 3c64d29..be52be2 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -17,6 +17,8 @@
+ 
+ #include "gpu_capabilities_private.hh"
+ 
++#include "wgpu_state_manager.hh"
++
+ /* GHOST-private: the WITH_WEBGPU_BACKEND block in gpu/CMakeLists.txt adds
+  * intern/ghost/intern to this TU's include path. Production should instead route
+  * the handle through a GHOST_IContext virtual (mirroring getVulkanHandles) so
+@@ -47,6 +49,11 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_cont
+    * (per the T9 findings recommendation), not hard-coded to the WebGPU spec
+    * floors — the M4 Pro / Dawn adapter reports much higher limits. */
+   capabilities_init();
++
++  /* Per-context state manager (lane B's WGPUStateManager). The base Context dtor
++   * owns its lifetime (Context::~Context deletes state_manager). Immediate mode
++   * (imm) is created by lane B alongside the render pipeline. */
++  state_manager = new WGPUStateManager();
+ }
+ 
+ WGPUContext::~WGPUContext()
+diff --git a/intern/ghost/intern/GHOST_ContextWGPU.cc b/intern/ghost/intern/GHOST_ContextWGPU.cc
+index 7463a7c..4858db8 100644
+--- a/intern/ghost/intern/GHOST_ContextWGPU.cc
++++ b/intern/ghost/intern/GHOST_ContextWGPU.cc
+@@ -12,6 +12,7 @@
+ #include "GHOST_ContextWGPU.hh"
+ 
+ #include <cstdint>
++#include <vector>
+ 
+ GHOST_ContextWGPU::GHOST_ContextWGPU(const GHOST_ContextParams &context_params)
+     : GHOST_Context(context_params)
+@@ -62,6 +63,21 @@ GHOST_TSuccess GHOST_ContextWGPU::initializeDrawingContext()
+   wgpu::DeviceDescriptor device_desc = {};
+   device_desc.SetUncapturedErrorCallback(
+       [](const wgpu::Device &, wgpu::ErrorType, wgpu::StringView /*msg*/) {});
++
++  /* Opt into optional texture-format features the WebGPU backend relies on, when
++   * the adapter exposes them (adapter-guarded so RequestDevice never fails on an
++   * adapter that lacks them):
++   *   - Unorm16TextureFormats: R/RG/RGBA 16-bit unorm (Blender's *16 formats).
++   *   - RG11B10UfloatRenderable: makes R11F_G11F_B10F color-renderable. */
++  std::vector<wgpu::FeatureName> required_features;
++  if (adapter_.HasFeature(wgpu::FeatureName::Unorm16TextureFormats)) {
++    required_features.push_back(wgpu::FeatureName::Unorm16TextureFormats);
++  }
++  if (adapter_.HasFeature(wgpu::FeatureName::RG11B10UfloatRenderable)) {
++    required_features.push_back(wgpu::FeatureName::RG11B10UfloatRenderable);
++  }
++  device_desc.requiredFeatureCount = required_features.size();
++  device_desc.requiredFeatures = required_features.data();
+   instance_.WaitAny(
+       adapter_.RequestDevice(
+           &device_desc,

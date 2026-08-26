@@ -1,0 +1,52 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -79,6 +79,21 @@ inline bool range_fits(size_t offset, size_t size, size_t capacity)
+ inline bool range_fits(size_t offset, size_t size, size_t capacity)
+ {
+   return offset <= capacity && size <= capacity - offset;
+ }
+-
++
++/** Validate a CopyBufferToBuffer span against WebGPU's alignment and allocation
++ * requirements. A zero-sized copy is an intentional no-op and is rejected here
++ * before allocating an encoder. */
++inline bool buffer_copy_range_valid(size_t source_offset,
++                                    size_t destination_offset,
++                                    size_t size,
++                                    size_t source_capacity,
++                                    size_t destination_capacity)
++{
++  return size != 0 && (source_offset % kCopyAlignment) == 0 &&
++         (destination_offset % kCopyAlignment) == 0 && (size % kCopyAlignment) == 0 &&
++         range_fits(source_offset, size, source_capacity) &&
++         range_fits(destination_offset, size, destination_capacity);
++}
++
+ }  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -185,9 +185,21 @@ void WGPUStorageBuffer::copy_sub(VertBuf *src, uint dst_offset, uint src_offset,
+   /* Make sure the source vertex buffer's GPU buffer exists and is uploaded. */
+   WGPUVertexBuffer *src_vbo = unwrap(src);
+   src_vbo->upload();
+   const webgpu::Buffer &src_buffer = src_vbo->buffer();
+   if (!src_buffer.valid()) {
+     return;
+   }
+-
++
++  /* CopyBufferToBuffer requires all three byte values to be four-aligned. Validate both
++   * half-open ranges before creating an encoder so malformed frontend input cannot submit a
++   * Dawn validation error or wrap an end offset. */
++  if (!webgpu::buffer_copy_range_valid(src_offset,
++                                       dst_offset,
++                                       copy_size,
++                                       src_buffer.size(),
++                                       buffer_.size()))
++  {
++    return;
++  }
++
+   wgpu::Device device = ctx->device_get();

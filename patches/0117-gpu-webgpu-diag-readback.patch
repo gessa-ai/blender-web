@@ -1,0 +1,681 @@
+diff --git a/source/blender/gpu/CMakeLists.txt b/source/blender/gpu/CMakeLists.txt
+index 62b3c1d..2375cfe 100644
+--- a/source/blender/gpu/CMakeLists.txt
++++ b/source/blender/gpu/CMakeLists.txt
+@@ -494,11 +494,13 @@ if(WITH_WEBGPU_BACKEND)
+     webgpu/wgpu_framebuffer.cc
+     webgpu/wgpu_pipeline.cc
+     webgpu/wgpu_immediate.cc
++    webgpu/wgpu_diag_readback.cc
+ 
+     webgpu/wgpu_backend.hh
+     webgpu/wgpu_buffer.hh
+     webgpu/wgpu_common.hh
+     webgpu/wgpu_context.hh
++    webgpu/wgpu_diag_readback.hh
+     webgpu/wgpu_index_buffer.hh
+     webgpu/wgpu_storage_buffer.hh
+     webgpu/wgpu_uniform_buffer.hh
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index a4d2d2a..582c45f 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -21,6 +21,7 @@
+ 
+ 
+ #include "wgpu_context.hh"
++#include "wgpu_diag_readback.hh"
+ #include "wgpu_framebuffer.hh"
+ #include "wgpu_index_buffer.hh"
+ #include "wgpu_pipeline.hh"
+@@ -444,6 +445,10 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   pass.End();
+   wgpu::CommandBuffer cb = enc.Finish();
+   ctx->queue_get().Submit(1, &cb);
++
++  /* Diagnostic (r31): register/capture the gbuffer right after the prepass submit.
++   * No-op unless BW_DIAG is set (wgpu_diag_readback). */
++  webgpu::diag::on_draw_submit(shader->name_get().c_str(), fb);
+ }
+ 
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 25d162c..3818301 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -19,6 +19,7 @@
+ 
+ #include "gpu_capabilities_private.hh"
+ 
++#include "wgpu_diag_readback.hh"
+ #include "wgpu_framebuffer.hh"
+ #include "wgpu_immediate.hh"
+ #include "wgpu_shader.hh"
+@@ -154,6 +155,10 @@ void WGPUContext::activate()
+   is_active_ = true;
+   sync_backbuffer();
+   immActivate();
++
++  /* Diagnostic (r31): the per-tick seam that pumps pending GPU map futures and runs
++   * any queued readback command. No-op unless BW_DIAG is set (wgpu_diag_readback). */
++  webgpu::diag::poll_and_pump(this);
+ }
+ 
+ void WGPUContext::deactivate()
+@@ -783,6 +788,10 @@ void WGPUContext::sync_backbuffer()
+    * while the attachment keeps pointing at this same WGPUTexture wrapper. */
+   back->adopt_external(backbuffer, fmt, w, h);
+ 
++  /* Diagnostic (r31): the persistent window colour target is the `viewport_color`
++   * readback target (the composited/presented image). No-op unless BW_DIAG is set. */
++  webgpu::diag::register_viewport_color(back);
++
+   if (first) {
+     if (back_left != nullptr) {
+       back_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0, GPU_ATTACHMENT_TEXTURE(surface_texture_));
+diff --git a/source/blender/gpu/webgpu/wgpu_diag_readback.cc b/source/blender/gpu/webgpu/wgpu_diag_readback.cc
+new file mode 100644
+index 0000000..a00b3ee
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_diag_readback.cc
+@@ -0,0 +1,217 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * New for the web port (no upstream equivalent). */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Diagnostic GPU readback coordination (M4 round 31). See wgpu_diag_readback.hh for
++ * the design. This translation unit owns the small named-texture registry shared
++ * between the backend seams, the per-frame command poll + ProcessEvents pump, and the
++ * armed "capture the gbuffer right after the workbench-prepass submit" discriminator.
++ * The heavy lifting (kick copy + MapAsync + file write) is WGPUTexture::diag_kick_readback.
++ *
++ * INERT unless the env var BW_DIAG is set: every entry point returns on the first
++ * branch when it is unset, so no ProcessEvents pump, no file poll, and no readback
++ * ever runs in production or the pixel-golden runs. */
++
++#include "wgpu_diag_readback.hh"
++
++#include "wgpu_context.hh"
++#include "wgpu_framebuffer.hh"
++#include "wgpu_texture.hh"
++
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string>
++#include <unistd.h>
++
++namespace blender::gpu::webgpu::diag {
++
++namespace {
++
++/* --- Named-texture registry (updated at the backend seams) ------------------- */
++WGPUTexture *g_viewport_color = nullptr;
++WGPUTexture *g_gbuf_depth = nullptr;
++WGPUTexture *g_gbuf_color0 = nullptr; /* workbench prepass COLOR_ATTACHMENT0 (material) */
++WGPUTexture *g_gbuf_color1 = nullptr; /* COLOR_ATTACHMENT1 (normal) */
++WGPUTexture *g_gbuf_color2 = nullptr; /* COLOR_ATTACHMENT2 (object_id) */
++
++/* Remaining workbench-prepass submits to sample right after Submit (state (a)). */
++int g_arm_prepass = 0;
++
++/* Latched true once BW_DIAG is observed set; the whole module is a no-op until then. */
++bool g_enabled = false;
++
++const char *kCmdPath = "/tmp/bw_diag_cmd";
++
++void stderr_line(const char *s)
++{
++  ssize_t rc = ::write(2, s, std::strlen(s));
++  (void)rc;
++}
++
++bool ensure_enabled()
++{
++  if (g_enabled) {
++    return true;
++  }
++  /* Re-check each frame (cheap) until the driver sets it before/at WM_main. */
++  if (std::getenv("BW_DIAG") == nullptr) {
++    return false;
++  }
++  g_enabled = true;
++  stderr_line("BW_DIAG enabled: diagnostic readback active (BW_DIAG set)\n");
++  /* Optional boot-time arm: capture the gbuffer at the first N workbench-prepass
++   * submits. Needed because the viewport prepass runs only during the (early) render,
++   * not on every tag_redraw kick — the transient material/normal gbuffer textures are
++   * freed by the DRW pool afterward, so state (a) MUST be captured during the frame. */
++  if (const char *arm = std::getenv("BW_DIAG_ARM")) {
++    g_arm_prepass = std::atoi(arm);
++    char line[96];
++    std::snprintf(line, sizeof(line), "BW_DIAG boot-arm prepass=%d\n", g_arm_prepass);
++    stderr_line(line);
++  }
++  return true;
++}
++
++WGPUTexture *target_for(const char *name)
++{
++  if (std::strcmp(name, "viewport_color") == 0) {
++    return g_viewport_color;
++  }
++  if (std::strcmp(name, "gbuffer_depth") == 0) {
++    return g_gbuf_depth;
++  }
++  if (std::strcmp(name, "gbuffer_material") == 0) {
++    return g_gbuf_color0;
++  }
++  if (std::strcmp(name, "gbuffer_normal") == 0) {
++    return g_gbuf_color1;
++  }
++  if (std::strcmp(name, "gbuffer_objectid") == 0) {
++    return g_gbuf_color2;
++  }
++  return nullptr;
++}
++
++void run_command(const char *verb, const char *arg)
++{
++  char line[192];
++  if (std::strcmp(verb, "readback") == 0 && arg != nullptr) {
++    WGPUTexture *tex = target_for(arg);
++    if (tex == nullptr) {
++      std::snprintf(line, sizeof(line), "BW_READBACK_KICK label=%s status=unregistered\n", arg);
++      stderr_line(line);
++      return;
++    }
++    tex->diag_kick_readback(arg);
++  }
++  else if (std::strcmp(verb, "arm") == 0 && arg != nullptr) {
++    g_arm_prepass = std::atoi(arg);
++    std::snprintf(line, sizeof(line), "BW_DIAG arm prepass=%d\n", g_arm_prepass);
++    stderr_line(line);
++  }
++  else {
++    std::snprintf(line, sizeof(line), "BW_DIAG unknown-command verb=%s\n", verb);
++    stderr_line(line);
++  }
++}
++
++void drain_command_file()
++{
++  FILE *f = std::fopen(kCmdPath, "rb");
++  if (f == nullptr) {
++    return;
++  }
++  char buf[1024];
++  size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
++  std::fclose(f);
++  std::remove(kCmdPath); /* one-shot: consume the command */
++  buf[n] = '\0';
++
++  /* One command per line: "<verb> <arg>". */
++  char *save = nullptr;
++  for (char *ln = strtok_r(buf, "\n", &save); ln != nullptr;
++       ln = strtok_r(nullptr, "\n", &save))
++  {
++    char *sp = std::strpbrk(ln, " \t");
++    char *arg = nullptr;
++    if (sp != nullptr) {
++      *sp = '\0';
++      arg = sp + 1;
++      while (*arg == ' ' || *arg == '\t') {
++        arg++;
++      }
++      /* trim trailing whitespace/CR on arg */
++      char *end = arg + std::strlen(arg);
++      while (end > arg && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r')) {
++        *--end = '\0';
++      }
++    }
++    if (*ln != '\0') {
++      run_command(ln, arg);
++    }
++  }
++}
++
++}  // namespace
++
++void register_viewport_color(WGPUTexture *tex)
++{
++  g_viewport_color = tex;
++}
++
++void on_draw_submit(const char *shader_name, WGPUFrameBuffer *fb)
++{
++  if (!g_enabled || shader_name == nullptr || fb == nullptr) {
++    return;
++  }
++  if (std::strstr(shader_name, "workbench_prepass") == nullptr) {
++    return;
++  }
++  /* Register the gbuffer targets from this prepass's bound attachments (so a later
++   * timer-driven `readback gbuffer_*` reads the same textures — state (b)). */
++  WGPUTexture *depth = fb->diag_attachment_texture(GPU_FB_DEPTH_ATTACHMENT);
++  if (depth == nullptr) {
++    depth = fb->diag_attachment_texture(GPU_FB_DEPTH_STENCIL_ATTACHMENT);
++  }
++  g_gbuf_depth = depth;
++  g_gbuf_color0 = fb->diag_attachment_texture(GPU_FB_COLOR_ATTACHMENT0);
++  g_gbuf_color1 = fb->diag_attachment_texture(GPU_FB_COLOR_ATTACHMENT1);
++  g_gbuf_color2 = fb->diag_attachment_texture(GPU_FB_COLOR_ATTACHMENT2);
++
++  if (g_arm_prepass <= 0) {
++    return;
++  }
++  g_arm_prepass--;
++  /* State (a): the gbuffer contents the instant the prepass Submit lands. */
++  if (g_gbuf_depth != nullptr) {
++    g_gbuf_depth->diag_kick_readback("prepass_depth");
++  }
++  if (g_gbuf_color0 != nullptr) {
++    g_gbuf_color0->diag_kick_readback("prepass_material");
++  }
++  if (g_gbuf_color1 != nullptr) {
++    g_gbuf_color1->diag_kick_readback("prepass_normal");
++  }
++  if (g_gbuf_color2 != nullptr) {
++    g_gbuf_color2->diag_kick_readback("prepass_objectid");
++  }
++}
++
++void poll_and_pump(WGPUContext *ctx)
++{
++  if (!ensure_enabled() || ctx == nullptr) {
++    return;
++  }
++  /* Drive pending map futures registered with AllowProcessEvents — this is the
++   * "consume" half of every kick, running on the WM worker's own event loop. */
++  ctx->instance_get().ProcessEvents();
++  drain_command_file();
++}
++
++}  // namespace blender::gpu::webgpu::diag
+diff --git a/source/blender/gpu/webgpu/wgpu_diag_readback.hh b/source/blender/gpu/webgpu/wgpu_diag_readback.hh
+new file mode 100644
+index 0000000..3605103
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_diag_readback.hh
+@@ -0,0 +1,66 @@
++/* SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * New for the web port (no upstream equivalent). */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Diagnostic GPU texture readback (M4 round 31) — the tick-pumped, kick-then-consume
++ * side of the `gpu-sync-readback-windowed` deferral (ADR-007).
++ *
++ * WebGPU map futures cannot be waited on synchronously in the windowed WM-worker
++ * profile: `instance.WaitAny` needs asyncify/JSPI (dropped per ADR-006) and a
++ * same-thread blocking wait halts the very event loop that would deliver the map
++ * completion, so `WGPUTexture::read` returns all-zero buffers on the web. This module
++ * KICKS a `CopyTextureToBuffer` + `MapAsync(AllowProcessEvents)` and returns
++ * immediately; the completion rides the WM worker's main loop
++ * (`WGPUContext::activate` pumps `instance.ProcessEvents()` each tick), and when the
++ * map resolves the bytes + a small header are written to `/tmp/bw_readback_<n>.bin`
++ * in WasmFS with one raw-fd-2 stderr line. A `?pyexpr=` `bpy.app.timer` drives it;
++ * the browser rig pulls the file via `window.__bwModule.FS.readFile`.
++ *
++ * INERT unless the environment variable `BW_DIAG` is set (the diagnostic driver sets
++ * it before `WM_main`). With `BW_DIAG` unset, `poll_and_pump` / `on_draw_submit`
++ * return on the first branch and no readback machinery ever runs — production and the
++ * pixel goldens are unaffected. The keeper half (the readback primitive
++ * `WGPUTexture::diag_kick_readback`) also unblocks M5 pick-select, M6 capture and
++ * in-app screenshots once a proper caller-facing sync/poll API lands. */
++
++#pragma once
++
++#include "gpu_framebuffer_private.hh" /* GPUAttachmentType */
++
++namespace blender::gpu {
++
++class WGPUContext;
++class WGPUFrameBuffer;
++namespace webgpu {
++class WGPUTexture;
++}
++
++namespace webgpu::diag {
++
++/** Called once per frame from WGPUContext::activate(). Immediate no-op unless the
++ * `BW_DIAG` env var is set. When enabled: pumps `instance.ProcessEvents()` so pending
++ * map futures resolve, then executes any command queued in `/tmp/bw_diag_cmd`:
++ *   readback <viewport_color|gbuffer_depth|gbuffer_normal|gbuffer_material>
++ *   arm <n>          (capture the gbuffer at the next n workbench-prepass submits)
++ * The command file is consumed (unlinked) after it is read. */
++void poll_and_pump(WGPUContext *ctx);
++
++/** Register the persistent window colour target (the composited/presented image) as
++ * the `viewport_color` readback target. Called from WGPUContext::sync_backbuffer. */
++void register_viewport_color(WGPUTexture *tex);
++
++/** Called right after every draw Submit in wgpu_batch. When the shader is the
++ * workbench opaque prepass it (1) registers the framebuffer's depth + colour
++ * attachments as the gbuffer readback targets and (2), if armed, KICKS a readback of
++ * each right after the prepass submit (the "state (a)" discriminator sample). Cheap
++ * no-op unless BW_DIAG is set. */
++void on_draw_submit(const char *shader_name, WGPUFrameBuffer *fb);
++
++}  // namespace webgpu::diag
++
++}  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+index b844424..23750c9 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -468,4 +468,12 @@ void WGPUFrameBuffer::subpass_transition_impl(
+    * needed. No transition to perform here. */
+ }
+ 
++webgpu::WGPUTexture *WGPUFrameBuffer::diag_attachment_texture(GPUAttachmentType type) const
++{
++  if (type < 0 || type >= GPU_FB_MAX_ATTACHMENT) {
++    return nullptr;
++  }
++  return static_cast<webgpu::WGPUTexture *>(attachments_[type].tex);
++}
++
+ }  // namespace blender::gpu
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+index 07d8332..c7634f1 100644
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -28,6 +28,10 @@
+ 
+ namespace blender::gpu {
+ 
++namespace webgpu {
++class WGPUTexture;
++}
++
+ class WGPUFrameBuffer : public FrameBuffer {
+  public:
+   WGPUFrameBuffer(const char *name);
+@@ -89,6 +93,10 @@ class WGPUFrameBuffer : public FrameBuffer {
+     }
+   }
+ 
++  /** The WGPUTexture bound at attachment `type`, or nullptr when unbound. Used only
++   * by the diagnostic gbuffer capture (wgpu_diag_readback). */
++  webgpu::WGPUTexture *diag_attachment_texture(GPUAttachmentType type) const;
++
+  protected:
+   void subpass_transition_impl(const GPUAttachmentState depth_attachment_state,
+                                Span<GPUAttachmentState> color_attachment_states) override;
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
+index 29adf4b..241a49a 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.cc
++++ b/source/blender/gpu/webgpu/wgpu_texture.cc
+@@ -33,9 +33,15 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstdio>
+ #include <cstring>
++#include <string>
+ #include <vector>
+ 
++/* Raw fd-2 stderr for the diagnostic readback (the only reliable web console
++ * channel — see notes/m5-windowed-replay.md). */
++#include <unistd.h>
++
+ namespace blender::gpu::webgpu {
+ 
+ /* -------------------------------------------------------------------- */
+@@ -1285,6 +1291,225 @@ void WGPUTexture::read(int mip, eGPUDataFormat format, void *data)
+   convert_device_to_host(static_cast<uint8_t *>(data), device_data.data(), sample_count, format);
+ }
+ 
++/* -------------------------------------------------------------------- */
++/** \name Diagnostic kick-then-consume readback (M4 r31)
++ *
++ * The windowed WM-worker profile cannot block on a map future (ADR-006/ADR-007), so
++ * this is the async twin of read(): kick a copy + MapAsync(AllowProcessEvents) and
++ * return; the completion is drained by WGPUContext::activate pumping ProcessEvents on
++ * a later tick. See wgpu_diag_readback.hh. Inert unless a diagnostic caller invokes it.
++ * \{ */
++
++namespace {
++
++struct DiagPending {
++  wgpu::Buffer staging;
++  uint32_t w = 0;
++  uint32_t h = 0;
++  uint32_t z = 0;
++  uint32_t texel_bytes = 0;
++  uint32_t bytes_per_row = 0; /* 256-aligned copy pitch */
++  uint32_t row_bytes = 0;     /* tight pitch (w * texel_bytes) */
++  uint32_t wgpu_format = 0;
++  size_t staging_size = 0;
++  int seq = 0;
++  std::string label;
++};
++
++/* Monotonic sequence for /tmp/bw_readback_<n>.bin naming, shared with the rig. */
++static int g_diag_seq = 0;
++
++static void diag_stderr_line(const char *s)
++{
++  /* Raw fd 2 reaches Module.printErr per newline; Python/C stdout is block-buffered
++   * and never flushes on the web (no process exit) — see notes/m5-windowed-replay.md. */
++  size_t n = std::strlen(s);
++  ssize_t rc = ::write(2, s, n);
++  (void)rc;
++}
++
++static void diag_complete(DiagPending *p, wgpu::MapAsyncStatus status)
++{
++  char line[320];
++  if (status != wgpu::MapAsyncStatus::Success) {
++    std::snprintf(line,
++                  sizeof(line),
++                  "BW_READBACK_DONE seq=%d label=%s status=mapfail(%d)\n",
++                  p->seq,
++                  p->label.c_str(),
++                  int(status));
++    diag_stderr_line(line);
++    delete p;
++    return;
++  }
++  const uint8_t *mapped = static_cast<const uint8_t *>(
++      p->staging.GetConstMappedRange(0, p->staging_size));
++  if (mapped == nullptr) {
++    std::snprintf(line,
++                  sizeof(line),
++                  "BW_READBACK_DONE seq=%d label=%s status=nomap\n",
++                  p->seq,
++                  p->label.c_str());
++    diag_stderr_line(line);
++    p->staging.Unmap();
++    delete p;
++    return;
++  }
++
++  char path[96];
++  std::snprintf(path, sizeof(path), "/tmp/bw_readback_%d.bin", p->seq);
++  const size_t data_bytes = size_t(p->row_bytes) * p->h * std::max<uint32_t>(p->z, 1u);
++  uint32_t hdr[8];
++  std::memcpy(&hdr[0], "BWRB", 4);
++  hdr[1] = 1u; /* version */
++  hdr[2] = p->w;
++  hdr[3] = p->h;
++  hdr[4] = p->wgpu_format;
++  hdr[5] = p->texel_bytes;
++  hdr[6] = p->row_bytes; /* tight row pitch */
++  hdr[7] = uint32_t(data_bytes);
++
++  bool wrote = false;
++  if (FILE *f = std::fopen(path, "wb")) {
++    std::fwrite(hdr, 1, sizeof(hdr), f);
++    const uint32_t layers = std::max<uint32_t>(p->z, 1u);
++    for (uint32_t zz = 0; zz < layers; zz++) {
++      for (uint32_t y = 0; y < p->h; y++) {
++        const uint8_t *row = mapped + (size_t(zz) * p->h + y) * p->bytes_per_row;
++        std::fwrite(row, 1, p->row_bytes, f);
++      }
++    }
++    std::fclose(f);
++    wrote = true;
++  }
++  p->staging.Unmap();
++
++  std::snprintf(line,
++                sizeof(line),
++                "BW_READBACK_DONE seq=%d label=%s file=%s w=%u h=%u fmt=%u texel=%u "
++                "pitch=%u bytes=%zu status=%s\n",
++                p->seq,
++                p->label.c_str(),
++                path,
++                p->w,
++                p->h,
++                p->wgpu_format,
++                p->texel_bytes,
++                p->row_bytes,
++                data_bytes,
++                wrote ? "ok" : "writefail");
++  diag_stderr_line(line);
++  delete p;
++}
++
++}  // namespace
++
++void WGPUTexture::diag_kick_readback(const char *label)
++{
++  const std::string lbl = (label != nullptr) ? label : "";
++  char line[192];
++  if (texture_ == nullptr) {
++    std::snprintf(line, sizeof(line), "BW_READBACK_KICK label=%s status=notexture\n", lbl.c_str());
++    diag_stderr_line(line);
++    return;
++  }
++  const Repr repr = snorm16_emulated_ ? Repr::Snorm16 : repr_of(format_);
++  if (repr == Repr::Compressed || repr == Repr::Unsupported) {
++    std::snprintf(line, sizeof(line), "BW_READBACK_KICK label=%s status=badformat\n", lbl.c_str());
++    diag_stderr_line(line);
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    std::snprintf(line, sizeof(line), "BW_READBACK_KICK label=%s status=noctx\n", lbl.c_str());
++    diag_stderr_line(line);
++    return;
++  }
++
++  int mip_size[3] = {1, 1, 1};
++  mip_size_get(0, mip_size);
++  const uint32_t ex = uint32_t(std::max(mip_size[0], 1));
++  const uint32_t ey = uint32_t(std::max(mip_size[1], 1));
++  const uint32_t ez = uint32_t(std::max(mip_size[2], 1));
++  const uint32_t texel_bytes = device_texel_bytes(format_, conv_, repr);
++
++  const uint32_t row_bytes = ex * texel_bytes;
++  const uint32_t bytes_per_row = uint32_t(align_up(row_bytes, 256));
++  const size_t staging_size = size_t(bytes_per_row) * ey * ez;
++
++  /* Depth textures copy their depth aspect only (Depth24Plus is uncopyable, but the
++   * gbuffer depth is Depth32Float which copies fine as f32). */
++  const wgpu::TextureAspect aspect = (format_flag_ & GPU_FORMAT_DEPTH) ?
++                                         wgpu::TextureAspect::DepthOnly :
++                                         wgpu::TextureAspect::All;
++
++  wgpu::Device device = ctx->device_get();
++  wgpu::BufferDescriptor bd = {};
++  bd.size = staging_size;
++  bd.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
++  wgpu::Buffer staging = device.CreateBuffer(&bd);
++  if (staging == nullptr) {
++    std::snprintf(line, sizeof(line), "BW_READBACK_KICK label=%s status=nostaging\n", lbl.c_str());
++    diag_stderr_line(line);
++    return;
++  }
++
++  wgpu::TexelCopyTextureInfo src = {};
++  src.texture = texture_;
++  src.mipLevel = 0;
++  src.origin = {0, 0, 0};
++  src.aspect = aspect;
++
++  wgpu::TexelCopyBufferInfo dst = {};
++  dst.buffer = staging;
++  dst.layout.offset = 0;
++  dst.layout.bytesPerRow = bytes_per_row;
++  dst.layout.rowsPerImage = ey;
++
++  wgpu::Extent3D copy_size = {ex, ey, ez};
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  enc.CopyTextureToBuffer(&src, &dst, &copy_size);
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
++
++  DiagPending *p = new DiagPending();
++  p->staging = staging;
++  p->w = ex;
++  p->h = ey;
++  p->z = ez;
++  p->texel_bytes = texel_bytes;
++  p->bytes_per_row = bytes_per_row;
++  p->row_bytes = row_bytes;
++  p->wgpu_format = uint32_t(wgpu_format_);
++  p->staging_size = staging_size;
++  p->seq = g_diag_seq++;
++  p->label = lbl;
++
++  std::snprintf(line,
++                sizeof(line),
++                "BW_READBACK_KICK seq=%d label=%s w=%u h=%u fmt=%u texel=%u\n",
++                p->seq,
++                p->label.c_str(),
++                ex,
++                ey,
++                p->wgpu_format,
++                texel_bytes);
++  diag_stderr_line(line);
++
++  /* AllowSpontaneous: the callback fires as soon as the underlying JS mapAsync promise
++   * resolves on the WM worker's own event loop, between main-loop ticks (ADR-007
++   * finding 2) — it does NOT depend on instance.ProcessEvents (which the imported-device
++   * windowed profile does not drive for map futures). p (and thus the staging buffer)
++   * is kept alive by the capture until then, and freed in diag_complete. */
++  staging.MapAsync(wgpu::MapMode::Read,
++                   0,
++                   staging_size,
++                   wgpu::CallbackMode::AllowSpontaneous,
++                   [p](wgpu::MapAsyncStatus s, wgpu::StringView) { diag_complete(p, s); });
++}
++
++/** \} */
++
+ void WGPUTexture::copy_to(Texture *tex, IndexRange mip_levels)
+ {
+   WGPUTexture *dst = static_cast<WGPUTexture *>(tex);
+diff --git a/source/blender/gpu/webgpu/wgpu_texture.hh b/source/blender/gpu/webgpu/wgpu_texture.hh
+index 896c1e3..8e74e5c 100644
+--- a/source/blender/gpu/webgpu/wgpu_texture.hh
++++ b/source/blender/gpu/webgpu/wgpu_texture.hh
+@@ -61,6 +61,17 @@ class WGPUTexture : public Texture {
+   void mip_range_set(int min, int max) override;
+   void read(int mip, eGPUDataFormat format, void *data) override;
+ 
++  /** Diagnostic KICK-THEN-CONSUME readback (M4 r31, wgpu_diag_readback.hh): submit a
++   * CopyTextureToBuffer of mip 0 into a fresh MapRead staging buffer + MapAsync with
++   * CallbackMode::AllowProcessEvents, then RETURN immediately — the map completion is
++   * consumed on a later WM-loop tick (WGPUContext::activate pumps ProcessEvents), at
++   * which point the raw device bytes (256-byte row padding stripped) plus an 8-word
++   * header {"BWRB", version, w, h, wgpu_format, texel_bytes, row_pitch, data_bytes}
++   * are written to /tmp/bw_readback_<n>.bin and one raw-fd-2 stderr line is emitted.
++   * Never blocks (unlike read(), which WaitAny's and returns zeros on the web). Used
++   * only by the diagnostic path; not wired into any Blender caller. */
++  void diag_kick_readback(const char *label);
++
+   void update_sub(int mip,
+                   int offset[3],
+                   int extent[3],

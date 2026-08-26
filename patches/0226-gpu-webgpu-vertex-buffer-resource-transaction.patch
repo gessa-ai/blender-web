@@ -1,0 +1,165 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -155,6 +155,27 @@ inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result)
+   return true;
+ }
+
++/** Resolve every buffer required by a vertex plan before command encoding begins. A missing
++ * real or dummy buffer invalidates the whole draw; WebGPU requires every pipeline-declared
++ * vertex-buffer slot to be set. Failure leaves the caller-owned result unchanged. */
++template<typename BindingRangeT, typename HandleT, typename ResolveFn>
++inline bool vertex_buffer_handles_resolve_if_valid(const BindingRangeT &bindings,
++                                                   ResolveFn &&resolve,
++                                                   std::vector<HandleT> &result)
++{
++  std::vector<HandleT> candidate;
++  candidate.reserve(bindings.size());
++  for (const auto &binding : bindings) {
++    HandleT handle = resolve(binding);
++    if (handle == nullptr) {
++      return false;
++    }
++    candidate.push_back(std::move(handle));
++  }
++  result = std::move(candidate);
++  return true;
++}
++
+ /** Encode and submit one short-lived command buffer without using a failed encoder or
+  * submitting a failed command-buffer handle. A boolean encoder callback can abort the whole
+  * transaction after earlier commands were recorded; a void callback retains the simple copy
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -367,20 +367,29 @@ void WGPUBatch::draw(int vertex_first,
+    * buffer (real VBO by index, or the shared dummy for a filled-in location). */
+   const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+       info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++  std::vector<wgpu::Buffer> vertex_buffers;
++  if (!webgpu::vertex_buffer_handles_resolve_if_valid(
++          vplan,
++          [&](const webgpu::VertexBinding &binding) -> wgpu::Buffer {
++            if (binding.is_dummy) {
++              return ctx->dummy_vertex_buffer();
++            }
++            if (binding.vbo_index >= 0 && binding.vbo_index < GPU_BATCH_VBO_MAX_LEN &&
++                wvbos[binding.vbo_index] != nullptr &&
++                wvbos[binding.vbo_index]->buffer().valid())
++            {
++              return wvbos[binding.vbo_index]->buffer().handle();
++            }
++            return nullptr;
++          },
++          vertex_buffers))
++  {
++    return;
++  }
+   auto bind_vertex_buffers = [&](wgpu::RenderPassEncoder &rp) {
+     for (uint32_t s = 0; s < vplan.size(); s++) {
+       const webgpu::VertexBinding &b = vplan[s];
+-      wgpu::Buffer buf = nullptr;
+-      if (b.is_dummy) {
+-        buf = ctx->dummy_vertex_buffer();
+-      }
+-      else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
+-               wvbos[b.vbo_index]->buffer().valid()) {
+-        buf = wvbos[b.vbo_index]->buffer().handle();
+-      }
+-      if (buf != nullptr) {
+-        rp.SetVertexBuffer(s, buf, b.buffer_offset);
+-      }
++      rp.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
+     }
+   };
+
+@@ -730,21 +739,30 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+       info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+
++  std::vector<wgpu::Buffer> vertex_buffers;
++  if (!webgpu::vertex_buffer_handles_resolve_if_valid(
++          vplan,
++          [&](const webgpu::VertexBinding &binding) -> wgpu::Buffer {
++            if (binding.is_dummy) {
++              return ctx->dummy_vertex_buffer();
++            }
++            if (binding.vbo_index >= 0 && binding.vbo_index < GPU_BATCH_VBO_MAX_LEN &&
++                wvbos[binding.vbo_index] != nullptr &&
++                wvbos[binding.vbo_index]->buffer().valid())
++            {
++              return wvbos[binding.vbo_index]->buffer().handle();
++            }
++            return nullptr;
++          },
++          vertex_buffers))
++  {
++    return;
++  }
++
+   auto bind_geometry = [&](wgpu::RenderPassEncoder &render_pass) {
+     for (uint32_t s = 0; s < vplan.size(); s++) {
+       const webgpu::VertexBinding &b = vplan[s];
+-      wgpu::Buffer buf = nullptr;
+-      if (b.is_dummy) {
+-        buf = ctx->dummy_vertex_buffer();
+-      }
+-      else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
+-               wvbos[b.vbo_index]->buffer().valid())
+-      {
+-        buf = wvbos[b.vbo_index]->buffer().handle();
+-      }
+-      if (buf != nullptr) {
+-        render_pass.SetVertexBuffer(s, buf, b.buffer_offset);
+-      }
++      render_pass.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
+     }
+     if (indexed) {
+       /* The GPU-generated DrawCommandIndexed already carries the absolute
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -175,6 +175,22 @@ void WGPUImmediate::end()
+     return;
+   }
+
++  const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
++      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++  std::vector<wgpu::Buffer> vertex_buffers;
++  if (!webgpu::vertex_buffer_handles_resolve_if_valid(
++          vplan,
++          [&](const webgpu::VertexBinding &binding) -> wgpu::Buffer {
++            if (binding.is_dummy) {
++              return ctx->dummy_vertex_buffer();
++            }
++            return binding.vbo_index == 0 ? vbo.handle() : nullptr;
++          },
++          vertex_buffers))
++  {
++    return;
++  }
++
+   wgpu::Device device = ctx->device_get();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   if (enc == nullptr) {
+@@ -189,19 +205,8 @@ void WGPUImmediate::end()
+   {
+     /* Immediate is a single interleaved buffer; the plan is one slot (all attributes) plus
+      * any dummy for a shader input the format omits. Bind each to its slot. */
+-    const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
+-        info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
+     for (uint32_t s = 0; s < vplan.size(); s++) {
+       const webgpu::VertexBinding &b = vplan[s];
+-      wgpu::Buffer buf = nullptr;
+-      if (b.is_dummy) {
+-        buf = ctx->dummy_vertex_buffer();
+-      }
+-      else if (b.vbo_index == 0) {
+-        buf = vbo.handle();
+-      }
+-      if (buf != nullptr) {
+-        pass.SetVertexBuffer(s, buf, b.buffer_offset);
+-      }
++      pass.SetVertexBuffer(s, vertex_buffers[s], b.buffer_offset);
+     }
+   }

@@ -1,0 +1,32 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -140,4 +140,16 @@
+ void WGPUIndexBuffer::strip_restart_indices()
+ {
+-  /* Not implemented (matches the Vulkan backend). */
++  /* WebGPU primitive restart is available only for strip topologies through
++   * RenderPipelineDescriptor::primitive.stripIndexFormat. Point lists cannot
++   * consume restart markers, so compact them before IndexBuf::init() squeezes
++   * the 32-bit source data to its final index representation. */
++  uint32_t *indices = static_cast<uint32_t *>(data_);
++  uint32_t write_index = 0;
++  for (uint32_t read_index = 0; read_index < index_len_; read_index++) {
++    if (indices[read_index] != RESTART_INDEX) {
++      indices[write_index] = indices[read_index];
++      write_index++;
++    }
++  }
++  index_len_ = write_index;
+ }
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -14,4 +14,6 @@
+  * Blender uses both 16- and 32-bit index buffers; U16 buffers carry an
+  * `index_base_` applied at draw time, handled by the draw encoder (lane B).
+- * `update_sub` / `strip_restart_indices` are left unimplemented as on Vulkan.
++ * `update_sub` remains unimplemented as on Vulkan. Point-list primitive-restart
++ * markers are removed before index squeezing because WebGPU supports restart
++ * only for strip topologies.
+  */

@@ -1,0 +1,145 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -24,6 +24,7 @@
+ #include "wgpu_index_buffer.hh"
+ #include "wgpu_pipeline.hh"
+ #include "wgpu_shader.hh"
++#include "wgpu_storage_buffer.hh"
+ #include "wgpu_vertex_buffer.hh"
+ 
+ #include "GPU_context.hh"
+@@ -246,19 +247,120 @@
+   ctx->queue_get().Submit(1, &cb);
+ }
+ 
+-void WGPUBatch::draw_indirect(StorageBuf * /*indirect_buf*/, intptr_t /*offset*/)
+-{
+-  /* Indirect draw (DrawIndirect / DrawIndexedIndirect) — lands with the indirect
+-   * buffer draw path; not exercised by the current gate. */
+-  BLI_assert_msg(0, "WGPUBatch::draw_indirect not implemented yet");
+-}
+-
+-void WGPUBatch::multi_draw_indirect(StorageBuf * /*indirect_buf*/,
+-                                    int /*count*/,
+-                                    intptr_t /*offset*/,
+-                                    intptr_t /*stride*/)
+-{
+-  BLI_assert_msg(0, "WGPUBatch::multi_draw_indirect not implemented yet");
++void WGPUBatch::draw_indirect(StorageBuf *indirect_buf, intptr_t offset)
++{
++  multi_draw_indirect(indirect_buf, 1, offset, 0);
++}
++
++/* Indirect draw. WebGPU has native DrawIndirect / DrawIndexedIndirect reading the
++ * draw arguments from a GPU buffer (the StorageBuf carries the Indirect usage bit —
++ * wgpu_buffer.cc). WebGPU exposes no core multi-draw, so `count` draws are recorded
++ * in a loop, each reading its argument block at offset + i*stride (matches the
++ * frontend's contiguous GPUIndirect layout). Mirrors VKBatch::multi_draw_indirect. */
++void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
++                                    int count,
++                                    intptr_t offset,
++                                    intptr_t stride)
++{
++  if (indirect_buf == nullptr || count <= 0) {
++    return;
++  }
++  WGPUContext *ctx = active_context();
++  if (ctx == nullptr) {
++    return;
++  }
++  Context *base_ctx = Context::get();
++  WGPUFrameBuffer *fb = static_cast<WGPUFrameBuffer *>(base_ctx->active_fb);
++  WGPUShader *shader = static_cast<WGPUShader *>(base_ctx->shader);
++  if (fb == nullptr || shader == nullptr) {
++    return;
++  }
++  if (shader->vertex_module() == nullptr || shader->fragment_module() == nullptr) {
++    return;
++  }
++
++  WGPUStorageBuffer *indirect = static_cast<WGPUStorageBuffer *>(indirect_buf);
++  const webgpu::Buffer &indirect_gpu = indirect->buffer();
++  if (!indirect_gpu.valid()) {
++    return;
++  }
++
++  WGPUVertexBuffer *wvbo = nullptr;
++  for (int i = 0; i < GPU_BATCH_VBO_MAX_LEN; i++) {
++    if (verts[i] != nullptr) {
++      verts[i]->upload();
++      wvbo = unwrap(verts[i]);
++      break;
++    }
++  }
++
++  webgpu::PipelineInfo info;
++  info.shader = shader;
++  info.vertex_format = (wvbo != nullptr) ? &wvbo->format : nullptr;
++  if (base_ctx->state_manager != nullptr) {
++    info.state = base_ctx->state_manager->state;
++    info.mutable_state = base_ctx->state_manager->mutable_state;
++  }
++  fb->target_formats(info.color_formats, info.color_count, info.depth_format);
++  info.prim_type = prim_type;
++
++  wgpu::RenderPipeline pipeline = pipeline_pool().get(ctx->device_get(), info);
++  if (pipeline == nullptr) {
++    return;
++  }
++
++  wgpu::Device device = ctx->device_get();
++  wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
++  pass.SetPipeline(pipeline);
++
++  if (wvbo != nullptr && wvbo->buffer().valid()) {
++    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
++  }
++
++  {
++    std::vector<wgpu::BindGroupEntry> entries;
++    if (shader->has_push_constants()) {
++      shader->push_constants_flush();
++      const webgpu::Buffer &pc = shader->push_constants_buffer();
++      if (pc.valid()) {
++        wgpu::BindGroupEntry entry = {};
++        entry.binding = shader->push_constants_binding();
++        entry.buffer = pc.handle();
++        entry.offset = 0;
++        entry.size = pc.size();
++        entries.push_back(entry);
++      }
++    }
++    ctx->append_resource_bind_entries(shader, entries);
++    if (!entries.empty()) {
++      wgpu::BindGroupDescriptor bgd = {};
++      bgd.layout = pipeline.GetBindGroupLayout(0);
++      bgd.entryCount = uint32_t(entries.size());
++      bgd.entries = entries.data();
++      pass.SetBindGroup(0, device.CreateBindGroup(&bgd));
++    }
++  }
++
++  WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
++  const bool indexed = (wibo != nullptr && wibo->buffer().valid());
++  if (indexed) {
++    pass.SetIndexBuffer(wibo->buffer().handle(), wibo->index_format(), 0);
++  }
++
++  for (int i = 0; i < count; i++) {
++    const uint64_t byte_offset = uint64_t(offset) + uint64_t(i) * uint64_t(stride);
++    if (indexed) {
++      pass.DrawIndexedIndirect(indirect_gpu.handle(), byte_offset);
++    }
++    else {
++      pass.DrawIndirect(indirect_gpu.handle(), byte_offset);
++    }
++  }
++
++  pass.End();
++  wgpu::CommandBuffer cb = enc.Finish();
++  ctx->queue_get().Submit(1, &cb);
+ }
+ 
+ }  // namespace blender::gpu

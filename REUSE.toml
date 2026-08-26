@@ -1,0 +1,215 @@
+version = 1
+
+# Read-only upstream Blender checkout, pinned at fbe6228777e7 (Blender 5.2 LTS).
+# Blender's own files carry per-file SPDX headers; this blanket guarantees REUSE
+# coverage for any that do not. Third-party licenses under upstream/extern are
+# refined in THIRD-PARTY.md as they are audited.
+[[annotations]]
+path = "upstream/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Blender Authors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Project legal, attribution and provenance documents. Part of the shipped
+# GPL-3.0-or-later aggregate.
+[[annotations]]
+path = ["AUTHORS", "LICENSE", "NOTICE", "PROVENANCE.md", "README.md", "THIRD-PARTY.md", "REUSE.toml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Byte-faithful OpenSubdiv 3.7.0 attribution notice. The corresponding exact
+# upstream license text is LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt.
+[[annotations]]
+path = "THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2013 Pixar"
+SPDX-License-Identifier = "LicenseRef-OpenSubdiv-TOST-1.0"
+
+# Ledger, notes and reports: project data we author. Dedicated to the public
+# domain so it imposes no downstream conditions.
+[[annotations]]
+path = ["ledger/**", "notes/**", "reports/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Locked scripts we cannot inline-header: .claude/harness.lock write-protects
+# harness/** and oracle/**, so cover their executable scripts by glob (REUSE 3.3
+# annotations). Part of the GPL-3.0-or-later aggregate like the rest of the
+# port machinery (loop/worker/bootstrap/hooks/sandbox carry inline headers).
+[[annotations]]
+path = ["harness/**", "oracle/bpy.sh"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Port patches against upstream Blender source (diffs begin with `diff --git`,
+# so an inline header would corrupt them). Derived from GPL-2.0-or-later upstream
+# files, so they carry upstream's terms.
+[[annotations]]
+path = "patches/*.patch"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Authored config, pins, sentinels and prose docs where an inline SPDX header is
+# awkward (JSON/.gitignore), forbidden (locked oracle/ pins) or edit-frozen mid
+# session (GOAL.md/CLAUDE.md, thrift rule 5). Public-domain dedication — no
+# downstream conditions.
+[[annotations]]
+path = [
+  "CLAUDE.md",
+  "LAUNCH.md",
+  "SETUP.md",
+  "fix_plan.md",
+  ".gitignore",
+  ".claude/settings.json",
+  "oracle/PIN",
+  "oracle/TOOLCHAIN",
+  "scripts/bootstrap.done",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# GOAL.md is the driver prompt (prose). It quotes an SPDX template inline
+# ("SPDX-License-Identifier: GPL-2.0-or-later ..."), which the linter would misread
+# as this file's own (invalid) license expression. precedence = "override" makes
+# REUSE take licensing solely from here and skip scanning the file body. Left
+# un-edited on purpose so the prompt prefix stays byte-stable (thrift rule 5).
+[[annotations]]
+path = "GOAL.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Generated data, baselines, probe artifacts, and evidence files under sandbox/ —
+# outputs of our own tooling; no meaningful authorship beyond the generating scripts
+# (which carry inline headers). Driver decision at the M2 boundary (see notes/harness-issues.md style).
+[[annotations]]
+path = ["sandbox/**/*.txt", "sandbox/**/*.tsv", "sandbox/**/*.json", "sandbox/**/*.blend", "sandbox/**/*.blend1", "sandbox/**/*.wasm", "sandbox/**/*.js", "sandbox/**/*.data", "sandbox/**/*.log", "sandbox/**/*.cmp.txt", "sandbox/**/.gitignore", "platform_web/ghost/.gitignore", "sandbox/**/*.c", "sandbox/**/*.cpp", "sandbox/**/*.py", "sandbox/**/*.sh", "sandbox/**/*.list", "sandbox/**/*.mjs", "sandbox/**/*.html", "sandbox/**/*.md", "sandbox/**/*.png", "sandbox/**/*.exr", "sandbox/**/*.tar.gz", "sandbox/**/*.pyc", "sandbox/**/*.obj", "sandbox/**/*.mtl", "sandbox/**/*.glb", "sandbox/**/*.gltf"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Generated/evidence suffixes not covered by the historical sandbox list.
+# The JSONL pattern is deliberately limited to our immutable synthetic HTTP
+# request log; Chromium profiles and any third-party/cache payloads remain
+# gitignored and are never relabeled as project evidence.
+[[annotations]]
+path = [
+  "patches/PREVIEW_SNAPSHOT.sha256",
+  "sandbox/**/*.sha256",
+  "sandbox/**/*.err",
+  "sandbox/**/*.check",
+  "sandbox/**/bw_readback_*.bin",
+  "sandbox/gpu-r53-readback/evidence/r53_read*.bin",
+  "sandbox/m8-wasm-split/single-flight-harness/evidence/**/server.jsonl",
+  "sandbox/m8-wasm-split/profile-evidence/**/server-*.jsonl",
+  "sandbox/m8-wasm-split/pthread-lifecycle/evidence/**/server.jsonl",
+  "sandbox/m8-wasm-split/pthread-view-growth/evidence/**/*.jsonl",
+  "sandbox/m8-wasm-split/pthread-view-growth/evidence/**/*.stdout",
+  "sandbox/m8-wasm-split/pthread-view-growth/evidence/**/*.stderr",
+  "platform_web/shell/evidence/*.png",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Final release evidence is generator-authored project data. Cover the complete
+# two strict output roots, including extensionless transaction sentinels and
+# captured .stdout/.stderr files. This is intentionally narrower than a generic
+# ignored-tree rule: browser profiles, downloaded tools, and third-party cache
+# bytes remain outside these roots and are never relabeled as project evidence.
+[[annotations]]
+path = [
+  "sandbox/final-m0-m3/evidence/**",
+  "sandbox/final-m0-m6/evidence/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# These authored drivers contain literal SPDX examples in generated strings.
+# Override prevents those strings from being parsed as extra/invalid headers and
+# preserves the files' actual project license (never blanket-CC0).
+[[annotations]]
+path = [
+  "sandbox/gpu-r35/run_suite.sh",
+  "sandbox/gpu-r61/cycles-windowed/drive_cycles_f12.mjs",
+  "sandbox/gpu-r61/eevee-matrix-preview/generate_eevee_prebaked_fixtures.mjs",
+  "sandbox/gpu-r61/eevee-matrix-preview/run_eevee_matrix.mjs",
+  "sandbox/gpu-r61/f12-eevee-acceptance/drive_eevee_escape_recovery.mjs",
+  "sandbox/gpu-r61/f12-eevee-acceptance/drive_eevee_f12.mjs",
+  "sandbox/gpu-r61/f12-proxy-probe/drive_f12_proxy.mjs",
+  "sandbox/gpu-r61/lb-async-probe/drive_lb_async.mjs",
+  "sandbox/gpu-r61/workbench-preview/reconcile_workbench.py",
+  "sandbox/gpu-r61/workbench-preview/run_matrix.sh",
+  "sandbox/gpu-toolbar-0134/analyze_toolbar.py",
+  "sandbox/final-m0-m6/selfcheck.py",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Authored probe/server sources that predate the inline-header convention. They
+# are executable project code, not generated evidence, so the sandbox CC0 data
+# fallback must not relabel them.
+[[annotations]]
+path = [
+  "sandbox/gpu-render-harness/web/server.py",
+  "sandbox/jspi-probe/a.c",
+  "sandbox/jspi-probe/b.c",
+  "sandbox/jspi-probe/c_jpeg.c",
+  "sandbox/jspi-probe/d_embed.c",
+  "sandbox/jspi-probe/f_try.cpp",
+  "sandbox/memory64-probe/bench.cpp",
+  "sandbox/memory64-probe/fmttest.cpp",
+  "sandbox/memory64-probe/hello.c",
+  "sandbox/memory64-probe/ztest.c",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Generated CC0 documents which embed linter/SPDX prose as data.
+# Generated Chromium profile trees under sandbox/m8-wasm-split are deliberately
+# gitignored instead of annotated: they contain third-party browser/cache bytes and
+# must never be relabeled as project-licensed evidence.
+[[annotations]]
+path = [
+  "sandbox/gpu-r35/bw_seed.html",
+  "sandbox/gpu-r35/make_note.py",
+  "sandbox/m5-readback-design/evidence/probe_result.json",
+  "sandbox/m8-launch-gate/artifacts/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 blender-web contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Blender-derived shader/probe patches retain upstream terms.  They are source,
+# not generated evidence, so never annotate them with the sandbox CC0 fallback.
+[[annotations]]
+path = [
+  "sandbox/gpu-r30/*.wgsl",
+  "sandbox/gpu-r44/*.wgsl",
+  "sandbox/gpu-r44/*.glsl",
+  "sandbox/gpu-r57-readback-hardening/*.patch",
+  "sandbox/gpu-r60/native-oracle/*.patch",
+  "sandbox/gpu-r61/ledger-reconcile/*.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["Blender Authors", "2026 blender-web contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Vendored fmt source tree fetched by the memory64 probe (untracked in git; present on
+# disk only after reproducing the probe). Upstream fmt is MIT. LICENSES/MIT.txt is NOT
+# kept committed: with the tree absent this annotation matches nothing and reuse lint
+# fails on the unused license text — run `reuse download MIT` when re-materializing
+# (documented in sandbox/memory64-probe/README.md).
+[[annotations]]
+path = ["sandbox/memory64-probe/fmt-12.1.0/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Victor Zverovich and fmt contributors"
+SPDX-License-Identifier = "MIT"

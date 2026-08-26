@@ -1,0 +1,63 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -339,16 +339,16 @@ bool WGPUFrameBuffer::submit_scissored_color_clear(
+   wgpu::RenderPassDescriptor pass_descriptor = {};
+   pass_descriptor.colorAttachmentCount = 1;
+   pass_descriptor.colorAttachments = &color;
+-  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+-  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_descriptor);
+-  pass.SetPipeline(pipeline);
+-  pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
+-  pass.SetBindGroup(0, bind_group);
+-  pass.Draw(3, 1, 0, 0);
+-  pass.End();
+-  wgpu::CommandBuffer command = encoder.Finish();
+-  ctx->queue_get().Submit(1, &command);
+-  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      device,
++      ctx->queue_get(),
++      [&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
++        pass.SetBindGroup(0, bind_group);
++        pass.Draw(3, 1, 0, 0);
++      });
+ }
+ 
+ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+@@ -484,19 +484,19 @@ bool WGPUFrameBuffer::submit_scissored_depth_stencil_clear(
+   }
+   wgpu::RenderPassDescriptor pass_descriptor = {};
+   pass_descriptor.depthStencilAttachment = &depth_stencil;
+-  wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+-  wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&pass_descriptor);
+-  pass.SetPipeline(pipeline);
+-  pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
+-  pass.SetBindGroup(0, bind_group);
+-  if (clear_stencil) {
+-    pass.SetStencilReference(clear_stencil_value);
+-  }
+-  pass.Draw(3, 1, 0, 0);
+-  pass.End();
+-  wgpu::CommandBuffer command = encoder.Finish();
+-  ctx->queue_get().Submit(1, &command);
+-  return true;
++  return webgpu::command_pass_encode_submit_if_valid(
++      device,
++      ctx->queue_get(),
++      [&](auto &encoder) { return encoder.BeginRenderPass(&pass_descriptor); },
++      [&](auto &pass) {
++        pass.SetPipeline(pipeline);
++        pass.SetScissorRect(plan.x, plan.y, plan.width, plan.height);
++        pass.SetBindGroup(0, bind_group);
++        if (clear_stencil) {
++          pass.SetStencilReference(clear_stencil_value);
++        }
++        pass.Draw(3, 1, 0, 0);
++      });
+ }
+ 
+ void WGPUFrameBuffer::submit_scissored_clear(GPUFrameBufferBits buffers,

@@ -1,0 +1,83 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -434,6 +434,9 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
+ 
+         wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
++        if (mv_enc == nullptr) {
++          return;
++        }
+         wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
+         if (mv_pass == nullptr) {
+           return;
+@@ -509,6 +512,9 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+         }
+         mv_pass.End();
+         wgpu::CommandBuffer mv_cb = mv_enc.Finish();
++        if (mv_cb == nullptr) {
++          return;
++        }
+         ctx->queue_get().Submit(1, &mv_cb);
+       }
+     }
+@@ -517,6 +523,9 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+ 
+   wgpu::Device device = ctx->device_get();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   if (pass == nullptr) {
+     return;
+@@ -588,6 +597,9 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+ 
+   pass.End();
+   wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
+   ctx->queue_get().Submit(1, &cb);
+ }
+ 
+@@ -792,6 +804,9 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         ctx->queue_get().WriteBuffer(mv_buf, 0, mv_vals, sizeof(mv_vals));
+ 
+         wgpu::CommandEncoder mv_enc = device.CreateCommandEncoder();
++        if (mv_enc == nullptr) {
++          return;
++        }
+         wgpu::RenderPassEncoder mv_pass = fb->begin_load_pass(mv_enc, layer);
+         if (mv_pass == nullptr) {
+           return;
+@@ -836,6 +851,9 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         issue_indirect_draws(mv_pass);
+         mv_pass.End();
+         wgpu::CommandBuffer mv_cb = mv_enc.Finish();
++        if (mv_cb == nullptr) {
++          return;
++        }
+         ctx->queue_get().Submit(1, &mv_cb);
+       }
+     }
+@@ -842,6 +860,9 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   }
+ 
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
++  if (enc == nullptr) {
++    return;
++  }
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   if (pass == nullptr) {
+     return;
+@@ -877,6 +898,9 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+ 
+   pass.End();
+   wgpu::CommandBuffer cb = enc.Finish();
++  if (cb == nullptr) {
++    return;
++  }
+   ctx->queue_get().Submit(1, &cb);
+ }
+

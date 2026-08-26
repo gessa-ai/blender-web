@@ -1,0 +1,155 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -222,13 +222,12 @@ struct FramebufferViewportPlan {
+ 
+ using WindowViewportPlan = FramebufferViewportPlan;
+ 
+-/** Clip a signed frontend scissor into WebGPU's unsigned render area. Window coordinates need
+- * their lower-left Y converted to the top-left surface convention; offscreen coordinates stay
+- * unchanged because their clip-space and readback flips already establish lower-left semantics. */
++/** Convert and clip a signed Blender bottom-origin scissor into WebGPU's unsigned top-origin
++ * render area. The clip-space transform affects content inside the rectangle, not the rectangle's
++ * location, and the offscreen readback flip independently restores Blender's row order. */
+ inline bool framebuffer_scissor_plan(const int *scissor,
+                                      int target_width,
+                                      int target_height,
+-                                     bool convert_bottom_origin,
+                                      FramebufferViewportPlan &candidate)
+ {
+   if (scissor == nullptr) {
+@@ -238,9 +237,7 @@ inline bool framebuffer_scissor_plan(const int *scissor,
+     return false;
+   }
+   const int64_t left = int64_t(scissor[0]);
+-  const int64_t top = convert_bottom_origin ?
+-                          int64_t(target_height) - int64_t(scissor[1]) - int64_t(scissor[3]) :
+-                          int64_t(scissor[1]);
++  const int64_t top = int64_t(target_height) - int64_t(scissor[1]) - int64_t(scissor[3]);
+   const int64_t right = left + int64_t(scissor[2]);
+   const int64_t bottom = top + int64_t(scissor[3]);
+   const int64_t clipped_left = left > 0 ? left : 0;
+@@ -343,13 +340,12 @@ inline const char *framebuffer_clear_shader_source(FramebufferClearShaderType t
+ 
+ /** Preserve Blender's scissor-sensitive framebuffer clear contract. A disabled or exact-full
+  * scissor retains WebGPU's loadOp=Clear fast path. A proper clipped rectangle selects a draw over
+- * loadOp=Load attachments, while an empty rectangle is an explicit no-op. Window targets convert
+- * lower-left Y; ordinary offscreens retain the backend's established post-flip coordinates.
+- * Invalid target/aspect inputs leave `result` unchanged. */
++ * loadOp=Load attachments, while an empty rectangle is an explicit no-op. All Blender framebuffer
++ * scissors are converted from bottom-origin to WebGPU top-origin coordinates. Invalid
++ * target/aspect inputs leave `result` unchanged. */
+ inline bool framebuffer_clear_plan(const int *scissor,
+                                    int target_width,
+                                    int target_height,
+-                                   bool convert_bottom_origin,
+                                    uint8_t aspects,
+                                    FramebufferClearPlan &result)
+ {
+@@ -381,10 +377,7 @@ inline bool framebuffer_clear_plan(const int *scissor,
+   }
+ 
+   const int64_t left = int64_t(scissor[0]);
+-  const int64_t top = convert_bottom_origin ?
+-                          int64_t(target_height) - int64_t(scissor[1]) -
+-                              int64_t(scissor[3]) :
+-                          int64_t(scissor[1]);
++  const int64_t top = int64_t(target_height) - int64_t(scissor[1]) - int64_t(scissor[3]);
+   const int64_t right = left + int64_t(scissor[2]);
+   const int64_t bottom = top + int64_t(scissor[3]);
+   const int64_t clipped_left = left > 0 ? left : 0;
+@@ -449,16 +442,16 @@ inline bool window_viewport_scissor_plan(const int viewport[4],
+ 
+   FramebufferViewportPlan candidate;
+   candidate.viewport = viewport_plan;
+-  if (!framebuffer_scissor_plan(scissor, target_width, target_height, true, candidate)) {
++  if (!framebuffer_scissor_plan(scissor, target_width, target_height, candidate)) {
+     return false;
+   }
+   result = candidate;
+   return true;
+ }
+ 
+-/** Preserve ordinary offscreen viewport/scissor coordinates through WebGPU's existing
+- * clip-space-Y and readback-row flips. The viewport remains signed; an enabled scissor is
+- * independently clipped to the render area. Failure leaves `result` unchanged. */
++/** Convert an ordinary offscreen viewport/scissor from Blender's bottom origin to WebGPU's top
++ * origin. The clip-space-Y and readback-row flips preserve content orientation and row order but
++ * do not relocate a partial render rectangle. Failure leaves `result` unchanged. */
+ inline bool offscreen_viewport_scissor_plan(const int viewport[4],
+                                             const int *scissor,
+                                             int target_width,
+@@ -466,30 +459,12 @@ inline bool offscreen_viewport_scissor_plan(const int viewport[4],
+                                             uint32_t max_viewport_dimension,
+                                             FramebufferViewportPlan &result)
+ {
+-  if (viewport == nullptr) {
+-    return false;
+-  }
+-
+-  ViewportScissorPlan viewport_plan;
+-  if (!viewport_scissor_plan(viewport[0],
+-                             viewport[1],
+-                             viewport[2],
+-                             viewport[3],
+-                             target_width,
+-                             target_height,
+-                             max_viewport_dimension,
+-                             viewport_plan))
+-  {
+-    return false;
+-  }
+-
+-  FramebufferViewportPlan candidate;
+-  candidate.viewport = viewport_plan;
+-  if (!framebuffer_scissor_plan(scissor, target_width, target_height, false, candidate)) {
+-    return false;
+-  }
+-  result = candidate;
+-  return true;
++  return window_viewport_scissor_plan(viewport,
++                                      scissor,
++                                      target_width,
++                                      target_height,
++                                      max_viewport_dimension,
++                                      result);
+ }
+ 
+ /** Validated unsigned workgroup counts for one direct WebGPU compute dispatch. */
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -627,7 +627,6 @@ void WGPUFrameBuffer::submit_clear(GPUFrameBufferBits buffers,
+     if (!webgpu::framebuffer_clear_plan(active_scissor,
+                                         width_,
+                                         height_,
+-                                        ctx->is_window_backbuffer(this),
+                                         clear_aspects,
+                                         clear_plan) ||
+         clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
+@@ -797,7 +796,6 @@ void WGPUFrameBuffer::clear_attachment(GPUAttachmentType type, const double4 cle
+   if (!webgpu::framebuffer_clear_plan(active_scissor,
+                                       width_,
+                                       height_,
+-                                      ctx->is_window_backbuffer(this),
+                                       clear_aspects,
+                                       clear_plan) ||
+       clear_plan.method == webgpu::FramebufferClearMethod::NoOp)
+@@ -1582,12 +1580,11 @@ wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(const wgpu::CommandEnco
+ 
+   wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&rp);
+ 
+-  /* Ordinary passes always apply the frontend viewport and optional scissor. Window targets
+-   * convert lower-left Y to the browser surface's top-left convention. Offscreen targets keep
+-   * the raw lower-left coordinates because their shader/readback Y flips already establish that
+-   * convention. Multi-viewport emulation owns its per-pass rectangles in WGPUBatch and therefore
+-   * skips this single-viewport state. Every ordinary rectangle was validated above before
+-   * layered clears or pass allocation. */
++  /* Ordinary passes always convert the frontend's lower-left viewport and optional scissor to
++   * WebGPU's top-left render coordinates. Offscreen shader/readback Y flips preserve content
++   * orientation and row order, but do not relocate a partial rectangle. Multi-viewport emulation
++   * owns its per-pass rectangles in WGPUBatch and therefore skips this single-viewport state.
++   * Every ordinary rectangle was validated above before layered clears or pass allocation. */
+   if (apply_ordinary_viewport) {
+     pass.SetViewport(float(draw_viewport.viewport.viewport_x),
+                      float(draw_viewport.viewport.viewport_y),

@@ -1,0 +1,87 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 298cd0d09bfad01d0ba4e92674ae84fc769e02f9..47a0c8756c4c236985e0fdf18244209e400d3338 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -258,7 +258,9 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+    * shared/device-built buffers, and subranges. */
+   WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
+   const webgpu::IndexBindingPlan index_binding =
+-      elem != nullptr ? webgpu::index_binding_plan(*elem) : webgpu::IndexBindingPlan{};
++      elem != nullptr ?
++          webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Direct) :
++          webgpu::IndexBindingPlan{};
+   const bool emulate_triangle_fan = prim_type == GPU_PRIM_TRI_FAN;
+   std::vector<uint32_t> fan_indices;
+   webgpu::Buffer fan_index_buffer;
+@@ -625,5 +627,8 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   }
+   WGPUIndexBuffer *wibo = (elem != nullptr) ? unwrap(elem) : nullptr;
+   const bool indexed = (wibo != nullptr && wibo->buffer().valid());
++  const webgpu::IndexBindingPlan index_binding =
++      indexed ? webgpu::index_binding_plan(*elem, webgpu::IndexBindingMode::Indirect) :
++                webgpu::IndexBindingPlan{};
+-
++
+   webgpu::PipelineInfo info;
+@@ -678,13 +683,13 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       }
+     }
+     if (indexed) {
+-      /* Subrange window via bind-time byte offset (see draw() above); the
+-       * GPU-generated DrawCommand args carry batch-local firstIndex/baseVertex. */
+-      const uint32_t index_size = elem->is_32bit() ? 4u : 2u;
++      /* The GPU-generated DrawCommandIndexed already carries the absolute
++       * index_start_get() and index_base_get(). Bind the complete parent allocation
++       * so WebGPU does not apply the subrange start a second time. */
+       render_pass.SetIndexBuffer(wibo->buffer().handle(),
+                                  wibo->index_format(),
+-                                 uint64_t(elem->index_start_get()) * index_size);
++                                 index_binding.byte_offset);
+     }
+   };
+-
++
+   auto issue_indirect_draws = [&](wgpu::RenderPassEncoder &render_pass) {
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.hh b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+index 139fa2a1ede3965f6996618b787a6b961c727fb4..854a279a5d5298f0e166eaa7cd7c4c50ebdfd027 100644
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.hh
+@@ -35,8 +35,8 @@ namespace webgpu {
+ /** Complete WebGPU indexed-draw binding state derived from IndexBuf metadata.
+  *
+- * Subranges share their parent's allocation, so index_start_get() must become
+- * the SetIndexBuffer byte offset. Squeezed Uint16 buffers store indices relative
+- * to index_base_get(), which must become DrawIndexed's baseVertex. Keeping both
+- * values together prevents alternate pass encoders from silently dropping half
+- * of the binding contract. */
++ * Direct draws bind a subrange window and use batch-relative first-index values.
++ * Blender's indirect-command generator instead writes the absolute index_start_get()
++ * and index_base_get() into every DrawCommandIndexed, so those draws must bind the
++ * complete parent allocation at offset zero. Keeping the mode and base vertex in one
++ * plan prevents alternate pass encoders from applying subrange metadata twice. */
+ struct IndexBindingPlan {
+@@ -43,12 +43,20 @@ struct IndexBindingPlan {
+   uint64_t byte_offset = 0;
+   int32_t base_vertex = 0;
+ };
+-
+-inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer)
++
++enum class IndexBindingMode {
++  Direct,
++  Indirect,
++};
++
++inline IndexBindingPlan index_binding_plan(const IndexBuf &index_buffer,
++                                           const IndexBindingMode mode)
+ {
+   const uint64_t index_size = index_buffer.is_32bit() ? sizeof(uint32_t) : sizeof(uint16_t);
+-  return {uint64_t(index_buffer.index_start_get()) * index_size,
++  return {mode == IndexBindingMode::Direct ?
++              uint64_t(index_buffer.index_start_get()) * index_size :
++              0,
+           int32_t(index_buffer.index_base_get())};
+ }
+-
++
+ }  // namespace webgpu

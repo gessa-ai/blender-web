@@ -1,0 +1,733 @@
+diff --git a/source/blender/editors/interface/eyedroppers/eyedropper_color.cc b/source/blender/editors/interface/eyedroppers/eyedropper_color.cc
+index 58cbac29ca24daa120d6c977867317b2838a690e..19c353a3bb5f02375efd1975fc6625c96560926b 100644
+--- a/source/blender/editors/interface/eyedroppers/eyedropper_color.cc
++++ b/source/blender/editors/interface/eyedroppers/eyedropper_color.cc
+@@ -60,6 +60,12 @@
+ 
+ namespace blender::ui {
+ 
++enum class EyedropperReadbackSource {
++  None,
++  Viewport,
++  Window,
++};
++
+ struct Eyedropper {
+   const ColorManagedDisplay *display = nullptr;
+ 
+@@ -83,11 +89,89 @@ struct Eyedropper {
+   bNode *crypto_node = nullptr;
+   CryptomatteSession *cryptomatte_session = nullptr;
+   ViewportColorSampleSession *viewport_session = nullptr;
+-  wmTimer *viewport_timer = nullptr;
+-  int viewport_event_xy[2] = {};
+-  int viewport_tick_count = 0;
++  wmTimer *readback_timer = nullptr;
++  int readback_event_xy[2] = {};
++  int readback_tick_count = 0;
++  EyedropperWindowColorSampleSession window_session;
++  EyedropperReadbackSource readback_source = EyedropperReadbackSource::None;
+ };
+ 
++EyedropperWindowColorSampleSession::~EyedropperWindowColorSampleSession()
++{
++  cancel();
++}
++
++void EyedropperWindowColorSampleSession::cancel()
++{
++  WM_window_pixels_read_async_cancel(readback_);
++  MEM_SAFE_DELETE(pixels_);
++  window_ = nullptr;
++  size_[0] = 0;
++  size_[1] = 0;
++  state_ = ReadbackState::Invalid;
++}
++
++bool EyedropperWindowColorSampleSession::init(bContext *C, wmWindow *window)
++{
++  if (C == nullptr || window == nullptr) {
++    return false;
++  }
++  if (window_ == window && state_ != ReadbackState::Failed) {
++    return true;
++  }
++
++  cancel();
++  readback_ = WM_window_pixels_read_async(C, window);
++  if (readback_ == nullptr) {
++    state_ = ReadbackState::Failed;
++    return false;
++  }
++  window_ = window;
++  state_ = ReadbackState::Pending;
++  return true;
++}
++
++EyedropperWindowColorSampleSession::ReadbackState EyedropperWindowColorSampleSession::state()
++{
++  if (state_ != ReadbackState::Pending) {
++    return state_;
++  }
++
++  const WMWindowPixelsReadStatus status = WM_window_pixels_read_async_status(readback_);
++  if (status == WMWindowPixelsReadStatus::Pending) {
++    return state_;
++  }
++  if (status != WMWindowPixelsReadStatus::Ready) {
++    WM_window_pixels_read_async_cancel(readback_);
++    state_ = ReadbackState::Failed;
++    return state_;
++  }
++
++  pixels_ = WM_window_pixels_read_async_consume(readback_, size_);
++  if (pixels_ == nullptr || size_[0] <= 0 || size_[1] <= 0) {
++    MEM_SAFE_DELETE(pixels_);
++    state_ = ReadbackState::Failed;
++    return state_;
++  }
++  state_ = ReadbackState::Ready;
++  return state_;
++}
++
++bool EyedropperWindowColorSampleSession::sample(const int pos[2], float r_col[3])
++{
++  if (pos == nullptr || r_col == nullptr || state() != ReadbackState::Ready ||
++      uint(pos[0]) >= uint(size_[0]) || uint(pos[1]) >= uint(size_[1]))
++  {
++    return false;
++  }
++
++  const unsigned char *pixel = pixels_ + (size_t(pos[1]) * size_t(size_[0]) + size_t(pos[0])) * 4;
++  r_col[0] = float(pixel[0]) / 255.0f;
++  r_col[1] = float(pixel[1]) / 255.0f;
++  r_col[2] = float(pixel[2]) / 255.0f;
++  return true;
++}
++
+ static void eyedropper_draw_cb(const wmWindow * /*window*/, void *arg)
+ {
+   Eyedropper *eye = static_cast<Eyedropper *>(arg);
+@@ -179,9 +263,9 @@ static void eyedropper_exit(bContext *C, wmOperator *op)
+     eye->cryptomatte_session = nullptr;
+   }
+ 
+-  if (eye->viewport_timer) {
+-    WM_event_timer_remove(CTX_wm_manager(C), window, eye->viewport_timer);
+-    eye->viewport_timer = nullptr;
++  if (eye->readback_timer) {
++    WM_event_timer_remove(CTX_wm_manager(C), window, eye->readback_timer);
++    eye->readback_timer = nullptr;
+   }
+ 
+   if (eye->viewport_session) {
+@@ -189,6 +273,8 @@ static void eyedropper_exit(bContext *C, wmOperator *op)
+     eye->viewport_session = nullptr;
+   }
+ 
++  eye->window_session.cancel();
++
+   op->customdata = nullptr;
+   MEM_delete(eye);
+ }
+@@ -448,6 +534,7 @@ static bool eyedropper_cryptomatte_sample_fl(bContext *C,
+ 
+ bool eyedropper_color_sample_fl(bContext *C,
+                                 Eyedropper *eye,
++                                EyedropperWindowColorSampleSession *window_session,
+                                 const int event_xy[2],
+                                 float r_col[3])
+ {
+@@ -487,6 +574,9 @@ bool eyedropper_color_sample_fl(bContext *C,
+         }
+       }
+       else if (eye != nullptr && area->spacetype == SPACE_VIEW3D) {
++        if (window_session != nullptr) {
++          window_session->cancel();
++        }
+         /* Viewport color picking involves a fairly expensive operation to copy the GPU viewport
+          * back to the CPU, so to support smooth dragging with the eyedropper, we keep the copy
+          * around for the entire operation. */
+@@ -501,18 +591,19 @@ bool eyedropper_color_sample_fl(bContext *C,
+           const ViewportColorSampleSession::ReadbackState state =
+               eye->viewport_session->state();
+           if (state == ViewportColorSampleSession::ReadbackState::Pending) {
+-            /* Do not fall through to the still-synchronous window sampler while
+-             * browser WebGPU needs another event-loop tick to finish mapping. */
++            eye->readback_source = EyedropperReadbackSource::Viewport;
+             return false;
+           }
+           if (state == ViewportColorSampleSession::ReadbackState::Ready &&
+               eye->viewport_session->sample(mval, r_col))
+           {
++            eye->readback_source = EyedropperReadbackSource::None;
+             return true;
+           }
+           if (state == ViewportColorSampleSession::ReadbackState::Failed) {
+             MEM_delete(eye->viewport_session);
+             eye->viewport_session = nullptr;
++            eye->readback_source = EyedropperReadbackSource::None;
+           }
+         }
+       }
+@@ -521,8 +612,43 @@ bool eyedropper_color_sample_fl(bContext *C,
+ 
+   /* Other areas within a Blender window. */
+   if (win) {
+-    if (!WM_window_pixels_read_sample(C, win, event_xy_win, r_col)) {
+-      WM_window_pixels_read_sample_from_offscreen(C, win, event_xy_win, r_col);
++    if (eye != nullptr && eye->viewport_session != nullptr) {
++      MEM_delete(eye->viewport_session);
++      eye->viewport_session = nullptr;
++    }
++
++    if ((WM_capabilities_flag() & WM_CAPABILITY_GPU_FRONT_BUFFER_READ) != 0 &&
++        WM_window_pixels_read_sample(C, win, event_xy_win, r_col))
++    {
++      if (window_session != nullptr) {
++        window_session->cancel();
++      }
++      if (eye != nullptr) {
++        eye->readback_source = EyedropperReadbackSource::None;
++      }
++    }
++    else {
++      if (window_session == nullptr || !window_session->init(C, win)) {
++        return false;
++      }
++      const EyedropperWindowColorSampleSession::ReadbackState state = window_session->state();
++      if (state == EyedropperWindowColorSampleSession::ReadbackState::Pending) {
++        if (eye != nullptr) {
++          eye->readback_source = EyedropperReadbackSource::Window;
++        }
++        return false;
++      }
++      if (state != EyedropperWindowColorSampleSession::ReadbackState::Ready ||
++          !window_session->sample(event_xy_win, r_col))
++      {
++        if (eye != nullptr) {
++          eye->readback_source = EyedropperReadbackSource::None;
++        }
++        return false;
++      }
++      if (eye != nullptr) {
++        eye->readback_source = EyedropperReadbackSource::None;
++      }
+     }
+     const char *display_device = CTX_data_scene(C)->display_settings.display_device;
+     const ColorManagedDisplay *display = IMB_colormanagement_display_get_named(display_device);
+@@ -575,7 +701,7 @@ static bool eyedropper_color_sample(bContext *C, Eyedropper *eye, const int even
+     }
+   }
+   else {
+-    if (!eyedropper_color_sample_fl(C, eye, event_xy, col)) {
++    if (!eyedropper_color_sample_fl(C, eye, &eye->window_session, event_xy, col)) {
+       return false;
+     }
+   }
+@@ -631,32 +757,50 @@ static wmOperatorStatus eyedropper_modal(bContext *C, wmOperator *op, const wmEv
+ {
+   Eyedropper *eye = static_cast<Eyedropper *>(op->customdata);
+ 
+-  if (event->type == TIMER && eye->viewport_timer != nullptr &&
+-      event->customdata == eye->viewport_timer)
++  if (event->type == TIMER && eye->readback_timer != nullptr &&
++      event->customdata == eye->readback_timer)
+   {
+     /* Roughly 2.4 seconds at 10 ms: fail closed on a lost callback instead of
+-     * retaining the modal operator and its viewport texture indefinitely. */
++     * retaining the modal operator and its GPU snapshot indefinitely. */
+     constexpr int max_tick_count = 240;
+-    if (++eye->viewport_tick_count > max_tick_count) {
+-      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for viewport color readback");
++    if (++eye->readback_tick_count > max_tick_count) {
++      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for color readback");
+       eyedropper_exit(C, op);
+       return OPERATOR_CANCELLED;
+     }
+-    if (eye->viewport_session == nullptr) {
+-      eyedropper_exit(C, op);
+-      return OPERATOR_CANCELLED;
++
++    bool pending = false;
++    bool failed = false;
++    if (eye->readback_source == EyedropperReadbackSource::Viewport) {
++      if (eye->viewport_session == nullptr) {
++        failed = true;
++      }
++      else {
++        const ViewportColorSampleSession::ReadbackState state = eye->viewport_session->state();
++        pending = state == ViewportColorSampleSession::ReadbackState::Pending;
++        failed = state == ViewportColorSampleSession::ReadbackState::Failed;
++      }
++    }
++    else if (eye->readback_source == EyedropperReadbackSource::Window) {
++      const EyedropperWindowColorSampleSession::ReadbackState state =
++          eye->window_session.state();
++      pending = state == EyedropperWindowColorSampleSession::ReadbackState::Pending;
++      failed = state == EyedropperWindowColorSampleSession::ReadbackState::Failed;
+     }
+-    const ViewportColorSampleSession::ReadbackState state = eye->viewport_session->state();
+-    if (state == ViewportColorSampleSession::ReadbackState::Pending) {
++    else {
++      failed = true;
++    }
++
++    if (pending) {
+       return OPERATOR_RUNNING_MODAL;
+     }
+-    if (state == ViewportColorSampleSession::ReadbackState::Failed) {
+-      BKE_report(op->reports, RPT_ERROR, "Viewport color readback failed");
++    if (failed) {
++      BKE_report(op->reports, RPT_ERROR, "Color readback failed");
+       eyedropper_exit(C, op);
+       return OPERATOR_CANCELLED;
+     }
+     const bool is_undo = eye->is_undo;
+-    if (!eyedropper_color_sample(C, eye, eye->viewport_event_xy)) {
++    if (!eyedropper_color_sample(C, eye, eye->readback_event_xy)) {
+       eyedropper_exit(C, op);
+       return OPERATOR_CANCELLED;
+     }
+@@ -673,15 +817,12 @@ static wmOperatorStatus eyedropper_modal(bContext *C, wmOperator *op, const wmEv
+       case EYE_MODAL_SAMPLE_CONFIRM: {
+         const bool is_undo = eye->is_undo;
+         if (eye->accum_tot == 0 && !eyedropper_color_sample(C, eye, event->xy)) {
+-          if (eye->viewport_session != nullptr &&
+-              eye->viewport_session->state() ==
+-                  ViewportColorSampleSession::ReadbackState::Pending)
+-          {
+-            eye->viewport_event_xy[0] = event->xy[0];
+-            eye->viewport_event_xy[1] = event->xy[1];
+-            eye->viewport_tick_count = 0;
+-            if (eye->viewport_timer == nullptr) {
+-              eye->viewport_timer = WM_event_timer_add(
++          if (eye->readback_source != EyedropperReadbackSource::None) {
++            eye->readback_event_xy[0] = event->xy[0];
++            eye->readback_event_xy[1] = event->xy[1];
++            eye->readback_tick_count = 0;
++            if (eye->readback_timer == nullptr) {
++              eye->readback_timer = WM_event_timer_add(
+                   CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
+             }
+             return OPERATOR_RUNNING_MODAL;
+diff --git a/source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc b/source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc
+index 855d640e89ee965f726ad57651a6e45e14f2e899..9e24de2d25588958375d40118026c9c37f132f1a 100644
+--- a/source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc
++++ b/source/blender/editors/interface/eyedroppers/eyedropper_colorband.cc
+@@ -25,6 +25,7 @@
+ 
+ #include "BKE_colorband.hh"
+ #include "BKE_context.hh"
++#include "BKE_report.hh"
+ 
+ #include "RNA_access.hh"
+ #include "RNA_prototypes.hh"
+@@ -38,6 +39,12 @@
+ 
+ namespace blender::ui {
+ 
++enum class ColorbandReadbackAction {
++  None,
++  GradientFinish,
++  PointSample,
++};
++
+ struct EyedropperColorband {
+   int event_xy_last[2] = {};
+   /* Alpha is currently fixed at 1.0, may support in future. */
+@@ -49,12 +56,18 @@ struct EyedropperColorband {
+   PropertyRNA *prop = nullptr;
+   bool is_undo = false;
+   bool is_set = false;
++  EyedropperWindowColorSampleSession window_session;
++  wmTimer *readback_timer = nullptr;
++  int readback_event_xy[2] = {};
++  int readback_tick_count = 0;
++  ColorbandReadbackAction readback_action = ColorbandReadbackAction::None;
+ };
+ 
+ /* For user-data only. */
+ struct EyedropperColorband_Context {
+   bContext *context;
+   EyedropperColorband *eye;
++  bool success;
+ };
+ 
+ static bool eyedropper_colorband_init(bContext *C, wmOperator *op)
+@@ -115,18 +128,21 @@ static bool eyedropper_colorband_init(bContext *C, wmOperator *op)
+   return true;
+ }
+ 
+-static void eyedropper_colorband_sample_point(bContext *C,
++static bool eyedropper_colorband_sample_point(bContext *C,
+                                               EyedropperColorband *eye,
+                                               const int m_xy[2])
+ {
+   if (eye->event_xy_last[0] != m_xy[0] || eye->event_xy_last[1] != m_xy[1]) {
+     float4 col;
+     col[3] = 1.0f; /* TODO: sample alpha */
+-    eyedropper_color_sample_fl(C, nullptr, m_xy, col);
++    if (!eyedropper_color_sample_fl(C, nullptr, &eye->window_session, m_xy, col)) {
++      return false;
++    }
+     eye->color_buffer.append(col);
+     copy_v2_v2_int(eye->event_xy_last, m_xy);
+     eye->is_set = true;
+   }
++  return true;
+ }
+ 
+ static bool eyedropper_colorband_sample_callback(int mx, int my, void *userdata)
+@@ -135,19 +151,20 @@ static bool eyedropper_colorband_sample_callback(int mx, int my, void *userdata)
+   bContext *C = data->context;
+   EyedropperColorband *eye = data->eye;
+   const int cursor[2] = {mx, my};
+-  eyedropper_colorband_sample_point(C, eye, cursor);
+-  return true;
++  data->success = eyedropper_colorband_sample_point(C, eye, cursor);
++  return data->success;
+ }
+ 
+-static void eyedropper_colorband_sample_segment(bContext *C,
++static bool eyedropper_colorband_sample_segment(bContext *C,
+                                                 EyedropperColorband *eye,
+                                                 const int m_xy[2])
+ {
+   /* Since the mouse tends to move rather rapidly we use #BLI_bitmap_draw_2d_line_v2v2i
+    * to interpolate between the reported coordinates */
+-  EyedropperColorband_Context userdata = {C, eye};
++  EyedropperColorband_Context userdata = {C, eye, true};
+   BLI_bitmap_draw_2d_line_v2v2i(
+       eye->event_xy_last, m_xy, eyedropper_colorband_sample_callback, &userdata);
++  return userdata.success;
+ }
+ 
+ static void eyedropper_colorband_exit(bContext *C, wmOperator *op)
+@@ -156,6 +173,11 @@ static void eyedropper_colorband_exit(bContext *C, wmOperator *op)
+ 
+   if (op->customdata) {
+     EyedropperColorband *eye = static_cast<EyedropperColorband *>(op->customdata);
++    if (eye->readback_timer != nullptr) {
++      WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), eye->readback_timer);
++      eye->readback_timer = nullptr;
++    }
++    eye->window_session.cancel();
+     MEM_delete(eye);
+     op->customdata = nullptr;
+   }
+@@ -195,6 +217,33 @@ static wmOperatorStatus eyedropper_colorband_modal(bContext *C,
+                                                    const wmEvent *event)
+ {
+   EyedropperColorband *eye = static_cast<EyedropperColorband *>(op->customdata);
++  if (event->type == TIMER && eye->readback_timer != nullptr &&
++      event->customdata == eye->readback_timer &&
++      eye->readback_action == ColorbandReadbackAction::GradientFinish)
++  {
++    constexpr int max_tick_count = 240;
++    if (++eye->readback_tick_count > max_tick_count) {
++      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for window color readback");
++      eyedropper_colorband_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    const EyedropperWindowColorSampleSession::ReadbackState state =
++        eye->window_session.state();
++    if (state == EyedropperWindowColorSampleSession::ReadbackState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state != EyedropperWindowColorSampleSession::ReadbackState::Ready ||
++        !eyedropper_colorband_sample_segment(C, eye, eye->readback_event_xy))
++    {
++      BKE_report(op->reports, RPT_ERROR, "Window color readback failed");
++      eyedropper_colorband_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    const bool is_undo = eye->is_undo;
++    eyedropper_colorband_apply(C, op);
++    eyedropper_colorband_exit(C, op);
++    return is_undo ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
++  }
+   /* handle modal keymap */
+   if (event->type == EVT_MODAL_MAP) {
+     switch (event->val) {
+@@ -203,7 +252,22 @@ static wmOperatorStatus eyedropper_colorband_modal(bContext *C,
+         return OPERATOR_CANCELLED;
+       case EYE_MODAL_SAMPLE_CONFIRM: {
+         const bool is_undo = eye->is_undo;
+-        eyedropper_colorband_sample_segment(C, eye, event->xy);
++        if (!eyedropper_colorband_sample_segment(C, eye, event->xy)) {
++          if (eye->window_session.state() ==
++              EyedropperWindowColorSampleSession::ReadbackState::Pending)
++          {
++            copy_v2_v2_int(eye->readback_event_xy, event->xy);
++            eye->readback_tick_count = 0;
++            eye->readback_action = ColorbandReadbackAction::GradientFinish;
++            if (eye->readback_timer == nullptr) {
++              eye->readback_timer = WM_event_timer_add(
++                  CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
++            }
++            return OPERATOR_RUNNING_MODAL;
++          }
++          eyedropper_colorband_exit(C, op);
++          return OPERATOR_CANCELLED;
++        }
+         eyedropper_colorband_apply(C, op);
+         eyedropper_colorband_exit(C, op);
+         /* Could support finished & undo-skip. */
+@@ -234,6 +298,38 @@ static wmOperatorStatus eyedropper_colorband_point_modal(bContext *C,
+                                                          const wmEvent *event)
+ {
+   EyedropperColorband *eye = static_cast<EyedropperColorband *>(op->customdata);
++  if (event->type == TIMER && eye->readback_timer != nullptr &&
++      event->customdata == eye->readback_timer &&
++      eye->readback_action == ColorbandReadbackAction::PointSample)
++  {
++    constexpr int max_tick_count = 240;
++    if (++eye->readback_tick_count > max_tick_count) {
++      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for window color readback");
++      eyedropper_colorband_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    const EyedropperWindowColorSampleSession::ReadbackState state =
++        eye->window_session.state();
++    if (state == EyedropperWindowColorSampleSession::ReadbackState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state != EyedropperWindowColorSampleSession::ReadbackState::Ready ||
++        !eyedropper_colorband_sample_point(C, eye, eye->readback_event_xy))
++    {
++      BKE_report(op->reports, RPT_ERROR, "Window color readback failed");
++      eyedropper_colorband_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), eye->readback_timer);
++    eye->readback_timer = nullptr;
++    eye->readback_action = ColorbandReadbackAction::None;
++    eyedropper_colorband_apply(C, op);
++    if (eye->color_buffer.size() == MAXCOLORBAND) {
++      eyedropper_colorband_exit(C, op);
++      return OPERATOR_FINISHED;
++    }
++    return OPERATOR_RUNNING_MODAL;
++  }
+   /* handle modal keymap */
+   if (event->type == EVT_MODAL_MAP) {
+     switch (event->val) {
+@@ -251,7 +347,21 @@ static wmOperatorStatus eyedropper_colorband_point_modal(bContext *C,
+         }
+         break;
+       case EYE_MODAL_POINT_SAMPLE:
+-        eyedropper_colorband_sample_point(C, eye, event->xy);
++        if (!eyedropper_colorband_sample_point(C, eye, event->xy)) {
++          if (eye->window_session.state() ==
++              EyedropperWindowColorSampleSession::ReadbackState::Pending)
++          {
++            copy_v2_v2_int(eye->readback_event_xy, event->xy);
++            eye->readback_tick_count = 0;
++            eye->readback_action = ColorbandReadbackAction::PointSample;
++            if (eye->readback_timer == nullptr) {
++              eye->readback_timer = WM_event_timer_add(
++                  CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
++            }
++            return OPERATOR_RUNNING_MODAL;
++          }
++          break;
++        }
+         eyedropper_colorband_apply(C, op);
+         if (eye->color_buffer.size() == MAXCOLORBAND) {
+           eyedropper_colorband_exit(C, op);
+diff --git a/source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc b/source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc
+index a5721ef65a931379ca02ec970923fefb784b4a7f..f75f6dbc22181a10165055164dc33d342c969a46 100644
+--- a/source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc
++++ b/source/blender/editors/interface/eyedroppers/eyedropper_grease_pencil_color.cc
+@@ -27,6 +27,7 @@
+ #include "BKE_lib_id.hh"
+ #include "BKE_material.hh"
+ #include "BKE_paint.hh"
++#include "BKE_report.hh"
+ 
+ #include "IMB_colormanagement.hh"
+ 
+@@ -71,6 +72,12 @@ struct EyedropperGreasePencil {
+   EyeMode mode = EyeMode::Material;
+   /** Material Mode */
+   MaterialMode mat_mode = MaterialMode::Stroke;
++
++  EyedropperWindowColorSampleSession window_session;
++  wmTimer *readback_timer = nullptr;
++  int readback_event_xy[2] = {};
++  int readback_modifier = 0;
++  int readback_tick_count = 0;
+ };
+ 
+ /* Helper: Draw status message while the user is running the operator */
+@@ -141,6 +148,12 @@ static void eyedropper_grease_pencil_exit(bContext *C, wmOperator *op)
+ 
+   EyedropperGreasePencil *eye = static_cast<EyedropperGreasePencil *>(op->customdata);
+ 
++  if (eye->readback_timer != nullptr) {
++    WM_event_timer_remove(CTX_wm_manager(C), CTX_wm_window(C), eye->readback_timer);
++    eye->readback_timer = nullptr;
++  }
++  eye->window_session.cancel();
++
+   MEM_delete<EyedropperGreasePencil>(eye);
+   /* Clear pointer. */
+   op->customdata = nullptr;
+@@ -283,11 +296,11 @@ static void eyedropper_set_brush_color(bContext *C, const float3 &color)
+ 
+ /* Set the material or the palette color. */
+ static void eyedropper_grease_pencil_color_set(bContext *C,
+-                                               const wmEvent *event,
++                                               const int modifier,
+                                                EyedropperGreasePencil *eye)
+ {
+-  const bool is_ctrl = (event->modifier & KM_CTRL) != 0;
+-  const bool is_shift = (event->modifier & KM_SHIFT) != 0;
++  const bool is_ctrl = (modifier & KM_CTRL) != 0;
++  const bool is_shift = (modifier & KM_SHIFT) != 0;
+ 
+   MaterialMode mat_mode = eye->mat_mode;
+   if (is_ctrl && !is_shift) {
+@@ -314,13 +327,15 @@ static void eyedropper_grease_pencil_color_set(bContext *C,
+ }
+ 
+ /* Sample the color below cursor. */
+-static void eyedropper_grease_pencil_color_sample(bContext *C,
++static bool eyedropper_grease_pencil_color_sample(bContext *C,
+                                                   EyedropperGreasePencil *eye,
+                                                   const int m_xy[2])
+ {
+   /* Accumulate color. */
+   float3 col;
+-  eyedropper_color_sample_fl(C, nullptr, m_xy, col);
++  if (!eyedropper_color_sample_fl(C, nullptr, &eye->window_session, m_xy, col)) {
++    return false;
++  }
+ 
+   eye->accum_col += col;
+   eye->accum_tot++;
+@@ -329,6 +344,7 @@ static void eyedropper_grease_pencil_color_sample(bContext *C,
+   if (eye->accum_tot > 1) {
+     eye->color = eye->accum_col / float(eye->accum_tot);
+   }
++  return true;
+ }
+ 
+ static void eyedropper_grease_pencil_cancel(bContext *C, wmOperator *op)
+@@ -344,6 +360,34 @@ static wmOperatorStatus eyedropper_grease_pencil_modal(bContext *C,
+   eyedropper_grease_pencil_status_indicators(C, op, event);
+   EyedropperGreasePencil *eye = static_cast<EyedropperGreasePencil *>(op->customdata);
+ 
++  if (event->type == TIMER && eye->readback_timer != nullptr &&
++      event->customdata == eye->readback_timer)
++  {
++    constexpr int max_tick_count = 240;
++    if (++eye->readback_tick_count > max_tick_count) {
++      BKE_report(op->reports, RPT_ERROR, "Timed out waiting for window color readback");
++      eyedropper_grease_pencil_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++    const EyedropperWindowColorSampleSession::ReadbackState state =
++        eye->window_session.state();
++    if (state == EyedropperWindowColorSampleSession::ReadbackState::Pending) {
++      return OPERATOR_RUNNING_MODAL;
++    }
++    if (state != EyedropperWindowColorSampleSession::ReadbackState::Ready ||
++        !eyedropper_grease_pencil_color_sample(C, eye, eye->readback_event_xy))
++    {
++      BKE_report(op->reports, RPT_ERROR, "Window color readback failed");
++      eyedropper_grease_pencil_exit(C, op);
++      return OPERATOR_CANCELLED;
++    }
++
++    eyedropper_grease_pencil_color_set(C, eye->readback_modifier, eye);
++    WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, nullptr);
++    eyedropper_grease_pencil_exit(C, op);
++    return OPERATOR_FINISHED;
++  }
++
+   /* Handle modal keymap */
+   switch (event->type) {
+     case EVT_MODAL_MAP: {
+@@ -363,10 +407,25 @@ static wmOperatorStatus eyedropper_grease_pencil_modal(bContext *C,
+           return OPERATOR_CANCELLED;
+         }
+         case EYE_MODAL_SAMPLE_CONFIRM: {
+-          eyedropper_grease_pencil_color_sample(C, eye, event->xy);
++          if (!eyedropper_grease_pencil_color_sample(C, eye, event->xy)) {
++            if (eye->window_session.state() ==
++                EyedropperWindowColorSampleSession::ReadbackState::Pending)
++            {
++              copy_v2_v2_int(eye->readback_event_xy, event->xy);
++              eye->readback_modifier = event->modifier;
++              eye->readback_tick_count = 0;
++              if (eye->readback_timer == nullptr) {
++                eye->readback_timer = WM_event_timer_add(
++                    CTX_wm_manager(C), CTX_wm_window(C), TIMER, 0.01f);
++              }
++              return OPERATOR_RUNNING_MODAL;
++            }
++            eyedropper_grease_pencil_exit(C, op);
++            return OPERATOR_CANCELLED;
++          }
+ 
+           /* Create material. */
+-          eyedropper_grease_pencil_color_set(C, event, eye);
++          eyedropper_grease_pencil_color_set(C, event->modifier, eye);
+           WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, nullptr);
+ 
+           eyedropper_grease_pencil_exit(C, op);
+diff --git a/source/blender/editors/interface/eyedroppers/eyedropper_intern.hh b/source/blender/editors/interface/eyedroppers/eyedropper_intern.hh
+index 53f89b294b3e51618ff86ac8105c5b1b12c0fe9a..2ccd38a16c4a3dcc223b9d28c334074b7267ec35 100644
+--- a/source/blender/editors/interface/eyedroppers/eyedropper_intern.hh
++++ b/source/blender/editors/interface/eyedroppers/eyedropper_intern.hh
+@@ -16,6 +16,7 @@ struct ScrArea;
+ struct bContext;
+ struct wmEvent;
+ struct wmWindow;
++struct WMWindowPixelsRead;
+ 
+ namespace ui {
+ struct Button;
+@@ -46,12 +47,40 @@ void eyedropper_win_area_find(const bContext *C,
+  * Special check for image or nodes where we MAY have HDR pixels which don't display.
+  *
+  * \param eye: Internal state of the color eyedropper, may be nullptr for other users.
++ * \param window_session: Owned non-viewport window snapshot shared by every modal caller.
+  *
+  * \note Exposed by 'eyedropper_intern.hh' for use with color band picking.
+  */
+ struct Eyedropper;
++class EyedropperWindowColorSampleSession {
++ public:
++  enum class ReadbackState {
++    Invalid,
++    Pending,
++    Ready,
++    Failed,
++  };
++
++ private:
++  wmWindow *window_ = nullptr;
++  WMWindowPixelsRead *readback_ = nullptr;
++  unsigned char *pixels_ = nullptr;
++  int size_[2] = {};
++  ReadbackState state_ = ReadbackState::Invalid;
++
++ public:
++  EyedropperWindowColorSampleSession() = default;
++  ~EyedropperWindowColorSampleSession();
++
++  bool init(bContext *C, wmWindow *window);
++  ReadbackState state();
++  bool sample(const int pos[2], float r_col[3]);
++  void cancel();
++};
++
+ bool eyedropper_color_sample_fl(bContext *C,
+                                 struct Eyedropper *eye,
++                                EyedropperWindowColorSampleSession *window_session,
+                                 const int event_xy[2],
+                                 float r_col[3]);
+ 

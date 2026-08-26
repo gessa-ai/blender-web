@@ -1,0 +1,598 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 0844a96..8a9fbfd 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -66,14 +66,20 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     return;
+   }
+ 
+-  /* Resolve the first vertex buffer (single interleaved layout for now) and ensure
+-   * it is uploaded to the device. */
+-  WGPUVertexBuffer *wvbo = nullptr;
++  /* Collect ALL vertex buffers (a Blender mesh/overlay batch spreads a shader's inputs
++   * across several verts[] slots) and upload each. Recorded by verts[] slot so the plan's
++   * vbo_index maps straight back for per-slot binding below. */
++  const GPUVertFormat *formats[GPU_BATCH_VBO_MAX_LEN] = {};
++  int64_t vlens[GPU_BATCH_VBO_MAX_LEN] = {};
++  WGPUVertexBuffer *wvbos[GPU_BATCH_VBO_MAX_LEN] = {};
++  int formats_len = 0;
+   for (int i = 0; i < GPU_BATCH_VBO_MAX_LEN; i++) {
+     if (verts[i] != nullptr) {
+       verts[i]->upload();
+-      wvbo = unwrap(verts[i]);
+-      break;
++      wvbos[i] = unwrap(verts[i]);
++      formats[i] = &wvbos[i]->format;
++      vlens[i] = int64_t(wvbos[i]->vertex_len);
++      formats_len = i + 1;
+     }
+   }
+ 
+@@ -81,7 +87,11 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+    * the bound framebuffer's target formats. */
+   webgpu::PipelineInfo info;
+   info.shader = shader;
+-  info.vertex_format = (wvbo != nullptr) ? &wvbo->format : nullptr;
++  for (int i = 0; i < formats_len; i++) {
++    info.vertex_formats[i] = formats[i];
++    info.vertex_lens[i] = vlens[i];
++  }
++  info.vertex_formats_len = formats_len;
+   if (base_ctx->state_manager != nullptr) {
+     info.state = base_ctx->state_manager->state;
+     info.mutable_state = base_ctx->state_manager->mutable_state;
+@@ -95,6 +105,27 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     return;
+   }
+ 
++  /* The identical plan the pipeline layout was built from, used to bind each slot's
++   * buffer (real VBO by index, or the shared dummy for a filled-in location). */
++  const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
++      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++  auto bind_vertex_buffers = [&](wgpu::RenderPassEncoder &rp) {
++    for (uint32_t s = 0; s < vplan.size(); s++) {
++      const webgpu::VertexBinding &b = vplan[s];
++      wgpu::Buffer buf = nullptr;
++      if (b.is_dummy) {
++        buf = ctx->dummy_vertex_buffer();
++      }
++      else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
++               wvbos[b.vbo_index]->buffer().valid()) {
++        buf = wvbos[b.vbo_index]->buffer().handle();
++      }
++      if (buf != nullptr) {
++        rp.SetVertexBuffer(s, buf, b.buffer_offset);
++      }
++    }
++  };
++
+   /* Multi-viewport / layered emulation (M3.F7). WebGPU has no viewport array and no
+    * vertex-stage gl_Layer / gl_ViewportIndex routing, so render one pass per (array
+    * layer, viewport rect): a single-layer attachment view selects the layer, a
+@@ -137,9 +168,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+             float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]), 0.0f, 1.0f);
+         mv_pass.SetScissorRect(
+             uint32_t(rect[0]), uint32_t(rect[1]), uint32_t(rect[2]), uint32_t(rect[3]));
+-        if (wvbo != nullptr && wvbo->buffer().valid()) {
+-          mv_pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
+-        }
++        bind_vertex_buffers(mv_pass);
+ 
+         std::vector<wgpu::BindGroupEntry> entries;
+         wgpu::BindGroupEntry mv_entry = {};
+@@ -191,10 +220,8 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
+ 
+-  /* Vertex buffers. */
+-  if (wvbo != nullptr && wvbo->buffer().valid()) {
+-    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
+-  }
++  /* Vertex buffers (every slot the plan defines). */
++  bind_vertex_buffers(pass);
+ 
+   /* Bind group 0: the push-constant UBO (lane A's shadow+flush+getter) plus every
+    * declared resource — sampled textures + samplers, storage buffers, storage
+@@ -284,18 +311,27 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     return;
+   }
+ 
+-  WGPUVertexBuffer *wvbo = nullptr;
++  const GPUVertFormat *formats[GPU_BATCH_VBO_MAX_LEN] = {};
++  int64_t vlens[GPU_BATCH_VBO_MAX_LEN] = {};
++  WGPUVertexBuffer *wvbos[GPU_BATCH_VBO_MAX_LEN] = {};
++  int formats_len = 0;
+   for (int i = 0; i < GPU_BATCH_VBO_MAX_LEN; i++) {
+     if (verts[i] != nullptr) {
+       verts[i]->upload();
+-      wvbo = unwrap(verts[i]);
+-      break;
++      wvbos[i] = unwrap(verts[i]);
++      formats[i] = &wvbos[i]->format;
++      vlens[i] = int64_t(wvbos[i]->vertex_len);
++      formats_len = i + 1;
+     }
+   }
+ 
+   webgpu::PipelineInfo info;
+   info.shader = shader;
+-  info.vertex_format = (wvbo != nullptr) ? &wvbo->format : nullptr;
++  for (int i = 0; i < formats_len; i++) {
++    info.vertex_formats[i] = formats[i];
++    info.vertex_lens[i] = vlens[i];
++  }
++  info.vertex_formats_len = formats_len;
+   if (base_ctx->state_manager != nullptr) {
+     info.state = base_ctx->state_manager->state;
+     info.mutable_state = base_ctx->state_manager->mutable_state;
+@@ -309,13 +345,27 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     return;
+   }
+ 
++  const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
++      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++
+   wgpu::Device device = ctx->device_get();
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
+ 
+-  if (wvbo != nullptr && wvbo->buffer().valid()) {
+-    pass.SetVertexBuffer(0, wvbo->buffer().handle(), 0);
++  for (uint32_t s = 0; s < vplan.size(); s++) {
++    const webgpu::VertexBinding &b = vplan[s];
++    wgpu::Buffer buf = nullptr;
++    if (b.is_dummy) {
++      buf = ctx->dummy_vertex_buffer();
++    }
++    else if (b.vbo_index >= 0 && wvbos[b.vbo_index] != nullptr &&
++             wvbos[b.vbo_index]->buffer().valid()) {
++      buf = wvbos[b.vbo_index]->buffer().handle();
++    }
++    if (buf != nullptr) {
++      pass.SetVertexBuffer(s, buf, b.buffer_offset);
++    }
+   }
+ 
+   {
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 136cdbd..3bdda36 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -294,6 +294,22 @@ wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
+   return sampler;
+ }
+ 
++/* --- Dummy vertex buffer (unbound-attribute constant) ---------------------- */
++
++wgpu::Buffer WGPUContext::dummy_vertex_buffer()
++{
++  if (dummy_vertex_buffer_ == nullptr) {
++    wgpu::BufferDescriptor bd = {};
++    /* Comfortable for the largest dummy stride (16 B) over a healthy instance count; an
++     * Instance-stepped dummy on a non-instanced draw only ever reads element 0. WebGPU
++     * zero-initialises buffer storage — exactly the constant an unbound attribute yields. */
++    bd.size = 65536;
++    bd.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
++    dummy_vertex_buffer_ = device_.CreateBuffer(&bd);
++  }
++  return dummy_vertex_buffer_;
++}
++
+ /* --- Cross-format colour blit (render-pass fallback for blit_to) ----------- */
+ 
+ bool WGPUContext::blit_color_render(
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index d7d65d3..4878e66 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -175,6 +175,13 @@ class WGPUContext : public Context {
+    * context lifetime so the handle outlives every BindGroup that references it). */
+   wgpu::Sampler get_sampler(const GPUSamplerState &state);
+ 
++  /* A shared zero-filled vertex buffer bound to dummy VertexState slots — the WebGPU
++   * stand-in for the constant an unbound/disabled GL vertex attribute reads (WebGPU
++   * forbids Vulkan's arrayStride-0 trick). Instance-stepped in the plan, so a
++   * non-instanced draw reads element 0 (zeros) for every vertex. Lazily created,
++   * retained for the context lifetime. */
++  wgpu::Buffer dummy_vertex_buffer();
++
+   /* Blit one colour texture into another through a fullscreen textured-quad render
+    * pass. Used by WGPUFrameBuffer::blit_to when the source and destination formats
+    * are NOT copy-compatible (Dawn rejects CopyTextureToTexture across formats — the
+@@ -258,6 +265,9 @@ class WGPUContext : public Context {
+   /** Blit render pipeline cache keyed by destination wgpu::TextureFormat. */
+   std::unordered_map<uint32_t, wgpu::RenderPipeline> blit_pipelines_;
+ 
++  /** Shared zero buffer backing dummy vertex-attribute slots (see dummy_vertex_buffer). */
++  wgpu::Buffer dummy_vertex_buffer_;
++
+   /** The GHOST drawing context (retained for sync_backbuffer's surface access);
+    * mirrors VKContext::ghost_context_ (vk_context.cc:40). */
+   GHOST_IContext *ghost_context_ = nullptr;
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 375fc86..a495f70 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -91,7 +91,9 @@ void WGPUImmediate::end()
+   /* Select the pipeline for (shader, immediate vertex format, state, targets, prim). */
+   webgpu::PipelineInfo info;
+   info.shader = shader;
+-  info.vertex_format = &vertex_format;
++  info.vertex_formats[0] = &vertex_format;
++  info.vertex_lens[0] = int64_t(vertex_idx);
++  info.vertex_formats_len = 1;
+   if (base_ctx->state_manager != nullptr) {
+     info.state = base_ctx->state_manager->state;
+     info.mutable_state = base_ctx->state_manager->mutable_state;
+@@ -109,7 +111,25 @@ void WGPUImmediate::end()
+   wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+   wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc);
+   pass.SetPipeline(pipeline);
+-  pass.SetVertexBuffer(0, vbo.handle(), 0);
++  {
++    /* Immediate is a single interleaved buffer; the plan is one slot (all attributes) plus
++     * any dummy for a shader input the format omits. Bind each to its slot. */
++    const webgpu::VertexPlan vplan = webgpu::build_vertex_plan(
++        info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++    for (uint32_t s = 0; s < vplan.size(); s++) {
++      const webgpu::VertexBinding &b = vplan[s];
++      wgpu::Buffer buf = nullptr;
++      if (b.is_dummy) {
++        buf = ctx->dummy_vertex_buffer();
++      }
++      else if (b.vbo_index == 0) {
++        buf = vbo.handle();
++      }
++      if (buf != nullptr) {
++        pass.SetVertexBuffer(s, buf, b.buffer_offset);
++      }
++    }
++  }
+ 
+   /* Bind group 0: the push-constant UBO (uniform colour + matrices) plus any
+    * declared resources (e.g. an immBindTexture'd image + sampler) via the shared
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+index 905e540..84f9e7d 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -20,6 +20,8 @@
+ 
+ #include "gpu_shader_interface.hh"
+ 
++#include "GPU_common_types.hh" /* shader::Type (dummy attribute format) */
++
+ #include <cstring>
+ #include <vector>
+ 
+@@ -113,17 +115,37 @@ static uint64_t pipeline_hash(const PipelineInfo &info)
+   hash_bytes(h, &info.depth_format, sizeof(info.depth_format));
+   hash_bytes(h, &info.prim_type, sizeof(info.prim_type));
+   hash_bytes(h, &info.flip_y, sizeof(info.flip_y));
+-  if (info.vertex_format != nullptr) {
+-    const GPUVertFormat *f = info.vertex_format;
++  /* The vertex plan (hence the pipeline VertexState) is a pure function of the shader
++   * (hashed above) and the bound formats — attribute comp signature, offset, name (the
++   * name drives which @location it matches) and the deinterleaved flag. vertex_len is a
++   * binding-time value only (deinterleaved buffer offset) and never affects the layout. */
++  hash_bytes(h, &info.vertex_formats_len, sizeof(info.vertex_formats_len));
++  for (int v = 0; v < info.vertex_formats_len; v++) {
++    const GPUVertFormat *f = info.vertex_formats[v];
++    uint8_t present = (f != nullptr) ? 1u : 0u;
++    hash_bytes(h, &present, 1);
++    if (f == nullptr) {
++      continue;
++    }
+     uint32_t stride = f->stride;
+     uint32_t attr_len = f->attr_len;
++    uint32_t deint = f->deinterleaved;
+     hash_bytes(h, &stride, sizeof(stride));
+     hash_bytes(h, &attr_len, sizeof(attr_len));
++    hash_bytes(h, &deint, sizeof(deint));
+     for (uint i = 0; i < f->attr_len; i++) {
+       const GPUVertAttr &a = f->attrs[i];
+-      uint8_t sig[4] = {uint8_t(a.type.comp_type()), uint8_t(a.type.comp_len()),
+-                        uint8_t(a.type.fetch_mode()), a.offset};
++      uint16_t off = uint16_t(a.offset);
++      uint8_t sig[3] = {uint8_t(a.type.comp_type()), uint8_t(a.type.comp_len()),
++                        uint8_t(a.type.fetch_mode())};
+       hash_bytes(h, sig, sizeof(sig));
++      hash_bytes(h, &off, sizeof(off));
++      for (uint nidx = 0; nidx < a.name_len; nidx++) {
++        const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
++        if (nm != nullptr) {
++          hash_bytes(h, nm, std::strlen(nm));
++        }
++      }
+     }
+   }
+   return h;
+@@ -135,37 +157,28 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
+ {
+   WGPUShader *shader = info.shader;
+ 
+-  /* Vertex buffer layout (single interleaved buffer). Attributes the shader does
+-   * not read (attr_get == null) are skipped. */
+-  std::vector<wgpu::VertexAttribute> attributes;
+-  wgpu::VertexBufferLayout vbo_layout = {};
+-  if (info.vertex_format != nullptr && info.vertex_format->attr_len > 0 &&
+-      shader->interface != nullptr)
+-  {
+-    const GPUVertFormat *f = info.vertex_format;
+-    for (uint i = 0; i < f->attr_len; i++) {
+-      const GPUVertAttr &a = f->attrs[i];
+-      const char *name = GPU_vertformat_attr_name_get(f, &a, 0);
+-      const ShaderInput *input = shader->interface->attr_get(name);
+-      if (input == nullptr || input->location < 0) {
+-        continue;
+-      }
+-      wgpu::VertexAttribute va = {};
+-      va.format = to_wgpu_vertex_format(a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
+-      va.offset = a.offset;
+-      va.shaderLocation = uint32_t(input->location);
+-      attributes.push_back(va);
+-    }
+-    vbo_layout.arrayStride = f->stride;
+-    vbo_layout.stepMode = wgpu::VertexStepMode::Vertex;
+-    vbo_layout.attributeCount = attributes.size();
+-    vbo_layout.attributes = attributes.data();
++  /* Vertex buffer layouts: one WebGPU slot per source VBO (all its matched attributes,
++   * interleaved) plus a dummy slot per shader-required-but-unbound location. The plan is
++   * a pure function of (shader interface, formats) and the identical plan is rebuilt at
++   * draw time to bind buffers to matching slots (wgpu_batch / wgpu_immediate). Holds the
++   * attribute vectors alive for CreateRenderPipeline below. */
++  const VertexPlan plan = build_vertex_plan(
++      info.vertex_formats, info.vertex_lens, info.vertex_formats_len, *shader);
++  std::vector<wgpu::VertexBufferLayout> vbo_layouts;
++  vbo_layouts.reserve(plan.size());
++  for (const VertexBinding &b : plan) {
++    wgpu::VertexBufferLayout layout = {};
++    layout.arrayStride = b.array_stride;
++    layout.stepMode = b.step_mode;
++    layout.attributeCount = uint32_t(b.attributes.size());
++    layout.attributes = b.attributes.data();
++    vbo_layouts.push_back(layout);
+   }
+ 
+   wgpu::VertexState vertex = {};
+   vertex.module = shader->vertex_module();
+-  vertex.bufferCount = attributes.empty() ? 0 : 1;
+-  vertex.buffers = attributes.empty() ? nullptr : &vbo_layout;
++  vertex.bufferCount = uint32_t(vbo_layouts.size());
++  vertex.buffers = vbo_layouts.empty() ? nullptr : vbo_layouts.data();
+ 
+   /* Present-path Y-flip (M4.T14a): render the surface backbuffer upright by overriding
+    * the vertex clip-space Y sign to +1.0f (constant_id 1000, uint bit pattern). Offscreen
+@@ -250,6 +263,168 @@ static wgpu::RenderPipeline build_pipeline(const wgpu::Device &device, const Pip
+   return device.CreateRenderPipeline(&desc);
+ }
+ 
++/** Map a shader vertex-input Type to a WebGPU vertex format (+ its byte size) for a dummy
++ * slot. Only the base kind (float/uint/sint) must match the WGSL input; missing components
++ * are filled (0,0,0,1) by WebGPU exactly as GL fills a disabled attribute. */
++static wgpu::VertexFormat dummy_vertex_format(uint8_t type_byte, uint32_t &r_size)
++{
++  using T = blender::gpu::shader::Type;
++  using VF = wgpu::VertexFormat;
++  switch (T(type_byte)) {
++    case T::float_t:              r_size = 4;  return VF::Float32;
++    case T::float2_t:             r_size = 8;  return VF::Float32x2;
++    case T::float3_t:
++    case T::float3_10_10_10_2_t:  r_size = 12; return VF::Float32x3;
++    case T::float4_t:
++    case T::float3x3_t:
++    case T::float4x4_t:           r_size = 16; return VF::Float32x4;
++    case T::uint_t:
++    case T::bool_t:
++    case T::uchar_t:
++    case T::ushort_t:             r_size = 4;  return VF::Uint32;
++    case T::uint2_t:
++    case T::uchar2_t:
++    case T::ushort2_t:            r_size = 8;  return VF::Uint32x2;
++    case T::uint3_t:
++    case T::uchar3_t:
++    case T::ushort3_t:            r_size = 12; return VF::Uint32x3;
++    case T::uint4_t:
++    case T::uchar4_t:
++    case T::ushort4_t:            r_size = 16; return VF::Uint32x4;
++    case T::int_t:
++    case T::char_t:
++    case T::short_t:              r_size = 4;  return VF::Sint32;
++    case T::int2_t:
++    case T::char2_t:
++    case T::short2_t:             r_size = 8;  return VF::Sint32x2;
++    case T::int3_t:
++    case T::char3_t:
++    case T::short3_t:             r_size = 12; return VF::Sint32x3;
++    case T::int4_t:
++    case T::char4_t:
++    case T::short4_t:             r_size = 16; return VF::Sint32x4;
++    default:                      r_size = 16; return VF::Float32x4;
++  }
++}
++
++VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
++                             const int64_t *vertex_lens,
++                             int formats_len,
++                             WGPUShader &shader)
++{
++  VertexPlan plan;
++  const ShaderInterface *itf = shader.interface;
++  if (itf == nullptr) {
++    return plan;
++  }
++  uint32_t occupied = 0; /* @location bitmask already fed by a real VBO. */
++
++  auto match_location = [&](const GPUVertFormat *f, const GPUVertAttr &a) -> int {
++    for (uint nidx = 0; nidx < a.name_len; nidx++) {
++      const char *nm = GPU_vertformat_attr_name_get(f, &a, nidx);
++      const ShaderInput *in = itf->attr_get(nm);
++      if (in != nullptr && in->location >= 0) {
++        return in->location;
++      }
++    }
++    return -1;
++  };
++
++  for (int v = 0; v < formats_len; v++) {
++    const GPUVertFormat *f = formats[v];
++    if (f == nullptr || f->attr_len == 0) {
++      continue;
++    }
++    const int64_t vlen = (vertex_lens != nullptr) ? vertex_lens[v] : 0;
++
++    if (!f->deinterleaved) {
++      /* One interleaved slot for the whole VBO — its matched attributes at their real
++       * offsets, stride = format stride. Keeps a single-VBO batch byte-identical to the
++       * pre-multi-buffer path (one slot). */
++      VertexBinding b;
++      b.vbo_index = v;
++      b.buffer_offset = 0;
++      b.array_stride = f->stride;
++      b.step_mode = wgpu::VertexStepMode::Vertex;
++      for (uint i = 0; i < f->attr_len; i++) {
++        const GPUVertAttr &a = f->attrs[i];
++        const int loc = match_location(f, a);
++        if (loc < 0 || loc >= 32 || (occupied & (1u << loc)) != 0u) {
++          continue;
++        }
++        occupied |= (1u << loc);
++        wgpu::VertexAttribute va = {};
++        va.format = to_wgpu_vertex_format(
++            a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
++        va.offset = a.offset;
++        va.shaderLocation = uint32_t(loc);
++        b.attributes.push_back(va);
++      }
++      if (!b.attributes.empty()) {
++        plan.push_back(std::move(b));
++      }
++    }
++    else {
++      /* Deinterleaved: each attribute is its own tightly-packed block within the VBO,
++       * bound at a running byte offset (mirrors VKVertexAttributeObject). */
++      uint64_t buf_off = 0;
++      for (uint i = 0; i < f->attr_len; i++) {
++        const GPUVertAttr &a = f->attrs[i];
++        if (i > 0) {
++          buf_off += uint64_t(f->attrs[i - 1].type.size()) * uint64_t(vlen);
++        }
++        const int loc = match_location(f, a);
++        if (loc < 0 || loc >= 32 || (occupied & (1u << loc)) != 0u) {
++          continue;
++        }
++        occupied |= (1u << loc);
++        uint32_t stride = uint32_t(a.type.size());
++        stride = (stride + 3u) & ~3u; /* WebGPU: arrayStride multiple of 4. */
++        VertexBinding b;
++        b.vbo_index = v;
++        b.buffer_offset = buf_off;
++        b.array_stride = stride;
++        b.step_mode = wgpu::VertexStepMode::Vertex;
++        wgpu::VertexAttribute va = {};
++        va.format = to_wgpu_vertex_format(
++            a.type.comp_type(), a.type.comp_len(), a.type.fetch_mode());
++        va.offset = 0;
++        va.shaderLocation = uint32_t(loc);
++        b.attributes.push_back(va);
++        plan.push_back(std::move(b));
++      }
++    }
++  }
++
++  /* Dummy-fill: any @location the vertex module consumes but no VBO provided. WebGPU
++   * forbids arrayStride 0 (Vulkan's constant-attribute trick), so use an Instance-stepped
++   * slot over the context's zero buffer — a non-instanced draw reads element 0 for every
++   * vertex, i.e. the constant 0 an unbound GL attribute yields. */
++  const uint32_t enabled = itf->enabled_attr_mask_;
++  for (int loc = 0; loc < 16; loc++) {
++    const uint32_t m = (1u << loc);
++    if ((enabled & m) == 0u || (occupied & m) != 0u) {
++      continue;
++    }
++    uint32_t sz = 16;
++    const wgpu::VertexFormat fmt = dummy_vertex_format(itf->attr_types_[loc], sz);
++    VertexBinding b;
++    b.vbo_index = -1;
++    b.is_dummy = true;
++    b.buffer_offset = 0;
++    b.array_stride = sz;
++    b.step_mode = wgpu::VertexStepMode::Instance;
++    wgpu::VertexAttribute va = {};
++    va.format = fmt;
++    va.offset = 0;
++    va.shaderLocation = uint32_t(loc);
++    b.attributes.push_back(va);
++    plan.push_back(std::move(b));
++  }
++
++  return plan;
++}
++
+ wgpu::RenderPipeline WGPUPipelinePool::get(const wgpu::Device &device, const PipelineInfo &info)
+ {
+   const uint64_t key = pipeline_hash(info);
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.hh b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+index 4239947..66940c7 100644
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.hh
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.hh
+@@ -21,9 +21,11 @@
+ 
+ #include <cstdint>
+ #include <unordered_map>
++#include <vector>
+ 
+ #include "webgpu/webgpu_cpp.h"
+ 
++#include "GPU_batch.hh" /* GPU_BATCH_VBO_MAX_LEN */
+ #include "GPU_primitive.hh"
+ #include "GPU_vertex_format.hh"
+ 
+@@ -37,9 +39,31 @@ namespace webgpu {
+ 
+ /** The state that selects a render pipeline (its cache key). Framebuffer target
+  * formats + primitive + fixed-function state + the shader + the vertex signature. */
++/** One WebGPU vertex-buffer slot: a source (a batch VBO index, or the dummy buffer),
++ * its stride/step-mode, and the attributes it feeds. Blender batches spread a shader's
++ * vertex inputs across SEVERAL VBOs (verts[0..15]); a WebGPU pipeline's VertexState must
++ * carry a slot for every @location the vertex module consumes, so the plan groups the
++ * matched attributes per source buffer and fills the shader-required-but-absent locations
++ * with a zero-stepping dummy slot (GL's "disabled array reads a constant"). Both the
++ * pipeline layout (build_pipeline) and the per-draw SetVertexBuffer binding are derived
++ * from the SAME plan so slot indices agree. */
++struct VertexBinding {
++  int vbo_index = -1;   /* index into PipelineInfo.vertex_formats; -1 = dummy buffer. */
++  uint64_t buffer_offset = 0;
++  uint32_t array_stride = 0;
++  wgpu::VertexStepMode step_mode = wgpu::VertexStepMode::Vertex;
++  bool is_dummy = false;
++  std::vector<wgpu::VertexAttribute> attributes;
++};
++using VertexPlan = std::vector<VertexBinding>;
++
+ struct PipelineInfo {
+   WGPUShader *shader = nullptr;
+-  const GPUVertFormat *vertex_format = nullptr; /* null = procedural (no vbo). */
++  /* Every bound vertex buffer, indexed by its batch verts[] slot (entries may be null);
++   * a single interleaved format lives at [0]. Empty set => procedural (no vbo). */
++  const GPUVertFormat *vertex_formats[GPU_BATCH_VBO_MAX_LEN] = {};
++  int64_t vertex_lens[GPU_BATCH_VBO_MAX_LEN] = {};
++  int vertex_formats_len = 0;
+   GPUState state = {};
+   GPUStateMutable mutable_state = {};
+   wgpu::TextureFormat color_formats[8] = {};
+@@ -68,5 +92,14 @@ wgpu::VertexFormat to_wgpu_vertex_format(GPUVertCompType comp_type,
+                                          int comp_len,
+                                          GPUVertFetchMode fetch);
+ 
++/** Resolve the shader's vertex inputs against the bound vertex buffers, producing one
++ * VertexBinding per WebGPU slot (matched attributes grouped by source VBO, plus a dummy
++ * slot for each shader-required location no VBO provides). Pure function of (shader
++ * interface, formats) — the buffer_offset uses vertex_lens only for deinterleaved VBOs. */
++VertexPlan build_vertex_plan(const GPUVertFormat *const *formats,
++                             const int64_t *vertex_lens,
++                             int formats_len,
++                             WGPUShader &shader);
++
+ }  // namespace webgpu
+ }  // namespace blender::gpu

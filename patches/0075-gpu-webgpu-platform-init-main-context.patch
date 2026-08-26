@@ -1,0 +1,108 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index c1aaf89..cdf805a 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -23,8 +23,10 @@
+ 
+ #include "GPU_capabilities.hh"
+ #include "GPU_context.hh"
++#include "GPU_platform.hh"
+ #include "GPU_worker.hh"
+ #include "gpu_context_private.hh"
++#include "gpu_platform_private.hh"
+ #include "gpu_shader_private.hh"
+ #include "gpu_texture_pool_private.hh"
+ 
+@@ -36,8 +38,41 @@
+ 
+ namespace blender::gpu {
+ 
++void WGPUBackend::platform_init()
++{
++  /* Static platform identity, mirroring VKBackend::platform_init() (vk_backend.cc:411).
++   * WebGPU abstracts the concrete adapter, so use the ANY device/driver values; the OS
++   * follows the build host (Emscripten builds fall to the UNIX branch). */
++#ifdef _WIN32
++  const GPUOSType os = GPU_OS_WIN;
++#elif defined(__APPLE__)
++  const GPUOSType os = GPU_OS_MAC;
++#else
++  const GPUOSType os = GPU_OS_UNIX;
++#endif
++  GPG.init(GPU_DEVICE_ANY,
++           os,
++           GPU_DRIVER_ANY,
++           GPU_SUPPORT_LEVEL_SUPPORTED,
++           GPU_BACKEND_WEBGPU,
++           "",
++           "",
++           "",
++           GPU_ARCHITECTURE_IMR);
++}
++
++void WGPUBackend::platform_exit()
++{
++  GPG.clear();
++}
++
+ void WGPUBackend::init_resources()
+ {
++  /* Publish the platform identity before anything reads GPU_platform_* (the frontend
++   * asserts GPG.initialized). VKBackend does this from its constructor; init_resources
++   * (GPU_init) is early enough and is where the backend-owned resources come up. */
++  platform_init();
++
+   /* The shader compiler is the backend-agnostic base ShaderCompiler; it drives the
+    * async builtin warm-up GPU_init kicks off. Mirrors VKBackend::init_resources. */
+   compiler_ = MEM_new<ShaderCompiler>(
+@@ -48,6 +83,7 @@ void WGPUBackend::delete_resources()
+ {
+   MEM_delete(compiler_);
+   compiler_ = nullptr;
++  platform_exit();
+ }
+ 
+ void WGPUBackend::render_step(bool /*force_resource_release*/) {}
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.hh b/source/blender/gpu/webgpu/wgpu_backend.hh
+index bf08cd7..17b1846 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.hh
++++ b/source/blender/gpu/webgpu/wgpu_backend.hh
+@@ -35,8 +35,17 @@ class WGPUBackend : public GPUBackend {
+     return true;
+   }
+ 
+-  /* Lifecycle. init_resources constructs the shader compiler (the backend-agnostic
+-   * base ShaderCompiler, exactly as VKBackend does); delete_resources tears it down. */
++  /* Publish this backend's platform identity into the global GPUPlatformGlobal (GPG).
++   * Blender's frontend asserts GPG.initialized before any GPU_platform_* accessor
++   * (gpu_platform.cc:129-179) — reached during shader-dependency resolution and WM
++   * init. Mirrors VKBackend::platform_init()/platform_exit(); called from
++   * init_resources()/delete_resources(). */
++  static void platform_init();
++  static void platform_exit();
++
++  /* Lifecycle. init_resources publishes the platform identity + constructs the shader
++   * compiler (the backend-agnostic base ShaderCompiler, exactly as VKBackend does);
++   * delete_resources tears it down. */
+   void init_resources() override;
+   void delete_resources() override;
+   void render_begin() override {}
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 21f0019..c4d2595 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -172,6 +172,14 @@ void WGPUContext::capabilities_init()
+    * TexturePoolImpl), the same fallback the Vulkan backend selects. */
+   GCaps.texture_pool_workaround = true;
+ 
++#ifdef __EMSCRIPTEN__
++  /* emdawnwebgpu WebGPU objects are per-thread JS handle-table entries — a wgpu::
++   * Device/Buffer/Texture created on one worker is not usable from another. Blender's
++   * existing "main context" workaround serialises all GPU resource creation onto the
++   * main context/thread, which is exactly the guarantee WebGPU needs in the browser.
++   * Off under native Dawn (a real cross-thread device), so this is Emscripten-only. */
++  GCaps.use_main_context_workaround = true;
++#endif
+ }
+ 
+ /* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */

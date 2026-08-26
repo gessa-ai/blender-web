@@ -1,0 +1,255 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_state_table.hh b/source/blender/gpu/webgpu/wgpu_state_table.hh
+new file mode 100644
+index 00000000000..1a67146d0c0
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_state_table.hh
+@@ -0,0 +1,87 @@
++/* SPDX-FileCopyrightText: 2020 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/opengl/gl_state.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * M3.T10 — WebGPU state-table mapping.
++ *
++ * The complete mechanical mapping from Blender's fixed-function state model
++ * (`GPU_state.hh`) to WebGPU pipeline-descriptor structs. Header-only-consumable:
++ * every entry point is a PURE function of a `GPUState` / `GPUStateMutable` field —
++ * no device, no context, no allocation — so `wgpu_state.cc` / `wgpu_pipeline.cc`
++ * can call them while building a (cached) render-pipeline descriptor.
++ *
++ *   - GPUBlend (16 arms)   -> wgpu::BlendState {color, alpha} (X-macro table)
++ *   - GPUDepthTest         -> depthCompare + depthWriteEnabled
++ *   - GPUStencilTest / Op  -> wgpu::StencilFaceState front/back (incl. shadow-volume
++ *                             increment/decrement-wrap counting)
++ *   - GPUFaceCullTest      -> wgpu::CullMode ; front-face winding
++ *   - GPUWriteMask         -> wgpu::ColorWriteMask (color bits only; the DEPTH /
++ *                             STENCIL write bits are applied by the depth-stencil
++ *                             state, not here)
++ *   - GPUProvokingVertex   -> NO WebGPU control (documented; emulate in-shader)
++ *
++ * SOURCE OF TRUTH (read-only recon, cited in notes/gpu-t6-t10pre-findings.md
++ * §Part-2): `opengl/gl_state.cc::set_blend` (blend factors) — verified IDENTICAL
++ * in the Vulkan (`vk_graphics_pipeline.hh:603-724`) and Metal (`mtl_state.mm:394+`)
++ * backends — plus `set_depth_test` / `set_stencil_op` / `set_backface_culling` /
++ * `set_provoking_vert` in the same file. Enum contract: `GPU_state.hh`. */
++
++#pragma once
++
++#include <cstddef>
++
++#include "webgpu/webgpu_cpp.h"
++
++#include "GPU_state.hh" /* blender::GPUBlend / GPUDepthTest / GPUStencilTest / ... */
++
++namespace blender::gpu::webgpu {
++
++/* ---- Mapping results ------------------------------------------------------- */
++
++struct BlendMapping {
++  GPUBlend blend;
++  const char *name;
++  bool enabled;     /* false for GPU_BLEND_NONE -> omit the BlendState. */
++  bool dual_source; /* true for GPU_BLEND_CUSTOM -> needs DualSourceBlending + @blend_src. */
++  wgpu::BlendComponent color;
++  wgpu::BlendComponent alpha;
++};
++
++struct DepthMapping {
++  bool test_enabled; /* false -> depthWrite off, compare Always. */
++  wgpu::CompareFunction compare;
++};
++
++struct StencilMapping {
++  bool enabled; /* false for GPU_STENCIL_NONE. */
++  wgpu::StencilFaceState front;
++  wgpu::StencilFaceState back;
++};
++
++/* ---- The mapping API (pure; GPUState field -> wgpu descriptor field) -------- */
++
++BlendMapping to_blend(GPUBlend blend);
++DepthMapping to_depth(GPUDepthTest test);
++StencilMapping to_stencil(GPUStencilTest test, GPUStencilOp op);
++wgpu::CullMode to_cull_mode(GPUFaceCullTest cull);
++wgpu::FrontFace to_front_face(bool invert); /* GL default CCW; invert -> CW. */
++wgpu::ColorWriteMask to_color_write_mask(GPUWriteMask gpu_write_mask);
++
++/** WebGPU has NO provoking-vertex control (flat interpolation samples the FIRST
++ * vertex); Blender defaults to LAST. Returns true iff the requested convention is
++ * native to WebGPU (i.e. `GPU_VERTEX_FIRST`). `GPU_VERTEX_LAST` must be emulated
++ * in-shader (Metal precedent: mtl_state.mm:384-391). No pipeline knob exists —
++ * this is a shader-codegen task, flagged for the render milestones. */
++bool provoking_vertex_is_native(GPUProvokingVertex vert);
++
++/* Whole-table iteration for reflection / tests. */
++const BlendMapping *blend_table(size_t &count);
++const char *to_string(GPUBlend b);
++
++}  // namespace blender::gpu::webgpu
+diff --git a/source/blender/gpu/webgpu/wgpu_state_table.cc b/source/blender/gpu/webgpu/wgpu_state_table.cc
+new file mode 100644
+index 00000000000..7eb0dc4c2e8
+--- /dev/null
++++ b/source/blender/gpu/webgpu/wgpu_state_table.cc
+@@ -0,0 +1,156 @@
++/* SPDX-FileCopyrightText: 2020 Blender Authors
++ * SPDX-FileCopyrightText: 2026 blender-web contributors
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Ported for the web from source/blender/gpu/opengl/gl_state.cc @ fbe6228777e7 */
++
++/** \file
++ * \ingroup gpu
++ *
++ * Blender fixed-function state -> WebGPU descriptor mapping. See
++ * wgpu_state_table.hh. The blend table is transcribed VERBATIM from
++ * `opengl/gl_state.cc::set_blend` (GL_* -> wgpu::BlendFactor; equation ->
++ * wgpu::BlendOperation), verified byte-identical in the Vulkan
++ * (`vk_graphics_pipeline.hh:603-724`) and Metal (`mtl_state.mm:394+`) backends. */
++
++#include "wgpu_state_table.hh"
++
++namespace blender::gpu::webgpu {
++
++using BF = wgpu::BlendFactor;
++using BO = wgpu::BlendOperation;
++using CF = wgpu::CompareFunction;
++using SO = wgpu::StencilOperation;
++
++/* GPU_BLEND_<name> -> (color src,dst) (alpha src,dst) equation dual-source.
++ * The X token is the bare enum suffix; `GPU_BLEND_##name` recovers the real
++ * unscoped `blender::GPUBlend` enumerator from GPU_state.hh.
++ *   X(name, enabled, colorSrc, colorDst, alphaSrc, alphaDst, op, dual) */
++#define GPU_BLEND_TABLE(X) \
++  X(NONE,                    false, One,             Zero,             One,             Zero,             Add,             false) \
++  X(ALPHA,                   true,  SrcAlpha,        OneMinusSrcAlpha, One,             OneMinusSrcAlpha, Add,             false) \
++  X(ALPHA_PREMULT,           true,  One,             OneMinusSrcAlpha, One,             OneMinusSrcAlpha, Add,             false) \
++  X(ADDITIVE,                true,  SrcAlpha,        One,              Zero,            One,              Add,             false) \
++  X(ADDITIVE_PREMULT,        true,  One,             One,              One,             One,              Add,             false) \
++  X(MULTIPLY,                true,  Dst,             Zero,             DstAlpha,        Zero,             Add,             false) \
++  X(SUBTRACT,                true,  One,             One,              One,             One,              ReverseSubtract, false) \
++  X(INVERT,                  true,  OneMinusDst,     Zero,             Zero,            One,              Add,             false) \
++  X(MIN,                     true,  One,             One,              One,             One,              Min,             false) \
++  X(MAX,                     true,  One,             One,              One,             One,              Max,             false) \
++  X(OIT,                     true,  One,             One,              Zero,            OneMinusSrcAlpha, Add,             false) \
++  X(BACKGROUND,              true,  OneMinusDstAlpha,SrcAlpha,         Zero,            SrcAlpha,         Add,             false) \
++  X(CUSTOM,                  true,  One,             Src1,             One,             Src1Alpha,        Add,             true)  \
++  X(ALPHA_UNDER_PREMUL,      true,  OneMinusDstAlpha,One,              OneMinusDstAlpha,One,              Add,             false) \
++  X(OVERLAY_MASK_FROM_ALPHA, true,  Zero,            OneMinusSrcAlpha, Zero,            OneMinusSrcAlpha, Add,             false) \
++  X(TRANSPARENCY,            true,  One,             SrcAlpha,         Zero,            SrcAlpha,         Add,             false)
++
++static const BlendMapping g_blend[] = {
++#define X(name, en, cs, cd, as, ad, op, dual) \
++  {GPU_BLEND_##name, "GPU_BLEND_" #name, en, dual, {BO::op, BF::cs, BF::cd}, {BO::op, BF::as, BF::ad}},
++    GPU_BLEND_TABLE(X)
++#undef X
++};
++static constexpr size_t g_blend_count = sizeof(g_blend) / sizeof(g_blend[0]);
++
++const BlendMapping *blend_table(size_t &count)
++{
++  count = g_blend_count;
++  return g_blend;
++}
++
++BlendMapping to_blend(GPUBlend blend)
++{
++  for (const BlendMapping &m : g_blend) {
++    if (m.blend == blend) {
++      return m;
++    }
++  }
++  return g_blend[0];
++}
++
++const char *to_string(GPUBlend b)
++{
++  return to_blend(b).name;
++}
++
++DepthMapping to_depth(GPUDepthTest test)
++{
++  switch (test) {
++    case GPU_DEPTH_NONE:          return {false, CF::Always};
++    case GPU_DEPTH_ALWAYS:        return {true, CF::Always};
++    case GPU_DEPTH_LESS:          return {true, CF::Less};
++    case GPU_DEPTH_LESS_EQUAL:    return {true, CF::LessEqual};
++    case GPU_DEPTH_EQUAL:         return {true, CF::Equal};
++    case GPU_DEPTH_GREATER:       return {true, CF::Greater};
++    case GPU_DEPTH_GREATER_EQUAL: return {true, CF::GreaterEqual};
++  }
++  return {false, CF::Always};
++}
++
++StencilMapping to_stencil(GPUStencilTest test, GPUStencilOp op)
++{
++  CF cmp = CF::Always;
++  bool enabled = true;
++  switch (test) {
++    case GPU_STENCIL_NONE:   enabled = false; cmp = CF::Always; break;
++    case GPU_STENCIL_ALWAYS: cmp = CF::Always; break;
++    case GPU_STENCIL_EQUAL:  cmp = CF::Equal; break;
++    case GPU_STENCIL_NEQUAL: cmp = CF::NotEqual; break;
++  }
++  wgpu::StencilFaceState front = {}, back = {};
++  front.compare = back.compare = cmp;
++  /* {failOp, depthFailOp, passOp}; from gl_state.cc:218-234 glStencilOp order. */
++  switch (op) {
++    case GPU_STENCIL_OP_NONE:
++      front.failOp = front.depthFailOp = front.passOp = SO::Keep;
++      back = front;
++      break;
++    case GPU_STENCIL_OP_REPLACE:
++      front.failOp = SO::Keep; front.depthFailOp = SO::Keep; front.passOp = SO::Replace;
++      back = front;
++      break;
++    case GPU_STENCIL_OP_COUNT_DEPTH_PASS: /* depth-pass count: passOp wrap, per-face. */
++      back.failOp = SO::Keep;  back.depthFailOp = SO::Keep;  back.passOp = SO::IncrementWrap;
++      front.failOp = SO::Keep; front.depthFailOp = SO::Keep; front.passOp = SO::DecrementWrap;
++      break;
++    case GPU_STENCIL_OP_COUNT_DEPTH_FAIL: /* depth-fail count: depthFailOp wrap, per-face. */
++      back.failOp = SO::Keep;  back.depthFailOp = SO::DecrementWrap; back.passOp = SO::Keep;
++      front.failOp = SO::Keep; front.depthFailOp = SO::IncrementWrap; front.passOp = SO::Keep;
++      break;
++  }
++  return {enabled, front, back};
++}
++
++wgpu::CullMode to_cull_mode(GPUFaceCullTest cull)
++{
++  switch (cull) {
++    case GPU_CULL_NONE:  return wgpu::CullMode::None;
++    case GPU_CULL_FRONT: return wgpu::CullMode::Front;
++    case GPU_CULL_BACK:  return wgpu::CullMode::Back;
++  }
++  return wgpu::CullMode::None;
++}
++
++wgpu::FrontFace to_front_face(bool invert)
++{
++  /* GL default is CCW (glFrontFace(GL_CCW)); invert flips to CW. gl_state.cc:290-293. */
++  return invert ? wgpu::FrontFace::CW : wgpu::FrontFace::CCW;
++}
++
++wgpu::ColorWriteMask to_color_write_mask(GPUWriteMask m)
++{
++  wgpu::ColorWriteMask out = wgpu::ColorWriteMask::None;
++  if (flag_is_set(m, GPU_WRITE_RED))   out |= wgpu::ColorWriteMask::Red;
++  if (flag_is_set(m, GPU_WRITE_GREEN)) out |= wgpu::ColorWriteMask::Green;
++  if (flag_is_set(m, GPU_WRITE_BLUE))  out |= wgpu::ColorWriteMask::Blue;
++  if (flag_is_set(m, GPU_WRITE_ALPHA)) out |= wgpu::ColorWriteMask::Alpha;
++  return out;
++}
++
++bool provoking_vertex_is_native(GPUProvokingVertex vert)
++{
++  return vert == GPU_VERTEX_FIRST;
++}
++
++}  // namespace blender::gpu::webgpu

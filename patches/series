@@ -1152,3 +1152,6 @@
 # 0282: keep default WebGPU framebuffer geometry coherent when the persistent
 # window backbuffer wrapper changes handle and extent in place on browser resize.
 0282-gpu-webgpu-window-backbuffer-resize.patch
+# 0283: publish asynchronous shader/layout/pipeline readiness and incomplete
+# bind-group drops into one bounded ordinary-window redraw recovery burst.
+0283-gpu-webgpu-redraw-recovery.patch

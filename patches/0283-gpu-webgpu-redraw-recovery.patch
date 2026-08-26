@@ -1,0 +1,128 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -42,6 +42,10 @@
+ #include <utility>
+ #include <vector>
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender::gpu {
+ 
+ using namespace shader;
+@@ -49,6 +53,20 @@
+ 
+ static CLG_LogRef LOG = {"gpu.webgpu"};
+ 
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
++static void note_webgpu_draw_drop()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::note_redraw_drop();
++#endif
++}
++
+ /* A storage texture's shader declaration, bind-group layout, and bound texture must name the same
+  * physical format. EEVEE promotes storage-backed RG11B10Ufloat to RGBA16Float, read-write
+  * RG16Float to RGBA16Float, and its render-and-storage RG16Unorm GBuffer normal plane to
+@@ -2415,6 +2433,11 @@
+           }
+         }
+         return candidate;
++      },
++      [](ShaderModuleHandles published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   return modules != nullptr;
+ }
+@@ -2639,7 +2662,12 @@
+       device,
+       cache_key,
+       "compute pipeline creation",
+-      [&]() { return device.CreateComputePipeline(&desc); });
++      [&]() { return device.CreateComputePipeline(&desc); },
++      [](wgpu::ComputePipeline published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
++      });
+ }
+ 
+ /* -------------------------------------------------------------------------- */
+@@ -2694,6 +2722,7 @@
+   const std::string assembled_string = binding_ids_string(assembled_bindings);
+   const std::string missing_string = binding_ids_string(missing_bindings);
+   const std::string extra_string = binding_ids_string(extra_bindings);
++  note_webgpu_draw_drop();
+   CLOG_WARN(&LOG,
+             "WGPUShader '%s': assembled group-0 resources do not match surviving WGSL bindings: "
+             "surviving=%s assembled=%s missing=%s extra=%s",
+@@ -2865,6 +2894,11 @@
+         pipeline_descriptor.bindGroupLayouts = &candidate.bind_group_layout;
+         candidate.pipeline_layout = device.CreatePipelineLayout(&pipeline_descriptor);
+         return candidate;
++      },
++      [](ExplicitLayoutHandles published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   return handles != nullptr;
+ }
+
+diff --git a/source/blender/gpu/webgpu/wgpu_pipeline.cc b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+--- a/source/blender/gpu/webgpu/wgpu_pipeline.cc
++++ b/source/blender/gpu/webgpu/wgpu_pipeline.cc
+@@ -27,8 +27,19 @@
+ #include <cstring>
+ #include <vector>
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender::gpu::webgpu {
+ 
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ wgpu::PrimitiveTopology to_wgpu_topology(GPUPrimType prim)
+ {
+   switch (prim) {
+@@ -598,11 +609,17 @@
+     return nullptr;
+   }
+   const uint64_t key = pipeline_hash(info);
+-  return cache_.get_or_create(instance,
+-                              device,
+-                              key,
+-                              "render pipeline creation",
+-                              [&]() { return build_pipeline(instance, device, info); });
++  return cache_.get_or_create(
++      instance,
++      device,
++      key,
++      "render pipeline creation",
++      [&]() { return build_pipeline(instance, device, info); },
++      [](wgpu::RenderPipeline published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
++      });
+ }
+ 
+ }  // namespace blender::gpu::webgpu

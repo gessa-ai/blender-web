@@ -1235,15 +1235,18 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
     }
   }
 
-  /* First-pixel settle. Surface creation may publish one cleared frame before Blender's
-   * regions are tagged. Request ordinary window updates until a second frame is published,
-   * then stop permanently. The Emscripten WindowUpdate handler adds the screen invalidation
-   * needed to draw regions; this avoids synthetic focus/mouse events and replaces the public
-   * shell's Python redraw dependency. Keep the existing 180-tick ceiling so a lost device or
-   * hidden canvas cannot create an unbounded event source. */
+  /* Bounded asynchronous-draw recovery. Browser Dawn publishes shader modules, explicit layouts,
+   * pipelines, and scoped resources after the draw that first requested them has already returned.
+   * Their readiness generation requests an ordinary full-screen update so every dropped region is
+   * retried without user input. The boot burst discovers visible lazy variants; readiness can rearm
+   * a completed burst but cannot extend an active one past the existing 180-tick hard ceiling;
+   * repeated draw-drop signals are acknowledged without rearming at that ceiling. */
   if (window_ != nullptr &&
-      ghost_web::first_pixel_settle_tick(
-          ghost_web::present_count(), redraw_present_baseline_, redraw_heartbeat_))
+      ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
+                                      redraw_retry_generation_seen_,
+                                      ghost_web::redraw_drop_generation(),
+                                      redraw_drop_generation_seen_,
+                                      redraw_heartbeat_))
   {
     pushEvent(
         std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
@@ -1662,7 +1665,8 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
             publication_succeeded = false;
             return;
           }
-          redraw_present_baseline_ = ghost_web::present_count();
+          redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
+          redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_heartbeat_ = 0;
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {

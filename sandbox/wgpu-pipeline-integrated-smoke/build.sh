@@ -423,7 +423,7 @@ require_fixed_count 1 \
   'compute_pipeline_cache_.get_or_create(' \
   "$WEBGPU_SOURCE/wgpu_shader.cc"
 require_fixed_count 1 \
-  'cache_.get_or_create(instance,' \
+  'return cache_.get_or_create(' \
   "$WEBGPU_SOURCE/wgpu_pipeline.cc"
 require_fixed_count 2 \
   'shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get())' \
@@ -1762,7 +1762,8 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   --selfcheck
 "$PYBIN" "$FIRST_PIXEL_SETTLE_CONTRACT" \
   "$GHOST_DISPLAY_HEADER" "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" \
-  "$ROOT/upstream/source/blender/windowmanager/intern/wm_window.cc" --selfcheck
+  "$ROOT/upstream/source/blender/windowmanager/intern/wm_window.cc" \
+  "$WEBGPU_SOURCE/wgpu_shader.cc" "$WEBGPU_SOURCE/wgpu_pipeline.cc" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \
@@ -2325,7 +2326,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_first_pixel_settle PASS cases=14 requests=4 initial=complete replacement=complete timeout=bounded wrap=complete'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=15 periodic=15 late=immediate drops=bounded readiness=rearmed wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

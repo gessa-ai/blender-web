@@ -35,6 +35,8 @@ if(NOT DEFINED BW_GHOST_DISPLAY_STATE_HEADER OR
   message(FATAL_ERROR
     "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header")
 endif()
+get_filename_component(_bw_ghost_display_state_dir
+  "${BW_GHOST_DISPLAY_STATE_HEADER}" DIRECTORY)
 
 foreach(_bw_source wgpu_pipeline.cc wgpu_pipeline.hh)
   set(_bw_source_path "${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/${_bw_source}")
@@ -81,6 +83,7 @@ target_include_directories(wgpu_pipeline_integrated_smoke PRIVATE
   "${BW_UPSTREAM_DIR}/source/blender/makesdna"
   "${BW_UPSTREAM_DIR}/intern/guardedalloc"
   "${BW_WASM_INCLUDE_DIR}"
+  "${_bw_ghost_display_state_dir}"
 )
 target_compile_options(wgpu_pipeline_integrated_smoke PRIVATE
   -pthread

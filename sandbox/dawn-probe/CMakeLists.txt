@@ -471,6 +471,8 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
     message(FATAL_ERROR
       "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header")
   endif()
+  get_filename_component(_bw_ghost_display_state_dir
+    "${BW_GHOST_DISPLAY_STATE_HEADER}" DIRECTORY)
   if(NOT DEFINED BW_NATIVE_FMT_INCLUDE_DIR OR
      NOT IS_ABSOLUTE "${BW_NATIVE_FMT_INCLUDE_DIR}" OR
      NOT EXISTS "${BW_NATIVE_FMT_INCLUDE_DIR}/fmt/ranges.h")
@@ -518,6 +520,7 @@ if(DEFINED BW_INTEGRATED_PIPELINE_SOURCE_DIR)
     "${BW_UPSTREAM_DIR}/source/blender/makesdna"
     "${BW_UPSTREAM_DIR}/intern/guardedalloc"
     "${BW_NATIVE_FMT_INCLUDE_DIR}"
+    "${_bw_ghost_display_state_dir}"
   )
   target_compile_options(wgpu_pipeline_integrated_test PRIVATE
     -ffunction-sections

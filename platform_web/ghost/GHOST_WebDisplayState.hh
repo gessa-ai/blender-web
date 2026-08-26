@@ -63,27 +63,69 @@ inline void note_present()
   present_counter.fetch_add(1u, std::memory_order_relaxed);
 }
 
-/** First-pixel redraw settling is relative to one published window. The global present counter
- * intentionally remains monotonic across window replacement, so callers capture a baseline when
- * publishing each window and pass it here. Two submitted frames cover the initial cleared surface
- * followed by Blender's region composite. The event source remains bounded even if presentation
- * never starts. */
-inline constexpr uint64_t FIRST_PIXEL_SETTLE_PRESENTS = 2u;
+/**
+ * Monotonic publication generation for a WebGPU draw that became retryable after Blender had
+ * already asked for it. Browser Dawn validates shader modules, explicit layouts, pipelines, and
+ * bind-group resources asynchronously; their first draw may therefore return before encoding.
+ * The owning window consumes this generation and requests an ordinary full-screen update after
+ * readiness settles instead of leaving that region stale until unrelated user input.
+ */
+inline std::atomic<uint64_t> redraw_retry_counter{0};
+inline std::atomic<uint64_t> redraw_drop_counter{0};
+
+inline void request_redraw_retry()
+{
+  redraw_retry_counter.fetch_add(1u, std::memory_order_release);
+}
+
+inline uint64_t redraw_retry_generation()
+{
+  return redraw_retry_counter.load(std::memory_order_acquire);
+}
+
+inline void note_redraw_drop()
+{
+  redraw_drop_counter.fetch_add(1u, std::memory_order_release);
+}
+
+inline uint64_t redraw_drop_generation()
+{
+  return redraw_drop_counter.load(std::memory_order_acquire);
+}
+
+/**
+ * Bounded redraw recovery for one published window. Boot starts one burst even before a retry
+ * signal so lazily created visible-region variants are discovered. A readiness signal requests an
+ * immediate update; accepted readiness re-arms a completed burst, but neither accepted readiness
+ * nor repeated incomplete draws reset an active burst's hard ceiling. A drop is acknowledged at
+ * the ceiling without rearming, so persistent failures consume at most one bounded episode while
+ * a later newly accepted shader variant can still recover an otherwise idle region.
+ */
 inline constexpr uint32_t FIRST_PIXEL_SETTLE_TICKS = 180u;
 inline constexpr uint32_t FIRST_PIXEL_SETTLE_INTERVAL = 12u;
 
-inline bool first_pixel_settle_tick(const uint64_t present_count,
-                                    const uint64_t present_baseline,
-                                    uint32_t &heartbeat)
+inline bool redraw_recovery_tick(const uint64_t retry_generation,
+                                 uint64_t &retry_generation_seen,
+                                 const uint64_t drop_generation,
+                                 uint64_t &drop_generation_seen,
+                                 uint32_t &heartbeat)
 {
-  if ((present_count - present_baseline) >= FIRST_PIXEL_SETTLE_PRESENTS) {
-    heartbeat = FIRST_PIXEL_SETTLE_TICKS;
-    return false;
+  const bool readiness_published = retry_generation != retry_generation_seen;
+  const bool draw_dropped = drop_generation != drop_generation_seen;
+  if (readiness_published) {
+    retry_generation_seen = retry_generation;
+    if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
+      heartbeat = 0;
+    }
+  }
+  if (draw_dropped) {
+    drop_generation_seen = drop_generation;
   }
   if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
     return false;
   }
-  const bool request_update = (heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u;
+  const bool request_update = readiness_published || draw_dropped ||
+                              (heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u;
   heartbeat++;
   return request_update;
 }

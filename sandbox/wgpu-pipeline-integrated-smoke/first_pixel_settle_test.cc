@@ -33,11 +33,17 @@ bool require(const bool condition, const char *message)
 
 int main()
 {
+  uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
+  uint64_t drop_generation_seen = ghost_web::redraw_drop_generation();
   uint32_t heartbeat = 0;
-  constexpr uint64_t initial_baseline = 40;
-  if (!require(ghost_web::first_pixel_settle_tick(initial_baseline,
-                                                   initial_baseline,
-                                                   heartbeat) &&
+  const auto recovery_tick = [&]() {
+    return ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
+                                           retry_generation_seen,
+                                           ghost_web::redraw_drop_generation(),
+                                           drop_generation_seen,
+                                           heartbeat);
+  };
+  if (!require(recovery_tick() &&
                    heartbeat == 1,
                "initial epoch requests an update"))
   {
@@ -46,94 +52,119 @@ int main()
 
   bool early_request = false;
   for (uint32_t tick = 1; tick < ghost_web::FIRST_PIXEL_SETTLE_INTERVAL; tick++) {
-    early_request |= ghost_web::first_pixel_settle_tick(
-        initial_baseline, initial_baseline, heartbeat);
+    early_request |= recovery_tick();
   }
   if (!require(!early_request && heartbeat == ghost_web::FIRST_PIXEL_SETTLE_INTERVAL,
                "settle interval is quiet between requests") ||
-      !require(ghost_web::first_pixel_settle_tick(initial_baseline,
-                                                  initial_baseline,
-                                                  heartbeat) &&
+      !require(recovery_tick() &&
                    heartbeat == ghost_web::FIRST_PIXEL_SETTLE_INTERVAL + 1u,
-               "settle interval requests its next update") ||
-      !require(!ghost_web::first_pixel_settle_tick(initial_baseline + 1u,
-                                                   initial_baseline,
-                                                   heartbeat) &&
-                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_INTERVAL + 2u,
-               "first submitted frame remains pending") ||
-      !require(!ghost_web::first_pixel_settle_tick(initial_baseline + 2u,
-                                                   initial_baseline,
-                                                   heartbeat) &&
-                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "second submitted frame completes settling") ||
-      !require(!ghost_web::first_pixel_settle_tick(initial_baseline + 3u,
-                                                   initial_baseline,
-                                                   heartbeat) &&
-                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "completed settling remains terminal"))
+               "settle interval requests its next update"))
   {
     return 1;
   }
 
-  constexpr uint64_t replacement_baseline = initial_baseline + 3u;
-  heartbeat = 0;
-  if (!require(ghost_web::first_pixel_settle_tick(replacement_baseline,
-                                                  replacement_baseline,
-                                                  heartbeat) &&
-                   heartbeat == 1,
-               "replacement window starts a new epoch") ||
-      !require(!ghost_web::first_pixel_settle_tick(replacement_baseline + 1u,
-                                                   replacement_baseline,
-                                                   heartbeat) &&
-                   heartbeat == 2,
-               "replacement first frame remains pending") ||
-      !require(!ghost_web::first_pixel_settle_tick(replacement_baseline + 2u,
-                                                   replacement_baseline,
-                                                   heartbeat) &&
+  int periodic_requests = 2;
+  while (heartbeat < ghost_web::FIRST_PIXEL_SETTLE_TICKS) {
+    periodic_requests += recovery_tick() ? 1 : 0;
+  }
+  if (!require(periodic_requests == 15,
+               "boot recovery ignores presentation count and reaches every bounded interval") ||
+      !require(!recovery_tick() &&
                    heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "replacement second frame completes its epoch"))
+               "completed recovery remains terminal"))
+  {
+    return 1;
+  }
+
+  const uint64_t before_drop = ghost_web::redraw_drop_generation();
+  ghost_web::note_redraw_drop();
+  const uint64_t after_drop = ghost_web::redraw_drop_generation();
+  if (!require(after_drop == before_drop + 1u,
+               "an incomplete draw publishes a monotonic drop generation") ||
+      !require(!recovery_tick() && drop_generation_seen == after_drop &&
+                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
+               "a late drop is acknowledged without rearming a completed burst"))
+  {
+    return 1;
+  }
+
+  const uint64_t before_request = ghost_web::redraw_retry_generation();
+  ghost_web::request_redraw_retry();
+  const uint64_t after_request = ghost_web::redraw_retry_generation();
+  if (!require(after_request == before_request + 1u,
+               "WebGPU readiness publishes a monotonic retry generation") ||
+      !require(recovery_tick() &&
+                   retry_generation_seen == after_request && heartbeat == 1,
+               "late readiness re-arms a terminal recovery burst"))
+  {
+    return 1;
+  }
+
+  heartbeat = 50;
+  retry_generation_seen = after_request;
+  drop_generation_seen = after_drop;
+  ghost_web::note_redraw_drop();
+  const uint64_t active_drop = ghost_web::redraw_drop_generation();
+  if (!require(recovery_tick() && drop_generation_seen == active_drop && heartbeat == 51,
+               "an incomplete draw requests an immediate retry inside the active burst"))
+  {
+    return 1;
+  }
+
+  ghost_web::request_redraw_retry();
+  const uint64_t active_request = ghost_web::redraw_retry_generation();
+  if (!require(recovery_tick() && retry_generation_seen == active_request && heartbeat == 52,
+               "readiness during an active burst requests immediately without resetting budget"))
   {
     return 1;
   }
 
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
-  if (!require(!ghost_web::first_pixel_settle_tick(100, 100, heartbeat) &&
+  retry_generation_seen = active_request;
+  drop_generation_seen = active_drop;
+  ghost_web::note_redraw_drop();
+  const uint64_t final_drop = ghost_web::redraw_drop_generation();
+  if (!require(recovery_tick() && drop_generation_seen == final_drop &&
                    heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "final bounded tick retires without an off-interval request") ||
-      !require(!ghost_web::first_pixel_settle_tick(100, 100, heartbeat) &&
+               "an incomplete draw on the final bounded tick gets one retry"))
+  {
+    return 1;
+  }
+  ghost_web::note_redraw_drop();
+  const uint64_t repeated_drop = ghost_web::redraw_drop_generation();
+  if (!require(!recovery_tick() && drop_generation_seen == repeated_drop &&
                    heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "timed-out settling remains terminal"))
+               "repeated incomplete draws cannot rearm the hard ceiling"))
   {
     return 1;
   }
 
-  heartbeat = 0;
-  if (!require(!ghost_web::first_pixel_settle_tick(2, 0, heartbeat) &&
-                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "already-complete epoch retires immediately"))
+  ghost_web::request_redraw_retry();
+  const uint64_t settled_request = ghost_web::redraw_retry_generation();
+  if (!require(recovery_tick() && retry_generation_seen == settled_request && heartbeat == 1,
+               "accepted readiness can rearm after a bounded drop episode"))
   {
     return 1;
   }
 
-  constexpr uint64_t wrapped_baseline = std::numeric_limits<uint64_t>::max();
-  heartbeat = 0;
-  if (!require(!ghost_web::first_pixel_settle_tick(1, wrapped_baseline, heartbeat) &&
-                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
-               "monotonic counter wrap preserves two-present completion"))
-  {
-    return 1;
-  }
-  heartbeat = 0;
-  if (!require(ghost_web::first_pixel_settle_tick(0, wrapped_baseline, heartbeat) &&
-                   heartbeat == 1,
-               "monotonic counter wrap keeps one-present epoch pending"))
+  constexpr uint64_t wrapped_generation = std::numeric_limits<uint64_t>::max();
+  retry_generation_seen = wrapped_generation;
+  drop_generation_seen = ghost_web::redraw_drop_generation();
+  heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS;
+  if (!require(ghost_web::redraw_recovery_tick(0,
+                                               retry_generation_seen,
+                                               drop_generation_seen,
+                                               drop_generation_seen,
+                                               heartbeat) &&
+                   retry_generation_seen == 0 && heartbeat == 1,
+               "retry generation wrap re-arms a terminal burst"))
   {
     return 1;
   }
 
   std::printf(
-      "CONTRACT ghost_first_pixel_settle PASS cases=%d requests=4 initial=complete "
-      "replacement=complete timeout=bounded wrap=complete\n",
+      "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
+      "late=immediate drops=bounded readiness=rearmed wrap=rearmed\n",
       checks);
-  return checks == 14 ? 0 : 1;
+  return checks == 15 ? 0 : 1;
 }

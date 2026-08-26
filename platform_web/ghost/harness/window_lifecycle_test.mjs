@@ -136,6 +136,17 @@ try {
       `created canvas window was not published active: state=${initialManagerState}`);
   }
 
+  const secondWindowResult = await request(3);
+  // Bits: original system/manager ownership, second create rejected, original
+  // system/manager/count/hit-test ownership retained.
+  if (secondWindowResult !== 0b1111111) {
+    throw new Error(
+      `simultaneous second window did not fail closed: result=${secondWindowResult}`);
+  }
+  if (await managerState() !== 1) {
+    throw new Error("second-window rejection changed the active canvas window");
+  }
+
   await page.evaluate(() => document.querySelector("#clear").focus());
   await page.waitForFunction(() => Number(
     globalThis.ghostModule._ghost_harness_window_manager_state()) === 0);
@@ -241,7 +252,7 @@ try {
   console.log(
     "WINDOW_LIFECYCLE_LIVE PASS dispose=detached callbacks=rebound replacement=input-target " +
     "queued=registration-epoch repeated-replacements=2 hit-test=bounded " +
-    "manager=create-focus-blur-dispose-replace worker=proxy-pthread");
+    "manager=create-focus-blur-dispose-replace second-window=fail-closed worker=proxy-pthread");
 }
 finally {
   await browser.close();

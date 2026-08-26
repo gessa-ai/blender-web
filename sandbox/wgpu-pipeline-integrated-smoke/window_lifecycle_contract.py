@@ -41,7 +41,12 @@ def require_once(body: str, token: str, label: str) -> None:
         raise ValueError(f"{label} requires exactly one {token!r}")
 
 
-def validate(header: str, source: str, live_test: str, integrated_test: str) -> None:
+def validate(
+        header: str,
+        source: str,
+        harness_test: str,
+        live_test: str,
+        integrated_test: str) -> None:
     for token in (
         "~GHOST_SystemWeb() override;",
         "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;",
@@ -85,9 +90,25 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "created canvas window was not published active",
         "disposed canvas window remained active in GHOST_WindowManager",
         "replacement canvas window was not published active",
+        "const secondWindowResult = await request(3);",
+        "secondWindowResult !== 0b1111111",
+        "simultaneous second window did not fail closed",
+        "second-window rejection changed the active canvas window",
+        "second-window=fail-closed",
         "manager=create-focus-blur-dispose-replace",
     ):
         require_once(live_test, token, "live stale-callback test")
+
+    for token in (
+        "if (action < 0 || action > 3)",
+        "else if (requested_lifecycle == 3)",
+        "const size_t windows_before = window_manager ? window_manager->getWindows().size() : 0;",
+        "GHOST_IWindow *second_window = create_harness_window();",
+        "result |= second_window == nullptr ? (1 << 2) : 0;",
+        "window_manager->getWindows().size() == windows_before",
+        "if (second_window != nullptr)",
+    ):
+        require_once(harness_test, token, "two-live-window harness")
 
     destructor = method(source, DESTRUCTOR_MARKER)
     require_once(destructor, "unregisterCanvasCallbacks();", "destructor")
@@ -224,6 +245,8 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         raise ValueError("active pointer/callback retirement does not precede base deletion")
 
     creation = method(source, CREATE_MARKER)
+    single_window_guard = "if (window_ != nullptr) {\n    return nullptr;\n  }"
+    require_once(creation, single_window_guard, "single-canvas ownership")
     for token in (
         "bool publication_succeeded = true;",
         "if (!registerCanvasCallbacks())",
@@ -231,13 +254,16 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
         "publication_succeeded = false;",
         "if (!publication_succeeded)",
         "delete result;",
-        "return nullptr;",
         "redraw_heartbeat_ = 0;",
         "wm->setActiveWindow(valid_window);",
     ):
         require_once(creation, token, "creation registration rollback")
+    if creation.count("return nullptr;") != 2:
+        raise ValueError("creation requires one early ownership rejection and one rollback return")
     if creation.index("window_ = valid_window;") > creation.index("if (!registerCanvasCallbacks())"):
         raise ValueError("replacement callbacks register before active-window publication")
+    if creation.index(single_window_guard) > creation.index("GHOST_ContextParams context_params"):
+        raise ValueError("second live window is rejected only after context construction begins")
     if creation.index("if (!registerCanvasCallbacks())") > creation.index("redraw_heartbeat_ = 0;"):
         raise ValueError("window state publishes before callback registration succeeds")
     if creation.index("wm->addWindow(valid_window);") > creation.index(
@@ -257,8 +283,13 @@ def mutate_method(source: str, marker: str, old: str, new: str) -> str:
     return source.replace(original, changed, 1)
 
 
-def selfcheck(header: str, source: str, live_test: str, integrated_test: str) -> None:
-    validate(header, source, live_test, integrated_test)
+def selfcheck(
+        header: str,
+        source: str,
+        harness_test: str,
+        live_test: str,
+        integrated_test: str) -> None:
+    validate(header, source, harness_test, live_test, integrated_test)
     mutations = (
         (replace_once(header, "~GHOST_SystemWeb() override;", "~GHOST_SystemWeb() override = default;"), source, live_test),
         (replace_once(header, "GHOST_TSuccess disposeWindow(GHOST_IWindow *window) override;", ""), source, live_test),
@@ -291,6 +322,9 @@ def selfcheck(header: str, source: str, live_test: str, integrated_test: str) ->
         (header, mutate_method(source, DISPOSE_MARKER, "noteModifierFlags(false, false, false, false);", ""), live_test),
         (header, mutate_method(source, CREATE_MARKER, "redraw_heartbeat_ = 0;", "redraw_heartbeat_ = 180;"), live_test),
         (header, mutate_method(source, CREATE_MARKER,
+                               "if (window_ != nullptr) {\n    return nullptr;\n  }",
+                               "if (false) {\n    return nullptr;\n  }"), live_test),
+        (header, mutate_method(source, CREATE_MARKER,
                                "wm->setActiveWindow(valid_window);", ""), live_test),
         (header, source, replace_once(live_test, "globalThis.__bwStaleCallbackProbe.deliverAll();", ""), integrated_test),
     )
@@ -299,6 +333,11 @@ def selfcheck(header: str, source: str, live_test: str, integrated_test: str) ->
         normalized_mutations.append((*mutation, integrated_test))
     normalized_mutations.append(mutations[-1])
     normalized_mutations.extend((
+        (header, source,
+         replace_once(live_test,
+                      "secondWindowResult !== 0b1111111",
+                      "secondWindowResult !== 0b1111110"),
+         integrated_test),
         (header, mutate_method(source, REGISTER_MARKER,
                                "ghost_web::sequential_registration_transaction<kWebCallbackCount>(",
                                "ghost_web::sequential_registration_transaction<15>("),
@@ -321,10 +360,37 @@ def selfcheck(header: str, source: str, live_test: str, integrated_test: str) ->
          replace_once(integrated_test, "replacement_failure == 8",
                       "replacement_failure == 7")),
     ))
-    for index, (mutated_header, mutated_source, mutated_live_test, mutated_integrated_test) in enumerate(
-            normalized_mutations, start=1):
+    harness_mutations = [
+        (mutated_header, mutated_source, harness_test, mutated_live_test, mutated_integrated_test)
+        for mutated_header, mutated_source, mutated_live_test, mutated_integrated_test in
+        normalized_mutations
+    ]
+    harness_mutations.extend((
+        (header, source,
+         replace_once(harness_test,
+                      "if (action < 0 || action > 3)",
+                      "if (action < 0 || action > 2)"),
+         live_test, integrated_test),
+        (header, source,
+         replace_once(harness_test,
+                      "result |= second_window == nullptr ? (1 << 2) : 0;",
+                      "result |= second_window != nullptr ? (1 << 2) : 0;"),
+         live_test, integrated_test),
+        (header, source,
+         replace_once(harness_test,
+                      "window_manager->getWindows().size() == windows_before",
+                      "window_manager->getWindows().size() >= windows_before"),
+         live_test, integrated_test),
+    ))
+    for index, (mutated_header, mutated_source, mutated_harness_test,
+                mutated_live_test, mutated_integrated_test) in enumerate(
+            harness_mutations, start=1):
         try:
-            validate(mutated_header, mutated_source, mutated_live_test, mutated_integrated_test)
+            validate(mutated_header,
+                     mutated_source,
+                     mutated_harness_test,
+                     mutated_live_test,
+                     mutated_integrated_test)
         except ValueError:
             continue
         raise ValueError(f"mutation {index} was accepted")
@@ -334,22 +400,25 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("header", type=Path)
     parser.add_argument("source", type=Path)
+    parser.add_argument("harness_test", type=Path)
     parser.add_argument("live_test", type=Path)
     parser.add_argument("integrated_test", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
     header = args.header.read_text(encoding="utf-8")
     source = args.source.read_text(encoding="utf-8")
+    harness_test = args.harness_test.read_text(encoding="utf-8")
     live_test = args.live_test.read_text(encoding="utf-8")
     integrated_test = args.integrated_test.read_text(encoding="utf-8")
     if args.selfcheck:
-        selfcheck(header, source, live_test, integrated_test)
+        selfcheck(header, source, harness_test, live_test, integrated_test)
     else:
-        validate(header, source, live_test, integrated_test)
+        validate(header, source, harness_test, live_test, integrated_test)
     print(
         "WINDOW_LIFECYCLE_CONTRACT PASS active=detach-before-delete callbacks=16 "
         "replacement=rebound ime=retired pointerlock=retired queued=registration-epoch "
-        "replacements=2 manager=active-lifecycle registration=transactional mutations=33"
+        "replacements=2 second-window=fail-closed manager=active-lifecycle "
+        "registration=transactional mutations=38"
     )
     return 0
 

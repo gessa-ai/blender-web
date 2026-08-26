@@ -326,7 +326,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_clipboard_result()
 
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_window_lifecycle(const int action)
 {
-  if (action < 0 || action > 2) {
+  if (action < 0 || action > 3) {
     return int(GHOST_kFailure);
   }
   g_window_lifecycle_result.store(-2, std::memory_order_relaxed);
@@ -568,6 +568,46 @@ static void main_loop_tick()
         result |= hits_nothing(bounds.l_, bounds.t_ - 1) ? (1 << 5) : 0;
         result |= hits_nothing(bounds.r_ + 1, bounds.b_) ? (1 << 6) : 0;
         result |= hits_nothing(bounds.r_, bounds.b_ + 1) ? (1 << 7) : 0;
+      }
+      g_window_lifecycle_result.store(result, std::memory_order_release);
+    }
+    else if (requested_lifecycle == 3) {
+      GHOST_WindowManager *window_manager = g_system->getWindowManager();
+      GHOST_IWindow *first_window = g_window;
+      const size_t windows_before = window_manager ? window_manager->getWindows().size() : 0;
+      int result = 0;
+      result |= (first_window != nullptr && g_system->activeWindow() == first_window) ?
+                    (1 << 0) :
+                    0;
+      result |= (window_manager != nullptr &&
+                 window_manager->getActiveWindow() == first_window) ?
+                    (1 << 1) :
+                    0;
+
+      GHOST_IWindow *second_window = create_harness_window();
+      result |= second_window == nullptr ? (1 << 2) : 0;
+      result |= g_system->activeWindow() == first_window ? (1 << 3) : 0;
+      result |= (window_manager != nullptr &&
+                 window_manager->getActiveWindow() == first_window) ?
+                    (1 << 4) :
+                    0;
+      result |= (window_manager != nullptr &&
+                 window_manager->getWindows().size() == windows_before) ?
+                    (1 << 5) :
+                    0;
+      result |= (first_window != nullptr &&
+                 g_system->getWindowUnderCursor(0, 0) == first_window) ?
+                    (1 << 6) :
+                    0;
+
+      /* Keep a fail-first run usable after the old incoherent implementation
+       * briefly publishes the second window. The shipping fix returns nullptr,
+       * so this cleanup is not part of the accepted path. */
+      if (second_window != nullptr) {
+        g_system->disposeWindow(second_window);
+        if (window_manager != nullptr && first_window != nullptr) {
+          window_manager->setActiveWindow(first_window);
+        }
       }
       g_window_lifecycle_result.store(result, std::memory_order_release);
     }

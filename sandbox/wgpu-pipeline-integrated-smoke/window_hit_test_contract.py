@@ -75,7 +75,7 @@ def validate(
         raise ValueError("web lookup tests bounds before resolving a live window")
 
     for token in (
-        "if (action < 0 || action > 2)",
+        "if (action < 0 || action > 3)",
         "else if (requested_lifecycle == 2)",
         "g_window->getClientBounds(bounds);",
         "hits_window(bounds.l_, bounds.t_)",
@@ -121,7 +121,7 @@ def selfcheck(
         (interface, base_source, mutate_method(web_source, WEB_MARKER, "window_->getClientBounds(bounds);", ""), harness_source, browser_test),
         (interface, base_source, mutate_method(web_source, WEB_MARKER, "bounds.isInside(x, y)", "true"), harness_source, browser_test),
         (interface, base_source, mutate_method(web_source, WEB_MARKER, "? window_ : nullptr", "? window_ : window_"), harness_source, browser_test),
-        (interface, base_source, web_source, replace_once(harness_source, "if (action < 0 || action > 2)", "if (action < 0 || action > 1)"), browser_test),
+        (interface, base_source, web_source, replace_once(harness_source, "if (action < 0 || action > 3)", "if (action < 0 || action > 1)"), browser_test),
         (interface, base_source, web_source, replace_once(harness_source, "hits_nothing(bounds.r_ + 1, bounds.b_)", "hits_window(bounds.r_ + 1, bounds.b_)"), browser_test),
         (interface, base_source, web_source, harness_source, replace_once(browser_test, "hitTestResult !== 0b11111111", "hitTestResult !== 0b00001111")),
         (interface, base_source, web_source, harness_source, replace_once(browser_test, "hit-test=bounded", "hit-test=unbounded")),

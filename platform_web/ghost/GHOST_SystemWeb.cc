@@ -1712,6 +1712,14 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
                                              const bool /*is_dialog*/,
                                              const GHOST_IWindow *parent_window)
 {
+  /* One OffscreenCanvas backs one callback, input, hit-test, and presentation
+   * owner. Publishing another live GHOST window would split those owners from
+   * GHOST_WindowManager, so reject it before constructing a context. A later
+   * create remains valid after disposeWindow() clears window_. */
+  if (window_ != nullptr) {
+    return nullptr;
+  }
+
   const GHOST_ContextParams context_params = GHOST_CONTEXT_PARAMS_FROM_GPU_SETTINGS(gpu_settings);
   GHOST_WindowWeb *window = new GHOST_WindowWeb(title,
                                                 left,

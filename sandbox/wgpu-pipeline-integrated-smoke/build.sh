@@ -1758,6 +1758,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$WINDOW_LIFECYCLE_CONTRACT" --selfcheck
 "$PYBIN" "$WINDOW_LIFECYCLE_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" \
+  "$ROOT/platform_web/ghost/harness/test_ghost_web.cc" \
   "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" \
   "$HERE/integrated_pipeline_test.cc" --selfcheck
 "$PYBIN" "$WINDOW_HIT_TEST_CONTRACT" \

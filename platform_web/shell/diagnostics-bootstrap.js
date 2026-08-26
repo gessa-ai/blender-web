@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
-// First-script diagnostics plus WM-worker cursor bridge. No layout/branding behavior.
+// First-script diagnostics plus Pointer Lock and WM-worker cursor bridges.
+// No layout/branding behavior.
 "use strict";
 
 (() => {
@@ -32,6 +33,98 @@
   });
   window.addEventListener("error", (event) => append("error", event));
   window.addEventListener("unhandledrejection", (event) => append("unhandledrejection", event));
+})();
+
+// Modern requestPointerLock() returns a Promise. Emscripten 4.0.10's HTML5 helper invokes
+// it from a deferred user-activation callback but discards the result, so an ordinary
+// browser rejection (for example WrongDocumentError after document ownership changes)
+// escapes as an unhandled page error. Consume only that request's outcome and route failure
+// through the pointerlockerror event GHOST already owns. Orbit remains usable with ordinary
+// absolute drag motion when the optional lock cannot be acquired.
+(() => {
+  /* GHOST-web is deliberately single-canvas. The product names it #canvas;
+   * the standalone platform harness uses #blender-canvas. */
+  const canvas = typeof document.querySelector === "function" ?
+    document.querySelector("canvas") : null;
+  const nativeRequestPointerLock = canvas && canvas.requestPointerLock;
+  let installed = false;
+  let rejectionCount = 0;
+  let diagnosticCount = 0;
+  let lastReasonName = null;
+  let lastMessage = null;
+
+  function reportRejection(error) {
+    rejectionCount += 1;
+    try {
+      lastReasonName = error && error.name ? String(error.name) : null;
+    }
+    catch (_) {
+      lastReasonName = null;
+    }
+    try {
+      lastMessage = error && error.message ? String(error.message) : String(error);
+    }
+    catch (_) {
+      lastMessage = "<unprintable>";
+    }
+
+    if (diagnosticCount < 1) {
+      diagnosticCount += 1;
+      const message = lastMessage || lastReasonName || "request rejected";
+      try {
+        console.warn("[bw] Pointer Lock request rejected; continuing without lock: " + message);
+      }
+      catch (_) {}
+    }
+
+    /* Native implementations normally publish this event themselves. Dispatching it here as
+     * well makes the Promise-only rejection path deterministic; GHOST's retirement is
+     * idempotent when the browser later supplies its own event. */
+    try {
+      const ownerDocument = canvas && canvas.ownerDocument;
+      if (ownerDocument && ownerDocument.pointerLockElement !== canvas) {
+        ownerDocument.dispatchEvent(new Event("pointerlockerror"));
+      }
+    }
+    catch (_) {}
+  }
+
+  if (canvas && typeof nativeRequestPointerLock === "function") {
+    const requestPointerLock = (...args) => {
+      try {
+        const outcome = nativeRequestPointerLock.apply(canvas, args);
+        if (outcome && typeof outcome.then === "function") {
+          return Promise.resolve(outcome).catch((error) => {
+            reportRejection(error);
+          });
+        }
+        return outcome;
+      }
+      catch (error) {
+        reportRejection(error);
+        return undefined;
+      }
+    };
+    try {
+      Object.defineProperty(canvas, "requestPointerLock", {
+        configurable: true,
+        writable: true,
+        value: requestPointerLock,
+      });
+      installed = canvas.requestPointerLock === requestPointerLock;
+    }
+    catch (_) {
+      installed = false;
+    }
+  }
+
+  const api = Object.freeze({
+    schema: 1,
+    snapshot: () => ({installed, rejectionCount, diagnosticCount, lastReasonName, lastMessage}),
+  });
+  Object.defineProperty(window, "__bwPointerLockBridge", {
+    value: api, writable: false, configurable: false, enumerable: false,
+  });
 })();
 
 // A transferred OffscreenCanvas has no DOM style, while Blender's GHOST window runs on the

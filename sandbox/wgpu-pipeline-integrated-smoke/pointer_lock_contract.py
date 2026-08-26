@@ -54,7 +54,14 @@ def mutate_method(source: str, marker: str, old: str, new: str) -> str:
     return source.replace(original, changed, 1)
 
 
-def validate(window: str, header: str, bridge: str, system: str) -> None:
+def validate(
+    window: str,
+    header: str,
+    bridge: str,
+    system: str,
+    diagnostics: str,
+    live_test: str,
+) -> None:
     grab = method(window, GRAB_MARKER)
     public_grab = method(window, PUBLIC_GRAB_MARKER)
     change = method(window, CHANGE_MARKER)
@@ -211,10 +218,62 @@ def validate(window: str, header: str, bridge: str, system: str) -> None:
     if warp.count("return GHOST_kFailure;") != 1 or "return GHOST_kSuccess;" in warp:
         raise ValueError("absolute cursor positioning is falsely advertised")
 
+    rejection_start = diagnostics.find("// Modern requestPointerLock() returns a Promise.")
+    rejection_end = diagnostics.find(
+        "// A transferred OffscreenCanvas has no DOM style", rejection_start
+    )
+    if rejection_start < 0 or rejection_end < 0:
+        raise ValueError("pointer-lock Promise rejection bridge section is missing")
+    rejection_bridge = diagnostics[rejection_start:rejection_end]
+    required_rejection_bridge = (
+        'typeof document.querySelector === "function"',
+        'document.querySelector("canvas")',
+        "nativeRequestPointerLock.apply(canvas, args)",
+        "Promise.resolve(outcome).catch((error) =>",
+        "ownerDocument.dispatchEvent(new Event(\"pointerlockerror\"));",
+        'console.warn("[bw] Pointer Lock request rejected; continuing without lock: " + message);',
+        "diagnosticCount < 1",
+        'Object.defineProperty(canvas, "requestPointerLock"',
+        'Object.defineProperty(window, "__bwPointerLockBridge"',
+    )
+    for token in required_rejection_bridge:
+        if rejection_bridge.count(token) != 1:
+            raise ValueError(
+                f"pointer-lock Promise rejection bridge requires exactly one {token!r}"
+            )
+    if rejection_bridge.count("rejectionCount") < 3 or rejection_bridge.count("lastReasonName") < 4:
+        raise ValueError("pointer-lock rejection diagnostics do not expose bounded state")
+    if 'addEventListener("unhandledrejection"' not in diagnostics:
+        raise ValueError("early diagnostics no longer records unrelated unhandled rejections")
+    if "preventDefault()" in rejection_bridge:
+        raise ValueError("pointer-lock fix globally suppresses unrelated browser errors")
 
-def selfcheck(window: str, header: str, bridge: str, system: str) -> None:
-    validate(window, header, bridge, system)
-    mutations = (
+    required_live_counts = {
+        "__bwHarnessRejectPointerLock": 2,
+        '"WrongDocumentError"': 2,
+        "for (let attempt = 0; attempt < 2; attempt++)": 1,
+        "rejectionBridge?.rejectionCount !== 2": 1,
+        "boundedDiagnostics.length !== 1": 1,
+        "pageErrors.length !== 0": 1,
+        '"lost,error,blur,disposed,rejected-promise"': 1,
+    }
+    for token, expected in required_live_counts.items():
+        if live_test.count(token) != expected:
+            raise ValueError(
+                f"live pointer-lock rejection coverage requires {expected} occurrence(s) of {token!r}"
+            )
+
+
+def selfcheck(
+    window: str,
+    header: str,
+    bridge: str,
+    system: str,
+    diagnostics: str,
+    live_test: str,
+) -> None:
+    validate(window, header, bridge, system, diagnostics, live_test)
+    core_mutations = (
         (mutate_method(window, GRAB_MARKER, "emscripten_exit_pointerlock()",
                        "EMSCRIPTEN_RESULT_SUCCESS"), header, bridge, system),
         (mutate_method(window, GRAB_MARKER,
@@ -262,6 +321,29 @@ def selfcheck(window: str, header: str, bridge: str, system: str) -> None:
          mutate_method(system, DISPOSE_MARKER,
                        "active_window->releasePointerLock();", "return GHOST_kFailure;")),
     )
+    mutations = tuple(
+        (*mutation, diagnostics, live_test) for mutation in core_mutations
+    ) + (
+        (window, header, bridge, system,
+         diagnostics.replace("Promise.resolve(outcome).catch((error) =>",
+                             "Promise.resolve(outcome).then((error) =>", 1), live_test),
+        (window, header, bridge, system,
+         diagnostics.replace("diagnosticCount < 1", "diagnosticCount < 2", 1), live_test),
+        (window, header, bridge, system,
+         diagnostics.replace('ownerDocument.dispatchEvent(new Event("pointerlockerror"));',
+                             "return;", 1), live_test),
+        (window, header, bridge, system,
+         diagnostics.replace('Object.defineProperty(canvas, "requestPointerLock"',
+                             'Object.defineProperty(window, "requestPointerLock"', 1), live_test),
+        (window, header, bridge, system,
+         diagnostics.replace('typeof document.querySelector === "function"',
+                             "true", 1), live_test),
+        (window, header, bridge, system, diagnostics,
+         live_test.replace("pageErrors.length !== 0", "pageErrors.length < 0", 1)),
+        (window, header, bridge, system, diagnostics,
+         live_test.replace("for (let attempt = 0; attempt < 2; attempt++)",
+                           "for (let attempt = 0; attempt < 1; attempt++)", 1)),
+    )
     for index, mutation in enumerate(mutations, start=1):
         try:
             validate(*mutation)
@@ -276,6 +358,8 @@ def main() -> int:
     parser.add_argument("window_header", type=Path)
     parser.add_argument("bridge_source", type=Path)
     parser.add_argument("system_source", type=Path)
+    parser.add_argument("diagnostics_source", type=Path)
+    parser.add_argument("live_test", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
 
@@ -286,6 +370,8 @@ def main() -> int:
             args.window_header,
             args.bridge_source,
             args.system_source,
+            args.diagnostics_source,
+            args.live_test,
         )
     )
     if args.selfcheck:
@@ -294,8 +380,9 @@ def main() -> int:
         validate(*sources)
     print(
         "POINTER_LOCK_CONTRACT PASS modes=normal,wrap,hide,disable "
-        "outcomes=pending,active,error,lost,blur,disposed relative=active-only,saturated "
-        "cursor=wrap-software capability=absolute-warp-off mutations=21"
+        "outcomes=pending,active,error,lost,blur,disposed,rejected-promise "
+        "relative=active-only,saturated cursor=wrap-software diagnostic=bounded "
+        "capability=absolute-warp-off mutations=28"
     )
     return 0
 

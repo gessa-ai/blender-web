@@ -51,11 +51,35 @@ try {
         },
       },
     });
+
+    /* Chromium's modern requestPointerLock returns a Promise, while the pinned
+     * Emscripten helper discards that result. Keep the real implementation for
+     * positive coverage, but make rejection deterministic for the terminal
+     * fallback case below. diagnostics-bootstrap.js must consume this Promise. */
+    const nativeRequestPointerLock = Element.prototype.requestPointerLock;
+    if (typeof nativeRequestPointerLock === "function") {
+      Object.defineProperty(Element.prototype, "requestPointerLock", {
+        configurable: true,
+        writable: true,
+        value(...args) {
+          if (globalThis.__bwHarnessRejectPointerLock === true) {
+            return Promise.reject(new DOMException(
+              "The root document of this element is not valid for pointer lock.",
+              "WrongDocumentError"));
+          }
+          return nativeRequestPointerLock.apply(this, args);
+        },
+      });
+    }
   });
   const page = await context.newPage();
   const diagnostics = [];
+  const pageErrors = [];
   page.on("console", (message) => diagnostics.push(message.text()));
-  page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
+  page.on("pageerror", (error) => {
+    pageErrors.push({name: error.name, message: error.message});
+    diagnostics.push(`pageerror: ${error.message}`);
+  });
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
   try {
     await page.waitForFunction(() => {
@@ -118,6 +142,7 @@ try {
   const activationClick = async () => {
     await page.evaluate(() => {
       globalThis.__bwHarnessUserActivation = true;
+      window.scrollTo(0, 0);
     });
     try {
       await canvas.click({ position: { x: 120, y: 100 } });
@@ -269,11 +294,51 @@ try {
       throw new Error("replacement window was not published after pointer-lock disposal");
     }
     await waitGrabState(0, 0, 0);
+
+    /* A rejected DOM Promise is a routine unlocked-grab fallback, not a page
+     * error. Exercise it twice: GHOST must retire Pending both times while the
+     * shell emits only one bounded diagnostic. */
+    await page.evaluate(() => {
+      globalThis.__bwHarnessRejectPointerLock = true;
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (await requestGrab(2) !== 1) {
+        throw new Error(`rejected-Promise grab ${attempt} was not accepted as pending`);
+      }
+      await activationClick();
+      try {
+        await waitGrabState(0, 0, 0);
+      }
+      catch (error) {
+        const failureState = await readGrabState();
+        const failureBridge = await page.evaluate(() =>
+          globalThis.__bwPointerLockBridge?.snapshot?.() ?? null);
+        throw new Error(
+          `rejected-Promise grab ${attempt} did not retire: ` +
+          `${JSON.stringify({failureState, failureBridge, pageErrors, diagnostics})}`,
+          {cause: error});
+      }
+    }
+    await page.waitForTimeout(50);
+    const rejectionBridge = await page.evaluate(() =>
+      globalThis.__bwPointerLockBridge?.snapshot?.() ?? null);
+    if (rejectionBridge?.rejectionCount !== 2 ||
+        rejectionBridge?.lastReasonName !== "WrongDocumentError") {
+      throw new Error(`pointer-lock rejection bridge drifted: ${JSON.stringify(rejectionBridge)}`);
+    }
+    const boundedDiagnostics = diagnostics.filter((line) =>
+      line.includes("[bw] Pointer Lock request rejected; continuing without lock:"));
+    if (boundedDiagnostics.length !== 1) {
+      throw new Error(`pointer-lock rejection diagnostic was not bounded: ${boundedDiagnostics.length}`);
+    }
+    if (pageErrors.length !== 0) {
+      throw new Error(`pointer-lock rejection escaped as pageerror: ${JSON.stringify(pageErrors)}`);
+    }
   }
 
   console.log(
     `POINTER_LOCK_LIVE PASS outcomes=pending,active,${leaveActive ? "left-active" :
-      "lost,error,blur,disposed"} ` +
+      "lost,error,blur,disposed,rejected-promise"} ` +
     `relative=37,-19 virtual=${expected.join(",")} post-loss=absolute invalid=rejected`);
 }
 finally {

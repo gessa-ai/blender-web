@@ -1691,3 +1691,18 @@ and fail closed at exhaustion. Soak real failed registrations and replacement wi
 holding an old callback, require exact token accounting and listener balance, then prove stale
 delivery is rejected and fresh input survives. See `platform_web/ghost/GHOST_SystemWeb.cc` and
 `sandbox/m8-callback-registration-soak/`.
+
+## Class 115 — ignored browser capability promises escape synchronous C contracts
+
+Signature: a pinned browser shim treats a user-sensitive DOM method as a synchronous `void`
+operation, while current browsers return a Promise. The C-facing helper reports immediate success
+and discards that Promise; a routine policy/document rejection then becomes a global page error
+even when the platform already owns an error-event fallback. Wrap the exact element method before
+the runtime loads, invoke the native method synchronously in the same activation stack, and attach
+the rejection handler immediately. Route rejection through the existing platform lifecycle, emit
+only a bounded diagnostic, and leave unrelated `unhandledrejection` events observable—never
+globally `preventDefault()` them. Exercise repeated Promise-only rejection in the real worker
+topology and require inactive platform state, one diagnostic, and zero page errors. See
+`platform_web/shell/diagnostics-bootstrap.js`,
+`platform_web/ghost/harness/pointer_lock_test.mjs`, and
+`sandbox/wgpu-pipeline-integrated-smoke/pointer_lock_contract.py`.

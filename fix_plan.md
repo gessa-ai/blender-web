@@ -3165,12 +3165,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   retry in the same page. Public minification/provenance, assembly, transport, CAPTURE producer,
   M8 consumer, release-freeze, syntax, REUSE, and container regression preserve their boundaries.
   See `notes/m8-stage1-failure-recovery-20260826.md`.
-- [ ] **AUDIT-R13-M8-STAGE1-FALLBACK-INTEGRITY [driver, claimed_by: none, blocked-by: none]:** the
-  non-streaming `arrayBuffer()` branch accepts a short/long payload, then clamped slices can report
-  `done` with corrupt files. Enforce exact manifest length/span bounds before writes and add
-  fallback-specific short/long negatives that cannot reach `Assets ready`.
+- [x] **AUDIT-R13-M8-STAGE1-FALLBACK-INTEGRITY [driver] (`288d233`):** the manifest now requires
+  an exact non-negative byte total and integral, bounded, contiguous spans covering that total;
+  the non-streaming `arrayBuffer()` must match it before any WasmFS write. The exact predecessor
+  reports `done` for a truncated fallback; final 16-case/16-mutation execution rejects short,
+  long, gapped, out-of-bounds, and uncovered-tail inputs without reaching `Assets ready`.
+  Minified provenance, assembly, transport, CAPTURE, M8, freeze, syntax, compliance, and REUSE
+  consumers are green. See `notes/m8-stage1-fallback-integrity-20260826.md`.
 - [ ] **AUDIT-R13-M8-STAGE1-PEAK-MEMORY [driver, claimed_by: none,
-  blocked-by: AUDIT-R13-M8-STAGE1-FAILURE-RECOVERY then AUDIT-R13-M8-STAGE1-FALLBACK-INTEGRITY]:**
+  blocked-by: none]:**
   the loader retains the complete current 152,362,255-byte payload while copying it into WasmFS;
   line 155 still says 37 MiB. Measure and bound peak browser/Wasm memory, then install incrementally
   or enforce a safe ceiling in the M8 soak contract.

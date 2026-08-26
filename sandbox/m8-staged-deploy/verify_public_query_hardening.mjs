@@ -147,7 +147,7 @@ assert.equal(negative, 6);
 function makeStageEnvironment(stageSource, {
   search = '', devHooksAllowed = false, trustedManual = false, bodyGate = false,
   stream = true, httpFailure = false, dataFailures = [],
-  chunks = [[1, 2, 3], [4, 5, 6]], total = 6,
+  chunks = [[1, 2, 3], [4, 5, 6]], total = 6, manifestFiles = null,
 } = {}) {
   const elements = new Map();
   const writes = [];
@@ -190,7 +190,7 @@ function makeStageEnvironment(stageSource, {
   };
   const manifest = {
     total_bytes: total,
-    files: [
+    files: manifestFiles || [
       {filename: '/bw/a', start: 0, end: Math.min(3, total)},
       {filename: '/bw/b', start: Math.min(3, total), end: total},
     ],
@@ -286,6 +286,57 @@ async function assertStageContract(stageSource) {
   assert.equal(fallbackState.phase, 'done');
   assert.equal(fallbackState.bytesDone, 6);
 
+  const fallbackUnderflow = makeStageEnvironment(stageSource, {
+    stream: false, chunks: [[1, 2, 3]],
+  });
+  const fallbackUnderflowState = await fallbackUnderflow.window.__bwStage1Load();
+  assert.equal(fallbackUnderflowState.phase, 'error');
+  assert.match(fallbackUnderflowState.error, /stage1\.data size 3 != 6/);
+  assert.equal(fallbackUnderflow.writes.length, 0);
+  assert.ok(!Array.from(fallbackUnderflowState.visiblePhases).includes('Assets ready'));
+
+  const fallbackOverflow = makeStageEnvironment(stageSource, {
+    stream: false, chunks: [[1, 2, 3, 4, 5, 6, 7]],
+  });
+  const fallbackOverflowState = await fallbackOverflow.window.__bwStage1Load();
+  assert.equal(fallbackOverflowState.phase, 'error');
+  assert.match(fallbackOverflowState.error, /stage1\.data size 7 != 6/);
+  assert.equal(fallbackOverflow.writes.length, 0);
+  assert.ok(!Array.from(fallbackOverflowState.visiblePhases).includes('Assets ready'));
+
+  const spanOverflow = makeStageEnvironment(stageSource, {
+    manifestFiles: [
+      {filename: '/bw/a', start: 0, end: 3},
+      {filename: '/bw/b', start: 3, end: 7},
+    ],
+  });
+  const spanOverflowState = await spanOverflow.window.__bwStage1Load();
+  assert.equal(spanOverflowState.phase, 'error');
+  assert.match(spanOverflowState.error, /stage1 manifest span 1 is out of bounds/);
+  assert.equal(spanOverflow.writes.length, 0);
+
+  const spanGap = makeStageEnvironment(stageSource, {
+    manifestFiles: [
+      {filename: '/bw/a', start: 0, end: 2},
+      {filename: '/bw/b', start: 3, end: 6},
+    ],
+  });
+  const spanGapState = await spanGap.window.__bwStage1Load();
+  assert.equal(spanGapState.phase, 'error');
+  assert.match(spanGapState.error, /stage1 manifest span 1 starts at 3 instead of 2/);
+  assert.equal(spanGap.writes.length, 0);
+
+  const spanTail = makeStageEnvironment(stageSource, {
+    manifestFiles: [
+      {filename: '/bw/a', start: 0, end: 3},
+      {filename: '/bw/b', start: 3, end: 5},
+    ],
+  });
+  const spanTailState = await spanTail.window.__bwStage1Load();
+  assert.equal(spanTailState.phase, 'error');
+  assert.match(spanTailState.error, /stage1 manifest spans end at 5 instead of 6/);
+  assert.equal(spanTail.writes.length, 0);
+
   const concurrent = makeStageEnvironment(stageSource, {trustedManual: true});
   const firstConcurrent = concurrent.window.__bwStage1Load();
   const secondConcurrent = concurrent.window.__bwStage1Load();
@@ -360,7 +411,7 @@ await assertStageContract(stageSource);
 
 if (POSITIVE_ONLY) {
   console.log('M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS positive=3 ' +
-    'python=off argv=off controls=off stage1_positive=11 recovery=4 progress=visible');
+    'python=off argv=off controls=off stage1_positive=16 recovery=4 progress=visible');
   process.exit(0);
 }
 
@@ -396,6 +447,17 @@ await rejectStage('stream_overflow_ignored', replaceOnce(stageSource,
 await rejectStage('stream_underflow_ignored', replaceOnce(stageSource,
   'if (offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);',
   'if (false && offset !== expected) throw new Error("stage1.data size " + offset + " != " + expected);'));
+await rejectStage('fallback_size_ignored', replaceOnce(stageSource,
+  'if (fallback.length !== expected) {', 'if (false && fallback.length !== expected) {'));
+await rejectStage('manifest_bounds_ignored', replaceOnce(stageSource,
+  '      if (!f || !Number.isSafeInteger(f.start) || !Number.isSafeInteger(f.end) ||\n' +
+  '          f.start < 0 || f.end < f.start || f.end > expected) {',
+  '      if (false && (!f || !Number.isSafeInteger(f.start) || !Number.isSafeInteger(f.end) ||\n' +
+  '          f.start < 0 || f.end < f.start || f.end > expected)) {'));
+await rejectStage('manifest_contiguity_ignored', replaceOnce(stageSource,
+  'if (f.start !== cursor) {', 'if (false && f.start !== cursor) {'));
+await rejectStage('manifest_coverage_ignored', replaceOnce(stageSource,
+  'if (cursor !== expected) {', 'if (false && cursor !== expected) {'));
 await rejectStage('installed_byte_accounting_removed', replaceOnce(stageSource,
   'state.bytesDone += (f.end - f.start);', 'state.bytesDone += 0;'));
 await rejectStage('single_flight_removed', replaceOnce(stageSource,
@@ -409,12 +471,12 @@ await rejectStage('retry_error_reset_removed', replaceOnce(stageSource,
   '    state.error = null;\n  }\n\n  async function runAttempt',
   '  }\n\n  async function runAttempt'));
 
-assert.equal(stageNegative, 12);
+assert.equal(stageNegative, 16);
 const measureSource = fs.readFileSync(MEASURE, 'utf8');
 assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
   'cold and warm timing contexts must install the trusted Stage-1 manual control');
 assert.equal(count(measureSource, 'stage1=manual'), 0,
   'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off stage1_positive=11 stage1_negative=12 recovery=4 ' +
+  'python=off argv=off controls=off stage1_positive=16 stage1_negative=16 recovery=4 ' +
   'progress=visible stage1_query_controls=off trusted_measurement_contexts=2');

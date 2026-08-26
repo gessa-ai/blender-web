@@ -86,18 +86,44 @@
     }
   }
 
-  async function fetchStageData(man) {
+  function validateStageManifest(man) {
+    if (!man || !Number.isSafeInteger(man.total_bytes) || man.total_bytes < 0 ||
+        !Array.isArray(man.files)) {
+      throw new Error("stage1 manifest shape is invalid");
+    }
+    const expected = man.total_bytes;
+    let cursor = 0;
+    for (let i = 0; i < man.files.length; i++) {
+      const f = man.files[i];
+      if (!f || !Number.isSafeInteger(f.start) || !Number.isSafeInteger(f.end) ||
+          f.start < 0 || f.end < f.start || f.end > expected) {
+        throw new Error("stage1 manifest span " + i + " is out of bounds");
+      }
+      if (f.start !== cursor) {
+        throw new Error("stage1 manifest span " + i + " starts at " + f.start +
+                        " instead of " + cursor);
+      }
+      cursor = f.end;
+    }
+    if (cursor !== expected) {
+      throw new Error("stage1 manifest spans end at " + cursor + " instead of " + expected);
+    }
+    return expected;
+  }
+
+  async function fetchStageData(expected) {
     const resp = await fetch(BIN_PREFIX + "stage1.data");
     if (!resp.ok) throw new Error("stage1.data HTTP " + resp.status);
-    const expected = man.total_bytes || Number(resp.headers.get("content-length")) || 0;
     state.bytesTotal = expected;
     state.bytesDone = 0;
     updateVisibleProgress("Downloading assets", 0, expected, false);
     if (!resp.body || !resp.body.getReader || !expected) {
       const fallback = new Uint8Array(await resp.arrayBuffer());
-      state.bytesTotal = fallback.length;
+      if (fallback.length !== expected) {
+        throw new Error("stage1.data size " + fallback.length + " != " + expected);
+      }
       state.bytesDone = fallback.length;
-      updateVisibleProgress("Downloading assets", fallback.length, fallback.length, false);
+      updateVisibleProgress("Downloading assets", fallback.length, expected, false);
       return fallback;
     }
     const out = new Uint8Array(expected);
@@ -138,10 +164,11 @@
     if (!mod || !mod.FS) throw new Error("no __bwModule.FS");
     const FS = mod.FS;
     const man = await (await fetch(BIN_PREFIX + "stage1-manifest.json")).json();
-    let buf = await fetchStageData(man);
+    const expected = validateStageManifest(man);
+    let buf = await fetchStageData(expected);
     state.fetchedAt = performance.now();
     state.filesTotal = man.files.length;
-    state.bytesTotal = man.total_bytes || buf.length;
+    state.bytesTotal = expected;
     log("fetched stage1.data " + buf.length + " B / " + state.filesTotal + " files in " +
         (state.fetchedAt - state.startedAt).toFixed(0) + " ms; unpacking...");
     state.phase = "writing";

@@ -418,7 +418,7 @@ def selfcheck() -> None:
                     raw_wire += encoded.stat().st_size
                 else:
                     minified_wire += encoded.stat().st_size
-    assert (raw_wire, minified_wire, raw_wire - minified_wire) == (23266, 11130, 12136)
+    assert (raw_wire, minified_wire, raw_wire - minified_wire) == (23455, 11270, 12185)
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -521,7 +521,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=11 wire=23266->11130(-12136) packer=569/6/12 "
+          "minifier=5/6 minified_stage=16 wire=23455->11270(-12185) packer=569/6/12 "
           "coherent=diagnostics+worker+register")
 
 

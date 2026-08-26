@@ -3000,10 +3000,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **P1-M8-CRITICAL-BROTLI-WINDOW [driver] (`99d7fd2`):** public-bundle Brotli-q11 encoding
   is reproducible on pinned Node 22.16.0 with the standard 16 MiB window (`lgwin=24`), and the
   exact codec is bound through assembly, provenance, transport, receipt, M7/M8, and release-freeze
-  contracts. Exact recompression of the unchanged provisional split plus Stage-0 payload is
-  14,963,658 bytes, 36,342 bytes under LAUNCH.md's 15,000,000-byte bar. This is a projection, not
-  an APPLY/public-bundle receipt: accepted Apple profiles, the hash-bound APPLY relink, and
-  hardware staged pixels remain mandatory. See `notes/m8-critical-brotli-window-20260826.md`.
+  contracts. Exact recompression of the unchanged provisional primary/data/glue trio is
+  14,963,658 bytes, but that historical projection omitted the parser/worker shell overhead and
+  is superseded for launch accounting by the complete-wire item below. This remains a projection,
+  not an APPLY/public-bundle receipt. See `notes/m8-critical-brotli-window-20260826.md`.
+- [x] **P1-M8-COMPLETE-CRITICAL-WIRE [driver] (`b1474cd`):** the 15 MB receipt now counts all
+  responses fetched before semantic interaction: HTML, diagnostics, file/boot shell, Stage-1 and
+  service-worker controls, Emscripten glue/data, and manifest-critical Wasm. Browser-context
+  request evidence prevents worker traffic disappearing; deterministic q11/lgwin-24 siblings,
+  exact-tree identity, provenance, and Python/JavaScript consumers share the same complete set.
+  Current contract-shaped provisional wire is approximately 14,994,702 bytes, only 5,298 under
+  the bar; accepted Apple profiles, exact APPLY assembly, <=8 second hardware timing, and the real
+  receipt remain mandatory. See `notes/m8-complete-critical-wire-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

@@ -3,6 +3,12 @@
 
 # M8 critical Brotli window — 2026-08-26
 
+> **Complete-wire correction:** the 14,963,658-byte figure below is the exact
+> provisional primary/data/glue trio, not the complete pre-interaction payload. Commit
+> `b1474cd` adds the previously omitted HTML and shell/worker controls to the receipt;
+> the production-shaped complete projection is approximately 14,994,702 bytes. See
+> `notes/m8-complete-critical-wire-20260826.md`.
+
 ## Outcome
 
 Commit `99d7fd2` replaces the public bundle's ambient `brotli -q 11` invocation with a

@@ -229,6 +229,42 @@ def verify_stage_provenance(
     }
 
 
+def verify_canonical_source(runner=subprocess.run) -> dict[str, object]:
+    """Bind the ignored upstream worktree to the tagged canonical patch inputs."""
+    verifier = ROOT / "sandbox/series-replay/verify.py"
+    result = runner(
+        [sys.executable, str(verifier), "--canonical-only"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    output = result.stdout.strip()
+    if result.returncode != 0 or not output.startswith("CANONICAL_REPLAY_PASS "):
+        detail = (result.stderr or result.stdout).strip()
+        raise ReleaseError(f"canonical source replay failed: {detail}")
+    canonical_rows = [
+        line.strip()
+        for line in (ROOT / "patches/canonical").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if len(canonical_rows) != 1 or Path(canonical_rows[0]).name != canonical_rows[0]:
+        raise ReleaseError("canonical patch manifest is absent or unsafe")
+    canonical_patch = ROOT / "patches" / canonical_rows[0]
+    return {
+        "contract": "canonical-source-replay-v1",
+        "verdict": "PASS",
+        "upstream_commit": _git(ROOT / "upstream", "rev-parse", "HEAD"),
+        "verifier": identity(verifier),
+        "series": identity(ROOT / "patches/series"),
+        "canonical_manifest": identity(ROOT / "patches/canonical"),
+        "canonical_patch": identity(canonical_patch),
+        "canonical_freeze_receipt": identity(
+            ROOT / "sandbox/series-replay/canonical-freeze-receipt.json"
+        ),
+        "verification_output_sha256": sha256_bytes((output + "\n").encode()),
+    }
+
+
 def _tar_info(name: str, *, size: int, mode: int, epoch: int, directory: bool) -> tarfile.TarInfo:
     info = tarfile.TarInfo(name)
     info.size = size
@@ -426,7 +462,10 @@ def main() -> int:
     bundle = args.bundle.resolve(strict=True)
     contract = load_apply_contract(build_bin)
     artifacts, bundle_digest = collect_exact_bundle(bundle, contract["bundle_files"])
-    provenance = verify_stage_provenance(build_bin, bundle, contract)
+    provenance = {
+        "source": verify_canonical_source(),
+        "staged_bundle": verify_stage_provenance(build_bin, bundle, contract),
+    }
     prefix = f"blender-web-{args.tag}"
     metadata = make_metadata(
         args.tag,

@@ -8,8 +8,9 @@
 Commit `2946f0e` adds the missing release boundary between a source tag and the
 static artifact. `scripts/package-tagged-release.py` accepts only an annotated
 semantic release tag at a completely clean `HEAD`, reuses the strict M8 APPLY
-inventory and windowed-product preflight, independently replays full staged
-provenance, and requires the public bundle's exact file set. It then emits a
+inventory and windowed-product preflight, requires the canonical pinned-upstream
+source replay, independently replays full staged provenance, and requires the
+public bundle's exact file set. It then emits a
 normalized USTAR/gzip archive with fixed ownership, permissions, ordering, and
 timestamps, plus a JSON sidecar binding the archive, source commit/tree, upstream
 pin, accepted-profile identity, and every shipped file.
@@ -27,17 +28,20 @@ prohibition.
 
 - Fail-first stops at the absent packager:
   `ledger/buildlogs/20260826T212207-1269652.log`.
-- The focused contract accepts an annotated tag and clean source tree, produces
-  two byte-identical normalized archives with an embedded receipt, and rejects ten
-  tag/tree/inventory/archive mutations plus the real current CAPTURE generation:
-  `ledger/buildlogs/20260826T212546-1272213.log`.
+- The focused contract accepts an annotated tag and clean source tree, verifies
+  the canonical pinned-upstream replay, produces two byte-identical normalized
+  archives with an embedded receipt, and rejects eleven
+  tag/source/tree/inventory/archive mutations plus the real current CAPTURE
+  generation: `ledger/buildlogs/20260826T213247-1281587.log`.
+- The canonical replay independently binds the pinned upstream worktree to the
+  squashed source reconstruction: `ledger/buildlogs/20260826T213247-1281592.log`.
 - The two-root technical-release freeze self-check remains green with both new
-  required paths: `ledger/buildlogs/20260826T212546-1272214.log`.
+  required paths: `ledger/buildlogs/20260826T213247-1281589.log`.
 - The canonical public assembler self-check remains green and continues to be the
   sole producer of hostable bundle files:
   `ledger/buildlogs/20260826T212546-1272218.log`.
 - REUSE 6.2.0 is green:
-  `ledger/buildlogs/20260826T212625-1273426.log`.
+  `ledger/buildlogs/20260826T213247-1281597.log`.
 - Refreshed M8 returns to its existing 23 APPLY/browser/tier failures after the
   compliance receipt is regenerated:
   `ledger/buildlogs/20260826T212702-1273830.log`.

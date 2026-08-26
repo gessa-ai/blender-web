@@ -71,6 +71,9 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     assert freeze_source.count('"scripts/package-tagged-release.py",') == 1
     assert freeze_source.count('"sandbox/m8-tagged-release/verify.py",') == 1
+    canonical = packager.verify_canonical_source()
+    assert canonical["verdict"] == "PASS"
+    assert canonical["upstream_commit"].startswith("fbe6228777e7")
     negatives = 0
     with tempfile.TemporaryDirectory(prefix="bw-tagged-release-contract-") as temporary:
         work = Path(temporary)
@@ -187,9 +190,16 @@ def main() -> int:
                      "only a successful APPLY inventory may ship")
         negatives += 1
 
-    assert negatives == 10
+        def rejected_replay(*_arguments, **_keywords):
+            return subprocess.CompletedProcess([], 1, "", "canonical mutation")
+
+        expect_error(lambda: packager.verify_canonical_source(rejected_replay),
+                     "canonical source replay failed")
+        negatives += 1
+
+    assert negatives == 11
     print(
-        "BW_TAGGED_RELEASE_CONTRACT_PASS positive=tag+tree+archive+embedded-receipt+freeze "
+        "BW_TAGGED_RELEASE_CONTRACT_PASS positive=tag+canonical+tree+archive+embedded-receipt+freeze "
         f"negative={negatives} deterministic=2 capture_rejected=1"
     )
     return 0

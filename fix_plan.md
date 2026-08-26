@@ -2943,8 +2943,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   was promoted. See `notes/m8-public-parity-dashboard-20260826.md`.
 - [x] **P1-RELEASE-TAGGED-BUILD-CORRESPONDENCE [driver] (`2946f0e`):** the
   deterministic packager now binds an annotated release tag at clean `HEAD`, the strict successful
-  APPLY inventory/preflight, independently replayed full staged provenance, and every exact public
-  bundle byte into a normalized USTAR/gzip archive plus source/artifact sidecar. It rejects ten
+  APPLY inventory/preflight, the canonical pinned-upstream source replay, independently replayed
+  full staged provenance, and every exact public
+  bundle byte into a normalized USTAR/gzip archive plus source/artifact sidecar. It rejects eleven
   tag/tree/inventory/archive mutations, refuses overwrite/symlinks/extras, strips local receipt
   paths, and explicitly rejects the current CAPTURE artifact. Both programs are required by the
   two-root release freeze and the public README documents the invocation. **Boundary:** this closes

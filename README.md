@@ -34,8 +34,9 @@ fail-closed M8 verifier remain binding.
 machine-readable sidecar receipt only from an annotated release tag at a clean
 `HEAD`, a strict PASS `APPLY` split manifest, and the exact derived staged bundle.
 It normalizes archive metadata and records every shipped byte, the source commit
-and tree, the upstream pin, and the accepted profile provenance. Run the same
-command twice to require byte-identical archives:
+and tree, the canonical upstream replay, the upstream pin, and the accepted
+profile provenance. Run it twice with two fresh output paths and compare the
+SHA-256 digests to require byte-identical archives:
 
 ```sh
 bash sandbox/m8-staged-deploy/make_staged_bundle.sh

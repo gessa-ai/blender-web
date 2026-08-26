@@ -104,6 +104,8 @@ def main() -> None:
         "/bw/scripts/addons_core/io_scene_gltf2/blender/exp/export.py": "defer",
         "/bw/scripts/addons_core/io_scene_gltf2/blender/imp/blender_gltf.py": "defer",
         "/bw/scripts/addons_core/bl_pkg/bl_extension_ops.py": "keep",
+        "/bw/scripts/modules/new_unmeasured_runtime.py": "keep",
+        "/bw/python/lib/python3.13/site-packages/future-1.0.dist-info/METADATA": "keep",
         "/bw/scripts/addons_core/bl_pkg/tests/test_cli.py": "defer",
         "/bw/scripts/modules/_rna_manual_reference.py": "defer",
         "/bw/scripts/modules/_bl_i18n_utils/utils.py": "defer",
@@ -123,6 +125,7 @@ def main() -> None:
         "/bw/datafiles/icons_svg/mesh_cube.svg": "defer",
         "/bw/datafiles/cursors/cursor_pointer.svg": "defer",
         "/bw/datafiles/icons/ops.mesh.primitive_cube_add_gizmo.dat": "keep",
+        "/bw/datafiles/icons/future.unmeasured.dat": "keep",
         "/bw/datafiles/DejaVuSans-Lite.sfd.bz2": "defer",
         "/bw/datafiles/bfont.pfb": "defer",
         "/bw/datafiles/userdef/userdef_default_theme.c": "defer",
@@ -137,6 +140,7 @@ def main() -> None:
         "/bw/datafiles/studiolights/world/studio.exr": "defer",
         "/bw/datafiles/studiolights/matcap/basic.exr": "defer",
         "/bw/datafiles/fonts/Inter.woff2": "keep",
+        "/bw/datafiles/fonts/DejaVuSansMono.woff2": "keep",
         "/bw/datafiles/fonts/Noto Sans CJK Regular.woff2": "defer",
         "/bw/datafiles/colormanagement/config.ocio": "keep",
         "/bw/datafiles/colormanagement/luts/AgX_Base_sRGB.cube": "keep",
@@ -150,10 +154,33 @@ def main() -> None:
             "boot-cold Python source inventory changed: "
             f"{len(MODULE.BOOT_COLD_PYTHON_SOURCES)} != 203"
         )
+    expected_inventories = {
+        "BOOT_COLD_BLENDER_SOURCES": 72,
+        "BOOT_COLD_PACKAGE_DATA": 57,
+        "BOOT_COLD_AUTHORING_FILES": 12,
+        "BOOT_COLD_TOOL_ICONS": 142,
+    }
+    for name, expected in expected_inventories.items():
+        actual = len(getattr(MODULE, name))
+        if actual != expected:
+            raise AssertionError(f"{name} inventory changed: {actual} != {expected}")
     python_prefix = "/bw/python/lib/python3.13/"
     classifications.update({
         python_prefix + relative: "defer"
         for relative in MODULE.BOOT_COLD_PYTHON_SOURCES
+    })
+    classifications.update({
+        "/bw/scripts/" + relative: "defer"
+        for relative in MODULE.BOOT_COLD_BLENDER_SOURCES
+    })
+    classifications.update({
+        python_prefix + "site-packages/" + relative: "defer"
+        for relative in MODULE.BOOT_COLD_PACKAGE_DATA
+    })
+    classifications.update({filename: "defer" for filename in MODULE.BOOT_COLD_AUTHORING_FILES})
+    classifications.update({
+        "/bw/datafiles/icons/" + relative: "defer"
+        for relative in MODULE.BOOT_COLD_TOOL_ICONS
     })
     for filename, expected in classifications.items():
         actual = MODULE.classify(filename, True)

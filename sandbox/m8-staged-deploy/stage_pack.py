@@ -28,10 +28,10 @@
 #           application templates, NumPy (not imported before first pixels), boot-cold
 #           Python codecs, file-format implementation modules outside the enabled add-ons'
 #           boot registration closure, developer/help/template/test scripts and inactive
-#           presets (keep the active Blender keymap), CJK/intl fonts (keep Inter +
-#           DejaVuSansMono), non-default colormanagement LUTs (keep config.ocio + the
-#           default AgX display path), build-time/compiled-in source assets and external
-#           StudioLight images.
+#           presets (keep the active Blender keymap), measured-cold Blender modules and
+#           Python package support data, CJK fonts (keep the active Inter + mono fonts),
+#           non-default colormanagement LUTs (keep config.ocio + the default AgX display
+#           path), build-time/compiled-in source assets and external StudioLight images.
 #           [--defer-datafiles]
 #   KEEP  - everything else (-> stage-0).
 import argparse
@@ -297,6 +297,312 @@ xml/sax/xmlreader.py
 zipapp.py
 zipfile/__main__.py
 """.split())
+# Exact Blender Python sources absent from the stable windowed boot census. This
+# is an allowlisted set rather than a directory complement: newly added scripts
+# remain in Stage 0 until measured. The active keymap sources are deliberately
+# absent because Blender executes them without retaining sys.modules entries.
+BOOT_COLD_BLENDER_SOURCES = frozenset("""
+addons_core/bl_pkg/bl_extension_cli.py
+addons_core/bl_pkg/example_extension/__init__.py
+addons_core/bl_pkg/extensions_map_from_legacy_addons.py
+addons_core/cycles/osl.py
+modules/_animsys_refactor.py
+modules/_bl_console_utils/__init__.py
+modules/_bl_console_utils/autocomplete/__init__.py
+modules/_bl_console_utils/autocomplete/complete_calltip.py
+modules/_bl_console_utils/autocomplete/complete_import.py
+modules/_bl_console_utils/autocomplete/complete_namespace.py
+modules/_bl_console_utils/autocomplete/intellisense.py
+modules/_bl_previews_utils/bl_previews_render.py
+modules/_bl_text_utils/__init__.py
+modules/_bl_text_utils/external_editor.py
+modules/_blendfile_header.py
+modules/_bpy_internal/addons/__init__.py
+modules/_bpy_internal/addons/cli.py
+modules/_bpy_internal/assets/remote_library/asset_downloader.py
+modules/_bpy_internal/assets/remote_library/cli.py
+modules/_bpy_internal/assets/remote_library/cli_listing_downloader.py
+modules/_bpy_internal/assets/remote_library/cli_listing_generator.py
+modules/_bpy_internal/assets/remote_library/cli_listing_generator_asset_finder.py
+modules/_bpy_internal/assets/remote_library/cli_listing_generator_pagination.py
+modules/_bpy_internal/assets/remote_library/sync_mutex.py
+modules/_bpy_internal/disk_file_hash_service/__init__.py
+modules/_bpy_internal/disk_file_hash_service/backend_sqlite.py
+modules/_bpy_internal/disk_file_hash_service/hash_service.py
+modules/_bpy_internal/disk_file_hash_service/types.py
+modules/_bpy_internal/extensions/permissions.py
+modules/_bpy_internal/extensions/stale_file_manager.py
+modules/_bpy_internal/extensions/tags.py
+modules/_bpy_internal/extensions/wheel_manager.py
+modules/_bpy_internal/filesystem/__init__.py
+modules/_bpy_internal/filesystem/locking.py
+modules/_bpy_internal/grease_pencil/__init__.py
+modules/_bpy_internal/grease_pencil/stroke.py
+modules/_bpy_internal/platform/__init__.py
+modules/_bpy_internal/platform/freedesktop.py
+modules/_bpy_internal/system_info/text_generate_runtime.py
+modules/_bpy_internal/system_info/url_prefill_runtime.py
+modules/_bpy_internal/system_info/url_prefill_startup.py
+modules/_console_python.py
+modules/_console_shell.py
+modules/_graphviz_export.py
+modules/_rna_info.py
+modules/_rna_xml.py
+modules/bl_app_override/__init__.py
+modules/bl_app_override/helpers.py
+modules/bl_keymap_utils/keymap_from_toolbar.py
+modules/bl_keymap_utils/keymap_hierarchy.py
+modules/bl_keymap_utils/platform_helpers.py
+modules/bl_keymap_utils/versioning.py
+modules/blend_render_info.py
+modules/bpy/utils/previews.py
+modules/bpy/utils/toolsystem.py
+modules/bpy_extras/anim_utils.py
+modules/bpy_extras/bmesh_utils.py
+modules/bpy_extras/id_map_utils.py
+modules/bpy_extras/image_utils.py
+modules/bpy_extras/keyconfig_utils.py
+modules/bpy_extras/mesh_utils.py
+modules/bpy_extras/node_shader_utils.py
+modules/bpy_extras/view3d_utils.py
+modules/bpy_extras/wm_utils/progress_report.py
+modules/gpu_extras/__init__.py
+modules/gpu_extras/batch.py
+modules/gpu_extras/presets.py
+modules/rna_keymap_ui.py
+site/sitecustomize.py
+startup/bl_operators/bmesh/find_adjacent.py
+startup/bl_operators/freestyle.py
+startup/bl_ui/properties_freestyle.py
+""".split())
+# Package data absent from the boot file-access closure. Keep this exact inventory
+# fail-closed: a future package/version contributes new files to Stage 0 until a
+# real product A/B proves them cold. Stage 1 restores metadata, type support, the
+# CA bundle, and urllib3's fetch worker before extension/network workflows.
+BOOT_COLD_PACKAGE_DATA = frozenset("""
+README.txt
+attr/__init__.pyi
+attr/_cmp.pyi
+attr/_typing_compat.pyi
+attr/_version_info.pyi
+attr/converters.pyi
+attr/exceptions.pyi
+attr/filters.pyi
+attr/py.typed
+attr/setters.pyi
+attr/validators.pyi
+attrs-25.3.0.dist-info/METADATA
+attrs-25.3.0.dist-info/RECORD
+attrs-25.3.0.dist-info/WHEEL
+attrs-25.3.0.dist-info/licenses/LICENSE
+attrs/__init__.pyi
+attrs/py.typed
+cattr/py.typed
+cattrs-25.1.1.dist-info/METADATA
+cattrs-25.1.1.dist-info/RECORD
+cattrs-25.1.1.dist-info/WHEEL
+cattrs-25.1.1.dist-info/licenses/LICENSE
+cattrs/py.typed
+certifi-2025.4.26.dist-info/METADATA
+certifi-2025.4.26.dist-info/RECORD
+certifi-2025.4.26.dist-info/WHEEL
+certifi-2025.4.26.dist-info/licenses/LICENSE
+certifi-2025.4.26.dist-info/top_level.txt
+certifi/cacert.pem
+certifi/py.typed
+charset_normalizer-3.4.1.dist-info/LICENSE
+charset_normalizer-3.4.1.dist-info/METADATA
+charset_normalizer-3.4.1.dist-info/RECORD
+charset_normalizer-3.4.1.dist-info/WHEEL
+charset_normalizer-3.4.1.dist-info/entry_points.txt
+charset_normalizer-3.4.1.dist-info/top_level.txt
+charset_normalizer/py.typed
+idna-3.10.dist-info/LICENSE.md
+idna-3.10.dist-info/METADATA
+idna-3.10.dist-info/RECORD
+idna-3.10.dist-info/WHEEL
+idna/py.typed
+requests-2.32.3.dist-info/LICENSE
+requests-2.32.3.dist-info/METADATA
+requests-2.32.3.dist-info/RECORD
+requests-2.32.3.dist-info/WHEEL
+requests-2.32.3.dist-info/top_level.txt
+typing_extensions-4.14.1.dist-info/METADATA
+typing_extensions-4.14.1.dist-info/RECORD
+typing_extensions-4.14.1.dist-info/WHEEL
+typing_extensions-4.14.1.dist-info/licenses/LICENSE
+urllib3-2.4.0.dist-info/METADATA
+urllib3-2.4.0.dist-info/RECORD
+urllib3-2.4.0.dist-info/WHEEL
+urllib3-2.4.0.dist-info/licenses/LICENSE.txt
+urllib3/contrib/emscripten/emscripten_fetch_worker.js
+urllib3/py.typed
+""".split())
+# Documentation, generator inputs, and example/build files preserved byte-exactly
+# for inspection but not consumed by the runtime before first pixels.
+BOOT_COLD_AUTHORING_FILES = frozenset({
+    "/bw/python/lib/python3.13/LICENSE.txt",
+    "/bw/python/lib/python3.13/_pyrepl/mypy.ini",
+    "/bw/python/lib/python3.13/ctypes/macholib/README.ctypes",
+    "/bw/python/lib/python3.13/ctypes/macholib/fetch_macholib",
+    "/bw/python/lib/python3.13/ctypes/macholib/fetch_macholib.bat",
+    "/bw/python/lib/python3.13/email/architecture.rst",
+    "/bw/python/lib/python3.13/tomllib/mypy.ini",
+    "/bw/scripts/addons_core/bl_pkg/Makefile",
+    "/bw/scripts/addons_core/bl_pkg/example_extension/AUTHORS",
+    "/bw/scripts/addons_core/bl_pkg/example_extension/blender_manifest.toml",
+    "/bw/scripts/addons_core/bl_pkg/readme.rst",
+    "/bw/scripts/modules/_bpy_internal/assets/remote_library/blender_asset_library_openapi.yaml",
+})
+# Toolbar geometry files are loaded lazily by
+# bl_ui.space_toolsystem_common.ToolSelectPanelHelper._icon_value_from_icon_handle.
+# The exact stable default-layout cache contains the ten files omitted here; these
+# 142 files are first selected only by post-Stage-1 tools/modes. New icons remain
+# in Stage 0 until a real product census classifies them.
+BOOT_COLD_TOOL_ICONS = frozenset("""
+brush.draw.dat
+brush.generic.dat
+brush.gpencil_draw.erase.dat
+brush.gpencil_draw.fill.dat
+brush.paint_texture.clone.dat
+brush.paint_texture.fill.dat
+brush.paint_texture.mask.dat
+brush.paint_texture.smear.dat
+brush.paint_texture.soften.dat
+brush.paint_vertex.average.dat
+brush.paint_vertex.blur.dat
+brush.paint_vertex.replace.dat
+brush.paint_vertex.smear.dat
+brush.paint_weight.average.dat
+brush.paint_weight.blur.dat
+brush.paint_weight.smear.dat
+brush.particle.add.dat
+brush.particle.comb.dat
+brush.particle.cut.dat
+brush.particle.length.dat
+brush.particle.puff.dat
+brush.particle.smooth.dat
+brush.particle.weight.dat
+brush.sculpt.dat
+brush.sculpt.displacement_eraser.dat
+brush.sculpt.displacement_smear.dat
+brush.sculpt.draw_face_sets.dat
+brush.sculpt.mask.dat
+brush.sculpt.paint.dat
+brush.sculpt.simplify.dat
+brush.uv_sculpt.grab.dat
+brush.uv_sculpt.pinch.dat
+brush.uv_sculpt.relax.dat
+none.dat
+ops.armature.bone.roll.dat
+ops.armature.extrude.cursor.dat
+ops.armature.extrude.dat
+ops.armature.extrude_cursor.dat
+ops.armature.extrude_move.dat
+ops.curve.draw.dat
+ops.curve.dupli_extrude_cursor.dat
+ops.curve.extrude_cursor.dat
+ops.curve.extrude_move.dat
+ops.curve.pen.dat
+ops.curve.radius.dat
+ops.curve.vertex_random.dat
+ops.curves.sculpt_add.dat
+ops.curves.sculpt_delete.dat
+ops.curves.sculpt_density.dat
+ops.generic.select.dat
+ops.generic.select_circle.dat
+ops.generic.select_lasso.dat
+ops.generic.select_paint.dat
+ops.gpencil.draw.eraser.dat
+ops.gpencil.draw.line.dat
+ops.gpencil.draw.poly.dat
+ops.gpencil.edit_bend.dat
+ops.gpencil.edit_mirror.dat
+ops.gpencil.edit_shear.dat
+ops.gpencil.edit_to_sphere.dat
+ops.gpencil.extrude_move.dat
+ops.gpencil.primitive_arc.dat
+ops.gpencil.primitive_box.dat
+ops.gpencil.primitive_circle.dat
+ops.gpencil.primitive_curve.dat
+ops.gpencil.primitive_line.dat
+ops.gpencil.primitive_polyline.dat
+ops.gpencil.radius.dat
+ops.gpencil.sculpt_average.dat
+ops.gpencil.sculpt_blur.dat
+ops.gpencil.sculpt_clone.dat
+ops.gpencil.sculpt_smear.dat
+ops.gpencil.stroke_trim.dat
+ops.gpencil.transform_fill.dat
+ops.mesh.bevel.dat
+ops.mesh.bisect.dat
+ops.mesh.dupli_extrude_cursor.dat
+ops.mesh.extrude_faces_move.dat
+ops.mesh.extrude_manifold.dat
+ops.mesh.extrude_region_move.dat
+ops.mesh.extrude_region_shrink_fatten.dat
+ops.mesh.inset.dat
+ops.mesh.knife_tool.dat
+ops.mesh.loopcut_slide.dat
+ops.mesh.offset_edge_loops_slide.dat
+ops.mesh.polybuild_hover.dat
+ops.mesh.primitive_cone_add_gizmo.dat
+ops.mesh.primitive_cylinder_add_gizmo.dat
+ops.mesh.primitive_grid_add_gizmo.dat
+ops.mesh.primitive_sphere_add_gizmo.dat
+ops.mesh.primitive_torus_add_gizmo.dat
+ops.mesh.rip.dat
+ops.mesh.rip_edge.dat
+ops.mesh.spin.dat
+ops.mesh.vertices_smooth.dat
+ops.node.add_reroute.dat
+ops.node.links_cut.dat
+ops.node.links_mute.dat
+ops.paint.eyedropper_add.dat
+ops.paint.vertex_color_fill.dat
+ops.paint.weight_fill.dat
+ops.paint.weight_gradient.dat
+ops.paint.weight_sample.dat
+ops.paint.weight_sample_group.dat
+ops.pose.push.dat
+ops.pose.relax.dat
+ops.sculpt.border_face_set.dat
+ops.sculpt.border_hide.dat
+ops.sculpt.border_mask.dat
+ops.sculpt.box_trim.dat
+ops.sculpt.cloth_filter.dat
+ops.sculpt.color_filter.dat
+ops.sculpt.face_set_edit.dat
+ops.sculpt.lasso_face_set.dat
+ops.sculpt.lasso_hide.dat
+ops.sculpt.lasso_mask.dat
+ops.sculpt.lasso_trim.dat
+ops.sculpt.line_face_set.dat
+ops.sculpt.line_hide.dat
+ops.sculpt.line_mask.dat
+ops.sculpt.line_project.dat
+ops.sculpt.line_trim.dat
+ops.sculpt.mask_by_color.dat
+ops.sculpt.mesh_filter.dat
+ops.sculpt.polyline_face_set.dat
+ops.sculpt.polyline_hide.dat
+ops.sculpt.polyline_mask.dat
+ops.sculpt.polyline_trim.dat
+ops.sequencer.blade.dat
+ops.sequencer.retime.dat
+ops.sequencer.slip.dat
+ops.transform.bone_envelope.dat
+ops.transform.bone_size.dat
+ops.transform.edge_slide.dat
+ops.transform.push_pull.dat
+ops.transform.resize.cage.dat
+ops.transform.shear.dat
+ops.transform.shrink_fatten.dat
+ops.transform.tilt.dat
+ops.transform.tosphere.dat
+ops.transform.vert_slide.dat
+ops.transform.vertex_random.dat
+""".split())
 # These source trees serve authoring, help, translation, test, or feature-deferred
 # workflows. Neither pinned native factory startup nor the exact windowed CAPTURE
 # product imports them before the stable main loop. Keep them byte-exact in Stage 1.
@@ -346,6 +652,9 @@ def classify(fn, defer_datafiles):
     python_prefix = "/bw/python/lib/python3.13/"
     if fn.startswith(python_prefix) and fn[len(python_prefix):] in BOOT_COLD_PYTHON_SOURCES:
         return "defer"
+    package_prefix = python_prefix + "site-packages/"
+    if fn.startswith(package_prefix) and fn[len(package_prefix):] in BOOT_COLD_PACKAGE_DATA:
+        return "defer"
     # DEFER: the real windowed product and pinned native factory startup both import
     # zero NumPy modules before the first stable WM state. Stage 1 restores the whole
     # package before IO/operator coverage, avoiding a partial-package boundary.
@@ -371,6 +680,11 @@ def classify(fn, defer_datafiles):
     # time the post-first-pixel Stage-1 stream has restored their real bytes.
     if "/bw/scripts/startup/bl_app_templates_system/" in fn:
         return "defer"
+    script_prefix = "/bw/scripts/"
+    if fn.startswith(script_prefix) and fn[len(script_prefix):] in BOOT_COLD_BLENDER_SOURCES:
+        return "defer"
+    if fn in BOOT_COLD_AUTHORING_FILES:
+        return "defer"
     # DEFER: measured boot-cold support sources and inactive presets. The active
     # default keymap remains complete so Stage 0 is genuinely interactive.
     if fn.startswith(BOOT_COLD_SUPPORT_PREFIXES) or fn in BOOT_COLD_SUPPORT_FILES:
@@ -379,6 +693,9 @@ def classify(fn, defer_datafiles):
     if fn.startswith(preset_prefix) and fn[len(preset_prefix):] not in STAGE0_PRESET_FILES:
         return "defer"
     if defer_datafiles:
+        icon_prefix = "/bw/datafiles/icons/"
+        if fn.startswith(icon_prefix) and fn[len(icon_prefix):] in BOOT_COLD_TOOL_ICONS:
+            return "defer"
         # DEFER: sources that Blender's build converts into C/object data before
         # linking. The runtime consumes those compiled copies; preloading the
         # original SVG/font/theme and generator inputs duplicates them on the
@@ -414,7 +731,8 @@ def classify(fn, defer_datafiles):
         # choices and can arrive after first pixels with the rest of Stage 1.
         if "/datafiles/studiolights/" in fn and not fn.endswith(".sl"):
             return "defer"
-        # DEFER: non-Latin / CJK fonts (English UI never demands them at boot).
+        # DEFER: non-Latin / CJK fonts. English UI and Console initialization
+        # require Inter plus DejaVu Sans Mono before the first frame.
         if "/datafiles/fonts/" in fn and not any(k in fn for k in INTL_FONT_KEEP):
             return "defer"
         # DEFER: colormanagement display LUTs except the default AgX-sRGB path.

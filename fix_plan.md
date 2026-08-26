@@ -3172,11 +3172,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   long, gapped, out-of-bounds, and uncovered-tail inputs without reaching `Assets ready`.
   Minified provenance, assembly, transport, CAPTURE, M8, freeze, syntax, compliance, and REUSE
   consumers are green. See `notes/m8-stage1-fallback-integrity-20260826.md`.
-- [ ] **AUDIT-R13-M8-STAGE1-PEAK-MEMORY [driver, claimed_by: none,
-  blocked-by: none]:**
-  the loader retains the complete current 152,362,255-byte payload while copying it into WasmFS;
-  line 155 still says 37 MiB. Measure and bound peak browser/Wasm memory, then install incrementally
-  or enforce a safe ceiling in the M8 soak contract.
+- [x] **AUDIT-R13-M8-STAGE1-PEAK-MEMORY [driver] (`39b40d7`):** the loader now streams the
+  152,362,255-byte/2,963-file payload through one <=16 MiB file buffer plus one <=16 MiB response
+  chunk, stages complete files under `/tmp`, and publishes them by zero-copy WasmFS rename only
+  after exact response completion. Staged and soak receipts fail closed on the 16/16/32 MiB
+  limits, retained buffers, exact peaks, JS heap, and browser RSS. The canonical largest file is
+  11,425,316 bytes; the real APPLY browser receipt remains required. See
+  `notes/m8-stage1-peak-memory-20260826.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE then trusted physical input session]:** on
   a supported headed browser/OS, exercise a browser-generated OS IME composition and a physical

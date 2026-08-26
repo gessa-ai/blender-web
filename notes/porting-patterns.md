@@ -1661,3 +1661,20 @@ and exercise shrink plus restoration against the real product. See
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
 `upstream/source/blender/gpu/intern/gpu_framebuffer.cc`, and
 `sandbox/m4-resize-recovery/`.
+
+## Class 113 — asynchronous readiness must invalidate the draw it made provisional
+
+Signature: a browser GPU cache returns pending on first use, the caller correctly abandons that
+draw, and the cache later publishes a valid module, layout, or pipeline without invalidating the
+owning UI region. Presentation can continue while whichever region lost its first draw remains
+black forever, so frame submission and idle logs cannot reveal the defect. Publish accepted async
+readiness into the platform's ordinary full-screen update path, and keep an incomplete-draw signal
+separate: accepted readiness may rearm a completed bounded episode, while repeated drops and failed
+publications must never extend its ceiling. Start one bounded boot episode to discover visible lazy
+variants, but do not terminate it from a fixed presentation count because surface presents can
+precede shader settlement. Exercise late acceptance, active-episode acceptance, repeated-drop
+bounding, terminal rearming, and counter wrap on native and wasm32; closure still requires idle
+semantic pixels on hardware. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_shader.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_pipeline.cc`, and
+`notes/p0-redraw-recovery-20260826.md`.

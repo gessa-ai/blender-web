@@ -2846,16 +2846,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   plus nine trusted-input ticks/two presents with zero stage-1/import/submission/transaction/loss
   failures. The live run is fallback-software diagnostic evidence only; no receipt or s7 boundary
   changed. See `notes/p0-boot-present-adapter-current-head-revalidation-20260825.md`.
-- [~] **P0-D-M4-VIEWPORT-BIND-GROUP-READINESS [gpu-backend, patch 0281]:** diagnostic-first
-  live values prove the completeness failures are missing bindings, never extras: the low IDs are
+- [~] **P0-D-M4-VIEWPORT-BIND-GROUP-READINESS [gpu-backend, patches 0281+0283]:** diagnostic-first
+  live sets prove the completeness failures are missing bindings, never extras: the low IDs are
   validation-pending backend push-constant UBOs and `256+` are validation-pending Tint sampler
-  halves. Push allocation now begins before module/layout readiness, and every epoch observing a
-  provisional shared sampler is queue-gated on its validation result; rejection cancels all
-  observers and exact completeness remains fail-closed. Native/wasm32 parity, canonical replay,
-  final relink, and the headed fallback warning contract are green. **Not resolved:** software
-  pixels remain black and bind no receipt; the Apple hardware rig must paint semantic viewport
-  pixels, capture a real `overlay_grid_next` binding set, retain complete `OCIO_Display`, and show
-  pixel change across interaction. See `notes/p0-bind-group-readiness-20260826.md`.
+  halves. Patch 0281 starts push allocation before module/layout readiness and queue-gates every
+  provisional shared-sampler observer while preserving exact completeness. Driver hardware then
+  proved those same shaders draw correctly after external invalidation, falsifying the old
+  two-present settle stop. Patch 0283 now publishes accepted module/layout/render/compute readiness
+  into bounded ordinary window updates; incomplete draws retry only inside the active episode and
+  cannot rearm its 180-tick ceiling. Fifteen native/wasm behavior cases, 29 source mutations,
+  native/wasm32 parity, canonical replay, the CAPTURE relink, and the fallback warning diagnostic
+  are green. **Not resolved:** the driver-operated Apple rig must boot to idle without input with
+  grid/shaded Cube/gizmo and every editor region present and stable, capture a real
+  `overlay_grid_next` binding set, retain complete `OCIO_Display`, and show a semantic pixel delta
+  across orbit. See `notes/p0-bind-group-readiness-20260826.md` and
+  `notes/p0-redraw-recovery-20260826.md`.
 - [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282]:** live tracing disproved
   a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
   `WGPUTexture` wrapper adopts the new handle/extent in place, but pointer-identical
@@ -2866,8 +2871,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,142,174-byte `.wasm.orig` at
-  SHA-256 `0f815b8dee5b0ec1461fb83993b7ed4909578d9c69711d0ebaef244273d29e00`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,142,827-byte `.wasm.orig` at
+  SHA-256 `b0ecf56ee5dcfaf3e3ad46f93b9a533a60130d3a2828dfb08ca4336eacddc3e0`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must

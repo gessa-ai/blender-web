@@ -3143,6 +3143,29 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input. Native/wasm32 integration, adjacent browser paths, locked CAPTURE relink/no-work, split
   producer checks, fallback product boot, REUSE, and regression preserve their strict boundaries.
   See `notes/m8-callback-registration-soak-20260826.md`.
+- [x] **AUDIT-20260826-R13 [driver] (`4a437519..1ba4cea`):** adversarial review of the exact
+  25-commit range found one high M8 receipt false-green path, three medium Stage-1
+  recovery/integrity/memory defects, and two low process findings. It found no upstream/harness/
+  oracle/golden/result mutation, promise promotion, dependency-provenance loss, or hidden
+  deferral. See `reports/audit-20260826-r13.md`.
+- [ ] **AUDIT-R13-M8-OBSERVED-CRITICAL-WIRE [driver, claimed_by: none, blocked-by: none]:** replace
+  the fixed boot-critical allowlist with a browser-observed inventory of every same-origin request
+  from navigation through semantic interaction. Map each response to an exact bundle artifact and
+  count it, or reject unknown/duplicate/unmappable requests. Add a false-green negative that injects
+  an unlisted early request; the 15 MB receipt must count it or fail closed.
+- [ ] **AUDIT-R13-M8-STAGE1-FAILURE-RECOVERY [driver, claimed_by: none, blocked-by: none]:** the
+  Stage-1 loader's one-shot latch survives module/fetch/integrity failure, so all later calls return
+  the same error until reload. Share one in-flight promise, reset failed-attempt state, provide a
+  bounded retry, and prove 503/interrupted-stream then success in the same page with honest UI.
+- [ ] **AUDIT-R13-M8-STAGE1-FALLBACK-INTEGRITY [driver, claimed_by: none, blocked-by: none]:** the
+  non-streaming `arrayBuffer()` branch accepts a short/long payload, then clamped slices can report
+  `done` with corrupt files. Enforce exact manifest length/span bounds before writes and add
+  fallback-specific short/long negatives that cannot reach `Assets ready`.
+- [ ] **AUDIT-R13-M8-STAGE1-PEAK-MEMORY [driver, claimed_by: none,
+  blocked-by: AUDIT-R13-M8-STAGE1-FAILURE-RECOVERY then AUDIT-R13-M8-STAGE1-FALLBACK-INTEGRITY]:**
+  the loader retains the complete current 152,362,255-byte payload while copying it into WasmFS;
+  line 155 still says 37 MiB. Measure and bound peak browser/Wasm memory, then install incrementally
+  or enforce a safe ceiling in the M8 soak contract.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE then trusted physical input session]:** on
   a supported headed browser/OS, exercise a browser-generated OS IME composition and a physical
@@ -3151,7 +3174,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. R11 additionally found human-authored commits `0aa45be` and `62ca5fb`
-  missing that trailer. **blocked-by external-mirror/history-rewrite coordination.**
+  missing that trailer. R13 adds human-authored commits `11a4afd` and `61258e3`, whose literal
+  `\\n\\nAssisted-by` text is not a parseable trailer. **blocked-by external-mirror/history-rewrite
+  coordination.**
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

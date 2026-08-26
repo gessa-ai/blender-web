@@ -12,6 +12,7 @@
 
 #include "GHOST_SystemWeb.hh"
 
+#include <array>
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
@@ -86,7 +87,35 @@ bool cb_mousemove(int /*t*/, const EmscriptenMouseEvent *e, void *ud)
   if (system == nullptr) {
     return false;
   }
-  ghost_web_bridge::on_mouse_move(*system, *e);
+
+  GHOST_WindowWeb *window = system->activeWindow();
+  if (window == nullptr) {
+    return false;
+  }
+
+  /* Mouse-move is registered on `window` so a canvas-owned drag keeps its
+   * motion after leaving the element. Restore the canvas-relative coordinate
+   * contract before EventBridgeWeb sees the event. */
+  EmscriptenMouseEvent event = *e;
+  const bool inside_canvas = system->windowToCanvasCoordinates(
+      e->clientX, e->clientY, event.targetX, event.targetY);
+
+  GHOST_Buttons buttons;
+  const bool have_buttons = system->getButtons(buttons) == GHOST_kSuccess;
+  const bool owns_drag = have_buttons &&
+                         (buttons.get(GHOST_kButtonMaskLeft) ||
+                          buttons.get(GHOST_kButtonMaskMiddle) ||
+                          buttons.get(GHOST_kButtonMaskRight) ||
+                          buttons.get(GHOST_kButtonMaskButton4) ||
+                          buttons.get(GHOST_kButtonMaskButton5) ||
+                          buttons.get(GHOST_kButtonMaskButton6) ||
+                          buttons.get(GHOST_kButtonMaskButton7));
+  if (!inside_canvas && !owns_drag && !window->isPointerLockActive()) {
+    /* Window scope must not turn ordinary page motion into Blender input. */
+    return false;
+  }
+
+  ghost_web_bridge::on_mouse_move(*system, event);
   return true;
 }
 bool cb_mousebtn(int t, const EmscriptenMouseEvent *e, void *ud)
@@ -110,24 +139,10 @@ bool cb_mousebtn(int t, const EmscriptenMouseEvent *e, void *ud)
     }
 
     /* A window-targeted Emscripten event reports targetX/Y relative to the
-     * viewport. Translate it back to the canvas coordinate contract used by
-     * EventBridgeWeb; the shipping canvas begins at zero, while gate and harness
-     * layouts can be offset. Match Emscripten's integer rect truncation. */
-    const char *selector = system->canvasSelector().c_str();
-    const int canvas_left = MAIN_THREAD_EM_ASM_INT(
-        {
-          const canvas = document.querySelector(UTF8ToString($0));
-          return canvas ? (canvas.getBoundingClientRect().left | 0) : 0;
-        },
-        selector);
-    const int canvas_top = MAIN_THREAD_EM_ASM_INT(
-        {
-          const canvas = document.querySelector(UTF8ToString($0));
-          return canvas ? (canvas.getBoundingClientRect().top | 0) : 0;
-        },
-        selector);
-    event.targetX = e->clientX - canvas_left;
-    event.targetY = e->clientY - canvas_top;
+     * viewport. Restore the same cached canvas-relative coordinates used by
+     * window-scoped drag motion. The release remains deliverable outside. */
+    system->windowToCanvasCoordinates(
+        e->clientX, e->clientY, event.targetX, event.targetY);
   }
 
   ghost_web_bridge::on_mouse_button(*system, t, event);
@@ -157,6 +172,7 @@ bool cb_resize(int /*t*/, const EmscriptenUiEvent *e, void *ud)
   if (system == nullptr) {
     return false;
   }
+  system->refreshCanvasClientRect();
   ghost_web_bridge::on_resize(*system, *e);
   return true;
 }
@@ -284,7 +300,7 @@ bool remove_html5_callback_prefix(const char *canvas,
       [[fallthrough]];
     case 1:
       removed &= remove_html5_callback(
-          canvas, user_data, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
+          window, user_data, EMSCRIPTEN_EVENT_MOUSEMOVE, cb_mousemove);
       [[fallthrough]];
     case 0:
       break;
@@ -521,6 +537,10 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
 {
   if (callbacks_registered_) {
     return true;
+  }
+  if (!refreshCanvasClientRect()) {
+    std::fprintf(stderr, "GHOST-web: canvas client rectangle is unavailable\n");
+    return false;
   }
   const uint64_t epoch = g_next_callback_epoch.fetch_add(1, std::memory_order_relaxed);
   auto registration = std::make_unique<CallbackRegistration>(CallbackRegistration{this, epoch});
@@ -848,7 +868,9 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_INVALID_PARAM;
         switch (position) {
           case 0:
-            result = emscripten_set_mousemove_callback(canvas, user_data, false, cb_mousemove);
+            /* Capture continuous motion for an owned drag even after it leaves
+             * the canvas; cb_mousemove filters unrelated page motion. */
+            result = emscripten_set_mousemove_callback(win, user_data, true, cb_mousemove);
             break;
           case 1:
             result = emscripten_set_mousedown_callback(canvas, user_data, false, cb_mousebtn);
@@ -1143,6 +1165,44 @@ GHOST_TSuccess GHOST_SystemWeb::getCursorPosition(int32_t &x, int32_t &y) const
   x = cursor_x_;
   y = cursor_y_;
   return GHOST_kSuccess;
+}
+
+bool GHOST_SystemWeb::refreshCanvasClientRect()
+{
+  const char *selector = canvas_selector_.c_str();
+  std::array<int32_t, 4> rect = {};
+  MAIN_THREAD_EM_ASM(
+      {
+        const canvas = document.querySelector(UTF8ToString($0));
+        if (canvas) {
+          const bounds = canvas.getBoundingClientRect();
+          HEAP32[($1 >> 2) + 0] = bounds.left | 0;
+          HEAP32[($1 >> 2) + 1] = bounds.top | 0;
+          HEAP32[($1 >> 2) + 2] = Math.ceil(bounds.width);
+          HEAP32[($1 >> 2) + 3] = Math.ceil(bounds.height);
+        }
+      },
+      selector,
+      rect.data());
+  if (rect[2] <= 0 || rect[3] <= 0) {
+    return false;
+  }
+  canvas_client_left_ = rect[0];
+  canvas_client_top_ = rect[1];
+  canvas_client_width_ = rect[2];
+  canvas_client_height_ = rect[3];
+  return true;
+}
+
+bool GHOST_SystemWeb::windowToCanvasCoordinates(const int32_t client_x,
+                                                const int32_t client_y,
+                                                int32_t &canvas_x,
+                                                int32_t &canvas_y) const
+{
+  canvas_x = client_x - canvas_client_left_;
+  canvas_y = client_y - canvas_client_top_;
+  return canvas_client_width_ > 0 && canvas_client_height_ > 0 && canvas_x >= 0 &&
+         canvas_y >= 0 && canvas_x < canvas_client_width_ && canvas_y < canvas_client_height_;
 }
 
 GHOST_TSuccess GHOST_SystemWeb::setCursorPosition(int32_t /*x*/, int32_t /*y*/)

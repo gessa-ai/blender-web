@@ -159,7 +159,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     )
     removal_helper = method(source, REMOVE_PREFIX_MARKER)
     removals = (
-        ("canvas", "EMSCRIPTEN_EVENT_MOUSEMOVE", "cb_mousemove"),
+        ("window", "EMSCRIPTEN_EVENT_MOUSEMOVE", "cb_mousemove"),
         ("canvas", "EMSCRIPTEN_EVENT_MOUSEDOWN", "cb_mousebtn"),
         ("window", "EMSCRIPTEN_EVENT_MOUSEUP", "cb_mousebtn"),
         ("canvas", "EMSCRIPTEN_EVENT_WHEEL", "cb_wheel"),

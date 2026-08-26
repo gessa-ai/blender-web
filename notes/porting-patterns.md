@@ -1573,3 +1573,17 @@ remove the listener from the exact registration target. Exercise outside release
 focus, unowned suppression, coordinate routing, and replacement/disposal epochs. See
 `platform_web/ghost/GHOST_SystemWeb.cc`, `sandbox/m4-mouse-release-ownership/`, and
 `sandbox/wgpu-pipeline-integrated-smoke/window_lifecycle_contract.py`.
+
+## Class 107 — continuous pointer ownership outlives the canvas during a drag
+
+Signature: terminal mouse-up is captured at `window`, but mouse-move remains registered only on
+the canvas. A canvas-owned drag that crosses onto another page element therefore freezes at its
+last in-canvas position until the correctly delivered release. Capture motion at `window` too, but
+admit an outside point only while GHOST owns at least one pressed button or Pointer Lock is active;
+ordinary page motion must stay unconsumed. Current Emscripten does not populate the deprecated
+`canvasX/Y` fields, and synchronously querying DOM geometry on every motion adds a main-thread
+round trip. Instead, take one coherent DOM rectangle snapshot at listener registration and resize,
+then translate `clientX/Y` locally on the WM worker. Exercise fail-first outside motion, canvas-
+relative coordinates, outside release, unowned motion/release suppression, focus loss, Pointer
+Lock, and listener replacement/removal. See `platform_web/ghost/GHOST_SystemWeb.cc` and
+`sandbox/m4-mouse-release-ownership/`.

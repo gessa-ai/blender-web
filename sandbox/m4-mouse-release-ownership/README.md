@@ -1,12 +1,13 @@
 <!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# M4 mouse-release ownership contract
+# M4 mouse drag/release ownership contract
 
-This device-free contract proves that a canvas-owned mouse press receives its terminal release
-after the pointer leaves the canvas, without turning unrelated page mouse-up events into GHOST
-input. Window-targeted release coordinates are translated back into canvas space, and listener
-removal remains paired with the registration target.
+This device-free contract proves that a canvas-owned mouse press keeps receiving motion and its
+terminal release after the pointer leaves the canvas, without turning unrelated page pointer
+events into GHOST input. A complete DOM canvas rectangle is cached at registration/resize so
+window-targeted motion and release coordinates translate locally on the WM worker, and listener
+removal remains paired with every registration target.
 
 Build and serve the real WasmFS + `PROXY_TO_PTHREAD` GHOST harness, then run the focused checks:
 

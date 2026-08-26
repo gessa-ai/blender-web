@@ -118,6 +118,16 @@ class GHOST_SystemWeb : public GHOST_System {
     return canvas_selector_;
   }
 
+  /** Refresh the DOM canvas rectangle used by window-scoped pointer callbacks.
+   * Registration and resize are rare synchronous main-thread boundaries; each
+   * mouse move then translates locally on the owning WM worker. */
+  bool refreshCanvasClientRect();
+
+  /** Translate a viewport/client point into canvas-relative logical pixels.
+   * Returns true when the point is inside the last complete DOM rectangle. */
+  bool windowToCanvasCoordinates(
+      int32_t client_x, int32_t client_y, int32_t &canvas_x, int32_t &canvas_y) const;
+
  private:
   bool registerCanvasCallbacks();
   void unregisterCanvasCallbacks();
@@ -140,6 +150,10 @@ class GHOST_SystemWeb : public GHOST_System {
 
   int32_t cursor_x_ = 0;
   int32_t cursor_y_ = 0;
+  int32_t canvas_client_left_ = 0;
+  int32_t canvas_client_top_ = 0;
+  int32_t canvas_client_width_ = 0;
+  int32_t canvas_client_height_ = 0;
   bool mod_ctrl_ = false;
   bool mod_shift_ = false;
   bool mod_alt_ = false;

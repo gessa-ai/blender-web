@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // Real PROXY_TO_PTHREAD browser check: a button press owned by Blender must
-// receive its matching release even when the pointer leaves the canvas, while
-// an unrelated window-level release must remain outside GHOST.
+// keep receiving motion plus its matching release when the pointer leaves the
+// canvas, while unrelated window-level motion/releases remain outside GHOST.
 
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -49,9 +49,17 @@ try {
   await page.waitForFunction(() =>
     Number(globalThis.ghostModule._ghost_harness_input_state()) === (1 << 4));
 
-  // Keep canvas focus but release over the neighboring panel. Canvas-only
-  // mouse-up registration misses this ordinary drag outcome.
+  // Keep canvas focus but continue the drag over the neighboring panel. Both
+  // motion and the terminal release remain owned by the canvas interaction.
   await page.mouse.move(box.x + box.width + 80, box.y + box.height / 2);
+  await page.waitForTimeout(150);
+  const dragLog = await page.locator("#log").textContent();
+  const dragPositions = [...dragLog.matchAll(/CursorMove\s+x=(-?\d+) y=(-?\d+)/g)]
+    .map((match) => ({x: Number(match[1]), y: Number(match[2])}));
+  if (!dragPositions.some((position) => position.x > box.width)) {
+    throw new Error(`owned outside motion was not delivered: ${dragLog}`);
+  }
+
   await page.mouse.up({button: "left"});
   await page.waitForFunction(() =>
     Number(globalThis.ghostModule._ghost_harness_input_state()) === 0);
@@ -67,8 +75,17 @@ try {
   }
 
   const releasesBefore = (owned.log.match(/ButtonUp/g) || []).length;
+  const movesBefore = (owned.log.match(/CursorMove/g) || []).length;
   const unrelatedPrevented = await page.evaluate(() => {
-    const event = new MouseEvent("mouseup", {
+    const motion = new MouseEvent("mousemove", {
+      buttons: 0,
+      clientX: 920,
+      clientY: 520,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(motion);
+    const release = new MouseEvent("mouseup", {
       button: 0,
       buttons: 0,
       clientX: 900,
@@ -76,21 +93,23 @@ try {
       bubbles: true,
       cancelable: true,
     });
-    window.dispatchEvent(event);
-    return event.defaultPrevented;
+    window.dispatchEvent(release);
+    return motion.defaultPrevented || release.defaultPrevented;
   });
   await page.waitForTimeout(150);
   const finalLog = await page.locator("#log").textContent();
   const releasesAfter = (finalLog.match(/ButtonUp/g) || []).length;
-  if (unrelatedPrevented || releasesAfter !== releasesBefore) {
+  const movesAfter = (finalLog.match(/CursorMove/g) || []).length;
+  if (unrelatedPrevented || releasesAfter !== releasesBefore || movesAfter !== movesBefore) {
     throw new Error(
-      `unowned window release entered GHOST: prevented=${unrelatedPrevented} ` +
-      `before=${releasesBefore} after=${releasesAfter} log=${finalLog}`);
+      `unowned window pointer event entered GHOST: prevented=${unrelatedPrevented} ` +
+      `releases=${releasesBefore}:${releasesAfter} moves=${movesBefore}:${movesAfter} ` +
+      `log=${finalLog}`);
   }
 
   console.log(
-    "MOUSE_RELEASE_OWNERSHIP_LIVE PASS outside=delivered unowned=suppressed " +
-    "focus=canvas worker=proxy-pthread");
+    "MOUSE_RELEASE_OWNERSHIP_LIVE PASS motion=outside-delivered release=outside-delivered " +
+    "unowned=suppressed focus=canvas worker=proxy-pthread");
 }
 catch (error) {
   error.message += ` | diagnostics=${diagnostics.join(" | ")}`;

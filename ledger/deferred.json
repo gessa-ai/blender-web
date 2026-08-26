@@ -52,6 +52,166 @@
       "evidence": "notes/gpu-pointsize-prototype.md"
     },
     {
+      "id": "feature-off-ik-solvers",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build and validate both the legacy IK solver and iTaSC in browser animation parity sessions.",
+      "blocker": "Chosen browser launch scope cut: WITH_IK_SOLVER and WITH_IK_ITASC are both forced OFF, leaving the IK plugin table without either solver implementation.",
+      "impact": "Armature IK constraints silently have no solver callback in the browser build, so IK-dependent rigs do not evaluate faithfully.",
+      "workaround": "Bake IK-driven animation to ordinary pose keyframes in a desktop build before opening the file in the browser.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/ikplugin/intern/ikplugin_api.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-bullet-physics",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build Bullet and add rigid-body plus Bullet-backed geometry parity coverage.",
+      "blocker": "Chosen browser launch scope cut: Bullet is not cross-built or linked and WITH_BULLET is forced OFF.",
+      "impact": "Rigid-body worlds cannot simulate; the compiled fallback exposes null/no-op physics state. Bullet-backed convex-hull and related geometry paths are also unavailable.",
+      "workaround": "Bake rigid-body transforms or convert the evaluated result to meshes in a desktop build before browser use.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/blenkernel/intern/rigidbody.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-ocean-modifier",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build the ocean/FFTW dependency path and add modifier parity scenes.",
+      "blocker": "Chosen browser launch scope cut: WITH_MOD_OCEANSIM and its FFTW3 dependency are forced OFF.",
+      "impact": "Ocean modifier simulation and generated ocean surfaces are unavailable in the browser product.",
+      "workaround": "Apply or bake the Ocean modifier to mesh/cache data in a desktop build.",
+      "evidence": "patches/blender_web.cmake; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-remesh-quadriflow",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, enable the Remesh modifier and cross-build Quadriflow with focused topology parity tests.",
+      "blocker": "Chosen browser launch scope cut: WITH_MOD_REMESH and WITH_QUADRIFLOW are forced OFF.",
+      "impact": "The Remesh modifier and Quadriflow remesh operator are unavailable; OpenVDB voxel-remesh limitations remain separately disclosed by feature-off-openvdb.",
+      "workaround": "Remesh on desktop, apply the result, and transfer the resulting mesh to the browser product.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/modifiers/intern/MOD_remesh.cc; upstream/source/blender/blenkernel/intern/mesh_remesh_voxel.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-exact-boolean",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build and validate the Manifold or GMP exact-boolean implementation.",
+      "blocker": "Chosen browser launch scope cut: WITH_MANIFOLD and WITH_GMP are forced OFF, so the exact boolean implementation is not linked.",
+      "impact": "Exact/Manifold mesh booleans are unavailable; only Blender's fast floating-point boolean path remains.",
+      "workaround": "Use the fast solver where acceptable, or apply exact booleans in a desktop build before browser use.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/geometry/intern/mesh_boolean.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-slim-uv",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, enable SLIM and add minimum-stretch UV parity coverage.",
+      "blocker": "Chosen browser launch scope cut: WITH_UV_SLIM is forced OFF.",
+      "impact": "Minimum Stretch unwrap falls back to the conformal method with a warning; angle-based and conformal unwrap remain available.",
+      "workaround": "Use conformal/angle-based unwrap in-browser or perform minimum-stretch unwrap on desktop.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/editors/uvedit/uvedit_unwrap_ops.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-video-ffmpeg",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build FFmpeg under a separately reviewed payload, codec, and browser-media policy.",
+      "blocker": "Chosen browser launch scope cut: FFmpeg is not harvested for wasm and WITH_CODEC_FFMPEG is forced OFF.",
+      "impact": "Movie import/export and FFmpeg-backed Video Sequence Editor media paths are unavailable; image-sequence workflows are not covered by this deferral.",
+      "workaround": "Transcode video externally and use supported image sequences or preprocessed assets.",
+      "evidence": "patches/blender_web.cmake; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-audio",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, design a browser audio bridge and cross-build the required Audaspace/codec subset.",
+      "blocker": "Chosen browser launch scope cut: Audaspace, libsndfile, every native audio device backend, and Rubber Band are forced OFF; no Web Audio bridge exists.",
+      "impact": "Sound playback, mixing, scrubbing, audio strips, and audio rendering are unavailable in the browser product.",
+      "workaround": "Preview/mix audio outside the browser product and retain visual animation timing through frame-based workflows.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/blenkernel/intern/sound.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-fbx-io",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build and validate Blender's native FBX IO module.",
+      "blocker": "Chosen browser launch scope cut: WITH_IO_FBX is forced OFF.",
+      "impact": "FBX import and export operators are absent from the browser product.",
+      "workaround": "Convert through OBJ, USD, or another supported format before browser use.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/editors/io/io_fbx_ops.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-alembic-io",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build Alembic and add cache import/export parity coverage.",
+      "blocker": "Chosen browser launch scope cut: Alembic is not cross-built and WITH_ALEMBIC is forced OFF.",
+      "impact": "Alembic import/export and Alembic cache evaluation are unavailable; USD mesh IO remains separately supported.",
+      "workaround": "Use supported USD mesh interchange or convert Alembic caches on desktop.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/editors/io/io_alembic.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-grease-pencil-vector-io",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build the vector-IO dependencies and validate Grease Pencil SVG/PDF operators.",
+      "blocker": "Chosen browser launch scope cut: WITH_IO_GREASE_PENCIL, WITH_HARU, and WITH_POTRACE are forced OFF.",
+      "impact": "Grease Pencil SVG/PDF vector import/export operators are unavailable in the browser product.",
+      "workaround": "Perform SVG/PDF interchange on desktop and transfer the resulting Grease Pencil or mesh data.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/editors/io/io_grease_pencil.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-openimagedenoise",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build OpenImageDenoise and validate CPU/browser denoise memory and latency budgets.",
+      "blocker": "Chosen browser launch scope cut: OpenImageDenoise is not cross-built and WITH_OPENIMAGEDENOISE is forced OFF.",
+      "impact": "Cycles OIDN denoising is unavailable; the compositor Denoise node reports that OIDN is disabled and passes its image through.",
+      "workaround": "Denoise externally or render without OIDN in the browser product.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/nodes/composite/nodes/node_composite_denoise.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-freestyle",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, enable Freestyle and add line-render parity scenes.",
+      "blocker": "Chosen browser launch scope cut: WITH_FREESTYLE is forced OFF and Freestyle render modules are not linked.",
+      "impact": "Freestyle non-photorealistic line rendering and its associated controls are unavailable.",
+      "workaround": "Render Freestyle output on desktop or use supported geometry/line alternatives.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/render/intern/pipeline.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-motion-tracking",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build LibMV and restore movie-clip tracking/solve registration with browser media coverage.",
+      "blocker": "Chosen browser launch scope cut: LibMV is not cross-built and WITH_LIBMV is forced OFF.",
+      "impact": "Movie Clip motion tracking, camera solve, and stabilization analysis cannot run in the browser product.",
+      "workaround": "Track and solve footage on desktop, then import the solved camera/data into the browser project.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/blenkernel/intern/tracking_solver.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-openxr",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, design an explicit WebXR-to-GHOST path rather than enabling the native OpenXR backend unchanged.",
+      "blocker": "Chosen browser launch scope cut: the native OpenXR path has no browser/WebXR bridge and WITH_XR_OPENXR is forced OFF.",
+      "impact": "VR session start, headset rendering, and XR navigation are unavailable in the browser product.",
+      "workaround": "Use the ordinary browser 3D viewport; run XR workflows in a native build.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/editors/space_view3d/view3d_view.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
+      "id": "feature-off-jpeg2000-webp-dpx",
+      "status": "deferred",
+      "milestone": "M8 launch registry",
+      "revisit": "Post-launch, cross-build and test the OpenJPEG/WebP/Cineon-DPX codec paths against browser memory and payload budgets.",
+      "blocker": "Chosen browser launch scope cut: WITH_IMAGE_OPENJPEG, WITH_IMAGE_WEBP, and WITH_IMAGE_CINEON are forced OFF.",
+      "impact": "JPEG 2000, WebP, Cineon, and DPX image load/save paths are unavailable; supported PNG/JPEG/OpenEXR paths are unaffected.",
+      "workaround": "Convert these images to PNG, JPEG, or OpenEXR before browser use.",
+      "evidence": "patches/blender_web.cmake; upstream/source/blender/blenkernel/intern/image_format.cc; notes/m8-deferral-registry-completeness-20260826.md"
+    },
+    {
       "id": "ime-dead-keys",
       "status": "partial",
       "milestone": "M4 (GHOST-web design)",
@@ -268,55 +428,55 @@
       "id": "wsl2-hardware-webgpu-m3",
       "status": "deferred",
       "milestone": "M3",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "Run the strict producer on the driver-operated Apple M4 Pro; this WSL lane must not retry dzn, Windows interop, or any reboot path.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The fresh strict native-Dawn/Vulkan adapter, device, GPU-test, shader-cache, and final no-work receipt cannot be produced inside this WSL instance. Device-free native/wasm32 contracts remain valid but do not satisfy the live M3 receipt.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The fresh strict native-Dawn/Vulkan adapter, device, GPU-test, shader-cache, and final no-work evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. Device-free native/wasm32 contracts remain valid but do not satisfy the live M3 receipt.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m4",
       "status": "deferred",
       "milestone": "M4",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "Run the current CAPTURE generation on the driver-operated Apple M4 Pro for P0-D/P0-E semantic pixels and accepted success/terminal profiles, then relink the hash-bound APPLY product.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The strict CAPTURE profiles, hardware-bound APPLY product, and fresh splash/workspace pixel receipt cannot be produced here. P0-D patch 0281 has device-free and fallback warning evidence, but still requires semantic viewport pixels, a real overlay_grid_next draw, complete OCIO_Display, and interaction pixel deltas on conformant hardware. The historical macOS PASS remains historical and no software Chromium capture can replace it.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/p0-bind-group-readiness-20260826.md"
+      "impact": "The strict CAPTURE profiles, hardware-bound APPLY product, and fresh splash/workspace pixel evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. The CAPTURE split generation exists, but accepted profiles plus P0-D/P0-E semantic-pixel verification still gate APPLY; software Chromium can replace neither.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/p0-bind-group-readiness-20260826.md; notes/p0-redraw-recovery-20260826.md; notes/p0-window-resize-recovery-20260826.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m5",
       "status": "deferred",
       "milestone": "M5",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "After accepted Apple CAPTURE profiles authorize APPLY, run interaction, click-pick, canvas, and latency producers on the driver-operated Apple M4 Pro.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The interaction-parity, canvas, click-pick, and latency producers require the hardware-bound APPLY product and reject software adapters before evidence allocation. Authored sessions and device-free producer contracts remain valid but are not a live M5 receipt.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The interaction-parity, canvas, click-pick, and latency evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. Those producers require the hardware-bound APPLY product and reject software adapters before allocation; authored sessions and device-free contracts remain non-receipt evidence.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m6-gpu",
       "status": "deferred",
       "milestone": "M6",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "After accepted Apple CAPTURE profiles authorize APPLY, run the Workbench and EEVEE matrices on the driver-operated Apple M4 Pro.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "Cycles-CPU remains 27/27 GREEN in immutable Linux receipt m6-cycles-ornith-linux-20260820-r5. Only the 20-row Workbench and 30-row EEVEE browser matrices lack a truthful hardware-GPU receipt; software pixels bind none.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The Workbench and EEVEE browser-matrix evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. Cycles-CPU remains 27/27 GREEN in immutable Linux receipt m6-cycles-ornith-linux-20260820-r5; software pixels bind none.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m7",
       "status": "deferred",
       "milestone": "M7",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "After accepted Apple CAPTURE profiles authorize APPLY, run the strict files/pipeline browser producer on the driver-operated Apple M4 Pro.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The device-free OPFS/FSA/file-bridge contracts and CPU IO evidence remain valid, but the strict browser files/pipeline receipt must run on the hardware-bound APPLY product. The current producers reject fallback adapters and an absent APPLY manifest before allocation.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The strict browser files/pipeline evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. Device-free OPFS/FSA/file-bridge contracts and CPU IO evidence remain valid, but the strict producer requires the hardware-bound APPLY product and rejects fallback adapters before allocation.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m8",
       "status": "deferred",
       "milestone": "M8",
-      "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
+      "revisit": "After accepted Apple CAPTURE profiles authorize APPLY, run the hardware product/performance/soak matrix on the driver-operated Apple M4 Pro; keep the independent payload/latency bar red until measured green.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The hardware Chrome/Edge product, performance, staged-capture, and soak receipts cannot be produced in WSL. The independent m8-wasm-15mb-bar size/latency blocker remains active, so this external deferral alone does not satisfy M8 or authorize a launch claim.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The hardware product, performance, staged-capture, and soak evidence cannot be produced on this WSL2 host; a driver-operated conformant Apple M4 Pro host exists and can bind the project receipt. The independent m8-wasm-15mb-bar size/latency blocker remains active, so this host deferral alone does not satisfy M8 or authorize a launch claim.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/m8-deferral-registry-completeness-20260826.md"
     },
     {
       "id": "m8-wasm-15mb-bar",

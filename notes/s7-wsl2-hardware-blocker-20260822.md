@@ -15,6 +15,20 @@ artifact, or accept a software adapter.
 
 A software/fallback adapter binds no receipt, profile, or split product.
 
+## 2026-08-26 project-scope truth correction
+
+This blocker applies only to the autonomous WSL2 lane. It is no longer a project-level claim
+that conformant hardware evidence is impossible. A driver-operated Apple M4 Pro reports a genuine
+Metal WebGPU adapter (`vendor=apple`, `architecture=metal-3`,
+`adapter.info.isFallbackAdapter=false`) and passes the capture producer's Darwin self-check. That
+host has already booted the real product and rendered interactive shaded viewport content.
+
+The current box-built artifact is now a strict CAPTURE split generation. The external host still
+must return accepted success and terminal-error profiles for that exact generation, and P0-D/P0-E
+still require semantic pixel verdicts before a hash-bound APPLY product can carry downstream
+receipts. Therefore the six WSL rows remain deferred for this lane, but cannot justify project
+completion.
+
 ## Measured adapter boundary
 
 Mesa 26.0.8 dzn is installed as an opt-in Vulkan-on-D3D12 ICD at
@@ -56,12 +70,16 @@ hardware-Vulkan implementation therefore cannot be selected from inside this VM.
   the existing `m8-wasm-15mb-bar` size/latency failure.
 
 The six exact dispositions live in `ledger/deferred.json`. They defer only evidence that cannot
-truthfully be produced on this host; they do not turn a RED harness result green.
+truthfully be produced on this host; they do not turn a RED harness result green and do not claim
+that another sanctioned host cannot produce it.
 
 ## Revisit path
 
-A conformant path is staged for later through Windows-side Edge 150 over CDP. It requires a normal
-host reboot before WSL interop and the recovery startup entry take effect. Fleet iterations must
-never restart WSL to force that transition: doing so can strand the fleet and SSH access. After
-the external reboot, execute `~/bw-logs/POST-REBOOT-WINDOWS-EDGE.md`, preserve every existing
-adapter guard, and generate wholly fresh profiles and receipts.
+Use the driver-operated Apple M4 Pro. Preserve every adapter guard and bind only fresh profiles and
+receipts produced from the exact CAPTURE/APPLY artifact generation under test.
+
+The Windows-side Edge plan is closed. A reboot after the interop configuration was staged did not
+restore Windows process execution; all discovered WSL interop sockets timed out and no SSH, RDP,
+WinRM, or CDP route to the host was available. Restoring that route would require a Windows reboot
+plus interactive logon and could strand the WSL-hosted Tailscale access. Fleet iterations must not
+retry this path or restart WSL/Windows.

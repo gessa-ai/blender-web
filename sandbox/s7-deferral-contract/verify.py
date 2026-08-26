@@ -15,6 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 LEDGER = ROOT / "ledger/deferred.json"
 NOTE = ROOT / "notes/s7-wsl2-hardware-blocker-20260822.md"
+TRUTH_NOTE = ROOT / "notes/m8-deferral-registry-completeness-20260826.md"
 BLOCKER = (
     "no conformant hardware Vulkan ICD in WSL2 "
     "(NVIDIA ships none; Mesa dzn rejected by Dawn)"
@@ -62,12 +63,25 @@ def main() -> None:
             fail(f"milestone={row_id}")
         if row.get("blocker") != BLOCKER:
             fail(f"blocker={row_id}")
-        if row.get("evidence") != NOTE.relative_to(ROOT).as_posix():
+        evidence = str(row.get("evidence", ""))
+        if NOTE.relative_to(ROOT).as_posix() not in evidence:
             fail(f"evidence={row_id}")
-        if "Windows-side Edge 150" not in str(row.get("revisit", "")):
+        if TRUTH_NOTE.relative_to(ROOT).as_posix() not in evidence:
+            fail(f"truth-evidence={row_id}")
+        revisit = str(row.get("revisit", ""))
+        if "driver-operated Apple M4 Pro" not in revisit:
             fail(f"revisit={row_id}")
-        if not str(row.get("impact", "")).strip():
-            fail(f"impact={row_id}")
+        impact = str(row.get("impact", ""))
+        for token in (
+            "on this WSL2 host",
+            "driver-operated conformant Apple M4 Pro",
+            "project receipt",
+        ):
+            if token not in impact:
+                fail(f"impact={row_id}:{token}")
+        stale = (impact + "\n" + revisit).lower()
+        if "normal host reboot" in stale or "windows-side edge" in stale:
+            fail(f"stale-revisit={row_id}")
 
     if "27/27" not in str(by_id["wsl2-hardware-webgpu-m6-gpu"].get("impact", "")):
         fail("m6-cpu-boundary")
@@ -82,13 +96,17 @@ def main() -> None:
         "RequestAdapter failed: No supported adapters",
         "vulkan-1-x64.dll",
         "/usr/lib/wsl/drivers",
-        "Windows-side Edge 150",
-        "never restart WSL",
+        "driver-operated Apple M4 Pro",
+        "strict CAPTURE split generation",
+        "Windows-side Edge plan is closed",
+        "retry this path or restart WSL/Windows",
         "binds no receipt, profile, or split product",
     )
     missing = [token for token in required_note_tokens if token not in note]
     if missing:
         fail(f"note-token={missing[0]}")
+    if "A conformant path is staged for later through Windows-side Edge" in note:
+        fail("stale-reboot-path")
 
     blocker_sha = hashlib.sha256(BLOCKER.encode()).hexdigest()[:12]
     print(

@@ -27,3 +27,21 @@ Current conformance status and the complete named limitation registry are publis
 [PARITY.md](PARITY.md), generated from committed receipts and ledger data. A green
 subsystem result does not imply the complete launch gate; `LAUNCH.md` and the
 fail-closed M8 verifier remain binding.
+
+## Release reproducibility
+
+`scripts/package-tagged-release.py` produces the static-hosting archive and a
+machine-readable sidecar receipt only from an annotated release tag at a clean
+`HEAD`, a strict PASS `APPLY` split manifest, and the exact derived staged bundle.
+It normalizes archive metadata and records every shipped byte, the source commit
+and tree, the upstream pin, and the accepted profile provenance. Run the same
+command twice to require byte-identical archives:
+
+```sh
+bash sandbox/m8-staged-deploy/make_staged_bundle.sh
+python3 scripts/package-tagged-release.py \
+  --tag vX.Y.Z --output /tmp/blender-web-vX.Y.Z.tar.gz
+```
+
+Diagnostic `CAPTURE` generations are deliberately rejected and cannot be
+packaged as releases. See [SETUP.md](SETUP.md) for build prerequisites.

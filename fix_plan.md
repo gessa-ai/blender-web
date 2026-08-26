@@ -2941,13 +2941,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green at their applicable boundaries; refreshed M8 remains honestly RED at its pre-existing 23
   APPLY/browser/tier failures. No public deployment, product, profile, receipt, result, or promise
   was promoted. See `notes/m8-public-parity-dashboard-20260826.md`.
-- [~] **P1-RELEASE-TAGGED-BUILD-CORRESPONDENCE [driver, claimed_by: root]:** add a
-  fail-closed deterministic packager that binds an annotated release tag at clean `HEAD`, the exact
-  successful APPLY inventory, the fully derived public staged tree, and every shipped byte into one
-  normalized archive plus a machine-readable source/artifact receipt. CAPTURE must remain
-  unshippable. **Not resolved:** the current generation still needs Apple P0-E/P0-G pixels and
-  accepted exact-generation profiles before APPLY, so no release tag or public artifact may be
-  created in this iteration.
+- [x] **P1-RELEASE-TAGGED-BUILD-CORRESPONDENCE [driver] (`2946f0e`):** the
+  deterministic packager now binds an annotated release tag at clean `HEAD`, the strict successful
+  APPLY inventory/preflight, independently replayed full staged provenance, and every exact public
+  bundle byte into a normalized USTAR/gzip archive plus source/artifact sidecar. It rejects ten
+  tag/tree/inventory/archive mutations, refuses overwrite/symlinks/extras, strips local receipt
+  paths, and explicitly rejects the current CAPTURE artifact. Both programs are required by the
+  two-root release freeze and the public README documents the invocation. **Boundary:** this closes
+  the reproducibility contract, not the release: Apple P0-E/P0-G pixels and accepted exact-generation
+  profiles remain mandatory before APPLY, tagging, or publication. See
+  `notes/release-tagged-build-correspondence-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
   120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256

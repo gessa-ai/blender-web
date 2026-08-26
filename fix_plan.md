@@ -3012,6 +3012,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Current contract-shaped provisional wire is approximately 14,994,702 bytes, only 5,298 under
   the bar; accepted Apple profiles, exact APPLY assembly, <=8 second hardware timing, and the real
   receipt remain mandatory. See `notes/m8-complete-critical-wire-20260826.md`.
+- [x] **P1-M8-STAGE0-PRELOAD-MANIFEST [driver] (`9db6040`):** deferred files are now absent
+  from the critical preload manifest instead of repeated as 2,962 zero-byte entries. The packer
+  fail-closes unless Emscripten's 448 baked `FS_createPath` calls cover all 335 deferred parents.
+  The first absent-file browser candidate exposed a masked urllib3 startup access, so its 3,655-byte
+  Emscripten fetch worker returned to Stage 0 before landing. Six real monolith/candidate browser
+  A/B contracts preserve startup, trusted input, lazy formats, compiled sources, support scripts,
+  codecs, NumPy, and byte-exact Stage 1 with zero serious/page errors. Exact q11 data/glue is
+  2,595,747 + 60,806 bytes, a net 14,948-byte improvement; complete provisional wire is now
+  approximately 14,979,754 bytes, 20,246 under the bar. Accepted profiles, APPLY, exact public
+  assembly, hardware pixels, and <=8 second timing remain mandatory. See
+  `notes/m8-stage0-preload-manifest-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

@@ -3148,11 +3148,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   recovery/integrity/memory defects, and two low process findings. It found no upstream/harness/
   oracle/golden/result mutation, promise promotion, dependency-provenance loss, or hidden
   deferral. See `reports/audit-20260826-r13.md`.
-- [ ] **AUDIT-R13-M8-OBSERVED-CRITICAL-WIRE [driver, claimed_by: none, blocked-by: none]:** replace
-  the fixed boot-critical allowlist with a browser-observed inventory of every same-origin request
-  from navigation through semantic interaction. Map each response to an exact bundle artifact and
-  count it, or reject unknown/duplicate/unmappable requests. Add a false-green negative that injects
-  an unlisted early request; the 15 MB receipt must count it or fail closed.
+- [x] **AUDIT-R13-M8-OBSERVED-CRITICAL-WIRE [driver] (`88bac1b`):** the performance producer now
+  records every same-origin request/response through semantic interaction and maps queryless
+  GET/200+Brotli responses to exact raw bundle artifacts. Known extra paths enter the critical set;
+  unknown, duplicate, queried, unmapped, missing, or non-Brotli responses fail closed. The composer
+  independently derives each cold-run set, counts their union, and the final verifier recomputes
+  that union plus exact `.br` sizes. Fail-first/final producer, composer, consumer, aggregate, and
+  freeze contracts are green. Existing Apple CAPTURE evidence contains 28 `blender_browser.js`
+  requests, so the old unique-file projection is no longer treated as a launch receipt; only a
+  future exact public-bundle run can establish the real <=15 MB verdict.
 - [ ] **AUDIT-R13-M8-STAGE1-FAILURE-RECOVERY [driver, claimed_by: none, blocked-by: none]:** the
   Stage-1 loader's one-shot latch survives module/fetch/integrity failure, so all later calls return
   the same error until reload. Share one in-flight promise, reset failed-attempt state, provide a

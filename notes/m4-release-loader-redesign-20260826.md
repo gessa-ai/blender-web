@@ -53,12 +53,57 @@ identity/provenance consumers, exact-tree checks, third-party inventory, and REU
 - The pinned-container regression restores M0 to 6/6 while preserving the existing M1-M8
   receipt/APPLY/product boundaries in `ledger/buildlogs/20260826T200445-1204020.log`.
 
+## Actual-product boot correction and exact relink
+
+The first layout-only browser proof routed `boot-windowed.js` to an empty response, so it did not
+execute the redesigned loader's real startup path. The release relink pass found the resulting
+failure before publication: the real page stayed at `state=loading module`, requested neither the
+Wasm nor data payload, and reported `ReferenceError: setIndeterminate is not defined`. The redesign
+had removed the indeterminate helper and CSS but left one startup call behind.
+
+Commit `824686b` replaces that stale call with `setProgress(0)`, preserving the single truthful
+determinate bar while the independent ring provides activity. The static loader contract now rejects
+any surviving `setIndeterminate` call and requires the zero-percent startup reset. The P0-G browser
+diagnostic also passes Playwright timeouts in the documented third argument, fails early on an
+explicit shell error, and persists a bounded DOM/page-error/console tail on failure instead of
+discarding it.
+
+Evidence:
+
+- fail-first actual-product evidence is preserved in
+  `sandbox/p0-widget-shadow/artifacts/diagnostic-failure.json`: `state=loading`, one page error,
+  and the exact missing-function exception;
+- final loader source/browser, P0-G source, and JavaScript syntax contracts pass in
+  `ledger/buildlogs/20260826T202911-1222808.log`, `20260826T202911-1222809.log`,
+  `20260826T202911-1222813.log`, `20260826T202911-1222827.log`, and
+  `20260826T202911-1222820.log`;
+- public disclaimer, deployment portability, monolithic/staged assembly, minifier, technical
+  receipt, performance producer, and exact stage-provenance checks pass in
+  `ledger/buildlogs/20260826T203130-1225796.log`, `20260826T203130-1225797.log`,
+  `20260826T203130-1225801.log`, `20260826T203130-1225810.log`,
+  `20260826T203143-1226149.log`, `20260826T203143-1226153.log`,
+  `20260826T203143-1226161.log`, and `20260826T203204-1226545.log`;
+- the exact-commit clean CAPTURE relink and no-work replay pass in
+  `ledger/buildlogs/20260826T203329-1228089.log` and `20260826T203435-1228650.log`;
+- strict CAPTURE inventory passes in `ledger/buildlogs/20260826T203617-1230257.log`;
+- the final same-artifact browser run reaches `WM_main` in 28 seconds with 261 ticks, 18 uncapped
+  presentations, zero page errors, and one black-RGB widget-shadow WGSL publication in
+  `ledger/buildlogs/20260826T203518-1229660.log`;
+- pinned REUSE 6.2.0 passes in `ledger/buildlogs/20260826T203229-1227335.log`.
+
+The clean CAPTURE identities are: JavaScript 707,146 bytes at SHA-256 `901fa6ac74f0`; instrumented
+Wasm 120,496,022 bytes at `a5534014979c`; `.wasm.orig` 119,142,918 bytes at `5a9d09440073`;
+data 167,143,248 bytes at `09e58a25849e`; and schema-1 manifest 13,219 bytes at
+`fe3fb7c007c0`. A second clean regeneration reproduced all five identities exactly. The manifest's
+`prior_receipt_invalidated_before_mutation=false` truthfully records that the clean relink began
+without an old receipt beside the outputs.
+
 ## Boundary
 
-This is a shell/public-bundle source change. It did not relink Blender, assemble or publish a
-release bundle, change the CAPTURE generation, consume or promote an Apple profile, authorize
-APPLY, bind a hardware receipt, or change a result/promise/tolerance/golden/blacklist/deferral.
-Required M4 remains red locally because this host cannot bind hardware pixels. Required M8 remains
-red at its existing accepted-profile, APPLY-product, browser-receipt, and tier-evidence boundaries.
-The next release relink must include this loader together with the already committed resize,
-pointer-lock, and P0-G candidates before the driver-operated Apple hardware gauntlet.
+The release-quality CAPTURE generation is now freshly relinked and served with the corrected loader,
+resize, pointer-lock, and P0-G candidates. It remains non-shipping and has no deferred shard. No
+Apple profile or receipt was consumed or promoted, APPLY was not authorized, and no result/promise/
+tolerance/golden/blacklist/deferral changed. Required M4 remains red locally because this host cannot
+bind hardware pixels. The driver-operated Apple rig must still verify P0-E idle shrink/restore and
+P0-G transient-shadow pixels, then produce fresh success plus terminal-error profiles against exact
+`.wasm.orig` SHA-256 `5a9d09440073...` before a hash-bound APPLY relink is legal.

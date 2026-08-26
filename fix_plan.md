@@ -2905,23 +2905,28 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** this is a pixel defect; the Apple rig must show black/translucent shadows and
   zero white rings/bars during tooltip, flyout, and Adjust Last Operation interactions. See
   `notes/p0-widget-shadow-defined-rgb-20260826.md`.
-- [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`):** the windowed loader now
+- [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`, boot correction `824686b`):** the windowed loader now
   uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
   plus one single-line GPL source/trademark footer. The proof/marketing copy moved to `README.md`;
   `#bw-diag`, `?gate=`, and first-semantic-pixel dismissal are preserved. A reproducible renamed
   Inter 4.001 subset ships locally at 9,500 bytes (SHA-256
   `266290448afbfd4c6ce386bbad0b305b478ca2612f665d1b26e5efc4d17e8190`) with OFL metadata,
   immutable MIME/cache policy, precache, monolithic/staged inventory, provenance, and exact-tree
-  coverage. Fail-first, real-browser/no-external-request, public-disclaimer, assembler, technical
-  receipt, critical-wire, full M8 technical-compliance, REUSE, and M0 6/6 regression checks are
-  green. **Boundary:** this shell-only pass did not relink or publish a product, bind pixels, or
-  authorize APPLY; M4 and M8 retain their hardware/profile/APPLY/product boundaries. See
+  coverage. The release relink exposed one stale call to the removed `setIndeterminate()` helper;
+  `824686b` replaces it with a truthful `setProgress(0)` reset and makes both loader and P0-G
+  diagnostics fail closed on that real startup path. Final same-artifact fallback boot reaches
+  `WM_main` with 261 ticks, 18 uncapped presentations, zero page errors, and black-RGB widget WGSL.
+  Public-shell consumers, REUSE, and M0 6/6 regression checks are green. **Boundary:** the clean
+  CAPTURE relink is nonshipping; Apple P0-E/P0-G pixels and fresh exact-generation profiles remain
+  mandatory before APPLY or publication. See
   `notes/m4-release-loader-redesign-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,142,918-byte `.wasm.orig` at
-  SHA-256 `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`, and a schema-1 PASS
-  split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
-  contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
+  freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
+  120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256
+  `5a9d0944007313bed75ac3deaf24d3c48e443a423c93918dbb561abb76d0d65b`, and a schema-1 PASS
+  clean-build manifest. Inventory preflight, the strict producer self-check, two-phase source
+  contract, locked no-work replay, deterministic regeneration, and exact-artifact fallback boot
+  are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
   produce the exact success plus terminal-error profiles; only their accepted union can authorize
   the hash-bound APPLY relink. Any intervening relink requires new profiles. See

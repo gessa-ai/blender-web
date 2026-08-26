@@ -24,7 +24,8 @@
 #   DROP  - never needed at runtime: __pycache__/.pyc (already pruned upstream),
 #           pip .whl.  Omitted from both stages.
 #   DEFER - not touched at English --factory-startup boot (-> stage-1):
-#           dead stdlib modules, non-enabled addons (rigify, ...), CJK/intl fonts
+#           dead stdlib modules, non-enabled addons (rigify, ...), factory-unselected
+#           application templates, CJK/intl fonts
 #           (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
 #           (keep config.ocio + the default AgX display path), build-time/compiled-in
 #           source assets, external StudioLight images, and NumPy's test corpus.
@@ -88,6 +89,11 @@ def classify(fn, defer_datafiles):
     if "/bw/scripts/addons_core/" in fn and not any(
         "addons_core/" + a + "/" in fn for a in STAGE0_ADDONS
     ):
+        return "defer"
+    # DEFER: factory startup has no selected application template. These alternate
+    # startup files are needed only after the user chooses File > New, by which
+    # time the post-first-pixel Stage-1 stream has restored their real bytes.
+    if "/bw/scripts/startup/bl_app_templates_system/" in fn:
         return "defer"
     if defer_datafiles:
         # DEFER: source assets compiled into Blender (preview*.blend and splash.png),

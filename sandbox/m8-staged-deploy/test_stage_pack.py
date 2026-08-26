@@ -68,6 +68,8 @@ def main() -> None:
         "/bw/scripts/addons_core/rigify/__init__.py": "defer",
         "/bw/scripts/addons_core/cycles/__init__.py": "keep",
         "/bw/scripts/addons_core/io_scene_gltf2/__init__.py": "keep",
+        "/bw/scripts/startup/bl_app_templates_system/2D_Animation/__init__.py": "defer",
+        "/bw/scripts/startup/bl_app_templates_system/2D_Animation/startup.blend": "defer",
         "/bw/datafiles/icons_blend/toolbar.blend": "defer",
         "/bw/datafiles/preview.blend": "defer",
         "/bw/datafiles/preview_grease_pencil.blend": "defer",
@@ -96,8 +98,9 @@ def main() -> None:
         ("/bw/python/lib/python3.13/__pycache__/x.pyc", "3", "6"),
         ("/usd/plugin.json", "6", "1e+1"),
         ("/bw/datafiles/fonts/Inter.woff2", "10", "15"),
+        ("/bw/scripts/startup/bl_app_templates_system/VFX/startup.blend", "15", "19"),
     ]
-    source_data = b"ABBCCCDDDDEEEEE"
+    source_data = b"ABBCCCDDDDEEEEEFFFF"
     with tempfile.TemporaryDirectory(prefix="bw-stage-pack-contract-") as temp_text:
         temp = Path(temp_text)
         source = write_source(temp, manifest(entries, len(source_data)), source_data)
@@ -107,7 +110,7 @@ def main() -> None:
             raise AssertionError(f"valid pack failed: {result.stderr or result.stdout}")
         if (output / "blender_browser.data").read_bytes() != b"AEEEEE":
             raise AssertionError("stage-0 concatenation changed")
-        if (output / "stage1.data").read_bytes() != b"BBDDDD":
+        if (output / "stage1.data").read_bytes() != b"BBDDDDFFFF":
             raise AssertionError("stage-1 concatenation changed")
         _, _, packed_entries, packed_size = MODULE.parse_manifest(
             (output / "blender_browser.js").read_text(encoding="utf-8")
@@ -117,6 +120,7 @@ def main() -> None:
             (entries[1][0], 0, 0),
             (entries[3][0], 0, 0),
             (entries[4][0], 1, 6),
+            (entries[5][0], 0, 0),
         ]
         if packed_entries != expected_entries or packed_size != 6:
             raise AssertionError(
@@ -124,10 +128,11 @@ def main() -> None:
             )
         stage1 = json.loads((output / "stage1-manifest.json").read_text(encoding="utf-8"))
         if stage1 != {
-            "total_bytes": 6,
+            "total_bytes": 10,
             "files": [
                 {"filename": entries[1][0], "start": 0, "end": 2},
                 {"filename": entries[3][0], "start": 2, "end": 6},
+                {"filename": entries[5][0], "start": 6, "end": 10},
             ],
         }:
             raise AssertionError(f"stage-1 manifest changed: {stage1!r}")
@@ -136,7 +141,7 @@ def main() -> None:
         expect_exit(
             "unparsed manifest entry",
             lambda: MODULE.parse_manifest(malformed),
-            "parsed 4 of 5 manifest entries",
+            "parsed 5 of 6 manifest entries",
         )
         invalid_source = temp / "invalid"
         invalid_source.mkdir()
@@ -145,7 +150,7 @@ def main() -> None:
         )
         (invalid_source / "blender_browser.data").write_bytes(source_data)
         invalid = run_packer(invalid_source, temp / "invalid-out")
-        if invalid.returncode == 0 or "remote_package_size 14 != data bytes 15" not in (
+        if invalid.returncode == 0 or "remote_package_size 18 != data bytes 19" not in (
             invalid.stderr + invalid.stdout
         ):
             raise AssertionError("end-to-end remote-size mutation did not fail closed")

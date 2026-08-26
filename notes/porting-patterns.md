@@ -1719,3 +1719,16 @@ assignment so no backend must preserve a partial write across those passes. Veri
 at the browser API, not just the input GLSL, and keep pixel closure hardware-gated. See
 `upstream/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl` and
 `notes/p0-widget-shadow-defined-rgb-20260826.md`.
+
+## Class 117 — runtime-ready is not first-pixel-ready
+
+Signature: a long-lived browser runtime resolves its module and enters the application main loop
+before Python startup, shader translation, and the first surface submission finish. A wall-clock
+"settle" fallback tied to that runtime marker hides the loader while the uncapped presentation
+counter is still zero, exposing seconds of black or partial warmup even though the primary
+first-pixel signal is correct. Keep the real presentation signal primary; if its log text can
+drift, poll an uncapped successful-presentation counter, require a finite positive value, and stop
+at a hard ceiling without hiding on timeout. Exercise the rejected timer, the real marker, and a
+masked-marker counter fallback against the same product. See
+`platform_web/shell/boot-windowed.js` and
+`sandbox/m4-frame-coherence/`.

@@ -197,6 +197,10 @@ let t0 = 0;
 let finished = false;
 let booted = false;
 let firstPixels = false;
+const FIRST_PIXELS_POLL_MS = 100;
+const FIRST_PIXELS_POLL_LIMIT = 1200;
+let firstPixelsPollTimer = 0;
+let firstPixelsPollAttempts = 0;
 
 // ---------------------------------------------------------------------------
 // Diagnostics plumbing - writes to the HIDDEN elements only. The state marker
@@ -281,6 +285,10 @@ function hideLoader() {
 function noteFirstPixels(reason) {
   if (firstPixels) return;
   firstPixels = true;
+  if (firstPixelsPollTimer) {
+    clearTimeout(firstPixelsPollTimer);
+    firstPixelsPollTimer = 0;
+  }
   append("[shell] first pixels (" + reason + ") - dismissing loader", "sys");
   hideLoader();
 }
@@ -290,6 +298,35 @@ function scanForPixels(line) {
   if (line.indexOf("presentBackbuffer") !== -1) {
     noteFirstPixels("presentBackbuffer");
   }
+}
+
+// FIRST_PIXELS_COUNTER_FALLBACK_V1
+// The console marker above is the primary signal. If its text changes, fall back
+// to GHOST's uncapped successful-presentation counter rather than elapsed wall
+// time: WM_main resolves long before Python/shader warmup produces a frame. The
+// poll is bounded and fails closed; zero presentations leave the loader visible.
+function armFirstPixelsCounterFallback(mod) {
+  firstPixelsPollAttempts = 0;
+  const poll = () => {
+    firstPixelsPollTimer = 0;
+    if (firstPixels || finished) return;
+    if (mod && typeof mod._bw_present_count === "function") {
+      const presents = Number(mod._bw_present_count());
+      if (Number.isFinite(presents) && presents > 0) {
+        noteFirstPixels("present counter");
+        return;
+      }
+    }
+    firstPixelsPollAttempts++;
+    if (firstPixelsPollAttempts >= FIRST_PIXELS_POLL_LIMIT) {
+      append("[shell] no successful presentation after " +
+        String((FIRST_PIXELS_POLL_MS * FIRST_PIXELS_POLL_LIMIT) / 1000) +
+        "; loader remains visible", "err");
+      return;
+    }
+    firstPixelsPollTimer = setTimeout(poll, FIRST_PIXELS_POLL_MS);
+  };
+  poll();
 }
 
 // ===========================================================================
@@ -642,9 +679,10 @@ async function boot() {
           mq.addEventListener("change", onWindowResize);
         }
       } catch (_) {}
-      // Fallback: if presentBackbuffer is never seen (format drift), dismiss the
-      // loader a short settle after WM_main so the black boot screen can't stick.
-      setTimeout(() => noteFirstPixels("WM_main settle"), 2500);
+      // Fallback for a changed printf format: consume the uncapped successful-
+      // presentation counter. A wall-clock timeout must never expose a canvas
+      // that has not presented a frame.
+      armFirstPixelsCounterFallback(mod);
     } else {
       // Gate mode: never show loading UI once booted.
       if (loaderEl) { loaderEl.classList.add("bw-hidden", "bw-gone"); }

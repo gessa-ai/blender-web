@@ -25,8 +25,9 @@
 #           pip .whl.  Omitted from both stages.
 #   DEFER - not touched at English --factory-startup boot (-> stage-1):
 #           dead stdlib modules, non-enabled addons (rigify, ...), factory-unselected
-#           application templates, NumPy (not imported before first pixels), CJK/intl fonts
-#           (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
+#           application templates, NumPy (not imported before first pixels), file-format
+#           implementation modules outside the enabled add-ons' boot registration closure,
+#           CJK/intl fonts (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
 #           (keep config.ocio + the default AgX display path), build-time/compiled-in
 #           source assets and external StudioLight images.
 #           [--defer-datafiles]
@@ -57,6 +58,23 @@ STAGE0_ADDONS = (
     "bl_pkg", "cycles", "io_scene_fbx", "io_scene_gltf2", "io_anim_bvh", "pose_library",
     "io_curve_svg", "io_mesh_uv_layout",
 )
+# Native factory-startup and a real windowed CAPTURE boot agree on this exact
+# registration/UI closure for the enabled file-format add-ons. Their import/export
+# implementations are first used by the post-Stage-1 M7 operator lane, so keeping
+# whole add-on trees in Stage 0 duplicates cold Python on the first-pixel wire.
+STAGED_FORMAT_ADDONS = frozenset({
+    "io_anim_bvh", "io_curve_svg", "io_mesh_uv_layout", "io_scene_fbx", "io_scene_gltf2",
+})
+STAGE0_FORMAT_BOOT_FILES = frozenset({
+    "io_anim_bvh/__init__.py",
+    "io_curve_svg/__init__.py",
+    "io_mesh_uv_layout/__init__.py",
+    "io_scene_fbx/__init__.py",
+    "io_scene_gltf2/__init__.py",
+    "io_scene_gltf2/blender/__init__.py",
+    "io_scene_gltf2/blender/com/gltf2_blender_ui.py",
+    "io_scene_gltf2/blender/com/material_helpers.py",
+})
 INTL_FONT_KEEP = ("Inter.woff2", "DejaVuSansMono.woff2")
 CM_LUT_KEEP = ("config.ocio", "AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1d",
                "AgX_False_Color.spi1d")
@@ -86,11 +104,16 @@ def classify(fn, defer_datafiles):
     # keeping these out of the first-pixel payload is both safe and measurable.
     if fn.startswith("/usd/"):
         return "defer"
-    # DEFER: addons not enabled at --factory-startup.
-    if "/bw/scripts/addons_core/" in fn and not any(
-        "addons_core/" + a + "/" in fn for a in STAGE0_ADDONS
-    ):
-        return "defer"
+    # DEFER: add-ons not enabled at --factory-startup, plus enabled file-format
+    # implementation modules outside the measured registration/UI boot closure.
+    addon_prefix = "/bw/scripts/addons_core/"
+    if fn.startswith(addon_prefix):
+        relative = fn[len(addon_prefix):]
+        addon = relative.partition("/")[0]
+        if addon not in STAGE0_ADDONS:
+            return "defer"
+        if addon in STAGED_FORMAT_ADDONS and relative not in STAGE0_FORMAT_BOOT_FILES:
+            return "defer"
     # DEFER: factory startup has no selected application template. These alternate
     # startup files are needed only after the user chooses File > New, by which
     # time the post-first-pixel Stage-1 stream has restored their real bytes.

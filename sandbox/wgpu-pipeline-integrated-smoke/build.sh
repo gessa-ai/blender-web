@@ -65,6 +65,8 @@ CLIPBOARD_BRIDGE_CONTRACT="$HERE/clipboard_bridge_contract.py"
 IME_BRIDGE_CONTRACT="$HERE/ime_bridge_contract.py"
 IME_FOCUS_OWNERSHIP_CONTRACT="$ROOT/sandbox/m4-ime-focus-ownership/source_contract.py"
 IME_FOCUS_OWNERSHIP_TEST="$ROOT/platform_web/ghost/harness/ime_composition_test.mjs"
+FOCUS_TRANSITION_ORDER_CONTRACT="$ROOT/sandbox/m4-focus-transition-order/source_contract.py"
+FOCUS_TRANSITION_ORDER_TEST="$ROOT/sandbox/m4-focus-transition-order/focus_transition_order_test.mjs"
 CURSOR_BRIDGE_CONTRACT="$HERE/cursor_bridge_contract.py"
 CURSOR_BRIDGE_TEST="$HERE/cursor_bridge_test.mjs"
 GHOST_BASE_WINDOW_SOURCE="$ROOT/upstream/intern/ghost/intern/GHOST_Window.cc"
@@ -255,6 +257,8 @@ require_file "$WINDOW_HIT_TEST_CONTRACT"
 require_file "$CLIPBOARD_BRIDGE_CONTRACT"
 require_file "$IME_BRIDGE_CONTRACT"
 require_file "$IME_FOCUS_OWNERSHIP_CONTRACT"
+require_file "$FOCUS_TRANSITION_ORDER_CONTRACT"
+require_file "$FOCUS_TRANSITION_ORDER_TEST"
 require_file "$IME_FOCUS_OWNERSHIP_TEST"
 require_file "$CURSOR_BRIDGE_CONTRACT"
 require_file "$CURSOR_BRIDGE_TEST"
@@ -1763,6 +1767,8 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/patches/0280-ghost-web-input-ime-option.patch" "$ROOT/patches/series" --selfcheck
 "$PYBIN" "$IME_FOCUS_OWNERSHIP_CONTRACT" \
   "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" "$IME_FOCUS_OWNERSHIP_TEST" --selfcheck
+"$PYBIN" "$FOCUS_TRANSITION_ORDER_CONTRACT" \
+  "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" "$FOCUS_TRANSITION_ORDER_TEST" --selfcheck
 "$PYBIN" "$CURSOR_BRIDGE_CONTRACT" \
   "$GHOST_WINDOW_SOURCE" "$GHOST_WINDOW_HEADER" "$GHOST_SYSTEM_SOURCE" \
   "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \

@@ -131,9 +131,13 @@ class GHOST_SystemWeb : public GHOST_System {
   /** Publish the logical browser-focus state once. Returns true only for a transition. */
   bool transitionBrowserFocus(bool focused);
 
+  /** Mark DOM-event-time loss publications satisfied by an ordinary proxied blur. */
+  void acknowledgePublishedBrowserFocusLoss();
+
  private:
   bool registerCanvasCallbacks();
   void unregisterCanvasCallbacks();
+  void pollPublishedBrowserFocus();
 
   std::string canvas_selector_;
   GHOST_WindowWeb *window_ = nullptr;
@@ -159,5 +163,6 @@ class GHOST_SystemWeb : public GHOST_System {
   int32_t canvas_client_height_ = 0;
   GHOST_ModifierKeys modifiers_;
   bool browser_focus_active_ = false;
+  uint32_t browser_focus_loss_generation_ = 0;
   GHOST_Buttons buttons_;
 };

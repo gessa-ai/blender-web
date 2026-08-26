@@ -1601,3 +1601,17 @@ textarea-to-canvas handoffs, an ordinary page control, browser-window loss/recov
 `activeElement`, and exact listener retirement. See `platform_web/ghost/GHOST_SystemWeb.cc`,
 `sandbox/m4-ime-focus-ownership/`, and
 `platform_web/ghost/harness/ime_composition_test.mjs`.
+
+## Class 109 — proxied callbacks cannot reconstruct an intermediate DOM edge
+
+Signature: a DOM callback is proxied to a worker and decides whether a blur still matters by
+querying `activeElement` when the worker eventually runs. A same-task canvas-to-control-to-canvas
+transition has already restored the final state, so the blur is suppressed and held application
+input survives a real focus-domain boundary. Publish a monotonic loss generation synchronously in
+the capturing DOM event, then have the worker retire input before reconciling the live final state.
+When an ordinary proxied blur handles the loss first, acknowledge the generation so a later poll
+does not manufacture a duplicate deactivate/activate pair. Mark application-owned IME focus moves
+as explicit internal handoffs rather than inferring them from delayed DOM state. Exercise held
+modifier/button retirement under same-task blur/refocus, ordinary single-pair transitions,
+synthetic blur terminal behavior, and canvas/IME handoffs in the real worker topology. See
+`platform_web/ghost/GHOST_SystemWeb.cc` and `sandbox/m4-focus-transition-order/`.

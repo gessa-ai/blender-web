@@ -200,6 +200,7 @@ bool cb_canvas_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
   if (system == nullptr || system->browserFocusIsOwned()) {
     return false;
   }
+  system->acknowledgePublishedBrowserFocusLoss();
   return publish_browser_focus_transition(system, false);
 }
 
@@ -364,6 +365,14 @@ std::atomic<uint32_t> g_backing_generation{0};
 /* devicePixelRatio * 1000, so the DPR travels as an integer atomic. Default 1000 = 1.0. */
 std::atomic<int64_t> g_device_pixel_ratio_milli{1000};
 
+/* Browser focus events are observed on the DOM main thread but Emscripten delivers
+ * their C callbacks later on the PROXY_TO_PTHREAD WM worker. Canvas -> page control
+ * -> canvas can therefore complete before the first queued callback runs, hiding
+ * the intervening boundary that must retire held keys/buttons. Publish a monotonic
+ * loss generation so the WM worker can replay one fail-safe deactivate before
+ * querying and reconciling the live DOM state. */
+std::atomic<uint32_t> g_browser_focus_loss_generation{0};
+
 /* --- Idle keepalive state (ghost-keepalive) ------------------------------------------
  * The web WM_main is emscripten_set_main_loop(fn, 0, 1) - fps=0 => requestAnimationFrame on
  * THIS (WM/PROXY_TO_PTHREAD) worker (patch 0026). A worker's rAF is PRESENT-GATED: it stops
@@ -408,6 +417,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_set_display(int32_t backing_w,
      * guaranteed to also see the paired width/height. */
     g_backing_generation.fetch_add(1u, std::memory_order_release);
   }
+}
+
+/* DOM-main -> WM-worker focus-domain publication. A counter preserves a rapid
+ * loss/reacquisition even when the latest state is already true by the time the
+ * worker runs. This function performs one atomic operation only and is therefore
+ * safe to call from the browser main runtime thread. */
+extern "C" EMSCRIPTEN_KEEPALIVE void bw_shell_focus_lost()
+{
+  g_browser_focus_loss_generation.fetch_add(1u, std::memory_order_release);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_shell_focus_loss_generation()
+{
+  return double(g_browser_focus_loss_generation.load(std::memory_order_acquire));
 }
 
 /* Shell -> WM-worker idle-keepalive control (ghost-keepalive). Called by the shell from
@@ -727,37 +750,59 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
       var api = Object.freeze({
         schema: 1,
         begin: function (selector, x, y, width, height, completed) {
-          activeCanvas = document.querySelector(selector);
-          if (!activeCanvas) {
-            return false;
+          var focusBridge = globalThis.__bwFocusBridge;
+          if (focusBridge && typeof focusBridge.beginHandoff === "function") {
+            focusBridge.beginHandoff();
           }
-          enabled = true;
-          if (completed && composing) {
-            cancelComposition();
-            input.blur();
+          try {
+            activeCanvas = document.querySelector(selector);
+            if (!activeCanvas) {
+              return false;
+            }
+            enabled = true;
+            if (completed && composing) {
+              cancelComposition();
+              input.blur();
+            }
+            var bounds = activeCanvas.getBoundingClientRect();
+            input.style.left = Math.round(bounds.left + x) + "px";
+            input.style.top = Math.round(bounds.top + y) + "px";
+            input.style.width = Math.max(1, Math.round(width)) + "px";
+            input.style.height = Math.max(1, Math.round(height)) + "px";
+            input.focus({preventScroll: true});
+            return document.activeElement === input;
           }
-          var bounds = activeCanvas.getBoundingClientRect();
-          input.style.left = Math.round(bounds.left + x) + "px";
-          input.style.top = Math.round(bounds.top + y) + "px";
-          input.style.width = Math.max(1, Math.round(width)) + "px";
-          input.style.height = Math.max(1, Math.round(height)) + "px";
-          input.focus({preventScroll: true});
-          return document.activeElement === input;
+          finally {
+            if (focusBridge && typeof focusBridge.endHandoff === "function") {
+              focusBridge.endHandoff();
+            }
+          }
         },
         end: function () {
-          if (composing) {
-            cancelComposition();
+          var focusBridge = globalThis.__bwFocusBridge;
+          if (focusBridge && typeof focusBridge.beginHandoff === "function") {
+            focusBridge.beginHandoff();
           }
-          if (document.activeElement === input) {
-            input.blur();
+          try {
+            if (composing) {
+              cancelComposition();
+            }
+            if (document.activeElement === input) {
+              input.blur();
+            }
+            enabled = false;
+            composing = false;
+            input.value = "";
+            if (activeCanvas && typeof activeCanvas.focus === "function") {
+              activeCanvas.focus({preventScroll: true});
+            }
+            return true;
           }
-          enabled = false;
-          composing = false;
-          input.value = "";
-          if (activeCanvas && typeof activeCanvas.focus === "function") {
-            activeCanvas.focus({preventScroll: true});
+          finally {
+            if (focusBridge && typeof focusBridge.endHandoff === "function") {
+              focusBridge.endHandoff();
+            }
           }
-          return true;
         },
         snapshot: function () {
           return {
@@ -783,6 +828,105 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
     }
   });
 #endif /* WITH_INPUT_IME */
+
+  /* Observe focus-domain losses at DOM-event time. Emscripten's registered focus
+   * callbacks below are proxied to the WM worker and may run only after a later
+   * refocus, so querying `document.activeElement` from those callbacks can erase
+   * an intervening loss. A generation preserves the boundary; the worker queries
+   * the live DOM after retiring input to decide whether to reactivate. IME begin/end
+   * mark their synchronous canvas/textarea focus moves as one internal handoff. */
+  const int focus_bridge_bound = MAIN_THREAD_EM_ASM_INT({
+    if (typeof globalThis.__bwFocusBridge !== "object") {
+      var activeCanvas = null;
+      var handoffDepth = 0;
+      var sequence = 0;
+      var lossGeneration = 0;
+
+      var imeState = function () {
+        var bridge = globalThis.__bwImeBridge;
+        if (!bridge || typeof bridge.snapshot !== "function") {
+          return null;
+        }
+        return bridge.snapshot();
+      };
+      var ownsNode = function (node, state) {
+        return !!node && (node === activeCanvas ||
+          (state && state.enabled === true &&
+           node === document.querySelector("#bw-ime-input")));
+      };
+      var publishLoss = function () {
+        sequence += 1;
+        lossGeneration += 1;
+        var publishFunction = Module["_bw_shell_focus_lost"];
+        if (typeof publishFunction === "function") {
+          publishFunction();
+        }
+      };
+
+      document.addEventListener("blur", function (event) {
+        if (!activeCanvas || handoffDepth !== 0) {
+          return;
+        }
+        var state = imeState();
+        if (ownsNode(event.target, state) && !ownsNode(event.relatedTarget, state)) {
+          publishLoss();
+        }
+      }, true);
+      var api = Object.freeze({
+        schema: 1,
+        bind: function (selector) {
+          if (typeof Module["_bw_shell_focus_lost"] !== "function") {
+            return false;
+          }
+          var canvas = document.querySelector(selector);
+          if (!canvas) {
+            return false;
+          }
+          activeCanvas = canvas;
+          handoffDepth = 0;
+          return true;
+        },
+        unbind: function (selector) {
+          var canvas = document.querySelector(selector);
+          if (!activeCanvas || activeCanvas !== canvas) {
+            return false;
+          }
+          activeCanvas = null;
+          handoffDepth = 0;
+          return true;
+        },
+        beginHandoff: function () {
+          handoffDepth += 1;
+        },
+        endHandoff: function () {
+          if (handoffDepth > 0) {
+            handoffDepth -= 1;
+          }
+        },
+        snapshot: function () {
+          return {
+            schema: 1,
+            bound: !!activeCanvas,
+            handoffDepth: handoffDepth,
+            sequence: sequence,
+            lossGeneration: lossGeneration,
+          };
+        },
+      });
+      Object.defineProperty(globalThis, "__bwFocusBridge", {
+        value: api,
+        writable: false,
+        configurable: false,
+        enumerable: false,
+      });
+    }
+    var bridge = globalThis.__bwFocusBridge;
+    return bridge && typeof bridge.bind === "function" && bridge.bind(UTF8ToString($0)) ? 1 : 0;
+  }, canvas);
+  if (!focus_bridge_bound) {
+    std::fprintf(stderr, "GHOST-web: browser focus bridge is unavailable\n");
+    return false;
+  }
 
   /* Text clipboard bridge. GHOST's API is synchronous, but navigator.clipboard is
    * promise-based and this system runs on the PROXY_TO_PTHREAD WM worker. Keep the
@@ -972,6 +1116,12 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
       [&](const size_t registered_count) {
         const bool removed =
             remove_html5_callback_prefix(canvas, win, user_data, registered_count);
+        MAIN_THREAD_EM_ASM({
+          var bridge = globalThis.__bwFocusBridge;
+          if (bridge && typeof bridge.unbind === "function") {
+            bridge.unbind(UTF8ToString($0));
+          }
+        }, canvas);
         std::fprintf(stderr,
                      "GHOST-web: HTML5 callback registration %zu/14 failed (result %d); "
                      "prefix rollback %s\n",
@@ -986,6 +1136,8 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         callbacks_registered_ = true;
         /* The shell may have focused the canvas before callback registration.
          * Seed de-duplication from the live DOM without manufacturing an event. */
+        browser_focus_loss_generation_ =
+            g_browser_focus_loss_generation.load(std::memory_order_acquire);
         browser_focus_active_ = browserFocusIsOwned();
       });
   return registration_succeeded;
@@ -999,6 +1151,12 @@ void GHOST_SystemWeb::unregisterCanvasCallbacks()
   }
   const char *canvas = canvas_selector_.c_str();
   const char *win = EMSCRIPTEN_EVENT_TARGET_WINDOW;
+  MAIN_THREAD_EM_ASM({
+    var bridge = globalThis.__bwFocusBridge;
+    if (bridge && typeof bridge.unbind === "function") {
+      bridge.unbind(UTF8ToString($0));
+    }
+  }, canvas);
   CallbackRegistration *registration = static_cast<CallbackRegistration *>(callback_user_data_);
   uint64_t expected_epoch = registration->epoch;
   g_active_callback_epoch.compare_exchange_strong(
@@ -1020,6 +1178,11 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * GHOST events immediately. We cannot block the browser main thread, so
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
+
+  /* Reconcile focus-domain facts published synchronously in the DOM event turn.
+   * This must precede ordinary input dispatch so a hidden rapid blur boundary
+   * retires held state before later input from the reacquired canvas is handled. */
+  pollPublishedBrowserFocus();
 
 #ifdef WITH_INPUT_IME
   /* Composition messages cross from the DOM main thread through a bounded
@@ -1337,6 +1500,34 @@ bool GHOST_SystemWeb::browserFocusIsOwned() const
                return state && state.enabled === true && state.focused === true ? 1 : 0;
              },
              selector) != 0;
+}
+
+void GHOST_SystemWeb::pollPublishedBrowserFocus()
+{
+  const uint32_t loss_generation =
+      g_browser_focus_loss_generation.load(std::memory_order_acquire);
+  if (window_ == nullptr) {
+    browser_focus_loss_generation_ = loss_generation;
+    return;
+  }
+
+  if (loss_generation == browser_focus_loss_generation_) {
+    return;
+  }
+  browser_focus_loss_generation_ = loss_generation;
+
+  if (browser_focus_active_) {
+    publish_browser_focus_transition(this, false);
+  }
+  if (browserFocusIsOwned()) {
+    publish_browser_focus_transition(this, true);
+  }
+}
+
+void GHOST_SystemWeb::acknowledgePublishedBrowserFocusLoss()
+{
+  browser_focus_loss_generation_ =
+      g_browser_focus_loss_generation.load(std::memory_order_acquire);
 }
 
 bool GHOST_SystemWeb::transitionBrowserFocus(const bool focused)

@@ -1127,17 +1127,77 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
 
 GHOST_TSuccess GHOST_SystemWeb::getModifierKeys(GHOST_ModifierKeys &keys) const
 {
-  /* DOM modifier flags don't distinguish left/right — report left variants. Key
-   * events themselves carry the correct left/right GHOST key (via `code`). */
-  keys.set(GHOST_kModifierKeyLeftShift, mod_shift_);
-  keys.set(GHOST_kModifierKeyRightShift, false);
-  keys.set(GHOST_kModifierKeyLeftControl, mod_ctrl_);
-  keys.set(GHOST_kModifierKeyRightControl, false);
-  keys.set(GHOST_kModifierKeyLeftAlt, mod_alt_);
-  keys.set(GHOST_kModifierKeyRightAlt, false);
-  keys.set(GHOST_kModifierKeyLeftOS, mod_meta_);
-  keys.set(GHOST_kModifierKeyRightOS, false);
+  keys = modifiers_;
   return GHOST_kSuccess;
+}
+
+namespace {
+
+void reconcile_modifier_pair(GHOST_ModifierKeys &keys,
+                             const GHOST_TModifierKey left,
+                             const GHOST_TModifierKey right,
+                             const bool held)
+{
+  if (!held) {
+    keys.set(left, false);
+    keys.set(right, false);
+    return;
+  }
+  if (!keys.get(left) && !keys.get(right)) {
+    /* Mouse and wheel events expose only aggregate modifier flags. A missing
+     * key history cannot identify the side, so retain the established fallback. */
+    keys.set(left, true);
+  }
+}
+
+}  // namespace
+
+void GHOST_SystemWeb::noteModifierFlags(const bool ctrl,
+                                        const bool shift,
+                                        const bool alt,
+                                        const bool meta)
+{
+  reconcile_modifier_pair(modifiers_,
+                          GHOST_kModifierKeyLeftControl,
+                          GHOST_kModifierKeyRightControl,
+                          ctrl);
+  reconcile_modifier_pair(
+      modifiers_, GHOST_kModifierKeyLeftShift, GHOST_kModifierKeyRightShift, shift);
+  reconcile_modifier_pair(
+      modifiers_, GHOST_kModifierKeyLeftAlt, GHOST_kModifierKeyRightAlt, alt);
+  reconcile_modifier_pair(modifiers_, GHOST_kModifierKeyLeftOS, GHOST_kModifierKeyRightOS, meta);
+}
+
+void GHOST_SystemWeb::noteModifierKey(const GHOST_TKey key, const bool down)
+{
+  switch (key) {
+    case GHOST_kKeyLeftShift:
+      modifiers_.set(GHOST_kModifierKeyLeftShift, down);
+      break;
+    case GHOST_kKeyRightShift:
+      modifiers_.set(GHOST_kModifierKeyRightShift, down);
+      break;
+    case GHOST_kKeyLeftControl:
+      modifiers_.set(GHOST_kModifierKeyLeftControl, down);
+      break;
+    case GHOST_kKeyRightControl:
+      modifiers_.set(GHOST_kModifierKeyRightControl, down);
+      break;
+    case GHOST_kKeyLeftAlt:
+      modifiers_.set(GHOST_kModifierKeyLeftAlt, down);
+      break;
+    case GHOST_kKeyRightAlt:
+      modifiers_.set(GHOST_kModifierKeyRightAlt, down);
+      break;
+    case GHOST_kKeyLeftOS:
+      modifiers_.set(GHOST_kModifierKeyLeftOS, down);
+      break;
+    case GHOST_kKeyRightOS:
+      modifiers_.set(GHOST_kModifierKeyRightOS, down);
+      break;
+    default:
+      break;
+  }
 }
 
 GHOST_TSuccess GHOST_SystemWeb::getButtons(GHOST_Buttons &buttons) const

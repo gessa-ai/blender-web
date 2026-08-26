@@ -285,6 +285,29 @@ extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_input_state()
   return state;
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_modifier_state_exact()
+{
+  if (g_system == nullptr) {
+    return -1;
+  }
+
+  GHOST_ModifierKeys keys;
+  if (g_system->getModifierKeys(keys) != GHOST_kSuccess) {
+    return -1;
+  }
+
+  int state = 0;
+  for (int modifier = int(GHOST_kModifierKeyLeftShift);
+       modifier <= int(GHOST_kModifierKeyRightOS);
+       modifier++)
+  {
+    if (keys.get(GHOST_TModifierKey(modifier))) {
+      state |= 1 << modifier;
+    }
+  }
+  return state;
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE int ghost_harness_request_clipboard_operation(
     const int operation)
 {

@@ -71,10 +71,10 @@ registration, delivery, disposal, and replacement-window rebinding path.
 
 ## State tracking
 
-- **Modifiers**: updated from every DOM event's `ctrlKey/shiftKey/altKey/metaKey`.
-  `getModifierKeys()` reports **left variants** (DOM flags don't distinguish sides);
-  key *events* carry the exact left/right `GHOST_TKey` via `code`. SDL-grade limitation,
-  documented.
+- **Modifiers**: keyboard `code` updates exact left/right Shift, Control, Alt, and OS state;
+  the aggregate `ctrlKey/shiftKey/altKey/metaKey` flags from every DOM event clear released
+  families and preserve known sides. If input begins with only an aggregate mouse/wheel flag,
+  the otherwise unknowable side falls back to left until an exact key transition refines it.
 - **Buttons**: `GHOST_Buttons` updated on down/up; returned by `getButtons()`. Browser focus loss
   snapshots the held set, clears all seven tracked buttons and every modifier, and emits a
   `ButtonUp` for each held button before `WindowDeactivate`. This retires physical state even

@@ -56,6 +56,7 @@ FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
+MODIFIER_SIDE_CONTRACT="$ROOT/sandbox/m4-modifier-side-state/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_CONTRACT="$ROOT/sandbox/m4-mouse-release-ownership/source_contract.py"
 MOUSE_RELEASE_OWNERSHIP_TEST="$ROOT/sandbox/m4-mouse-release-ownership/mouse_release_test.mjs"
 WINDOW_LIFECYCLE_CONTRACT="$HERE/window_lifecycle_contract.py"
@@ -172,6 +173,7 @@ source_digest()
                 platform_web/ghost/GHOST_WebDisplayState.hh \
                 platform_web/ghost/GHOST_EventBridgeWeb.cc \
                 platform_web/ghost/GHOST_SystemWeb.cc \
+                platform_web/ghost/GHOST_SystemWeb.hh \
                 platform_web/ghost/GHOST_WGPUTransaction.hh \
                 platform_web/shell/wgpu-preinit-worker.js \
                 platform_web/shell/diagnostics-bootstrap.js | sha256sum | awk '{print $1}')"
@@ -189,6 +191,7 @@ source_digest()
                     platform_web/ghost/GHOST_WebDisplayState.hh \
                     platform_web/ghost/GHOST_EventBridgeWeb.cc \
                     platform_web/ghost/GHOST_SystemWeb.cc \
+                    platform_web/ghost/GHOST_SystemWeb.hh \
                     platform_web/ghost/GHOST_WGPUTransaction.hh \
                     platform_web/shell/wgpu-preinit-worker.js \
                     platform_web/shell/diagnostics-bootstrap.js | \
@@ -245,6 +248,7 @@ require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
 require_file "$MOUSE_RELEASE_OWNERSHIP_CONTRACT"
+require_file "$MODIFIER_SIDE_CONTRACT"
 require_file "$MOUSE_RELEASE_OWNERSHIP_TEST"
 require_file "$WINDOW_LIFECYCLE_CONTRACT"
 require_file "$WINDOW_HIT_TEST_CONTRACT"
@@ -1728,6 +1732,10 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$GHOST_SYSTEM_SOURCE" \
   "$ROOT/sandbox/m4-keyboard-focus/keyboard_focus_test.mjs" \
   "$ROOT/platform_web/ghost/harness/window_lifecycle_test.mjs" --selfcheck
+"$PYBIN" "$MODIFIER_SIDE_CONTRACT" \
+  "$GHOST_SYSTEM_HEADER" "$GHOST_SYSTEM_SOURCE" "$GHOST_EVENT_BRIDGE_SOURCE" \
+  "$ROOT/platform_web/ghost/harness/test_ghost_web.cc" \
+  "$ROOT/sandbox/m4-modifier-side-state/modifier_side_test.mjs" --selfcheck
 "$PYBIN" "$MOUSE_RELEASE_OWNERSHIP_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$MOUSE_RELEASE_OWNERSHIP_TEST" \
   "$WINDOW_LIFECYCLE_CONTRACT" --selfcheck

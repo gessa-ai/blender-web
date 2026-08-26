@@ -263,9 +263,13 @@ void on_wheel(GHOST_SystemWeb &sys, const EmscriptenWheelEvent &e)
 
 void on_key(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenKeyboardEvent &e)
 {
-  sys.noteModifierFlags(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey);
   const bool down = (em_event_type == EMSCRIPTEN_EVENT_KEYDOWN);
   const GHOST_TKey key = ghost_web_key_from_code(e.code);
+  /* `code` preserves the physical left/right modifier side. Publish that exact
+   * transition before reconciling the aggregate DOM flags so a first right-side
+   * press cannot be mistaken for the left-side fallback. */
+  sys.noteModifierKey(key, down);
+  sys.noteModifierFlags(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey);
   GHOST_IWindow *win = sys.activeWindow();
 
   char utf8[6] = {0};

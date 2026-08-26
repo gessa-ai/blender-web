@@ -95,16 +95,12 @@ class GHOST_SystemWeb : public GHOST_System {
     cursor_y_ = y;
   }
 
-  /** Update tracked modifier state from a DOM event's ctrl/shift/alt/meta flags.
-   * DOM does not distinguish left/right for the *flags* (key events do, via `code`),
-   * so getModifierKeys() reports the left variants — the SDL-grade limitation. */
-  void noteModifierFlags(bool ctrl, bool shift, bool alt, bool meta)
-  {
-    mod_ctrl_ = ctrl;
-    mod_shift_ = shift;
-    mod_alt_ = alt;
-    mod_meta_ = meta;
-  }
+  /** Reconcile aggregate DOM ctrl/shift/alt/meta flags with the tracked side-aware state.
+   * Preserve a known side; when no key event established one, use the left side as fallback. */
+  void noteModifierFlags(bool ctrl, bool shift, bool alt, bool meta);
+
+  /** Update one exact left/right modifier from a DOM keyboard event's `code`. */
+  void noteModifierKey(GHOST_TKey key, bool down);
 
   void noteButton(GHOST_TButton button, bool down)
   {
@@ -161,10 +157,7 @@ class GHOST_SystemWeb : public GHOST_System {
   int32_t canvas_client_top_ = 0;
   int32_t canvas_client_width_ = 0;
   int32_t canvas_client_height_ = 0;
-  bool mod_ctrl_ = false;
-  bool mod_shift_ = false;
-  bool mod_alt_ = false;
-  bool mod_meta_ = false;
+  GHOST_ModifierKeys modifiers_;
   bool browser_focus_active_ = false;
   GHOST_Buttons buttons_;
 };

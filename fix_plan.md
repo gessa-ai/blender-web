@@ -2923,12 +2923,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   strict CAPTURE inventory, locked no-work, and REUSE are green; the artifact remains unchanged at
   `.wasm.orig` SHA-256 `c9dbae361ec1`. M8/regression retain their strict APPLY/browser/receipt
   boundaries. See `notes/release-build-profile-reconciliation-20260826.md`.
-- [ ] **P1-RELEASE-METADATA-RECONCILIATION [compliance, claimed_by: none, blocked-by: none]:**
-  reconcile the remaining dirty `PROVENANCE.md`, `REUSE.toml`, `THIRD-PARTY.md`,
-  `ledger/deps.json`, and `ledger/deferred.json` slice without staging generated result/sandbox
-  residue. Correct the stale pending claim that `libosdGPU.a` is empty (the harvested archive has
-  the accepted GLSL patch-source objects), keep both custom TOST-1.0 compatibility decisions
-  explicitly human-reviewed, then run dependency/deferral/compliance contracts and REUSE.
+- [x] **P1-RELEASE-METADATA-RECONCILIATION [compliance] (`c5ad9ab`):** the five remaining dirty
+  shipping metadata files are committed without generated result/sandbox residue. The dependency
+  record now identifies `libosdGPU.a` as the real two-object GLSL patch-source archive, and both
+  OpenSubdiv/OpenUSD custom TOST-1.0 compatibility decisions remain unresolved for GPL-literate
+  human review. Strict dependency inventory, dependency self-check, deferral/S7 contracts, all
+  nine technical compliance facts, and REUSE 2,640/2,640 are green; pinned-container regression
+  restores M0 6/6 while M1-M8 retain their strict existing boundaries. See
+  `notes/release-metadata-reconciliation-20260826.md`.
 - [x] **P1-M8-DEFERRAL-REGISTRY-COMPLETENESS [compliance] (`0e7f2ec`):** sixteen named
   launch-visible feature rows now bind 33 forced-OFF build flags, covering IK, Bullet/physics,
   Ocean, remesh/Quadriflow, exact boolean, SLIM UV, video, audio, FBX, Alembic, Grease Pencil

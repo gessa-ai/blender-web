@@ -1,0 +1,19 @@
+diff --git a/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl b/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl
+index d37c68dce46..3ce756fd779 100644
+--- a/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl
++++ b/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl
+@@ -8,10 +8,12 @@ FRAGMENT_SHADER_CREATE_INFO(gpu_shader_2D_widget_shadow)
+ 
+ void main()
+ {
+-  fragColor = float4(0.0f);
+   /* Manual curve fit of the falloff curve of previous drawing method. */
+   float shadow_alpha = alpha * (shadowFalloff * shadowFalloff * 0.722f + shadowFalloff * 0.277f);
+   float inner_alpha = smoothstep(0.0f, 0.05f, innerMask);
+ 
+-  fragColor.a = inner_alpha * shadow_alpha;
++  /* Keep the complete fragment result in one value. On the browser Metal path, assigning the
++   * zero vector and then replacing only alpha produced undefined/stale RGB in practice, turning
++   * otherwise-correct soft shadows into bright white shapes. */
++  fragColor = float4(0.0f, 0.0f, 0.0f, inner_alpha * shadow_alpha);
+ }

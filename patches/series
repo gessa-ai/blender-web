@@ -1155,3 +1155,6 @@
 # 0283: publish asynchronous shader/layout/pipeline readiness and incomplete
 # bind-group drops into one bounded ordinary-window redraw recovery burst.
 0283-gpu-webgpu-redraw-recovery.patch
+# 0284: define all widget-shadow fragment components in one value so the browser
+# Metal path cannot expose stale RGB while applying the intended alpha falloff.
+0284-gpu-widget-shadow-defined-rgb.patch

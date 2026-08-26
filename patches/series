@@ -1149,3 +1149,6 @@
 # 0281: keep exact surviving-WGSL completeness fail-closed while backend push
 # constants and shared samplers settle before their first viewport draws.
 0281-gpu-webgpu-bind-group-readiness.patch
+# 0282: keep default WebGPU framebuffer geometry coherent when the persistent
+# window backbuffer wrapper changes handle and extent in place on browser resize.
+0282-gpu-webgpu-window-backbuffer-resize.patch

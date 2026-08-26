@@ -36257,10 +36257,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b4ad97775f04c7099ed06c5bce3173fba7edfe13
+index 0000000000000000000000000000000000000000..de2d408decd4c468f610ce4d3db6fb26d273947b
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1313 @@
+@@ -0,0 +1,1326 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37529,6 +37529,19 @@ index 0000000000000000000000000000000000000000..b4ad97775f04c7099ed06c5bce3173fb
 +      front_left->attachment_set(GPU_FB_COLOR_ATTACHMENT0,
 +                                 GPU_ATTACHMENT_TEXTURE(surface_texture_));
 +    }
++  }
++
++  /* The persistent texture wrapper changes its handle and dimensions in place on resize.
++   * FrameBuffer::attachment_set() deliberately ignores an identical wrapper pointer, so the
++   * default framebuffers' separately cached width_/height_ would otherwise keep the old surface
++   * extent. That stale cache feeds viewport_scissor_plan() even though the render attachment is
++   * already the new size, producing an out-of-range scissor and rejecting every draw. Mirror the
++   * OpenGL window-context contract and publish the live backing extent on every activation. */
++  if (back_left != nullptr) {
++    back_left->size_set(w, h);
++  }
++  if (front_left != nullptr) {
++    front_left->size_set(w, h);
 +  }
 +#endif
 +}

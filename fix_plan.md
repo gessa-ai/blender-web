@@ -2846,6 +2846,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   plus nine trusted-input ticks/two presents with zero stage-1/import/submission/transaction/loss
   failures. The live run is fallback-software diagnostic evidence only; no receipt or s7 boundary
   changed. See `notes/p0-boot-present-adapter-current-head-revalidation-20260825.md`.
+- [~] **P0-D-M4-VIEWPORT-BIND-GROUP-READINESS [gpu-backend, patch 0281]:** diagnostic-first
+  live values prove the completeness failures are missing bindings, never extras: the low IDs are
+  validation-pending backend push-constant UBOs and `256+` are validation-pending Tint sampler
+  halves. Push allocation now begins before module/layout readiness, and every epoch observing a
+  provisional shared sampler is queue-gated on its validation result; rejection cancels all
+  observers and exact completeness remains fail-closed. Native/wasm32 parity, canonical replay,
+  final relink, and the headed fallback warning contract are green. **Not resolved:** software
+  pixels remain black and bind no receipt; the Apple hardware rig must paint semantic viewport
+  pixels, capture a real `overlay_grid_next` binding set, retain complete `OCIO_Display`, and show
+  pixel change across interaction. See `notes/p0-bind-group-readiness-20260826.md`.
+- [ ] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [ghost-web, claimed_by: none]:** browser resize
+  reconfigures the WebGPU surface before Blender relayouts its areas, so old-height scissors are
+  rejected against the new surface and rendering never recovers. Deliver and order the real
+  GHOST/WM resize before draws at the new extent; add shrink/grow and restoration pixel coverage.
+  This is a launch blocker and is independent of P0-D.
 - [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
   25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
   or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while

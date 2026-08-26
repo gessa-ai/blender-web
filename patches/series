@@ -1146,3 +1146,6 @@
 # 0280: expose Blender's stock IME event path to the custom browser GHOST
 # backend while keeping headless and unsupported platform profiles unchanged.
 0280-ghost-web-input-ime-option.patch
+# 0281: keep exact surviving-WGSL completeness fail-closed while backend push
+# constants and shared samplers settle before their first viewport draws.
+0281-gpu-webgpu-bind-group-readiness.patch

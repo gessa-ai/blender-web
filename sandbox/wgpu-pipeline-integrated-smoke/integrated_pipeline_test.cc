@@ -842,6 +842,80 @@ bool scoped_handle_cache_contract()
   return true;
 }
 
+bool ordered_scoped_handle_cache_contract()
+{
+  bw::ScopedHandleCache<uint32_t, CacheHandleProbe> cache;
+  bw::OrderedQueueScheduler scheduler;
+  std::function<void(bool)> settle;
+  int creates = 0;
+  int dependent = 0;
+  int canceled = 0;
+
+  auto fetch = [&](const int identity) {
+    return cache.get_or_create_ordered(
+        9u,
+        scheduler,
+        []() {},
+        [&]() {
+          creates++;
+          return CacheHandleProbe(identity);
+        },
+        [&](auto completion) { settle = std::move(completion); });
+  };
+
+  const CacheHandleProbe provisional = fetch(41);
+  scheduler.enqueue(
+      [&](auto done) {
+        dependent++;
+        done(true);
+      },
+      [&]() { canceled++; });
+  const CacheHandleProbe same_epoch = fetch(43);
+  if (!require(provisional.identity() == 41 && same_epoch.identity() == 41 && creates == 1,
+               "ordered cache reuses its provisional handle within the reserving epoch") ||
+      !require(cache.size() == 0 && cache.pending(9u) && scheduler.pending_count() == 2,
+               "ordered cache keeps provisional work behind one validation gate"))
+  {
+    return false;
+  }
+
+  scheduler.begin_epoch();
+  const CacheHandleProbe later_epoch = fetch(47);
+  if (!require(later_epoch.identity() == 41 && creates == 1 && scheduler.pending_count() == 3,
+               "ordered cache gates provisional reuse separately in a later epoch"))
+  {
+    return false;
+  }
+  settle(false);
+  if (!require(cache.size() == 0 && !cache.pending(9u) && dependent == 0 && canceled == 1,
+               "ordered cache rejection cancels dependent work and leaves a clean retry"))
+  {
+    return false;
+  }
+
+  scheduler.begin_epoch();
+  const CacheHandleProbe retry = fetch(73);
+  scheduler.enqueue([&](auto done) {
+    dependent++;
+    done(true);
+  });
+  settle(true);
+  scheduler.begin_epoch();
+  const CacheHandleProbe accepted = fetch(79);
+  if (!require(retry.identity() == 73 && accepted.identity() == 73 && creates == 2,
+               "ordered cache publishes a clean retry for later epochs") ||
+      !require(cache.size() == 1 && !cache.pending(9u) && dependent == 1 && canceled == 1 &&
+                   scheduler.pending_count() == 0,
+               "ordered cache drains accepted and rejected dependencies exactly once"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT ordered_scoped_handle_cache PASS cases=5 creates=2 "
+            "same_epoch=provisional later_epoch=gated rejection=canceled retry=published");
+  return true;
+}
+
 bool context_owned_pipeline_cache_contract()
 {
   using Cache = bw::ScopedHandleCache<uint8_t, CacheHandleProbe>;
@@ -4021,6 +4095,7 @@ int main()
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
+      !ordered_scoped_handle_cache_contract() ||
       !context_owned_pipeline_cache_contract() ||
       !context_backend_handle_registry_contract() ||
       !ordered_queue_scheduler_failure_drain_contract() ||
@@ -4048,7 +4123,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=41 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=42 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -4057,6 +4132,7 @@ int main()
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
+      "ordered_scoped_cache_cases=5 "
       "context_pipeline_caches=3 "
       "context_handle_registry_cases=7 "
       "transient_resource_gates=3 compute_bind_group_scope_cases=4 "

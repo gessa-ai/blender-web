@@ -1621,3 +1621,30 @@ modifier/button retirement under same-task blur/refocus, exact boundary ordering
 post-refocus key/button Down, ordinary single-pair transitions,
 synthetic blur terminal behavior, and canvas/IME handoffs in the real worker topology. See
 `platform_web/ghost/GHOST_SystemWeb.cc` and `sandbox/m4-focus-transition-order/`.
+
+## Class 110 — exact resource completeness must distinguish absence from validation latency
+
+Signature: an exact bind-group check is correct for WebGPU's explicit layout, but backend-created
+push buffers and samplers publish only after browser error scopes settle. Returning null while a
+persistent resource is merely pending turns a validation-safety mechanism into a one-shot draw
+drop; startup overlays may never be redrawn, leaving a healthy presenting canvas blank. Diagnose
+first by printing sorted expected, assembled, missing, and extra IDs. Keep exact equality for real
+absence. Start persistent shader-owned resources before later shader readiness gates, and expose a
+provisional shared handle only when every observing queue epoch is reserved behind the same
+validation result. Acceptance publishes normally; rejection must cancel all epochs that could
+have encoded the error object and leave a clean retry. Exercise same-epoch reuse, cross-epoch reuse,
+multi-epoch rejection, and a real windowed warning scanner. See
+`upstream/source/blender/gpu/webgpu/wgpu_common.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_shader.cc`, and
+`notes/p0-bind-group-readiness-20260826.md`.
+
+## Class 111 — a capped log is not a liveness counter
+
+Signature: a frame path prints only its first few successful calls to bound console noise, and
+receipts later interpret the exact number of printed lines as the number of frames produced. The
+same output then describes both a frozen application and a 60 Hz application. Keep the diagnostic
+cap, but prove liveness with an uncapped exported counter or semantic pixel deltas across trusted
+input. Record which signal a receipt consumes and mutation-test the consumer; never infer sustained
+presentation from the first-two-frame `presentBackbuffer` messages. See
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc` and
+`sandbox/wgpu-pipeline-integrated-smoke/live_preinit_boot.mjs`.

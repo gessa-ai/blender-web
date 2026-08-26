@@ -42,6 +42,18 @@ const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
 ]);
 const PROFILE_MARKER = 'BW_SPLIT_PROFILE_EXPORT_V1';
 const FINALIZER = join(REPO, 'scripts/finalize-wasm-split.py');
+const VIEWPORT_BIND_GROUP_CONTRACT_SHADERS = Object.freeze([
+  'overlay_grid_next',
+  'overlay_outline_detect',
+  'overlay_antialiasing_pipeline',
+  'OCIO_Display',
+]);
+
+function isIncompleteViewportBindGroup(line) {
+  return line.includes('assembled group-0 resources do not match surviving WGSL bindings') &&
+    VIEWPORT_BIND_GROUP_CONTRACT_SHADERS.some((shader) =>
+      line.includes(`WGPUShader '${shader}'`));
+}
 
 const PY_MONITOR = String.raw`
 import bpy,json,os,sys,time,traceback
@@ -401,6 +413,16 @@ async function runSelfcheck() {
   check(BROWSER_ARGS.includes('--enable-unsafe-webgpu') &&
     (process.platform === 'darwin') === BROWSER_ARGS.includes('--use-angle=metal'),
   'platform WebGPU browser arguments drifted');
+  for (const shader of VIEWPORT_BIND_GROUP_CONTRACT_SHADERS) {
+    check(isIncompleteViewportBindGroup(
+      `WGPUShader '${shader}': assembled group-0 resources do not match surviving WGSL bindings`),
+    `incomplete bind-group warning was not recognized for ${shader}`);
+  }
+  check(!isIncompleteViewportBindGroup(
+    "WGPUShader 'unrelated': assembled group-0 resources do not match surviving WGSL bindings"),
+  'unrelated bind-group warning entered the viewport contract');
+  check(!isIncompleteViewportBindGroup("WGPUShader 'overlay_grid_next': healthy"),
+    'healthy viewport shader entered the incomplete bind-group contract');
 
   let liveRoot = null;
   if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
@@ -567,6 +589,7 @@ async function main(options) {
   const generatedProbeContract = validateCaptureProbeGeneratedSource(generatedJs);
 
   const consoleLines = [];
+  const incompleteViewportBindGroups = [];
   const states = [];
   const pageErrors = [];
   const requests = [];
@@ -606,6 +629,7 @@ async function main(options) {
     page.on('console', (message) => {
       const line = message.text();
       consoleLines.push(line);
+      if (isIncompleteViewportBindGroup(line)) incompleteViewportBindGroups.push(line);
       const match = /^BW_SPLIT_STATE (\{.*\})$/.exec(line);
       if (match) states.push(JSON.parse(match[1]));
       const ioMatch = /^BW_SPLIT_IO (\{.*\})$/.exec(line);
@@ -949,6 +973,7 @@ async function main(options) {
     trustedInputs.some((event) => event.type === 'mousedown' && event.button === 1);
   const gpuErrors = consoleLines.filter((line) => /\[bw\]\[GPU-(?:ERROR|LOST)\]/.test(line));
   const commonPass = !fatal && pageErrors.length === 0 && external.length === 0 && gpuErrors.length === 0 &&
+    incompleteViewportBindGroups.length === 0 &&
     profileAfter?.length > splitBuild.facts.total_functions &&
     profileAfter?.length <= splitBuild.reserve_bytes && trustedPass &&
     initialPixelReceipt?.pass === true && controller?.status === 'PASS' &&
@@ -988,7 +1013,8 @@ async function main(options) {
     result: { profileLength: profileAfter?.length || 0, changedBytesHotInteraction: hotChanged,
       changedBytesAfterCoverageWorkload: changed,
       stateCount: states.length, trustedInputCount: trustedInputs.length, trustedPass,
-      pageErrors, externalRequestCount: external.length, gpuErrors, canvas: canvasReceipt,
+      pageErrors, externalRequestCount: external.length, gpuErrors, incompleteViewportBindGroups,
+      canvas: canvasReceipt,
       initialSemanticPixels: initialPixelReceipt, settledHotPixels: settledPixelReceipt,
       bridgeHot: bridgeHotReceipt, runtimeArgv, threadsOverride: options.threads,
       interactionDoneMs, controller, lastNativeStatus, atomicDiagnostics, threadEntryDiagnostics },

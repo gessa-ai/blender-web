@@ -485,11 +485,17 @@ require_fixed_count 0 \
   'static webgpu::ScopedHandleCache<uint8_t, wgpu::ComputePipeline>' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
-  'sampler_cache_.get_or_create(' \
+  'sampler_cache_.get_or_create_ordered(' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
-require_fixed_count 1 \
+require_fixed_count 0 \
   'sampler_cache_.lookup(key);' \
   "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 2 \
+  'HandleT get_or_create_ordered(' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'uint64_t current_epoch() const' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
   'inline auto dummy_vertex_buffer_create(DeviceT &device)' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
@@ -1801,6 +1807,15 @@ require_fixed_count 1 'Number(module._bw_wm_tick_count?.()) >= 2;' "$LIVE_PREINI
 require_fixed_count 1 'await page.mouse.click(x, y);' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'document.title !== initialTitle' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'classifyLivePreinitDiagnostic({' "$LIVE_PREINIT_SOURCE"
+for contract_shader in \
+  '"overlay_grid_next"' \
+  '"overlay_outline_detect"' \
+  '"overlay_antialiasing_pipeline"' \
+  '"OCIO_Display"'
+do
+  require_fixed_count 1 "$contract_shader" "$LIVE_PREINIT_SOURCE"
+done
+require_fixed_count 1 'counters.incompleteContractBindings++;' "$LIVE_PREINIT_SOURCE"
 require_fixed_count 1 'if (counters.adapterFallback !== "true") {' "$LIVE_PREINIT_CONTRACT"
 require_fixed_count 1 'if (!(afterInput.presents > second.presents)) {' \
   "$LIVE_PREINIT_CONTRACT"
@@ -2254,7 +2269,7 @@ then
 fi
 "$NODE" "$LIVE_PREINIT_CONTRACT_TEST" >"$OUT/live-preinit-classifier.txt"
 if ! grep -qx \
-  'CONTRACT ghost_preinit_live_classifier PASS positive=1 negative=25' \
+  'CONTRACT ghost_preinit_live_classifier PASS positive=1 negative=26' \
   "$OUT/live-preinit-classifier.txt"
 then
   echo "ERROR: live preinit classifier evidence differs" >&2
@@ -2358,7 +2373,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 42 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 43 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -2390,6 +2405,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated error_object=rejected retry=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT ordered_scoped_handle_cache PASS cases=5 creates=2 same_epoch=provisional later_epoch=gated rejection=canceled retry=published' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT context_owned_pipeline_cache PASS cases=8 caches=3 shared_reuse=stale context_reuse=isolated creates=6' \
@@ -2467,7 +2485,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=41 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=42 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 ordered_scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

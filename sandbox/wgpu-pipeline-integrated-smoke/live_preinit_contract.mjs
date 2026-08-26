@@ -70,6 +70,9 @@ export function classifyLivePreinitDiagnostic(observation) {
   }
   if (counters.deviceLost !== 0) failures.push(`deviceLost=${counters.deviceLost}`);
   if (counters.pageErrors !== 0) failures.push(`pageErrors=${counters.pageErrors}`);
+  if (counters.incompleteContractBindings !== 0) {
+    failures.push(`incompleteContractBindings=${counters.incompleteContractBindings}`);
+  }
 
   if (counters.adapterFallback !== "true") {
     failures.push(`adapterFallback=${counters.adapterFallback}`);

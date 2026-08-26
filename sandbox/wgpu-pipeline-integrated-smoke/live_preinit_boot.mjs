@@ -34,6 +34,12 @@ if (!chromium) {
 const port = Number(process.argv[2] || 8123);
 const entryPath = process.argv[3] || "/windowed.html";
 const shellTitle = "Source-derived WebAssembly editor preview";
+const bindGroupContractShaders = [
+  "overlay_grid_next",
+  "overlay_outline_detect",
+  "overlay_antialiasing_pipeline",
+  "OCIO_Display",
+];
 if (entryPath !== "/" && entryPath !== "/windowed.html") {
   throw new Error(`entry path must be / or /windowed.html, got: ${entryPath}`);
 }
@@ -64,11 +70,13 @@ const counters = {
   presentTransactionRejected: 0,
   deviceLost: 0,
   pageErrors: 0,
+  incompleteContractBindings: 0,
   adapterFallback: "unseen",
   presentationValidation: "unseen",
 };
 
 const diagnosticConsole = [];
+const incompleteContractDiagnostics = [];
 
 async function readSample(page) {
   const sampledAtMs = performance.now();
@@ -107,12 +115,21 @@ try {
   const page = await context.newPage();
   page.on("console", (message) => {
     const line = message.text();
+    const incompleteContractBinding =
+      line.includes("assembled group-0 resources do not match surviving WGSL bindings") &&
+      bindGroupContractShaders.some((shader) => line.includes(`WGPUShader '${shader}'`));
     if (line.includes("[bw][GPU-") || line.includes("[WebGPU]") ||
         line.includes("WGPUWeb:") ||
         line.includes("WM-worker WebGPU device pre-acquired") ||
         line.includes("WM-worker WebGPU presentation pre-acquired") ||
+        line.includes("WGPUShader '") ||
+        incompleteContractBinding ||
         /error|abort|assert|exception|keepalive|main loop/i.test(line)) {
       diagnosticConsole.push(line);
+    }
+    if (incompleteContractBinding) {
+      counters.incompleteContractBindings++;
+      incompleteContractDiagnostics.push(line);
     }
     if (line.includes("WM-worker WebGPU device pre-acquired")) counters.deviceReady++;
     if (line.includes("WM-worker WebGPU device pre-acquired")) {
@@ -193,6 +210,7 @@ try {
     trustedInputIssued = true;
   }
   const afterInput = await waitForInputRoundTrip(page, second);
+  await page.waitForTimeout(1500);
   const snapshot = await readSample(page);
   const cursorSnapshot = await page.evaluate(() => window.__bwCursorBridge.snapshot());
   const documentTitle = await page.title();
@@ -211,6 +229,7 @@ try {
   });
   if (!result.accepted) {
     const context = [
+      ...incompleteContractDiagnostics,
       ...diagnosticConsole.filter((line) => line.includes("[bw][GPU-")),
       ...diagnosticConsole.slice(0, 12),
       ...diagnosticConsole.slice(-8),
@@ -232,6 +251,7 @@ try {
     `cursor_shape=${cursorSnapshot.shape} cursor_css=${cursorSnapshot.css} ` +
     `title_updated=1 document_title=${encodeURIComponent(documentTitle)} ` +
     `present_submission_rejected=0 present_transaction_rejected=0 device_lost=0 ` +
+    `incomplete_contract_bindings=0 ` +
     `playwright_root=${playwrightRoot}`,
   );
 }

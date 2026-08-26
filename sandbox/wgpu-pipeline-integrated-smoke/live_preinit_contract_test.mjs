@@ -25,6 +25,7 @@ const good = {
     presentTransactionRejected: 0,
     deviceLost: 0,
     pageErrors: 0,
+    incompleteContractBindings: 0,
     adapterFallback: "true",
     presentationValidation: "fallback-diagnostic",
   },
@@ -57,6 +58,7 @@ const mutations = [
   }],
   ["present transaction rejected", (v) => { v.counters.presentTransactionRejected = 1; }],
   ["page error", (v) => { v.counters.pageErrors = 1; }],
+  ["incomplete viewport bind group", (v) => { v.counters.incompleteContractBindings = 1; }],
   ["fallback mislabeled strict", (v) => { v.counters.presentationValidation = "strict"; }],
   ["hardware mislabeled fallback", (v) => {
     v.counters.adapterFallback = "false";

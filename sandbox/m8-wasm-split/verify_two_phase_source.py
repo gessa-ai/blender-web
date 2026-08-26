@@ -444,6 +444,12 @@ def main() -> int:
         "hardware WebGPU adapter required before CAPTURE evidence allocation",
         "CAPTURE preflight failed before evidence allocation",
         "adapterReceipt?.status === 'ACCEPTED'",
+        "VIEWPORT_BIND_GROUP_CONTRACT_SHADERS",
+        "incompleteViewportBindGroups.length === 0",
+        "overlay_grid_next",
+        "overlay_outline_detect",
+        "overlay_antialiasing_pipeline",
+        "OCIO_Display",
     ):
         if marker not in capture_driver:
             raise RuntimeError(f"capture portability/adapter contract {marker} absent")

@@ -279,8 +279,8 @@
       "milestone": "M4",
       "revisit": "After a normal host reboot enables the staged Windows-side Edge 150 CDP path; an agent must never restart WSL to force it.",
       "blocker": "no conformant hardware Vulkan ICD in WSL2 (NVIDIA ships none; Mesa dzn rejected by Dawn)",
-      "impact": "The strict CAPTURE profiles, hardware-bound APPLY product, and fresh splash/workspace pixel receipt cannot be produced here. The historical macOS PASS remains historical and no software Chromium capture can replace it.",
-      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md"
+      "impact": "The strict CAPTURE profiles, hardware-bound APPLY product, and fresh splash/workspace pixel receipt cannot be produced here. P0-D patch 0281 has device-free and fallback warning evidence, but still requires semantic viewport pixels, a real overlay_grid_next draw, complete OCIO_Display, and interaction pixel deltas on conformant hardware. The historical macOS PASS remains historical and no software Chromium capture can replace it.",
+      "evidence": "notes/s7-wsl2-hardware-blocker-20260822.md; notes/p0-bind-group-readiness-20260826.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m5",

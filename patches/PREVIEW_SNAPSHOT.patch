@@ -33488,10 +33488,10 @@ index 0000000000000000000000000000000000000000..42f6679bf6047b944c9e56f87de78ca9
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..f63527367cc4443fba7ad4fe6de300e503daf4a5
+index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc98566ab5245
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2600 @@
+@@ -0,0 +1,2763 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -33983,6 +33983,12 @@ index 0000000000000000000000000000000000000000..f63527367cc4443fba7ad4fe6de300e5
 +    }
 +  }
 +
++  uint64_t current_epoch() const
++  {
++    std::lock_guard lock(state_->mutex);
++    return state_->current_epoch;
++  }
++
 +  size_t pending_count() const
 +  {
 +    std::lock_guard lock(state_->mutex);
@@ -34232,10 +34238,59 @@ index 0000000000000000000000000000000000000000..f63527367cc4443fba7ad4fe6de300e5
 +         typename EqualT = std::equal_to<KeyT>>
 +class ScopedHandleCache {
 + private:
++  class OrderedValidation {
++   public:
++    void add(const std::shared_ptr<TransientResourceGateState> &gate)
++    {
++      bool settled;
++      bool valid;
++      {
++        std::lock_guard lock(mutex_);
++        settled = settled_;
++        valid = valid_;
++        if (!settled) {
++          gates_.push_back(gate);
++          return;
++        }
++      }
++      gate->settle(valid);
++    }
++
++    void settle(const bool valid)
++    {
++      std::vector<std::shared_ptr<TransientResourceGateState>> gates;
++      {
++        std::lock_guard lock(mutex_);
++        if (settled_) {
++          return;
++        }
++        settled_ = true;
++        valid_ = valid;
++        gates = std::move(gates_);
++      }
++      for (const std::shared_ptr<TransientResourceGateState> &gate : gates) {
++        gate->settle(valid);
++      }
++    }
++
++   private:
++    std::mutex mutex_;
++    bool settled_ = false;
++    bool valid_ = false;
++    std::vector<std::shared_ptr<TransientResourceGateState>> gates_;
++  };
++
++  struct OrderedPendingHandle {
++    HandleT candidate;
++    std::shared_ptr<OrderedValidation> validation = std::make_shared<OrderedValidation>();
++    std::unordered_set<uint64_t> gated_epochs;
++  };
++
 +  struct State {
 +    std::mutex mutex;
 +    std::unordered_map<KeyT, HandleT, HashT, EqualT> handles;
 +    std::unordered_set<KeyT, HashT, EqualT> pending;
++    std::unordered_map<KeyT, std::shared_ptr<OrderedPendingHandle>, HashT, EqualT> ordered_pending;
 +  };
 +
 + public:
@@ -34367,6 +34422,114 @@ index 0000000000000000000000000000000000000000..f63527367cc4443fba7ad4fe6de300e5
 +                         label,
 +                         std::forward<CreateFn>(create),
 +                         [](HandleT) {});
++  }
++
++  /**
++   * Return a provisional cache candidate only after reserving a validation dependency in the
++   * calling scheduler epoch. Every epoch that observes the candidate gets its own dependency on
++   * the one shared browser scope result; rejection therefore cancels all work that could have
++   * encoded the error object, while acceptance publishes an ordinary reusable cache hit.
++   */
++  template<typename BeginScopeFn, typename CreateFn, typename EndScopeFn>
++  HandleT get_or_create_ordered(const KeyT &key,
++                                OrderedQueueScheduler &scheduler,
++                                BeginScopeFn &&begin_scope,
++                                CreateFn &&create,
++                                EndScopeFn &&end_scope)
++  {
++    if (!state_) {
++      state_ = std::make_shared<State>();
++    }
++    const uint64_t epoch = scheduler.current_epoch();
++    std::shared_ptr<OrderedPendingHandle> ordered_pending;
++    bool create_candidate = false;
++    bool reserve_dependency = false;
++    {
++      std::lock_guard lock(state_->mutex);
++      const auto accepted = state_->handles.find(key);
++      if (accepted != state_->handles.end()) {
++        return accepted->second;
++      }
++      if (!state_->pending.emplace(key).second) {
++        const auto pending = state_->ordered_pending.find(key);
++        if (pending == state_->ordered_pending.end() || pending->second->candidate == nullptr) {
++          return HandleT{};
++        }
++        ordered_pending = pending->second;
++        reserve_dependency = ordered_pending->gated_epochs.emplace(epoch).second;
++      }
++      else {
++        ordered_pending = std::make_shared<OrderedPendingHandle>();
++        ordered_pending->gated_epochs.emplace(epoch);
++        state_->ordered_pending.emplace(key, ordered_pending);
++        create_candidate = true;
++        reserve_dependency = true;
++      }
++    }
++
++    OrderedQueueScheduler::Ticket ticket;
++    if (reserve_dependency) {
++      ticket = scheduler.reserve();
++      auto gate = std::make_shared<TransientResourceGateState>([](const bool /*valid*/) {});
++      ticket.resolve(
++          [gate](auto done) { gate->operation(std::move(done)); },
++          [gate]() { gate->cancel(); });
++      ordered_pending->validation->add(gate);
++    }
++    if (!create_candidate) {
++      return ordered_pending->candidate;
++    }
++
++    std::forward<BeginScopeFn>(begin_scope)();
++    HandleT candidate = std::forward<CreateFn>(create)();
++    const bool handle_valid = candidate != nullptr;
++    {
++      std::lock_guard lock(state_->mutex);
++      auto pending = state_->ordered_pending.find(key);
++      if (pending != state_->ordered_pending.end() && pending->second == ordered_pending) {
++        ordered_pending->candidate = candidate;
++      }
++    }
++
++    const std::shared_ptr<State> state = state_;
++    std::forward<EndScopeFn>(end_scope)(
++        [state, key, candidate, ordered_pending, handle_valid](const bool scope_valid) mutable {
++          const bool valid = handle_valid && scope_valid;
++          {
++            std::lock_guard lock(state->mutex);
++            state->pending.erase(key);
++            const auto pending = state->ordered_pending.find(key);
++            if (pending != state->ordered_pending.end() && pending->second == ordered_pending) {
++              state->ordered_pending.erase(pending);
++            }
++            if (valid && candidate != nullptr) {
++              state->handles.emplace(key, std::move(candidate));
++            }
++          }
++          ordered_pending->validation->settle(valid);
++        });
++    return handle_valid ? candidate : HandleT{};
++  }
++
++  template<typename InstanceT, typename DeviceT, typename CreateFn>
++  HandleT get_or_create_ordered(const InstanceT &instance,
++                                const DeviceT &device,
++                                OrderedQueueScheduler &scheduler,
++                                const KeyT &key,
++                                const char *label,
++                                CreateFn &&create)
++  {
++    std::string operation_label = label ? label : "";
++    return get_or_create_ordered(
++        key,
++        scheduler,
++        [&device]() { webgpu_error_scopes_push(device); },
++        std::forward<CreateFn>(create),
++        [&instance, &device, operation_label = std::move(operation_label)](
++            auto completion) mutable {
++          webgpu_error_scopes_pop(
++              instance, device, std::move(operation_label), std::move(completion));
++        });
 +  }
 +
 + private:
@@ -36094,10 +36257,10 @@ index 0000000000000000000000000000000000000000..f63527367cc4443fba7ad4fe6de300e5
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..325f14f103d4795df0008cdd62644e1e578d8821
+index 0000000000000000000000000000000000000000..b4ad97775f04c7099ed06c5bce3173fba7edfe13
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1316 @@
+@@ -0,0 +1,1313 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -36349,10 +36512,6 @@ index 0000000000000000000000000000000000000000..325f14f103d4795df0008cdd62644e1e
 +wgpu::Sampler WGPUContext::get_sampler(const GPUSamplerState &state)
 +{
 +  const uint32_t key = state.as_uint();
-+  const wgpu::Sampler cached = sampler_cache_.lookup(key);
-+  if (cached != nullptr) {
-+    return cached;
-+  }
 +  if (instance_ == nullptr || device_ == nullptr) {
 +    return nullptr;
 +  }
@@ -36405,9 +36564,10 @@ index 0000000000000000000000000000000000000000..325f14f103d4795df0008cdd62644e1e
 +    }
 +  }
 +
-+  return sampler_cache_.get_or_create(instance_, device_, key, "sampler creation", [&]() {
-+    return device_.CreateSampler(&d);
-+  });
++  return sampler_cache_.get_or_create_ordered(
++      instance_, device_, queue_scheduler_, key, "sampler creation", [&]() {
++        return device_.CreateSampler(&d);
++      });
 +}
 +
 +/* --- Dummy vertex buffer (unbound-attribute constant) ---------------------- */
@@ -43225,10 +43385,10 @@ index 0000000000000000000000000000000000000000..972573105d2165c30962d278d53473a6
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..01474946124737cc616c9798ce9abac57d26a4f1
+index 0000000000000000000000000000000000000000..e8e50d9afd9d0281c2b56e94f9cf61a1150541a9
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_shader.cc
-@@ -0,0 +1,3030 @@
+@@ -0,0 +1,3079 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -45751,14 +45911,25 @@ index 0000000000000000000000000000000000000000..01474946124737cc616c9798ce9abac5
 +  vertex_wgsl_ = std::move(result.vertex_wgsl);
 +  fragment_wgsl_ = std::move(result.fragment_wgsl);
 +  compute_wgsl_ = std::move(result.compute_wgsl);
++  /* Build the name/location interface and start the persistent push-constant allocation before
++   * shader-module/layout validation. Browser resource scopes settle asynchronously; pipeline
++   * lookup already waits for both later stages, so the first draw cannot encounter an otherwise
++   * valid shader whose backend-injected uniform buffer has not been published yet. */
++  build_interface(*info);
++  if (has_push_constants()) {
++    push_constants_buffer_.create_scoped(instance,
++                                         device,
++                                         webgpu::BufferKind::Uniform,
++                                         webgpu::UsageType::Dynamic,
++                                         push_constants_size_,
++                                         push_constants_data_.data(),
++                                         false,
++                                         "push-constant buffer creation");
++  }
 +  /* Native Dawn publishes synchronously; browser callbacks leave the set pending. Compilation is
 +   * still complete in either case, and draw/dispatch lookup retries from these retained sources
 +   * without exposing provisional modules. */
 +  ensure_shader_modules(instance, device);
-+
-+  /* Build the name→location interface + push-constant std140 layout (needed for
-+   * uniform_* and for lane B's bind-group assembly). */
-+  build_interface(*info);
 +
 +  /* Build the explicit group-0 layout from the interface map, pruned to each
 +   * entry point's transitively used resources (needs has_multi_viewport_ /
@@ -45876,14 +46047,52 @@ index 0000000000000000000000000000000000000000..01474946124737cc616c9798ce9abac5
 +      assembled_bindings.push_back(entry.binding);
 +    }
 +  }
++  std::sort(assembled_bindings.begin(), assembled_bindings.end());
++  assembled_bindings.erase(
++      std::unique(assembled_bindings.begin(), assembled_bindings.end()),
++      assembled_bindings.end());
 +  if (webgpu::bind_group_binding_ids_complete(surviving_bindings_,
-+                                               std::move(assembled_bindings)))
++                                               assembled_bindings))
 +  {
 +    return true;
 +  }
++
++  std::vector<uint32_t> missing_bindings;
++  std::vector<uint32_t> extra_bindings;
++  for (const uint32_t binding : surviving_bindings_) {
++    if (!std::binary_search(assembled_bindings.begin(), assembled_bindings.end(), binding)) {
++      missing_bindings.push_back(binding);
++    }
++  }
++  for (const uint32_t binding : assembled_bindings) {
++    if (!std::binary_search(surviving_bindings_.begin(), surviving_bindings_.end(), binding)) {
++      extra_bindings.push_back(binding);
++    }
++  }
++  const auto binding_ids_string = [](const std::vector<uint32_t> &bindings) {
++    std::ostringstream stream;
++    stream << '[';
++    for (size_t index = 0; index < bindings.size(); index++) {
++      if (index != 0) {
++        stream << ',';
++      }
++      stream << bindings[index];
++    }
++    stream << ']';
++    return stream.str();
++  };
++  const std::string surviving_string = binding_ids_string(surviving_bindings_);
++  const std::string assembled_string = binding_ids_string(assembled_bindings);
++  const std::string missing_string = binding_ids_string(missing_bindings);
++  const std::string extra_string = binding_ids_string(extra_bindings);
 +  CLOG_WARN(&LOG,
-+            "WGPUShader '%s': assembled group-0 resources do not match surviving WGSL bindings",
-+            name_get().c_str());
++            "WGPUShader '%s': assembled group-0 resources do not match surviving WGSL bindings: "
++            "surviving=%s assembled=%s missing=%s extra=%s",
++            name_get().c_str(),
++            surviving_string.c_str(),
++            assembled_string.c_str(),
++            missing_string.c_str(),
++            extra_string.c_str());
 +  return false;
 +}
 +

@@ -255,10 +255,15 @@ canonical local-server root instead of the explicit `/windowed.html` path.
 This headed check forces Chromium's SwiftShader adapter under its GPU-test initialization, then
 requires the adapter to report fallback status. After `WM_main`, it bounds first-tick settlement,
 requires a positive tick delta across two further samples, sends trusted mouse input, and requires
-both another WM tick and a new presentation with no device loss, rejected present submission, or
-rejected present transaction. It also requires the real product's 46-shape cursor bridge to consume
-one shared-memory snapshot and apply the matching CSS cursor to `#canvas`. Its explicit
+both another WM tick and a new presentation from the uncapped exported counters with no device
+loss, rejected present submission, or rejected present transaction. It rejects incomplete
+group-0 warnings from `overlay_grid_next`, `overlay_outline_detect`,
+`overlay_antialiasing_pipeline`, and `OCIO_Display`. It also requires the real product's 46-shape
+cursor bridge to consume one shared-memory snapshot and apply the matching CSS cursor to `#canvas`.
+Its explicit
 `diagnostic-nonreceipt` result never binds a GPU receipt or satisfies the live-pixel gate.
+The first-two-frame `presentBackbuffer` console diagnostic is capped and is never used as a
+liveness counter.
 
 The triangle-fan row deliberately exercises the backend's fail-visible fallback:
 both executions must emit the exact canonical `BLI_assert_unreachable` diagnostic

@@ -2920,6 +2920,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   errors, but both captures are uniformly dark and bind no pixel receipt. Accepted Apple profiles,
   APPLY, and a hardware staged-pixel run remain mandatory. See
   `notes/m8-staged-packer-reconciliation-20260826.md`.
+- [x] **P1-M8-STAGE0-UNSELECTED-APP-TEMPLATES [driver] (`0fd49fa`):** the pinned native oracle
+  proves factory startup selects no application template, so the nine alternate template
+  `__init__.py`/`startup.blend` files now ride Stage 1 with byte-exact placeholder restoration.
+  Exact CAPTURE Stage-0 data falls from 5,615,715 to 5,123,738 Brotli-q11 bytes; primary + glue +
+  data falls from 18,120,796 to 17,628,735 bytes, still honestly 2,628,735 over LAUNCH.md's 15 MB
+  bar. Fail-first/final packer coverage, exact derivation, provenance/assembler, pinned oracle,
+  fallback-software product boot/input, and REUSE are green. Hardware staged pixels remain
+  mandatory; no profile, APPLY artifact, or receipt changed. See
+  `notes/m8-stage0-app-templates-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

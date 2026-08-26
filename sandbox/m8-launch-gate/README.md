@@ -269,6 +269,13 @@ only when every finalizer-owned shipping shard is actually observed exactly once
 the primary before the semantic interaction and the content-addressed deferred URL
 strictly afterward.
 
+The 15 MB critical-wire total includes every response fetched before that semantic
+interaction: `index.html`, diagnostics, file bridge, boot shell, Stage-1 loader,
+service-worker registration and worker controls, Emscripten glue/data, and each
+manifest-critical Wasm shard. The assembler emits deterministic q11/lgwin=24
+siblings for that complete set, and the performance producer observes requests at
+browser-context scope so service-worker traffic cannot disappear from the receipt.
+
 Assembly is fail-closed on the public legal payload. The bundle carries the aggregate
 license, AUTHORS/NOTICE, provenance, third-party inventory, all repository SPDX license
 texts needed by the assembled tree, the exact OpenSubdiv custom license/NOTICE, and the

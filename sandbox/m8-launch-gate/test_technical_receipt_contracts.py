@@ -59,6 +59,40 @@ def phase_selfcheck() -> tuple[int, int]:
     return 1, len(negatives)
 
 
+def critical_path_selfcheck() -> tuple[int, int]:
+    expected = sorted((
+        "/index.html",
+        "/diagnostics-bootstrap.js",
+        "/file-bridge.js",
+        "/boot-windowed.js",
+        "/stage1-loader.js",
+        "/service-worker-register.js",
+        "/service-worker.js",
+        "/bin/blender_browser.js",
+        "/bin/blender_browser.data",
+        "/bin/blender_browser.wasm",
+    ))
+    actual = verify_m8.expected_critical_paths(CONTRACT)
+    assert actual == expected
+    negatives = (
+        "/index.html",
+        "/diagnostics-bootstrap.js",
+        "/file-bridge.js",
+        "/boot-windowed.js",
+        "/stage1-loader.js",
+        "/service-worker-register.js",
+        "/service-worker.js",
+    )
+    for path in negatives:
+        assert path in actual
+    assert "/bin/blender_browser.deferred.wasm" not in actual
+    expected_static_brotli = {
+        f"{path.removeprefix('/')}.br" for path in actual if not path.endswith(".wasm")
+    }
+    assert expected_static_brotli <= set(verify_m8.STATIC_BUNDLE_FILES)
+    return 2, len(negatives) + 1
+
+
 def exact_receipt_inventory_selfcheck() -> tuple[int, int]:
     with tempfile.TemporaryDirectory(
             prefix=".m8-receipt-selfcheck-", dir=verify_m8.SELF) as temporary:
@@ -95,7 +129,7 @@ def generated_input_exclusion_selfcheck() -> tuple[int, int]:
 if __name__ == "__main__":
     positives = negatives = 0
     for positive, negative in (
-            phase_selfcheck(), exact_receipt_inventory_selfcheck(),
+            phase_selfcheck(), critical_path_selfcheck(), exact_receipt_inventory_selfcheck(),
             generated_input_exclusion_selfcheck()):
         positives += positive
         negatives += negative

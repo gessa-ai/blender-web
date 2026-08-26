@@ -116,6 +116,25 @@ STATIC_BUNDLE_FILES = (
     "bin/blender_browser.js.br",
     "bin/blender_browser.data.br",
     "bin/stage1.data.br",
+    "index.html.br",
+    "diagnostics-bootstrap.js.br",
+    "file-bridge.js.br",
+    "boot-windowed.js.br",
+    "stage1-loader.js.br",
+    "service-worker-register.js.br",
+    "service-worker.js.br",
+)
+
+BOOT_CRITICAL_PATHS = (
+    "/index.html",
+    "/diagnostics-bootstrap.js",
+    "/file-bridge.js",
+    "/boot-windowed.js",
+    "/stage1-loader.js",
+    "/service-worker-register.js",
+    "/service-worker.js",
+    "/bin/blender_browser.js",
+    "/bin/blender_browser.data",
 )
 
 
@@ -129,6 +148,14 @@ def sha256(path: Path) -> str:
 
 def identity(path: Path) -> dict[str, object]:
     return {"bytes": path.stat().st_size, "sha256": sha256(path)}
+
+
+def expected_critical_paths(contract: dict[str, object]) -> list[str]:
+    """Return every response fetched before the first semantic interaction."""
+    return sorted((
+        *BOOT_CRITICAL_PATHS,
+        *(f"/bin/{row['filename']}" for row in contract["shipped_wasm"] if row["critical"]),
+    ))
 
 
 def canonical_artifact_digest(artifacts: dict[str, dict[str, object]]) -> str:
@@ -1182,10 +1209,7 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
     require(isinstance(critical, int) and critical <= 15_000_000,
             f"critical brotli payload exceeds 15MB: {critical!r}", failures)
     contract = artifact_contract()
-    expected_critical = sorted((
-        "/bin/blender_browser.js", "/bin/blender_browser.data",
-        *(f"/bin/{row['filename']}" for row in contract["shipped_wasm"] if row["critical"]),
-    ))
+    expected_critical = expected_critical_paths(contract)
     require(sorted(perf.get("critical_paths", [])) == expected_critical,
             "performance critical assets differ from split inventory", failures)
     require(perf.get("split_inventory_sha256") == sha256(BUILD / SPLIT_MANIFEST),

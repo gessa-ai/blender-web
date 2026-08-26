@@ -12,6 +12,17 @@ import {isDeepStrictEqual} from "util";
 
 export const SPLIT_MANIFEST = "blender_browser.split-build.json";
 export const BUNDLE_SPLIT_MANIFEST = "bin/split-build.json";
+export const BOOT_CRITICAL_URLS = Object.freeze([
+  "/index.html",
+  "/diagnostics-bootstrap.js",
+  "/file-bridge.js",
+  "/boot-windowed.js",
+  "/stage1-loader.js",
+  "/service-worker-register.js",
+  "/service-worker.js",
+  "/bin/blender_browser.js",
+  "/bin/blender_browser.data",
+]);
 
 export const STATIC_BUNDLE_NAMES = [
   "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js", "wgpu-preinit-worker.js",
@@ -28,6 +39,9 @@ export const STATIC_BUNDLE_NAMES = [
   "bin/blender_browser.js", "bin/blender_browser.data",
   "bin/stage1.data", "bin/stage1-manifest.json", BUNDLE_SPLIT_MANIFEST,
   "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
+  "index.html.br", "diagnostics-bootstrap.js.br", "file-bridge.js.br",
+  "boot-windowed.js.br", "stage1-loader.js.br", "service-worker-register.js.br",
+  "service-worker.js.br",
 ];
 
 function invariant(condition, message) {

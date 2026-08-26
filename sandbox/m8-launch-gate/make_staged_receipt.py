@@ -180,10 +180,7 @@ def main() -> int:
     scenario = perf.get("scenarios", {}).get("cold-1.5mbps", {})
     rows = scenario.get("runs", [])
     run_count = perf.get("runs")
-    expected_critical_paths = sorted((
-        "/bin/blender_browser.js", "/bin/blender_browser.data",
-        *(f"/bin/{row['filename']}" for row in contract["shipped_wasm"] if row["critical"]),
-    ))
+    expected_critical_paths = verify_m8.expected_critical_paths(contract)
     require(isinstance(run_count, int) and run_count >= 3,
             "performance proof has fewer than 3 cold runs")
     require(isinstance(rows, list) and len(rows) == run_count,

@@ -307,5 +307,14 @@ for token, value in tokens.items():
     text = text.replace(token, value)
 pathlib.Path(output).write_text(text, encoding="utf-8")
 PY
+if [ "${DO_BROTLI}" = "1" ]; then
+  # These responses all start before the first semantic interaction. Keep their
+  # exact transport bytes inside the same q11/lgwin=24 release contract as the
+  # Emscripten payload instead of letting the 15 MB receipt omit shell overhead.
+  for f in index.html diagnostics-bootstrap.js file-bridge.js boot-windowed.js \
+           stage1-loader.js service-worker-register.js service-worker.js; do
+    "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"
+  done
+fi
 rm -f "${split_rows}"; trap - EXIT
 echo "make_staged_bundle: assembled exact split-aware tree at ${OUT} cache=${cache_version}"

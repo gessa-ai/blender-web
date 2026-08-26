@@ -10,7 +10,8 @@ import {mkdirSync, readFileSync, writeFileSync} from "fs";
 import {delimiter, dirname, isAbsolute, join, relative, resolve} from "path";
 import {fileURLToPath} from "url";
 import {
-  canonicalBundleDigest, collectArtifacts, loadArtifactContract, requireServedBundle,
+  BOOT_CRITICAL_URLS, canonicalBundleDigest, collectArtifacts, loadArtifactContract,
+  requireServedBundle,
 } from "./bundle_identity.mjs";
 import {
   bindRuntimeVersion, browserIdentityContract, collectBrowserRuntimeIdentity, legacySigning,
@@ -124,6 +125,9 @@ async function runSelfcheck() {
     "module roots are not absolute and unique");
   check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
     "repository-local module fallbacks are incomplete or escaped");
+  check(BOOT_CRITICAL_URLS.length === 9 && new Set(BOOT_CRITICAL_URLS).size === 9 &&
+    BOOT_CRITICAL_URLS.every((path) => path.startsWith("/")),
+  "boot-critical transport inventory is incomplete or ambiguous");
   requireNodeVersion();
   check(true, "exact Node acceptance");
   await reject("wrong_node", () => requireNodeVersion("v25.1.0"));
@@ -312,7 +316,7 @@ await adapterContext.close();
 const official = await officialChromeVersion(HOST_PLATFORM);
 const rows = [];
 const transportUrls = new Set([
-  "/bin/blender_browser.js", "/bin/blender_browser.data", ...artifactContract.shippedWasmUrls,
+  ...BOOT_CRITICAL_URLS, ...artifactContract.shippedWasmUrls,
 ]);
 for (let run = 0; run < RUNS; run++) {
   const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 1});
@@ -327,11 +331,12 @@ for (let run = 0; run < RUNS; run++) {
   });
   const encodings = {};
   const requestTimelineMs = {};
+  const responseHeaderPromises = [];
   const wasmRequests = [];
   const externalRequests = [];
   const pageErrors = [];
   const start = Date.now();
-  page.on("request", (request) => {
+  context.on("request", (request) => {
     const url = new URL(request.url());
     const path = url.pathname;
     if (url.origin !== new URL(BASE).origin) externalRequests.push(request.url());
@@ -344,10 +349,14 @@ for (let run = 0; run < RUNS; run++) {
   });
   page.on("pageerror", (error) => pageErrors.push(String(error && error.message || error)));
   page.on("crash", () => pageErrors.push("PAGE CRASH"));
-  page.on("response", async (response) => {
+  context.on("response", async (response) => {
     const path = new URL(response.url()).pathname;
     if (transportUrls.has(path)) {
-      encodings[path] = (await response.allHeaders())["content-encoding"] || null;
+      responseHeaderPromises.push(response.allHeaders().then((headers) => {
+        encodings[path] = headers["content-encoding"] || null;
+      }, () => {
+        encodings[path] = null;
+      }));
     }
   });
   const navigationResponse = await page.goto(`${BASE}/index.html`,
@@ -378,16 +387,20 @@ for (let run = 0; run < RUNS; run++) {
          !expectedShardRequests.every((url) => wasmRequests.some((request) => request.url === url))) {
     await page.waitForTimeout(25);
   }
+  await Promise.all(responseHeaderPromises);
   const observedShardRequests = wasmRequests.map((request) => request.url).sort();
   const exactShardRequests = observedShardRequests.length === expectedShardRequests.length &&
     [...expectedShardRequests].sort().every((url, index) => url === observedShardRequests[index]);
   const observedCriticalWasm = artifactContract.shippedWasmUrls.filter((path) =>
     requestTimelineMs[path] !== undefined && semanticInteractionMs !== null &&
     requestTimelineMs[path] <= semanticInteractionMs);
-  const criticalPaths = ["/bin/blender_browser.js", "/bin/blender_browser.data", ...observedCriticalWasm];
+  const criticalPaths = [...BOOT_CRITICAL_URLS, ...observedCriticalWasm].sort();
   const declaredCritical = [...artifactContract.criticalWasmUrls].sort();
   const observedCritical = [...observedCriticalWasm].sort();
-  const manifestPhaseValid = exactShardRequests &&
+  const bootCriticalPhaseValid = BOOT_CRITICAL_URLS.every((path) =>
+    requestTimelineMs[path] !== undefined && semanticInteractionMs !== null &&
+    requestTimelineMs[path] <= semanticInteractionMs);
+  const manifestPhaseValid = exactShardRequests && bootCriticalPhaseValid &&
     JSON.stringify(declaredCritical) === JSON.stringify(observedCritical) &&
     artifactContract.shippedWasm.filter((row) => row.role === "deferred").every((row) =>
       semanticInteractionMs !== null &&

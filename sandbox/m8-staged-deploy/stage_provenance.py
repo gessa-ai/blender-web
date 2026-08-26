@@ -265,9 +265,23 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "bin/stage1-manifest.json", "bin/stage1.data",
         *(f"bin/{row['filename']}" for row in shipped_rows),
     ]
-    br_names = ["bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
-                *(f"bin/{row['filename']}.br" for row in shipped_rows)]
-    identity_files = [name for name in cache_files if name != "service-worker-register.js"] + br_names
+    payload_br_names = [
+        "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
+        *(f"bin/{row['filename']}.br" for row in shipped_rows),
+    ]
+    shell_br_names = [
+        f"{name}.br" for name in (
+            "index.html", "diagnostics-bootstrap.js", "file-bridge.js", "boot-windowed.js",
+            "stage1-loader.js", "service-worker-register.js", "service-worker.js",
+        )
+    ]
+    br_names = payload_br_names + shell_br_names
+    # Generated service-worker controls contain the version token, so their
+    # compressed representations cannot feed that token's own identity. The
+    # exact bundle digest and deterministic Brotli replay still bind every .br.
+    identity_files = [
+        name for name in cache_files if name != "service-worker-register.js"
+    ] + payload_br_names
     try:
         worker, register, version = render_controls(
             bundle, staged_root / "service-worker.js", staged_root / "service-worker-register.js",

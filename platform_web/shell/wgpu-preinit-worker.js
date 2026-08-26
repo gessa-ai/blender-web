@@ -135,11 +135,20 @@
               adapter.features.forEach(function (f) { requiredFeatures.push(f); });
             }
           } catch (e) {}
-          // Request only the two adapter-supported ceilings EEVEE needs. Omitting every
+          // Request only the adapter-supported ceilings EEVEE needs. Omitting every
           // other key preserves the browser defaults for all unrelated device limits.
           var requiredLimits = {
             maxStorageTexturesPerShaderStage: adapter.limits.maxStorageTexturesPerShaderStage,
+            maxSampledTexturesPerShaderStage: adapter.limits.maxSampledTexturesPerShaderStage,
+            maxSamplersPerShaderStage: adapter.limits.maxSamplersPerShaderStage,
             maxStorageBuffersPerShaderStage: adapter.limits.maxStorageBuffersPerShaderStage,
+            maxBufferSize: adapter.limits.maxBufferSize,
+            maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+            maxColorAttachmentBytesPerSample:
+              adapter.limits.maxColorAttachmentBytesPerSample,
+            maxComputeWorkgroupStorageSize: adapter.limits.maxComputeWorkgroupStorageSize,
+            maxComputeInvocationsPerWorkgroup: adapter.limits.maxComputeInvocationsPerWorkgroup,
+            maxComputeWorkgroupSizeX: adapter.limits.maxComputeWorkgroupSizeX,
           };
           var device = await adapter.requestDevice({
             requiredFeatures: requiredFeatures,
@@ -205,8 +214,26 @@
               " fallback=" + String(currentFallbackStatus) +
               " maxStorageTexturesPerShaderStage=" +
               requiredLimits.maxStorageTexturesPerShaderStage +
+              " maxSampledTexturesPerShaderStage=" +
+              requiredLimits.maxSampledTexturesPerShaderStage +
+              " maxSamplersPerShaderStage=" + requiredLimits.maxSamplersPerShaderStage +
               " maxStorageBuffersPerShaderStage=" +
-              requiredLimits.maxStorageBuffersPerShaderStage);
+              requiredLimits.maxStorageBuffersPerShaderStage +
+              " maxBufferSize=" + requiredLimits.maxBufferSize +
+              " maxStorageBufferBindingSize=" +
+              requiredLimits.maxStorageBufferBindingSize +
+              " adapterMaxColorAttachmentBytesPerSample=" +
+              adapter.limits.maxColorAttachmentBytesPerSample +
+              " requestedMaxColorAttachmentBytesPerSample=" +
+              requiredLimits.maxColorAttachmentBytesPerSample +
+              " deviceMaxColorAttachmentBytesPerSample=" +
+              device.limits.maxColorAttachmentBytesPerSample +
+              " adapterMaxComputeWorkgroupStorageSize=" +
+              adapter.limits.maxComputeWorkgroupStorageSize +
+              " requestedMaxComputeWorkgroupStorageSize=" +
+              requiredLimits.maxComputeWorkgroupStorageSize +
+              " deviceMaxComputeWorkgroupStorageSize=" +
+              device.limits.maxComputeWorkgroupStorageSize);
 
           // A presentable GHOST window is a stronger contract than a live device.
           // Resolve/configure the transferred canvas and validate its first persistent

@@ -453,6 +453,31 @@ void GHOST_ContextWGPUWeb::requestDevice()
         std::printf("WGPUWeb: uncaptured error (%d): %.*s\n", int(type), int(msg.length), msg.data);
       });
 
+  /* Match the native Dawn context's resource and compute ceilings. The
+   * preinitialized-worker path already requests this set, but this fallback
+   * must create an equivalent device when preinitialization is unavailable. */
+  wgpu::Limits supported_limits = {};
+  wgpu::Limits required_limits = {};
+  if (adapter_.GetLimits(&supported_limits)) {
+    required_limits.maxStorageTexturesPerShaderStage =
+        supported_limits.maxStorageTexturesPerShaderStage;
+    required_limits.maxSampledTexturesPerShaderStage =
+        supported_limits.maxSampledTexturesPerShaderStage;
+    required_limits.maxSamplersPerShaderStage = supported_limits.maxSamplersPerShaderStage;
+    required_limits.maxStorageBuffersPerShaderStage =
+        supported_limits.maxStorageBuffersPerShaderStage;
+    required_limits.maxBufferSize = supported_limits.maxBufferSize;
+    required_limits.maxStorageBufferBindingSize = supported_limits.maxStorageBufferBindingSize;
+    required_limits.maxColorAttachmentBytesPerSample =
+        supported_limits.maxColorAttachmentBytesPerSample;
+    required_limits.maxComputeWorkgroupStorageSize =
+        supported_limits.maxComputeWorkgroupStorageSize;
+    required_limits.maxComputeInvocationsPerWorkgroup =
+        supported_limits.maxComputeInvocationsPerWorkgroup;
+    required_limits.maxComputeWorkgroupSizeX = supported_limits.maxComputeWorkgroupSizeX;
+    desc.requiredLimits = &required_limits;
+  }
+
   const std::shared_ptr<CallbackLifetime> callback_lifetime = callback_lifetime_;
   adapter_.RequestDevice(
       &desc,

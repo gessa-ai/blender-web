@@ -269,10 +269,19 @@ only when every finalizer-owned shipping shard is actually observed exactly once
 the primary before the semantic interaction and the content-addressed deferred URL
 strictly afterward.
 
-The 15 MB critical-wire total includes every response fetched before that semantic
-interaction: `index.html`, diagnostics, file bridge, boot shell, Stage-1 loader,
-service-worker registration and worker controls, Emscripten glue/data, and each
-manifest-critical Wasm shard. The assembler emits deterministic q11/lgwin=24
+The performance producer records every same-origin request and response through that
+semantic interaction. Each critical response must be one queryless GET/200 mapping to
+one exact raw bundle artifact with a Brotli sibling; unknown, duplicate, queried,
+unmapped, missing, or non-Brotli responses fail closed. A known extra artifact is
+counted rather than ignored. The composer independently derives each cold run's
+critical set, counts their union, and the final verifier recomputes that union and its
+exact bundle Brotli sizes.
+
+The 15 MB critical-wire total therefore includes every observed response fetched
+before the semantic interaction: `index.html`, diagnostics, file bridge, boot shell,
+Stage-1 loader, service-worker registration and worker controls, Emscripten glue/data,
+each manifest-critical Wasm shard, and any future early bundle request. The assembler
+emits deterministic q11/lgwin=24
 siblings for that complete set, and the performance producer observes requests at
 browser-context scope so service-worker traffic cannot disappear from the receipt.
 

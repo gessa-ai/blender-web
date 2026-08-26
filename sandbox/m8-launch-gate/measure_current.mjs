@@ -92,6 +92,78 @@ function parseInvocation(argv = process.argv.slice(2)) {
   return {selfcheck: false, port, executable, runs};
 }
 
+function bundleArtifactForPath(path, bundleNames) {
+  if (typeof path !== "string" || !path.startsWith("/")) return null;
+  const artifact = path.slice(1);
+  return bundleNames.includes(artifact) ? artifact : null;
+}
+
+function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPaths, bundleNames) {
+  const failures = [];
+  if (!Number.isFinite(semanticInteractionMs)) {
+    return {criticalPaths: [], failures: ["semantic interaction timestamp is absent or invalid"]};
+  }
+  if (!Array.isArray(requests)) {
+    return {criticalPaths: [], failures: ["same-origin request evidence is absent"]};
+  }
+  const critical = [];
+  for (let index = 0; index < requests.length; index++) {
+    const row = requests[index];
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      failures.push(`same-origin request ${index} is not an object`);
+      continue;
+    }
+    if (!Number.isFinite(row.at_ms) || row.at_ms < 0) {
+      failures.push(`same-origin request ${index} has an invalid timestamp`);
+      continue;
+    }
+    if (row.at_ms <= semanticInteractionMs) critical.push(row);
+  }
+
+  const criticalPaths = [];
+  const seen = new Set();
+  const bundle = new Set(bundleNames);
+  for (let index = 0; index < critical.length; index++) {
+    const row = critical[index];
+    const path = row.path;
+    if (typeof path !== "string") {
+      failures.push(`critical request ${index} has no URL path`);
+      continue;
+    }
+    criticalPaths.push(path);
+    if (seen.has(path)) failures.push(`critical request path was fetched more than once: ${path}`);
+    seen.add(path);
+    if (row.url !== path) failures.push(`critical request has a query or noncanonical URL: ${row.url}`);
+    if (row.method !== "GET") failures.push(`critical request is not GET: ${path}`);
+    const parts = path.replace(/^\//, "").split("/");
+    const canonical = path.startsWith("/") && !path.endsWith("/") &&
+      parts.every((part) => part !== "" && part !== "." && part !== "..") &&
+      /^\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(path);
+    if (!canonical) failures.push(`critical URL path is not canonical: ${path}`);
+    const artifact = canonical ? path.slice(1) : null;
+    if (row.bundle_artifact !== artifact) {
+      failures.push(`critical response does not map to its exact bundle artifact: ${path}`);
+    }
+    if (artifact?.endsWith(".br")) {
+      failures.push(`critical request targets a transport sibling directly: ${path}`);
+    }
+    else if (!artifact || !bundle.has(artifact)) {
+      failures.push(`critical request does not map to a bundle artifact: ${path}`);
+    }
+    else if (!bundle.has(`${artifact}.br`)) {
+      failures.push(`critical bundle artifact has no Brotli wire sibling: ${path}`);
+    }
+    if (row.response_count !== 1) failures.push(`critical request response count is not one: ${path}`);
+    if (row.response_url !== row.url) failures.push(`critical response URL differs from its request: ${path}`);
+    if (row.response_status !== 200) failures.push(`critical response status is not 200: ${path}`);
+    if (row.content_encoding !== "br") failures.push(`critical response is not Brotli encoded: ${path}`);
+  }
+  criticalPaths.sort();
+  const missing = [...new Set(mandatoryPaths)].filter((path) => !seen.has(path)).sort();
+  if (missing.length) failures.push(`mandatory critical paths are absent: ${JSON.stringify(missing)}`);
+  return {criticalPaths, failures};
+}
+
 async function officialChromeVersion(platform, fetcher = fetch) {
   const apiPlatform = platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
   if (!apiPlatform) throw new Error(`unsupported Chrome release platform: ${platform}`);
@@ -191,6 +263,45 @@ async function runSelfcheck() {
     ["invalid_runs", ["8168", "/fixture/chrome", "3junk"]],
     ["extra_argument", ["8168", "/fixture/chrome", "3", "extra"]],
   ]) await reject(name, () => parseInvocation(args));
+
+  const mandatoryTransport = [...BOOT_CRITICAL_URLS, "/bin/blender_browser.wasm"].sort();
+  const transportBundle = mandatoryTransport.flatMap((path) => [path.slice(1), `${path.slice(1)}.br`]);
+  const transportRow = (url, at_ms, overrides = {}) => {
+    const path = overrides.path || url.split("?", 1)[0];
+    return {url, path, method: "GET", at_ms,
+      bundle_artifact: bundleArtifactForPath(path, [...transportBundle, ...(overrides.bundleNames || [])]),
+      response_count: 1, response_url: url, response_status: 200, content_encoding: "br",
+      ...overrides};
+  };
+  const observedTransport = mandatoryTransport.map((path, index) => transportRow(path, 10 + index));
+  observedTransport.push(transportRow(
+    `/bin/blender_browser.deferred.wasm?sha256=${"b".repeat(64)}`, 101,
+    {path: "/bin/blender_browser.deferred.wasm",
+      bundleNames: ["bin/blender_browser.deferred.wasm"]}));
+  const transportPositive = analyzeCriticalTransport(
+    observedTransport, 100, mandatoryTransport, transportBundle);
+  check(transportPositive.failures.length === 0 &&
+    JSON.stringify(transportPositive.criticalPaths) === JSON.stringify(mandatoryTransport),
+  "observed critical transport does not preserve the mandatory request set");
+  const extra = transportRow("/extra.js", 90, {bundleNames: ["extra.js"]});
+  const dynamicTransport = analyzeCriticalTransport(
+    [...observedTransport, extra], 100, mandatoryTransport,
+    [...transportBundle, "extra.js", "extra.js.br"]);
+  check(dynamicTransport.failures.length === 0 && dynamicTransport.criticalPaths.includes("/extra.js"),
+    "an observed early bundle response is not counted dynamically");
+  for (const [name, rows, bundle] of [
+    ["unknown_early_response", [...observedTransport, extra], transportBundle],
+    ["duplicate_early_response", [...observedTransport, observedTransport[0]], transportBundle],
+    ["queried_early_response", [...observedTransport,
+      transportRow("/extra.js?v=1", 90, {path: "/extra.js", bundleNames: ["extra.js"]})],
+     [...transportBundle, "extra.js", "extra.js.br"]],
+    ["missing_early_response", [...observedTransport, {...extra, response_count: 0}],
+     [...transportBundle, "extra.js", "extra.js.br"]],
+  ]) {
+    const result = analyzeCriticalTransport(rows, 100, mandatoryTransport, bundle);
+    if (result.failures.length) negative++;
+    else throw new Error(`M8 performance self-check false green: ${name}`);
+  }
 
   const artifactRoot = resolve(HERE, "../m8-staged-deploy/artifacts");
   const output = join(artifactRoot, "measure_staged-4g.json");
@@ -315,9 +426,10 @@ catch (error) {
 await adapterContext.close();
 const official = await officialChromeVersion(HOST_PLATFORM);
 const rows = [];
-const transportUrls = new Set([
-  ...BOOT_CRITICAL_URLS, ...artifactContract.shippedWasmUrls,
-]);
+const baseOrigin = new URL(BASE).origin;
+const mandatoryCriticalPaths = [
+  ...BOOT_CRITICAL_URLS, ...artifactContract.criticalWasmUrls,
+].sort();
 for (let run = 0; run < RUNS; run++) {
   const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 1});
   const page = await context.newPage();
@@ -333,31 +445,54 @@ for (let run = 0; run < RUNS; run++) {
   const requestTimelineMs = {};
   const responseHeaderPromises = [];
   const wasmRequests = [];
+  const sameOriginRequests = [];
+  const sameOriginRequestRows = new Map();
+  const responseCaptureFailures = [];
   const externalRequests = [];
   const pageErrors = [];
   const start = Date.now();
   context.on("request", (request) => {
     const url = new URL(request.url());
     const path = url.pathname;
-    if (url.origin !== new URL(BASE).origin) externalRequests.push(request.url());
-    if (transportUrls.has(path) && requestTimelineMs[path] === undefined) {
-      requestTimelineMs[path] = Date.now() - start;
+    const at = Date.now() - start;
+    if (url.origin !== baseOrigin) {
+      externalRequests.push(request.url());
+    }
+    else {
+      const row = {url: `${path}${url.search}`, path, method: request.method(),
+        resource_type: request.resourceType(), at_ms: at,
+        bundle_artifact: bundleArtifactForPath(path, artifactContract.bundleNames),
+        response_count: 0, response_url: null, response_status: null, content_encoding: null};
+      sameOriginRequests.push(row);
+      sameOriginRequestRows.set(request, row);
+      if (requestTimelineMs[path] === undefined) requestTimelineMs[path] = at;
     }
     if (/^\/bin\/blender_browser.*\.wasm(?:\.orig)?$/.test(path)) {
-      wasmRequests.push({url: path + url.search, path, at_ms: Date.now() - start});
+      wasmRequests.push({url: path + url.search, path, at_ms: at});
     }
   });
   page.on("pageerror", (error) => pageErrors.push(String(error && error.message || error)));
   page.on("crash", () => pageErrors.push("PAGE CRASH"));
-  context.on("response", async (response) => {
-    const path = new URL(response.url()).pathname;
-    if (transportUrls.has(path)) {
-      responseHeaderPromises.push(response.allHeaders().then((headers) => {
-        encodings[path] = headers["content-encoding"] || null;
-      }, () => {
-        encodings[path] = null;
-      }));
+  context.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.origin !== baseOrigin) return;
+    const path = url.pathname;
+    const row = sameOriginRequestRows.get(response.request());
+    if (!row) {
+      responseCaptureFailures.push(`same-origin response has no captured request: ${path}${url.search}`);
+      return;
     }
+    row.response_count++;
+    row.response_url = `${path}${url.search}`;
+    row.response_status = response.status();
+    responseHeaderPromises.push(response.allHeaders().then((headers) => {
+      row.content_encoding = headers["content-encoding"] || null;
+      if (encodings[path] === undefined) encodings[path] = row.content_encoding;
+    }, (error) => {
+      row.content_encoding = null;
+      if (encodings[path] === undefined) encodings[path] = null;
+      responseCaptureFailures.push(`response headers unavailable for ${path}: ${error?.message || error}`);
+    }));
   });
   const navigationResponse = await page.goto(`${BASE}/index.html`,
     {waitUntil: "domcontentloaded", timeout: 60_000});
@@ -394,7 +529,10 @@ for (let run = 0; run < RUNS; run++) {
   const observedCriticalWasm = artifactContract.shippedWasmUrls.filter((path) =>
     requestTimelineMs[path] !== undefined && semanticInteractionMs !== null &&
     requestTimelineMs[path] <= semanticInteractionMs);
-  const criticalPaths = [...BOOT_CRITICAL_URLS, ...observedCriticalWasm].sort();
+  const criticalTransport = analyzeCriticalTransport(
+    sameOriginRequests, semanticInteractionMs, mandatoryCriticalPaths, artifactContract.bundleNames);
+  criticalTransport.failures.push(...responseCaptureFailures);
+  const criticalPaths = criticalTransport.criticalPaths;
   const declaredCritical = [...artifactContract.criticalWasmUrls].sort();
   const observedCritical = [...observedCriticalWasm].sort();
   const bootCriticalPhaseValid = BOOT_CRITICAL_URLS.every((path) =>
@@ -407,19 +545,24 @@ for (let run = 0; run < RUNS; run++) {
       wasmRequests.some((request) =>
         request.url === `/bin/${row.filename}?sha256=${row.sha256}` &&
         request.at_ms > semanticInteractionMs));
-  const wireBr = criticalPaths.every((path) => encodings[path] === "br");
+  const wireBr = criticalTransport.failures.length === 0 &&
+    criticalPaths.every((path) => encodings[path] === "br");
   const earlyDiagnostics = await requireEmptyEarlyDiagnostics(page, `performance:cold-${run + 1}`);
   rows.push({wm, fp, pixel_proof: proof, semantic_interaction: interaction,
     semantic_interaction_ms: semanticInteractionMs, request_timeline_ms: requestTimelineMs,
     expected_shard_requests: [...expectedShardRequests].sort(),
     wasm_requests: wasmRequests,
+    same_origin_requests: sameOriginRequests,
     critical_paths: criticalPaths, manifest_phase_valid: manifestPhaseValid,
+    critical_transport_valid: criticalTransport.failures.length === 0,
+    critical_transport_failures: criticalTransport.failures,
     content_encoding: encodings, wire_brotli: wireBr,
     external_request_count: externalRequests.length, external_requests: externalRequests,
     page_error_count: pageErrors.length, page_errors: pageErrors,
     served_bundle_sha256: servedBundleSha256, early_diagnostics: earlyDiagnostics});
   console.log(`[m8-perf] run=${run + 1} wm=${wm}ms fp=${fp}ms ` +
-    `semantic=${semanticInteractionMs}ms wireBr=${wireBr} splitPhase=${manifestPhaseValid}`);
+    `semantic=${semanticInteractionMs}ms wireBr=${wireBr} ` +
+    `critical=${criticalPaths.length} splitPhase=${manifestPhaseValid}`);
   await context.close();
 }
 await browser.close();
@@ -461,6 +604,7 @@ writeFileSync(OUT, JSON.stringify(summary, null, 2) + "\n");
 const pass = signing.valid && browserVersion === official.version && rows.length === RUNS &&
   rows.every((row) => row.fp !== null && row.pixel_proof?.pass === true && row.wire_brotli &&
     row.semantic_interaction?.pass === true && row.manifest_phase_valid === true &&
+    row.critical_transport_valid === true &&
     row.external_request_count === 0 && row.page_error_count === 0 &&
     row.served_bundle_sha256 === expectedBundleDigest);
 console.log(`M8_PERF_MEASURE_${pass ? "PASS" : "FAIL"} median=${summary.scenarios["cold-1.5mbps"].fp_median}ms -> ${OUT}`);

@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import math
 import statistics
 import subprocess
 import tempfile
@@ -65,6 +66,76 @@ def phase_request_failures(row: dict, contract: dict[str, object]) -> list[str]:
         elif not shard["critical"] and at <= interaction:
             failures.append(f"deferred shard was requested before/at semantic interaction: {url}")
     return failures
+
+
+def observed_critical_paths(row: dict, contract: dict[str, object],
+                            bundle_files: object) -> tuple[list[str], list[str]]:
+    """Derive and independently validate every pre-semantic same-origin response."""
+    failures: list[str] = []
+    interaction = row.get("semantic_interaction_ms")
+    if (not isinstance(interaction, (int, float)) or isinstance(interaction, bool) or
+            not math.isfinite(interaction)):
+        return [], ["semantic interaction timestamp is absent or invalid"]
+    requests = row.get("same_origin_requests")
+    if not isinstance(requests, list):
+        return [], ["same-origin request evidence is absent"]
+    critical: list[dict[str, object]] = []
+    for index, request_row in enumerate(requests):
+        if not isinstance(request_row, dict):
+            failures.append(f"same-origin request {index} is not an object")
+            continue
+        at = request_row.get("at_ms")
+        if (not isinstance(at, (int, float)) or isinstance(at, bool) or
+                not math.isfinite(at) or at < 0):
+            failures.append(f"same-origin request {index} has an invalid timestamp")
+            continue
+        if at <= interaction:
+            critical.append(request_row)
+
+    paths: list[str] = []
+    seen: set[str] = set()
+    encodings = row.get("content_encoding")
+    if not isinstance(encodings, dict):
+        failures.append("critical content-encoding evidence is absent")
+        encodings = {}
+    for index, request_row in enumerate(critical):
+        path = request_row.get("path")
+        url = request_row.get("url")
+        if not isinstance(path, str):
+            failures.append(f"critical request {index} has no URL path")
+            continue
+        paths.append(path)
+        if path in seen:
+            failures.append(f"critical request path was fetched more than once: {path}")
+        seen.add(path)
+        if url != path:
+            failures.append(f"critical request has a query or noncanonical URL: {url!r}")
+        if request_row.get("method") != "GET":
+            failures.append(f"critical request is not GET: {path}")
+        artifact = path.removeprefix("/")
+        if request_row.get("bundle_artifact") != artifact:
+            failures.append(f"critical response does not map to its exact bundle artifact: {path}")
+        response_count = request_row.get("response_count")
+        if response_count != 1 or isinstance(response_count, bool):
+            failures.append(f"critical request has {response_count!r} responses: {path}")
+        if request_row.get("response_url") != url:
+            failures.append(f"critical response URL differs from its request: {path}")
+        if request_row.get("response_status") != 200:
+            failures.append(f"critical response status is not 200: {path}")
+        if request_row.get("content_encoding") != "br" or encodings.get(path) != "br":
+            failures.append(f"critical response is not Brotli encoded: {path}")
+
+    paths.sort()
+    failures.extend(verify_m8.critical_path_failures(paths, contract, bundle_files))
+    if row.get("critical_paths") != paths:
+        failures.append("declared critical paths differ from observed request evidence")
+    if row.get("critical_transport_valid") is not True:
+        failures.append("producer did not accept the observed critical transport")
+    if row.get("critical_transport_failures") != []:
+        failures.append("producer reported critical transport failures")
+    if row.get("wire_brotli") is not True:
+        failures.append("producer did not accept complete Brotli transport")
+    return paths, failures
 
 
 def brotli_size(path: Path) -> int:
@@ -180,7 +251,7 @@ def main() -> int:
     scenario = perf.get("scenarios", {}).get("cold-1.5mbps", {})
     rows = scenario.get("runs", [])
     run_count = perf.get("runs")
-    expected_critical_paths = verify_m8.expected_critical_paths(contract)
+    observed_path_sets: list[list[str]] = []
     require(isinstance(run_count, int) and run_count >= 3,
             "performance proof has fewer than 3 cold runs")
     require(isinstance(rows, list) and len(rows) == run_count,
@@ -201,14 +272,11 @@ def main() -> int:
                     f"performance run {index + 1} observed a wasm shard in the wrong phase")
             for failure in phase_request_failures(row, contract):
                 require(False, f"performance run {index + 1}: {failure}")
-            require(sorted(row.get("critical_paths", [])) == expected_critical_paths,
-                    f"performance run {index + 1} critical asset set differs from split inventory")
-            require(row.get("wire_brotli") is True,
-                    f"performance run {index + 1} was not served over Brotli")
-            encodings = row.get("content_encoding", {})
-            require(isinstance(encodings, dict) and
-                    all(encodings.get(path) == "br" for path in expected_critical_paths),
-                    f"performance run {index + 1} critical asset lacks Brotli transport")
+            observed_paths, transport_failures = observed_critical_paths(
+                row, contract, bundle_files)
+            observed_path_sets.append(observed_paths)
+            for failure in transport_failures:
+                require(False, f"performance run {index + 1}: {failure}")
             require(row.get("served_bundle_sha256") == bundle_digest,
                     f"performance run {index + 1} used the wrong served bundle")
             require(row.get("external_request_count") == 0,
@@ -229,7 +297,13 @@ def main() -> int:
     first_pixels = scenario.get("fp_median")
     if first_pixels is None and scenario.get("fp"):
         first_pixels = statistics.median(scenario["fp"])
-    critical_names = tuple(path.removeprefix("/") for path in expected_critical_paths)
+    critical_paths = sorted({path for paths in observed_path_sets for path in paths})
+    bundle_file_set = set(bundle_files)
+    critical_names = tuple(
+        path.removeprefix("/") for path in critical_paths
+        if (path.removeprefix("/") in bundle_file_set and
+            f"{path.removeprefix('/')}.br" in bundle_file_set)
+    )
     compressed = {name: brotli_size(BUNDLE / name) for name in critical_names}
     offline_ms = proof.get("offline_warm_wm_main_ms")
     receipt = {
@@ -294,7 +368,8 @@ def main() -> int:
             "cold_first_pixels_ms": first_pixels,
             "critical_brotli_bytes": sum(compressed.values()),
             "critical_brotli_by_file": compressed,
-            "critical_paths": expected_critical_paths,
+            "critical_paths": critical_paths,
+            "critical_paths_by_run": observed_path_sets,
             "split_inventory_sha256": verify_m8.sha256(verify_m8.BUILD / verify_m8.SPLIT_MANIFEST),
             "shard_phase_valid": bool(rows) and all(
                 isinstance(row, dict) and row.get("manifest_phase_valid") is True and

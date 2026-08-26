@@ -154,12 +154,69 @@ def identity(path: Path) -> dict[str, object]:
     return {"bytes": path.stat().st_size, "sha256": sha256(path)}
 
 
-def expected_critical_paths(contract: dict[str, object]) -> list[str]:
-    """Return every response fetched before the first semantic interaction."""
+def mandatory_critical_paths(contract: dict[str, object]) -> list[str]:
+    """Return the launch resources that every observed critical set must contain."""
     return sorted((
         *BOOT_CRITICAL_PATHS,
         *(f"/bin/{row['filename']}" for row in contract["shipped_wasm"] if row["critical"]),
     ))
+
+
+def critical_path_failures(paths: object, contract: dict[str, object],
+                           bundle_files: object) -> list[str]:
+    """Validate a browser-observed critical set against the exact public bundle."""
+    failures: list[str] = []
+    if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
+        return ["observed critical paths are not a string list"]
+    if paths != sorted(paths) or len(paths) != len(set(paths)):
+        failures.append("observed critical paths are not sorted unique values")
+    if not isinstance(bundle_files, (list, tuple)) or not all(
+            isinstance(name, str) for name in bundle_files):
+        return failures + ["bundle file inventory is not a string sequence"]
+    bundle = set(bundle_files)
+    mandatory = set(mandatory_critical_paths(contract))
+    missing = sorted(mandatory.difference(paths))
+    if missing:
+        failures.append(f"mandatory critical paths are absent: {missing!r}")
+    for path in paths:
+        parts = path.removeprefix("/").split("/")
+        if (not path.startswith("/") or path.endswith("/") or
+                any(part in {"", ".", ".."} for part in parts) or
+                not re.fullmatch(r"/[A-Za-z0-9][A-Za-z0-9._/-]*", path)):
+            failures.append(f"critical URL path is not canonical: {path!r}")
+            continue
+        artifact = path.removeprefix("/")
+        if artifact.endswith(".br"):
+            failures.append(f"critical request targets a transport sibling directly: {path}")
+        elif artifact not in bundle:
+            failures.append(f"critical request does not map to a bundle artifact: {path}")
+        elif f"{artifact}.br" not in bundle:
+            failures.append(f"critical bundle artifact has no Brotli wire sibling: {path}")
+    return failures
+
+
+def critical_path_receipt_failures(performance: object, contract: dict[str, object],
+                                   bundle_files: object, run_count: object) -> list[str]:
+    """Bind the receipt aggregate to every independently observed cold-run set."""
+    if not isinstance(performance, dict):
+        return ["performance receipt is not an object"]
+    failures = critical_path_failures(
+        performance.get("critical_paths"), contract, bundle_files)
+    by_run = performance.get("critical_paths_by_run")
+    if not isinstance(by_run, list):
+        return failures + ["per-run observed critical paths are absent"]
+    if (not isinstance(run_count, int) or isinstance(run_count, bool) or run_count < 3 or
+            len(by_run) != run_count):
+        failures.append("per-run observed critical path count differs from cold-run count")
+    observed_union: set[str] = set()
+    for index, paths in enumerate(by_run):
+        for failure in critical_path_failures(paths, contract, bundle_files):
+            failures.append(f"cold run {index + 1}: {failure}")
+        if isinstance(paths, list):
+            observed_union.update(path for path in paths if isinstance(path, str))
+    if performance.get("critical_paths") != sorted(observed_union):
+        failures.append("aggregate critical paths differ from the observed cold-run union")
+    return failures
 
 
 def canonical_artifact_digest(artifacts: dict[str, dict[str, object]]) -> str:
@@ -1223,9 +1280,31 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
     require(isinstance(critical, int) and critical <= 15_000_000,
             f"critical brotli payload exceeds 15MB: {critical!r}", failures)
     contract = artifact_contract()
-    expected_critical = expected_critical_paths(contract)
-    require(sorted(perf.get("critical_paths", [])) == expected_critical,
-            "performance critical assets differ from split inventory", failures)
+    critical_paths = perf.get("critical_paths")
+    runtime_proofs = receipt.get("runtime_proofs", {})
+    performance_runtime = runtime_proofs.get("performance", {}) \
+        if isinstance(runtime_proofs, dict) else {}
+    performance_run_count = performance_runtime.get("run_count") \
+        if isinstance(performance_runtime, dict) else None
+    for failure in critical_path_receipt_failures(
+            perf, contract, contract["bundle_files"], performance_run_count):
+        require(False, f"performance critical assets invalid: {failure}", failures)
+    expected_brotli: dict[str, int] = {}
+    bundle_file_set = set(contract["bundle_files"])
+    if isinstance(critical_paths, list):
+        for path in critical_paths:
+            if not isinstance(path, str):
+                continue
+            artifact = path.removeprefix("/")
+            if artifact not in bundle_file_set or f"{artifact}.br" not in bundle_file_set:
+                continue
+            sibling = BUNDLE / f"{artifact}.br"
+            if sibling.is_file():
+                expected_brotli[artifact] = sibling.stat().st_size
+    require(perf.get("critical_brotli_by_file") == expected_brotli,
+            "performance critical Brotli inventory differs from exact bundle", failures)
+    require(critical == sum(expected_brotli.values()),
+            "performance critical Brotli total differs from exact bundle", failures)
     require(perf.get("split_inventory_sha256") == sha256(BUILD / SPLIT_MANIFEST),
             "performance receipt is not bound to split inventory bytes", failures)
     require(perf.get("shard_phase_valid") is True,

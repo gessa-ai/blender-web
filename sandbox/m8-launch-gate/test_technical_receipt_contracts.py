@@ -31,6 +31,23 @@ def request(url: str, at_ms: int) -> dict[str, object]:
     return {"url": url, "path": url.split("?", 1)[0], "at_ms": at_ms}
 
 
+def transport_request(url: str, at_ms: int = 10, **overrides: object) -> dict[str, object]:
+    path = str(overrides.pop("path", url.split("?", 1)[0]))
+    row: dict[str, object] = {
+        "url": url,
+        "path": path,
+        "method": "GET",
+        "at_ms": at_ms,
+        "bundle_artifact": path.removeprefix("/"),
+        "response_count": 1,
+        "response_url": url,
+        "response_status": 200,
+        "content_encoding": "br",
+    }
+    row.update(overrides)
+    return row
+
+
 def phase_selfcheck() -> tuple[int, int]:
     expected = make_staged_receipt.expected_shard_requests(CONTRACT)
     positive = {
@@ -60,7 +77,7 @@ def phase_selfcheck() -> tuple[int, int]:
 
 
 def critical_path_selfcheck() -> tuple[int, int]:
-    expected = sorted((
+    mandatory = sorted((
         "/index.html",
         "/diagnostics-bootstrap.js",
         "/file-bridge.js",
@@ -72,25 +89,76 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "/bin/blender_browser.data",
         "/bin/blender_browser.wasm",
     ))
-    actual = verify_m8.expected_critical_paths(CONTRACT)
-    assert actual == expected
+    bundle_files = sorted({
+        name for path in mandatory for name in (
+            path.removeprefix("/"), f"{path.removeprefix('/')}" + ".br")
+    } | {
+        "bin/blender_browser.deferred.wasm",
+        "bin/blender_browser.deferred.wasm.br",
+    })
+    requests = [transport_request(path, 10 + index) for index, path in enumerate(mandatory)]
+    requests.append(transport_request(
+        f"/bin/blender_browser.deferred.wasm?sha256={'b' * 64}", 101,
+        path="/bin/blender_browser.deferred.wasm",
+        bundle_artifact="bin/blender_browser.deferred.wasm",
+    ))
+    positive = {
+        "semantic_interaction_ms": 100,
+        "same_origin_requests": requests,
+        "critical_paths": mandatory,
+        "critical_transport_valid": True,
+        "critical_transport_failures": [],
+        "content_encoding": {path: "br" for path in mandatory},
+        "wire_brotli": True,
+    }
+    actual, failures = make_staged_receipt.observed_critical_paths(
+        positive, CONTRACT, bundle_files)
+    assert actual == mandatory and failures == []
+
+    extra_path = "/extra.js"
+    dynamic_paths = sorted((*mandatory, extra_path))
+    dynamic_bundle = sorted((*bundle_files, "extra.js", "extra.js.br"))
+    dynamic = {
+        **positive,
+        "same_origin_requests": [*requests, transport_request(extra_path, 90)],
+        "critical_paths": dynamic_paths,
+        "content_encoding": {**positive["content_encoding"], extra_path: "br"},
+    }
+    actual, failures = make_staged_receipt.observed_critical_paths(
+        dynamic, CONTRACT, dynamic_bundle)
+    assert actual == dynamic_paths and failures == []
+    assert verify_m8.critical_path_failures(dynamic_paths, CONTRACT, dynamic_bundle) == []
+    receipt_paths = {
+        "critical_paths": dynamic_paths,
+        "critical_paths_by_run": [mandatory, dynamic_paths, mandatory],
+    }
+    assert verify_m8.critical_path_receipt_failures(
+        receipt_paths, CONTRACT, dynamic_bundle, 3) == []
+
+    mutated_requests = [*requests, transport_request(extra_path, 90)]
+    query_request = transport_request("/extra.js?v=1", 90, path="/extra.js")
     negatives = (
-        "/index.html",
-        "/diagnostics-bootstrap.js",
-        "/file-bridge.js",
-        "/boot-windowed.js",
-        "/stage1-loader.js",
-        "/service-worker-register.js",
-        "/service-worker.js",
+        (dynamic, bundle_files),
+        ({**positive, "same_origin_requests": [*requests, requests[0]]}, bundle_files),
+        ({**positive, "same_origin_requests": [*requests, query_request]}, dynamic_bundle),
+        ({**dynamic, "same_origin_requests": [*requests,
+                                               transport_request(extra_path, 90,
+                                                                 response_count=0)]},
+         dynamic_bundle),
+        ({**dynamic, "same_origin_requests": mutated_requests,
+          "critical_paths": mandatory}, dynamic_bundle),
     )
-    for path in negatives:
-        assert path in actual
-    assert "/bin/blender_browser.deferred.wasm" not in actual
+    for row, files in negatives:
+        _, failures = make_staged_receipt.observed_critical_paths(row, CONTRACT, files)
+        assert failures, row
+    assert verify_m8.critical_path_receipt_failures(
+        {**receipt_paths, "critical_paths": mandatory}, CONTRACT, dynamic_bundle, 3)
+
     expected_static_brotli = {
-        f"{path.removeprefix('/')}.br" for path in actual if not path.endswith(".wasm")
+        f"{path.removeprefix('/')}.br" for path in mandatory if not path.endswith(".wasm")
     }
     assert expected_static_brotli <= set(verify_m8.STATIC_BUNDLE_FILES)
-    return 2, len(negatives) + 1
+    return 5, len(negatives) + 1
 
 
 def exact_receipt_inventory_selfcheck() -> tuple[int, int]:

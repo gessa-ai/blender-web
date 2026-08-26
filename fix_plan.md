@@ -2986,6 +2986,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   falls 16,019,244 -> 15,437,581 bytes, still honestly 437,581 over LAUNCH.md. Accepted Apple
   profiles, APPLY, and hardware staged pixels remain mandatory. See
   `notes/m8-stage0-python-runtime-20260826.md`.
+- [x] **P1-M8-STAGE0-LAUNCH-ASSETS [driver] (`5169fa6`):** 72 measured-cold Blender Python
+  sources, 57 package-support files, 12 authoring/reference files, and 142 lazy toolbar icons now
+  ride Stage 1 behind exact fail-closed inventories. A fail-first real-browser candidate restored
+  `_bl_rna_utils/data_path.py` and DejaVu Sans Mono to Stage 0 before landing. The final
+  monolith/candidate A/B preserves startup, active keymap, default toolbar icons, and trusted input,
+  then restores all 2,963 files / 152,238,870 bytes and exercises lazy imports, Requests metadata,
+  CA data, deferred icons, and Console initialization with zero serious/page errors. Stage-0
+  data/glue q11 falls 2,941,058+78,104 -> 2,595,374+76,803; provisional critical wire falls
+  15,437,581 -> 15,090,596 bytes, still honestly 90,596 over LAUNCH.md. Accepted Apple profiles,
+  APPLY, and hardware staged pixels remain mandatory. See
+  `notes/m8-stage0-launch-assets-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

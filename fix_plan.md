@@ -2931,6 +2931,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   technical compliance, and pinned-container M0 6/6 regression are green; M1-M8 retain their
   existing receipt/APPLY/product boundaries. No public snapshot, bundle, profile, receipt, or
   result was produced. See `notes/release-publication-metadata-scrub-20260826.md`.
+- [~] **P1-M8-PUBLIC-PARITY-DASHBOARD [compliance, claimed_by: root]:** generate a public,
+  scrubbed Markdown proof page from committed milestone receipts plus the complete named deferral
+  registry. The page must fail closed on missing inputs, expose red and unavailable states without
+  promotion, omit verbatim fleet activity and local paths, reproduce byte-for-byte from the Git
+  index/HEAD, and be linked from the public README. This closes the LAUNCH.md dashboard artifact
+  only; it cannot promote a milestone, receipt, profile, product, or launch gate.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
   120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256

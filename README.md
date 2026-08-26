@@ -23,6 +23,7 @@ The preferred-form source is this public repository:
 [https://github.com/gessa-ai/blender-web](https://github.com/gessa-ai/blender-web).
 The static application offers the same one-click “Source code (GPL)” link.
 
-Current conformance status is generated from on-disk receipts in
-[reports/dashboard.md](reports/dashboard.md). A green subsystem result does not imply
-the complete launch gate; `LAUNCH.md` and the fail-closed M8 verifier remain binding.
+Current conformance status and the complete named limitation registry are published in
+[PARITY.md](PARITY.md), generated from committed receipts and ledger data. A green
+subsystem result does not imply the complete launch gate; `LAUNCH.md` and the
+fail-closed M8 verifier remain binding.

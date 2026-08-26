@@ -87,6 +87,216 @@ CM_LUT_KEEP = ("config.ocio", "AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1
 STAGE0_ENCODING_FILES = frozenset({
     "__init__.py", "aliases.py", "idna.py", "utf_8.py", "utf_8_sig.py",
 })
+# Exact browser-cold Python sources measured after the stable WM loop in the
+# CAPTURE generation, then pruned by a zero-error staged/monolith A/B. Keep this
+# an allowlisted DEFER set: an unmeasured new source stays in Stage 0. Trusted
+# input and representative lazy imports are exercised by
+# verify_python_runtime_stage0.mjs before/after Stage 1.
+BOOT_COLD_PYTHON_SOURCES = frozenset("""
+__hello__.py
+_aix_support.py
+_android_support.py
+_apple_support.py
+_ios_support.py
+_markupbase.py
+_osx_support.py
+_py_abc.py
+_pydatetime.py
+_pydecimal.py
+_pyio.py
+_pylong.py
+_pyrepl/__init__.py
+_pyrepl/__main__.py
+_pyrepl/_minimal_curses.py
+_pyrepl/_threading_handler.py
+_pyrepl/base_eventqueue.py
+_pyrepl/commands.py
+_pyrepl/completing_reader.py
+_pyrepl/console.py
+_pyrepl/curses.py
+_pyrepl/fancy_termios.py
+_pyrepl/historical_reader.py
+_pyrepl/input.py
+_pyrepl/keymap.py
+_pyrepl/main.py
+_pyrepl/pager.py
+_pyrepl/reader.py
+_pyrepl/readline.py
+_pyrepl/simple_interact.py
+_pyrepl/trace.py
+_pyrepl/types.py
+_pyrepl/unix_console.py
+_pyrepl/unix_eventqueue.py
+_pyrepl/utils.py
+_pyrepl/windows_console.py
+_pyrepl/windows_eventqueue.py
+_strptime.py
+_sysconfigdata__emscripten_wasm32-emscripten.py
+_threading_local.py
+bdb.py
+bz2.py
+cmd.py
+code.py
+codeop.py
+colorsys.py
+compileall.py
+configparser.py
+contextvars.py
+csv.py
+ctypes/__init__.py
+ctypes/_aix.py
+ctypes/_endian.py
+ctypes/macholib/__init__.py
+ctypes/macholib/dyld.py
+ctypes/macholib/dylib.py
+ctypes/macholib/framework.py
+ctypes/util.py
+ctypes/wintypes.py
+decimal.py
+difflib.py
+email/_header_value_parser.py
+email/contentmanager.py
+email/generator.py
+email/headerregistry.py
+email/mime/__init__.py
+email/mime/application.py
+email/mime/audio.py
+email/mime/base.py
+email/mime/image.py
+email/mime/message.py
+email/mime/multipart.py
+email/mime/nonmultipart.py
+email/mime/text.py
+email/policy.py
+filecmp.py
+fileinput.py
+fractions.py
+getopt.py
+getpass.py
+graphlib.py
+gzip.py
+html/__init__.py
+html/entities.py
+html/parser.py
+http/server.py
+importlib/metadata/_adapters.py
+importlib/metadata/_text.py
+importlib/metadata/diagnose.py
+importlib/resources/simple.py
+importlib/simple.py
+json/tool.py
+logging/config.py
+logging/handlers.py
+lzma.py
+modulefinder.py
+multiprocessing/dummy/__init__.py
+multiprocessing/dummy/connection.py
+multiprocessing/forkserver.py
+multiprocessing/heap.py
+multiprocessing/managers.py
+multiprocessing/pool.py
+multiprocessing/popen_fork.py
+multiprocessing/popen_forkserver.py
+multiprocessing/popen_spawn_posix.py
+multiprocessing/popen_spawn_win32.py
+multiprocessing/queues.py
+multiprocessing/resource_sharer.py
+multiprocessing/resource_tracker.py
+multiprocessing/shared_memory.py
+multiprocessing/sharedctypes.py
+multiprocessing/spawn.py
+netrc.py
+nturl2path.py
+numbers.py
+optparse.py
+pickletools.py
+pkgutil.py
+plistlib.py
+pprint.py
+pstats.py
+pty.py
+py_compile.py
+pyclbr.py
+rlcompleter.py
+runpy.py
+sched.py
+secrets.py
+shelve.py
+shlex.py
+site-packages/cattr/__init__.py
+site-packages/cattr/converters.py
+site-packages/cattr/disambiguators.py
+site-packages/cattr/dispatch.py
+site-packages/cattr/errors.py
+site-packages/cattr/gen.py
+site-packages/cattr/preconf/__init__.py
+site-packages/cattr/preconf/bson.py
+site-packages/cattr/preconf/json.py
+site-packages/cattr/preconf/msgpack.py
+site-packages/cattr/preconf/orjson.py
+site-packages/cattr/preconf/pyyaml.py
+site-packages/cattr/preconf/tomlkit.py
+site-packages/cattr/preconf/ujson.py
+site-packages/cattrs/preconf/bson.py
+site-packages/cattrs/preconf/cbor2.py
+site-packages/cattrs/preconf/msgpack.py
+site-packages/cattrs/preconf/msgspec.py
+site-packages/cattrs/preconf/orjson.py
+site-packages/cattrs/preconf/pyyaml.py
+site-packages/cattrs/preconf/tomlkit.py
+site-packages/cattrs/preconf/ujson.py
+site-packages/certifi/__main__.py
+site-packages/charset_normalizer/__main__.py
+site-packages/charset_normalizer/cli/__init__.py
+site-packages/charset_normalizer/cli/__main__.py
+site-packages/idna/codec.py
+site-packages/idna/compat.py
+site-packages/idna/uts46data.py
+site-packages/requests/help.py
+site-packages/urllib3/contrib/socks.py
+site-packages/urllib3/http2/connection.py
+site-packages/urllib3/util/ssltransport.py
+socketserver.py
+sre_compile.py
+sre_constants.py
+sre_parse.py
+statistics.py
+symtable.py
+sysconfig/__init__.py
+sysconfig/__main__.py
+tabnanny.py
+tarfile.py
+timeit.py
+trace.py
+tty.py
+urllib/robotparser.py
+wave.py
+webbrowser.py
+xml/__init__.py
+xml/dom/NodeFilter.py
+xml/dom/__init__.py
+xml/dom/domreg.py
+xml/dom/expatbuilder.py
+xml/dom/minicompat.py
+xml/dom/minidom.py
+xml/dom/pulldom.py
+xml/dom/xmlbuilder.py
+xml/etree/ElementInclude.py
+xml/etree/ElementPath.py
+xml/etree/ElementTree.py
+xml/etree/__init__.py
+xml/etree/cElementTree.py
+xml/parsers/__init__.py
+xml/parsers/expat.py
+xml/sax/__init__.py
+xml/sax/_exceptions.py
+xml/sax/expatreader.py
+xml/sax/handler.py
+xml/sax/saxutils.py
+xml/sax/xmlreader.py
+zipapp.py
+zipfile/__main__.py
+""".split())
 # These source trees serve authoring, help, translation, test, or feature-deferred
 # workflows. Neither pinned native factory startup nor the exact windowed CAPTURE
 # product imports them before the stable main loop. Keep them byte-exact in Stage 1.
@@ -129,6 +339,12 @@ def classify(fn, defer_datafiles):
     # before post-startup IO and scripting coverage.
     encoding_prefix = "/bw/python/lib/python3.13/encodings/"
     if fn.startswith(encoding_prefix) and fn[len(encoding_prefix):] not in STAGE0_ENCODING_FILES:
+        return "defer"
+    # DEFER: exact Python sources absent from the measured browser boot closure.
+    # This is an explicit set rather than a generated complement so any new or
+    # renamed source fails safe into Stage 0 until it receives runtime evidence.
+    python_prefix = "/bw/python/lib/python3.13/"
+    if fn.startswith(python_prefix) and fn[len(python_prefix):] in BOOT_COLD_PYTHON_SOURCES:
         return "defer"
     # DEFER: the real windowed product and pinned native factory startup both import
     # zero NumPy modules before the first stable WM state. Stage 1 restores the whole

@@ -70,10 +70,21 @@ def main() -> None:
         "/bw/python/lib/python3.13/encodings/cp1252.py": "defer",
         "/bw/python/lib/python3.13/encodings/latin_1.py": "defer",
         "/bw/python/lib/python3.13/encodings/shift_jis.py": "defer",
+        "/bw/python/lib/python3.13/_pydecimal.py": "defer",
+        "/bw/python/lib/python3.13/_pyrepl/reader.py": "defer",
+        "/bw/python/lib/python3.13/logging/handlers.py": "defer",
+        "/bw/python/lib/python3.13/multiprocessing/managers.py": "defer",
+        "/bw/python/lib/python3.13/site-packages/idna/uts46data.py": "defer",
+        "/bw/python/lib/python3.13/xml/etree/ElementTree.py": "defer",
         "/bw/python/lib/python3.13/site-packages/numpy/__init__.py": "defer",
         "/bw/python/lib/python3.13/site-packages/numpy/_core/tests/test_multiarray.py": "defer",
         "/bw/python/lib/python3.13/site-packages/numpy/_core/multiarray.py": "defer",
         "/bw/python/lib/python3.13/site-packages/numpy_typing/__init__.py": "keep",
+        "/bw/python/lib/python3.13/_collections_abc.py": "keep",
+        "/bw/python/lib/python3.13/email/message.py": "keep",
+        "/bw/python/lib/python3.13/logging/__init__.py": "keep",
+        "/bw/python/lib/python3.13/multiprocessing/connection.py": "keep",
+        "/bw/python/lib/python3.13/site-packages/idna/core.py": "keep",
         "/usd/usdGeom/resources/generatedSchema.usda": "defer",
         "/bw/scripts/addons_core/rigify/__init__.py": "defer",
         "/bw/scripts/addons_core/io_anim_bvh/__init__.py": "keep",
@@ -134,6 +145,16 @@ def main() -> None:
         "/bw/python/lib/python3.13/__pycache__/os.cpython-313.pyc": "drop",
         "/bw/python/lib/python3.13/pip.whl": "drop",
     }
+    if len(MODULE.BOOT_COLD_PYTHON_SOURCES) != 203:
+        raise AssertionError(
+            "boot-cold Python source inventory changed: "
+            f"{len(MODULE.BOOT_COLD_PYTHON_SOURCES)} != 203"
+        )
+    python_prefix = "/bw/python/lib/python3.13/"
+    classifications.update({
+        python_prefix + relative: "defer"
+        for relative in MODULE.BOOT_COLD_PYTHON_SOURCES
+    })
     for filename, expected in classifications.items():
         actual = MODULE.classify(filename, True)
         if actual != expected:

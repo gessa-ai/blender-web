@@ -2941,6 +2941,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green at their applicable boundaries; refreshed M8 remains honestly RED at its pre-existing 23
   APPLY/browser/tier failures. No public deployment, product, profile, receipt, result, or promise
   was promoted. See `notes/m8-public-parity-dashboard-20260826.md`.
+- [~] **P1-RELEASE-TAGGED-BUILD-CORRESPONDENCE [driver, claimed_by: root]:** add a
+  fail-closed deterministic packager that binds an annotated release tag at clean `HEAD`, the exact
+  successful APPLY inventory, the fully derived public staged tree, and every shipped byte into one
+  normalized archive plus a machine-readable source/artifact receipt. CAPTURE must remain
+  unshippable. **Not resolved:** the current generation still needs Apple P0-E/P0-G pixels and
+  accepted exact-generation profiles before APPLY, so no release tag or public artifact may be
+  created in this iteration.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
   120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256

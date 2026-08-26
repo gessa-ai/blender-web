@@ -2824,6 +2824,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   locked product relink/no-work, OFF preflight, sustained fallback diagnostic, canonical replay,
   REUSE, M4 scope, and container regression preserve their strict existing boundaries. See
   `notes/m4-ime-focus-ownership-20260825.md`.
+- [x] **M4-WEB-MODIFIER-SIDE-STATE [ghost-web] (`f41ebe0`):** DOM keyboard `code` now owns
+  exact left/right Shift, Control, Alt, and OS state, including simultaneous sides; aggregate
+  mouse/wheel flags preserve known sides and fall back left only without key history. Trusted CDP
+  input, focus loss, 19 mutations, integrated parity, the relinked product, and neighboring input
+  contracts are green without changing the hardware receipt boundary. See
+  `notes/m4-modifier-side-state-20260825.md`.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
   browser-generated OS IME composition and a physical dead-key sequence through the real product;

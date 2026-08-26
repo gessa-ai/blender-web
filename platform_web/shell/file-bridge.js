@@ -45,12 +45,25 @@
   const STORE = "/projects/imported";   // durable OPFS store (worker-owned)
   const ACK_TIMEOUT_MS = 30000;         // per-command ack deadline
   const ACK_POLL_MS = 120;
+  // Public share URLs are a closed data allowlist.  A query value can select one
+  // exact same-origin asset; it can never become a path, URL, argv, or Python.
+  const SHARE_SCENES = Object.freeze({
+    "stress-mixed": Object.freeze({
+      path: "/scenes/stress-mixed.blend",
+      name: "stress-mixed.blend",
+      bytes: 581494,
+      sha256: "c2a7974ceec3da3ed11a102d924f3318ea82ffa29fd393a8ff5103b6181b4e2e",
+    }),
+  });
 
   let MOD = null;                        // the resolved Emscripten module
   let logFn = (m) => { try { console.log(m); } catch (_) {} };
   let readyResolve;
   const readyPromise = new Promise((r) => { readyResolve = r; });
+  let shareResolve;
+  const sharePromise = new Promise((r) => { shareResolve = r; });
   let armedSeen = false;
+  window.__bwShareScene = { requested: null, status: "idle" };
 
   // --------------------------------------------------------------------------
   // The WM-worker daemon (Python). Runs as its OWN --python-expr before WM_main
@@ -117,6 +130,12 @@
       "            try: items = sorted(os.listdir(_BWFB_STORE))",
       "            except Exception: items = []",
       "            _bwfb_ack(tok, {'ok': True, 'op': op, 'items': items})",
+      "        elif op == 'inspect':",  // bounded read-only receipt; never evaluates user text
+      "            active = bpy.context.view_layer.objects.active",
+      "            data = getattr(active, 'data', None) if active else None",
+      "            anim = getattr(active, 'animation_data', None) if active else None",
+      "            action = getattr(anim, 'action', None) if anim else None",
+      "            _bwfb_ack(tok, {'ok': True, 'op': op, 'mode': getattr(active, 'mode', 'NONE') if active else 'NONE', 'active': getattr(active, 'name', None), 'objectCount': len(bpy.data.objects), 'objects': sorted(o.name for o in bpy.data.objects), 'meshVertices': len(data.vertices) if data and hasattr(data, 'vertices') else None, 'modifiers': [m.type for m in active.modifiers] if active else [], 'materials': [m.name for m in data.materials if m] if data and hasattr(data, 'materials') else [], 'hasAction': bool(action), 'frameRange': list(action.frame_range) if action else None, 'renderEngine': bpy.context.scene.render.engine})",
       "        elif op == 'mark':",  // add a named Empty (round-trip verifier + platform-drive primitive)
       "            name = str(spec.get('name', 'BW_MARKER'))",
       "            ob = bpy.data.objects.new(name, None); bpy.context.scene.collection.objects.link(ob)",
@@ -152,7 +171,10 @@
       // serves post-boot drag-drop / open / save. NOTE the WM loop is redraw/rAF
       // driven and stalls at idle (notes/m7b-files-io.md); post-boot polling only
       // advances while frames composite. Pre-staged commands are drained on tick 1.
-      "bpy.app.timers.register(_bwfb_poll, first_interval=0.0)",
+      // Opening a .blend clears ordinary Python timers. The bridge must survive
+      // its own `open_mainfile` operation or every second file/save command will
+      // wait forever for a daemon that no longer exists.
+      "bpy.app.timers.register(_bwfb_poll, first_interval=0.0, persistent=True)",
       "_bwfb_log('ARMED store=%s conduit=%s' % (_BWFB_STORE, _BWFB_IO))",
     ].join("\n");
   }
@@ -262,6 +284,63 @@
     return ack;
   }
 
+  // Read-only, bounded scene state for acceptance receipts.  Unlike the removed
+  // public query hooks this accepts no expression, path, or operation name.
+  async function inspectScene() {
+    const mod = requireMod();
+    ensureDirs(mod);
+    const tok = newToken();
+    writeCmd(mod, tok, { op: "inspect" });
+    const ack = await waitAck(mod, tok);
+    if (!ack.ok) throw new Error("inspect failed: " + (ack.error || "?"));
+    return ack;
+  }
+
+  async function sha256Hex(bytes) {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    return Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join("");
+  }
+
+  // Resolve `?scene=` only through SHARE_SCENES, then integrity-check the exact
+  // bundled bytes before handing them to Blender's normal import/open path.
+  async function openShareSceneFromURL() {
+    let requested = null;
+    try { requested = new URLSearchParams(location.search).get("scene"); } catch (_) {}
+    if (requested === null) {
+      window.__bwShareScene = { requested: null, status: "idle" };
+      shareResolve(null);
+      return null;
+    }
+    if (!Object.prototype.hasOwnProperty.call(SHARE_SCENES, requested)) {
+      const rejected = { requested, status: "rejected", reason: "not-allowlisted" };
+      window.__bwShareScene = rejected;
+      logFn("[file-bridge] rejected unknown share scene");
+      shareResolve(rejected);
+      return rejected;
+    }
+
+    const spec = SHARE_SCENES[requested];
+    const state = { requested, status: "fetching", path: spec.path };
+    window.__bwShareScene = state;
+    const response = await fetch(spec.path, {
+      credentials: "same-origin", redirect: "error", cache: "default",
+    });
+    const finalURL = new URL(response.url, location.origin);
+    if (!response.ok || finalURL.origin !== location.origin || finalURL.pathname !== spec.path) {
+      throw new Error("share-scene response rejected");
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const digest = await sha256Hex(bytes);
+    if (bytes.length !== spec.bytes || digest !== spec.sha256) {
+      throw new Error("share-scene integrity mismatch");
+    }
+    state.status = "opening";
+    const ack = await importBytes(bytes, spec.name);
+    Object.assign(state, { status: "opened", bytes: bytes.length, sha256: digest, ack });
+    shareResolve(state);
+    return state;
+  }
+
   // FSA (Chromium) open, with a <input type=file> fallback everywhere else.
   async function openFromDisk() {
     if (typeof window.showOpenFilePicker === "function") {
@@ -298,17 +377,21 @@
   // FSA (Chromium) save, with a download-blob fallback everywhere else.
   async function saveToDisk(suggestedName, extra) {
     const name = sanitize(suggestedName || "untitled.blend");
-    const { ack, bytes } = await requestSaveBytes(name, extra);
     if (typeof window.showSaveFilePicker === "function") {
+      // Picker invocation must happen synchronously inside the initiating click's
+      // transient user activation. Serializing through the WM worker first loses
+      // that activation and Chromium rejects the picker with SecurityError.
       const h = await window.showSaveFilePicker({
         suggestedName: name,
         types: [{ description: "Blender file", accept: { "application/x-blender": [".blend"] } }],
       });
+      const { ack, bytes } = await requestSaveBytes(name, extra);
       const w = await h.createWritable();
       await w.write(bytes);
       await w.close();
       return { ack, via: "fsa" };
     }
+    const { ack, bytes } = await requestSaveBytes(name, extra);
     const blob = new Blob([bytes], { type: "application/x-blender" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -418,11 +501,27 @@
     installDragDrop(canvas);
     // Surface daemon ARMED / errors from the page console stream.
     // (boot-windowed.js pipes module print/printErr to console; we also watch here.)
-    waitReady(mod).then((ok) => {
+    waitReady(mod).then(async (ok) => {
       armedSeen = ok;
       logFn("[file-bridge] daemon " + (ok ? "ready" : "NOT ready (timeout)") +
             " - drag-drop + open/save live");
       readyResolve(ok);
+      if (!ok) {
+        const failed = { requested: null, status: "error", error: "daemon-not-ready" };
+        window.__bwShareScene = failed;
+        shareResolve(failed);
+        return;
+      }
+      try {
+        await openShareSceneFromURL();
+      } catch (error) {
+        const failed = Object.assign({}, window.__bwShareScene, {
+          status: "error", error: String(error && error.message || error),
+        });
+        window.__bwShareScene = failed;
+        logFn("[file-bridge] share scene failed: " + failed.error);
+        shareResolve(failed);
+      }
     });
     return readyPromise;
   }
@@ -439,11 +538,13 @@
     requestPersistence,
     noteConsoleLine,
     ready: () => readyPromise,
+    shareReady: () => sharePromise,
     // operations (also handy from the devtools console)
     importBytes,
     requestSaveBytes,
     listStore,
     openStore,
+    inspectScene,
     openFromDisk,
     saveToDisk,
   };

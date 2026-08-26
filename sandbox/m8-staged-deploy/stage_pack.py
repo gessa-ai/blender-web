@@ -27,9 +27,11 @@
 #           dead stdlib modules, non-enabled addons (rigify, ...), factory-unselected
 #           application templates, NumPy (not imported before first pixels), boot-cold
 #           Python codecs, file-format implementation modules outside the enabled add-ons'
-#           boot registration closure, CJK/intl fonts (keep Inter + DejaVuSansMono),
-#           non-default colormanagement LUTs (keep config.ocio + the default AgX display
-#           path), build-time/compiled-in source assets and external StudioLight images.
+#           boot registration closure, developer/help/template/test scripts and inactive
+#           presets (keep the active Blender keymap), CJK/intl fonts (keep Inter +
+#           DejaVuSansMono), non-default colormanagement LUTs (keep config.ocio + the
+#           default AgX display path), build-time/compiled-in source assets and external
+#           StudioLight images.
 #           [--defer-datafiles]
 #   KEEP  - everything else (-> stage-0).
 import argparse
@@ -85,6 +87,27 @@ CM_LUT_KEEP = ("config.ocio", "AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1
 STAGE0_ENCODING_FILES = frozenset({
     "__init__.py", "aliases.py", "idna.py", "utf_8.py", "utf_8_sig.py",
 })
+# These source trees serve authoring, help, translation, test, or feature-deferred
+# workflows. Neither pinned native factory startup nor the exact windowed CAPTURE
+# product imports them before the stable main loop. Keep them byte-exact in Stage 1.
+BOOT_COLD_SUPPORT_PREFIXES = (
+    "/bw/scripts/addons_core/bl_pkg/tests/",
+    "/bw/scripts/freestyle/",
+    "/bw/scripts/modules/_bl_i18n_utils/",
+    "/bw/scripts/templates_osl/",
+    "/bw/scripts/templates_py/",
+    "/bw/scripts/templates_toml/",
+)
+BOOT_COLD_SUPPORT_FILES = frozenset({
+    "/bw/scripts/modules/_rna_manual_reference.py",
+})
+# Presets are selected on demand. Factory startup executes this exact active
+# Blender-keymap pair indirectly (so sys.modules alone cannot discover it); all
+# alternate keymaps and operator/data presets can arrive after first pixels.
+STAGE0_PRESET_FILES = frozenset({
+    "keyconfig/Blender.py",
+    "keyconfig/keymap_data/blender_default.py",
+})
 
 
 def in_py(fn):
@@ -131,6 +154,13 @@ def classify(fn, defer_datafiles):
     # startup files are needed only after the user chooses File > New, by which
     # time the post-first-pixel Stage-1 stream has restored their real bytes.
     if "/bw/scripts/startup/bl_app_templates_system/" in fn:
+        return "defer"
+    # DEFER: measured boot-cold support sources and inactive presets. The active
+    # default keymap remains complete so Stage 0 is genuinely interactive.
+    if fn.startswith(BOOT_COLD_SUPPORT_PREFIXES) or fn in BOOT_COLD_SUPPORT_FILES:
+        return "defer"
+    preset_prefix = "/bw/scripts/presets/"
+    if fn.startswith(preset_prefix) and fn[len(preset_prefix):] not in STAGE0_PRESET_FILES:
         return "defer"
     if defer_datafiles:
         # DEFER: sources that Blender's build converts into C/object data before

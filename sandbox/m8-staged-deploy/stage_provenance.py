@@ -296,7 +296,7 @@ def selfcheck() -> None:
         [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
     )
     assert packer_contract.returncode == 0 and \
-        "BW_STAGE_PACK_CONTRACT_PASS classifications=59 positive=5 negative=10" in \
+        "BW_STAGE_PACK_CONTRACT_PASS classifications=73 positive=5 negative=10" in \
         packer_contract.stdout
     with tempfile.TemporaryDirectory(prefix="bw-stage-provenance-selfcheck-") as temporary:
         root = Path(temporary)
@@ -366,7 +366,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 "
-          "packer=59/5/10 coherent=diagnostics+worker+register")
+          "packer=73/5/10 coherent=diagnostics+worker+register")
 
 
 def main() -> int:

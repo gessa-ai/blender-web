@@ -2905,6 +2905,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** this is a pixel defect; the Apple rig must show black/translucent shadows and
   zero white rings/bars during tooltip, flyout, and Adjust Last Operation interactions. See
   `notes/p0-widget-shadow-defined-rgb-20260826.md`.
+- [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`):** the windowed loader now
+  uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
+  plus one single-line GPL source/trademark footer. The proof/marketing copy moved to `README.md`;
+  `#bw-diag`, `?gate=`, and first-semantic-pixel dismissal are preserved. A reproducible renamed
+  Inter 4.001 subset ships locally at 9,500 bytes (SHA-256
+  `266290448afbfd4c6ce386bbad0b305b478ca2612f665d1b26e5efc4d17e8190`) with OFL metadata,
+  immutable MIME/cache policy, precache, monolithic/staged inventory, provenance, and exact-tree
+  coverage. Fail-first, real-browser/no-external-request, public-disclaimer, assembler, technical
+  receipt, critical-wire, full M8 technical-compliance, REUSE, and M0 6/6 regression checks are
+  green. **Boundary:** this shell-only pass did not relink or publish a product, bind pixels, or
+  authorize APPLY; M4 and M8 retain their hardware/profile/APPLY/product boundaries. See
+  `notes/m4-release-loader-redesign-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   now a strict CAPTURE generation with instrumented Wasm, 119,142,918-byte `.wasm.orig` at
   SHA-256 `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`, and a schema-1 PASS

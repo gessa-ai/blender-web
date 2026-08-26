@@ -2949,6 +2949,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   falls 16,936,355 -> 16,528,178, still honestly 1,528,178 over LAUNCH.md. Accepted Apple
   profiles, APPLY, and hardware staged pixels remain mandatory. See
   `notes/m8-stage0-compiled-sources-20260826.md`.
+- [x] **P1-M8-STAGE0-FORMAT-IMPLEMENTATIONS [driver] (`515630b`):** native factory startup and
+  a ten-second post-WM windowed census agree on the exact eight-file registration/UI closure for
+  the enabled BVH/SVG/UV Layout/FBX/glTF add-ons. Their 140 lazy operator implementations now ride
+  Stage 1; a real monolith/candidate A/B preserves startup and trusted input, restores all
+  2,072 deferred files / 144,682,014 bytes, imports seven representative implementations, and
+  completes glTF export/import with zero serious/page errors. Stage-0 data/glue q11 falls
+  4,028,170+81,589 -> 3,748,720+80,933; provisional critical wire falls 16,528,178 ->
+  16,248,072 bytes, still honestly 1,248,072 over LAUNCH.md. Accepted Apple profiles, APPLY, and
+  hardware staged pixels remain mandatory. See `notes/m8-stage0-format-addons-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

@@ -2871,8 +2871,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,143,435-byte `.wasm.orig` at
-  SHA-256 `7146e9a1e24c7d5882bf0dc13b3b27e5ab0c7971583f30141dfa2bf1b32925e4`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,143,448-byte `.wasm.orig` at
+  SHA-256 `76aa5d619fb3f1becb66828e96d4fba68dffb621af2d4d3ccd70fd77c10e0fff`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
@@ -2920,9 +2920,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   adjacent focus/IME/input/lifecycle contracts, native/wasm32 integration, locked CAPTURE relink,
   exact-artifact fallback boot, split producer checks, and REUSE are green. Required M4 remains
   hardware-pixel RED. See `notes/m4-focus-input-barrier-20260826.md`.
-- [ ] **AUDIT-R12-M4-SINGLE-CANVAS-SECOND-WINDOW [ghost-web, claimed_by: none]:** fail closed on a
-  simultaneous second valid `createWindow()` until per-window canvas/input/presentation routing
-  exists; add a two-live-window lifecycle test and retain the named ledger deferral.
+- [x] **AUDIT-R12-M4-SINGLE-CANVAS-SECOND-WINDOW [ghost-web] (`bbe7d27`):** a simultaneous second
+  valid `createWindow()` is rejected before context construction, preserving the original system,
+  callback, manager, hit-test, and presentation owner; disposal still permits a replacement. The
+  fail-first real-worker case reproduced the split as bitmask 75, while the final seven-bit case,
+  38-mutation contract, native/wasm32 matrix, CAPTURE product, and fallback boot are green. The
+  named multi-window deferral remains truthful. See
+  `notes/m4-single-canvas-second-window-20260826.md`.
 - [ ] **AUDIT-R12-M8-CALLBACK-REGISTRATION-SOAK [ghost-web, claimed_by: none]:** bound or budget
   process-lifetime callback-registration metadata and soak repeated failed/replacement registration
   before M8 leak closure.

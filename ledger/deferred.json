@@ -226,10 +226,10 @@
       "status": "deferred",
       "milestone": "M4 (GHOST-web design)",
       "revisit": "post-launch, or when one canvas, input, presentation, and callback owner can be provided for every simultaneous GHOST window",
-      "blocker": "The browser backend currently has one OffscreenCanvas and one window_ callback/presentation owner, with no simultaneous per-window routing. A second live createWindow currently activates a different manager window while input, hit testing, presentation, and first-pixel state remain owned by the first; it must fail closed until routing exists.",
-      "impact": "Simultaneous native GHOST windows are unsupported and the current second-create behavior is internally incoherent rather than an explicit rejection.",
+      "blocker": "The browser backend intentionally owns one OffscreenCanvas and one window_ callback/input/hit-test/presentation owner, with no simultaneous per-window routing. createWindow now rejects a second live request before constructing its context; replacement remains available after the first window is disposed.",
+      "impact": "Simultaneous native GHOST windows are unsupported and return failure without changing the existing canvas or GHOST_WindowManager owner.",
       "workaround": "Use Blender's in-canvas areas and popovers; reject a simultaneous second native window until real per-window routing ships.",
-      "evidence": "reports/audit-20260825-r12.md; notes/m4-windowed-boot-recon.md; platform_web/ghost/GHOST_SystemWeb.cc"
+      "evidence": "reports/audit-20260825-r12.md; notes/m4-single-canvas-second-window-20260826.md; notes/m4-windowed-boot-recon.md; platform_web/ghost/GHOST_SystemWeb.cc"
     },
     {
       "id": "node-ungroup-socket-flake",

@@ -2861,7 +2861,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   idle, and produces the expected semantic pixel delta across MMB orbit with zero encode/present
   rejection. See `notes/p0-bind-group-readiness-20260826.md` and
   `notes/p0-redraw-recovery-20260826.md`.
-- [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282]:** live tracing disproved
+- [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282, claimed_by: root]:** live tracing disproved
   a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
   `WGPUTexture` wrapper adopts the new handle/extent in place, but pointer-identical
   `FrameBuffer::attachment_set()` leaves the default framebuffers' cached width/height stale.
@@ -2870,9 +2870,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   scissor, encode, submit, transaction, or device-loss errors on the local fallback adapter.
   **Hardware refinement 2026-08-26:** Apple confirms zero scissor/encode errors and a healthy
   renderer after shrink/restore, but the resized canvas remains blank at idle until the next input
-  invalidates it. **Not resolved:** trigger the same bounded WindowUpdate/redraw retry used by
-  P0-D whenever a new browser extent is applied, then require idle semantic pixels after shrink and
-  restore. See `notes/p0-window-resize-recovery-20260826.md`.
+  invalidates it. The applied-resize path now re-arms P0-D's ordinary bounded WindowUpdate episode
+  after surface reconfiguration and the WM size event (`8744f4f`). The predecessor rejects at the
+  missing publication; final native/Wasm behavior, 30 mutations, locked CAPTURE relink/no-work,
+  inventory/self-check, and an exact-product fallback shrink/restore with 15/19 bounded redraw
+  presentations and zero rejection/loss are green. **Not resolved:** the Apple rig must show idle
+  semantic pixels after shrink and restore with no intervening input. See
+  `notes/p0-window-resize-recovery-20260826.md` and
+  `notes/p0-window-resize-idle-redraw-20260826.md`.
 - [~] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now
@@ -2880,13 +2885,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   bounded diagnostic, and routes failure through GHOST's existing `pointerlockerror` retirement so
   orbit degrades to unlocked motion. Fail-first/final 28-mutation source coverage, two repeated
   real-worker Chromium rejections with zero page errors, the aggregate native/wasm32 matrix, locked
-  CAPTURE no-work, and REUSE are green. The 119,142,906-byte `.wasm.orig` remains exact at SHA-256
-  `edd94c4208c4c5229b197db20779336fb85293a79eb2ad7dc1fc3a8058e89336`. **Not resolved:** the Apple
-  rig must rerun both CAPTURE scenarios and return `pageErrors.length === 0` before either profile
-  authorizes APPLY. See `notes/p0-pointer-lock-promise-rejection-20260826.md`.
+  CAPTURE no-work, and REUSE are green. P0-E's required C++ relink supersedes that generation; the
+  current 119,142,918-byte `.wasm.orig` is exact at SHA-256
+  `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`. **Not resolved:** the Apple
+  rig must rerun both CAPTURE scenarios against this current generation and return
+  `pageErrors.length === 0` before either profile authorizes APPLY. See
+  `notes/p0-pointer-lock-promise-rejection-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,142,906-byte `.wasm.orig` at
-  SHA-256 `edd94c4208c4c5229b197db20779336fb85293a79eb2ad7dc1fc3a8058e89336`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,142,918-byte `.wasm.orig` at
+  SHA-256 `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must

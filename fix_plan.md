@@ -2917,6 +2917,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   regression restores M0 6/6. No artifact, profile, receipt, or milestone result changed; unrelated
   shared-worktree residue remains unclaimed. See
   `notes/release-shipping-source-reconciliation-20260826.md`.
+- [x] **P1-RELEASE-BUILD-PROFILE-RECONCILIATION [driver] (`5246f7b`):** the exact
+  `blender_web.cmake` and `platform_wasm.cmake` bytes used by the optimized CAPTURE artifact are now
+  direct committed inputs. Current cache/manifest semantics, stack and two-phase split contracts,
+  strict CAPTURE inventory, locked no-work, and REUSE are green; the artifact remains unchanged at
+  `.wasm.orig` SHA-256 `c9dbae361ec1`. M8/regression retain their strict APPLY/browser/receipt
+  boundaries. See `notes/release-build-profile-reconciliation-20260826.md`.
+- [ ] **P1-RELEASE-METADATA-RECONCILIATION [compliance, claimed_by: none, blocked-by: none]:**
+  reconcile the remaining dirty `PROVENANCE.md`, `REUSE.toml`, `THIRD-PARTY.md`,
+  `ledger/deps.json`, and `ledger/deferred.json` slice without staging generated result/sandbox
+  residue. Correct the stale pending claim that `libosdGPU.a` is empty (the harvested archive has
+  the accepted GLSL patch-source objects), keep both custom TOST-1.0 compatibility decisions
+  explicitly human-reviewed, then run dependency/deferral/compliance contracts and REUSE.
 - [x] **P1-M8-DEFERRAL-REGISTRY-COMPLETENESS [compliance] (`0e7f2ec`):** sixteen named
   launch-visible feature rows now bind 33 forced-OFF build flags, covering IK, Bullet/physics,
   Ocean, remesh/Quadriflow, exact boolean, SLIM UV, video, audio, FBX, Alembic, Grease Pencil

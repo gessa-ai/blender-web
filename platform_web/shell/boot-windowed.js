@@ -238,12 +238,12 @@ function finish(name, label, code) {
 // Loading UI - progress via Emscripten setStatus, dismissed on first pixels.
 // ---------------------------------------------------------------------------
 
-function setProgress(fraction) {
+function setProgress(fraction, label) {
   if (!fillEl) return;
   fillEl.classList.remove("bw-indeterminate");
   const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
   fillEl.style.width = pct + "%";
-  if (pctEl) pctEl.textContent = pct + "%";
+  if (pctEl) pctEl.textContent = label || pct + "%";
 }
 
 function setIndeterminate(label) {
@@ -263,7 +263,11 @@ function onStatus(s) {
     const cur = parseInt(m[1], 10);
     const tot = parseInt(m[2], 10);
     if (tot > 0) {
-      setProgress(cur / tot);
+      const mb = 1024 * 1024;
+      const label = tot >= mb ?
+        "Loading app · " + (cur / mb).toFixed(1) + " / " + (tot / mb).toFixed(1) + " MB" :
+        null;
+      setProgress(cur / tot, label);
       return;
     }
   }

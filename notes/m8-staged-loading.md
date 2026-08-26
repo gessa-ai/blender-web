@@ -84,8 +84,9 @@ Native oracle (`oracle/bpy.sh --factory-startup`) settled the risky calls:
 
 **STAGE-0** = drop `__pycache__` + drop pip wheel; defer dead stdlib, non-enabled addons,
 intl/CJK fonts (keep Inter + DejaVuSansMono), and colormanagement LUTs except the default
-AgX-sRGB display path (`config.ocio`, `AgX_Base_sRGB.cube`, `AgX_False_Color.spi1d`,
-`Guard_Rail_Shaper_EOTF.spi1d`). **STAGE-1** = everything deferred, fetched in the background
+AgX-sRGB display path (`config.ocio`, `AgX_Base_sRGB.cube`,
+`Guard_Rail_Shaper_EOTF.spi1d`). The non-default `AgX_False_Color.spi1d` LUT is restored by
+Stage 1 before that view is selected. **STAGE-1** = everything deferred, fetched in the background
 after first interactive (or on-demand: a font when a non-Latin glyph appears, a LUT when the
 user picks that view transform, an addon when enabled).
 

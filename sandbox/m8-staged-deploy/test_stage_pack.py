@@ -154,6 +154,7 @@ def main() -> None:
         "/bw/datafiles/fonts/Noto Sans CJK Regular.woff2": "defer",
         "/bw/datafiles/colormanagement/config.ocio": "keep",
         "/bw/datafiles/colormanagement/luts/AgX_Base_sRGB.cube": "keep",
+        "/bw/datafiles/colormanagement/luts/AgX_False_Color.spi1d": "defer",
         "/bw/datafiles/colormanagement/luts/pbrNeutral.cube": "defer",
         "/bw/datafiles/locale/ja/LC_MESSAGES/blender.mo": "defer",
         "/bw/python/lib/python3.13/__pycache__/os.cpython-313.pyc": "drop",

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Prove that exact browser-cold Python/Blender sources and package support data
+// Prove that exact browser-cold Python/Blender sources, package support data,
+// and on-demand launch assets
 // can ride Stage 1 while the pre-Stage-1 product still boots and accepts trusted
 // viewport input. Deferred files are absent until Stage 1; it must restore
 // representative bytes, lazy imports,
@@ -44,6 +45,7 @@ const coldPaths = [
   "/bw/datafiles/icons/ops.mesh.primitive_sphere_add_gizmo.dat",
   "/bw/datafiles/icons/ops.node.add_reroute.dat",
   "/bw/datafiles/icons/ops.sequencer.slip.dat",
+  "/bw/datafiles/colormanagement/luts/AgX_False_Color.spi1d",
 ];
 const bootPaths = [
   "/bw/python/lib/python3.13/_collections_abc.py",
@@ -61,6 +63,9 @@ const bootPaths = [
   "/bw/datafiles/icons/ops.generic.select_box.dat",
   "/bw/datafiles/icons/ops.mesh.primitive_cube_add_gizmo.dat",
   "/bw/datafiles/icons/ops.transform.translate.dat",
+  "/bw/datafiles/colormanagement/config.ocio",
+  "/bw/datafiles/colormanagement/luts/AgX_Base_sRGB.cube",
+  "/bw/datafiles/colormanagement/luts/Guard_Rail_Shaper_EOTF.spi1d",
   "/bw/python/lib/python3.13/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js",
 ];
 const coldModuleNames = [
@@ -130,6 +135,11 @@ def _bw_initial_probe():
         'addons': sorted(addon.module for addon in bpy.context.preferences.addons),
         'areas': sorted(area.type for area in bpy.context.screen.areas),
         'objects': sorted(obj.name for obj in bpy.data.objects),
+        'color_management': {
+            'display': bpy.context.scene.display_settings.display_device,
+            'view': bpy.context.scene.view_settings.view_transform,
+            'look': bpy.context.scene.view_settings.look,
+        },
         'keymap': {
             'name': keyconfig.name,
             'maps': len(keyconfig.keymaps),
@@ -173,6 +183,9 @@ def _bw_stage1_probe():
         rna_info = importlib.import_module('_rna_info')
         extension_cli = importlib.import_module('bl_pkg.bl_extension_cli')
         cycles_osl = importlib.import_module('cycles.osl')
+        bpy.context.scene.view_settings.view_transform = 'False Color'
+        for area in bpy.context.screen.areas:
+            area.tag_redraw()
         reader_path = '/bw/python/lib/python3.13/_pyrepl/reader.py'
         with open(reader_path, 'r', encoding='utf-8') as handle:
             compile(handle.read(), reader_path, 'exec')
@@ -205,6 +218,7 @@ def _bw_stage1_probe():
             'rna_info': hasattr(rna_info, 'BuildRNAInfo'),
             'extension_cli': hasattr(extension_cli, 'cli_extension_handler'),
             'cycles_osl': hasattr(cycles_osl, 'osl_compile'),
+            'false_color_view': bpy.context.scene.view_settings.view_transform,
             'compiled_sources': len(compile_paths),
             'requests_version': metadata.version('requests'),
             'ca_certificates': ca_data.count(b'-----BEGIN CERTIFICATE-----'),
@@ -224,7 +238,7 @@ bpy.app.timers.register(_bw_stage1_probe, first_interval=0.1)
 
 const seriousConsole = (line) =>
   line.includes("Traceback (most recent call last):") ||
-  /ModuleNotFoundError|ImportError:|failed to register|incomplete bind group|submission rejected|transaction rejected|GPU-LOST|Aborted\(/i.test(line);
+  /ModuleNotFoundError|ImportError:|failed to register|incomplete bind group|submission rejected|transaction rejected|GPU-LOST|Aborted\(|OpenColorIO.*(?:error|failed)|AgX_False_Color.*(?:missing|error|failed)|Could not load.*(?:cube|spi1d)/i.test(line);
 
 async function readWasmText(page, path) {
   return page.evaluate((filename) => {
@@ -355,11 +369,15 @@ finally {
 }
 
 const failures = [];
-for (const key of ["version", "addons", "areas", "objects", "keymap", "tool_icons",
+for (const key of ["version", "addons", "areas", "objects", "color_management", "keymap", "tool_icons",
                    "cold_modules"]) {
   if (JSON.stringify(baseline.initial[key]) !== JSON.stringify(staged.initial[key])) {
     failures.push(`startup state differs: ${key}`);
   }
+}
+if (JSON.stringify(baseline.initial.color_management) !==
+    JSON.stringify({display: "sRGB", view: "AgX", look: "None"})) {
+  failures.push(`factory color-management path changed: ${JSON.stringify(baseline.initial.color_management)}`);
 }
 if (baseline.initial.cold_modules.length !== 0) {
   failures.push(`cold Python modules unexpectedly loaded at boot: ${JSON.stringify(baseline.initial.cold_modules)}`);
@@ -375,11 +393,11 @@ for (const path of coldPaths) {
   const source = baseline.initial.cold_files[path];
   const absent = staged.initial.cold_files[path];
   if (!(source?.bytes > 0) || source.error) {
-    failures.push(`monolith cold Python source missing: ${path}`);
+    failures.push(`monolith cold file missing: ${path}`);
   }
   if (absent?.bytes !== null ||
       !absent?.error?.startsWith("FileNotFoundError:")) {
-    failures.push(`cold Python source was materialized in Stage 0: ${path}`);
+    failures.push(`cold file was materialized in Stage 0: ${path}`);
   }
 }
 for (const path of bootPaths) {
@@ -414,10 +432,11 @@ if (!staged.restored || staged.restored.error || staged.restored.decimal !== "5.
     staged.restored.pyrepl_compiles !== true || staged.restored.anim_utils !== true ||
     staged.restored.rna_info !== true || staged.restored.extension_cli !== true ||
     staged.restored.cycles_osl !== true || staged.restored.compiled_sources !== 2 ||
+    staged.restored.false_color_view !== "False Color" ||
     staged.restored.requests_version !== "2.32.3" ||
     !(staged.restored.ca_certificates > 100) || staged.restored.console_area !== "CONSOLE" ||
     coldIconNames.some((name) => !(staged.restored.cold_icons?.[name] > 0))) {
-  failures.push(`post-Stage-1 Python behavior failed: ${JSON.stringify(staged.restored)}`);
+  failures.push(`post-Stage-1 behavior failed: ${JSON.stringify(staged.restored)}`);
 }
 if (!(staged.stage1After?.ticks > staged.stage1Before?.ticks) ||
     !(staged.stage1After?.presents > staged.stage1Before?.presents)) {
@@ -428,7 +447,7 @@ if (!(staged.stage1After?.ticks > staged.stage1Before?.ticks) ||
 for (const path of coldPaths) {
   if (JSON.stringify(staged.restored?.restored?.[path]) !==
       JSON.stringify(baseline.initial.cold_files[path])) {
-    failures.push(`Stage 1 did not restore Python source byte-exactly: ${path}`);
+    failures.push(`Stage 1 did not restore cold file byte-exactly: ${path}`);
   }
 }
 
@@ -440,5 +459,6 @@ console.log(
   `BW_STAGE0_PYTHON_RUNTIME_PASS cold=${coldPaths.length} boot=${bootPaths.length} ` +
   `restored=${staged.stage1.filesDone}/${staged.stage1.bytesDone} ` +
   `vertices=${staged.interaction.vertices} console=${staged.restored.console_area} ` +
+  `ocio=${staged.initial.color_management.view}->${staged.restored.false_color_view} ` +
   `input=n-toggle errors=0`,
 );

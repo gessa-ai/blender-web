@@ -84,8 +84,9 @@ STAGE0_FORMAT_BOOT_FILES = frozenset({
     "io_scene_gltf2/blender/com/material_helpers.py",
 })
 INTL_FONT_KEEP = ("Inter.woff2", "DejaVuSansMono.woff2")
-CM_LUT_KEEP = ("config.ocio", "AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1d",
-               "AgX_False_Color.spi1d")
+# Factory startup selects the AgX view on the sRGB display. False Color is an
+# on-demand view and its LUT is restored before post-Stage-1 color workflows.
+CM_LUT_KEEP = ("AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1d")
 # Pinned native factory startup and the exact windowed CAPTURE generation agree on
 # this codec-source closure. The registry, aliases, IDNA, and UTF-8 paths must be
 # available before first pixels; legacy/locale-specific codecs can arrive with

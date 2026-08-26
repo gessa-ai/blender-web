@@ -97,6 +97,22 @@ def classify(fn, defer_datafiles):
     if "/bw/scripts/startup/bl_app_templates_system/" in fn:
         return "defer"
     if defer_datafiles:
+        # DEFER: sources that Blender's build converts into C/object data before
+        # linking. The runtime consumes those compiled copies; preloading the
+        # original SVG/font/theme and generator inputs duplicates them on the
+        # first-pixel wire. Stage 1 retains the exact source bytes for inspection.
+        if fn.startswith((
+            "/bw/datafiles/icons_svg/",
+            "/bw/datafiles/cursors/",
+            "/bw/datafiles/userdef/",
+        )) or fn in {
+            "/bw/datafiles/DejaVuSans-Lite.sfd.bz2",
+            "/bw/datafiles/bfont.pfb",
+            "/bw/datafiles/blender_icons_geom.py",
+            "/bw/datafiles/blender_icons_geom_update.py",
+            "/bw/datafiles/ctodata.py",
+        }:
+            return "defer"
         # DEFER: source assets compiled into Blender (preview*.blend and splash.png),
         # authoring-only splash_template.xcf, and toolbar.blend (a build-time input
         # to blender_icons_geom_update.py). Runtime icon output remains Stage 0.

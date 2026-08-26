@@ -2871,8 +2871,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
   pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  now a strict CAPTURE generation with instrumented Wasm, 119,142,827-byte `.wasm.orig` at
-  SHA-256 `b0ecf56ee5dcfaf3e3ad46f93b9a533a60130d3a2828dfb08ca4336eacddc3e0`, and a schema-1 PASS
+  now a strict CAPTURE generation with instrumented Wasm, 119,142,963-byte `.wasm.orig` at
+  SHA-256 `7f6d20fd94d76f8f97d419a0c587be3c7d71bfc812c163b3b25ac9614e23dc9c`, and a schema-1 PASS
   split-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, and exact-artifact fallback boot are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
@@ -2904,10 +2904,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input; and a simultaneous second window creates split manager/canvas ownership. One low M8 soak
   debt and two minor process/documentation findings are also recorded. See
   `reports/audit-20260825-r12.md`.
-- [ ] **AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE [ghost-web, claimed_by: none]:** route trusted
-  non-composing ASCII, navigation, Escape, Enter, Backspace, and clipboard shortcuts from Blender's
-  owned IME textarea into GHOST without duplicating active composition; add real-worker trusted-input
-  and text-state coverage. This is device-free and precedes the physical IME receipt.
+- [x] **AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE [ghost-web] (`cc2a844`):** the shipping IME
+  profile transactionally registers raw key-down/up on both Blender-owned focus elements, while an
+  earlier textarea listener suppresses active-composition process keys before Emscripten can proxy
+  them. Trusted ASCII/navigation/control/clipboard input, composition nonduplication, external-focus
+  suppression, and replacement lifecycle pass the real worker; the relinked Blender product commits
+  `BWKEY_012X` through its stock object-name editor and reads it back through Python/GHOST clipboard.
+  Seventeen source mutations, baked-runtime coverage, the 16-listener native/wasm matrix, CAPTURE
+  inventory, and REUSE are green. Physical OS IME/dead-key evidence remains separately blocked.
+  See `notes/m4-ime-noncomposing-key-bridge-20260826.md`.
 - [ ] **AUDIT-R12-M4-FOCUS-INPUT-BARRIER [ghost-web, claimed_by: none]:** give focus boundaries
   and later keyboard/pointer input one total order, so blur -> refocus -> input cannot enqueue a new
   Down before deactivate/activate. Add exact same-task keyboard and mouse ordering assertions.

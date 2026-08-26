@@ -6,7 +6,7 @@
 ## Outcome
 
 The current windowed product is relinked in `BLENDER_WEB_WASM_SPLIT_MODE=CAPTURE`, including the
-bounded P0-D redraw recovery from `c2b6182`. This is the
+bounded P0-D redraw recovery from `c2b6182` and the IME ordinary-key bridge from `cc2a844`. This is the
 truthful hardware-profile input that was missing from every host: it contains an instrumented Wasm,
 the exact uninstrumented `.wasm.orig`, and a schema-1 PASS split-build manifest. It is not the
 shipping APPLY product and has no deferred shard yet.
@@ -18,35 +18,35 @@ tree be reconfigured to APPLY. No software/fallback profile was generated.
 
 ## Artifact identity
 
-- `blender_browser.js`: 706,164 bytes,
-  SHA-256 `306350a69822b37b0d5b3cc5dee87b89fe0d8c3b2bfe9fb6cd1a1ebcd2812550`.
-- `blender_browser.wasm`: 120,495,911 instrumented bytes,
-  SHA-256 `c91005cec29ee6017c775a517022ed058d0a8abaec192dbcc0f59a5c999b74ce`.
-- `blender_browser.wasm.orig`: 119,142,827 bytes,
-  SHA-256 `b0ecf56ee5dcfaf3e3ad46f93b9a533a60130d3a2828dfb08ca4336eacddc3e0`.
+- `blender_browser.js`: 706,618 bytes,
+  SHA-256 `6361c6e006ab920dc2058212e125468f386cbfe43c7616f52f8f678eef591784`.
+- `blender_browser.wasm`: 120,496,048 instrumented bytes,
+  SHA-256 `f1ae076c3dbba1b14d19bcdbc7a3dbba7ff69f0d17457393f980846062ed3791`.
+- `blender_browser.wasm.orig`: 119,142,963 bytes,
+  SHA-256 `7f6d20fd94d76f8f97d419a0c587be3c7d71bfc812c163b3b25ac9614e23dc9c`.
 - `blender_browser.data`: 167,143,248 bytes,
   SHA-256 `09e58a25849eb6290a181141f5f83f928f469fe1e4d9fbdba23210bcada5a351`.
 - `blender_browser.split-build.json`: 13,080 bytes,
-  SHA-256 `144d5e2277738b5a3ce76a8bfb924c126adb22b69a584dcc1faf71fa7a13c26b`.
+  SHA-256 `06448ca501d3c79eb8fa865744c4a90a12597e809ccf6a9dfce85b0bde14dc50`.
 
 The profile is hash-bound to the `.wasm.orig` identity above. Any intervening relink invalidates it
 and requires fresh hardware captures; generations must not be mixed.
 
 ## Evidence and boundary
 
-- Locked CAPTURE relink: `20260826T052332-370951`; locked replay
-  `20260826T052436-372365` reports no work.
-- Exact CAPTURE inventory preflight: `20260826T052444-372433`.
-- Strict producer self-check: `20260826T052444-372434` (`positive=21`, `negative=23`, zero browser
+- Locked CAPTURE relink: `20260826T062439-430783`; locked replay
+  `20260826T062759-434099` reports no work.
+- Exact CAPTURE inventory preflight: `20260826T062806-434917`.
+- Strict producer self-check: `20260826T062806-434918` (`positive=20`, `negative=23`, zero browser
   launches).
-- Two-phase source contract: `20260826T052444-372438`.
-- Exact-artifact headed fallback diagnostic: `20260826T052500-372577` reaches running `WM_main`,
-  advances uncapped ticks and presentations after trusted input, and reports zero incomplete
-  contract bindings, submission/transaction rejection, or device loss. This is explicitly
-  diagnostic-nonreceipt evidence.
+- Two-phase source contract: `20260826T062806-434922`.
+- Exact-artifact headed fallback diagnostic: `20260826T062641-432870` reaches running `WM_main`,
+  sends 86 admitted ordinary IME-textarea key events through Blender's stock text editor, commits
+  and reads back `BWKEY_012X`, and reports zero presentation rejection or device loss. This is
+  explicitly diagnostic-nonreceipt evidence.
 - Container-backed regression retains M0 at 6/6 GREEN. M1-M8 remain RED at their existing strict
   receipt, APPLY-artifact, browser, run-label, and release boundaries.
-- Pinned REUSE 6.2.0 remains green at `20260826T052849-376040`.
+- Pinned REUSE 6.2.0 remains green at `20260826T063733-445105`.
 
 The configure experiment also found that the migration runbook's removed bundled-emSDK Python path
 returned exit 127. The canonical command now uses this host's documented

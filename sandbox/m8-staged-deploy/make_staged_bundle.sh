@@ -8,8 +8,8 @@
 #
 # What differs from sandbox/m8-deploy/make_bundle.sh (the monolith assembler):
 #   - bin/blender_browser.data  = STAGE-0 only (stage_pack.py re-slice)
-#   - bin/blender_browser.js     = glue with the baked manifest rewritten to stage-0
-#                                  real files + zero-length placeholders (dir tree)
+#   - bin/blender_browser.js     = glue with the baked manifest rewritten to Stage-0
+#                                  real files only; baked directory creation remains
 #   - bin/stage1.data + bin/stage1-manifest.json = the deferred payload
 #   - stage1-loader.js injected after boot-windowed.js (streams stage-1 post-boot)
 #   - file-bridge.js included (current windowed.html references it; the monolith

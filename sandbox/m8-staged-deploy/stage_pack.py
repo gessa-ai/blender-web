@@ -7,10 +7,12 @@
 #
 # Input  (read-only): a built blender_browser.{js,data} (monolith preload).
 # Output (bundle):    blender_browser.js  (glue with the baked manifest rewritten
-#                         to STAGE-0 real files + zero-length placeholders for every
-#                         deferred file, so the preload creates the FULL directory
-#                         tree - post-boot mkdir is impossible under the 0555 /bw
-#                         mount, but writing files into existing dirs works),
+#                         to STAGE-0 real files only; deferred files are absent until
+#                         Stage 1. The original file-packager FS_createPath calls for
+#                         the FULL directory tree remain in the glue and are checked
+#                         before omission, because post-boot mkdir is impossible under
+#                         the 0555 /bw mount but writing new files into existing dirs
+#                         works),
 #                     blender_browser.data (= stage-0 bytes only; the baked preload
 #                         fetches THIS, so boot blocks on stage-0 alone),
 #                     stage1.data + stage1-manifest.json (deferred bytes, streamed
@@ -38,12 +40,16 @@ import argparse
 from decimal import Decimal, InvalidOperation
 import json
 import os
+import posixpath
 import re
 import sys
 
 RE_ENTRY = re.compile(
     r'\{filename:"((?:[^"\\]|\\.)*)",start:([0-9]+(?:[eE]\+?[0-9]+)?),'
     r'end:([0-9]+(?:[eE]\+?[0-9]+)?)\}'
+)
+RE_CREATE_PATH = re.compile(
+    r'Module\["FS_createPath"\]\("([^"\\]*)","([^"\\]*)",true,true\)'
 )
 
 # --- oracle-validated partition sets (notes/m8-staged-loading.md sec 2-3) --------
@@ -435,7 +441,6 @@ urllib3-2.4.0.dist-info/METADATA
 urllib3-2.4.0.dist-info/RECORD
 urllib3-2.4.0.dist-info/WHEEL
 urllib3-2.4.0.dist-info/licenses/LICENSE.txt
-urllib3/contrib/emscripten/emscripten_fetch_worker.js
 urllib3/py.typed
 """.split())
 # Documentation, generator inputs, and example/build files preserved byte-exactly
@@ -727,7 +732,7 @@ def classify(fn, defer_datafiles):
         # Solid Workbench's factory-startup selection names an external `.sl`
         # preset even though the light implementation also has an internal
         # fallback. Keep the tiny text presets so the first frame cannot select a
-        # zero-length placeholder and shade black. World/matcap images are lazy
+        # missing file and shade black. World/matcap images are lazy
         # choices and can arrive after first pixels with the rest of Stage 1.
         if "/datafiles/studiolights/" in fn and not fn.endswith(".sl"):
             return "defer"
@@ -780,6 +785,41 @@ def parse_manifest(glue_text):
         )
     remote_size = int(m.group(1))
     return meta_start, meta_end, entries, remote_size
+
+
+def parse_precreated_directories(glue_text):
+    """Return the exact directory closure baked by Emscripten file_packager."""
+    declared = glue_text.count('Module["FS_createPath"](')
+    matches = RE_CREATE_PATH.findall(glue_text)
+    if not matches or len(matches) != declared:
+        sys.exit(
+            "stage_pack: FATAL: parsed "
+            f"{len(matches)} of {declared} FS_createPath calls"
+        )
+
+    directories = {"/"}
+    for index, (parent, child) in enumerate(matches):
+        parent_parts = parent.strip("/").split("/") if parent != "/" else []
+        if (not parent.startswith("/") or posixpath.normpath(parent) != parent or
+                any(part in {"", ".", ".."} for part in parent_parts) or
+                "\\" in parent or "\\" in child or
+                child.startswith("/") or any(
+                    part in {"", ".", ".."} for part in child.split("/")
+                )):
+            sys.exit(
+                "stage_pack: FATAL: unsafe FS_createPath call at "
+                f"{index}: {parent!r}, {child!r}"
+            )
+        full = posixpath.normpath(posixpath.join(parent, child))
+        if not full.startswith("/") or full == "/":
+            sys.exit(
+                f"stage_pack: FATAL: invalid FS_createPath result at {index}: {full!r}"
+            )
+        cursor = ""
+        for part in full.strip("/").split("/"):
+            cursor += "/" + part
+            directories.add(cursor)
+    return directories
 
 
 def validate_source_manifest(entries, remote_size, blob_size):
@@ -837,6 +877,19 @@ def main():
     for fn, s, e in entries:
         buckets[classify(fn, args.defer_datafiles)].append((fn, s, e))
 
+    # stage1-loader.js creates deferred files with FS.writeFile. This is valid
+    # only because file_packager's original glue pre-creates every parent
+    # directory. Bind that source contract before removing deferred filenames
+    # from the critical preload manifest; fail closed if Emscripten changes it.
+    precreated_directories = parse_precreated_directories(glue)
+    deferred_parents = {posixpath.dirname(fn) for fn, _, _ in buckets["defer"]}
+    missing_parents = sorted(deferred_parents - precreated_directories)
+    if missing_parents:
+        sys.exit(
+            "stage_pack: FATAL: deferred parent directory is not precreated: "
+            + ", ".join(missing_parents[:8])
+        )
+
     def total(b):
         return sum(e - s for _, s, e in buckets[b])
 
@@ -851,6 +904,8 @@ def main():
             f"stage_pack: FATAL: classified coverage {classified_bytes} != data bytes {len(blob)}"
         )
     print(f"  => stage0.data {stage0_bytes/1048576:.2f} MiB   stage1.data {total('defer')/1048576:.2f} MiB")
+    print(f"  => preload directories {len(precreated_directories):,}; "
+          f"deferred parents {len(deferred_parents):,}; missing 0")
 
     if args.dry_run:
         # show the largest DEFER contributors for a sanity check
@@ -865,7 +920,7 @@ def main():
     # --- build stage0.data + new KEEP offsets, and stage1.data + stage1 manifest ---
     stage0 = bytearray()
     stage1 = bytearray()
-    new_entries = []          # for the rewritten baked manifest (stage-0 + placeholders)
+    new_entries = []          # real Stage-0 files in the rewritten baked manifest
     stage1_manifest = []      # for stage1-loader.js
     for fn, s, e in entries:
         b = classify(fn, args.defer_datafiles)
@@ -877,10 +932,9 @@ def main():
             start = len(stage1)
             stage1 += blob[s:e]
             stage1_manifest.append({"filename": fn, "start": start, "end": len(stage1)})
-            # zero-length placeholder in stage-0 so the DIRECTORY TREE is created at
-            # preload (post-boot mkdir is impossible); real bytes arrive via
-            # FS.writeFile from stage1-loader.js.
-            new_entries.append((fn, 0, 0))
+            # Omit the file from Stage 0. Its parent directory is guaranteed by
+            # parse_precreated_directories above, so Stage 1 can create the real
+            # file with FS.writeFile without a masking zero-byte placeholder.
         # drop: omit entirely
 
     # rewrite the baked metadata object in the glue

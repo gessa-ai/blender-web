@@ -3,7 +3,8 @@
 //
 // Prove that exact browser-cold Python/Blender sources and package support data
 // can ride Stage 1 while the pre-Stage-1 product still boots and accepts trusted
-// viewport input. Stage 1 must restore representative bytes, lazy imports,
+// viewport input. Deferred files are absent until Stage 1; it must restore
+// representative bytes, lazy imports,
 // package metadata/CA access, lazy toolbar icons, and the mono-font Console path.
 
 import {createRequire} from "node:module";
@@ -35,7 +36,6 @@ const coldPaths = [
   "/bw/python/lib/python3.13/site-packages/certifi/cacert.pem",
   "/bw/python/lib/python3.13/site-packages/requests-2.32.3.dist-info/METADATA",
   "/bw/python/lib/python3.13/site-packages/attr/__init__.pyi",
-  "/bw/python/lib/python3.13/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js",
   "/bw/scripts/modules/_bpy_internal/assets/remote_library/blender_asset_library_openapi.yaml",
   "/bw/scripts/addons_core/bl_pkg/readme.rst",
   "/bw/python/lib/python3.13/LICENSE.txt",
@@ -61,6 +61,7 @@ const bootPaths = [
   "/bw/datafiles/icons/ops.generic.select_box.dat",
   "/bw/datafiles/icons/ops.mesh.primitive_cube_add_gizmo.dat",
   "/bw/datafiles/icons/ops.transform.translate.dat",
+  "/bw/python/lib/python3.13/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js",
 ];
 const coldModuleNames = [
   "_pyrepl.reader",
@@ -372,12 +373,13 @@ if (JSON.stringify(baseline.initial.tool_icons) !== JSON.stringify(bootToolIcons
 }
 for (const path of coldPaths) {
   const source = baseline.initial.cold_files[path];
-  const placeholder = staged.initial.cold_files[path];
+  const absent = staged.initial.cold_files[path];
   if (!(source?.bytes > 0) || source.error) {
     failures.push(`monolith cold Python source missing: ${path}`);
   }
-  if (placeholder?.bytes !== 0 || placeholder.error) {
-    failures.push(`cold Python source did not become a Stage-0 placeholder: ${path}`);
+  if (absent?.bytes !== null ||
+      !absent?.error?.startsWith("FileNotFoundError:")) {
+    failures.push(`cold Python source was materialized in Stage 0: ${path}`);
   }
 }
 for (const path of bootPaths) {

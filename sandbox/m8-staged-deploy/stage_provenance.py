@@ -350,7 +350,7 @@ def selfcheck() -> None:
         [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
     )
     assert packer_contract.returncode == 0 and \
-        "BW_STAGE_PACK_CONTRACT_PASS classifications=568 positive=5 negative=10" in \
+        "BW_STAGE_PACK_CONTRACT_PASS classifications=568 positive=6 negative=12" in \
         packer_contract.stdout
     with tempfile.TemporaryDirectory(prefix="bw-stage-provenance-selfcheck-") as temporary:
         root = Path(temporary)
@@ -359,7 +359,8 @@ def selfcheck() -> None:
         source.mkdir()
         blob = b"KEEPDEFER"
         glue = (
-            'prefix;loadPackage({files:[{filename:"/keep",start:0,end:4},'
+            'prefix;Module["FS_createPath"]("/","usd",true,true);'
+            'loadPackage({files:[{filename:"/keep",start:0,end:4},'
             '{filename:"/usd/defer",start:4,end:9}],remote_package_size:9});suffix;'
         )
         (source / "blender_browser.js").write_text(glue, encoding="utf-8")
@@ -420,7 +421,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "packer=568/5/10 coherent=diagnostics+worker+register")
+          "packer=568/6/12 coherent=diagnostics+worker+register")
 
 
 def main() -> int:

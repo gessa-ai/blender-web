@@ -227,12 +227,12 @@ if (baseline.initial.cold_modules.length || staged.initial.cold_modules.length) 
 }
 for (const path of coldPaths) {
   const source = baseline.initial.cold_files[path];
-  const placeholder = staged.initial.cold_files[path];
+  const absent = staged.initial.cold_files[path];
   if (source?.error !== null || !(source?.bytes > 0)) {
     failures.push(`monolith implementation is absent: ${path}`);
   }
-  if (placeholder?.error !== null || placeholder?.bytes !== 0) {
-    failures.push(`Stage-0 implementation is not a zero-length placeholder: ${path}`);
+  if (absent?.bytes !== null || !absent?.error?.startsWith("FileNotFoundError:")) {
+    failures.push(`Stage-0 implementation was materialized: ${path}`);
   }
 }
 for (const path of bootPaths) {

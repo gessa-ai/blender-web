@@ -193,13 +193,13 @@ for (const key of ["version", "addons", "areas", "objects"]) {
 }
 for (const path of sourcePaths) {
   const original = baseline.initial.sources[path];
-  const placeholder = staged.initial.sources[path];
+  const absent = staged.initial.sources[path];
   const restored = staged.restored?.sources?.[path];
   if (original?.error !== null || !(original?.bytes > 0)) {
     failures.push(`monolith source is absent: ${path}`);
   }
-  if (placeholder?.error !== null || placeholder?.bytes !== 0) {
-    failures.push(`Stage-0 source is not a zero-length placeholder: ${path}`);
+  if (absent?.bytes !== null || !absent?.error?.startsWith("FileNotFoundError:")) {
+    failures.push(`Stage-0 source was materialized: ${path}`);
   }
   if (JSON.stringify(restored) !== JSON.stringify(original)) {
     failures.push(`Stage-1 source restoration differs: ${path}`);
@@ -227,6 +227,6 @@ if (failures.length) {
   throw new Error(`BW_STAGE0_COMPILED_SOURCES_FAIL ${failures.join("; ")}`);
 }
 console.log(
-  `BW_STAGE0_COMPILED_SOURCES_PASS sources=${sourcePaths.length} placeholders=8 ` +
+  `BW_STAGE0_COMPILED_SOURCES_PASS sources=${sourcePaths.length} absent=8 ` +
   `restored=${staged.stage1.filesDone}/${staged.stage1.bytesDone} input=2 errors=0`,
 );

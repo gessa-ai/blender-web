@@ -269,12 +269,12 @@ if (Object.keys(baseline.initial.support_modules).length !== 0) {
 }
 for (const path of coldPaths) {
   const source = baseline.initial.cold_files[path];
-  const placeholder = staged.initial.cold_files[path];
+  const absent = staged.initial.cold_files[path];
   if (!(source?.bytes > 0) || source.error) {
     failures.push(`monolith support source missing: ${path}`);
   }
-  if (placeholder?.bytes !== 0 || placeholder.error) {
-    failures.push(`support source did not become a Stage-0 placeholder: ${path}`);
+  if (absent?.bytes !== null || !absent?.error?.startsWith("FileNotFoundError:")) {
+    failures.push(`support source was materialized in Stage 0: ${path}`);
   }
 }
 for (const path of bootPaths) {

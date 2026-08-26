@@ -35,11 +35,17 @@ for _bw_path in (_bw_stage0_result, _bw_stage1_trigger, _bw_stage1_result):
 def _bw_numpy_modules():
     return sorted(name for name in sys.modules if name == 'numpy' or name.startswith('numpy.'))
 
+def _bw_file_size(path):
+    try:
+        return os.path.getsize(path)
+    except FileNotFoundError:
+        return None
+
 def _bw_numpy_stage0_probe():
     info = {
         'version': bpy.app.version_string,
         'numpy_modules': _bw_numpy_modules(),
-        'numpy_bytes': os.path.getsize(_bw_numpy_path),
+        'numpy_bytes': _bw_file_size(_bw_numpy_path),
         'addons': sorted(addon.module for addon in bpy.context.preferences.addons),
         'areas': sorted(area.type for area in bpy.context.screen.areas),
         'objects': sorted(obj.name for obj in bpy.data.objects),
@@ -176,7 +182,7 @@ finally {
 
 const failures = [];
 if (!(baseline.initial.numpy_bytes > 0)) failures.push("monolith NumPy source is empty");
-if (staged.initial.numpy_bytes !== 0) failures.push("Stage-0 NumPy placeholder is not empty");
+if (staged.initial.numpy_bytes !== null) failures.push("Stage-0 NumPy source was materialized");
 if (baseline.initial.numpy_modules.length || staged.initial.numpy_modules.length) {
   failures.push("NumPy entered the first-pixel import closure");
 }
@@ -208,7 +214,7 @@ if (failures.length) {
   throw new Error(`BW_STAGE0_NUMPY_FAIL ${failures.join("; ")}`);
 }
 console.log(
-  `BW_STAGE0_NUMPY_PASS source=${baseline.initial.numpy_bytes} placeholder=0 ` +
+  `BW_STAGE0_NUMPY_PASS source=${baseline.initial.numpy_bytes} absent=true ` +
   `restored=${staged.imported.numpy_bytes} modules=${staged.imported.numpy_modules} ` +
   `files=${staged.stage1.filesDone} bytes=${staged.stage1.bytesDone} input=2 errors=0`,
 );

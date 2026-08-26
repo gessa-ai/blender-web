@@ -5,8 +5,8 @@
 //   (1) boots on stage-0 alone to WM_main + presents real pixels (COOP/COEP);
 //   (2) public-bundle `?pyexpr` and `?args` attacks are ignored;
 //   (3) deferred-stage asset proof:
-//       (3a) BYTE-EXACT: a file that is a ZERO-LENGTH placeholder after stage-0
-//            boot becomes its real bytes after stage-1 streams, byte-verified
+//       (3a) BYTE-EXACT: a file absent after stage-0 boot becomes its real bytes
+//            after stage-1 streams, byte-verified
 //            against the packaged slice;
 //   (4) service-worker cache fills only after stage-1 and contains every shipped
 //       boot/deferred asset under the generated content version.
@@ -635,10 +635,10 @@ if (!receipt.query_args_disabled) fail('public ?args was not fail-closed');
 if (!receipt.query_dev_controls_disabled) fail('public gate/keepalive query diagnostics were not fail-closed');
 if (present.count > 0) log('optional presentBackbuffer diagnostic x' + present.count);
 
-// (3a) deferred asset BEFORE stage-1: expect zero-length placeholder
-const before = await page.evaluate((p) => { try { return window.__bwModule.FS.stat(p).size; } catch (e) { return 'ERR:' + e; } }, PROBE);
-log(`deferred ${PROBE} size BEFORE stage-1 = ${before} (expect 0)`);
-if (before !== 0) fail('probe file not a placeholder before stage-1 (size=' + before + ')');
+// (3a) deferred asset BEFORE stage-1: expect no materialized file.
+const before = await page.evaluate((p) => window.__bwModule.FS.analyzePath(p).exists, PROBE);
+log(`deferred ${PROBE} exists BEFORE stage-1 = ${before} (expect false)`);
+if (before !== false) fail('probe file was materialized before stage-1');
 try {
   let stage0Pixels = await screenshotPixelStats();
   const stage0Deadline = navigationStart + 8000;
@@ -760,8 +760,8 @@ const after = await page.evaluate(async (p) => {
   return { size: cur.length, want: want.length, byteExact: eq };
 }, PROBE);
 log(`deferred ${PROBE} AFTER stage-1: size=${after.size} want=${after.want} byteExact=${after.byteExact}`);
-if (after.size === 0) fail('probe file still empty after stage-1');
-if (!after.byteExact) fail('streamed bytes != packaged slice (overwrite corruption)');
+if (after.size === 0) fail('probe file is empty after stage-1');
+if (!after.byteExact) fail('streamed bytes != packaged slice (creation corruption)');
 receipt.stage1_byte_exact = after.size > 0 && after.byteExact;
 
 // (4) post-stage-1 service-worker precache. This is an explicit product gate,

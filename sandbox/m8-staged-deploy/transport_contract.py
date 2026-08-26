@@ -7,10 +7,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
+
+
+ROOT = Path(__file__).resolve().parents[2]
+BROTLI_CODEC = ROOT / "sandbox/m8-staged-deploy/brotli_q11.mjs"
+PINNED_NODE = Path(os.environ.get(
+    "EMSDK_NODE", ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"))
 
 
 BASE_HEADERS = {
@@ -190,7 +197,13 @@ def validate_docroot(
         raw = root / relative[:-3]
         if not raw.is_file():
             raise TransportContractError(f"Brotli sibling has no raw asset: {relative}")
-        process = subprocess.Popen(["brotli", "-d", "-c", str(compressed)], stdout=subprocess.PIPE)
+        try:
+            process = subprocess.Popen(
+                [str(PINNED_NODE), str(BROTLI_CODEC), "decode-stdout", str(compressed)],
+                stdout=subprocess.PIPE)
+        except OSError as error:
+            raise TransportContractError(
+                f"cannot execute deterministic Brotli decoder: {error}") from error
         assert process.stdout is not None
         digest = hashlib.sha256()
         for chunk in iter(lambda: process.stdout.read(1024 * 1024), b""):
@@ -201,6 +214,11 @@ def validate_docroot(
 
 
 def _selfcheck() -> None:
+    codec = subprocess.run(
+        [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
+        cwd=ROOT, capture_output=True, text=True)
+    assert codec.returncode == 0 and \
+        "BW_BROTLI_Q11_SELFCHECK_PASS node=v22.16.0 quality=11 lgwin=24" in codec.stdout
     rendered = "\n".join(
         line for selector, headers in EXACT_HEADER_BLOCKS.items()
         for line in ([selector] + [f"  {name}: {value}" for name, value in headers.items()] + [""])

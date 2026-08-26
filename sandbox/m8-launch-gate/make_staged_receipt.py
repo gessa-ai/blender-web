@@ -10,6 +10,7 @@ import hashlib
 import json
 import statistics
 import subprocess
+import tempfile
 from pathlib import Path
 
 import verify_m8
@@ -71,7 +72,9 @@ def brotli_size(path: Path) -> int:
     if sibling.is_file():
         # Reuse the exact production-wire sibling only after proving that it
         # decompresses to the current raw artifact. Mtime is not an identity.
-        proc = subprocess.Popen(["brotli", "-d", "-c", str(sibling)], stdout=subprocess.PIPE)
+        proc = subprocess.Popen(
+            [str(verify_m8.PINNED_NODE), str(verify_m8.BROTLI_CODEC),
+             "decode-stdout", str(sibling)], stdout=subprocess.PIPE)
         assert proc.stdout is not None
         digest = hashlib.sha256()
         while True:
@@ -81,17 +84,14 @@ def brotli_size(path: Path) -> int:
             digest.update(chunk)
         if proc.wait() == 0 and digest.hexdigest() == verify_m8.sha256(path):
             return sibling.stat().st_size
-    proc = subprocess.Popen(["brotli", "-q", "11", "-c", str(path)], stdout=subprocess.PIPE)
-    assert proc.stdout is not None
-    total = 0
-    while True:
-        chunk = proc.stdout.read(1024 * 1024)
-        if not chunk:
-            break
-        total += len(chunk)
-    if proc.wait() != 0:
-        raise RuntimeError(f"brotli failed for {path}")
-    return total
+    with tempfile.TemporaryDirectory(prefix="bw-receipt-brotli-") as temporary:
+        output = Path(temporary) / "asset.br"
+        proc = subprocess.run(
+            [str(verify_m8.PINNED_NODE), str(verify_m8.BROTLI_CODEC),
+             "encode", str(path), str(output)], capture_output=True, text=True)
+        if proc.returncode != 0 or not output.is_file():
+            raise RuntimeError(f"deterministic Brotli q11/lgwin=24 failed for {path}")
+        return output.stat().st_size
 
 
 def main() -> int:

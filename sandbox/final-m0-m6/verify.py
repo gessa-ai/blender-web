@@ -595,6 +595,7 @@ def validate_release_freeze(
         "platform_web/shell/boot-windowed.js", "platform_web/shell/file-bridge.js",
         "platform_web/shell/wgpu-preinit-worker.js",
         "sandbox/m8-staged-deploy/make_staged_bundle.sh",
+        "sandbox/m8-staged-deploy/brotli_q11.mjs",
         "sandbox/m8-staged-deploy/stage_pack.py",
         "sandbox/m8-staged-deploy/stage_provenance.py",
         "sandbox/m8-staged-deploy/prepare_split_inventory.py",

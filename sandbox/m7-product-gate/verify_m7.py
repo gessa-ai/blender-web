@@ -62,6 +62,7 @@ FALLBACK_FROZEN_PATHS = {
     "sandbox/m8-launch-gate/bundle_identity.mjs",
     "sandbox/m8-launch-gate/runtime_evidence.mjs",
     "sandbox/m8-staged-deploy/make_staged_bundle.sh",
+    "sandbox/m8-staged-deploy/brotli_q11.mjs",
     "sandbox/m8-staged-deploy/serve_measure.py",
     "sandbox/m8-staged-deploy/transport_contract.py",
 }

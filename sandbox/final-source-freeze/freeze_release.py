@@ -65,6 +65,7 @@ REQUIRED_PROJECT_PATHS = (
     "sandbox/m7-io-smoke/parse_obj.py",
     "sandbox/m7-io-smoke/parse_glb.py",
     "sandbox/m8-staged-deploy/make_staged_bundle.sh",
+    "sandbox/m8-staged-deploy/brotli_q11.mjs",
     "sandbox/m8-staged-deploy/stage_pack.py",
     "sandbox/m8-staged-deploy/test_stage_pack.py",
     "sandbox/m8-staged-deploy/stage_provenance.py",

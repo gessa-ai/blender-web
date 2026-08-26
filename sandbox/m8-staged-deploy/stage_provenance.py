@@ -26,6 +26,9 @@ from public_shell_hardening import harden_boot_source
 ROOT = Path(__file__).resolve().parents[2]
 STAGE_PACK = ROOT / "sandbox/m8-staged-deploy/stage_pack.py"
 STAGE_PACK_CONTRACT = ROOT / "sandbox/m8-staged-deploy/test_stage_pack.py"
+BROTLI_CODEC = ROOT / "sandbox/m8-staged-deploy/brotli_q11.mjs"
+PINNED_NODE = Path(os.environ.get(
+    "EMSDK_NODE", ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"))
 DERIVED_NAMES = (
     "blender_browser.js",
     "blender_browser.data",
@@ -281,17 +284,54 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         for name in br_names:
             raw = bundle / name[:-3]
             expected_br = Path(temporary) / Path(name).name
-            result = subprocess.run(
-                ["brotli", "-q", "11", "-f", "-o", str(expected_br), str(raw)],
-                capture_output=True, text=True)
+            try:
+                result = subprocess.run(
+                    [str(PINNED_NODE), str(BROTLI_CODEC), "encode",
+                     str(raw), str(expected_br)], capture_output=True, text=True)
+            except OSError as error:
+                failures.append(f"cannot execute deterministic Brotli codec: {error}")
+                break
             if result.returncode != 0 or not filecmp.cmp(expected_br, bundle / name, shallow=False):
-                failures.append(f"Brotli output is not deterministic q11 source bytes: {name}")
+                failures.append(
+                    f"Brotli output is not deterministic q11/lgwin=24 source bytes: {name}")
+    proof["brotli"] = {
+        "path": str(BROTLI_CODEC.relative_to(ROOT)),
+        **identity(BROTLI_CODEC),
+        "node_version": "v22.16.0",
+        "quality": 11,
+        "lgwin": 24,
+    }
     proof["derived"] = derived
     proof["full_stage"] = not failures
     return proof, failures
 
 
 def selfcheck() -> None:
+    codec_contract = subprocess.run(
+        [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
+        cwd=ROOT, capture_output=True, text=True
+    )
+    assert codec_contract.returncode == 0 and \
+        "BW_BROTLI_Q11_SELFCHECK_PASS node=v22.16.0 quality=11 lgwin=24" in \
+        codec_contract.stdout
+    codec_source = BROTLI_CODEC.read_text(encoding="utf-8")
+    codec_mutations = (
+        ('const PINNED_NODE_VERSION = "v22.16.0";',
+         'const PINNED_NODE_VERSION = "v25.1.0";'),
+        ("const QUALITY = 11;", "const QUALITY = 10;"),
+        ("const LGWIN = 24;", "const LGWIN = 22;"),
+        ("a5077aeebb2f4d96af19e64de3de26a11b56382106d3db388dccf400ff82ef62",
+         "b5077aeebb2f4d96af19e64de3de26a11b56382106d3db388dccf400ff82ef62"),
+    )
+    with tempfile.TemporaryDirectory(prefix="bw-brotli-codec-mutations-") as temporary:
+        for index, (old, new) in enumerate(codec_mutations):
+            assert codec_source.count(old) == 1
+            mutated = Path(temporary) / f"codec-{index}.mjs"
+            mutated.write_text(codec_source.replace(old, new, 1), encoding="utf-8")
+            result = subprocess.run(
+                [str(PINNED_NODE), str(mutated), "--selfcheck"],
+                cwd=ROOT, capture_output=True, text=True)
+            assert result.returncode != 0, f"codec mutation {index} passed unexpectedly"
     packer_contract = subprocess.run(
         [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
     )
@@ -365,7 +405,7 @@ def selfcheck() -> None:
         _compare_bytes(controls / "service-worker-register.js", register,
                        "register generator", control_failures)
         assert len(control_failures) == 2
-    print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 "
+    print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
           "packer=568/5/10 coherent=diagnostics+worker+register")
 
 

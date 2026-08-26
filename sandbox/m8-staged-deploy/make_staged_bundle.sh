@@ -21,6 +21,8 @@ set -euo pipefail
 SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO="$(cd -- "${SELF_DIR}/../.." && pwd -P)"
 SHELL_DIR="${REPO}/platform_web/shell"
+BROTLI_CODEC="${SELF_DIR}/brotli_q11.mjs"
+PINNED_NODE="${EMSDK_NODE:-${REPO}/tools/emsdk/node/22.16.0_64bit/bin/node}"
 OUT="${SELF_DIR}/bundle-staged"
 BIN="${BLENDER_WEB_BIN:-${REPO}/build-wasm-windowed-opt/bin}"
 DO_BROTLI=1; DEFER_DF="--defer-datafiles"; SELF_CHECK=0
@@ -60,6 +62,7 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
   [ "${SELF_DIR}" = "${REPO}/sandbox/m8-staged-deploy" ] || \
     die "derived staged source directory does not match repository layout: ${SELF_DIR}"
   for f in GOAL.md platform_web/shell/windowed.html \
+    sandbox/m8-staged-deploy/brotli_q11.mjs \
     sandbox/m8-staged-deploy/stage_pack.py \
     sandbox/m8-staged-deploy/prepare_split_inventory.py \
     sandbox/m8-staged-deploy/public_shell_hardening.py \
@@ -67,13 +70,22 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     sandbox/m8-staged-deploy/service-worker-register.js; do
     [ -f "${REPO}/${f}" ] || die "self-check source missing: ${f}"
   done
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=7 apply_manifest_reads=0 writes=0"
+  [ -x "${PINNED_NODE}" ] || die "pinned Node executable missing: ${PINNED_NODE}"
+  "${PINNED_NODE}" "${BROTLI_CODEC}" --selfcheck >/dev/null || \
+    die "deterministic Brotli q11/lgwin=24 self-check failed"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=8 brotli=q11-lgwin24 apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
 for f in windowed.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js wgpu-preinit-worker.js; do
   [ -f "${SHELL_DIR}/${f}" ] || die "shell ${f} missing (${SHELL_DIR})"
 done
+[ -x "${PINNED_NODE}" ] || die "pinned Node executable missing: ${PINNED_NODE}"
+[ "$("${PINNED_NODE}" --version)" = "v22.16.0" ] || \
+  die "public bundle requires pinned Node v22.16.0: ${PINNED_NODE}"
+[ -f "${BROTLI_CODEC}" ] || die "deterministic Brotli codec missing: ${BROTLI_CODEC}"
+"${PINNED_NODE}" "${BROTLI_CODEC}" --selfcheck >/dev/null || \
+  die "deterministic Brotli q11/lgwin=24 self-check failed"
 [ -f "${SELF_DIR}/_headers" ] || [ -f "${REPO}/sandbox/m8-deploy/_headers" ] || die "_headers template missing"
 [ -f "${SELF_DIR}/stage1-loader.js" ] || die "stage1-loader.js missing"
 [ -f "${SELF_DIR}/service-worker.js" ] || die "service-worker.js missing"
@@ -208,12 +220,13 @@ cache_files=(
 for filename in "${shipped_wasm[@]}"; do cache_files+=("bin/${filename}"); done
 
 if [ "${DO_BROTLI}" = "1" ]; then
-  echo "make_staged_bundle: writing mandatory production brotli-q11 siblings (slow)..." >&2
+  echo "make_staged_bundle: writing mandatory production Brotli q11/lgwin=24 siblings (slow)..." >&2
   for f in bin/blender_browser.js bin/blender_browser.data bin/stage1.data; do
-    brotli -q 11 -f -o "${OUT}/${f}.br" "${OUT}/${f}"
+    "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"
   done
   for filename in "${shipped_wasm[@]}"; do
-    brotli -q 11 -f -o "${OUT}/bin/${filename}.br" "${OUT}/bin/${filename}"
+    "${PINNED_NODE}" "${BROTLI_CODEC}" encode \
+      "${OUT}/bin/${filename}" "${OUT}/bin/${filename}.br"
   done
 fi
 

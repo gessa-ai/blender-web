@@ -18,6 +18,7 @@ const SELF = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SELF, "..", "..");
 const fixtureSource = readFileSync(fileURLToPath(import.meta.url), "utf8");
 const assembler = readFileSync(join(SELF, "make_staged_bundle.sh"), "utf8");
+const brotliCodec = readFileSync(join(SELF, "brotli_q11.mjs"), "utf8");
 const workerSource = readFileSync(join(SELF, "service-worker.js"), "utf8");
 const registerSource = readFileSync(join(SELF, "service-worker-register.js"), "utf8");
 const verifierSource = readFileSync(join(ROOT, "sandbox/m8-launch-gate/verify_m8.py"), "utf8");
@@ -34,6 +35,12 @@ function sourceContract() {
   assert.ok(assembler.includes(
     'SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"'));
   assert.ok(assembler.includes('REPO="$(cd -- "${SELF_DIR}/../.." && pwd -P)"'));
+  assert.ok(assembler.includes('"${PINNED_NODE}" "${BROTLI_CODEC}" encode'));
+  assert.equal(assembler.includes("brotli -q 11"), false);
+  assert.match(brotliCodec, /const PINNED_NODE_VERSION = "v22\.16\.0";/);
+  assert.match(brotliCodec, /const QUALITY = 11;/);
+  assert.match(brotliCodec, /const LGWIN = 24;/);
+  assert.match(verifierSource, /deterministic Brotli q11\/lgwin=24/);
   assert.match(assembler,
     /cache_first = \[url for url in precache if url != "\/service-worker-register\.js"\]/);
   assert.match(workerSource, /if \(CACHE_FIRST_URLS\.has\(logicalKey\)\)/);

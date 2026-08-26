@@ -29,6 +29,9 @@ SELF = ROOT / "sandbox/m8-launch-gate"
 ART = SELF / "artifacts"
 BUILD = ROOT / "build-wasm-windowed-opt/bin"
 BUNDLE = ROOT / "sandbox/m8-staged-deploy/bundle-staged"
+BROTLI_CODEC = ROOT / "sandbox/m8-staged-deploy/brotli_q11.mjs"
+PINNED_NODE = Path(os.environ.get(
+    "EMSDK_NODE", ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"))
 REUSE_VERSION = "6.2.0"
 
 DARWIN_RUNTIME_SIGNING = {
@@ -788,7 +791,13 @@ def check_exact_bundle_tree(failures: list[str]) -> None:
         raw = BUNDLE / name[:-3]
         if not compressed.is_file() or not raw.is_file():
             continue
-        proc = subprocess.Popen(["brotli", "-d", "-c", str(compressed)], stdout=subprocess.PIPE)
+        try:
+            proc = subprocess.Popen(
+                [str(PINNED_NODE), str(BROTLI_CODEC), "decode-stdout", str(compressed)],
+                stdout=subprocess.PIPE)
+        except OSError as error:
+            failures.append(f"cannot execute deterministic Brotli decoder: {error}")
+            continue
         assert proc.stdout is not None
         digest = hashlib.sha256()
         for chunk in iter(lambda: proc.stdout.read(1024 * 1024), b""):
@@ -820,6 +829,13 @@ def check_assembler_provenance(failures: list[str]) -> None:
         "path": "sandbox/m8-staged-deploy/stage_pack.py",
         **identity(ROOT / "sandbox/m8-staged-deploy/stage_pack.py"),
     }, "stage provenance did not use the canonical current stage_pack.py", failures)
+    require(proof.get("brotli") == {
+        "path": "sandbox/m8-staged-deploy/brotli_q11.mjs",
+        **identity(BROTLI_CODEC),
+        "node_version": "v22.16.0",
+        "quality": 11,
+        "lgwin": 24,
+    }, "stage provenance did not use deterministic Brotli q11/lgwin=24", failures)
 
     expected_public = json.dumps(
         contract["public_split_manifest"], indent=2, sort_keys=True) + "\n"
@@ -1908,7 +1924,7 @@ def runtime_consumer_selfcheck() -> None:
         forged["details"]["reuse_tool"]["sha256"] = "0" * 64
         check_compliance_tool(forged, compliance_failures)
         assert compliance_failures
-    node = ROOT / "tools/emsdk/node/22.16.0_64bit/bin/node"
+    node = PINNED_NODE
     assert node.is_file() and subprocess.run(
         [str(node), "--version"], capture_output=True, text=True, check=True).stdout.strip() == "v22.16.0"
     for script, marker in (
@@ -1918,10 +1934,12 @@ def runtime_consumer_selfcheck() -> None:
          "M8_PUBLIC_SHELL_HARDENING_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/verify_public_query_hardening.mjs",
          "M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS"),
+        (BROTLI_CODEC, "BW_BROTLI_Q11_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/stage_provenance.py",
          "M8_STAGE_PROVENANCE_SELFCHECK_PASS"),
     ):
-        command = [str(node), str(script), *(["--selfcheck"] if script.name == "browser_matrix.mjs" else [])] \
+        command = [str(node), str(script), *(
+            ["--selfcheck"] if script.name in {"browser_matrix.mjs", "brotli_q11.mjs"} else [])] \
             if script.suffix == ".mjs" else \
             [sys.executable, str(script), "--selfcheck"]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)

@@ -55,6 +55,8 @@ The required M4 scope remains RED at its existing hardware receipt boundary
 boundaries (`20260826T081752-562465`). No hardware profile, receipt, APPLY product, result
 promotion, dependency, deferral, tolerance, golden, blacklist, or promise was created or changed.
 
+Implementation commit: `34bad47`.
+
 ## Hardware closure
 
 On the Apple M4 Pro rig, rerun both sanctioned CAPTURE scenarios with trusted MMB orbit. Require:

@@ -2846,7 +2846,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   plus nine trusted-input ticks/two presents with zero stage-1/import/submission/transaction/loss
   failures. The live run is fallback-software diagnostic evidence only; no receipt or s7 boundary
   changed. See `notes/p0-boot-present-adapter-current-head-revalidation-20260825.md`.
-- [~] **P0-D-M4-VIEWPORT-BIND-GROUP-READINESS [gpu-backend, patches 0281+0283]:** diagnostic-first
+- [x] **P0-D-M4-VIEWPORT-BIND-GROUP-READINESS [gpu-backend, patches 0281+0283]:** diagnostic-first
   live sets prove the completeness failures are missing bindings, never extras: the low IDs are
   validation-pending backend push-constant UBOs and `256+` are validation-pending Tint sampler
   halves. Patch 0281 starts push allocation before module/layout readiness and queue-gates every
@@ -2856,10 +2856,10 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   into bounded ordinary window updates; incomplete draws retry only inside the active episode and
   cannot rearm its 180-tick ceiling. Fifteen native/wasm behavior cases, 29 source mutations,
   native/wasm32 parity, canonical replay, the CAPTURE relink, and the fallback warning diagnostic
-  are green. **Not resolved:** the driver-operated Apple rig must boot to idle without input with
-  grid/shaded Cube/gizmo and every editor region present and stable, capture a real
-  `overlay_grid_next` binding set, retain complete `OCIO_Display`, and show a semantic pixel delta
-  across orbit. See `notes/p0-bind-group-readiness-20260826.md` and
+  are green. **Hardware closed 2026-08-26:** the driver-operated Apple M4 Pro paints the complete
+  UI plus grid/axes/camera/shaded Cube/gizmo at 23–24 seconds with zero input, stays painted at
+  idle, and produces the expected semantic pixel delta across MMB orbit with zero encode/present
+  rejection. See `notes/p0-bind-group-readiness-20260826.md` and
   `notes/p0-redraw-recovery-20260826.md`.
 - [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282]:** live tracing disproved
   a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
@@ -2868,8 +2868,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `sync_backbuffer()` now publishes the live extent to both caches on every activation. The exact
   shipping product shrinks 1280x720 -> 1100x640 and restores with WM/presentation progress and zero
   scissor, encode, submit, transaction, or device-loss errors on the local fallback adapter.
-  **Not resolved:** fallback pixels bind no receipt; the Apple hardware rig must verify semantic
-  pixels survive shrink/grow/restoration. See `notes/p0-window-resize-recovery-20260826.md`.
+  **Hardware refinement 2026-08-26:** Apple confirms zero scissor/encode errors and a healthy
+  renderer after shrink/restore, but the resized canvas remains blank at idle until the next input
+  invalidates it. **Not resolved:** trigger the same bounded WindowUpdate/redraw retry used by
+  P0-D whenever a new browser extent is applied, then require idle semantic pixels after shrink and
+  restore. See `notes/p0-window-resize-recovery-20260826.md`.
+- [~] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
+  CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
+  orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now
+  calls the native method in the same activation stack, consumes its rejected Promise, emits one
+  bounded diagnostic, and routes failure through GHOST's existing `pointerlockerror` retirement so
+  orbit degrades to unlocked motion. Fail-first/final 28-mutation source coverage, two repeated
+  real-worker Chromium rejections with zero page errors, the aggregate native/wasm32 matrix, locked
+  CAPTURE no-work, and REUSE are green. The 119,142,906-byte `.wasm.orig` remains exact at SHA-256
+  `edd94c4208c4c5229b197db20779336fb85293a79eb2ad7dc1fc3a8058e89336`. **Not resolved:** the Apple
+  rig must rerun both CAPTURE scenarios and return `pageErrors.length === 0` before either profile
+  authorizes APPLY. See `notes/p0-pointer-lock-promise-rejection-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   now a strict CAPTURE generation with instrumented Wasm, 119,142,906-byte `.wasm.orig` at
   SHA-256 `edd94c4208c4c5229b197db20779336fb85293a79eb2ad7dc1fc3a8058e89336`, and a schema-1 PASS

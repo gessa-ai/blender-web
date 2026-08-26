@@ -3143,7 +3143,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input. Native/wasm32 integration, adjacent browser paths, locked CAPTURE relink/no-work, split
   producer checks, fallback product boot, REUSE, and regression preserve their strict boundaries.
   See `notes/m8-callback-registration-soak-20260826.md`.
-- [x] **AUDIT-20260826-R13 [driver] (`4a437519..1ba4cea`):** adversarial review of the exact
+- [x] **AUDIT-20260826-R13 [driver] (`f5a2d2a`; range `4a437519..1ba4cea`):** adversarial review of the exact
   25-commit range found one high M8 receipt false-green path, three medium Stage-1
   recovery/integrity/memory defects, and two low process findings. It found no upstream/harness/
   oracle/golden/result mutation, promise promotion, dependency-provenance loss, or hidden

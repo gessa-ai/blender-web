@@ -227,7 +227,6 @@
     "cycles_osl": "no-jit",
     "cycles_embree": "x86-simd",
     "cycles_path_guiding": "unported",
-    "usd": "heavyweight",
     "hydra": "heavyweight",
     "materialx": "unported",
     "openvdb": "unported",
@@ -240,7 +239,6 @@
     "alembic": "unported",
     "audio": "irrelevant",
     "input_ndof": "no-hardware",
-    "international": "size",
     "ghost_native": "web-ghost",
     "gmp": "unported",
     "haru": "unported",
@@ -256,16 +254,30 @@
     "image_codecs": "unported"
   },
   "wasm_built": {
+    "openusd": {
+      "version": "26.03",
+      "status": "ok",
+      "license": "TOST-1.0",
+      "license_note": "The exact upstream LICENSE.txt identifies the Tomorrow Open Source Technology License 1.0. Its byte-faithful text and NOTICE are harvested under lib/wasm/share/licenses/OpenUSD-26.03/; this registry does not relabel the custom text as Apache-2.0.",
+      "gpl_compatible": false,
+      "gpl_compatible_note": "Legal compatibility/sufficiency of the custom TOST-1.0 text is intentionally unresolved pending the required GPL-literate lawyer review. Upstream Blender shipping OpenUSD is provenance, not a project-side legal determination.",
+      "hash": "md5:cc6d6bffdcdd038f60e2fe4726b08673",
+      "hash_provenance": "versions.cmake:851-860 (USD_VERSION/USD_HASH/USD_HASH_TYPE/USD_LICENSE); downloaded archive independently verified SHA256 590ea75ffa3ac0c35fdd080df04d61a696733b8f3d6a79bdc3f13f8077162d36",
+      "source": "https://github.com/PixarAnimationStudios/OpenUSD/archive/v26.03.tar.gz; built by scripts/deps/openusd.sh; notes/deps-openusd.md",
+      "rationale": "Real Blender USD import/export is an explicit strict-M7 product contract. The browser links the core monolithic archive plus the static usdShaders registration target; Hydra/Imaging and Python bindings remain absent from the Wasm profile.",
+      "notes": "Static core/no-Imaging/no-Python-hook profile under Emscripten 6.0.5. libusdShaders.a whole-archives libusd_m.a; 70 installed schema/plugInfo resources are preloaded at /usd and staged after first pixels. Standalone pthread smoke and real browser bpy.ops.wm.usd_export -> source delete -> bpy.ops.wm.usd_import exact UsdGeomMesh value round-trip pass. Native default capability build separately proves real Imaging + Boost.Python hook sources. Exact upstream LICENSE.txt and NOTICE.txt are harvested at lib/wasm/share/licenses/OpenUSD-26.03/ and the public assembler copies them to legal/OpenUSD-26.03/. Browser receipt: sandbox/m7-usd-prep/browser-roundtrip/preview0-final-m7-usd-r1/receipt.json.",
+      "runtime_linked": true
+    },
     "opensubdiv": {
       "version": "3.7.0",
       "status": "ok",
-      "license": "Apache-2.0",
-      "license_note": "Pixar's \"OpenSubdiv License\" is Apache-2.0 with a modified attribution appendix; upstream versions.cmake tags it SPDX TOST-1.0. Treated as Apache-2.0 for GPL-compatibility analysis (the appendix only alters copyright-notice reproduction, not the grant). LICENSES text ships in the source tree.",
-      "gpl_compatible": true,
-      "gpl_compatible_note": "Apache-2.0 is incompatible with GPLv2 alone but compatible with GPLv3. Blender is GPL-2.0-OR-LATER, so the combined work is conveyed under GPLv3 terms — the same or-later path used for oneTBB/OIIO. No red flag.",
+      "license": "LicenseRef-OpenSubdiv-TOST-1.0",
+      "license_note": "The pinned upstream file identifies itself as Tomorrow Open Source Technology License 1.0 and states that its Section 6 differs from Apache-2.0. The byte-faithful text is LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt; the exact upstream NOTICE is preserved under THIRD_PARTY_NOTICES.",
+      "gpl_compatible": false,
+      "gpl_compatible_note": "Legal compatibility/sufficiency is intentionally unresolved pending the required GPL-literate lawyer review; this machine record does not relabel the modified text as Apache-2.0.",
       "rationale": "Subdivision-surface evaluation. Unblocks WITH_OPENSUBDIV (launch-tier: the Subdivision Surface modifier and Cycles subdiv). Was the SOLE delta on 22 of 27 Cycles-CPU small-scene tests (notes/m6-cycles-suite.md): with OpenSubdiv OFF, Blender silently disables every Subsurf/Multires modifier at render time.",
       "source": "versions.cmake:232 OPENSUBDIV_VERSION v3_7_0 (MD5 470d53c4d4335a601c33a052ce7c33b4); built by scripts/deps/opensubdiv.sh; notes/m6-opensubdiv-rebuild.md",
-      "notes": "CPU-only: Far/Sdc/Vtr/Bfr + CPU (incl. TBB) evaluators; every GPU backend (OpenGL/Metal/CUDA/OpenCL/DX) OFF — no GPU API under Emscripten. libosdCPU.a is real (49 objects); libosdGPU.a is a VALID EMPTY archive: a CPU-only OpenSubdiv build emits no GPU object code (opensubdiv/osd/CMakeLists.txt:404 + opensubdiv/CMakeLists.txt:136 both false), and Blender's build_files/cmake/Modules/FindOpenSubdiv.cmake resolves TWO components (osdCPU AND osdGPU) whose paths are link-injected by dependency_targets.cmake:179 — the empty archive satisfies the two-component find while nothing at runtime references osdGPU symbols (intern/opensubdiv's GPU-subdiv path is driven by bf::gpu, not OpenSubdiv's osdGPU). TBB from lib/wasm via TBB_DIR; -pthread -fexceptions. Compiled clean under emcc 6.0.5 — NO upstream patch. Far cube-refine smoke passes on wasm+node (Catmull-Clark level-1 verts=26). Harvest: lib/wasm/lib/libosd{CPU,GPU}.a + lib/wasm/include/opensubdiv. scripts/deps/opensubdiv.sh",
+      "notes": "CPU-only: Far/Sdc/Vtr/Bfr + CPU (incl. TBB) evaluators; every GPU API backend (OpenGL/Metal/CUDA/OpenCL/DX) OFF under Emscripten. libosdCPU.a contains 49 evaluator/topology objects. libosdGPU.a is a real 200,032-byte two-object archive (version.cpp.o and glslPatchShaderSource.cpp.o) exporting GLSLPatchShaderSource::GetPatchBasisShaderSource for Blender's WebGPU subdivision shader compiler, while the dependency recipe rejects OpenGL API objects and symbols. Blender's FindOpenSubdiv resolves both osdCPU and osdGPU, and the WebGPU consumer requires the GLSL patch-basis source. TBB from lib/wasm via TBB_DIR; -pthread -fexceptions. Compiled clean under emcc 6.0.5 — NO upstream patch. Far cube-refine plus GLSL patch-basis smoke passes on wasm+node (Catmull-Clark level-1 verts=26). Harvest: lib/wasm/lib/libosd{CPU,GPU}.a + lib/wasm/include/opensubdiv. scripts/deps/opensubdiv.sh",
       "runtime_linked": true
     },
     "imath": {
@@ -348,11 +360,17 @@
       "license": "MIT",
       "gpl_compatible": true,
       "rationale": "GL/EGL loader \u2014 NOT built and NOT shipped: no GL consumer in the WebGPU-only build (WITH_OPENGL_BACKEND OFF). Recorded for completeness; not a runtime dep.",
+      "source": "upstream/build_files/build_environment/cmake/versions.cmake:205-210 pins libepoxy 1.5.10 from https://github.com/anholt/libepoxy/archive/refs/tags/1.5.10.tar.gz (homepage https://github.com/anholt/libepoxy); patches/platform_wasm.cmake disables Epoxy for the WebGPU-only build, so no Epoxy artifact is built or shipped.",
       "notes": "M1.2: WITH_OPENGL_BACKEND OFF in platform_wasm.cmake; only REQUIRED find lived in platform_unix (bypassed). No GL consumer in WebGPU build; not cross-compiled."
     },
     "vulkan": {
+      "version": "not-built",
       "status": "skipped",
       "shipped": false,
+      "license": "Apache-2.0",
+      "gpl_compatible": true,
+      "rationale": "The Vulkan SDK is intentionally absent from the WebGPU-only Wasm build.",
+      "source": "Khronos Vulkan-Headers/Vulkan-Loader are disabled by patches/platform_wasm.cmake; no artifact is built or shipped.",
       "notes": "M1.2: WITH_VULKAN_BACKEND forced OFF in platform_wasm.cmake; WebGPU backend replaces it. Not built."
     },
     "shaderc": {

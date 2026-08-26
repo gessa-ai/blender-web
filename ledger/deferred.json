@@ -255,11 +255,11 @@
       "id": "optional-python-modules",
       "status": "deferred",
       "milestone": "M2 (python boot)",
-      "revisit": "M2.6 \u2014 re-enable per actual tier-b suite need (harvest the Hacl hashlib archives; re-add sqlite3/decimal/etc. with proper deps)",
-      "blocker": "The browser CPython 3.13.13 target links without several optional C-extension modules whose only unmet deps are external/companion libs absent from the mono-wasm link: hashlib backends (_md5/_sha1/_sha2/_sha3/_blake2 \u2014 CPython's per-algorithm Hacl archives), _multiprocessing (no fork/exec in a single wasm module), and (disabled for a self-contained libpython) _sqlite3/_bz2/_decimal/pyexpat/_elementtree.; _ctypes (libffi) absent \u2014 now the sole blocker for script_load_addons/modules (numpy no longer blocks, 2026-08-05)",
-      "impact": "import hashlib during bpy startup logs ~28 'unsupported hash type' tracebacks then degrades gracefully (module-level try/except); _multiprocessing -> one ModuleNotFoundError during bpy app setup. Both non-fatal \u2014 import bpy + operators boot green. Blocks the AMBER m2b suites script_disk_file_hash_service_test (needs sqlite3) and any tier-b suite that actually computes a hash.",
-      "workaround": "decimal falls back to pure-python _pydecimal; re-harvest the Hacl SHA archives + re-enable modules with real deps at M2.6 when a suite needs them; multiprocessing is not usable in a single wasm module regardless.",
-      "evidence": "notes/m2-python-boot.md (Open/deferred items; seam #4)"
+      "revisit": "Post-launch, add each external dependency only when a product-supported script requires it; keep the mono-wasm/no-dlopen constraint explicit.",
+      "blocker": "The browser CPython target deliberately omits optional extensions that require unharvested native dependencies or unsupported process/terminal facilities: _ctypes (libffi), _ssl (OpenSSL), _lzma (xz), _sqlite3, _bz2, the C _decimal accelerator, pyexpat/_elementtree, readline/_curses, and _uuid. A thread-backed _multiprocessing compatibility shim supports synchronization imports but does not provide native process spawning.",
+      "impact": "Core bpy startup/operators and the shipped skeptic path are not blocked. Scripts that directly require one of the omitted extensions remain unsupported; pure-Python decimal is available, and patch 0147 keeps optional glTF Draco/Meshopt ctypes imports off the normal uncompressed path.",
+      "workaround": "Use the available pure-Python fallbacks and browser-native file/network surfaces; cross-build libffi/OpenSSL/xz/sqlite or another dependency only for a separately tested product requirement.",
+      "evidence": "notes/python-emcc605-probe.md; notes/python-trim-restore.md HASH_OK and deliberate C-extension cut-line; ledger/progress.txt py-m4debt 2026-08-06; patch 0147 glTF lazy optional compression"
     },
     {
       "id": "cycles-final-gpu",
@@ -307,6 +307,24 @@
       "evidence": "GOAL.md:19"
     },
     {
+      "id": "wasm32-animation-action-objectdata",
+      "status": "deferred",
+      "milestone": "M2",
+      "revisit": "with the ADR-004 wasm64 path or a focused library-override remap fix",
+      "blocker": "The wasm32 animation action suite completes all 32 assertions but its library-override reload reports one missing local ObjectData and cannot find the Suzanne library object data; native does not emit either diagnostic.",
+      "impact": "The affected animation action row is retained as an exact pass-with-delta rather than being presented as byte-parity.",
+      "evidence": "notes/m2-tierb-prep.md §8"
+    },
+    {
+      "id": "wasm32-library-override-idname-allocation",
+      "status": "deferred",
+      "milestone": "M2",
+      "revisit": "with the ADR-004 wasm64 path or deterministic local-ID allocation work",
+      "blocker": "The wasm32 library-override suite passes every assertion but allocates six LibCube local-ID suffix correspondences across three equivalent collection instances differently from native.",
+      "impact": "The affected library-override row is retained as an exact six-record pass-with-delta inside its anchored nine-line hierarchy-print phase rather than being presented as byte-parity.",
+      "evidence": "notes/m2-tierb-prep.md §8"
+    },
+    {
       "id": "feature-off-openvdb",
       "status": "deferred",
       "blocker": "OpenVDB not built for wasm (WITH_OPENVDB OFF)",
@@ -316,19 +334,21 @@
     },
     {
       "id": "feature-off-opensubdiv",
-      "status": "deferred",
-      "blocker": "OpenSubdiv stubbed (WITH_OPENSUBDIV OFF)",
-      "impact": "bl_multires suite; bl_sculpt_brushes (multires_reshape_util.cc:118 needs real subdiv \u2014 reclassified 2026-08-05, was essentials-genuine)",
-      "revisit": "post-launch",
-      "evidence": "notes/m2-tierb-prep.md"
+      "status": "resolved",
+      "milestone": "M6",
+      "blocker": "Resolved: OpenSubdiv 3.7.0 is cross-built and the shipping web configuration forces WITH_OPENSUBDIV ON for CPU Subsurf/Multires and Cycles subdivision.",
+      "impact": "The old OpenSubdiv-off limitation no longer applies. Remaining suite failures must be attributed to their current receipts, not this retired feature switch.",
+      "revisit": "closed by the M6 OpenSubdiv dependency rebuild",
+      "evidence": "ledger/deps.json wasm_built.opensubdiv status=ok; patches/blender_web.cmake WITH_OPENSUBDIV ON; notes/m6-opensubdiv-rebuild.md"
     },
     {
       "id": "feature-off-cycles-engine",
-      "status": "deferred",
-      "blocker": "Cycles OFF until M6 CPU subset",
-      "impact": "bl_node_link_drag cycles cases",
-      "revisit": "M6",
-      "evidence": "notes/m2-tierb-prep.md"
+      "status": "resolved",
+      "milestone": "M6",
+      "blocker": "Resolved for the launch-tier CPU subset: the shipping web configuration forces WITH_CYCLES ON while every unsupported GPU device and OSL remain explicitly off.",
+      "impact": "Cycles CPU is present. Cycles GPU and OSL remain separately disclosed by the required cycles-final-gpu and osl deferrals.",
+      "revisit": "closed for Cycles CPU; do not collapse the separate GPU/OSL deferrals",
+      "evidence": "patches/blender_web.cmake WITH_CYCLES ON and GPU devices OFF; notes/m6-cycles-suite.md"
     },
     {
       "id": "feature-off-avif",
@@ -344,9 +364,9 @@
       "milestone": "M3 (gate)",
       "revisit": "post-launch - WGSL has no storage-texture atomic path; revisit if WGSL/Dawn gains image atomics or an SSBO-atomic emulation of the affected passes is scoped",
       "blocker": "WGSL has no storage-texture atomics: imageAtomic* maps to SPIR-V OpImageTexelPointer, which Tint's SPIR-V reader rejects ('tint ReadIR: unhandled SPIR-V OpImageTexelPointer'). No Dawn FeatureName enables image atomics at this pin.",
-      "impact": "8 static shaders using imageAtomic fail to compile (part of static_shaders 951/973) and the shader_texture_atomic test crashes (signal 11 - compile fails -> null module -> bind/dispatch segfault, honest).",
+      "impact": "Current closeout: gpu_texture_atomic_test is the sole remaining static imageAtomic non-compile (part of static_shaders 995/1003), and shader_texture_atomic crashes with signal 11 after its compile rejection.",
       "workaround": "Where the algorithm allows, re-express the image atomic as a storage-buffer (SSBO) atomic over an equivalent linear layout; not a general drop-in, so deferred until a shipping shader needs it.",
-      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #1 (imageAtomic 8) / CRASH #9 (shader_texture_atomic)"
+      "evidence": "notes/gpu-gate-census.md current closeout reconciliation; harness/results m3 2026-08-11T14:42:24Z"
     },
     {
       "id": "vertex-stage-rw-storage",
@@ -354,9 +374,9 @@
       "milestone": "M3 (gate)",
       "revisit": "post-launch - restructure the affected passes to move read_write storage writes into a compute prepass (vertex stage reads read-only storage only)",
       "blocker": "WebGPU forbids var<storage, read_write> in the vertex pipeline stage; Tint rejects it: 'var storage/read_write cannot be used by vertex pipeline stage'.",
-      "impact": "4 static shaders fail to compile (draw_curves_test, draw_debug_draw_display, eevee_shadow_tag_update, gpu_graphic_specialization_test; part of static_shaders 951/973) and the specialization_constants_graphic test crashes (signal 11).",
+      "impact": "Current closeout: draw_curves_test and draw_debug_draw_display are the two remaining static non-compiles in this class (part of static_shaders 995/1003); specialization_constants_graphic now passes.",
       "workaround": "Split the pass: perform the read_write storage writes in a separate compute pass, leaving the vertex stage with read-only storage.",
-      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #1 (vertex-stage read_write SSBO 4) / CRASH #10 (specialization_constants_graphic)"
+      "evidence": "notes/gpu-gate-census.md current closeout reconciliation; harness/results m3 2026-08-11T14:42:24Z"
     },
     {
       "id": "depth-aspect-buffer-upload",
@@ -370,14 +390,14 @@
     },
     {
       "id": "gpu-comp-i10-vertex-format",
-      "status": "closed",
+      "status": "resolved",
       "milestone": "M3 (gate)",
-      "revisit": "later fix - unpack I10 in the vertex shader from a Uint source, or CPU pre-expand to a supported signed format, when packed-normal attributes reach the shipping viewport",
+      "revisit": "closed by patch 0119: normalized I10 data is CPU-transcoded to Snorm8x4, a WebGPU-supported signed format",
       "blocker": "WebGPU has no signed snorm10-10-10-2 vertex format; wgpu_pipeline.cc:86 maps GPU_COMP_I10 (signed 2_10_10_10_REV, used for packed mesh normals) to VF::Unorm10_10_10_2, so the unsigned read drops the sign.",
-      "impact": "vertex_buffer_fetch_mode GPU_COMP_I10 INT_TO_FLOAT_UNIT fails: got (160,256,255,0), want (321,-511,511,0). Affects packed mesh-normal vertex attributes.",
+      "impact": "Resolved: vertex_buffer_fetch_mode GPU_COMP_I10 INT_TO_FLOAT_UNIT passes and the test is no longer an expected non-pass.",
       "workaround": "Unpack signed 2_10_10_10 in the vertex shader from a Uint10_10_10_2/Uint32 source, or pre-expand on CPU to Snorm16x4.",
-      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #8 (vertex_buffer_fetch_mode GPU_COMP_I10); wgpu_pipeline.cc:86",
-      "closed": "2026-08-09 by patch 0119 (r37, commit d0f48c7): normalized GPU_COMP_I10 maps to VF::Snorm8x4 with packed-data transcode at upload (the revisit note's \"CPU pre-expand to a supported signed format\" option). Native census test vertex_buffer_fetch_mode I10 INT_TO_FLOAT_UNIT now PASSES (bar 148/8/2 -> 149/7/2); web gbuffer -Y normals verified correct via the 0117 readback. Residual: the harness EXPECT_NONPASS map still lists the test (human-locked file, flagged in the ledger)."
+      "evidence": "notes/gpu-gate-census.md current closeout reconciliation; wgpu_pipeline.cc and wgpu_vertex_buffer.cc; harness/results m3 2026-08-11T14:42:24Z",
+      "closed": "2026-08-09 by patch 0119 (r37, commit d0f48c7): normalized GPU_COMP_I10 maps to VF::Snorm8x4 with packed-data transcode at upload. The 2026-08-11 M3 reconciliation removed the now-passing test from EXPECT_NONPASS and raised the current PASS floor to 189."
     },
     {
       "id": "subpass-input-attachment",
@@ -385,9 +405,9 @@
       "milestone": "M3 (gate)",
       "revisit": "M6 entry - REVISIT on EEVEE render evidence per fix_plan.md M3.F13-DECISIONS decision 2; 2-pass emulation designed in notes/gpu-laneB-integration.md",
       "blocker": "WebGPU has no subpass inputs / input-attachment equivalent.",
-      "impact": "framebuffer_subpass_input x2 fail (honest FAIL, characterized round 10).",
+      "impact": "Current closeout: framebuffer_subpass_input remains an honest FAIL; framebuffer_subpass_input_clearops now passes and was removed from the expected-nonpass map.",
       "workaround": "2-pass emulation designed (notes/gpu-laneB-integration.md): resolve the subpass read as a sampled texture between render passes.",
-      "evidence": "notes/gpu-gate-census.md (i) deferral candidates + FAIL #4/#5 (framebuffer_subpass_input); notes/gpu-laneB-integration.md (2-pass subpass emulation)"
+      "evidence": "notes/gpu-gate-census.md current closeout reconciliation; notes/gpu-laneB-integration.md (2-pass subpass emulation); harness/results m3 2026-08-11T14:42:24Z"
     },
     {
       "id": "emscripten-network-transport",
@@ -423,6 +443,16 @@
       "impact": "WGPUQueryPool intentionally reports zero hits. Normal View3D object selection uses GPU_select_begin_next and is unaffected, but the legacy query-backed gizmo-map path cannot report a browser hit and therefore cannot faithfully select gizmos through this route.",
       "workaround": "Use the Select-Next/object-ID path for ordinary viewport object selection. There is no faithful synchronous workaround for legacy gizmo queries; the caller must become asynchronous before real WebGPU query results can ship.",
       "evidence": "source/blender/gpu/webgpu/wgpu_query.{cc,hh}; source/blender/gpu/intern/gpu_select_sample_query.cc synchronous result consumption; source/blender/windowmanager/gizmo/intern/wm_gizmo_map.cc legacy caller; sandbox/final-m0-m3/gpu_webgpu_tests.txt conservative fallback identity; notes/m3-t10-query-integrated-linux-reconcile-20260821.md"
+    },
+    {
+      "id": "usd-io-wasm",
+      "status": "resolved",
+      "milestone": "M7",
+      "revisit": "closed by the M7 OpenUSD 26.03 core-profile build and real browser operator round-trip",
+      "blocker": "Resolved: OpenUSD 26.03 is cross-built for Emscripten and the shipping web configuration enables real Blender USD IO. The constrained profile omits Imaging/Hydra and Python hooks explicitly while retaining UsdGeomMesh import/export.",
+      "impact": "The old no-USD preview limitation no longer applies. Procedural USD shape prim tessellation and Python USD hooks remain unavailable in the browser core profile; ordinary UsdGeomMesh IO is present.",
+      "workaround": "Use mesh prims for browser USD interchange. Desktop builds retain their default Imaging and Python-hook sources.",
+      "evidence": "ledger/deps.json wasm_built.openusd; patches/0148-usd-core-web-capability-and-first-redraw.patch; sandbox/m7-usd-prep/browser-roundtrip/preview0-final-m7-usd-r1/receipt.json; sandbox/m7-usd-prep/native-capability/preview0-final-m7-native-usd-r1/receipt.json; notes/deps-openusd.md"
     },
     {
       "id": "wsl2-hardware-webgpu-m3",
@@ -482,12 +512,12 @@
       "id": "m8-wasm-15mb-bar",
       "status": "partial",
       "milestone": "M8",
-      "blocker": "Shipped windowed wasm = 21.27 MB brotli vs the 15 MB LAUNCH.md to-interactive bar. Compiler levers (-Os/-Oz/--closure/-flto) + name-strip are spent (notes/m8-wasm-shrink.md, notes/m8-soak-and-namestrip.md); the cost is the sheer amount of linked code and brotli only responds to removing whole functions. The one structural lever, wasm module-split, is PROVEN feasible under our constraints, but a subsystem-granularity cold-cut only reaches ~19.2 MB primary; clearing 15 MB needs function-level profile-driven splitting whose boot hot-set fit is unmeasured.",
+      "blocker": "The last exact staged candidate is over both launch budgets: stage-0 does not reach product pixels; eventual interactive product UI appears at 20.847 s locally and 41.519 s under the pinned mid-laptop 1.5 MB/s + 40 ms profile, versus the required <=8 s. The critical Brotli payload is 37,840,484 bytes (wasm 22,428,023 + JS 76,252 + stage-0 data 15,336,209), versus <=15,000,000. Functional staging, byte-exact stage-1, visible phase/MB progress, cache completion, and offline-warm WM_main at 260 ms pass, but none overrides these hard RED measurements. A final receipt is still required after the current M7 rebuild boundary.",
       "progress": "wasm-split demand-load PROVEN under the full constraint set (-pthread, -sPROXY_TO_PTHREAD, MODULARIZE, JS-EH, NO JSPI) with zero ADR-006 violation: the split boundary is a worker-blocking sync XHR + sync compile/instantiate on the WM worker (the ADR-006-sanctioned blocking posture), not a JSPI/Asyncify suspend (source proof: preamble.js loadSplitModule===instantiateSync when !JSPI; readBinary=sync XHR on workers). Reduced-harness browser proof on :8127 PASS: boot without the secondary, demand-load on the proxied-main worker AND on a fresh pthread (sandbox/m8-wasm-split/). One required glue fix found+proven: pthread workers must set wasmBinaryFile (findWasmBinary()) before instantiating the placeholder-importing primary, else all pooled workers crash at boot. Per-thread secondary compile is the cost caveat, so split only single-(WM-)thread subsystems. MEASURED real-module split of the cleanly-separable cold set (shaderc/glslang/SPIRV + tint + compositor + grease pencil + VSE/spreadsheet/nla/clip + numpy = 13.0 MiB raw): primary 19.36 MB + secondary 2.26 MB brotli (RelWithDebInfo twin proxy, matches the shipped whole to +0.8%).",
-      "impact": "Boot wasm exceeds the 15 MB bar by 6.3 MB as shipped, ~4.2 MB after the measured subsystem cold-cut. Slower cold start on the launch demo; not a correctness or feature blocker, a launch-tier performance-budget miss.",
+      "impact": "The staged demo is functionally usable once loaded, but cannot be represented as meeting LAUNCH.md's 5-8 s / ~15 MB first-interaction promise. This is a launch-tier performance blocker, not a correctness blocker.",
       "mitigation": "Staged .data loading (notes/m8-staged-loading.md, done) + land the shader-compiler split (needs the M3 precompiled-WGSL + OPFS cache so the compiler is off the boot path) + compositor/grease-pencil/VSE compile-outs (RANKING.md config lane). Carry the pthread wasmBinaryFile glue patch with any split.",
       "revisit": "M8, before promising the 15 MB bar: run the emcc SPLIT_MODULE instrument flow (wasm-split --instrument, boot the windowed build, __write_profile, split keep=hot) to measure the true boot hot-set. If under ~14 MB brotli a profile-driven primary clears the bar; else accept ~19 MB + staged loading and document.",
-      "evidence": "notes/m8-wasm-split-feasibility.md; sandbox/m8-wasm-split/ (harness + real-split; evidence/drive-result.json PASS on :8127); notes/m8-wasm-shrink.md; sandbox/m8-dce-ranking/RANKING.md; notes/m8-soak-and-namestrip.md"
+      "evidence": "sandbox/m8-launch-gate/artifacts/current-staged-receipt.json (last exact receipt; must be regenerated after final artifact changes); sandbox/m8-staged-deploy/artifacts/verify_staged.json; sandbox/m8-staged-deploy/artifacts/measure_staged-4g.json; notes/m8-wasm-split-feasibility.md; sandbox/m8-wasm-split/; notes/m8-wasm-shrink.md; sandbox/m8-dce-ranking/RANKING.md"
     }
   ]
 }

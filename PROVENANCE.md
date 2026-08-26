@@ -53,6 +53,17 @@ pin.
 | Port module | Upstream origin | Pin |
 |---|---|---|
 | `patches/blender_web.cmake` | `build_files/cmake/config/blender_lite.cmake` + `build_files/cmake/config/blender_headless.cmake` | fbe6228777e7 |
-| `source/blender/gpu/webgpu/` (planned) | `source/blender/gpu/` frontend + `source/blender/gpu/vulkan/` (model) | fbe6228777e7 |
-| `intern/ghost` web files (planned) | `intern/ghost/` | fbe6228777e7 |
-| `platform_web/` (planned) | new — no direct upstream origin | fbe6228777e7 |
+| `patches/platform_wasm.cmake` | `build_files/cmake/platform/platform_unix.cmake` | fbe6228777e7 |
+| `patches/0012-gpu-webgpu-backend.patch` through the current WebGPU patch series | `source/blender/gpu/` frontend + `source/blender/gpu/vulkan/` architecture/model | fbe6228777e7 |
+| `platform_web/ghost/GHOST_SystemWeb.{cc,hh}` | `intern/ghost/intern/GHOST_SystemHeadless.hh` + `GHOST_SystemSDL.{cc,hh}` | fbe6228777e7 |
+| `platform_web/ghost/GHOST_WindowWeb.{cc,hh}` | `intern/ghost/intern/GHOST_WindowHeadless.{cc,hh}` + `GHOST_WindowSDL.{cc,hh}` | fbe6228777e7 |
+| `platform_web/ghost/GHOST_ContextWGPUWeb.{cc,hh}` | `intern/ghost/intern/GHOST_ContextWGPU.{cc,hh}` | fbe6228777e7 |
+| `platform_web/ghost/GHOST_EventBridgeWeb.{cc,hh}` and web key/display headers | `intern/ghost/` event/key/window contracts | fbe6228777e7 |
+| `platform_web/shell/` | new browser shell and byte bridge; no direct upstream source | fbe6228777e7 |
+| `sandbox/m8-staged-deploy/` | new static packaging, cache and verification tooling; no direct upstream source | fbe6228777e7 |
+| `patches/0147-gltf-lazy-optional-compression.patch` | `scripts/addons_core/io_scene_gltf2/` optional compression imports | fbe6228777e7 |
+
+The applied production tree is reconstructed from the immutable upstream pin and
+`patches/series`; the repository does not edit `upstream/` in place. New browser-only
+modules use the per-file project header and identify themselves as new where there is
+no upstream file to cite.

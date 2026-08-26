@@ -2846,9 +2846,30 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   plus nine trusted-input ticks/two presents with zero stage-1/import/submission/transaction/loss
   failures. The live run is fallback-software diagnostic evidence only; no receipt or s7 boundary
   changed. See `notes/p0-boot-present-adapter-current-head-revalidation-20260825.md`.
+- [x] **AUDIT-20260825-R12 [driver] (`5256369..debb502`):** adversarial review of the exact
+  25-commit range found no parity theater, receipt promotion, upstream mutation, dependency drift,
+  or P0 regression. It found three major device-free M4 defects: ordinary text keys disappear while
+  the IME textarea owns focus; focus-loss generations do not order the boundary before later queued
+  input; and a simultaneous second window creates split manager/canvas ownership. One low M8 soak
+  debt and two minor process/documentation findings are also recorded. See
+  `reports/audit-20260825-r12.md`.
+- [ ] **AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE [ghost-web, claimed_by: none]:** route trusted
+  non-composing ASCII, navigation, Escape, Enter, Backspace, and clipboard shortcuts from Blender's
+  owned IME textarea into GHOST without duplicating active composition; add real-worker trusted-input
+  and text-state coverage. This is device-free and precedes the physical IME receipt.
+- [ ] **AUDIT-R12-M4-FOCUS-INPUT-BARRIER [ghost-web, claimed_by: none]:** give focus boundaries
+  and later keyboard/pointer input one total order, so blur -> refocus -> input cannot enqueue a new
+  Down before deactivate/activate. Add exact same-task keyboard and mouse ordering assertions.
+- [ ] **AUDIT-R12-M4-SINGLE-CANVAS-SECOND-WINDOW [ghost-web, claimed_by: none]:** fail closed on a
+  simultaneous second valid `createWindow()` until per-window canvas/input/presentation routing
+  exists; add a two-live-window lifecycle test and retain the named ledger deferral.
+- [ ] **AUDIT-R12-M8-CALLBACK-REGISTRATION-SOAK [ghost-web, claimed_by: none]:** bound or budget
+  process-lifetime callback-registration metadata and soak repeated failed/replacement registration
+  before M8 leak closure.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
-  blocked-by: trusted physical input session]:** on a supported headed browser/OS, exercise a
-  browser-generated OS IME composition and a physical dead-key sequence through the real product;
+  blocked-by: AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE then trusted physical input session]:** on
+  a supported headed browser/OS, exercise a browser-generated OS IME composition and a physical
+  dead-key sequence through the real product;
   bind trusted-event evidence and Blender text state before resolving `ime-dead-keys`.
 - [ ] **AUDIT-20260820-HISTORY [driver -> HUMAN]:** coordinate preservation-equivalent author
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required

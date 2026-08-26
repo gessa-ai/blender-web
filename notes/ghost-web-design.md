@@ -93,16 +93,18 @@ front-buffer reads, physical trackpad direction, and server-side decorations. RG
 IME are advertised through browser-main bridges.
 
 Constraints and deferrals (with a named blocker wherever work remains):
-- **IME / dead-keys** — bridge and terminal recovery are implemented; trusted-input evidence
-  remains.
+- **IME / dead-keys** — bridge and terminal recovery are implemented, but ordinary non-composing
+  keyboard/control input is currently lost while the hidden textarea owns focus; trusted physical
+  IME/dead-key evidence also remains.
   A hidden browser textarea follows Blender's requested caret
   rectangle and turns `compositionstart/update/end` into owned UTF-8 start/update/commit/end
   messages. A bounded SPSC queue crosses from the browser main thread to the WM worker, where
   `processEvents()` creates the stock `GHOST_kEventImeComposition*` events. Fixed storage reserves
   capacity for Commit and allocation-free End/cancel, so saturation or text-allocation failure
   terminates composition instead of stranding it. Existing browser tests dispatch synthetic
-  untrusted CompositionEvents, so physical OS IME and dead-key behavior is not yet receipt-backed
-  (`notes/m4-ime-terminal-recovery-20260825.md`).
+  untrusted CompositionEvents and do not type ordinary keys into the focused textarea. The raw-key
+  path must be repaired without duplicating active composition, and physical OS IME/dead-key
+  behavior is not yet receipt-backed (`reports/audit-20260825-r12.md`).
 - **Text clipboard** — implemented through a browser-main cache. Trusted `paste` events publish
   external text before the queued worker key event; `putClipboard` synchronously owns Blender's
   borrowed UTF-8 before starting `navigator.clipboard.writeText`, and `getClipboard` allocates an
@@ -154,8 +156,10 @@ scroll/type over the dashed canvas; events appear in the log box.
 3. **`processEvents` cadence** — confirm the WM's expectation that `processEvents` never
    blocks holds across modal operators (they run their own inner `GHOST` pumps).
 4. **Focus model** — single-canvas blur state retirement is resolved: tracked modifiers/buttons
-   clear before deactivation and held buttons receive releases. When there are multiple GHOST
-   windows (later), route keyboard input by focused canvas.
+   clear before deactivation and held buttons receive releases. Total ordering is still open when
+   later input is already queued before the WM worker polls a focus-loss generation. Simultaneous
+   GHOST windows are deferred and must fail closed until each window has coherent canvas, input,
+   callback, and presentation ownership.
 5. **Coordinate origin** — GHOST expects top-left client origin; `targetX/Y` match. The
    Pointer Lock wrap path now preserves a virtual GHOST position through relative deltas; the
    real product middle-drag path is covered by the 2026-08-25 diagnostic.

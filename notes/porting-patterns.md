@@ -1552,12 +1552,14 @@ wasm32. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 Signature: a canvas application registers keyboard callbacks on `window` so shortcuts keep working,
 but the callback also receives keys after canvas blur and while a hidden IME input owns focus. The
 same physical keystroke can then enter both the browser text/composition path and GHOST, while an
-unrelated page control still drives Blender. Register key-down/up on the focusable canvas itself;
-register only genuinely global events such as resize on `window`, and remove every listener from
-the exact target used during registration. Retain registration-epoch gating because changing the
-DOM target does not retract already queued worker deliveries. Exercise one focused key, blur to a
-non-canvas control, require no later GHOST key event, and repeat delayed callback delivery across
-window replacement. See `platform_web/ghost/GHOST_SystemWeb.cc`,
+unrelated page control still drives Blender. Canvas-only listeners solve the external-control leak
+but drop ordinary ASCII/control keys once an application-owned IME textarea takes focus. Treat all
+application-owned focus elements as one admission domain, route non-composing keys from each owned
+element, and prevent duplicate raw/composition delivery. Register only genuinely global events such
+as resize on `window`, remove every listener from its exact registration target, and retain epoch
+gating because changing the DOM target does not retract queued worker deliveries. Exercise focused
+canvas input, unrelated-control suppression, trusted ordinary textarea keys, active composition
+nonduplication, and delayed replacement callbacks. See `platform_web/ghost/GHOST_SystemWeb.cc`,
 `sandbox/m4-keyboard-focus/`, and
 `platform_web/ghost/harness/window_lifecycle_test.mjs`.
 
@@ -1609,9 +1611,13 @@ querying `activeElement` when the worker eventually runs. A same-task canvas-to-
 transition has already restored the final state, so the blur is suppressed and held application
 input survives a real focus-domain boundary. Publish a monotonic loss generation synchronously in
 the capturing DOM event, then have the worker retire input before reconciling the live final state.
+That preserves the boundary's existence but is insufficient if later proxied input can enqueue
+before the worker polls: stamp input with its event-time generation or put both facts into one
+ordered queue, and reconcile every preceding loss before mutating held state.
 When an ordinary proxied blur handles the loss first, acknowledge the generation so a later poll
 does not manufacture a duplicate deactivate/activate pair. Mark application-owned IME focus moves
 as explicit internal handoffs rather than inferring them from delayed DOM state. Exercise held
-modifier/button retirement under same-task blur/refocus, ordinary single-pair transitions,
+modifier/button retirement under same-task blur/refocus, exact boundary ordering before an immediate
+post-refocus key/button Down, ordinary single-pair transitions,
 synthetic blur terminal behavior, and canvas/IME handoffs in the real worker topology. See
 `platform_web/ghost/GHOST_SystemWeb.cc` and `sandbox/m4-focus-transition-order/`.

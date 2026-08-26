@@ -55,11 +55,21 @@
       "id": "ime-dead-keys",
       "status": "partial",
       "milestone": "M4 (GHOST-web design)",
-      "revisit": "M4 input closure: obtain a trusted physical IME/dead-key receipt on a supported browser/OS",
-      "blocker": "Terminal recovery is implemented: fixed queue slots reserve Commit and allocation-free End/cancel, and saturation or text-allocation failure explicitly terminates composition. The remaining blocker is that current browser tests dispatch untrusted synthetic CompositionEvent objects; no trusted browser-generated OS IME/dead-key receipt exists.",
-      "impact": "Synthetic coverage proves UTF-8 ownership, bounded terminal recovery, cross-thread delivery, and focus restoration, but cannot prove physical OS IME/dead-key interoperability.",
-      "workaround": "Retain the fail-closed terminal-recovery contracts and synthetic browser coverage, then add a trusted physical browser/OS receipt before resolving this row.",
-      "evidence": "notes/m4-ime-terminal-recovery-20260825.md; reports/audit-20260825-r11.md; notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
+      "revisit": "M4 input closure: first route ordinary non-composing keyboard/control input while Blender's IME textarea owns focus, then obtain a trusted physical IME/dead-key receipt on a supported browser/OS",
+      "blocker": "Terminal recovery is implemented, but raw key listeners are canvas-only and the hidden textarea clears non-composing input without forwarding it. Current composition tests also dispatch untrusted synthetic CompositionEvent objects; no trusted browser-generated OS IME/dead-key receipt exists.",
+      "impact": "Ordinary non-numeric Blender text edits can lose ASCII, navigation, Escape, and clipboard shortcuts while the IME textarea owns focus. Synthetic composition coverage proves UTF-8 ownership, bounded terminal recovery, cross-thread delivery, and focus restoration, but covers neither that raw-key path nor physical OS IME/dead-key interoperability.",
+      "workaround": "Faithfully route non-composing raw keys or beforeinput from Blender-owned focus elements without duplicating active composition, add trusted browser coverage, and then bind a trusted physical browser/OS IME/dead-key receipt.",
+      "evidence": "reports/audit-20260825-r12.md; sandbox/audit-r12/ghost_input_repro.mjs; notes/m4-ime-terminal-recovery-20260825.md; reports/audit-20260825-r11.md; notes/m4-web-ime-composition-20260825.md; platform_web/ghost/harness/ime_composition_test.mjs; sandbox/wgpu-pipeline-integrated-smoke/ime_bridge_contract.py"
+    },
+    {
+      "id": "ghost-web-multi-window",
+      "status": "deferred",
+      "milestone": "M4 (GHOST-web design)",
+      "revisit": "post-launch, or when one canvas, input, presentation, and callback owner can be provided for every simultaneous GHOST window",
+      "blocker": "The browser backend currently has one OffscreenCanvas and one window_ callback/presentation owner, with no simultaneous per-window routing. A second live createWindow currently activates a different manager window while input, hit testing, presentation, and first-pixel state remain owned by the first; it must fail closed until routing exists.",
+      "impact": "Simultaneous native GHOST windows are unsupported and the current second-create behavior is internally incoherent rather than an explicit rejection.",
+      "workaround": "Use Blender's in-canvas areas and popovers; reject a simultaneous second native window until real per-window routing ships.",
+      "evidence": "reports/audit-20260825-r12.md; notes/m4-windowed-boot-recon.md; platform_web/ghost/GHOST_SystemWeb.cc"
     },
     {
       "id": "node-ungroup-socket-flake",

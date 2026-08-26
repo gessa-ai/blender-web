@@ -25,11 +25,11 @@
 #           pip .whl.  Omitted from both stages.
 #   DEFER - not touched at English --factory-startup boot (-> stage-1):
 #           dead stdlib modules, non-enabled addons (rigify, ...), factory-unselected
-#           application templates, NumPy (not imported before first pixels), file-format
-#           implementation modules outside the enabled add-ons' boot registration closure,
-#           CJK/intl fonts (keep Inter + DejaVuSansMono), non-default colormanagement LUTs
-#           (keep config.ocio + the default AgX display path), build-time/compiled-in
-#           source assets and external StudioLight images.
+#           application templates, NumPy (not imported before first pixels), boot-cold
+#           Python codecs, file-format implementation modules outside the enabled add-ons'
+#           boot registration closure, CJK/intl fonts (keep Inter + DejaVuSansMono),
+#           non-default colormanagement LUTs (keep config.ocio + the default AgX display
+#           path), build-time/compiled-in source assets and external StudioLight images.
 #           [--defer-datafiles]
 #   KEEP  - everything else (-> stage-0).
 import argparse
@@ -78,6 +78,13 @@ STAGE0_FORMAT_BOOT_FILES = frozenset({
 INTL_FONT_KEEP = ("Inter.woff2", "DejaVuSansMono.woff2")
 CM_LUT_KEEP = ("config.ocio", "AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1d",
                "AgX_False_Color.spi1d")
+# Pinned native factory startup and the exact windowed CAPTURE generation agree on
+# this codec-source closure. The registry, aliases, IDNA, and UTF-8 paths must be
+# available before first pixels; legacy/locale-specific codecs can arrive with
+# Stage 1 and retain exact support after restoration.
+STAGE0_ENCODING_FILES = frozenset({
+    "__init__.py", "aliases.py", "idna.py", "utf_8.py", "utf_8_sig.py",
+})
 
 
 def in_py(fn):
@@ -93,6 +100,12 @@ def classify(fn, defer_datafiles):
         return "drop"
     # DEFER: python stdlib not imported at boot.
     if in_py(fn) and any(d in fn for d in DEAD_STDLIB):
+        return "defer"
+    # DEFER: Python ships 123 source codecs, but factory startup loads only the
+    # five-file registry/UTF-8 closure above. Stage 1 restores all other codecs
+    # before post-startup IO and scripting coverage.
+    encoding_prefix = "/bw/python/lib/python3.13/encodings/"
+    if fn.startswith(encoding_prefix) and fn[len(encoding_prefix):] not in STAGE0_ENCODING_FILES:
         return "defer"
     # DEFER: the real windowed product and pinned native factory startup both import
     # zero NumPy modules before the first stable WM state. Stage 1 restores the whole

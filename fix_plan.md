@@ -3023,6 +3023,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   approximately 14,979,754 bytes, 20,246 under the bar. Accepted profiles, APPLY, exact public
   assembly, hardware pixels, and <=8 second timing remain mandatory. See
   `notes/m8-stage0-preload-manifest-20260826.md`.
+- [x] **P1-M8-STAGE0-FALSE-COLOR-LUT [driver] (`a5ab84c`):** the pinned native oracle and
+  exact windowed CAPTURE product both select `sRGB / AgX / None` at factory startup, so the
+  127,040-byte non-default `AgX_False_Color.spi1d` LUT now rides Stage 1 while the default AgX
+  display inputs remain in Stage 0. A real monolith/candidate browser A/B preserves startup and
+  trusted input, restores all 2,963 deferred files / 152,362,255 bytes byte-exactly, switches the
+  live scene to False Color, and reports zero OCIO/page/GPU errors. Pinned q11/lgwin-24 data/glue
+  is 2,595,052 + 60,820 bytes; complete provisional wire falls 681 bytes to approximately
+  14,979,073, or 20,927 under LAUNCH.md. Accepted profiles, APPLY, exact public assembly,
+  hardware staged pixels, and <=8 second timing remain mandatory. See
+  `notes/m8-stage0-false-color-lut-20260826.md`.
 - [~] **P1-M8-PUBLIC-QUERY-HOOK-HARDENING [driver] (`8867ebb`):** the development/public
   capability seam is now committed, public assembly and independent provenance share one
   fail-closed byte transformer, and the real boot-shell prefix rejects Python, argv, gate, and

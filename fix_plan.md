@@ -2905,6 +2905,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   **Not resolved:** this is a pixel defect; the Apple rig must show black/translucent shadows and
   zero white rings/bars during tooltip, flyout, and Adjust Last Operation interactions. See
   `notes/p0-widget-shadow-defined-rgb-20260826.md`.
+- [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
+  nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
+  loader with the uncapped presentation counter still at zero. Exact-product tracing measures an
+  18,638 ms exposed warmup interval before the first successful frame. The fallback now polls the
+  existing uncapped counter, requires a finite positive value, and stops after a hard 120-second
+  ceiling with the loader still visible on failure. The faithful legacy mutation hides at
+  `presents=0`; current and masked-marker paths both hide at `presents=1` with zero page errors.
+  Eight source mutations, loader source/browser checks, public hardening/minification/assembly,
+  staged provenance, release freezes, compliance, and REUSE are green. This is shell-only and the
+  CAPTURE Wasm identity remains unchanged. Remaining transient-widget pixel flicker is part of the
+  pending Apple P0-G gauntlet, not a software-adapter pixel claim. See
+  `notes/m4-first-pixel-loader-coherence-20260826.md`.
 - [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`, boot correction `824686b`):** the windowed loader now
   uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
   plus one single-line GPL source/trademark footer. The proof/marketing copy moved to `README.md`;

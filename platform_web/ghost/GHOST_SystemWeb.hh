@@ -134,10 +134,14 @@ class GHOST_SystemWeb : public GHOST_System {
   /** Mark DOM-event-time loss publications satisfied by an ordinary proxied blur. */
   void acknowledgePublishedBrowserFocusLoss();
 
+  /** Consume any DOM-event-time focus loss before the current proxied callback.
+   * Focus and input callbacks share Emscripten's worker queue, so calling this
+   * from the focus callback preserves their browser-event order. */
+  void reconcilePublishedBrowserFocus();
+
  private:
   bool registerCanvasCallbacks();
   void unregisterCanvasCallbacks();
-  void pollPublishedBrowserFocus();
 
   std::string canvas_selector_;
   GHOST_WindowWeb *window_ = nullptr;

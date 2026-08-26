@@ -6,13 +6,18 @@ SPDX-License-Identifier: CC0-1.0
 # M4 browser focus-transition ordering
 
 The browser main thread can complete `canvas -> page control -> canvas` before
-Emscripten delivers the first focus callback to the proxied WM worker. The
-predecessor queried the later `document.activeElement`, suppressed the blur, and
-left held Blender keys/buttons stuck. The live test performs both focus changes
-in one JavaScript task while Control and left mouse are held, then verifies that
-an ordinary blur/refocus still emits exactly one transition pair. The fix publishes
-a monotonic loss generation from capturing DOM blur, acknowledges losses already
-handled by the ordinary worker callback, and suppresses Blender-owned IME handoffs.
+Emscripten delivers the first focus callback to the proxied WM worker. The first
+repair preserved that boundary for `processEvents()`, but later proxied key or
+pointer callbacks could still enqueue input before the worker polled it. The focus
+callback now consumes the capture-time loss before querying the later live DOM.
+Because focus and input already share Emscripten's ordered worker callback queue,
+the resulting sequence is exactly deactivate, activate, then the later input.
+
+The live test performs both focus changes in one JavaScript task while Control and
+left mouse are held, verifies an ordinary blur/refocus emits exactly one transition
+pair, and then asserts immediate key and mouse down/up events cannot cross the focus
+barrier. The capture bridge still acknowledges losses handled by an ordinary worker
+callback and suppresses Blender-owned IME handoffs.
 
 Build and run the real worker-topology harness:
 

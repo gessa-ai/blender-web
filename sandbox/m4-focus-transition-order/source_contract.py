@@ -44,7 +44,12 @@ def require_order(source: str, tokens: tuple[str, ...], label: str) -> None:
 
 
 def validate(header: str, source: str, live_test: str) -> None:
-    require_count(header, "void pollPublishedBrowserFocus();", 1, "focus poll declaration")
+    require_count(
+        header,
+        "void reconcilePublishedBrowserFocus();",
+        1,
+        "focus reconciliation declaration",
+    )
     require_count(
         header,
         "void acknowledgePublishedBrowserFocusLoss();",
@@ -101,10 +106,22 @@ def validate(header: str, source: str, live_test: str) -> None:
     unregistration = method(source, "void GHOST_SystemWeb::unregisterCanvasCallbacks()")
     require_count(unregistration, "bridge.unbind(UTF8ToString($0));", 1, "lifecycle unbind")
 
+    canvas_focus = method(source, "bool cb_canvas_focus(")
+    require_order(
+        canvas_focus,
+        (
+            "system->reconcilePublishedBrowserFocus();",
+            "system->browserFocusIsOwned()",
+            "publish_browser_focus_transition(system, true);",
+        ),
+        "queued canvas focus reconciliation",
+    )
+
     canvas_blur = method(source, "bool cb_canvas_blur(")
     require_order(
         canvas_blur,
         (
+            "system->reconcilePublishedBrowserFocus();",
             "system->browserFocusIsOwned()",
             "system->acknowledgePublishedBrowserFocusLoss();",
             "publish_browser_focus_transition(system, false);",
@@ -122,11 +139,11 @@ def validate(header: str, source: str, live_test: str) -> None:
     process = method(source, "bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)")
     require_order(
         process,
-        ("pollPublishedBrowserFocus();", "ghost_web_bridge::poll_ime(*this);"),
+        ("reconcilePublishedBrowserFocus();", "ghost_web_bridge::poll_ime(*this);"),
         "focus-before-input reconciliation",
     )
 
-    poll = method(source, "void GHOST_SystemWeb::pollPublishedBrowserFocus()")
+    poll = method(source, "void GHOST_SystemWeb::reconcilePublishedBrowserFocus()")
     require_order(
         poll,
         (
@@ -144,14 +161,28 @@ def validate(header: str, source: str, live_test: str) -> None:
 
     for token in (
         'document.querySelector("#blender-canvas").focus();',
-        'log.includes("WindowDeactivate") && log.includes("WindowActivate")',
         'result.log.includes("ButtonUp")',
         'result.publisher !== "function"',
         "result.publishedLoss !== result.bridge?.lossGeneration",
         "ordinary.publishedLoss !== ordinaryBefore.publishedLoss + 1",
         "ordinary.bridge?.lossGeneration !== ordinaryBefore.bridge?.lossGeneration + 1",
+        'const assertSameTaskInputOrder = async (kind) => {',
+        'canvas.dispatchEvent(new KeyboardEvent("keydown"',
+        'canvas.dispatchEvent(new KeyboardEvent("keyup"',
+        'canvas.dispatchEvent(new MouseEvent("mousedown"',
+        'window.dispatchEvent(new MouseEvent("mouseup"',
+        '["deactivate", "activate", "key-down", "key-up"]',
+        '["deactivate", "activate", "button-down", "button-up"]',
+        'await assertSameTaskInputOrder("key");',
+        'await assertSameTaskInputOrder("mouse");',
     ):
         require_count(live_test, token, 1, "real-worker focus-order test")
+    require_count(
+        live_test,
+        'log.includes("WindowDeactivate") && log.includes("WindowActivate")',
+        2,
+        "held-state and same-task terminal waits",
+    )
     require_count(
         live_test,
         'document.querySelector("#clear").focus();',
@@ -182,7 +213,11 @@ def mutate_once(source: str, old: str, new: str) -> str:
 
 def selfcheck(header: str, source: str, live_test: str) -> int:
     mutations = [
-        ("header", "void pollPublishedBrowserFocus();", "void skipPublishedBrowserFocus();"),
+        (
+            "header",
+            "void reconcilePublishedBrowserFocus();",
+            "void skipPublishedBrowserFocus();",
+        ),
         (
             "header",
             "void acknowledgePublishedBrowserFocusLoss();",
@@ -199,7 +234,16 @@ def selfcheck(header: str, source: str, live_test: str) -> int:
         ("source", 'Module["_bw_shell_focus_lost"]', 'Module["_bw_shell_focus_seen"]'),
         ("source", "focusBridge.beginHandoff();", "focusBridge.endHandoff();"),
         ("source", "focusBridge.endHandoff();", "focusBridge.beginHandoff();"),
-        ("source", "pollPublishedBrowserFocus();", "/* focus poll removed */"),
+        (
+            "source",
+            "system->reconcilePublishedBrowserFocus();",
+            "/* queued focus reconciliation removed */",
+        ),
+        (
+            "source",
+            "reconcilePublishedBrowserFocus();",
+            "/* tick focus reconciliation removed */",
+        ),
         (
             "source",
             "system->acknowledgePublishedBrowserFocusLoss();",
@@ -211,6 +255,12 @@ def selfcheck(header: str, source: str, live_test: str) -> int:
         ("live", 'document.querySelector("#clear").focus();', "/* external focus removed */"),
         ("live", 'result.log.includes("ButtonUp")', "true"),
         ("live", 'result.publisher !== "function"', "false"),
+        (
+            "live",
+            '["deactivate", "activate", "key-down", "key-up"]',
+            '["key-down", "key-up", "deactivate", "activate"]',
+        ),
+        ("live", 'await assertSameTaskInputOrder("mouse");', "/* mouse case removed */"),
     ]
     rejected = 0
     for target, old, new in mutations:

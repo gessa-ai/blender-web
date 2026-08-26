@@ -195,7 +195,11 @@ bool publish_browser_focus_transition(GHOST_SystemWeb *system, const bool focuse
 bool cb_canvas_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 {
   GHOST_SystemWeb *system = callback_system(ud);
-  if (system == nullptr || !system->browserFocusIsOwned()) {
+  if (system == nullptr) {
+    return false;
+  }
+  system->reconcilePublishedBrowserFocus();
+  if (!system->browserFocusIsOwned()) {
     return false;
   }
   return publish_browser_focus_transition(system, true);
@@ -204,7 +208,14 @@ bool cb_canvas_focus(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 bool cb_canvas_blur(int /*t*/, const EmscriptenFocusEvent * /*e*/, void *ud)
 {
   GHOST_SystemWeb *system = callback_system(ud);
-  if (system == nullptr || system->browserFocusIsOwned()) {
+  if (system == nullptr) {
+    return false;
+  }
+  /* This callback is queued before any later focus or input callback. Consume
+   * the capture-time loss while that ordering is still available; querying the
+   * live DOM first would erase a same-task blur/refocus boundary. */
+  system->reconcilePublishedBrowserFocus();
+  if (system->browserFocusIsOwned()) {
     return false;
   }
   system->acknowledgePublishedBrowserFocusLoss();
@@ -1245,7 +1256,7 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
   /* Reconcile focus-domain facts published synchronously in the DOM event turn.
    * This must precede ordinary input dispatch so a hidden rapid blur boundary
    * retires held state before later input from the reacquired canvas is handled. */
-  pollPublishedBrowserFocus();
+  reconcilePublishedBrowserFocus();
 
 #ifdef WITH_INPUT_IME
   /* Composition messages cross from the DOM main thread through a bounded
@@ -1568,7 +1579,7 @@ bool GHOST_SystemWeb::browserFocusIsOwned() const
              selector) != 0;
 }
 
-void GHOST_SystemWeb::pollPublishedBrowserFocus()
+void GHOST_SystemWeb::reconcilePublishedBrowserFocus()
 {
   const uint32_t loss_generation =
       g_browser_focus_loss_generation.load(std::memory_order_acquire);

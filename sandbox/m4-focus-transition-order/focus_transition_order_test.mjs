@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 blender-web contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Real-worker repro: a blur and refocus queued in one browser task must still
-// retire held GHOST input at the intervening focus-domain boundary.
+// Real-worker repro: a blur and refocus queued in one browser task must retire
+// held GHOST input and order that boundary before later key or pointer input.
 
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -119,9 +119,67 @@ try {
     throw new Error(
       `ordinary blur/refocus was duplicated: ${JSON.stringify({ordinaryBefore, ordinary})}`);
   }
+
+  const assertSameTaskInputOrder = async (kind) => {
+    await page.evaluate((inputKind) => {
+      const log = document.querySelector("#log");
+      const clear = document.querySelector("#clear");
+      const canvas = document.querySelector("#blender-canvas");
+      log.textContent = "";
+      clear.focus();
+      canvas.focus();
+      if (inputKind === "key") {
+        canvas.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "x", code: "KeyX", bubbles: true, cancelable: true,
+        }));
+        canvas.dispatchEvent(new KeyboardEvent("keyup", {
+          key: "x", code: "KeyX", bubbles: true, cancelable: true,
+        }));
+      }
+      else {
+        canvas.dispatchEvent(new MouseEvent("mousedown", {
+          button: 0, buttons: 1, clientX: 120, clientY: 100,
+          bubbles: true, cancelable: true,
+        }));
+        window.dispatchEvent(new MouseEvent("mouseup", {
+          button: 0, buttons: 0, clientX: 120, clientY: 100,
+          bubbles: true, cancelable: true,
+        }));
+      }
+    }, kind);
+    const terminal = kind === "key" ? "KeyUp" : "ButtonUp";
+    await page.waitForFunction((terminalEvent) => {
+      const log = document.querySelector("#log")?.textContent || "";
+      return log.includes("WindowDeactivate") && log.includes("WindowActivate") &&
+        log.includes(terminalEvent);
+    }, terminal, {timeout: 2000});
+    const categories = await page.evaluate(() =>
+      (document.querySelector("#log")?.textContent || "").split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          if (line.includes("WindowDeactivate")) return "deactivate";
+          if (line.includes("WindowActivate")) return "activate";
+          if (line.includes("KeyDown")) return "key-down";
+          if (line.includes("KeyUp")) return "key-up";
+          if (line.includes("ButtonDown")) return "button-down";
+          if (line.includes("ButtonUp")) return "button-up";
+          return null;
+        })
+        .filter(Boolean));
+    const expected = kind === "key" ?
+      ["deactivate", "activate", "key-down", "key-up"] :
+      ["deactivate", "activate", "button-down", "button-up"];
+    if (JSON.stringify(categories) !== JSON.stringify(expected)) {
+      throw new Error(
+        `same-task ${kind} crossed the focus barrier: ` +
+        `${JSON.stringify({categories, expected})}`);
+    }
+  };
+  await assertSameTaskInputOrder("key");
+  await assertSameTaskInputOrder("mouse");
   console.log(
     "M4_FOCUS_TRANSITION_ORDER_LIVE PASS rapid=blur,refocus held=ctrl+left retired=1 " +
-    "ordinary=single-pair");
+    "ordinary=single-pair same-task=key+mouse-ordered");
 }
 finally {
   await browser.close();

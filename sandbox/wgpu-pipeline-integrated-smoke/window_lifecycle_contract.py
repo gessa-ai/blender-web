@@ -67,7 +67,7 @@ def validate(header: str, source: str, live_test: str, integrated_test: str) -> 
     if "std::atomic<GHOST_SystemWeb *> g_callback_system" in source or \
             "static_cast<GHOST_SystemWeb *>(user_data)" in source:
         raise ValueError("callback admission still reuses the system pointer")
-    if source.count("callback_system(ud)") != 12 or source.count("if (system == nullptr)") != 6:
+    if source.count("callback_system(ud)") != 12 or source.count("if (system == nullptr)") != 8:
         raise ValueError("every HTML5 callback must validate its live system owner")
 
     for token in (

@@ -216,6 +216,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
     shell = source_root / "platform_web/shell"
     copy_map = {
         "wgpu-preinit-worker.js": shell / "wgpu-preinit-worker.js",
+        "fonts/bw-interface-sans.woff2": shell / "fonts/bw-interface-sans.woff2",
         "scenes/stress-mixed.blend": source_root / "sandbox/corpus-prep/corpus/stress_mixed.blend",
         "scenes/stress-mixed.blend.license": staged_root / "share-scene.license",
         "legal/LICENSE.txt": source_root / "LICENSE",
@@ -228,6 +229,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "legal/LICENSES/CC0-1.0.txt": source_root / "LICENSES/CC0-1.0.txt",
         "legal/LICENSES/GPL-2.0-or-later.txt": source_root / "LICENSES/GPL-2.0-or-later.txt",
         "legal/LICENSES/GPL-3.0-or-later.txt": source_root / "LICENSES/GPL-3.0-or-later.txt",
+        "legal/LICENSES/OFL-1.1.txt": source_root / "LICENSES/OFL-1.1.txt",
         "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt":
             source_root / "LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
         "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt":
@@ -298,11 +300,13 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
     cache_files = [
         "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js",
         "wgpu-preinit-worker.js", "_headers", "stage1-loader.js", "service-worker-register.js",
+        "fonts/bw-interface-sans.woff2",
         "scenes/stress-mixed.blend", "scenes/stress-mixed.blend.license",
         "legal/LICENSE.txt", "legal/AUTHORS.txt", "legal/NOTICE.txt", "legal/THIRD-PARTY.md",
         "legal/PROVENANCE.md", "legal/LICENSES/Apache-2.0.txt",
         "legal/LICENSES/BSD-3-Clause.txt", "legal/LICENSES/CC0-1.0.txt",
         "legal/LICENSES/GPL-2.0-or-later.txt", "legal/LICENSES/GPL-3.0-or-later.txt",
+        "legal/LICENSES/OFL-1.1.txt",
         "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
         "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
         "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
@@ -318,6 +322,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         f"{name}.br" for name in (
             "index.html", "diagnostics-bootstrap.js", "file-bridge.js", "boot-windowed.js",
             "stage1-loader.js", "service-worker-register.js", "service-worker.js",
+            "fonts/bw-interface-sans.woff2",
         )
     ]
     br_names = payload_br_names + shell_br_names
@@ -419,7 +424,7 @@ def selfcheck() -> None:
                 else:
                     minified_wire += encoded.stat().st_size
     wire_tuple = (raw_wire, minified_wire, raw_wire - minified_wire)
-    assert wire_tuple == (24452, 11953, 12499), wire_tuple
+    assert wire_tuple == (24387, 11884, 12503), wire_tuple
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -522,7 +527,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=20 wire=24452->11953(-12499) packer=571/5/7/12 "
+          "minifier=5/6 minified_stage=20 wire=24387->11884(-12503) packer=571/5/7/12 "
           "coherent=diagnostics+worker+register")
 
 

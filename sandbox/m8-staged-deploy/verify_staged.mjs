@@ -253,10 +253,10 @@ const receipt = {
   query_python_disabled: false,
   query_args_disabled: false,
   query_dev_controls_disabled: false,
-  native_proof_visible: false,
-  desktop_limit_visible: false,
+  minimal_loader_visible: false,
+  loader_font_loaded: false,
+  source_link_visible: false,
   trademark_disclaimer_visible: false,
-  legal_notices_visible: false,
   offline_warm_wm_main_ms: null,
   gpu_error_count: -1,
   page_error_count: -1,
@@ -354,6 +354,7 @@ receipt.cross_origin_isolated = iso.coi;
 receipt.shared_array_buffer = iso.sab;
 log(`crossOriginIsolated=${iso.coi} SAB=${iso.sab}`);
 
+await page.evaluate(() => document.fonts.load('400 11px "BW Interface Sans"'));
 const launchProof = await page.evaluate(() => {
   const probe = (id) => {
     const el = document.getElementById(id);
@@ -361,27 +362,31 @@ const launchProof = await page.evaluate(() => {
     return {text: el?.textContent?.trim() || '', visible: !!el && style.display !== 'none' &&
       style.visibility !== 'hidden' && Number(style.opacity) > 0};
   };
-  return {native: probe('bw-native-proof'), offline: probe('bw-offline-proof'),
-          desktop: probe('bw-desktop-limit'), legal: probe('bw-legal-footer'),
-          legalLink: probe('bw-license-link'),
-          legalHref: document.getElementById('bw-license-link')?.getAttribute('href') || ''};
+  const loader = probe('loader');
+  const loaderStyle = getComputedStyle(document.getElementById('loader'));
+  return {loader, loaderBackground: loaderStyle.backgroundColor,
+          spinner: probe('bw-spinner'), progress: probe('bw-progress'), pct: probe('bw-pct'),
+          legal: probe('bw-legal-footer'), sourceLink: probe('bw-source-link'),
+          sourceHref: document.getElementById('bw-source-link')?.getAttribute('href') || '',
+          fontLoaded: document.fonts.check('400 11px "BW Interface Sans"'),
+          retiredCopyCount: ['bw-native-proof', 'bw-offline-proof', 'bw-desktop-limit',
+            'bw-source-pending', 'bw-license-link'].filter((id) => document.getElementById(id)).length};
 });
-receipt.native_proof_visible = launchProof.native.visible && launchProof.offline.visible &&
-  launchProof.native.text === 'Runs entirely on your device — WebAssembly + WebGPU. No server, no streaming.' &&
-  launchProof.offline.text === 'After first load, disconnect your network and reload.';
-receipt.desktop_limit_visible = launchProof.desktop.visible &&
-  launchProof.desktop.text === 'Desktop only for this preview · current Chrome or Edge required.';
+receipt.minimal_loader_visible = launchProof.loader.visible && launchProof.spinner.visible &&
+  launchProof.progress.visible && /^\d{1,3}%$/.test(launchProof.pct.text) &&
+  launchProof.loaderBackground === 'rgb(23, 24, 27)' && launchProof.retiredCopyCount === 0;
+receipt.loader_font_loaded = launchProof.fontLoaded;
 receipt.trademark_disclaimer_visible = launchProof.legal.visible &&
-  /not affiliated with, endorsed by, or sponsored by the Blender Foundation/.test(launchProof.legal.text) &&
+  /not affiliated with, endorsed by, or sponsored by the Blender Foundation/i.test(launchProof.legal.text) &&
   /registered trademark of the Blender Foundation/.test(launchProof.legal.text);
-receipt.legal_notices_visible = launchProof.legalLink.visible &&
-  launchProof.legalLink.text === 'Licenses and notices' &&
-  launchProof.legalHref === '/legal/THIRD-PARTY.md';
+receipt.source_link_visible = launchProof.sourceLink.visible &&
+  launchProof.sourceLink.text === 'Source code (GPL)' &&
+  launchProof.sourceHref === 'https://github.com/gessa-ai/blender-web';
 log('visible launch proof: ' + JSON.stringify(launchProof));
-if (!receipt.native_proof_visible) fail('local-runtime/offline proof is missing or hidden');
-if (!receipt.desktop_limit_visible) fail('desktop/browser limitation is missing or hidden');
+if (!receipt.minimal_loader_visible) fail('minimal release loader is missing or malformed');
+if (!receipt.loader_font_loaded) fail('local loader font did not load');
 if (!receipt.trademark_disclaimer_visible) fail('trademark/non-endorsement disclaimer is missing or hidden');
-if (!receipt.legal_notices_visible) fail('same-origin licenses/notices link is missing or hidden');
+if (!receipt.source_link_visible) fail('preferred-form source link is missing or hidden');
 
 const t0 = Date.now();
 let stage0Reached = false;

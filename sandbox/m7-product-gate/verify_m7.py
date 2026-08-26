@@ -1416,7 +1416,7 @@ def main() -> int:
         "cross_origin_isolated", "shared_array_buffer", "stage0_boot", "first_pixels_present",
         "stage1_byte_exact", "progress_phases_visible", "service_worker_complete",
         "offline_reload_wm_main", "query_python_disabled", "query_args_disabled",
-        "native_proof_visible", "desktop_limit_visible",
+        "minimal_loader_visible", "loader_font_loaded", "source_link_visible",
     )
     files_required = (
         "physical_drop_trusted", "physical_drop_opened", "fsa_open_picker_supported",

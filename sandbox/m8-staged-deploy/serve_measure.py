@@ -37,6 +37,7 @@ CTYPE = {
     ".html": "text/html; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".blend": "application/octet-stream",
+    ".woff2": "font/woff2",
 }
 
 

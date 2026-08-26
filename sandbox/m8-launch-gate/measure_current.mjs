@@ -197,7 +197,7 @@ async function runSelfcheck() {
     "module roots are not absolute and unique");
   check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
     "repository-local module fallbacks are incomplete or escaped");
-  check(BOOT_CRITICAL_URLS.length === 9 && new Set(BOOT_CRITICAL_URLS).size === 9 &&
+  check(BOOT_CRITICAL_URLS.length === 10 && new Set(BOOT_CRITICAL_URLS).size === 10 &&
     BOOT_CRITICAL_URLS.every((path) => path.startsWith("/")),
   "boot-critical transport inventory is incomplete or ambiguous");
   requireNodeVersion();

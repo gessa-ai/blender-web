@@ -20,6 +20,7 @@ export const BOOT_CRITICAL_URLS = Object.freeze([
   "/stage1-loader.js",
   "/service-worker-register.js",
   "/service-worker.js",
+  "/fonts/bw-interface-sans.woff2",
   "/bin/blender_browser.js",
   "/bin/blender_browser.data",
 ]);
@@ -27,12 +28,14 @@ export const BOOT_CRITICAL_URLS = Object.freeze([
 export const STATIC_BUNDLE_NAMES = [
   "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js", "wgpu-preinit-worker.js",
   "stage1-loader.js", "service-worker-register.js", "service-worker.js", "_headers",
+  "fonts/bw-interface-sans.woff2",
   "scenes/stress-mixed.blend", "scenes/stress-mixed.blend.license",
   "legal/LICENSE.txt", "legal/AUTHORS.txt", "legal/NOTICE.txt",
   "legal/THIRD-PARTY.md", "legal/PROVENANCE.md",
   "legal/LICENSES/Apache-2.0.txt", "legal/LICENSES/BSD-3-Clause.txt",
   "legal/LICENSES/CC0-1.0.txt", "legal/LICENSES/GPL-2.0-or-later.txt",
   "legal/LICENSES/GPL-3.0-or-later.txt",
+  "legal/LICENSES/OFL-1.1.txt",
   "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
   "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
   "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
@@ -41,7 +44,7 @@ export const STATIC_BUNDLE_NAMES = [
   "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
   "index.html.br", "diagnostics-bootstrap.js.br", "file-bridge.js.br",
   "boot-windowed.js.br", "stage1-loader.js.br", "service-worker-register.js.br",
-  "service-worker.js.br",
+  "service-worker.js.br", "fonts/bw-interface-sans.woff2.br",
 ];
 
 function invariant(condition, message) {

@@ -65,6 +65,8 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
   [ "${SELF_DIR}" = "${REPO}/sandbox/m8-staged-deploy" ] || \
     die "derived staged source directory does not match repository layout: ${SELF_DIR}"
   for f in GOAL.md platform_web/shell/windowed.html \
+    platform_web/shell/fonts/bw-interface-sans.woff2 \
+    LICENSES/OFL-1.1.txt \
     sandbox/m8-staged-deploy/brotli_q11.mjs \
     sandbox/m8-staged-deploy/stage_pack.py \
     sandbox/m8-staged-deploy/prepare_split_inventory.py \
@@ -79,13 +81,15 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     die "deterministic Brotli q11/lgwin=24 self-check failed"
   "${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
     die "deterministic public-shell minifier self-check failed"
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=9 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=11 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
 for f in windowed.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js wgpu-preinit-worker.js; do
   [ -f "${SHELL_DIR}/${f}" ] || die "shell ${f} missing (${SHELL_DIR})"
 done
+[ -f "${SHELL_DIR}/fonts/bw-interface-sans.woff2" ] || \
+  die "shell font missing (${SHELL_DIR}/fonts/bw-interface-sans.woff2)"
 [ -x "${PINNED_NODE}" ] || die "pinned Node executable missing: ${PINNED_NODE}"
 [ "$("${PINNED_NODE}" --version)" = "v22.16.0" ] || \
   die "public bundle requires pinned Node v22.16.0: ${PINNED_NODE}"
@@ -105,7 +109,7 @@ done
 for f in LICENSE AUTHORS NOTICE THIRD-PARTY.md PROVENANCE.md; do
   [ -f "${REPO}/${f}" ] || die "public legal file missing: ${f}"
 done
-for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt; do
+for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
   [ -f "${REPO}/LICENSES/${f}" ] || die "public license text missing: LICENSES/${f}"
 done
 for f in LicenseRef-OpenSubdiv-TOST-1.0.txt; do
@@ -122,7 +126,7 @@ done
 
 echo "make_staged_bundle: bin=${BIN}"
 echo "make_staged_bundle: out=${OUT}  mode=copy  ${DEFER_DF}"
-rm -rf "${OUT}"; mkdir -p "${OUT}/bin" "${OUT}/scenes" "${OUT}/legal/LICENSES" \
+rm -rf "${OUT}"; mkdir -p "${OUT}/bin" "${OUT}/fonts" "${OUT}/scenes" "${OUT}/legal/LICENSES" \
   "${OUT}/legal/OpenUSD-26.03" "${OUT}/legal/THIRD_PARTY_NOTICES"
 
 # --- shell: index.html (+inject stage1-loader) + boot + bridge + preinit + headers -
@@ -131,6 +135,8 @@ cp "${SHELL_DIR}/diagnostics-bootstrap.js" "${OUT}/diagnostics-bootstrap.js"
 cp "${SHELL_DIR}/boot-windowed.js"       "${OUT}/boot-windowed.js"
 cp "${SHELL_DIR}/file-bridge.js"         "${OUT}/file-bridge.js"
 cp "${SHELL_DIR}/wgpu-preinit-worker.js" "${OUT}/wgpu-preinit-worker.js"
+cp "${SHELL_DIR}/fonts/bw-interface-sans.woff2" \
+  "${OUT}/fonts/bw-interface-sans.woff2"
 cp "${SELF_DIR}/stage1-loader.js"        "${OUT}/stage1-loader.js"
 cp "${SELF_DIR}/service-worker-register.js" "${OUT}/service-worker-register.js"
 cp "${REPO}/sandbox/corpus-prep/corpus/stress_mixed.blend" "${OUT}/scenes/stress-mixed.blend"
@@ -140,7 +146,7 @@ cp "${REPO}/AUTHORS" "${OUT}/legal/AUTHORS.txt"
 cp "${REPO}/NOTICE" "${OUT}/legal/NOTICE.txt"
 cp "${REPO}/THIRD-PARTY.md" "${OUT}/legal/THIRD-PARTY.md"
 cp "${REPO}/PROVENANCE.md" "${OUT}/legal/PROVENANCE.md"
-for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt; do
+for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
   cp "${REPO}/LICENSES/${f}" "${OUT}/legal/LICENSES/${f}"
 done
 cp "${REPO}/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt" \
@@ -222,6 +228,7 @@ done < "${split_rows}"
 # string. Stable binary names therefore cannot retain stale bytes across deploys.
 cache_files=(
   index.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js wgpu-preinit-worker.js _headers \
+           fonts/bw-interface-sans.woff2 \
            stage1-loader.js service-worker-register.js \
            scenes/stress-mixed.blend scenes/stress-mixed.blend.license \
            legal/LICENSE.txt legal/AUTHORS.txt legal/NOTICE.txt \
@@ -229,6 +236,7 @@ cache_files=(
            legal/LICENSES/Apache-2.0.txt legal/LICENSES/BSD-3-Clause.txt \
            legal/LICENSES/CC0-1.0.txt legal/LICENSES/GPL-2.0-or-later.txt \
            legal/LICENSES/GPL-3.0-or-later.txt \
+           legal/LICENSES/OFL-1.1.txt \
            legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt \
            legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt \
            legal/OpenUSD-26.03/LICENSE.txt legal/OpenUSD-26.03/NOTICE.txt \
@@ -329,7 +337,8 @@ if [ "${DO_BROTLI}" = "1" ]; then
   # exact transport bytes inside the same q11/lgwin=24 release contract as the
   # Emscripten payload instead of letting the 15 MB receipt omit shell overhead.
   for f in index.html diagnostics-bootstrap.js file-bridge.js boot-windowed.js \
-           stage1-loader.js service-worker-register.js service-worker.js; do
+           stage1-loader.js service-worker-register.js service-worker.js \
+           fonts/bw-interface-sans.woff2; do
     "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"
   done
 fi

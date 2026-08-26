@@ -43,6 +43,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ".data": "application/octet-stream",
         ".html": "text/html",
         ".json": "application/json",
+        ".woff2": "font/woff2",
     }
 
     def __init__(self, *a, **kw):

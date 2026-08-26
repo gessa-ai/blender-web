@@ -18,15 +18,16 @@ SHELL = ROOT / "platform_web/shell/windowed.html"
 STAGED_VERIFIER = ROOT / "sandbox/m8-staged-deploy/verify_staged.mjs"
 DISCLAIMER = "not affiliated with, endorsed by, or sponsored by the Blender Foundation"
 TRADEMARK = "Blender® is a registered trademark of the Blender Foundation"
-PROOFS = {
-    "bw-native-proof": (
-        "Runs entirely on your device — WebAssembly + WebGPU. No server, no streaming."
-    ),
-    "bw-offline-proof": "After first load, disconnect your network and reload.",
-    "bw-desktop-limit": "Desktop only for this preview · current Chrome or Edge required.",
-    "bw-source-pending": "Source code (GPL): repository link pending owner-supplied URL.",
-    "bw-license-link": "Licenses and notices",
-}
+SOURCE_URL = "https://github.com/gessa-ai/blender-web"
+README_PROOFS = (
+    "Runs entirely on your device — WebAssembly + WebGPU. No server, no streaming.",
+    "After first load, disconnect your network and reload.",
+    "Desktop only for this preview; current Chrome or Edge is required.",
+)
+RETIRED_LOADER_IDS = (
+    "bw-native-proof", "bw-offline-proof", "bw-desktop-limit",
+    "bw-source-pending", "bw-license-link",
+)
 
 
 def normalize(value: str) -> str:
@@ -80,33 +81,35 @@ def validate(readme: str, shell: str, staged_verifier: str) -> list[str]:
     readme_text = normalize(readme)
     if DISCLAIMER not in readme_text or TRADEMARK not in readme_text:
         failures.append("readme-disclaimer")
+    if any(proof not in readme_text for proof in README_PROOFS) or SOURCE_URL not in readme:
+        failures.append("readme-launch-copy")
 
     parser = ShellContractParser()
     parser.feed(shell)
     if normalize("".join(parser.title)) != "Source-derived WebAssembly editor preview":
         failures.append("independent-title")
-    required_ids = (*PROOFS, "bw-legal-footer")
+    required_ids = ("bw-source-link", "bw-legal-footer")
     for element_id in required_ids:
         if parser.counts.get(element_id) != 1:
             failures.append(f"element-count:{element_id}")
     if parser.tags.get("bw-legal-footer") != "footer":
         failures.append("legal-footer-tag")
-    for element_id, expected in PROOFS.items():
-        if normalize("".join(parser.text.get(element_id, []))) != expected:
-            failures.append(f"element-text:{element_id}")
+    if normalize("".join(parser.text.get("bw-source-link", []))) != "Source code (GPL)":
+        failures.append("source-link-text")
+    if any(parser.counts.get(element_id, 0) for element_id in RETIRED_LOADER_IDS):
+        failures.append("retired-loader-copy")
     legal = normalize("".join(parser.text.get("bw-legal-footer", [])))
-    if DISCLAIMER not in legal or TRADEMARK not in legal:
+    if DISCLAIMER.lower() not in legal.lower() or TRADEMARK not in legal:
         failures.append("shell-disclaimer")
-    if parser.hrefs.get("bw-license-link") != "/legal/THIRD-PARTY.md":
-        failures.append("legal-link")
+    if parser.hrefs.get("bw-source-link") != SOURCE_URL:
+        failures.append("source-link")
     if parser.scripts[:2] != ["/diagnostics-bootstrap.js", "/bin/blender_browser.js"]:
         failures.append("diagnostics-script-order")
 
-    required_runtime_regex = (
-        "/not affiliated with, endorsed by, or sponsored by the Blender Foundation/"
-    )
-    if required_runtime_regex not in staged_verifier:
+    if "/not affiliated with, endorsed by, or sponsored by the Blender Foundation/i" not in staged_verifier:
         failures.append("staged-runtime-disclaimer")
+    if "minimal_loader_visible" not in staged_verifier or SOURCE_URL not in staged_verifier:
+        failures.append("staged-minimal-loader")
     return failures
 
 
@@ -128,8 +131,8 @@ def main() -> None:
         (mutate(readme, "endorsed by, or sponsored by", "endorsed by"), shell, staged_verifier),
         (readme, mutate(shell, "endorsed by, or sponsored by", "endorsed by"), staged_verifier),
         (readme, mutate(shell, "Source-derived WebAssembly editor preview", "blender-web"), staged_verifier),
-        (readme, mutate(shell, PROOFS["bw-native-proof"], "Runs in a browser."), staged_verifier),
-        (readme, mutate(shell, 'href="/legal/THIRD-PARTY.md"', 'href="https://example.invalid"'), staged_verifier),
+        (mutate(readme, README_PROOFS[0], "Runs in a browser."), shell, staged_verifier),
+        (readme, mutate(shell, f'href="{SOURCE_URL}"', 'href="https://example.invalid"'), staged_verifier),
         (readme, mutate(shell,
                         '<script src="/diagnostics-bootstrap.js"></script>\n  <script src="/bin/blender_browser.js"></script>',
                         '<script src="/bin/blender_browser.js"></script>\n  <script src="/diagnostics-bootstrap.js"></script>'),
@@ -137,6 +140,8 @@ def main() -> None:
         (readme, shell,
          mutate(staged_verifier, "endorsed by, or sponsored by", "endorsed by")),
         (readme, mutate(shell, '<footer id="bw-legal-footer">', '<div id="bw-legal-footer">'), staged_verifier),
+        (readme, mutate(shell, 'id="bw-source-link"', 'id="bw-source-pending"'), staged_verifier),
+        (readme, mutate(shell, "Source code (GPL)</a>", "Source</a>"), staged_verifier),
     )
     for number, candidate in enumerate(mutations, 1):
         if not validate(*candidate):

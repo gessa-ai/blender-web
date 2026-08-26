@@ -178,6 +178,7 @@ window.__bwKeepaliveConfig = Object.freeze({...KEEPALIVE});
 
 const canvasEl = document.querySelector(CANVAS_SELECTOR);
 const loaderEl = document.getElementById("loader");
+const progressEl = document.getElementById("bw-progress");
 const fillEl = document.getElementById("bw-fill");
 const pctEl = document.getElementById("bw-pct");
 
@@ -230,7 +231,8 @@ function finish(name, label, code) {
   // A hard failure should surface, not sit behind a spinner forever.
   if (name === "aborted") {
     if (pctEl) pctEl.textContent = "boot failed - see console";
-    if (fillEl) fillEl.classList.remove("bw-indeterminate");
+    if (loaderEl) loaderEl.setAttribute("aria-busy", "false");
+    if (progressEl) progressEl.setAttribute("aria-valuetext", "boot failed");
   }
 }
 
@@ -238,20 +240,12 @@ function finish(name, label, code) {
 // Loading UI - progress via Emscripten setStatus, dismissed on first pixels.
 // ---------------------------------------------------------------------------
 
-function setProgress(fraction, label) {
+function setProgress(fraction) {
   if (!fillEl) return;
-  fillEl.classList.remove("bw-indeterminate");
   const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
   fillEl.style.width = pct + "%";
-  if (pctEl) pctEl.textContent = label || pct + "%";
-}
-
-function setIndeterminate(label) {
-  if (fillEl) {
-    fillEl.style.width = "";
-    fillEl.classList.add("bw-indeterminate");
-  }
-  if (pctEl && label) pctEl.textContent = label;
+  if (progressEl) progressEl.setAttribute("aria-valuenow", String(pct));
+  if (pctEl) pctEl.textContent = pct + "%";
 }
 
 // Emscripten's default setStatus emits strings like "Downloading data... (x/y)".
@@ -263,24 +257,18 @@ function onStatus(s) {
     const cur = parseInt(m[1], 10);
     const tot = parseInt(m[2], 10);
     if (tot > 0) {
-      const mb = 1024 * 1024;
-      const label = tot >= mb ?
-        "Loading app · " + (cur / mb).toFixed(1) + " / " + (tot / mb).toFixed(1) + " MB" :
-        null;
-      setProgress(cur / tot, label);
+      setProgress(cur / tot);
       return;
     }
   }
-  // Non-numeric status ("Preparing...", "Running...") - stay indeterminate.
-  if (fillEl && !fillEl.classList.contains("bw-indeterminate") &&
-      (fillEl.style.width === "" || fillEl.style.width === "0%")) {
-    setIndeterminate("loading");
-  }
+  // Non-numeric statuses keep the last truthful byte-derived percentage. The
+  // ring supplies activity without turning the progress bar indeterminate.
 }
 
 let loaderGoneTimer = 0;
 function hideLoader() {
   if (!loaderEl || loaderEl.classList.contains("bw-hidden")) return;
+  loaderEl.setAttribute("aria-busy", "false");
   loaderEl.classList.add("bw-hidden");
   // Drop it from the box tree after the fade so it can never eat input.
   loaderGoneTimer = setTimeout(() => loaderEl.classList.add("bw-gone"), 600);

@@ -59,6 +59,7 @@ STANDARD_LICENSE_SHA256 = {
     "LICENSES/CC0-1.0.txt": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
     "LICENSES/GPL-2.0-or-later.txt": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
     "LICENSES/GPL-3.0-or-later.txt": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0",
+    "LICENSES/OFL-1.1.txt": "c1a781a6a032bf00b1bbffc388fd6936bf28a0ded472c263bcff88b181dea456",
 }
 
 
@@ -235,7 +236,7 @@ class _SourceLinkParser(HTMLParser):
             r"^https://", self._candidate, re.I
         ):
             # The one-click source offer must point to this port, not merely to
-            # Blender upstream.  The owner has not supplied that URL yet.
+            # Blender upstream.
             if "projects.blender.org/blender/blender" not in self._candidate.lower():
                 self.href = self._candidate
         self._candidate = None

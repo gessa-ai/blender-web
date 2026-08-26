@@ -64,6 +64,11 @@ class DeployPortabilityTest(unittest.TestCase):
             "wgpu-preinit-worker.js",
         ):
             shutil.copy2(ROOT / "platform_web/shell" / name, self.fake_shell / name)
+        (self.fake_shell / "fonts").mkdir()
+        shutil.copy2(
+            ROOT / "platform_web/shell/fonts/bw-interface-sans.woff2",
+            self.fake_shell / "fonts/bw-interface-sans.woff2",
+        )
         self.assembler = self.fake_here / ASSEMBLER.name
         self.assembler.chmod(0o755)
         run(["git", "init", "-q"], cwd=self.fake_root)
@@ -105,7 +110,7 @@ class DeployPortabilityTest(unittest.TestCase):
         descendant = run([ASSEMBLER, "--selfcheck"], cwd=caller)
         marker = (
             "M8_DEPLOY_ASSEMBLY_SELFCHECK_PASS "
-            "root=derived shell_sources=5 writes=0"
+            "root=derived shell_sources=6 writes=0"
         )
         self.assertIn(marker, root.stdout)
         self.assertIn(marker, descendant.stdout)
@@ -125,6 +130,7 @@ class DeployPortabilityTest(unittest.TestCase):
             "boot-windowed.js",
             "diagnostics-bootstrap.js",
             "file-bridge.js",
+            "fonts/bw-interface-sans.woff2",
             "index.html",
             "wgpu-preinit-worker.js",
             "bin/blender_browser.data",

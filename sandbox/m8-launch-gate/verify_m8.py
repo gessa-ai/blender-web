@@ -96,6 +96,7 @@ STATIC_BUNDLE_FILES = (
     "service-worker-register.js",
     "service-worker.js",
     "_headers",
+    "fonts/bw-interface-sans.woff2",
     "scenes/stress-mixed.blend",
     "scenes/stress-mixed.blend.license",
     "legal/LICENSE.txt",
@@ -108,6 +109,7 @@ STATIC_BUNDLE_FILES = (
     "legal/LICENSES/CC0-1.0.txt",
     "legal/LICENSES/GPL-2.0-or-later.txt",
     "legal/LICENSES/GPL-3.0-or-later.txt",
+    "legal/LICENSES/OFL-1.1.txt",
     "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
     "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
     "legal/OpenUSD-26.03/LICENSE.txt",
@@ -127,6 +129,7 @@ STATIC_BUNDLE_FILES = (
     "stage1-loader.js.br",
     "service-worker-register.js.br",
     "service-worker.js.br",
+    "fonts/bw-interface-sans.woff2.br",
 )
 
 BOOT_CRITICAL_PATHS = (
@@ -137,6 +140,7 @@ BOOT_CRITICAL_PATHS = (
     "/stage1-loader.js",
     "/service-worker-register.js",
     "/service-worker.js",
+    "/fonts/bw-interface-sans.woff2",
     "/bin/blender_browser.js",
     "/bin/blender_browser.data",
 )
@@ -1187,12 +1191,11 @@ def check_staged(receipt: dict, failures: list[str]) -> None:
             "offline cold semantic/deferred lifecycle proof missing", failures)
     require(proof.get("offline_reload_wm_main") is True, "real offline WM_main reload proof missing", failures)
     require(proof.get("external_request_count") == 0, "runtime made external requests", failures)
-    require(proof.get("native_proof_visible") is True, "visible no-server/no-streaming proof missing", failures)
-    require(proof.get("desktop_limit_visible") is True, "visible desktop/browser limitation missing", failures)
+    require(proof.get("minimal_loader_visible") is True, "minimal release loader proof missing", failures)
+    require(proof.get("loader_font_loaded") is True, "local loader font proof missing", failures)
+    require(proof.get("source_link_visible") is True, "preferred-form source link missing", failures)
     require(proof.get("trademark_disclaimer_visible") is True,
             "visible trademark/non-endorsement disclaimer missing", failures)
-    require(proof.get("legal_notices_visible") is True,
-            "visible same-origin licenses/notices link missing", failures)
     require(proof.get("query_python_disabled") is True, "public ?pyexpr execution hook is enabled", failures)
     require(proof.get("query_args_disabled") is True, "public ?args argv hook is enabled", failures)
     require(proof.get("query_dev_controls_disabled") is True,

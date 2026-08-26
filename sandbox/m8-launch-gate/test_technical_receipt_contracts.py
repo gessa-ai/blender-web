@@ -85,6 +85,7 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "/stage1-loader.js",
         "/service-worker-register.js",
         "/service-worker.js",
+        "/fonts/bw-interface-sans.woff2",
         "/bin/blender_browser.js",
         "/bin/blender_browser.data",
         "/bin/blender_browser.wasm",

@@ -15,11 +15,13 @@ The aggregate project is GPL-3.0-or-later. Blender-derived files retain their tr
 upstream terms and attribution; see [LICENSE](LICENSE), [NOTICE](NOTICE),
 [PROVENANCE.md](PROVENANCE.md), and [THIRD-PARTY.md](THIRD-PARTY.md).
 
-The public preferred-form source URL has not yet been supplied by the repository
-owner. The static application deliberately shows that as an unresolved launch
-blocker instead of linking to a placeholder or minified bundle. Before any public
-launch, the owner must provide the real HTTPS repository URL so the application can
-offer a one-click “Source code (GPL)” link.
+Runs entirely on your device — WebAssembly + WebGPU. No server, no streaming.
+After first load, disconnect your network and reload. Desktop only for this preview;
+current Chrome or Edge is required.
+
+The preferred-form source is this public repository:
+[https://github.com/gessa-ai/blender-web](https://github.com/gessa-ai/blender-web).
+The static application offers the same one-click “Source code (GPL)” link.
 
 Current conformance status is generated from on-disk receipts in
 [reports/dashboard.md](reports/dashboard.md). A green subsystem result does not imply

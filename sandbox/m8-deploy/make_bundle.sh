@@ -11,6 +11,7 @@
 #   <out>/diagnostics-bootstrap.js    <- early error capture used by the current shell
 #   <out>/boot-windowed.js            <- shell boot (loads /bin/blender_browser.js)
 #   <out>/file-bridge.js              <- trusted file/open/save bridge used by the shell
+#   <out>/fonts/bw-interface-sans.woff2 <- local loading-shell font subset
 #   <out>/wgpu-preinit-worker.js      <- PROVENANCE COPY ONLY (see note below)
 #   <out>/_headers                    <- COOP/COEP/CORP + MIME + cache
 #   <out>/bin/blender_browser.js      <- Emscripten glue (has the preinit post-js baked in)
@@ -99,8 +100,10 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     wgpu-preinit-worker.js; do
     [ -f "${SHELL_DIR}/${f}" ] || die "self-check shell source missing: ${f}"
   done
+  [ -f "${SHELL_DIR}/fonts/bw-interface-sans.woff2" ] || \
+    die "self-check shell font missing: fonts/bw-interface-sans.woff2"
   [ -f "${SELF_DIR}/_headers" ] || die "self-check _headers template missing"
-  echo "M8_DEPLOY_ASSEMBLY_SELFCHECK_PASS root=derived shell_sources=5 writes=0"
+  echo "M8_DEPLOY_ASSEMBLY_SELFCHECK_PASS root=derived shell_sources=6 writes=0"
   exit 0
 fi
 
@@ -108,6 +111,8 @@ for f in windowed.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js 
   wgpu-preinit-worker.js; do
   [ -f "${SHELL_DIR}/${f}" ] || die "shell ${f} missing (${SHELL_DIR})"
 done
+[ -f "${SHELL_DIR}/fonts/bw-interface-sans.woff2" ] || \
+  die "shell font missing (${SHELL_DIR}/fonts/bw-interface-sans.woff2)"
 [ -f "${SELF_DIR}/_headers" ]           || die "committed _headers template missing"
 for f in blender_browser.js blender_browser.wasm blender_browser.data; do
   [ -f "${BIN}/${f}" ] || die "gate build artifact missing: ${BIN}/${f} (build the windowed-opt target first)"
@@ -117,7 +122,7 @@ echo "make_bundle: bin=${BIN}"
 echo "make_bundle: out=${OUT}  mode=${MODE}  brotli=${DO_BROTLI}"
 
 rm -rf "${OUT}"
-mkdir -p "${OUT}/bin"
+mkdir -p "${OUT}/bin" "${OUT}/fonts"
 
 # --- shell (index + boot + provenance preinit + _headers) --------------------
 cp "${SHELL_DIR}/windowed.html"          "${OUT}/index.html"
@@ -125,6 +130,8 @@ cp "${SHELL_DIR}/diagnostics-bootstrap.js" "${OUT}/diagnostics-bootstrap.js"
 cp "${SHELL_DIR}/boot-windowed.js"       "${OUT}/boot-windowed.js"
 cp "${SHELL_DIR}/file-bridge.js"          "${OUT}/file-bridge.js"
 cp "${SHELL_DIR}/wgpu-preinit-worker.js" "${OUT}/wgpu-preinit-worker.js"
+cp "${SHELL_DIR}/fonts/bw-interface-sans.woff2" \
+  "${OUT}/fonts/bw-interface-sans.woff2"
 cp "${SELF_DIR}/_headers"                "${OUT}/_headers"
 
 # --- glue js (always a copy; tiny) -------------------------------------------
@@ -172,6 +179,7 @@ head_short="$(cd "${REPO}" && git rev-parse --short HEAD)"
   printf "%-28s %12s   %s\n" "boot-windowed.js"      "$(sz "${OUT}/boot-windowed.js")"     "$(mt "${OUT}/boot-windowed.js")"
   printf "%-28s %12s   %s\n" "file-bridge.js"        "$(sz "${OUT}/file-bridge.js")"       "$(mt "${OUT}/file-bridge.js")"
   printf "%-28s %12s   %s\n" "wgpu-preinit-worker.js" "$(sz "${OUT}/wgpu-preinit-worker.js")" "$(mt "${OUT}/wgpu-preinit-worker.js")"
+  printf "%-28s %12s   %s\n" "fonts/bw-interface-sans.woff2" "$(sz "${OUT}/fonts/bw-interface-sans.woff2")" "$(mt "${OUT}/fonts/bw-interface-sans.woff2")"
   printf "%-28s %12s   %s\n" "_headers"              "$(sz "${OUT}/_headers")"             "$(mt "${OUT}/_headers")"
   printf "%-28s %12s   %s\n" "bin/blender_browser.js"   "$(sz "${BIN}/blender_browser.js")"   "$(mt "${BIN}/blender_browser.js")"
   printf "%-28s %12s   %s\n" "bin/blender_browser.wasm" "$(sz "${BIN}/blender_browser.wasm")" "$(mt "${BIN}/blender_browser.wasm")"

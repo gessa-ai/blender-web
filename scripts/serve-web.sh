@@ -61,7 +61,8 @@ if not os.path.isfile(ENTRY_FILE):
     sys.exit("serve-web: entry not found: %s" % ENTRY_FILE)
 
 EXTRA_TYPES = {".wasm": "application/wasm", ".data": "application/octet-stream",
-               ".js": "text/javascript", ".mjs": "text/javascript"}
+               ".js": "text/javascript", ".mjs": "text/javascript",
+               ".woff2": "font/woff2"}
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def _resolve(self, path):

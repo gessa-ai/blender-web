@@ -2878,7 +2878,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   semantic pixels after shrink and restore with no intervening input. See
   `notes/p0-window-resize-recovery-20260826.md` and
   `notes/p0-window-resize-idle-redraw-20260826.md`.
-- [~] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
+- [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now
   calls the native method in the same activation stack, consumes its rejected Promise, emits one
@@ -2888,9 +2888,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   CAPTURE no-work, and REUSE are green. P0-E's required C++ relink supersedes that generation; the
   current 119,142,918-byte `.wasm.orig` is exact at SHA-256
   `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`. **Not resolved:** the Apple
-  rig must rerun both CAPTURE scenarios against this current generation and return
-  `pageErrors.length === 0` before either profile authorizes APPLY. See
+  rig reran both CAPTURE scenarios with `pageErrors.length === 0`; both receipts are PASS and
+  close the pointer-lock defect. Any later relink still requires fresh hash-bound profiles before
+  APPLY, independently of P0-F. See
   `notes/p0-pointer-lock-promise-rejection-20260826.md`.
+- [~] **P0-G-M4-WIDGET-SHADOW-DEFINED-RGB [gpu-shader, patch 0284, claimed_by: root]:** Apple
+  hardware screenshots show correctly shaped/faded transient-widget shadows with bright white RGB.
+  Diagnostic interception of the exact CAPTURE artifact disproved a missing sampler, incomplete
+  bind group, wrong target clear, or wrong blend descriptor: this shader has no sampled resource,
+  its sole 144-byte push UBO is bound, the target is transparent-black RGBA8, and the browser sees
+  standard source-alpha blending. The remaining cross-backend hazard was the fragment result's
+  split `vec4()` initialization followed by an alpha-only component write. Patch 0284 emits one
+  complete `float4(0,0,0,alpha)` value. Six negative source mutations, the 20,258-entry canonical
+  freeze, locked CAPTURE relink/no-work, and live interception of the baked WGSL are green at
+  `.wasm.orig` SHA-256 `5a9d0944007313bed75ac3deaf24d3c48e443a423c93918dbb561abb76d0d65b`.
+  **Not resolved:** this is a pixel defect; the Apple rig must show black/translucent shadows and
+  zero white rings/bars during tooltip, flyout, and Adjust Last Operation interactions. See
+  `notes/p0-widget-shadow-defined-rgb-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
   now a strict CAPTURE generation with instrumented Wasm, 119,142,918-byte `.wasm.orig` at
   SHA-256 `c9dbae361ec105441176124ce718b3227c1dcc17cee83742eb22254bfa67f962`, and a schema-1 PASS

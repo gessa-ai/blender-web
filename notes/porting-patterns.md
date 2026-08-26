@@ -1706,3 +1706,16 @@ topology and require inactive platform state, one diagnostic, and zero page erro
 `platform_web/shell/diagnostics-bootstrap.js`,
 `platform_web/ghost/harness/pointer_lock_test.mjs`, and
 `sandbox/wgpu-pipeline-integrated-smoke/pointer_lock_contract.py`.
+
+## Class 116 — define fragment outputs as one complete value across shader translators
+
+Signature: native UI expects a constant RGB plus computed alpha, the browser receives valid WGSL
+and a valid alpha-blend pipeline, and hardware preserves the intended geometry/falloff while RGB
+appears as stale bright data. A source pattern that initializes a stage-global output vector and
+later replaces only one component has to survive GLSL preprocessing, SPIR-V generation, Tint's
+SPIR-V reader, WGSL optimization, Dawn's backend translation, and the native shader compiler.
+When every other resource and blend invariant is measured, collapse that result to one full-vector
+assignment so no backend must preserve a partial write across those passes. Verify the final WGSL
+at the browser API, not just the input GLSL, and keep pixel closure hardware-gated. See
+`upstream/source/blender/gpu/shaders/gpu_shader_2D_widget_shadow_frag.glsl` and
+`notes/p0-widget-shadow-defined-rgb-20260826.md`.

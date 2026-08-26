@@ -147,6 +147,8 @@ def main() -> None:
         "/bw/datafiles/splash.png": "defer",
         "/bw/datafiles/splash_template.xcf": "defer",
         "/bw/datafiles/studiolights/studio/paint.sl": "keep",
+        "/bw/datafiles/studiolights/world/forest.exr": "defer",
+        "/bw/datafiles/studiolights/matcap/basic_bright.exr": "defer",
         "/bw/datafiles/studiolights/world/studio.exr": "defer",
         "/bw/datafiles/studiolights/matcap/basic.exr": "defer",
         "/bw/datafiles/fonts/Inter.woff2": "keep",
@@ -197,6 +199,17 @@ def main() -> None:
         actual = MODULE.classify(filename, True)
         if actual != expected:
             raise AssertionError(f"classification {filename}: {actual} != {expected}")
+    discovery_cases = {
+        "/bw/datafiles/studiolights/world/forest.exr": True,
+        "/bw/datafiles/studiolights/matcap/basic_bright.exr": True,
+        "/bw/datafiles/studiolights/world/license.txt": False,
+        "/bw/datafiles/studiolights/studio/paint.sl": False,
+        "/bw/python/lib/python3.13/asyncio/tasks.py": False,
+    }
+    for filename, expected in discovery_cases.items():
+        actual = MODULE.requires_discovery_placeholder(filename)
+        if actual != expected:
+            raise AssertionError(f"discovery placeholder {filename}: {actual} != {expected}")
 
     entries = [
         ("/bw/python/lib/python3.13/os.py", "0", "1e+0"),
@@ -206,8 +219,9 @@ def main() -> None:
         ("/bw/datafiles/fonts/Inter.woff2", "10", "15"),
         ("/bw/scripts/startup/bl_app_templates_system/VFX/startup.blend", "15", "19"),
         ("/bw/python/lib/python3.13/site-packages/numpy/__init__.py", "19", "23"),
+        ("/bw/datafiles/studiolights/world/forest.exr", "23", "27"),
     ]
-    source_data = b"ABBCCCDDDDEEEEEFFFFGGGG"
+    source_data = b"ABBCCCDDDDEEEEEFFFFGGGGHHHH"
     with tempfile.TemporaryDirectory(prefix="bw-stage-pack-contract-") as temp_text:
         temp = Path(temp_text)
         source = write_source(temp, manifest(entries, len(source_data)), source_data)
@@ -217,7 +231,7 @@ def main() -> None:
             raise AssertionError(f"valid pack failed: {result.stderr or result.stdout}")
         if (output / "blender_browser.data").read_bytes() != b"AEEEEE":
             raise AssertionError("stage-0 concatenation changed")
-        if (output / "stage1.data").read_bytes() != b"BBDDDDFFFFGGGG":
+        if (output / "stage1.data").read_bytes() != b"BBDDDDFFFFGGGGHHHH":
             raise AssertionError("stage-1 concatenation changed")
         _, _, packed_entries, packed_size = MODULE.parse_manifest(
             (output / "blender_browser.js").read_text(encoding="utf-8")
@@ -225,6 +239,7 @@ def main() -> None:
         expected_entries = [
             (entries[0][0], 0, 1),
             (entries[4][0], 1, 6),
+            (entries[7][0], 0, 0),
         ]
         if packed_entries != expected_entries or packed_size != 6:
             raise AssertionError(
@@ -232,24 +247,30 @@ def main() -> None:
             )
         stage1 = json.loads((output / "stage1-manifest.json").read_text(encoding="utf-8"))
         if stage1 != {
-            "total_bytes": 14,
+            "total_bytes": 18,
             "files": [
                 {"filename": entries[1][0], "start": 0, "end": 2},
                 {"filename": entries[3][0], "start": 2, "end": 6},
                 {"filename": entries[5][0], "start": 6, "end": 10},
                 {"filename": entries[6][0], "start": 10, "end": 14},
+                {"filename": entries[7][0], "start": 14, "end": 18},
             ],
         }:
             raise AssertionError(f"stage-1 manifest changed: {stage1!r}")
         deferred_names = {row["filename"] for row in stage1["files"]}
-        if deferred_names.intersection(filename for filename, _, _ in packed_entries):
-            raise AssertionError("deferred filename leaked into the Stage-0 preload manifest")
+        retained_deferred = deferred_names.intersection(
+            filename for filename, _, _ in packed_entries
+        )
+        if retained_deferred != {entries[7][0]}:
+            raise AssertionError(
+                f"discovery-only Stage-0 filenames changed: {retained_deferred!r}"
+            )
 
         malformed = manifest(entries, len(source_data)).replace("start:0", "start:bogus", 1)
         expect_exit(
             "unparsed manifest entry",
             lambda: MODULE.parse_manifest(malformed),
-            "parsed 6 of 7 manifest entries",
+            "parsed 7 of 8 manifest entries",
         )
         invalid_source = temp / "invalid"
         invalid_source.mkdir()
@@ -258,7 +279,7 @@ def main() -> None:
         )
         (invalid_source / "blender_browser.data").write_bytes(source_data)
         invalid = run_packer(invalid_source, temp / "invalid-out")
-        if invalid.returncode == 0 or "remote_package_size 22 != data bytes 23" not in (
+        if invalid.returncode == 0 or "remote_package_size 26 != data bytes 27" not in (
             invalid.stderr + invalid.stdout
         ):
             raise AssertionError("end-to-end remote-size mutation did not fail closed")
@@ -325,7 +346,8 @@ def main() -> None:
 
     print(
         "BW_STAGE_PACK_CONTRACT_PASS "
-        f"classifications={len(classifications)} positive=6 negative=12"
+        f"classifications={len(classifications)} discovery={len(discovery_cases)} "
+        "positive=7 negative=12"
     )
 
 

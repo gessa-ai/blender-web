@@ -350,7 +350,7 @@ def selfcheck() -> None:
         [sys.executable, str(STAGE_PACK_CONTRACT)], cwd=ROOT, capture_output=True, text=True
     )
     assert packer_contract.returncode == 0 and \
-        "BW_STAGE_PACK_CONTRACT_PASS classifications=569 positive=6 negative=12" in \
+        "BW_STAGE_PACK_CONTRACT_PASS classifications=571 discovery=5 positive=7 negative=12" in \
         packer_contract.stdout
     with tempfile.TemporaryDirectory(prefix="bw-stage-provenance-selfcheck-") as temporary:
         root = Path(temporary)

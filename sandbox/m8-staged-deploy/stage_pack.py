@@ -7,9 +7,10 @@
 #
 # Input  (read-only): a built blender_browser.{js,data} (monolith preload).
 # Output (bundle):    blender_browser.js  (glue with the baked manifest rewritten
-#                         to STAGE-0 real files only; deferred files are absent until
-#                         Stage 1. The original file-packager FS_createPath calls for
-#                         the FULL directory tree remain in the glue and are checked
+#                         to STAGE-0 real files plus zero-byte filenames required by
+#                         startup directory discovery. Other deferred files are absent
+#                         until Stage 1. The original file-packager FS_createPath calls
+#                         for the FULL directory tree remain in the glue and are checked
 #                         before omission, because post-boot mkdir is impossible under
 #                         the 0555 /bw mount but writing new files into existing dirs
 #                         works),
@@ -87,6 +88,14 @@ INTL_FONT_KEEP = ("Inter.woff2", "DejaVuSansMono.woff2")
 # Factory startup selects the AgX view on the sRGB display. False Color is an
 # on-demand view and its LUT is restored before post-Stage-1 color workflows.
 CM_LUT_KEEP = ("AgX_Base_sRGB.cube", "Guard_Rail_Shaper_EOTF.spi1d")
+# BKE_studiolight_init() discovers lazy world and matcap choices by enumerating
+# these two directories once at startup. Their large image payloads may ride
+# Stage 1, but their names must exist as zero-byte preload entries during that
+# one-time scan. Licenses are not image choices and remain fully absent.
+STUDIOLIGHT_DISCOVERY_PREFIXES = (
+    "/bw/datafiles/studiolights/matcap/",
+    "/bw/datafiles/studiolights/world/",
+)
 # Pinned native factory startup and the exact windowed CAPTURE generation agree on
 # this codec-source closure. The registry, aliases, IDNA, and UTF-8 paths must be
 # available before first pixels; legacy/locale-specific codecs can arrive with
@@ -636,6 +645,10 @@ def in_py(fn):
     return "/bw/python/lib/python3.13" in fn
 
 
+def requires_discovery_placeholder(fn):
+    return fn.startswith(STUDIOLIGHT_DISCOVERY_PREFIXES) and not fn.endswith("/license.txt")
+
+
 def classify(fn, defer_datafiles):
     """Return 'drop' | 'defer' | 'keep'."""
     # DROP: never needed at runtime.
@@ -730,11 +743,11 @@ def classify(fn, defer_datafiles):
             "/datafiles/splash_template.xcf",
         )):
             return "defer"
-        # Solid Workbench's factory-startup selection names an external `.sl`
-        # preset even though the light implementation also has an internal
-        # fallback. Keep the tiny text presets so the first frame cannot select a
-        # missing file and shade black. World/matcap images are lazy
-        # choices and can arrive after first pixels with the rest of Stage 1.
+        # Solid Workbench starts on Blender's internal `Default` studio light,
+        # but BKE_studiolight_init() eagerly parses every discovered external
+        # `.sl`. Keep those tiny preset bytes valid in Stage 0. World/matcap
+        # images are registered by filename and loaded only when selected, so
+        # their payloads can arrive after first pixels with Stage 1.
         if "/datafiles/studiolights/" in fn and not fn.endswith(".sl"):
             return "defer"
         # DEFER: non-Latin / CJK fonts. English UI and Console initialization
@@ -880,8 +893,8 @@ def main():
 
     # stage1-loader.js creates deferred files with FS.writeFile. This is valid
     # only because file_packager's original glue pre-creates every parent
-    # directory. Bind that source contract before removing deferred filenames
-    # from the critical preload manifest; fail closed if Emscripten changes it.
+    # directory. Bind that source contract before removing non-discovery deferred
+    # filenames from the critical preload manifest; fail closed if Emscripten changes it.
     precreated_directories = parse_precreated_directories(glue)
     deferred_parents = {posixpath.dirname(fn) for fn, _, _ in buckets["defer"]}
     missing_parents = sorted(deferred_parents - precreated_directories)
@@ -921,7 +934,7 @@ def main():
     # --- build stage0.data + new KEEP offsets, and stage1.data + stage1 manifest ---
     stage0 = bytearray()
     stage1 = bytearray()
-    new_entries = []          # real Stage-0 files in the rewritten baked manifest
+    new_entries = []          # real Stage-0 files plus discovery-only placeholders
     stage1_manifest = []      # for stage1-loader.js
     for fn, s, e in entries:
         b = classify(fn, args.defer_datafiles)
@@ -933,9 +946,15 @@ def main():
             start = len(stage1)
             stage1 += blob[s:e]
             stage1_manifest.append({"filename": fn, "start": start, "end": len(stage1)})
-            # Omit the file from Stage 0. Its parent directory is guaranteed by
-            # parse_precreated_directories above, so Stage 1 can create the real
-            # file with FS.writeFile without a masking zero-byte placeholder.
+            if requires_discovery_placeholder(fn):
+                # Blender enumerates these names once before Stage 1. Keep no
+                # payload, but let file_packager create the filename so the
+                # registry remains identical to the monolith; Stage 1 overwrites
+                # the placeholder with the exact image bytes.
+                new_entries.append((fn, 0, 0))
+            # Other deferred files are absent. Their parent directory is
+            # guaranteed by parse_precreated_directories above, so Stage 1 can
+            # create the real file with FS.writeFile.
         # drop: omit entirely
 
     # rewrite the baked metadata object in the glue

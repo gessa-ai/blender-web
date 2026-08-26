@@ -4,13 +4,14 @@
 // stage1-loader.js - deferred STAGE-1 streamer for the staged deploy bundle.
 //
 // The build preloads ONLY stage-0 (the baked manifest was rewritten by
-// stage_pack.py: stage-0 files carry real bytes and deferred files are absent. The
-// original file-packager glue still pre-creates their complete DIRECTORY tree -
-// post-boot mkdir is impossible under the 0555 /bw mount, recon in
-// notes/m8-staged-deploy.md. This script runs AFTER first pixels and streams the
-// rest into the SAME live WasmFS via FS.writeFile (creating files inside those
-// existing dirs is verified). It never blocks boot: it self-schedules off first
-// pixels.
+// stage_pack.py: stage-0 files carry real bytes; deferred files are absent except
+// for zero-byte filenames whose one-time startup directory discovery must match
+// the monolith. The original file-packager glue still pre-creates the complete
+// DIRECTORY tree - post-boot mkdir is impossible under the 0555 /bw mount, recon
+// in notes/m8-staged-deploy.md. This script runs AFTER first pixels and streams
+// the rest into the SAME live WasmFS via FS.writeFile (creating or overwriting
+// files inside those existing dirs is verified). It never blocks boot: it
+// self-schedules off first pixels.
 //
 // Contract preserved: this is an ADDITIVE bundle-only script injected after
 // boot-windowed.js; it touches no shell contract, no argv, no canvas, no gate path.

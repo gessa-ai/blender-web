@@ -12,6 +12,13 @@ the packer parses that exact source contract and fails closed unless all 335 def
 directories are present before it omits any file. Stage 1 then creates the real files with the
 already-verified `FS.writeFile` path.
 
+**Corrected later on 2026-08-26:** "all" was too broad. Blender enumerates the matcap and world
+StudioLight directories exactly once during `BKE_studiolight_init()`. Omitting those image names
+made the staged registry lose all 27 matcaps and eight worlds permanently, even after Stage 1
+restored their bytes. The current packer therefore retains exactly those 35 names as zero-byte
+discovery entries; every other deferred file remains absent. See
+`notes/m8-stage0-studiolight-discovery-20260826.md`.
+
 This also fixes a correctness defect hidden by the old placeholders. The first absent-file browser
 candidate produced a startup traceback because urllib3 reads
 `contrib/emscripten/emscripten_fetch_worker.js` during `bl_pkg` registration. Its former empty

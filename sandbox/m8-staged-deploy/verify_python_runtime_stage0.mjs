@@ -4,8 +4,9 @@
 // Prove that exact browser-cold Python/Blender sources, package support data,
 // and on-demand launch assets
 // can ride Stage 1 while the pre-Stage-1 product still boots and accepts trusted
-// viewport input. Deferred files are absent until Stage 1; it must restore
-// representative bytes, lazy imports,
+// viewport input. Deferred files are absent until Stage 1 except for the
+// zero-byte names Blender enumerates into startup registries; Stage 1 must
+// restore representative bytes, lazy imports,
 // package metadata/CA access, lazy toolbar icons, and the mono-font Console path.
 
 import {createRequire} from "node:module";
@@ -46,6 +47,10 @@ const coldPaths = [
   "/bw/datafiles/icons/ops.node.add_reroute.dat",
   "/bw/datafiles/icons/ops.sequencer.slip.dat",
   "/bw/datafiles/colormanagement/luts/AgX_False_Color.spi1d",
+];
+const discoveryPaths = [
+  "/bw/datafiles/studiolights/matcap/basic_bright.exr",
+  "/bw/datafiles/studiolights/world/forest.exr",
 ];
 const bootPaths = [
   "/bw/python/lib/python3.13/_collections_abc.py",
@@ -104,6 +109,7 @@ import bpy, hashlib, importlib, json, os, sys, traceback
 from bl_ui import space_toolsystem_common
 
 _bw_cold_paths = ${JSON.stringify(coldPaths)}
+_bw_discovery_paths = ${JSON.stringify(discoveryPaths)}
 _bw_boot_paths = ${JSON.stringify(bootPaths)}
 _bw_cold_module_names = ${JSON.stringify(coldModuleNames)}
 _bw_cold_icon_names = ${JSON.stringify(coldIconNames)}
@@ -146,8 +152,11 @@ def _bw_initial_probe():
             'items': sum(len(keymap.keymap_items) for keymap in keyconfig.keymaps),
         },
         'tool_icons': sorted(space_toolsystem_common._icon_cache),
+        'studio_lights': sorted((light.name, light.type)
+                                for light in bpy.context.preferences.studio_lights),
         'cold_modules': sorted(name for name in _bw_cold_module_names if name in sys.modules),
         'cold_files': {path: _bw_file_info(path) for path in _bw_cold_paths},
+        'discovery_files': {path: _bw_file_info(path) for path in _bw_discovery_paths},
         'boot_files': {path: _bw_file_info(path) for path in _bw_boot_paths},
     }
     with open(_bw_initial_result, 'w') as handle:
@@ -184,6 +193,19 @@ def _bw_stage1_probe():
         extension_cli = importlib.import_module('bl_pkg.bl_extension_cli')
         cycles_osl = importlib.import_module('cycles.osl')
         bpy.context.scene.view_settings.view_transform = 'False Color'
+        view3d_area = next((area for area in bpy.context.screen.areas
+                            if area.type == 'VIEW_3D'), None)
+        world_light = None
+        matcap_light = None
+        if view3d_area is not None:
+            shading = view3d_area.spaces.active.shading
+            shading.type = 'MATERIAL'
+            shading.studio_light = 'forest.exr'
+            world_light = shading.selected_studio_light.name
+            shading.type = 'SOLID'
+            shading.light = 'MATCAP'
+            shading.studio_light = 'basic_bright.exr'
+            matcap_light = shading.selected_studio_light.name
         for area in bpy.context.screen.areas:
             area.tag_redraw()
         reader_path = '/bw/python/lib/python3.13/_pyrepl/reader.py'
@@ -207,7 +229,8 @@ def _bw_stage1_probe():
         }
         info = {
             'error': None,
-            'restored': {path: _bw_file_info(path) for path in _bw_cold_paths},
+            'restored': {path: _bw_file_info(path)
+                         for path in _bw_cold_paths + _bw_discovery_paths},
             'decimal': str(decimal.Decimal('1.25') * decimal.Decimal('4')),
             'xml_tag': element_tree.Element('stage').tag,
             'logging_handler': handlers.RotatingFileHandler.__name__,
@@ -219,6 +242,10 @@ def _bw_stage1_probe():
             'extension_cli': hasattr(extension_cli, 'cli_extension_handler'),
             'cycles_osl': hasattr(cycles_osl, 'osl_compile'),
             'false_color_view': bpy.context.scene.view_settings.view_transform,
+            'studio_world': world_light,
+            'studio_matcap': matcap_light,
+            'studio_registry': sorted((light.name, light.type)
+                                      for light in bpy.context.preferences.studio_lights),
             'compiled_sources': len(compile_paths),
             'requests_version': metadata.version('requests'),
             'ca_certificates': ca_data.count(b'-----BEGIN CERTIFICATE-----'),
@@ -295,7 +322,7 @@ async function runCase(browser, label, port, loadStage1) {
       stage1: "manual",
       pyexpr: `exec(${JSON.stringify(pythonProbe)})`,
     });
-    await page.goto(`http://127.0.0.1:${port}/windowed.html?${query}`, {
+    await page.goto(`http://127.0.0.1:${port}/index.html?${query}`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForFunction(
@@ -370,7 +397,7 @@ finally {
 
 const failures = [];
 for (const key of ["version", "addons", "areas", "objects", "color_management", "keymap", "tool_icons",
-                   "cold_modules"]) {
+                   "studio_lights", "cold_modules"]) {
   if (JSON.stringify(baseline.initial[key]) !== JSON.stringify(staged.initial[key])) {
     failures.push(`startup state differs: ${key}`);
   }
@@ -389,6 +416,15 @@ if (baseline.initial.keymap.name !== "Blender" || baseline.initial.keymap.maps <
 if (JSON.stringify(baseline.initial.tool_icons) !== JSON.stringify(bootToolIcons)) {
   failures.push(`default toolbar icon closure changed: ${JSON.stringify(baseline.initial.tool_icons)}`);
 }
+const studioTypes = Object.fromEntries(["STUDIO", "MATCAP", "WORLD"].map((type) => [
+  type, baseline.initial.studio_lights.filter((row) => row[1] === type).length,
+]));
+if (baseline.initial.studio_lights.length !== 41 || studioTypes.STUDIO !== 6 ||
+    studioTypes.MATCAP !== 27 || studioTypes.WORLD !== 8) {
+  failures.push(`factory studio-light registry changed: ${JSON.stringify({
+    count: baseline.initial.studio_lights.length, studioTypes,
+  })}`);
+}
 for (const path of coldPaths) {
   const source = baseline.initial.cold_files[path];
   const absent = staged.initial.cold_files[path];
@@ -398,6 +434,16 @@ for (const path of coldPaths) {
   if (absent?.bytes !== null ||
       !absent?.error?.startsWith("FileNotFoundError:")) {
     failures.push(`cold file was materialized in Stage 0: ${path}`);
+  }
+}
+for (const path of discoveryPaths) {
+  const source = baseline.initial.discovery_files[path];
+  const placeholder = staged.initial.discovery_files[path];
+  if (!(source?.bytes > 0) || source.error) {
+    failures.push(`monolith discovery asset missing: ${path}`);
+  }
+  if (placeholder?.bytes !== 0 || placeholder.error !== null) {
+    failures.push(`discovery filename was not retained as a zero-byte Stage-0 entry: ${path}`);
   }
 }
 for (const path of bootPaths) {
@@ -433,6 +479,9 @@ if (!staged.restored || staged.restored.error || staged.restored.decimal !== "5.
     staged.restored.rna_info !== true || staged.restored.extension_cli !== true ||
     staged.restored.cycles_osl !== true || staged.restored.compiled_sources !== 2 ||
     staged.restored.false_color_view !== "False Color" ||
+    staged.restored.studio_world !== "forest.exr" ||
+    staged.restored.studio_matcap !== "basic_bright.exr" ||
+    JSON.stringify(staged.restored.studio_registry) !== JSON.stringify(baseline.initial.studio_lights) ||
     staged.restored.requests_version !== "2.32.3" ||
     !(staged.restored.ca_certificates > 100) || staged.restored.console_area !== "CONSOLE" ||
     coldIconNames.some((name) => !(staged.restored.cold_icons?.[name] > 0))) {
@@ -448,6 +497,12 @@ for (const path of coldPaths) {
   if (JSON.stringify(staged.restored?.restored?.[path]) !==
       JSON.stringify(baseline.initial.cold_files[path])) {
     failures.push(`Stage 1 did not restore cold file byte-exactly: ${path}`);
+  }
+}
+for (const path of discoveryPaths) {
+  if (JSON.stringify(staged.restored?.restored?.[path]) !==
+      JSON.stringify(baseline.initial.discovery_files[path])) {
+    failures.push(`Stage 1 did not restore discovery asset byte-exactly: ${path}`);
   }
 }
 

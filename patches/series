@@ -1164,3 +1164,6 @@
 # 0286: capture exact background/display target viewport and scissor plans once
 # per bounded resize-episode present for hardware-only stale-composite diagnosis.
 0286-gpu-webgpu-resize-draw-trace.patch
+# 0287: reactivate the browser WebGPU window context before each drawn frame so
+# a coherently committed replacement backbuffer is adopted before region draws.
+0287-wm-webgpu-refresh-window-backbuffer.patch

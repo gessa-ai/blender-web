@@ -4,8 +4,11 @@
 # M4 window resize recovery contract
 
 `verify_source.py` binds persistent backbuffer adoption to an explicit refresh of both default
-framebuffer extent caches. The integrated first-pixel contract also requires every applied browser
-extent to request a redraw after surface reconfiguration and the WM size event, then requires the
+framebuffer extent caches. It also requires browser WebGPU to join Metal's established per-frame
+drawable reset: a single-window redraw must reactivate its GPU context so `sync_backbuffer()`
+adopts a coherently committed replacement texture before any region encodes into the default
+framebuffer. The integrated first-pixel contract also requires every applied browser extent to
+request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.
 `verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
 viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`

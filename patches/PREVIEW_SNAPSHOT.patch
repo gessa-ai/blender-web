@@ -57403,7 +57403,7 @@ index a39a8dbc3f56700b7904f3885fa284a06eb15272..ec9e3331409794e0680de11ecebe143d
  
  }  // namespace blender
 diff --git a/source/blender/windowmanager/intern/wm_draw.cc b/source/blender/windowmanager/intern/wm_draw.cc
-index 82fb63076af4d971ee613b12da05fbc1f7e180f8..0613c77deb6d8129292d60aa40d23aa4c21e1e29 100644
+index 82fb63076af4d971ee613b12da05fbc1f7e180f8..1d6c555d75e7cdbb6f25fd171074751a2df8ecab 100644
 --- a/source/blender/windowmanager/intern/wm_draw.cc
 +++ b/source/blender/windowmanager/intern/wm_draw.cc
 @@ -8,8 +8,11 @@
@@ -57592,6 +57592,16 @@ index 82fb63076af4d971ee613b12da05fbc1f7e180f8..0613c77deb6d8129292d60aa40d23aa4
  bool WM_window_pixels_read_sample_from_offscreen(bContext *C,
                                                   wmWindow *win,
                                                   const int pos[2],
+@@ -1656,7 +1819,8 @@ void wm_draw_update(bContext *C)
+ 
+   BKE_image_free_unused_gpu_textures();
+ 
+-#ifdef WITH_METAL_BACKEND
++#if defined(WITH_METAL_BACKEND) || \
++    (defined(WITH_WEBGPU_BACKEND) && defined(__EMSCRIPTEN__))
+   /* Reset drawable to ensure GPU context activation happens at least once per frame if only a
+    * single context exists. This is required to ensure the default framebuffer is updated
+    * to be the latest backbuffer. */
 diff --git a/source/blender/windowmanager/intern/wm_jobs.cc b/source/blender/windowmanager/intern/wm_jobs.cc
 index 8d6cdb030311df4b9536fa069369923de3c028c2..761427c2e11af1a42b4345488005b3ebf793773e 100644
 --- a/source/blender/windowmanager/intern/wm_jobs.cc

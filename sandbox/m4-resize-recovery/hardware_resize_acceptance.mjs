@@ -58,6 +58,8 @@ const SHRINK_POLLS = 12;
 const SHRINK_POLL_MS = 2000;
 const DOMINANT_FRACTION_LIMIT = 0.95;
 const STABLE_PAINT_POLLS = 3;
+const REQUIRED_IMAGE_KEYS = Object.freeze(["boot", "baseline", "shrink"]);
+const SHA256_RE = /^[0-9a-f]{64}$/;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader",
   "llvmpipe",
@@ -109,6 +111,28 @@ function requireDirectDescendantPath(
 
 function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function portableRelative(parent, path) {
+  return relative(parent, path).replaceAll("\\", "/");
+}
+
+function fileIdentity(path, parent = REPO) {
+  const info = lstatSync(path);
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error(`evidence identity requires a direct regular file: ${path}`);
+  }
+  return {
+    path: portableRelative(parent, path),
+    bytes: info.size,
+    sha256: sha256File(path),
+  };
+}
+
+function writeEvidenceImage(runDir, filename, buffer) {
+  const path = join(runDir, filename);
+  writeFileSync(path, buffer, {flag: "wx"});
+  return fileIdentity(path, runDir);
 }
 
 function requireNodeVersion(version = process.version) {
@@ -232,10 +256,8 @@ function readProductIdentity(binDir, expectedWasmOrigSha256) {
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`canonical product file is not a direct regular file: ${path}`);
     }
-    files[name] = {bytes: statSync(path).size};
+    files[name] = {bytes: statSync(path).size, sha256: sha256File(path)};
   }
-  const wasmOrigPath = join(binDir, "blender_browser.wasm.orig");
-  files["blender_browser.wasm.orig"].sha256 = sha256File(wasmOrigPath);
   if (files["blender_browser.wasm.orig"].sha256 !== expectedWasmOrigSha256) {
     throw new Error(
       `wasm.orig generation mismatch: expected ${expectedWasmOrigSha256}, ` +
@@ -251,7 +273,7 @@ function readProductIdentity(binDir, expectedWasmOrigSha256) {
       `got ${generation.originalWasmSha256}`,
     );
   }
-  return {binDir: relative(REPO, binDir), files, generation};
+  return {binDir: portableRelative(REPO, binDir), files, generation};
 }
 
 async function fetchServedGeneration(
@@ -420,9 +442,29 @@ async function waitForSemanticPaint(
 }
 
 function finalVerdict(results) {
-  return results.length === REQUIRED_ATTEMPTS && results.every((result) =>
-    result.ok && result.postResizeInputEvents === 0 && result.pageErrors.length === 0 &&
-    !hasRelevantErrors(result.relevantErrors));
+  const imageManifestComplete = (result, expectedAttempt) => {
+    if (!result?.images || Object.keys(result.images).sort().join(",") !==
+        [...REQUIRED_IMAGE_KEYS].sort().join(",")) {
+      return false;
+    }
+    const prefix = String(expectedAttempt).padStart(2, "0");
+    const expectedNames = {
+      boot: `${prefix}-boot.png`,
+      baseline: `${prefix}-pre-resize.png`,
+      shrink: `${prefix}-shrink.png`,
+    };
+    return REQUIRED_IMAGE_KEYS.every((key) => {
+      const image = result.images[key];
+      return image?.path === expectedNames[key] && Number.isInteger(image.bytes) &&
+        image.bytes > 0 && SHA256_RE.test(image.sha256 || "");
+    });
+  };
+  return results.length === REQUIRED_ATTEMPTS && results.every((result, index) =>
+    result.attempt === index + 1 && result.ok && result.postResizeInputEvents === 0 &&
+    Array.isArray(result.pageErrors) && result.pageErrors.length === 0 &&
+    Array.isArray(result.relevantConsole) && !hasRelevantErrors(result.relevantErrors) &&
+    stableSemanticPainted({proof: result.shrink, stablePaintPolls: result.shrink?.stablePaintPolls},
+      STABLE_PAINT_POLLS) && imageManifestComplete(result, index + 1));
 }
 
 async function runSelfcheck() {
@@ -662,20 +704,33 @@ async function runSelfcheck() {
   check(classifyConsoleLine("WGPUWeb: present transaction rejected", errors) &&
     errors.transactionRejected === 1, "present rejection was not counted");
   check(!classifyConsoleLine("[bw] ordinary resize", errors), "ordinary log was rejected");
-  const passingAttempt = {
+  const passingAttempt = (attempt) => ({
+    attempt,
     ok: true,
+    shrink: {painted: true, stablePaintPolls: STABLE_PAINT_POLLS},
+    images: Object.fromEntries(REQUIRED_IMAGE_KEYS.map((key) => [key, {
+      path: `${String(attempt).padStart(2, "0")}-${key === "baseline" ? "pre-resize" : key}.png`,
+      bytes: 100,
+      sha256: "a".repeat(64),
+    }])),
     postResizeInputEvents: 0,
     pageErrors: [],
     relevantErrors: emptyErrorCounts(),
-  };
-  check(finalVerdict(Array.from({length: REQUIRED_ATTEMPTS}, () => ({...passingAttempt,
-    relevantErrors: emptyErrorCounts()}))), "10 clean attempts were rejected");
-  check(!finalVerdict(Array.from({length: REQUIRED_ATTEMPTS - 1}, () => passingAttempt)),
+    relevantConsole: [],
+  });
+  check(finalVerdict(Array.from({length: REQUIRED_ATTEMPTS}, (_, index) =>
+    passingAttempt(index + 1))), "10 clean attempts were rejected");
+  check(!finalVerdict(Array.from({length: REQUIRED_ATTEMPTS - 1}, (_, index) =>
+    passingAttempt(index + 1))),
     "nine attempts were accepted");
   check(!finalVerdict(Array.from({length: REQUIRED_ATTEMPTS}, (_, index) => ({
-    ...passingAttempt,
+    ...passingAttempt(index + 1),
     pageErrors: index === 9 ? [{name: "Error", message: "fixture"}] : [],
   }))), "page-error attempt was accepted");
+  check(!finalVerdict(Array.from({length: REQUIRED_ATTEMPTS}, (_, index) => ({
+    ...passingAttempt(index + 1),
+    images: index === 9 ? {} : passingAttempt(index + 1).images,
+  }))), "missing image identities were accepted");
 
   if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
     const live = resolveBrowserDependencies();
@@ -732,7 +787,7 @@ async function runLive(options) {
       status: "RUNNING",
       run: options.run,
       startedAt: new Date().toISOString(),
-      source: relative(REPO, fileURLToPath(import.meta.url)),
+      source: fileIdentity(fileURLToPath(import.meta.url)),
       product,
       browser: {
         nodeVersion: process.version,
@@ -770,6 +825,7 @@ async function runLive(options) {
       const relevantErrors = emptyErrorCounts();
       const relevantConsole = [];
       const pageErrors = [];
+      const images = {};
       page.on("console", (message) => {
         const line = message.text();
         if (classifyConsoleLine(line, relevantErrors)) relevantConsole.push(line);
@@ -783,7 +839,9 @@ async function runLive(options) {
         const boot = await waitForSemanticPaint(
           page, dependencies.PNG, INITIAL_EXTENT, BOOT_POLLS, BOOT_POLL_MS,
         );
-        writeFileSync(join(runDir, `${String(attempt).padStart(2, "0")}-boot.png`), boot.buffer);
+        images.boot = writeEvidenceImage(
+          runDir, `${String(attempt).padStart(2, "0")}-boot.png`, boot.buffer,
+        );
         if (!boot.proof?.painted) throw new Error("VIEW_3D never painted during boot bound");
 
         await page.mouse.click(640, 360);
@@ -791,8 +849,9 @@ async function runLive(options) {
         const baseline = await waitForSemanticPaint(
           page, dependencies.PNG, INITIAL_EXTENT, POST_DISMISS_POLLS, POST_DISMISS_POLL_MS,
         );
-        writeFileSync(
-          join(runDir, `${String(attempt).padStart(2, "0")}-pre-resize.png`),
+        images.baseline = writeEvidenceImage(
+          runDir,
+          `${String(attempt).padStart(2, "0")}-pre-resize.png`,
           baseline.buffer,
         );
         if (!baseline.proof?.painted) {
@@ -809,8 +868,9 @@ async function runLive(options) {
           SHRINK_POLL_MS,
           STABLE_PAINT_POLLS,
         );
-        writeFileSync(
-          join(runDir, `${String(attempt).padStart(2, "0")}-shrink.png`),
+        images.shrink = writeEvidenceImage(
+          runDir,
+          `${String(attempt).padStart(2, "0")}-shrink.png`,
           shrink.buffer,
         );
         const postResizeInputEvents = 0;
@@ -825,6 +885,7 @@ async function runLive(options) {
           boot: boot.proof,
           baseline: baseline.proof,
           shrink: {...shrink.proof, stablePaintPolls: shrink.stablePaintPolls},
+          images,
           postResizeInputEvents,
           pageErrors,
           relevantErrors,
@@ -841,6 +902,7 @@ async function runLive(options) {
           pageErrors,
           relevantErrors,
           relevantConsole,
+          images,
         };
       }
       finally {
